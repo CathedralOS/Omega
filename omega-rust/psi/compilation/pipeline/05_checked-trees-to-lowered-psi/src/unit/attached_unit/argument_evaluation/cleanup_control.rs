@@ -11,10 +11,82 @@ use super::{
     block_id, declarations, edge_id, value_id,
 };
 use crate::unit::unit_cleanup::CleanupRegion;
-use semantic_vocabulary::{BlockId, EdgeId, ScalarType};
-use terminal_psi::{Block, OperationKind, OperationResult, SuccessorEdge};
+use semantic_vocabulary::{BlockId, EdgeId, ProofTerm, ScalarType};
+use terminal_psi::{
+    Block, OperationKind, OperationResult, SuccessorEdge, TerminalAffineCleanupAction,
+};
+
+/// Invocation-owned block construction shared by statement continuations and
+/// scalar expansion. Storage coordinates are already captured and normalized.
+/// The first block retains its incoming declarations; private continuations
+/// carry scalar values and forward erased proof formals without reevaluation.
+pub(crate) struct CleanupEmission<'a> {
+    pub(crate) current: &'a mut BlockId,
+    pub(crate) parameters: &'a mut Vec<ValueDeclaration>,
+    pub(crate) structural_parameters: &'a mut Vec<terminal_psi::StructuralParameterDeclaration>,
+    pub(crate) block_erased_scalar_formals: &'a mut Vec<ValueDeclaration>,
+    pub(crate) erased_proof_formals: &'a [checked_trees::CheckedErasedProofParameterPlan],
+    pub(crate) operation_start: &'a mut usize,
+    pub(crate) blocks: &'a mut Vec<Block>,
+}
 
 impl Evaluation {
+    /// Bind outgoing structural operands before cleanup can retire their old
+    /// homes. The later edge forwards these whole captures, not their old paths.
+    pub(crate) fn capture_cleanup_arguments(
+        &mut self,
+        arguments: &mut Vec<terminal_psi::StructuralArgument>,
+        declarations: &[terminal_psi::StructuralParameterDeclaration],
+        values: &mut Vec<ValueDeclaration>,
+        next_place: &mut u64,
+        places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        CleanupEmission {
+            current: &mut self.current,
+            parameters: &mut self.parameters,
+            structural_parameters: &mut self.block_structural_parameters,
+            block_erased_scalar_formals: &mut Vec::new(),
+            erased_proof_formals: &self.erased_proof_formals,
+            operation_start: &mut self.operation_start,
+            blocks: &mut self.blocks,
+        }
+        .capture_arguments(
+            arguments,
+            declarations,
+            values,
+            next_place,
+            places,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+        )
+    }
+
+    /// Flat schedules remain on the completion edge; selected schedules use
+    /// the same private control blocks as statement and call continuations.
+    pub(crate) fn emit_cleanup_regions(
+        &mut self,
+        regions: Vec<CleanupRegion>,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+    ) -> Result<Vec<TerminalAffineCleanupAction>, LoweringError> {
+        if regions.iter().all(|region| region.conditions.is_empty()) {
+            return Ok(regions.into_iter().map(|region| region.action).collect());
+        }
+        self.continue_cleanup_regions(
+            regions, values, next_value, next_block, next_edge, operations,
+        )?;
+        Ok(Vec::new())
+    }
+
     pub(crate) fn continue_cleanup_regions(
         &mut self,
         mut regions: Vec<CleanupRegion>,
@@ -25,12 +97,151 @@ impl Evaluation {
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         for region in &mut regions {
+            let place = match &mut region.action {
+                TerminalAffineCleanupAction::DiscardRoot(place)
+                | TerminalAffineCleanupAction::RetireHome(place) => place,
+                TerminalAffineCleanupAction::DiscardResidual(discard) => &mut discard.place,
+                TerminalAffineCleanupAction::InvokeNominal(cleanup) => &mut cleanup.place,
+            };
+            *place = self.current_structural_place(*place);
             for condition in &mut region.conditions {
                 condition.place = self.current_structural_place(condition.place);
             }
         }
+        CleanupEmission {
+            current: &mut self.current,
+            parameters: &mut self.parameters,
+            structural_parameters: &mut self.block_structural_parameters,
+            block_erased_scalar_formals: &mut Vec::new(),
+            erased_proof_formals: &self.erased_proof_formals,
+            operation_start: &mut self.operation_start,
+            blocks: &mut self.blocks,
+        }
+        .emit(
+            &regions, values, next_value, next_block, next_edge, operations,
+        )
+    }
+}
+
+impl CleanupEmission<'_> {
+    pub(crate) fn capture_arguments(
+        &mut self,
+        arguments: &mut Vec<terminal_psi::StructuralArgument>,
+        declarations: &[terminal_psi::StructuralParameterDeclaration],
+        values: &mut Vec<ValueDeclaration>,
+        next_place: &mut u64,
+        places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        if arguments.len() != declarations.len() {
+            return Err(LoweringError::Unsupported(
+                "cleanup capture has no exact structural roster",
+            ));
+        }
+        if arguments.is_empty() {
+            return Ok(());
+        }
+        let target = block_id(allocate_dense(next_block)?);
+        let parameters = super::declarations(
+            &values
+                .iter()
+                .map(|value| value.value_type())
+                .collect::<Vec<_>>(),
+            next_value,
+        )?;
+        let mut captures = Vec::with_capacity(arguments.len());
+        let mut forwarded = Vec::with_capacity(arguments.len());
+        for (ordinal, (argument, declaration)) in arguments.iter().zip(declarations).enumerate() {
+            let position = u32::try_from(ordinal).map_err(|_| {
+                LoweringError::Unsupported("cleanup capture structural roster exceeds u32")
+            })?;
+            let place = crate::terminal_identities::place_id(allocate_dense(next_place)?);
+            places.push(terminal_psi::StructuralPlaceDeclaration {
+                id: place,
+                kind: semantic_vocabulary::StructuralPlaceKind::BlockParameter {
+                    block: target,
+                    position,
+                },
+            });
+            let mut capture = declaration.clone();
+            capture.place = place;
+            capture.position = position;
+            capture.access = argument.access;
+            captures.push(capture);
+            forwarded.push(terminal_psi::StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: argument.access,
+            });
+        }
+        self.cleanup_jump(
+            target,
+            &parameters,
+            Vec::new(),
+            std::mem::take(arguments),
+            values,
+            next_edge,
+            operations,
+        )?;
+        *self.structural_parameters = captures;
+        *arguments = forwarded;
+        Ok(())
+    }
+
+    pub(crate) fn emit(
+        &mut self,
+        regions: &[CleanupRegion],
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+    ) -> Result<(), LoweringError> {
         self.cleanup_scope(
-            &regions, 0, values, next_value, next_block, next_edge, operations,
+            regions, 0, values, next_value, next_block, next_edge, operations,
+        )
+    }
+
+    fn proof_arguments(&self) -> Result<Vec<ProofTerm>, LoweringError> {
+        (0..self.erased_proof_formals.len())
+            .map(|position| {
+                Ok(ProofTerm::Formal {
+                    position: u32::try_from(position).map_err(|_| {
+                        LoweringError::Unsupported("cleanup erased-proof roster exceeds u32")
+                    })?,
+                })
+            })
+            .collect()
+    }
+
+    pub(crate) fn continue_actions(
+        &mut self,
+        actions: Vec<TerminalAffineCleanupAction>,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &OperationBuffer,
+    ) -> Result<EdgeId, LoweringError> {
+        let continuation = block_id(allocate_dense(next_block)?);
+        let parameters = declarations(
+            &values
+                .iter()
+                .map(|value| value.value_type())
+                .collect::<Vec<_>>(),
+            next_value,
+        )?;
+        self.cleanup_jump(
+            continuation,
+            &parameters,
+            actions,
+            Vec::new(),
+            values,
+            next_edge,
+            operations,
         )
     }
 
@@ -60,7 +271,7 @@ impl Evaluation {
                     .iter()
                     .map(|region| region.action.clone())
                     .collect();
-                self.continue_values(
+                self.continue_actions(
                     actions, values, next_value, next_block, next_edge, operations,
                 )?;
                 remaining = &remaining[count..];
@@ -151,22 +362,12 @@ impl Evaluation {
             operations.push_leaf(
                 OperationResult::Scalar(observation.clone()),
                 OperationKind::StructuralCaseMembership {
-                    source: self.current_structural_place(condition.place),
+                    source: condition.place,
                     path: condition.path.clone(),
                     case: condition.case,
                 },
             );
-            let proof_arguments = self
-                .proof_formal_forwarding()
-                .iter()
-                .map(|term| {
-                    crate::scalar_lowering::contracts::lowered_proof_term(
-                        term,
-                        values,
-                        &self.erased_scalar_formals,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let proof_arguments = self.proof_arguments()?;
             let successor = |edge, target| SuccessorEdge {
                 edge,
                 target,
@@ -177,25 +378,25 @@ impl Evaluation {
                 cleanup_actions: Vec::new(),
             };
             self.blocks.push(Block {
-                id: self.current,
-                parameters: std::mem::take(&mut self.parameters),
-                structural_parameters: std::mem::take(&mut self.block_structural_parameters),
-                erased_scalar_formals: Vec::new(),
+                id: *self.current,
+                parameters: std::mem::take(self.parameters),
+                structural_parameters: std::mem::take(self.structural_parameters),
+                erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
                 erased_proof_formals:
                     crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                        &self.erased_proof_formals,
+                        self.erased_proof_formals,
                     ),
-                operations: operations[self.operation_start..].to_vec(),
+                operations: operations[*self.operation_start..].to_vec(),
                 terminator: Terminator::Conditional {
                     condition: observation.id,
                     when_true: successor(edge_id(allocate_dense(next_edge)?), when_true),
                     when_false: successor(edge_id(allocate_dense(next_edge)?), when_false),
                 },
             });
-            self.current = when_true;
-            self.parameters = when_true_parameters.clone();
+            *self.current = when_true;
+            *self.parameters = when_true_parameters.clone();
             *values = when_true_parameters;
-            self.operation_start = operations.len();
+            *self.operation_start = operations.len();
             self.cleanup_scope(
                 &remaining[..count],
                 depth + 1,
@@ -205,11 +406,11 @@ impl Evaluation {
                 next_edge,
                 operations,
             )?;
-            self.cleanup_jump(join, join_parameters, values, next_edge, operations)?;
-            self.current = when_false;
-            self.parameters = when_false_parameters.clone();
+            self.cleanup_jump(join, join_parameters, Vec::new(), Vec::new(), values, next_edge, operations)?;
+            *self.current = when_false;
+            *self.parameters = when_false_parameters.clone();
             *values = when_false_parameters;
-            self.operation_start = operations.len();
+            *self.operation_start = operations.len();
             remaining = &remaining[count..];
         }
         Ok(())
@@ -219,45 +420,37 @@ impl Evaluation {
         &mut self,
         target: BlockId,
         parameters: &[ValueDeclaration],
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
+        structural_arguments: Vec<terminal_psi::StructuralArgument>,
         values: &mut Vec<ValueDeclaration>,
         next_edge: &mut u64,
         operations: &OperationBuffer,
     ) -> Result<EdgeId, LoweringError> {
         let edge = edge_id(allocate_dense(next_edge)?);
         self.blocks.push(Block {
-            id: self.current,
-            parameters: std::mem::take(&mut self.parameters),
-            structural_parameters: std::mem::take(&mut self.block_structural_parameters),
-            erased_scalar_formals: Vec::new(),
+            id: *self.current,
+            parameters: std::mem::take(self.parameters),
+            structural_parameters: std::mem::take(self.structural_parameters),
+            erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-                    &self.erased_proof_formals,
+                    self.erased_proof_formals,
                 ),
-            operations: operations[self.operation_start..].to_vec(),
+            operations: operations[*self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
                 edge,
                 target,
                 arguments: values.iter().map(|value| value.id).collect(),
                 erased_arguments: Vec::new(),
-                erased_proof_arguments: self
-                    .proof_formal_forwarding()
-                    .iter()
-                    .map(|term| {
-                        crate::scalar_lowering::contracts::lowered_proof_term(
-                            term,
-                            values,
-                            &self.erased_scalar_formals,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-                structural_arguments: Vec::new(),
-                cleanup_actions: Vec::new(),
+                erased_proof_arguments: self.proof_arguments()?,
+                structural_arguments,
+                cleanup_actions,
             },
         });
-        self.current = target;
-        self.parameters = parameters.to_vec();
+        *self.current = target;
+        *self.parameters = parameters.to_vec();
         *values = parameters.to_vec();
-        self.operation_start = operations.len();
+        *self.operation_start = operations.len();
         Ok(edge)
     }
 }

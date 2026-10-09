@@ -48,7 +48,7 @@ fn decode_cleanup(
                 structural_type: decode_structural_type(cursor)?,
             },
         ),
-        3 => {
+        tag @ (3 | 5) => {
             let place = decode_place(cursor)?;
             let path = decode_path(cursor)?;
             let structural_type = decode_structural_type(cursor)?;
@@ -62,6 +62,7 @@ fn decode_cleanup(
             let requirement_obligations = decode_ids(cursor, ObligationId::new)?;
             terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
                 terminal_psi::NominalAffineCleanup {
+                    retains_descendants: tag == 5,
                     place,
                     path,
                     structural_type,
@@ -151,6 +152,7 @@ mod tests {
         ] {
             let action =
                 TerminalAffineCleanupAction::InvokeNominal(terminal_psi::NominalAffineCleanup {
+                    retains_descendants: false,
                     place: PlaceId::new(1).unwrap(),
                     path,
                     structural_type: StructuralTypeId::new(2).unwrap(),

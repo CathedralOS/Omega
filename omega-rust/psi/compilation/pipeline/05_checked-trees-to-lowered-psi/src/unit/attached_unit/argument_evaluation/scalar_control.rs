@@ -20,7 +20,7 @@ use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator
 /// return share one completion edge rather than cloning its action identities.
 pub(crate) struct ScalarReturnCleanup {
     pub(crate) destination: CheckedScalarBranchDestination,
-    pub(crate) actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
+    pub(crate) actions: Vec<crate::unit::unit_cleanup::CleanupRegion>,
 }
 
 fn completion_target(

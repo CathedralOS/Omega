@@ -632,6 +632,7 @@ fn successor_case_round_trip_retains_ordered_cleanup_actions() {
         cleanup_actions: vec![
             TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(13).unwrap()),
             TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
+                retains_descendants: false,
                 place: PlaceId::new(14).unwrap(),
                 path: vec![
                     StructuralPathSegment::Field("owned_children".into()),

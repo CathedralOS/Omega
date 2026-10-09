@@ -7,6 +7,7 @@
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::{Evaluation, ScalarReturnCleanup};
+use crate::unit::unit_cleanup::CleanupRegion;
 use checked_trees::{
     CheckedComposedUnitControlStatePlan, CheckedNormalCleanupAction,
     CheckedScalarBranchDestination, CheckedUnitEffectOperationPlan, FlowClaimJoinExit,
@@ -59,7 +60,7 @@ pub(super) fn scalar_returns(
                 })?,
                 is_continuation: cleanup.exit.kind == FlowClaimJoinExitKind::TransitionContinuation,
             };
-            let mut actions = for_exit(
+            let mut actions = for_exit_regions(
                 state,
                 cleanup.exit,
                 catalogs,
@@ -79,11 +80,12 @@ pub(super) fn scalar_returns(
 /// Replace selected-owner source rows at their original establishment positions.
 /// Returns and private scalar completion edges share this receipt substitution;
 /// action groups stay intact instead of regrouping nominal and residual work.
+
 pub(super) fn selection(
     state: &CheckedComposedUnitControlStatePlan,
     evaluation: &Evaluation,
     operations: &OperationBuffer,
-    actions: &mut Vec<TerminalAffineCleanupAction>,
+    actions: &mut Vec<CleanupRegion>,
 ) -> Result<(), LoweringError> {
     if evaluation.selection_cleanups.is_empty() {
         return Ok(());
@@ -97,7 +99,7 @@ pub(super) fn selection(
             // one arm may consume a local that another arm must clean up.
             let disposed = actions
                 .iter()
-                .any(|action| action.place() == evaluation.current_structural_place(place));
+                .any(|region| region.action.place() == evaluation.current_structural_place(place));
             roots.push((place, disposed));
         }
     }
@@ -109,8 +111,8 @@ pub(super) fn selection(
     );
     let mut action_roots = Vec::new();
     for action in actions.iter() {
-        if !action_roots.contains(&action.place()) {
-            action_roots.push(action.place());
+        if !action_roots.contains(&action.action.place()) {
+            action_roots.push(action.action.place());
         }
     }
     for place in action_roots {
@@ -124,11 +126,15 @@ pub(super) fn selection(
     let selected = evaluation.selection_return_discards(roots)?;
     let previous = std::mem::take(actions);
     for place in selected {
-        let retained = previous.iter().filter(|action| action.place() == place);
+        let retained = previous
+            .iter()
+            .filter(|region| region.action.place() == place);
         if retained.clone().next().is_some() {
             actions.extend(retained.cloned());
         } else {
-            actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
+            actions.push(CleanupRegion::unconditional(
+                TerminalAffineCleanupAction::DiscardRoot(place),
+            ));
         }
     }
     Ok(())
@@ -250,14 +256,14 @@ fn deferred_carrier_releases(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn for_exit(
+pub(super) fn for_exit_regions(
     state: &CheckedComposedUnitControlStatePlan,
     exit: FlowClaimJoinExit,
     catalogs: &mut catalogs::ComposedCatalogs<'_>,
     parameters: &[StructuralParameterDeclaration],
     evaluation: &Evaluation,
     operations: &OperationBuffer,
-) -> Result<Vec<TerminalAffineCleanupAction>, LoweringError> {
+) -> Result<Vec<CleanupRegion>, LoweringError> {
     let mut selected = state
         .normal_exit_cleanups
         .iter()
@@ -280,24 +286,30 @@ pub(super) fn for_exit(
         })
         .collect::<Vec<_>>();
     let discharged = discharged_in_body(state);
-    let rows = crate::unit::unit_cleanup::lower_checked_cleanup_actions(
+    let rows = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
         selected_exit
             .actions
             .iter()
             .filter(|action| !discharged.iter().any(|committed| *committed == *action)),
+        catalogs.cleanup_control,
         &catalogs.structural_types,
         &catalogs.type_ids,
-        |source| {
-            evaluation.cleanup_storage(source, parameters, |binding_ordinal| {
-                let (_, result) = operations
+        |source, path| {
+            let (place, root_type) =
+                evaluation.cleanup_storage(source, parameters, |binding_ordinal| {
+                    let (_, result) = operations
                     .structural_values
                     .iter()
                     .find(|(ordinal, _)| *ordinal == binding_ordinal)
                     .ok_or(LoweringError::Unsupported(
                         "cleanup result is not established",
                     ))?;
-                Ok((result.place(), result.structural_type()))
-            })
+                    Ok((result.place(), result.structural_type()))
+                })?;
+            let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                path, root_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
+            )?;
+            Ok((place, path))
         },
         |cleanup, place, structural_type, path| {
             crate::unit::unit_cleanup::lower_nominal_cleanup_action(
@@ -312,8 +324,15 @@ pub(super) fn for_exit(
             )
         },
     )?;
-    let mut actions = deferred_carrier_releases(state, evaluation, operations)?;
-    actions.retain(|carrier| !rows.iter().any(|row| row.place() == carrier.place()));
+    let mut actions = deferred_carrier_releases(state, evaluation, operations)?
+        .into_iter()
+        .map(CleanupRegion::unconditional)
+        .collect::<Vec<_>>();
+    actions.retain(|carrier| {
+        !rows
+            .iter()
+            .any(|row| row.action.place() == carrier.action.place())
+    });
     actions.extend(rows);
     Ok(actions)
 }

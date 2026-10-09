@@ -822,9 +822,18 @@ impl OperationFrame<'_, '_> {
         boundary: &checked_trees::CheckedUnitCleanupBoundary,
         cleanup_actions: &[checked_trees::CheckedNormalCleanupAction],
     ) -> Result<(), LoweringError> {
-        let mut actions = Vec::new();
-        for action in cleanup_actions {
-            let captured = match boundary {
+        let actions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+            cleanup_actions,
+            &self
+                .checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .cleanup_control,
+            self.structural_types.declarations(),
+            self.type_ids,
+            |source, selected_path| {
+                let captured = match boundary {
                 checked_trees::CheckedUnitCleanupBoundary::Replacement {
                     statement_index,
                     destination,
@@ -835,17 +844,17 @@ impl OperationFrame<'_, '_> {
                 {
                     self.windows.captured_assignment_place(
                         *statement_index,
-                        action.source(),
-                        action.path(),
+                        source,
+                        selected_path,
                     )?
                 }
                 _ => None,
             };
-            let (place, path) = if let Some(captured) = captured {
-                captured
-            } else {
+                if let Some(captured) = captured {
+                    return Ok(captured);
+                }
                 let (place, root_type) = self.evaluation.cleanup_storage(
-                    action.source(),
+                    source,
                     self.parameters,
                     |binding_ordinal| {
                         let place = self
@@ -858,80 +867,13 @@ impl OperationFrame<'_, '_> {
                     },
                 )?;
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    action.path(), root_type, self.structural_types.declarations(),
+                    selected_path, root_type, self.structural_types.declarations(),
                     None, &mut std::iter::empty(), None,
                 )?;
-                (place, path)
-            };
-            let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
-                &self
-                    .checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .cleanup_control,
-                action.case_conditions(),
-                self.structural_types.declarations(),
-                self.type_ids,
-                |condition_path| {
-                    if let checked_trees::CheckedUnitCleanupBoundary::Replacement {
-                        statement_index,
-                        destination,
-                        old_value,
-                        ..
-                    } = boundary
-                        && destination.source == old_value.source
-                        && destination.path == old_value.path
-                        && let Some(captured) = self.windows.captured_assignment_place(
-                            *statement_index,
-                            action.source(),
-                            condition_path,
-                        )?
-                    {
-                        return Ok(captured);
-                    }
-                    let (place, root_type) = self.evaluation.cleanup_storage(
-                        action.source(),
-                        self.parameters,
-                        |binding_ordinal| {
-                            let place = self
-                                .results
-                                .continuation_place(binding_ordinal, self.operations)?;
-                            let value = self
-                                .results
-                                .repair_value(binding_ordinal, self.operations)?;
-                            Ok((place, value.structural_type))
-                        },
-                    )?;
-                    let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                        condition_path, root_type, self.structural_types.declarations(),
-                        None, &mut std::iter::empty(), None,
-                    )?;
-                    Ok((place, path))
-                },
-            )?;
-            let structural_type = lookup_type_id(self.type_ids, action.type_identity())?;
-            let lowered = match action {
-                checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
-                    terminal_psi::TerminalAffineCleanupAction::RetireHome(place)
-                }
-                checked_trees::CheckedNormalCleanupAction::Discard(_)
-                    if path.is_empty() && conditions.is_empty() =>
-                {
-                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
-                }
-                checked_trees::CheckedNormalCleanupAction::Discard(_) => {
-                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-                        terminal_psi::StructuralAffineDiscard {
-                            place,
-                            path,
-                            structural_type,
-                        },
-                    )
-                }
-                checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
-                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
-                        crate::unit::unit_cleanup::lower_nominal_cleanup_action(
+                Ok((place, path))
+            },
+            |cleanup, place, structural_type, path| {
+                crate::unit::unit_cleanup::lower_nominal_cleanup_action(
                             cleanup,
                             place,
                             structural_type,
@@ -940,15 +882,9 @@ impl OperationFrame<'_, '_> {
                             self.calls.cleanup_receivers,
                             self.calls.requirement_counts,
                             &mut self.calls.next_obligation_identity,
-                        )?,
-                    )
-                }
-            };
-            actions.push(crate::unit::unit_cleanup::CleanupRegion {
-                conditions,
-                action: lowered,
-            });
-        }
+                        )
+            },
+        )?;
         self.evaluation.continue_cleanup_regions(
             actions,
             self.values,

@@ -47,7 +47,7 @@ pub(crate) fn encode_affine_cleanup_action(
             writer.id(discard.structural_type);
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-            writer.u8(3);
+            writer.u8(if cleanup.retains_descendants { 5 } else { 3 });
             writer.id(cleanup.place);
             encode_structural_path(writer, "nominal cleanup path", &cleanup.path)?;
             writer.id(cleanup.structural_type);
@@ -187,8 +187,9 @@ pub(crate) fn decode_affine_cleanup_action(
                 structural_type: reader.id("StructuralTypeId")?,
             },
         )),
-        3 => Ok(TerminalAffineCleanupAction::InvokeNominal(
+        tag @ (3 | 5) => Ok(TerminalAffineCleanupAction::InvokeNominal(
             NominalAffineCleanup {
+                retains_descendants: tag == 5,
                 place: reader.id("PlaceId")?,
                 path: decode_structural_path(reader)?,
                 structural_type: reader.id("StructuralTypeId")?,
@@ -295,6 +296,7 @@ mod tests {
             ],
         ] {
             let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
+                retains_descendants: false,
                 place: PlaceId::new(1).unwrap(),
                 path,
                 structural_type: StructuralTypeId::new(2).unwrap(),

@@ -258,6 +258,13 @@ no call; executable cleanup belongs to its edge/action ordinal and runs before
 teardown. The [normal cleanup contract](calls_and_outcomes.md#normal-cleanup)
 owns sequential execution and suspension.
 
+A parent invocation retains its intact subject while its checked descendant
+disposal partition remains pending. That retention is explicit action data,
+not inferred from the next action on the same edge: selected child cleanup may
+cross ordinary control blocks. A leaf invocation consumes its exact region.
+Neither retention nor case selection settles child claims or retires a home;
+the complete disposal partition must finish before explicit home retirement.
+
 Cleanup prerequisites must already be proved locally or authored in `requires`;
 analysis cannot add a new caller demand. When the hook's value parameter is
 proof-only after checked erasure, the plan still substitutes the exact owned

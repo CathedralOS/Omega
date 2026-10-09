@@ -646,7 +646,6 @@ pub(super) fn emit(
             .map(Ok)
             .chain(local_discards)
             .collect::<Result<Vec<_>, _>>()?;
-        let block = evaluation.current;
         let mut scalar_return = plan
             .scalar_result
             .as_ref()
@@ -754,16 +753,21 @@ pub(super) fn emit(
             })
             .transpose()?;
         let edge = edge_id(allocate_dense(&mut next_edge)?);
-        let parameter_actions = crate::unit::unit_cleanup::lower_checked_cleanup_actions(
+        let parameter_regions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
             parameter_cleanup_actions,
+            &checked.facts.flow.terminal_unit_effects.cleanup_control,
             structural_types,
             type_ids,
-            |source| {
-                evaluation.cleanup_storage(source, parameters, |_| {
+            |source, path| {
+                let (place, root_type) = evaluation.cleanup_storage(source, parameters, |_| {
                     Err(LoweringError::Unsupported(
                         "parameter cleanup names a result binding",
                     ))
-                })
+                })?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                    path, root_type, structural_types, None, &mut std::iter::empty(), None,
+                )?;
+                Ok((place, path))
             },
             |cleanup, place, structural_type, path| {
                 let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
@@ -798,14 +802,44 @@ pub(super) fn emit(
                 Ok(action)
             },
         )?;
-        let cleanup_actions = trivial_affine_discards
+        let cleanup_regions = trivial_affine_discards
             .into_iter()
-            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-            .chain(parameter_actions)
-            .collect();
+            .map(|place| crate::unit::unit_cleanup::CleanupRegion {
+                conditions: Vec::new(),
+                action: terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
+            })
+            .chain(parameter_regions)
+            .collect::<Vec<_>>();
+        let cleanup_actions = if cleanup_regions.iter().any(|region| !region.conditions.is_empty()) {
+            // Scalar return operands are already evaluated. Carry their actual
+            // SSA values through cleanup rather than observing disposed storage
+            // again. Structural completion accepts whole owned sources only;
+            // projected aliases were rejected above, and the checked partition
+            // excludes the returned owner from disposal.
+            if let Some(value) = controlled_result
+                && !scalar_result_values.iter().any(|candidate| candidate.id == value.id)
+            {
+                scalar_result_values.push(value);
+            }
+            let return_position = scalar_return.as_ref().map(|(source, _)| {
+                scalar_result_values.iter().position(|value| value.id == *source)
+                    .ok_or(LoweringError::Unsupported("cleanup lost its captured scalar return"))
+            }).transpose()?;
+            evaluation.continue_cleanup_regions(
+                cleanup_regions, &mut scalar_result_values, &mut next_value,
+                &mut next_block, &mut next_edge, &mut operations,
+            )?;
+            if let Some(position) = return_position {
+                scalar_return.as_mut().ok_or(LoweringError::Unsupported("cleanup lost its return contract"))?.0
+                    = scalar_result_values[position].id;
+            }
+            Vec::new()
+        } else {
+            cleanup_regions.into_iter().map(|region| region.action).collect()
+        };
         evaluation.remap_transported_call_operands(&mut operations);
         evaluation.blocks.push(Block {
-            id: block,
+            id: evaluation.current,
             parameters: evaluation.parameters,
             erased_scalar_formals: Vec::new(),
             erased_proof_formals: Vec::new(),

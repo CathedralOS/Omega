@@ -14,7 +14,7 @@ use std::collections::{BTreeSet, VecDeque};
 use terminal_psi::{
     Block, OperationKind, RecordFieldValue, StructuralAccess, StructuralAffineDiscard,
     StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, Terminator, find_structural_type,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, Terminator,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -298,157 +298,6 @@ fn residuals(
         .collect())
 }
 
-/// One already checked cleanup subject. Nominal subjects retain their hook
-/// in the original action stream; this pass only checks their storage partition.
-#[derive(PartialEq, Eq)]
-struct CleanupSubject {
-    path: Vec<StructuralPathSegment>,
-    structural_type: StructuralTypeId,
-    nominal: bool,
-}
-
-fn partition_residual(
-    residual: StructuralAffineDiscard,
-    nominal: &[&CleanupSubject],
-    types: &[StructuralTypeDeclaration],
-    limit: usize,
-    output: &mut Vec<CleanupSubject>,
-) -> Result<(), LoweringError> {
-    let selected = nominal
-        .iter()
-        .filter(|subject| subject.path.starts_with(&residual.path))
-        .copied()
-        .collect::<Vec<_>>();
-    if selected.is_empty() || selected.iter().any(|subject| subject.path == residual.path) {
-        if output.len() == limit {
-            return unsupported("scheduled cleanup exceeds its residual partition");
-        }
-        output.push(CleanupSubject {
-            path: residual.path,
-            structural_type: residual.structural_type,
-            nominal: !selected.is_empty(),
-        });
-        return Ok(());
-    }
-    let declaration = find_structural_type(types, residual.structural_type).ok_or(
-        LoweringError::Unsupported("scheduled cleanup subtree declaration is absent"),
-    )?;
-    match &declaration.shape {
-        terminal_psi::StructuralTypeShape::Record { fields, .. } => {
-            for field in fields
-                .iter()
-                .rev()
-                .filter(|field| !field.relevance.is_erased())
-            {
-                let Some(child) = field.field_type.as_structural() else {
-                    continue;
-                };
-                let mut path = residual.path.clone();
-                path.push(StructuralPathSegment::Field(field.identity.clone()));
-                partition_residual(
-                    StructuralAffineDiscard {
-                        place: residual.place,
-                        path,
-                        structural_type: child,
-                    },
-                    &selected,
-                    types,
-                    limit,
-                    output,
-                )?;
-            }
-        }
-        terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
-            if u128::from(*length) > limit.saturating_sub(output.len()) as u128 {
-                return unsupported("scheduled array cleanup exceeds its residual partition");
-            }
-            for index in (0..*length).rev() {
-                let mut path = residual.path.clone();
-                path.push(StructuralPathSegment::FixedIndex(index));
-                partition_residual(
-                    StructuralAffineDiscard {
-                        place: residual.place,
-                        path,
-                        structural_type: *element,
-                    },
-                    &selected,
-                    types,
-                    limit,
-                    output,
-                )?;
-            }
-        }
-        _ => {
-            return unsupported(
-                "scheduled nominal cleanup is not an owned record or array projection",
-            );
-        }
-    }
-    Ok(())
-}
-
-fn close_existing(
-    frontier: &mut Frontier,
-    scheduled: &[TerminalAffineCleanupAction],
-    roots: &[(PlaceId, StructuralTypeId)],
-    types: &[StructuralTypeDeclaration],
-) -> Result<(), LoweringError> {
-    let mut closed = Vec::new();
-    for root in frontier.iter() {
-        let group = scheduled
-            .iter()
-            .filter(|action| action.place() == root.place)
-            .filter(|action| !matches!(action, TerminalAffineCleanupAction::RetireHome(_)))
-            .map(|action| match action {
-                TerminalAffineCleanupAction::DiscardResidual(discard) => Ok(CleanupSubject {
-                    path: discard.path.clone(),
-                    structural_type: discard.structural_type,
-                    nominal: false,
-                }),
-                TerminalAffineCleanupAction::InvokeNominal(cleanup) => Ok(CleanupSubject {
-                    path: cleanup.path.clone(),
-                    structural_type: cleanup.structural_type,
-                    nominal: true,
-                }),
-                TerminalAffineCleanupAction::DiscardRoot(_) => {
-                    unsupported("whole cleanup consumes a partially transferred root")
-                }
-                TerminalAffineCleanupAction::RetireHome(_) => {
-                    unsupported("home retirement entered the region disposal partition")
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if group.is_empty() {
-            continue;
-        }
-        if group.iter().any(|subject| {
-            root.paths
-                .iter()
-                .any(|moved| subject.path.starts_with(moved) || moved.starts_with(&subject.path))
-        }) {
-            return unsupported("scheduled cleanup overlaps a transferred subtree");
-        }
-        let nominal = group
-            .iter()
-            .filter(|subject| subject.nominal)
-            .collect::<Vec<_>>();
-        let mut expected = Vec::new();
-        for residual in residuals(root, roots, types)? {
-            partition_residual(residual, &nominal, types, group.len(), &mut expected)?;
-        }
-        // The exact selected types and recursive reverse order are derived
-        // from declarations. No-code regions stay maximal around nominal
-        // subjects; the pass neither manufactures a hook nor weakens its
-        // upstream prerequisites or whole-value requirement.
-        if group != expected {
-            return unsupported("scheduled cleanup differs from current residual partition");
-        }
-        closed.push(root.place);
-    }
-    frontier.retain(|root| !closed.contains(&root.place));
-    Ok(())
-}
-
 /// Every normal exit retains one ordered subject stream. An intact nominal
 /// child can die after its sibling moves, but no hook can cover a moved path.
 fn complete_actions(
@@ -483,10 +332,24 @@ fn complete_actions(
             _ => actions.push(action.clone()),
         }
     }
-    close_existing(frontier, &actions, roots, types)?;
-    // A scheduled whole placeholder also retires a root with an empty
-    // complement. No action is emitted, but its storage occurrence is closed.
-    frontier.retain(|root| !placeholders.contains(&root.place));
+    // Exact checked region actions can span conditional cleanup blocks. They
+    // neither finish the owner nor form an entire complement on each edge.
+    // Reconstructing that complement here used to close one case arm early
+    // and reject its join with inactive arms. This producer only expands whole
+    // placeholders; home retirement, not a projected leaf, ends the transfer
+    // history. Source checking and boundary verifiers own partition validity.
+    frontier.retain(|root| {
+        !actions.iter().any(|action| match action {
+            TerminalAffineCleanupAction::RetireHome(place)
+            | TerminalAffineCleanupAction::DiscardRoot(place) => *place == root.place,
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                cleanup.place == root.place
+                    && cleanup.path.is_empty()
+                    && !cleanup.retains_descendants
+            }
+            TerminalAffineCleanupAction::DiscardResidual(_) => false,
+        })
+    });
     *cleanup_actions = actions;
     Ok(())
 }

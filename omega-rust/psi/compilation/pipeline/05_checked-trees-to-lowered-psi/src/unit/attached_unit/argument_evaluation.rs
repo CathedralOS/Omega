@@ -23,8 +23,8 @@ use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 use checked_trees::CheckedCallScalarArgument;
 use state_emission::emit_state;
 
+pub(crate) mod cleanup_control;
 mod qualification_edge;
-mod cleanup_control;
 mod record_captures;
 mod scalar_control;
 mod source_values;
@@ -651,45 +651,23 @@ impl Evaluation {
             };
             *place = self.current_structural_place(*place);
         }
-        let types = values
-            .iter()
-            .map(|value| value.value_type())
-            .collect::<Vec<_>>();
-        let parameters = declarations(&types, next_value)?;
-        let continuation = block_id(allocate_dense(next_block)?);
-        let edge = edge_id(allocate_dense(next_edge)?);
-        self.blocks.push(Block {
-            structural_parameters: std::mem::take(&mut self.block_structural_parameters),
-            id: self.current,
-            parameters: std::mem::take(&mut self.parameters),
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: erased_proof_formal_declarations(&self.erased_proof_formals),
-            operations: operations[self.operation_start..].to_vec(),
-            terminator: Terminator::Jump {
-                structural_arguments: Vec::new(),
-                edge,
-                target: continuation,
-                arguments: values.iter().map(|value| value.id).collect(),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: self
-                    .proof_formal_forwarding()
-                    .iter()
-                    .map(|term| {
-                        crate::scalar_lowering::contracts::lowered_proof_term(
-                            term,
-                            values,
-                            &self.erased_scalar_formals,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, LoweringError>>()?,
-                cleanup_actions,
-            },
-        });
-        *values = parameters.clone();
-        self.parameters = parameters;
-        self.current = continuation;
-        self.operation_start = operations.len();
-        Ok(edge)
+        cleanup_control::CleanupEmission {
+            current: &mut self.current,
+            parameters: &mut self.parameters,
+            structural_parameters: &mut self.block_structural_parameters,
+            block_erased_scalar_formals: &mut Vec::new(),
+            erased_proof_formals: &self.erased_proof_formals,
+            operation_start: &mut self.operation_start,
+            blocks: &mut self.blocks,
+        }
+        .continue_actions(
+            cleanup_actions,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+        )
     }
 
     /// A local refinement is proved where its initializer has completed. The

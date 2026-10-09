@@ -64,7 +64,7 @@ pub(crate) fn encode_unit_affine_cleanup(
                 push_u64(bytes, discard.structural_type.get());
             }
             TerminalAffineCleanupAction::InvokeNominal(nominal) => {
-                bytes.extend_from_slice(&[3, 0, 0, 0]);
+                bytes.extend_from_slice(&[if nominal.retains_descendants { 5 } else { 3 }, 0, 0, 0]);
                 push_u64(bytes, nominal.place.get());
                 encode_path(bytes, &nominal.path)?;
                 push_u64(bytes, nominal.structural_type.get());
@@ -166,7 +166,8 @@ pub(crate) fn decode_unit_affine_cleanup(
                     structural_type,
                 })
             }
-            3 => TerminalAffineCleanupAction::InvokeNominal(terminal_psi::NominalAffineCleanup {
+            tag @ (3 | 5) => TerminalAffineCleanupAction::InvokeNominal(terminal_psi::NominalAffineCleanup {
+                retains_descendants: tag == 5,
                 place: PlaceId::new(reader.u64()?).ok_or(
                     InstallationError::ZeroStructuralReturnIdentity("nominal Unit cleanup place"),
                 )?,
@@ -257,6 +258,7 @@ mod tests {
                 locals: Vec::new(),
                 actions: vec![TerminalAffineCleanupAction::InvokeNominal(
                     NominalAffineCleanup {
+                        retains_descendants: false,
                         place: PlaceId::new(2).unwrap(),
                         path,
                         structural_type: StructuralTypeId::new(3).unwrap(),

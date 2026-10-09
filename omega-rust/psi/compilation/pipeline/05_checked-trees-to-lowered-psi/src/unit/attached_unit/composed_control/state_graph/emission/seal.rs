@@ -32,7 +32,7 @@ impl StateGraphEmission<'_, '_> {
         &mut self,
         position: usize,
         mut terminator: Terminator,
-        mut edge_blocks: Vec<Block>,
+        edge_blocks: Vec<Block>,
         mut evaluation: crate::unit::attached_unit::argument_evaluation::Evaluation,
         mut operations: OperationBuffer,
         frame: SealFrame<'_>,
@@ -43,113 +43,77 @@ impl StateGraphEmission<'_, '_> {
             is_guarded_return,
             dispatches,
             body_end,
-            next_value,
+            mut next_value,
             mut next_block,
             mut next_edge,
         } = frame;
         let plan = self.plan;
         let state = &plan.states[position];
-        // Producing a value does not dispose of the remaining entry owners.
-        // Reuse the source exit-custody join for structural and Unit returns;
-        // the returned owner itself is not a discard.
-        for completion in std::iter::once(&mut terminator)
-            .chain(edge_blocks.iter_mut().map(|block| &mut block.terminator))
-            .filter(|_| !is_guarded_return)
-        {
-            if let Terminator::ReturnStructural {
-                cleanup_actions, ..
-            } = completion
-            {
-                let statement_index = match &state.terminator {
-                    // A structural return completes at the state's last
-                    // statement: its final expression or value transition.
-                    CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. } => {
-                        (state.statement_count as usize).checked_sub(1).ok_or(
-                            LoweringError::Unsupported("structural return has no source statement"),
-                        )?
-                    }
-                    _ => {
-                        return unsupported(
-                            "structural return lost its authored completion coordinate",
-                        );
-                    }
-                };
-                let exit = super::super::cleanup::coordinate(state, statement_index, false)?;
-                *cleanup_actions = super::super::cleanup::for_exit(
-                    state,
-                    exit,
-                    self.catalogs,
-                    state_parameters,
-                    &evaluation,
-                    &operations,
-                )?;
-            }
-        }
-        // Scalar exits settled their selection receipts on their private
-        // completion edges. Repeating the splice here would recreate owners
-        // after those paths have already disposed of them.
+        // The ordinary structural exit has one source-owned disposition
+        // schedule. Capture a projected result on its transport edge before
+        // selected cleanup; whole results are excluded from that partition.
         if !is_guarded_return
-            && !matches!(
-                &state.terminator,
-                CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-                    completion: checked_trees::CheckedScalarReturnPlan::Exits(_),
-                }
-            )
-            && !evaluation.selection_cleanups.is_empty()
+            && let CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
+                &state.terminator
         {
-            match &mut terminator {
-                Terminator::ReturnStructural {
-                    cleanup_actions, ..
-                }
-                | Terminator::ReturnUnit {
-                    cleanup_actions, ..
-                }
-                | Terminator::Return {
-                    cleanup_actions, ..
-                } => {
-                    super::super::cleanup::selection(
-                        state,
-                        &evaluation,
-                        &operations,
-                        cleanup_actions,
-                    )?;
-                }
-                // Ordinary successors already partitioned each edge's residual
-                // custody inside `successor`; no global return splice applies.
-                Terminator::Jump { .. }
-                | Terminator::Conditional { .. }
-                | Terminator::ExternalCompletion { .. } => {}
-                _ => {
-                    return unsupported(
-                        "owned selection residuals crossing authored states require retained cleanup transfer correspondence",
-                    );
-                }
-            }
-        }
-        if let CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
-            &state.terminator
-            && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            let statement_index = (state.statement_count as usize).checked_sub(1).ok_or(
+                LoweringError::Unsupported("structural return has no source statement"),
+            )?;
+            let exit = super::super::cleanup::coordinate(state, statement_index, false)?;
+            let mut regions = super::super::cleanup::for_exit_regions(
+                state,
+                exit,
+                self.catalogs,
+                state_parameters,
+                &evaluation,
+                &operations,
+            )?;
+            super::super::cleanup::selection(state, &evaluation, &operations, &mut regions)?;
+            let mut values = Vec::new();
+            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal,
             } = result.source
-        {
-            let binding = super::super::case_emission::result(state, binding_ordinal, &operations)?;
-            let source = evaluation.current_structural_place(binding.place());
-            let (completion, arrival) = super::super::returns::projected::materialize(
-                &binding,
-                source,
-                terminator,
-                self.catalogs,
-                &mut next_block,
-                &mut next_edge,
-            )?;
-            terminator = completion;
-            if let Some(arrival) = arrival {
-                if let Some(rank) = current_rank {
-                    // This private transport is inside the authored state;
-                    // returning a projection does not prove a rank decrease.
-                    self.preserve_edges(terminator.edges(), rank);
+            {
+                let binding =
+                    super::super::case_emission::result(state, binding_ordinal, &operations)?
+                        .into_owned();
+                let source = evaluation.current_structural_place(binding.place());
+                let (completion, arrival) = super::super::returns::projected::materialize(
+                    &binding,
+                    source,
+                    terminator,
+                    regions,
+                    self.catalogs,
+                    &mut evaluation,
+                    &mut values,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                )?;
+                terminator = completion;
+                if let Some(arrival) = arrival {
+                    if let Some(rank) = current_rank {
+                        self.preserve_edges(terminator.edges(), rank);
+                    }
+                    evaluation.blocks.push(arrival);
                 }
-                evaluation.blocks.push(arrival);
+            } else {
+                let actions = evaluation.emit_cleanup_regions(
+                    regions,
+                    &mut values,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                )?;
+                let Terminator::ReturnStructural {
+                    cleanup_actions, ..
+                } = &mut terminator
+                else {
+                    return unsupported("structural return lost its ordinary completion");
+                };
+                *cleanup_actions = actions;
             }
         }
         if let Some(rank) = current_rank {

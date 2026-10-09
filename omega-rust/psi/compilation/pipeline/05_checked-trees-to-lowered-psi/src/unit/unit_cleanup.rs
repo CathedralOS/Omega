@@ -40,11 +40,19 @@ pub(crate) struct CleanupRegion {
     pub(crate) action: terminal_psi::TerminalAffineCleanupAction,
 }
 
+impl CleanupRegion {
+    pub(crate) fn unconditional(action: terminal_psi::TerminalAffineCleanupAction) -> Self {
+        Self {
+            conditions: Vec::new(),
+            action,
+        }
+    }
+}
+
 pub(crate) fn lower_cleanup_conditions(
     control: &checked_trees::CheckedCleanupControlPlans,
     selected: arena::HandleSpan<checked_trees::CheckedCleanupCaseCondition>,
     types: &[terminal_psi::StructuralTypeDeclaration],
-    type_ids: &[(String, StructuralTypeId)],
     mut storage: impl FnMut(
         &[checked_trees::CheckedUnitStructuralPathSegment],
     ) -> Result<
@@ -75,7 +83,9 @@ pub(crate) fn lower_cleanup_conditions(
                     ))?
             };
             let (place, path) = storage(path)?;
-            let structural_type = lookup_type_id(type_ids, &condition.type_identity)?;
+            let structural_type = terminal_psi::structural_type_by_identity(types, &condition.type_identity)
+                .map(|declaration| declaration.id)
+                .ok_or(LoweringError::Unsupported("cleanup condition has no structural type"))?;
             let (_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
                 types,
                 structural_type,
@@ -122,44 +132,94 @@ pub(crate) fn continuation_cleanups(
         .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
 }
 
-/// Lower an ordered checked disposition in the caller's live storage namespace.
-/// Call continuations and normal exits share action geometry; the caller supplies
-/// its binding resolution and hook-obligation allocator, not another cleanup policy.
-pub(crate) fn lower_checked_cleanup_actions<'action>(
+/// Resolve the checked schedule once, retaining its selection conditions for
+/// ordinary control emission. The storage resolver owns captured coordinates;
+/// neither action paths nor tag observations may evaluate a selector again.
+pub(crate) fn lower_checked_cleanup_regions<'action>(
     actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
+    control: &checked_trees::CheckedCleanupControlPlans,
     types: &[terminal_psi::StructuralTypeDeclaration],
     type_ids: &[(String, StructuralTypeId)],
     mut storage: impl FnMut(
         &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
-    ) -> Result<(PlaceId, StructuralTypeId), LoweringError>,
+        &[checked_trees::CheckedUnitStructuralPathSegment],
+    ) -> Result<
+        (PlaceId, Vec<terminal_psi::StructuralPathSegment>),
+        LoweringError,
+    >,
     mut nominal: impl FnMut(
         &CheckedUnitNominalAffineCleanupPlan,
         PlaceId,
         StructuralTypeId,
         Vec<terminal_psi::StructuralPathSegment>,
     ) -> Result<NominalAffineCleanup, LoweringError>,
-) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, LoweringError> {
-    actions.into_iter().map(|action| {
-        if !action.case_conditions().is_empty() {
-            return unsupported("selected-case cleanup control has no executable edge yet");
-        }
-        let (place, root_type) = storage(action.source())?;
-        match action {
-            checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => Ok(terminal_psi::TerminalAffineCleanupAction::RetireHome(place)),
-            checked_trees::CheckedNormalCleanupAction::Discard(discard) if discard.path.is_empty() => Ok(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)),
-            _ => {
-                let structural_type = lookup_type_id(type_ids, action.type_identity())?;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    action.path(), root_type, types, None, &mut std::iter::empty(), None,
-                )?;
-                match action {
-                    checked_trees::CheckedNormalCleanupAction::Discard(_) => Ok(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(terminal_psi::StructuralAffineDiscard { place, path, structural_type })),
-                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => Ok(terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal(cleanup, place, structural_type, path)?)),
-                    checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => Err(LoweringError::Unsupported("home retirement has no subtree action")),
+) -> Result<Vec<CleanupRegion>, LoweringError> {
+    let mut regions = actions
+        .into_iter()
+        .map(|action| {
+            let (place, path) = storage(action.source(), action.path())?;
+            let conditions =
+                lower_cleanup_conditions(control, action.case_conditions(), types, |path| {
+                    storage(action.source(), path)
+                })?;
+            let lowered = match action {
+                checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
+                    terminal_psi::TerminalAffineCleanupAction::RetireHome(place)
                 }
-            }
-        }
-    }).collect()
+                checked_trees::CheckedNormalCleanupAction::Discard(_)
+                    if path.is_empty() && conditions.is_empty() =>
+                {
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                }
+                checked_trees::CheckedNormalCleanupAction::Discard(_) => {
+                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                        terminal_psi::StructuralAffineDiscard {
+                            place,
+                            path,
+                            structural_type: lookup_type_id(type_ids, action.type_identity())?,
+                        },
+                    )
+                }
+                checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
+                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal(
+                        cleanup,
+                        place,
+                        lookup_type_id(type_ids, action.type_identity())?,
+                        path,
+                    )?)
+                }
+            };
+            Ok(CleanupRegion {
+                conditions,
+                action: lowered,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    retain_cleanup_descendants(&mut regions);
+    Ok(regions)
+}
+
+/// Resolve parent disposition while the complete checked schedule is intact,
+/// before case selection splits it across edges. The recursive producer orders
+/// each parent's descendant partition immediately after its hook. A selected
+/// empty alternative can dispose the same region rather than a deeper path.
+fn retain_cleanup_descendants(regions: &mut [CleanupRegion]) {
+    for position in 0..regions.len().saturating_sub(1) {
+        let (prefix, suffix) = regions.split_at_mut(position + 1);
+        let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
+            &mut prefix[position].action
+        else {
+            continue;
+        };
+        let next = &suffix[0].action;
+        cleanup.retains_descendants = next.place() == cleanup.place
+            && next.path().starts_with(&cleanup.path)
+            && (next.path().len() > cleanup.path.len()
+                || matches!(
+                    next,
+                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_)
+                ));
+    }
 }
 
 pub(crate) fn computation_cleanups(
@@ -284,6 +344,7 @@ fn materialize_nominal_cleanup_action(
     allocate_requirement: &mut impl FnMut() -> Result<semantic_vocabulary::ObligationId, LoweringError>,
 ) -> Result<NominalAffineCleanup, LoweringError> {
     Ok(NominalAffineCleanup {
+        retains_descendants: false,
         place,
         path,
         structural_type,
@@ -316,8 +377,9 @@ fn requirement_count(
 /// inventing a provisional machine or obligation identity during expansion.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PreparedNormalCleanupAction {
-    Resolved(terminal_psi::TerminalAffineCleanupAction),
+    Resolved(CleanupRegion),
     InvokeNominal {
+        conditions: Vec<CleanupCaseCondition>,
         cleanup: CheckedUnitNominalAffineCleanupPlan,
         place: PlaceId,
         structural_type: StructuralTypeId,
@@ -328,34 +390,29 @@ pub(crate) enum PreparedNormalCleanupAction {
 
 impl PreparedNormalCleanupAction {
     pub(crate) fn discard_root(place: PlaceId) -> Self {
-        Self::Resolved(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-            place,
-        ))
-    }
-
-    pub(crate) fn discard_residual(discard: terminal_psi::StructuralAffineDiscard) -> Self {
-        Self::Resolved(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-            discard,
+        Self::Resolved(CleanupRegion::unconditional(
+            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
         ))
     }
 }
 
-impl From<&terminal_psi::TerminalAffineCleanupAction> for PreparedNormalCleanupAction {
-    fn from(action: &terminal_psi::TerminalAffineCleanupAction) -> Self {
-        Self::Resolved(action.clone())
+impl From<&CleanupRegion> for PreparedNormalCleanupAction {
+    fn from(region: &CleanupRegion) -> Self {
+        Self::Resolved(region.clone())
     }
 }
 
-pub(crate) fn emit_prepared_cleanup_actions(
+pub(crate) fn emit_prepared_cleanup_regions(
     actions: &[PreparedNormalCleanupAction],
     calls: &mut crate::emission::operation_emission::calls::CallEmissionContext<'_>,
-) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, LoweringError> {
-    actions
+) -> Result<Vec<CleanupRegion>, LoweringError> {
+    let mut regions = actions
         .iter()
         .map(|action| {
             Ok(match action {
                 PreparedNormalCleanupAction::Resolved(action) => action.clone(),
                 PreparedNormalCleanupAction::InvokeNominal {
+                    conditions,
                     cleanup,
                     place,
                     structural_type,
@@ -390,11 +447,16 @@ pub(crate) fn emit_prepared_cleanup_actions(
                             )
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(action)
+                    CleanupRegion {
+                        conditions: conditions.clone(),
+                        action: terminal_psi::TerminalAffineCleanupAction::InvokeNominal(action),
+                    }
                 }
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    retain_cleanup_descendants(&mut regions);
+    Ok(regions)
 }
 
 /// A nominal consuming member (a seeded `drop<T>` specialization) emitted the

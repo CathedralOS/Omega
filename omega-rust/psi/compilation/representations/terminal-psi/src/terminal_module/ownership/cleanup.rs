@@ -17,6 +17,10 @@ pub struct StructuralAffineDiscard {
 /// Linear disposition retains its complete claim roster; affine cleanup has none.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NominalAffineCleanup {
+    /// The hook borrows its intact subject while the checked descendant
+    /// disposal partition remains pending, possibly across private edges.
+    /// A leaf invocation consumes its region; a retaining invocation does not.
+    pub retains_descendants: bool,
     pub place: PlaceId,
     /// Canonical containment path from the owner root to the intact receiver.
     /// An empty path selects the whole root; siblings retain their own custody.

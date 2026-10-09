@@ -64,20 +64,6 @@ pub(crate) fn bind_result_claim(
     Ok(())
 }
 
-/// Checked cleanup is recursive: a parent hook precedes its contiguous
-/// descendant cleanup. Its receiver storage remains live while those actions
-/// execute. This reads the authored schedule, not runtime value liveness.
-pub(crate) fn cleanup_retains_descendants(
-    cleanup: &NominalAffineCleanup,
-    next: Option<&TerminalAffineCleanupAction>,
-) -> bool {
-    next.is_some_and(|action| {
-        action.place() == cleanup.place
-            && action.path().len() > cleanup.path.len()
-            && action.path().starts_with(&cleanup.path)
-    })
-}
-
 pub(crate) fn commit_cleanup_action(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_cases: &BTreeMap<
@@ -91,7 +77,6 @@ pub(crate) fn commit_cleanup_action(
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
     action: &TerminalAffineCleanupAction,
-    next: Option<&TerminalAffineCleanupAction>,
 ) -> Result<Option<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
     match action {
         TerminalAffineCleanupAction::DiscardRoot(place) => {
@@ -157,7 +142,6 @@ pub(crate) fn commit_cleanup_action(
                 frontier,
                 live_claims,
                 cleanup,
-                next,
             )?;
             let root = crate::custody::verified_structural_place(structural_values, cleanup.place)?;
             let value = project_structural_value(structural_types, root, &cleanup.path)?;
@@ -181,7 +165,6 @@ pub(crate) fn commit_cleanup_action(
                 frontier,
                 live_claims,
                 cleanup,
-                next,
             )?;
             return Ok(Some((cleanup.clone(), value)));
         }
@@ -205,9 +188,8 @@ pub(crate) fn begin_nominal_cleanup(
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &mut BTreeMap<ClaimId, LiveClaim>,
     cleanup: &NominalAffineCleanup,
-    next: Option<&TerminalAffineCleanupAction>,
 ) -> Result<(), TerminalInterpretError> {
-    let retains_descendants = cleanup_retains_descendants(cleanup, next);
+    let retains_descendants = cleanup.retains_descendants;
     if cleanup.consumed_claims.is_empty() && !retains_descendants {
         consume_affine_projection(
             structural_types,
@@ -272,7 +254,6 @@ pub(crate) fn validate_nominal_cleanup_action(
     frontier: &BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     cleanup: &NominalAffineCleanup,
-    next: Option<&TerminalAffineCleanupAction>,
 ) -> Result<(), TerminalInterpretError> {
     let invalid = || TerminalInterpretError::AffineFrontierMismatch;
     let root = values.get(&cleanup.place).ok_or_else(invalid)?;
@@ -281,7 +262,7 @@ pub(crate) fn validate_nominal_cleanup_action(
     if !structural_types.contains_key(&cleanup.structural_type) {
         return Err(invalid());
     }
-    let retains_descendants = cleanup_retains_descendants(cleanup, next);
+    let retains_descendants = cleanup.retains_descendants;
     let source_claims = claims
         .iter()
         .filter(|(identity, claim)| {
@@ -356,9 +337,8 @@ pub(crate) fn complete_nominal_cleanup(
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     cleanup: &NominalAffineCleanup,
-    next: Option<&TerminalAffineCleanupAction>,
 ) -> Result<(), TerminalInterpretError> {
-    if cleanup_retains_descendants(cleanup, next) {
+    if cleanup.retains_descendants {
         return Ok(());
     }
     if if cleanup.consumed_claims.is_empty() {

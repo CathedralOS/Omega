@@ -158,6 +158,8 @@ impl StateGraphEmission<'_, '_> {
                                 self.catalogs,
                                 state_parameters,
                                 &mut arm_evaluation,
+                                &mut arm_values,
+                                next_value,
                                 next_block,
                                 next_edge,
                                 operations,
@@ -248,13 +250,23 @@ impl StateGraphEmission<'_, '_> {
                         "return arm lost its source coordinate",
                     ))?;
             let exit = super::super::cleanup::coordinate(state, statement_ordinal as usize, false)?;
-            let selected_cleanup = super::super::cleanup::for_exit(
+            let mut regions = super::super::cleanup::for_exit_regions(
                 state,
                 exit,
                 self.catalogs,
                 state_parameters,
                 &arm_evaluation,
                 operations,
+            )?;
+            super::super::cleanup::selection(state, &arm_evaluation, operations, &mut regions)?;
+            let temporary_discards = dispatch_discards.iter().copied()
+                .filter(|place| !regions.iter().any(|region| region.action.place() == *place))
+                .map(|place| crate::unit::unit_cleanup::CleanupRegion::unconditional(
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
+                )).collect::<Vec<_>>();
+            regions.splice(0..0, temporary_discards);
+            let selected_cleanup = arm_evaluation.emit_cleanup_regions(
+                regions, &mut arm_values, next_value, next_block, next_edge, operations,
             )?;
             match &mut terminator {
                 Terminator::Return {
@@ -275,13 +287,7 @@ impl StateGraphEmission<'_, '_> {
         // instead. Never replace an existing root or residual disposition;
         // operand production may have transferred part of its custody.
         match &mut terminator {
-            Terminator::Return {
-                cleanup_actions, ..
-            }
-            | Terminator::ReturnStructural {
-                cleanup_actions, ..
-            }
-            | Terminator::ReturnUnit {
+            Terminator::ReturnStructural {
                 cleanup_actions, ..
             }
             | Terminator::Jump {
@@ -305,6 +311,7 @@ impl StateGraphEmission<'_, '_> {
             // runs no return cleanup, so the dispatch's temporary dispositions
             // do not become normal-exit cleanup here.
             Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
+            Terminator::Return { .. } | Terminator::ReturnUnit { .. } => {}
             _ => return unsupported("return arm did not produce a completion terminator"),
         }
         arm_evaluation.remap_transported_call_operands(operations);

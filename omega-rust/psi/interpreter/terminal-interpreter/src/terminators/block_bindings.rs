@@ -135,7 +135,7 @@ impl BlockBindings {
         // Preflight follows that same custody transaction without executing any
         // hook or changing backing. Checking each child against the unchanged
         // entry ledger mistakes its already-consumed parent's claim for overlap.
-        for (position, action) in actions.iter().enumerate() {
+        for action in actions {
             let place = action.place();
             let path = action.path();
             if self.owned_sources.contains(&place)
@@ -180,7 +180,6 @@ impl BlockBindings {
                         &frontier,
                         &claims,
                         cleanup,
-                        actions.get(position + 1),
                     )?;
                     crate::custody::begin_nominal_cleanup(
                         &execution.program.structural_types(),
@@ -189,14 +188,12 @@ impl BlockBindings {
                         &mut frontier,
                         &mut claims,
                         cleanup,
-                        actions.get(position + 1),
                     )?;
                     crate::custody::complete_nominal_cleanup(
                         &mut values,
                         &mut frontier,
                         &claims,
                         cleanup,
-                        actions.get(position + 1),
                     )?;
                 }
                 TerminalAffineCleanupAction::DiscardResidual(discard) => {

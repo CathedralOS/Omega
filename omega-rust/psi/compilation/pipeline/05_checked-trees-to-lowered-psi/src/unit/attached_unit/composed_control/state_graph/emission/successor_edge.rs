@@ -95,6 +95,7 @@ impl StateGraphEmission<'_, '_> {
         edge_evaluation.parameters = payload_values.iter().map(|(_, value)| *value).collect();
         let mut arguments = Vec::new();
         let mut structural_arguments = Vec::new();
+        let mut capture_parameters = Vec::new();
         let target_state = &plan.states[target];
         // Signature rows carry authored parameter positions, which go sparse
         // the moment a slot contributes no runtime operand: a borrowed `self`
@@ -562,6 +563,21 @@ impl StateGraphEmission<'_, '_> {
                         }
                     }
                 }
+                capture_parameters.push(StructuralParameterDeclaration {
+                    place,
+                    position: u32::try_from(capture_parameters.len()).map_err(|_| LoweringError::Unsupported(
+                        "cleanup capture structural roster exceeds u32",
+                    ))?,
+                    structural_type: crate::terminal_identities::lookup_type_id(
+                        &self.catalogs.type_ids, &target_parameter.type_identity,
+                    )?,
+                    multiplicity: crate::emission::borrowed_window::terminal_multiplicity(
+                        target_parameter.multiplicity,
+                    ),
+                    access: StructuralAccess::Owned,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                });
                 structural_arguments.push(StructuralArgument {
                     place,
                     path: argument_path,
@@ -679,7 +695,7 @@ impl StateGraphEmission<'_, '_> {
         // Keep action kinds and their checked order through private staging.
         let exit =
             super::super::cleanup::coordinate(state, edge.statement_ordinal as usize, false)?;
-        let mut cleanup_actions = super::super::cleanup::for_exit(
+        let mut cleanup_regions = super::super::cleanup::for_exit_regions(
             state,
             exit,
             self.catalogs,
@@ -696,26 +712,26 @@ impl StateGraphEmission<'_, '_> {
                 operations,
                 &edge_evaluation,
             )?;
-            let previous = std::mem::take(&mut cleanup_actions);
+            let previous = std::mem::take(&mut cleanup_regions);
             for place in &selected {
                 let mut retained = previous
                     .iter()
-                    .filter(|action| action.place() == *place)
+                    .filter(|region| region.action.place() == *place)
                     .peekable();
                 if retained.peek().is_some() {
-                    cleanup_actions.extend(retained.cloned());
+                    cleanup_regions.extend(retained.cloned());
                 } else {
-                    cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                        *place,
+                    cleanup_regions.push(crate::unit::unit_cleanup::CleanupRegion::unconditional(
+                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(*place),
                     ));
                 }
             }
-            cleanup_actions.extend(previous.into_iter().filter(|action| {
-                !selected.contains(&action.place())
+            cleanup_regions.extend(previous.into_iter().filter(|region| {
+                !selected.contains(&region.action.place())
                     && !edge_evaluation
                         .selection_cleanups
                         .iter()
-                        .any(|cleanup| cleanup.sources.contains(&action.place()))
+                        .any(|cleanup| cleanup.sources.contains(&region.action.place()))
             }));
         }
         // Proof-only actuals never evaluate: each checked erased row
@@ -829,6 +845,33 @@ impl StateGraphEmission<'_, '_> {
             None
         };
         let target = self.state_ids[target];
+        // All operands and rank observations are already captured. Transfer
+        // projected structural custody before selected cleanup can retire the
+        // old home; the authored successor receives only whole captures.
+        if cleanup_regions
+            .iter()
+            .any(|region| !region.conditions.is_empty())
+        {
+            edge_evaluation.capture_cleanup_arguments(
+                &mut structural_arguments,
+                &capture_parameters,
+                &mut edge_values,
+                &mut self.catalogs.next_place,
+                &mut self.catalogs.temporary_places,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            )?;
+        }
+        let cleanup_actions = edge_evaluation.emit_cleanup_regions(
+            cleanup_regions,
+            &mut edge_values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+        )?;
         // Payloads begin after selection. Actual edge work owns its block,
         // including any operand's private entry, joins and remapped parameters.
         // Pure forwarding alone may remain in the source block.

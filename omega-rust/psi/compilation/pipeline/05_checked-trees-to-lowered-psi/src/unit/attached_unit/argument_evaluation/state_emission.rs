@@ -45,6 +45,7 @@ pub(super) fn emit_state(
     blocks: &mut Vec<Block>,
 ) -> Result<(), LoweringError> {
     let erased_formals = declarations(&state.erased_formal_types, next_value)?;
+    let mut block_erased_formals = erased_formals.clone();
     // Expansion-state order is not dominance order. Only observations made
     // within this state's path may be reused while emitting its decisions.
     operations.byte_lengths.clear();
@@ -220,14 +221,12 @@ pub(super) fn emit_state(
             erased_proof_arguments,
             structural_arguments,
             cleanup_actions,
-        } => Terminator::Jump {
-            structural_arguments: structural_arguments.clone(),
-            edge: edge_id(allocate_dense(next_edge)?),
-            target: *targets.get(*target).ok_or(LoweringError::Unsupported(
-                "call computation target is absent",
-            ))?,
-            arguments: arguments(outgoing)?,
-            erased_arguments: erased_arguments
+        } => {
+            // Capture every outgoing operand before cleanup. These SSA values
+            // dominate the private selection graph; retaining their IDs does
+            // not reevaluate expressions after disposal or claim transfer.
+            let arguments = arguments(outgoing)?;
+            let erased_arguments = erased_arguments
                 .iter()
                 .map(|argument| {
                     crate::proofs::crash_routes::lowered_direct_scalar_term(
@@ -236,8 +235,8 @@ pub(super) fn emit_state(
                         &erased_formals,
                     )
                 })
-                .collect::<Result<Vec<_>, _>>()?,
-            erased_proof_arguments: erased_proof_arguments
+                .collect::<Result<Vec<_>, _>>()?;
+            let erased_proof_arguments = erased_proof_arguments
                 .iter()
                 .map(|term| {
                     crate::scalar_lowering::contracts::lowered_proof_term(
@@ -246,12 +245,34 @@ pub(super) fn emit_state(
                         &erased_formals,
                     )
                 })
-                .collect::<Result<Vec<_>, _>>()?,
-            cleanup_actions: crate::unit::unit_cleanup::emit_prepared_cleanup_actions(
+                .collect::<Result<Vec<_>, _>>()?;
+            let regions = crate::unit::unit_cleanup::emit_prepared_cleanup_regions(
                 cleanup_actions,
                 calls,
-            )?,
-        },
+            )?;
+            let cleanup_actions = if regions.iter().any(|region| !region.conditions.is_empty()) {
+                super::cleanup_control::CleanupEmission {
+                    current: &mut block,
+                    parameters: &mut block_parameters,
+                    structural_parameters: &mut Vec::new(),
+                    block_erased_scalar_formals: &mut block_erased_formals,
+                    erased_proof_formals: source_erased_proof_formals,
+                    operation_start: &mut operation_start,
+                    blocks,
+                }.emit(&regions, &mut values, next_value, next_block, next_edge, operations)?;
+                Vec::new()
+            } else {
+                regions.into_iter().map(|region| region.action).collect()
+            };
+            Terminator::Jump {
+                structural_arguments: structural_arguments.clone(),
+                edge: edge_id(allocate_dense(next_edge)?),
+                target: *targets.get(*target).ok_or(LoweringError::Unsupported(
+                    "call computation target is absent",
+                ))?,
+                arguments, erased_arguments, erased_proof_arguments, cleanup_actions,
+            }
+        }
         LoweredScalarBranchTerminator::Conditional {
             condition,
             when_true_target,
@@ -688,7 +709,7 @@ pub(super) fn emit_state(
         structural_parameters: Vec::new(),
         id: block,
         parameters: block_parameters,
-        erased_scalar_formals: erased_formals,
+        erased_scalar_formals: block_erased_formals,
         erased_proof_formals: erased_proof_formal_declarations(source_erased_proof_formals),
         operations: operations[operation_start..].to_vec(),
         terminator,

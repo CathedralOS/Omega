@@ -77,6 +77,7 @@ pub(in crate::unit::attached_unit) fn emit(
     LoweringError,
 > {
     let mut catalogs = catalogs::ComposedCatalogs {
+        cleanup_control: &checked.facts.flow.terminal_unit_effects.cleanup_control,
         temporary_places: Vec::new(),
         result_places: Vec::new(),
         structural_types: Cow::Borrowed(shared.structural_types),

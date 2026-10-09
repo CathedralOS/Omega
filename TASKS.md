@@ -667,12 +667,11 @@ defines the complete product bar.
     view[a..b]`) still roots no window: stage 04 keys windows on parameters
     only, and scalar stores through that local already fail native
     legalization with `SourceCustodyMismatch`.
-    Complete runtime-selected cleanup through the shared control-flow owner,
-    including normal returns and computed-call continuations. On macOS ARM64,
-    `omega run --both samples/cli/basics/sum_normal_cleanup/main.omg`
-    still declines `observe`'s cleanup control in stage 05. Preserve outgoing
-    capture, parent-before-child hook prerequisites and descendant custody
-    across the selected blocks. Keep `borrowed_sum_population` and
+    Qualify runtime-selected cleanup on the remaining native hosts. Keep
+    `pass/drops/runtime_case_selected_cleanup_continuations_exit` (0) for
+    captured scalar returns, computed temporaries, parent retention and
+    projected return/state-transfer custody across selected cleanup blocks.
+    Keep `borrowed_sum_population` and
     `borrowed_nested_sum_replacement` as direct-assignment execution controls;
     do not rewrite them to explicitly detach and drop the old value.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.

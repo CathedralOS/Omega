@@ -707,7 +707,7 @@ pub(super) fn encode_cleanup(bytes: &mut CanonicalBytes, action: &TerminalAffine
             encode_residual_cleanup(bytes, discard);
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-            bytes.u8(3);
+            bytes.u8(if cleanup.retains_descendants { 5 } else { 3 });
             bytes.id(cleanup.place);
             bytes.slice(&cleanup.path, encode_structural_path_segment);
             bytes.id(cleanup.structural_type);
@@ -739,6 +739,7 @@ mod tests {
             ],
         ] {
             let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
+                retains_descendants: false,
                 place: PlaceId::new(1).unwrap(),
                 path,
                 structural_type: StructuralTypeId::new(2).unwrap(),

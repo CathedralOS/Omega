@@ -55,7 +55,7 @@ pub fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction)
             bytes.extend_from_slice(&discard.structural_type.get().to_le_bytes());
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-            bytes.push(3);
+            bytes.push(if cleanup.retains_descendants { 5 } else { 3 });
             bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
             encode_path(bytes, &cleanup.path);
             bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());

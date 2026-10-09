@@ -372,6 +372,7 @@ mod cleanup_tests {
         for (ordinal, place) in [(0, PlaceId::new(1).unwrap()), (3, PlaceId::new(2).unwrap())] {
             actions.push(TerminalAffineCleanupAction::InvokeNominal(
                 NominalAffineCleanup {
+                    retains_descendants: false,
                     place,
                     path: Vec::new(),
                     structural_type,

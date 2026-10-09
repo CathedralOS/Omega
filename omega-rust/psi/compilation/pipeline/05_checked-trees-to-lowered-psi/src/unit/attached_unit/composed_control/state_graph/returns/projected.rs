@@ -4,9 +4,12 @@
 //! reconstructing the initial owner's complement here would revive moved holes.
 
 use super::super::super::catalogs::ComposedCatalogs;
+use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::buffer::StructuralBinding;
 use crate::lowering_error::LoweringError;
 use crate::terminal_identities::{allocate_dense, block_id, edge_id, place_id};
+use crate::unit::attached_unit::argument_evaluation::Evaluation;
+use crate::unit::unit_cleanup::CleanupRegion;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
     Block, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
@@ -20,17 +23,33 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
     binding: &StructuralBinding,
     source: semantic_vocabulary::PlaceId,
     completion: Terminator,
+    regions: Vec<CleanupRegion>,
     catalogs: &mut ComposedCatalogs<'_>,
+    evaluation: &mut Evaluation,
+    values: &mut Vec<terminal_psi::ValueDeclaration>,
+    next_value: &mut u64,
     next_block: &mut u64,
     next_edge: &mut u64,
+    operations: &mut OperationBuffer,
 ) -> Result<(Terminator, Option<Block>), LoweringError> {
     if binding.path().is_empty() {
+        let mut completion = completion;
+        let Terminator::ReturnStructural {
+            cleanup_actions, ..
+        } = &mut completion
+        else {
+            return Err(LoweringError::Unsupported(
+                "structural return lost its completion",
+            ));
+        };
+        *cleanup_actions = evaluation.emit_cleanup_regions(
+            regions, values, next_value, next_block, next_edge, operations,
+        )?;
         return Ok((completion, None));
     }
     let Terminator::ReturnStructural {
         source: returned_source,
         returned_claims,
-        cleanup_actions,
         ..
     } = completion
     else {
@@ -49,12 +68,9 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
         id: place,
         kind: StructuralPlaceKind::BlockParameter { block, position: 0 },
     });
-    let arrival = Block {
-        id: block,
-        parameters: Vec::new(),
-        erased_scalar_formals: Vec::new(),
-        erased_proof_formals: Vec::new(),
-        structural_parameters: vec![StructuralParameterDeclaration {
+    let mut arrival_block = block;
+    let mut arrival_parameters = Vec::new();
+    let mut structural_parameters = vec![StructuralParameterDeclaration {
             place,
             position: 0,
             structural_type: binding.structural_type(),
@@ -62,8 +78,41 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
-        }],
-        operations: Vec::new(),
+        }];
+    let selected = regions.iter().any(|region| !region.conditions.is_empty());
+    let capture_operation_end = operations.len();
+    let mut operation_start = capture_operation_end;
+    let cleanup_actions = if selected {
+        crate::unit::attached_unit::argument_evaluation::cleanup_control::CleanupEmission {
+            current: &mut arrival_block,
+            parameters: &mut arrival_parameters,
+            structural_parameters: &mut structural_parameters,
+            block_erased_scalar_formals: &mut Vec::new(),
+            erased_proof_formals: &evaluation.erased_proof_formals,
+            operation_start: &mut operation_start,
+            blocks: &mut evaluation.blocks,
+        }
+        .emit(
+            &regions,
+            &mut Vec::new(),
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+        )?;
+        Vec::new()
+    } else {
+        regions.into_iter().map(|region| region.action).collect()
+    };
+    let arrival = Block {
+        id: arrival_block,
+        parameters: arrival_parameters,
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+            &evaluation.erased_proof_formals,
+        ),
+        structural_parameters,
+        operations: operations[operation_start..].to_vec(),
         terminator: Terminator::ReturnStructural {
             edge: edge_id(allocate_dense(next_edge)?),
             source: place,
@@ -71,13 +120,22 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
             cleanup_actions: Vec::new(),
         },
     };
+    // Arrival cleanup blocks now own these tag observations. They are not
+    // operations of the source block that captures the projected result.
+    // Keep allocated identities monotonic while restoring that source prefix.
+    operations.truncate(capture_operation_end);
     Ok((
         Terminator::Jump {
             edge: edge_id(allocate_dense(next_edge)?),
             target: block,
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
+            erased_proof_arguments: (0..evaluation.erased_proof_formals.len())
+                .map(|position| Ok(semantic_vocabulary::ProofTerm::Formal {
+                    position: u32::try_from(position).map_err(|_| LoweringError::Unsupported(
+                        "projected return erased-proof roster exceeds u32",
+                    ))?,
+                })).collect::<Result<Vec<_>, LoweringError>>()?,
             structural_arguments: vec![StructuralArgument {
                 place: source,
                 path: binding.path().to_vec(),

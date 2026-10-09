@@ -477,7 +477,7 @@ pub(in super::super) fn decode_cleanup(
                 structural_type: decode_id(cursor, StructuralTypeId::new)?,
             },
         )),
-        3 => {
+        tag @ (3 | 5) => {
             let place = decode_id(cursor, PlaceId::new)?;
             let path = decode_path(cursor)?;
             let structural_type = decode_id(cursor, StructuralTypeId::new)?;
@@ -490,6 +490,7 @@ pub(in super::super) fn decode_cleanup(
             };
             Ok(TerminalAffineCleanupAction::InvokeNominal(
                 terminal_psi::NominalAffineCleanup {
+                    retains_descendants: tag == 5,
                     place,
                     path,
                     structural_type,

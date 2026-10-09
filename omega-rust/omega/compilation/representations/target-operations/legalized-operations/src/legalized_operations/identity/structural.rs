@@ -247,7 +247,7 @@ pub(super) fn encode_cleanup_action(
             bytes.extend_from_slice(&discard.structural_type.get().to_le_bytes());
         }
         terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-            bytes.push(3);
+            bytes.push(if cleanup.retains_descendants { 5 } else { 3 });
             bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
             encode_structural_path(bytes, &cleanup.path);
             bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
@@ -286,6 +286,7 @@ mod tests {
             ],
         ] {
             let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
+                retains_descendants: false,
                 place: PlaceId::new(1).unwrap(),
                 path,
                 structural_type: StructuralTypeId::new(2).unwrap(),

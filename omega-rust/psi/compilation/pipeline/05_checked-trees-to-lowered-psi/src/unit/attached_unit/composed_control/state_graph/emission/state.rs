@@ -464,7 +464,7 @@ impl StateGraphEmission<'_, '_> {
         // A scalar-result state evaluates the value its selected exit returns
         // through the same exit evaluator an ordinary scalar body uses; its
         // private arm and join blocks stay inside this state.
-        let scalar_return = match &state.terminator {
+        let mut scalar_return = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
                 completion: checked_trees::CheckedScalarReturnPlan::Exits(exits),
             } => {
@@ -832,14 +832,34 @@ impl StateGraphEmission<'_, '_> {
                 let [cleanup] = state.normal_exit_cleanups.as_slice() else {
                     return unsupported("ordinary return has no unique source cleanup coordinate");
                 };
-                Some(super::super::cleanup::for_exit(
+                let mut regions = super::super::cleanup::for_exit_regions(
                     state,
                     cleanup.exit,
                     self.catalogs,
                     &state_parameters,
                     &evaluation,
                     &operations,
-                )?)
+                )?;
+                super::super::cleanup::selection(
+                    state, &evaluation, &operations, &mut regions,
+                )?;
+                // Capture the authored result before hooks run. Private cleanup
+                // edges transport that value, never evaluate the result again.
+                let return_position = scalar_return.map(|value| {
+                    values.iter().position(|candidate| candidate.id == value.id)
+                        .unwrap_or_else(|| {
+                            values.push(value);
+                            values.len() - 1
+                        })
+                });
+                let actions = evaluation.emit_cleanup_regions(
+                    regions, &mut values, &mut next_value, &mut next_block,
+                    &mut next_edge, &mut operations,
+                )?;
+                if let Some(position) = return_position {
+                    scalar_return = Some(values[position]);
+                }
+                Some(actions)
             }
             _ => None,
         };
