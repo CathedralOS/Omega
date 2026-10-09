@@ -305,6 +305,13 @@ impl<'a> Elaborator<'a> {
     /// `bool` and `addr` carriers match their classes; every other
     /// interned carrier names its own position.
     pub(super) fn carrier_class_at(&self, position: u32) -> ScalarCarrier {
+        if let Some(alias) = self
+            .source_aliases
+            .iter()
+            .find(|alias| alias.declaration == position)
+        {
+            return alias.carrier;
+        }
         if self.integer == Some(position) {
             ScalarCarrier::Integer
         } else if self.boolean == Some(position) {

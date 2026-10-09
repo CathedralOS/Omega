@@ -38,6 +38,14 @@ impl<'a> Elaborator<'a> {
         if let Some(term) = self.constant_for_declaration(symbol)? {
             return Ok(term);
         }
+        if self.program.symbols.builtin_type_atom(symbol).is_some()
+            && let Some(reference) = self
+                .program
+                .type_reference_table
+                .find_named_type_reference(symbol)
+        {
+            return self.elaborate_type_reference(reference);
+        }
         if let Some(term) = self.carrier_for_symbol(symbol) {
             return Ok(term);
         }

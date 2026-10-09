@@ -321,7 +321,21 @@ impl<'a> Elaborator<'a> {
         {
             return self.embedding_term(handle, meaning);
         }
+        let source_type =
+            validation::mathematical_applications::operand_type_reference(self.program, handle);
+        let result_type = match source_type {
+            Some(reference) => self.elaborate_type_reference(reference)?,
+            None => self.carrier_term(carrier),
+        };
         let mut dependencies = Vec::new();
+        // A result domain can mention a generic binder that no value operand
+        // reaches. Keep those exact type dependencies in the same telescope.
+        super::dependencies::free_positions(
+            &self.arena,
+            result_type,
+            self.scope.len(),
+            &mut dependencies,
+        );
         let mut pending = vec![handle];
         let mut seen = Vec::new();
         while let Some(expression) = pending.pop() {
@@ -398,7 +412,17 @@ impl<'a> Elaborator<'a> {
                         &dependencies[..index],
                     ));
                 }
-                let mut ty = self.carrier_term(carrier);
+                let old_domains = self
+                    .scope
+                    .iter()
+                    .map(|entry| entry.domain)
+                    .collect::<Vec<_>>();
+                let mut ty = super::dependencies::rebind_domain(
+                    &mut self.arena,
+                    result_type,
+                    &old_domains,
+                    &dependencies,
+                );
                 for domain in domains.iter().rev() {
                     ty = self.arena.insert(Term::Pi {
                         domain: *domain,
@@ -411,11 +435,7 @@ impl<'a> Elaborator<'a> {
                     declaration: position,
                     meaning: super::PreparedConstantMeaning::SourceOperation {
                         expression: handle,
-                        source_type: validation::mathematical_applications::operand_type_reference(
-                            self.program,
-                            handle,
-                        )
-                        .unwrap_or_default(),
+                        source_type: source_type.unwrap_or_default(),
                     },
                 });
                 position

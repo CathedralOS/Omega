@@ -65,6 +65,20 @@ pub fn weak_head_normalize(
     term: TermHandle,
     budget: &mut Budget,
 ) -> Result<TermHandle, CoreError> {
+    weak_head_normalize_retaining(arena, signature, term, budget, &|_| false)
+}
+
+/// Use the same reduction rules while retaining selected declaration heads.
+/// This projects a checked source view before transparent carrier aliases
+/// disappear. Retention changes no kernel conversion or proof judgment; the
+/// ordinary entrance above unfolds every definition.
+pub fn weak_head_normalize_retaining(
+    arena: &mut TermArena,
+    signature: &Signature,
+    term: TermHandle,
+    budget: &mut Budget,
+    retained: &impl Fn(u32) -> bool,
+) -> Result<TermHandle, CoreError> {
     let mut current = term;
     loop {
         match arena.get(current) {
@@ -72,12 +86,16 @@ pub fn weak_head_normalize(
                 declaration,
                 levels,
             } => {
+                let declaration_index = declaration;
                 let Some(declaration) = signature.get(declaration) else {
                     return Err(CoreError::UnknownDeclaration {
                         declaration,
                         signature_len: signature.len(),
                     });
                 };
+                if retained(declaration_index) {
+                    return Ok(current);
+                }
                 match declaration.body {
                     Some(body) => {
                         budget.consume()?;
@@ -94,7 +112,8 @@ pub fn weak_head_normalize(
                 }
             }
             Term::Apply { function, argument } => {
-                let head = weak_head_normalize(arena, signature, function, budget)?;
+                let head =
+                    weak_head_normalize_retaining(arena, signature, function, budget, retained)?;
                 match arena.get(head) {
                     Term::Lambda { body, .. } => {
                         budget.consume()?;
@@ -112,7 +131,7 @@ pub fn weak_head_normalize(
                 }
             }
             Term::Fst { pair } => {
-                let head = weak_head_normalize(arena, signature, pair, budget)?;
+                let head = weak_head_normalize_retaining(arena, signature, pair, budget, retained)?;
                 match arena.get(head) {
                     Term::Pair { first, .. } => {
                         budget.consume()?;
@@ -127,7 +146,7 @@ pub fn weak_head_normalize(
                 }
             }
             Term::Snd { pair } => {
-                let head = weak_head_normalize(arena, signature, pair, budget)?;
+                let head = weak_head_normalize_retaining(arena, signature, pair, budget, retained)?;
                 match arena.get(head) {
                     Term::Pair { second, .. } => {
                         budget.consume()?;
@@ -152,7 +171,8 @@ pub fn weak_head_normalize(
                 // scrutinee keeps the elimination stuck. There is no
                 // eta law for `Two` — a stuck `caseTwo` is its own
                 // normal form.
-                let head = weak_head_normalize(arena, signature, scrutinee, budget)?;
+                let head =
+                    weak_head_normalize_retaining(arena, signature, scrutinee, budget, retained)?;
                 match arena.get(head) {
                     Term::TwoZero => {
                         budget.consume()?;
@@ -187,7 +207,8 @@ pub fn weak_head_normalize(
                 // `refl` value, so the match needs no endpoint re-check;
                 // a neutral proof keeps the elimination stuck. There is
                 // no identity eta — a stuck `J` is its own normal form.
-                let head = weak_head_normalize(arena, signature, proof, budget)?;
+                let head =
+                    weak_head_normalize_retaining(arena, signature, proof, budget, retained)?;
                 match arena.get(head) {
                     Term::Refl { .. } => {
                         budget.consume()?;
@@ -216,7 +237,7 @@ pub fn weak_head_normalize(
                 // child function stays arbitrary — a neutral `k` never
                 // blocks the step. A non-`sup` tree keeps the
                 // elimination stuck; there is no W eta.
-                let head = weak_head_normalize(arena, signature, tree, budget)?;
+                let head = weak_head_normalize_retaining(arena, signature, tree, budget, retained)?;
                 match arena.get(head) {
                     Term::Sup {
                         children,
@@ -276,7 +297,8 @@ pub fn weak_head_normalize(
                 // fires — a well-typed scrutinee is always neutral. The
                 // scrutinee still weak-head normalizes so the stuck
                 // form is canonical.
-                let head = weak_head_normalize(arena, signature, scrutinee, budget)?;
+                let head =
+                    weak_head_normalize_retaining(arena, signature, scrutinee, budget, retained)?;
                 if head == scrutinee {
                     return Ok(current);
                 }
@@ -293,7 +315,8 @@ pub fn weak_head_normalize(
                 // `unsq P f (sq a) → f a`: a squashed witness hands the
                 // unwrapped value to the function. A neutral scrutinee
                 // keeps the elimination stuck; there is no squash eta.
-                let head = weak_head_normalize(arena, signature, scrutinee, budget)?;
+                let head =
+                    weak_head_normalize_retaining(arena, signature, scrutinee, budget, retained)?;
                 match arena.get(head) {
                     Term::SquashIntro { value, .. } => {
                         budget.consume()?;
@@ -322,7 +345,8 @@ pub fn weak_head_normalize(
                 // `unbox P f (box a) → f a`: a boxed proof opens at the
                 // body's binder. A neutral scrutinee keeps the
                 // elimination stuck; there is no box eta.
-                let head = weak_head_normalize(arena, signature, scrutinee, budget)?;
+                let head =
+                    weak_head_normalize_retaining(arena, signature, scrutinee, budget, retained)?;
                 match arena.get(head) {
                     Term::BoxIntro { value, .. } => {
                         budget.consume()?;
@@ -363,29 +387,32 @@ fn convertible_binders(
     left_codomain: TermHandle,
     right_codomain: TermHandle,
     budget: &mut Budget,
+    retained: &impl Fn(u32) -> bool,
 ) -> Result<bool, CoreError> {
     let domain_sort = infer_sort(arena, context, left_domain, budget)?;
     let shared_domain = arena.insert(Term::Sort(domain_sort));
-    if !convertible(
+    if !convertible_retaining(
         arena,
         context,
         left_domain,
         right_domain,
         shared_domain,
         budget,
+        retained,
     )? {
         return Ok(false);
     }
     let extended = context.extend(left_domain);
     let codomain_sort = infer_sort(arena, &extended, left_codomain, budget)?;
     let shared_codomain = arena.insert(Term::Sort(codomain_sort));
-    convertible(
+    convertible_retaining(
         arena,
         &extended,
         left_codomain,
         right_codomain,
         shared_codomain,
         budget,
+        retained,
     )
 }
 
@@ -400,6 +427,21 @@ pub fn convertible(
     right: TermHandle,
     shared_type: TermHandle,
     budget: &mut Budget,
+) -> Result<bool, CoreError> {
+    convertible_retaining(arena, context, left, right, shared_type, budget, &|_| false)
+}
+
+/// Typed conversion with selected transparent heads retained in the source
+/// view. It uses every existing binder, eta and strictness rule; retaining
+/// carrier heads adds distinctions and supplies no extra value equalities.
+pub fn convertible_retaining(
+    arena: &mut TermArena,
+    context: &Context,
+    left: TermHandle,
+    right: TermHandle,
+    shared_type: TermHandle,
+    budget: &mut Budget,
+    retained: &impl Fn(u32) -> bool,
 ) -> Result<bool, CoreError> {
     let shared_sort = infer_sort(arena, context, shared_type, budget)?;
     if shared_sort.is_strict() {
@@ -419,8 +461,8 @@ pub fn convertible(
         return Ok(true);
     }
 
-    let left = weak_head_normalize(arena, context.signature(), left, budget)?;
-    let right = weak_head_normalize(arena, context.signature(), right, budget)?;
+    let left = weak_head_normalize_retaining(arena, context.signature(), left, budget, retained)?;
+    let right = weak_head_normalize_retaining(arena, context.signature(), right, budget, retained)?;
 
     // Weak-head normalization can identify different syntax — a
     // projection of a literal pair, a selected `caseTwo` branch, an
@@ -459,6 +501,7 @@ pub fn convertible(
             left_codomain,
             right_codomain,
             budget,
+            retained,
         ),
         (
             Term::Lambda {
@@ -468,11 +511,19 @@ pub fn convertible(
                 body: right_body, ..
             },
         ) => {
-            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            let type_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                shared_type,
+                budget,
+                retained,
+            )?;
             match arena.get(type_head) {
                 Term::Pi { domain, codomain } => {
                     let extended = context.extend(domain);
-                    convertible(arena, &extended, left_body, right_body, codomain, budget)
+                    convertible_retaining(
+                        arena, &extended, left_body, right_body, codomain, budget, retained,
+                    )
                 }
                 _ => Ok(false),
             }
@@ -494,6 +545,7 @@ pub fn convertible(
             left_codomain,
             right_codomain,
             budget,
+            retained,
         ),
         (
             Term::Pair {
@@ -505,20 +557,35 @@ pub fn convertible(
                 second: right_second,
             },
         ) => {
-            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            let type_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                shared_type,
+                budget,
+                retained,
+            )?;
             match arena.get(type_head) {
                 Term::Sigma { domain, codomain } => {
-                    if !convertible(arena, context, left_first, right_first, domain, budget)? {
+                    if !convertible_retaining(
+                        arena,
+                        context,
+                        left_first,
+                        right_first,
+                        domain,
+                        budget,
+                        retained,
+                    )? {
                         return Ok(false);
                     }
                     let second_type = substitute(arena, codomain, left_first);
-                    convertible(
+                    convertible_retaining(
                         arena,
                         context,
                         left_second,
                         right_second,
                         second_type,
                         budget,
+                        retained,
                     )
                 }
                 _ => Ok(false),
@@ -562,26 +629,34 @@ pub fn convertible(
             // Neutral spines: the heads must convert and the arguments must
             // convert at the function's inferred Π domain.
             let function_type = infer_type(arena, context, left_function, budget)?;
-            let type_head = weak_head_normalize(arena, context.signature(), function_type, budget)?;
+            let type_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                function_type,
+                budget,
+                retained,
+            )?;
             match arena.get(type_head) {
                 Term::Pi { domain, .. } => {
-                    if !convertible(
+                    if !convertible_retaining(
                         arena,
                         context,
                         left_argument,
                         right_argument,
                         domain,
                         budget,
+                        retained,
                     )? {
                         return Ok(false);
                     }
-                    convertible(
+                    convertible_retaining(
                         arena,
                         context,
                         left_function,
                         right_function,
                         function_type,
                         budget,
+                        retained,
                     )
                 }
                 _ => Ok(false),
@@ -592,11 +667,17 @@ pub fn convertible(
             // Neutral projections: the projected pairs must convert at
             // their inferred `Sigma`.
             let pair_type = infer_type(arena, context, left_pair, budget)?;
-            let pair_head = weak_head_normalize(arena, context.signature(), pair_type, budget)?;
+            let pair_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                pair_type,
+                budget,
+                retained,
+            )?;
             match arena.get(pair_head) {
-                Term::Sigma { .. } => {
-                    convertible(arena, context, left_pair, right_pair, pair_head, budget)
-                }
+                Term::Sigma { .. } => convertible_retaining(
+                    arena, context, left_pair, right_pair, pair_head, budget, retained,
+                ),
                 _ => Ok(false),
             }
         }
@@ -621,18 +702,27 @@ pub fn convertible(
             // reaches here — weak-head normalization already selected
             // its branch — so only stuck scrutinees meet this rule.
             let motive_type = infer_type(arena, context, left_motive, budget)?;
-            if !convertible(
+            if !convertible_retaining(
                 arena,
                 context,
                 left_motive,
                 right_motive,
                 motive_type,
                 budget,
+                retained,
             )? {
                 return Ok(false);
             }
             let two = arena.insert(Term::Two);
-            if !convertible(arena, context, left_scrutinee, right_scrutinee, two, budget)? {
+            if !convertible_retaining(
+                arena,
+                context,
+                left_scrutinee,
+                right_scrutinee,
+                two,
+                budget,
+                retained,
+            )? {
                 return Ok(false);
             }
             let zero = arena.insert(Term::TwoZero);
@@ -640,13 +730,14 @@ pub fn convertible(
                 function: left_motive,
                 argument: zero,
             });
-            if !convertible(
+            if !convertible_retaining(
                 arena,
                 context,
                 left_zero_branch,
                 right_zero_branch,
                 zero_branch_type,
                 budget,
+                retained,
             )? {
                 return Ok(false);
             }
@@ -655,13 +746,14 @@ pub fn convertible(
                 function: left_motive,
                 argument: one,
             });
-            convertible(
+            convertible_retaining(
                 arena,
                 context,
                 left_one_branch,
                 right_one_branch,
                 one_branch_type,
                 budget,
+                retained,
             )
         }
         (
@@ -681,13 +773,25 @@ pub fn convertible(
             // the left carrier.
             let ty_sort = infer_sort(arena, context, left_ty, budget)?;
             let shared_ty = arena.insert(Term::Sort(ty_sort));
-            if !convertible(arena, context, left_ty, right_ty, shared_ty, budget)? {
+            if !convertible_retaining(
+                arena, context, left_ty, right_ty, shared_ty, budget, retained,
+            )? {
                 return Ok(false);
             }
-            if !convertible(arena, context, left_left, right_left, left_ty, budget)? {
+            if !convertible_retaining(
+                arena, context, left_left, right_left, left_ty, budget, retained,
+            )? {
                 return Ok(false);
             }
-            convertible(arena, context, left_right, right_right, left_ty, budget)
+            convertible_retaining(
+                arena,
+                context,
+                left_right,
+                right_right,
+                left_ty,
+                budget,
+                retained,
+            )
         }
         (
             Term::Refl {
@@ -700,11 +804,23 @@ pub fn convertible(
             // Two reflexivity proofs at a shared identity type: the `ty`
             // annotations each convert to the shared carrier, so only
             // the values decide — compared at the shared type's carrier.
-            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            let type_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                shared_type,
+                budget,
+                retained,
+            )?;
             match arena.get(type_head) {
-                Term::Id { ty, .. } => {
-                    convertible(arena, context, left_value, right_value, ty, budget)
-                }
+                Term::Id { ty, .. } => convertible_retaining(
+                    arena,
+                    context,
+                    left_value,
+                    right_value,
+                    ty,
+                    budget,
+                    retained,
+                ),
                 _ => Ok(false),
             }
         }
@@ -731,26 +847,49 @@ pub fn convertible(
             // normalization already selected the base — so only stuck
             // proofs meet this rule.
             let motive_type = infer_type(arena, context, left_motive, budget)?;
-            if !convertible(
+            if !convertible_retaining(
                 arena,
                 context,
                 left_motive,
                 right_motive,
                 motive_type,
                 budget,
+                retained,
             )? {
                 return Ok(false);
             }
             let proof_type = infer_type(arena, context, left_proof, budget)?;
-            let proof_head = weak_head_normalize(arena, context.signature(), proof_type, budget)?;
+            let proof_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                proof_type,
+                budget,
+                retained,
+            )?;
             let (ty, fixed) = match arena.get(proof_head) {
                 Term::Id { ty, left, .. } => (ty, left),
                 _ => return Ok(false),
             };
-            if !convertible(arena, context, left_endpoint, right_endpoint, ty, budget)? {
+            if !convertible_retaining(
+                arena,
+                context,
+                left_endpoint,
+                right_endpoint,
+                ty,
+                budget,
+                retained,
+            )? {
                 return Ok(false);
             }
-            if !convertible(arena, context, left_proof, right_proof, proof_head, budget)? {
+            if !convertible_retaining(
+                arena,
+                context,
+                left_proof,
+                right_proof,
+                proof_head,
+                budget,
+                retained,
+            )? {
                 return Ok(false);
             }
             let refl = arena.insert(Term::Refl { ty, value: fixed });
@@ -762,7 +901,9 @@ pub fn convertible(
                 function: at_fixed,
                 argument: refl,
             });
-            convertible(arena, context, left_base, right_base, base_type, budget)
+            convertible_retaining(
+                arena, context, left_base, right_base, base_type, budget, retained,
+            )
         }
         (
             Term::W {
@@ -786,18 +927,19 @@ pub fn convertible(
                 return Ok(false);
             }
             let shared_carrier = arena.insert(Term::Sort(left_sort));
-            if !convertible(
+            if !convertible_retaining(
                 arena,
                 context,
                 left_carrier,
                 right_carrier,
                 shared_carrier,
                 budget,
+                retained,
             )? {
                 return Ok(false);
             }
-            let left_level = w_children_level(arena, context, left_children, budget)?;
-            let right_level = w_children_level(arena, context, right_children, budget)?;
+            let left_level = w_children_level(arena, context, left_children, budget, retained)?;
+            let right_level = w_children_level(arena, context, right_children, budget, retained)?;
             let (Some(level), Some(other)) = (left_level, right_level) else {
                 return Ok(false);
             };
@@ -809,13 +951,14 @@ pub fn convertible(
                 domain: left_carrier,
                 codomain,
             });
-            convertible(
+            convertible_retaining(
                 arena,
                 context,
                 left_children,
                 right_children,
                 family_type,
                 budget,
+                retained,
             )
         }
         (
@@ -837,10 +980,24 @@ pub fn convertible(
             // The annotation fields were already checked into the
             // shared `W`, so they decide nothing here; and there is no
             // W eta, so a `sup` never converts to a non-`sup`.
-            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            let type_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                shared_type,
+                budget,
+                retained,
+            )?;
             match arena.get(type_head) {
                 Term::W { carrier, children } => {
-                    if !convertible(arena, context, left_label, right_label, carrier, budget)? {
+                    if !convertible_retaining(
+                        arena,
+                        context,
+                        left_label,
+                        right_label,
+                        carrier,
+                        budget,
+                        retained,
+                    )? {
                         return Ok(false);
                     }
                     let domain = arena.insert(Term::Apply {
@@ -849,13 +1006,14 @@ pub fn convertible(
                     });
                     let codomain = shift(arena, type_head, 0, 1);
                     let function_type = arena.insert(Term::Pi { domain, codomain });
-                    convertible(
+                    convertible_retaining(
                         arena,
                         context,
                         left_function,
                         right_function,
                         function_type,
                         budget,
+                        retained,
                     )
                 }
                 _ => Ok(false),
@@ -881,27 +1039,38 @@ pub fn convertible(
             // unfolded `step a k ih` — so only stuck trees meet this
             // rule.
             let motive_type = infer_type(arena, context, left_motive, budget)?;
-            if !convertible(
+            if !convertible_retaining(
                 arena,
                 context,
                 left_motive,
                 right_motive,
                 motive_type,
                 budget,
+                retained,
             )? {
                 return Ok(false);
             }
             let tree_type = infer_type(arena, context, left_tree, budget)?;
-            let tree_head = weak_head_normalize(arena, context.signature(), tree_type, budget)?;
+            let tree_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                tree_type,
+                budget,
+                retained,
+            )?;
             let (carrier, children) = match arena.get(tree_head) {
                 Term::W { carrier, children } => (carrier, children),
                 _ => return Ok(false),
             };
-            if !convertible(arena, context, left_tree, right_tree, tree_head, budget)? {
+            if !convertible_retaining(
+                arena, context, left_tree, right_tree, tree_head, budget, retained,
+            )? {
                 return Ok(false);
             }
             let step_type = w_step_type(arena, carrier, children, left_motive);
-            convertible(arena, context, left_step, right_step, step_type, budget)
+            convertible_retaining(
+                arena, context, left_step, right_step, step_type, budget, retained,
+            )
         }
         (Term::Squash { ty: left_ty }, Term::Squash { ty: right_ty })
         | (Term::Box { ty: left_ty }, Term::Box { ty: right_ty }) => {
@@ -912,7 +1081,9 @@ pub fn convertible(
             // `Squash` it is `Type u`, a real comparison.
             let ty_sort = infer_sort(arena, context, left_ty, budget)?;
             let shared_ty = arena.insert(Term::Sort(ty_sort));
-            convertible(arena, context, left_ty, right_ty, shared_ty, budget)
+            convertible_retaining(
+                arena, context, left_ty, right_ty, shared_ty, budget, retained,
+            )
         }
         (
             Term::SquashIntro {
@@ -928,11 +1099,23 @@ pub fn convertible(
             // comparison is strict-collapsed before it runs; the arm
             // exists so the traversal stays honest if it ever meets
             // one at a non-collapsed shared type.
-            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            let type_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                shared_type,
+                budget,
+                retained,
+            )?;
             match arena.get(type_head) {
-                Term::Squash { ty } => {
-                    convertible(arena, context, left_value, right_value, ty, budget)
-                }
+                Term::Squash { ty } => convertible_retaining(
+                    arena,
+                    context,
+                    left_value,
+                    right_value,
+                    ty,
+                    budget,
+                    retained,
+                ),
                 _ => Ok(false),
             }
         }
@@ -949,11 +1132,23 @@ pub fn convertible(
             // two well-typed proofs, so canonical boxes are always
             // equal. Neutrals never reach this arm, which is exactly
             // how boxing keeps irrelevance from escaping.
-            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            let type_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                shared_type,
+                budget,
+                retained,
+            )?;
             match arena.get(type_head) {
-                Term::Box { ty } => {
-                    convertible(arena, context, left_value, right_value, ty, budget)
-                }
+                Term::Box { ty } => convertible_retaining(
+                    arena,
+                    context,
+                    left_value,
+                    right_value,
+                    ty,
+                    budget,
+                    retained,
+                ),
                 _ => Ok(false),
             }
         }
@@ -974,17 +1169,20 @@ pub fn convertible(
             // scrutinee ever reaches here: `sEmpty` has none.
             let ty_sort = infer_sort(arena, context, left_ty, budget)?;
             let shared_ty = arena.insert(Term::Sort(ty_sort));
-            if !convertible(arena, context, left_ty, right_ty, shared_ty, budget)? {
+            if !convertible_retaining(
+                arena, context, left_ty, right_ty, shared_ty, budget, retained,
+            )? {
                 return Ok(false);
             }
             let empty = arena.insert(Term::Empty);
-            convertible(
+            convertible_retaining(
                 arena,
                 context,
                 left_scrutinee,
                 right_scrutinee,
                 empty,
                 budget,
+                retained,
             )
         }
         (
@@ -1010,30 +1208,37 @@ pub fn convertible(
             // honestly.
             let proposition_sort = infer_sort(arena, context, left_proposition, budget)?;
             let shared_proposition = arena.insert(Term::Sort(proposition_sort));
-            if !convertible(
+            if !convertible_retaining(
                 arena,
                 context,
                 left_proposition,
                 right_proposition,
                 shared_proposition,
                 budget,
+                retained,
             )? {
                 return Ok(false);
             }
             let scrutinee_type = infer_type(arena, context, left_scrutinee, budget)?;
-            let scrutinee_head =
-                weak_head_normalize(arena, context.signature(), scrutinee_type, budget)?;
+            let scrutinee_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                scrutinee_type,
+                budget,
+                retained,
+            )?;
             let carrier = match arena.get(scrutinee_head) {
                 Term::Squash { ty } => ty,
                 _ => return Ok(false),
             };
-            if !convertible(
+            if !convertible_retaining(
                 arena,
                 context,
                 left_scrutinee,
                 right_scrutinee,
                 scrutinee_head,
                 budget,
+                retained,
             )? {
                 return Ok(false);
             }
@@ -1042,13 +1247,14 @@ pub fn convertible(
                 domain: carrier,
                 codomain,
             });
-            convertible(
+            convertible_retaining(
                 arena,
                 context,
                 left_function,
                 right_function,
                 function_type,
                 budget,
+                retained,
             )
         }
         (
@@ -1070,64 +1276,111 @@ pub fn convertible(
             // `box` scrutinee never reaches here — weak-head
             // normalization already applied the body.
             let motive_type = infer_type(arena, context, left_motive, budget)?;
-            if !convertible(
+            if !convertible_retaining(
                 arena,
                 context,
                 left_motive,
                 right_motive,
                 motive_type,
                 budget,
+                retained,
             )? {
                 return Ok(false);
             }
             let scrutinee_type = infer_type(arena, context, left_scrutinee, budget)?;
-            let scrutinee_head =
-                weak_head_normalize(arena, context.signature(), scrutinee_type, budget)?;
+            let scrutinee_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                scrutinee_type,
+                budget,
+                retained,
+            )?;
             let payload = match arena.get(scrutinee_head) {
                 Term::Box { ty } => ty,
                 _ => return Ok(false),
             };
-            if !convertible(
+            if !convertible_retaining(
                 arena,
                 context,
                 left_scrutinee,
                 right_scrutinee,
                 scrutinee_head,
                 budget,
+                retained,
             )? {
                 return Ok(false);
             }
             let body_type = box_body_type(arena, payload, left_motive);
-            convertible(arena, context, left_body, right_body, body_type, budget)
+            convertible_retaining(
+                arena, context, left_body, right_body, body_type, budget, retained,
+            )
         }
         (Term::Pair { first, second }, _) => {
             // Pair eta: a literal pair converts to a non-pair only when the
             // non-pair's projections convert to its components.
-            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            let type_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                shared_type,
+                budget,
+                retained,
+            )?;
             match arena.get(type_head) {
                 Term::Sigma { domain, codomain } => {
                     let right_first = arena.insert(Term::Fst { pair: right });
-                    if !convertible(arena, context, first, right_first, domain, budget)? {
+                    if !convertible_retaining(
+                        arena,
+                        context,
+                        first,
+                        right_first,
+                        domain,
+                        budget,
+                        retained,
+                    )? {
                         return Ok(false);
                     }
                     let right_second = arena.insert(Term::Snd { pair: right });
                     let second_type = substitute(arena, codomain, right_first);
-                    convertible(arena, context, second, right_second, second_type, budget)
+                    convertible_retaining(
+                        arena,
+                        context,
+                        second,
+                        right_second,
+                        second_type,
+                        budget,
+                        retained,
+                    )
                 }
                 _ => Ok(false),
             }
         }
         (_, Term::Pair { first, second }) => {
-            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            let type_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                shared_type,
+                budget,
+                retained,
+            )?;
             match arena.get(type_head) {
                 Term::Sigma { domain, codomain } => {
                     let left_first = arena.insert(Term::Fst { pair: left });
-                    if !convertible(arena, context, left_first, first, domain, budget)? {
+                    if !convertible_retaining(
+                        arena, context, left_first, first, domain, budget, retained,
+                    )? {
                         return Ok(false);
                     }
                     let left_second = arena.insert(Term::Snd { pair: left });
                     let second_type = substitute(arena, codomain, left_first);
-                    convertible(arena, context, left_second, second, second_type, budget)
+                    convertible_retaining(
+                        arena,
+                        context,
+                        left_second,
+                        second,
+                        second_type,
+                        budget,
+                        retained,
+                    )
                 }
                 _ => Ok(false),
             }
@@ -1142,7 +1395,13 @@ pub fn convertible(
             // so an `f x` body converts only when `f` itself does; a
             // pointwise match is never enough. A strict `Pi` never reaches
             // here — irrelevance already collapsed its inhabitants.
-            let type_head = weak_head_normalize(arena, context.signature(), shared_type, budget)?;
+            let type_head = weak_head_normalize_retaining(
+                arena,
+                context.signature(),
+                shared_type,
+                budget,
+                retained,
+            )?;
             match arena.get(type_head) {
                 Term::Pi { domain, codomain } => {
                     let (lambda_body, other) = match (arena.get(left), arena.get(right)) {
@@ -1157,7 +1416,15 @@ pub fn convertible(
                         function: lifted,
                         argument: fresh,
                     });
-                    convertible(arena, &extended, lambda_body, applied, codomain, budget)
+                    convertible_retaining(
+                        arena,
+                        &extended,
+                        lambda_body,
+                        applied,
+                        codomain,
+                        budget,
+                        retained,
+                    )
                 }
                 _ => Ok(false),
             }
@@ -1175,14 +1442,17 @@ fn w_children_level(
     context: &Context,
     family: TermHandle,
     budget: &mut Budget,
+    retained: &impl Fn(u32) -> bool,
 ) -> Result<Option<Level>, CoreError> {
     let family_type = infer_type(arena, context, family, budget)?;
-    let head = weak_head_normalize(arena, context.signature(), family_type, budget)?;
+    let head =
+        weak_head_normalize_retaining(arena, context.signature(), family_type, budget, retained)?;
     let codomain = match arena.get(head) {
         Term::Pi { codomain, .. } => codomain,
         _ => return Ok(None),
     };
-    let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
+    let codomain_head =
+        weak_head_normalize_retaining(arena, context.signature(), codomain, budget, retained)?;
     match arena.get(codomain_head) {
         Term::Sort(Sort::Type(level)) => Ok(Some(level)),
         _ => Ok(None),

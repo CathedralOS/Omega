@@ -77,10 +77,10 @@ pub use mathematical_core::{
     QUOTIENT_SOUND, QUOTIENT_TRANSPORT, QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily,
     Signature, SignatureCheckError, Sort, Term, TermArena, TermHandle, assumption_closure,
     certificate_assumption_closure, check_signature, check_signature_with_attribution, check_type,
-    convertible, denote_bounded_certificate, identity_substitution, indexed_correctness,
-    indexed_scheme, infer_sort, infer_type, instantiate_levels, judgment_assumption_closure,
-    quotient_scheme, shift, substitute, verify_bounded_certificate,
-    verify_mathematical_certificate, weak_head_normalize,
+    convertible, convertible_retaining, denote_bounded_certificate, identity_substitution,
+    indexed_correctness, indexed_scheme, infer_sort, infer_type, instantiate_levels,
+    judgment_assumption_closure, quotient_scheme, shift, substitute, verify_bounded_certificate,
+    verify_mathematical_certificate, weak_head_normalize, weak_head_normalize_retaining,
 };
 pub use predicate_denotation::{
     CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,

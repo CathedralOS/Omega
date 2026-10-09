@@ -27,6 +27,7 @@ mod normalization;
 mod operand_terms;
 mod propositions;
 mod scope;
+mod source_domains;
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -188,6 +189,8 @@ struct Elaborator<'a> {
     span: Option<SourceSpan>,
     source_owner: SymbolHandle,
     captured_expressions: Vec<(ExpressionHandle, usize)>,
+    source_aliases: Vec<source_domains::SourceAlias>,
+    source_invocations: Vec<source_domains::SourceInvocation>,
     prepared: PreparedMathematicalApplications,
 }
 
@@ -234,6 +237,8 @@ pub(crate) fn check_mathematical_signature(
         span: None,
         source_owner: SymbolHandle::default(),
         captured_expressions: Vec::new(),
+        source_aliases: Vec::new(),
+        source_invocations: Vec::new(),
         prepared: PreparedMathematicalApplications::default(),
     };
     for definition in program.mathematical_definitions() {
@@ -520,30 +525,44 @@ impl<'a> Elaborator<'a> {
                 }
                 let target = call.target.clone();
                 let static_arguments = call.machine_arguments.clone();
-                let instantiated =
-                    self.elaborate_callee(target_symbol, &target, &static_arguments)?;
-                if self.authored_index.contains_key(&target_symbol) {
-                    validation::mathematical_applications::validate_source_application(
-                        self.program,
-                        &call,
-                        &instantiated.source_bindings,
-                    )
-                    .map_err(|reason| {
-                        self.refuse(format!(
-                            "invalid mathematical application `{target}`: {reason}"
-                        ))
-                    })?;
-                }
-                let mut function = instantiated.term;
+                let mut function =
+                    self.elaborate_callee(handle, target_symbol, &target, &static_arguments)?;
+                let callee = function;
+                let domains = self.scope.iter().map(|entry| entry.domain).collect();
+                let mut inputs = Vec::new();
                 for argument in self
                     .program
                     .expression_table
                     .expression_handles(call.arguments)
                     .to_vec()
                 {
-                    let argument = self.elaborate_expression(argument)?;
-                    function = self.arena.insert(Term::Apply { function, argument });
+                    let term = self.elaborate_expression(argument)?;
+                    let source_domain = if matches!(self.program.expression_table.expression(argument),
+                        ExpressionNode::Call(call) if self.authored_index.contains_key(&call.target_symbol))
+                        || matches!(self.program.expression_table.expression(argument),
+                            ExpressionNode::Name(path) if self.program.symbols.builtin_type_atom(path.symbol).is_some()) {
+                        None
+                    } else {
+                        validation::mathematical_applications::operand_type_reference(self.program, argument)
+                    }.map(|reference| self.elaborate_type_reference(reference)).transpose()?;
+                    inputs.push(source_domains::SourceInput {
+                        expression: argument,
+                        term,
+                        domain: source_domain,
+                    });
+                    function = self.arena.insert(Term::Apply {
+                        function,
+                        argument: term,
+                    });
                 }
+                self.source_invocations
+                    .push(source_domains::SourceInvocation {
+                        expression: handle,
+                        callee,
+                        inputs,
+                        domains,
+                        level_arity: self.level_binders.len() as u32 + self.generalized_levels,
+                    });
                 Ok(function)
             }
             ExpressionNode::Integer(literal) => {
@@ -653,6 +672,7 @@ impl<'a> Elaborator<'a> {
                         ))
                     }
                 })?;
+        self.check_source_domains(&signature)?;
         for (expression, term, domains, captures) in applications {
             let context = domains.into_iter().fold(
                 Context::empty().with_signature(signature.clone()),

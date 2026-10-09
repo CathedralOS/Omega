@@ -10,12 +10,6 @@ use super::{
 use diagnostics::Diagnostic;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::TypeReferenceHandle;
-
-pub(super) struct InstantiatedCallee {
-    pub term: TermHandle,
-    pub source_bindings: Vec<(SymbolHandle, TypeReferenceHandle)>,
-}
 
 impl Elaborator<'_> {
     /// Form applications demanded outside mathematical declaration bodies.
@@ -47,8 +41,25 @@ impl Elaborator<'_> {
                 .then_some((expression, call.clone()))
             })
             .collect::<Vec<_>>();
+        let owners = validation::expression_owners::OwnerEnvironmentIndex::new(
+            self.program,
+            &arena::Arena::default(),
+        );
         let mut applications = Vec::with_capacity(calls.len());
         for (expression, call) in calls {
+            self.span = Some(self.program.expression_table.source_span(expression));
+            let retained_owner = typed_trees::references::StaticArgumentCall::Expression(&call)
+                .lexical_owner(self.program);
+            self.source_owner = if retained_owner.is_valid() {
+                retained_owner
+            } else {
+                validation::expression_owners::source_declaration_owner(
+                    self.program,
+                    expression,
+                    &owners,
+                )
+                .unwrap_or_default()
+            };
             self.scope.clear();
             self.level_binders.clear();
             self.level_names.clear();
@@ -70,9 +81,11 @@ impl Elaborator<'_> {
                 seen.push(operand);
                 let node = self.program.expression_table.expression(operand);
                 let mathematical = matches!(node, ExpressionNode::Call(call) if self.authored_index.contains_key(&call.target_symbol));
-                let model_bound = matches!(node, ExpressionNode::Name(path) if self.program.symbols.builtin_type_member(path.symbol).is_some());
+                let declaration_description = matches!(node, ExpressionNode::Name(path)
+                    if self.program.symbols.builtin_type_member(path.symbol).is_some()
+                        || self.program.symbols.builtin_type_atom(path.symbol).is_some());
                 if !mathematical
-                    && !model_bound
+                    && !declaration_description
                     && let Some(reference) =
                         validation::mathematical_applications::operand_type_reference(
                             self.program,
@@ -111,13 +124,14 @@ impl Elaborator<'_> {
 
     pub(super) fn elaborate_callee(
         &mut self,
+        expression: ExpressionHandle,
         symbol: SymbolHandle,
         name: &Identifier,
         arguments: &[StaticMachineArgument],
-    ) -> Result<InstantiatedCallee, Vec<Diagnostic>> {
+    ) -> Result<TermHandle, Vec<Diagnostic>> {
         if !arguments.is_empty() {
             if let Some(&index) = self.authored_index.get(&symbol) {
-                return self.instantiate_declaration(index, arguments);
+                return self.instantiate_declaration(expression, index, arguments);
             }
             return Err(self.refuse(format!(
                 "mathematical callee `{name}` has no declaration telescope for static arguments"
@@ -130,17 +144,15 @@ impl Elaborator<'_> {
         } else {
             return Err(self.refuse(format!("unresolved mathematical callee `{name}`")));
         };
-        Ok(InstantiatedCallee {
-            term,
-            source_bindings: Vec::new(),
-        })
+        Ok(term)
     }
 
     fn instantiate_declaration(
         &mut self,
+        expression: ExpressionHandle,
         index: usize,
         arguments: &[StaticMachineArgument],
-    ) -> Result<InstantiatedCallee, Vec<Diagnostic>> {
+    ) -> Result<TermHandle, Vec<Diagnostic>> {
         let definition = &self.program.mathematical_definitions()[index];
         let Some(&position) = self.authored_positions.get(&definition.symbol) else {
             return Err(self.refuse(format!(
@@ -169,7 +181,6 @@ impl Elaborator<'_> {
         }
         let mut authored_levels = vec![None; level_binders.len()];
         let mut terms = Vec::new();
-        let mut source_bindings = Vec::new();
         let mut generalized = Vec::new();
         let mut constraints = Vec::new();
         let mut arguments = arguments.iter();
@@ -185,23 +196,6 @@ impl Elaborator<'_> {
             }
             let argument = arguments.next().expect("checked generic arity");
             let term = self.static_term(argument)?;
-            let type_binder = matches!(binder.kind, TypeParameterKind::Type)
-                || matches!(binder.kind,
-                    TypeParameterKind::Const { type_reference }
-                    | TypeParameterKind::Value { type_reference }
-                    if matches!(self.carrier_head(type_reference), CarrierHead::Type(_)));
-            if type_binder {
-                let reference = if argument.type_reference.is_valid() {
-                    Some(argument.type_reference)
-                } else {
-                    self.program
-                        .type_reference_table
-                        .find_named_type_reference(argument.symbol)
-                };
-                if let Some(reference) = reference {
-                    source_bindings.push((binder.symbol, reference));
-                }
-            }
             if self.binder_claims_generalized_level(binder) {
                 generalized.push((term, binder.name.clone()));
             } else if omit_levels
@@ -257,13 +251,27 @@ impl Elaborator<'_> {
             declaration: position,
             levels,
         });
+        let callee = function;
+        let mut inputs = Vec::with_capacity(terms.len());
         for argument in terms {
+            inputs.push(super::source_domains::SourceInput {
+                // Generic terms are already typed in the exact caller scope.
+                // No anonymous ordinary-expression landing is available here.
+                expression: ExpressionHandle::default(),
+                term: argument,
+                domain: None,
+            });
             function = self.arena.insert(Term::Apply { function, argument });
         }
-        Ok(InstantiatedCallee {
-            term: function,
-            source_bindings,
-        })
+        self.source_invocations
+            .push(super::source_domains::SourceInvocation {
+                expression,
+                callee,
+                inputs,
+                domains: self.scope.iter().map(|entry| entry.domain).collect(),
+                level_arity: self.level_binders.len() as u32 + self.generalized_levels,
+            });
+        Ok(function)
     }
 
     fn binder_is_level(&self, binder: &TypeParameter) -> bool {
@@ -343,6 +351,13 @@ impl Elaborator<'_> {
             return self.elaborate_type_reference(argument.type_reference);
         }
         if argument.symbol.is_valid() {
+            if let Some(reference) = self
+                .program
+                .type_reference_table
+                .find_named_type_reference(argument.symbol)
+            {
+                return self.elaborate_type_reference(reference);
+            }
             let name = argument.path.last().cloned().unwrap_or_default();
             return self.named_term(argument.symbol, &name);
         }

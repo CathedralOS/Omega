@@ -119,6 +119,22 @@ pub fn reserved_result_owner(
     contract_occurrence_owner(program, expression, expression)
 }
 
+/// Exact declaration owning a raw authored contract expression. This query
+/// grants source scope only; it does not assume the contract was proved and
+/// does not require the expression to use the reserved result form.
+pub(crate) fn source_contract_declaration_owner(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Result<symbols::SymbolHandle, ()> {
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        return memos
+            .contract_occurrences
+            .get_or_init(|| std::sync::Arc::new(ContractOccurrenceIndex::of(program)))
+            .declaration_owner(expression);
+    }
+    ContractOccurrenceIndex::of(program).declaration_owner(expression)
+}
+
 fn contract_occurrence_owner(
     program: &dyn crate::CheckingInput,
     root: ExpressionHandle,
@@ -292,6 +308,18 @@ impl ContractOccurrenceIndex {
             contracts,
             containing,
         }
+    }
+
+    fn declaration_owner(&self, expression: ExpressionHandle) -> Result<symbols::SymbolHandle, ()> {
+        let mut owner = symbols::SymbolHandle::default();
+        for position in self.containing.get(&expression).into_iter().flatten() {
+            let (callable, _, _) = self.contracts[*position as usize];
+            if !callable.is_valid() || (owner.is_valid() && owner != callable) {
+                return Err(());
+            }
+            owner = callable;
+        }
+        Ok(owner)
     }
 
     /// The scan's verdict: the contracts reaching both nodes, in order.

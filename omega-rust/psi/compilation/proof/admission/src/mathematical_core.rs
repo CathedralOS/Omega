@@ -211,7 +211,10 @@ pub use certificate::{
     MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
 };
 pub use conversion::Budget;
-pub use conversion::{DEFAULT_CONVERSION_STEPS, convertible, weak_head_normalize};
+pub use conversion::{
+    DEFAULT_CONVERSION_STEPS, convertible, convertible_retaining, weak_head_normalize,
+    weak_head_normalize_retaining,
+};
 pub use indexed::{
     INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily,
     indexed_correctness, indexed_scheme,

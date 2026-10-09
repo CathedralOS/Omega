@@ -145,6 +145,9 @@ impl<'a> Elaborator<'a> {
                 self.refuse("a mathematical type references a type that does not exist".to_owned())
             );
         }
+        if let Some(alias) = self.source_type_alias(reference)? {
+            return Ok(alias);
+        }
         // Arithmetic policy changes the selected source value operation, not
         // the calculus domain. Source application admission and captured type
         // references retain the complete shell; only this carrier projection

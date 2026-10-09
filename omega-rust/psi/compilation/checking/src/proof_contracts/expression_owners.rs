@@ -189,3 +189,24 @@ impl OwnerEnvironmentIndex {
             .unwrap_or_default()
     }
 }
+
+/// Source scope for one exact expression occurrence. Raw authored contracts
+/// identify their public callable; executable roots use the existing statement
+/// ownership index. Neither path grants checked facts or callee authority.
+/// Shared occurrences with different declaration owners have no single scope.
+pub fn source_declaration_owner(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    owners: &OwnerEnvironmentIndex,
+) -> Option<SymbolHandle> {
+    let mut owner =
+        super::contract_results::source_contract_declaration_owner(program, expression).ok()?;
+    for (machine, _, _) in owners.containing_statement_sites(expression) {
+        let candidate = program.machines().get(machine)?.symbol;
+        if !candidate.is_valid() || (owner.is_valid() && owner != candidate) {
+            return None;
+        }
+        owner = candidate;
+    }
+    owner.is_valid().then_some(owner)
+}
