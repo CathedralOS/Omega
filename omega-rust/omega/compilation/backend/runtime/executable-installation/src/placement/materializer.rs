@@ -3,7 +3,7 @@ use sha2::Digest;
 use crate::artifacts::AdmittedArtifact;
 use crate::artifacts::container::{ArtifactRelocationKind, DecodedArtifactRelocation};
 use crate::authority_digests::{
-    AdmissionReceiptId, ArtifactContentDigest, ArtifactId, CodePlacementId, FinalBytesDigest,
+    ArtifactContentDigest, FinalBytesDigest,
     PlacementPlanId,
 };
 use crate::installation::InstallationDiagnostic;
@@ -26,21 +26,12 @@ pub(crate) struct MaterializedArtifactBytes {
 }
 
 impl MaterializedArtifactBytes {
-    pub fn artifact(&self) -> ArtifactId {
-        self.admission.artifact.0.identity
-    }
 
     pub(crate) const fn admission_evidence(&self) -> &AdmittedArtifact {
         &self.admission
     }
 
-    pub const fn admission(&self) -> AdmissionReceiptId {
-        self.admission.admission
-    }
 
-    pub const fn placement(&self) -> CodePlacementId {
-        self.placement.placement
-    }
 
     pub(crate) const fn placement_evidence(&self) -> &CodePlacementEvidence {
         &self.placement

@@ -618,18 +618,6 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterConsumerValidationError<'mapping,
         self.written
     }
 
-    pub(crate) fn into_prepared_parts(
-        self,
-    ) -> (
-        ResolvedPostHandoffEntryWriterContext,
-        ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
-    ) {
-        let (context, destination) = self.written.into_prepared_parts();
-        (
-            context,
-            ValidatedPreparedPostHandoffWriterDestination { destination },
-        )
-    }
 }
 
 impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
@@ -655,9 +643,6 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         self.context.binds_invocation(invocation)
     }
 
-    pub const fn normalized_fragment_report_fingerprint(&self) -> u64 {
-        self.context.normalized_fragment_report_fingerprint()
-    }
 
     /// Independently replay the exact non-clonable writer context, destination
     /// preparation, and complete producer-captured byte image before an owning
@@ -708,30 +693,7 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
     /// Recover the exact non-clonable context and still-unpublished prepared
     /// destination when a later consumer rejects validation. No byte or
     /// authority is reconstructed by this transition.
-    fn into_prepared_parts(
-        self,
-    ) -> (
-        ResolvedPostHandoffEntryWriterContext,
-        PreparedPostHandoffWriterDestination<'mapping, 'bytes>,
-    ) {
-        let Self {
-            mapping,
-            receipt,
-            site,
-            bytes,
-            exact_produced_bytes: _,
-            context,
-        } = self;
-        (
-            context,
-            PreparedPostHandoffWriterDestination {
-                mapping,
-                receipt,
-                site,
-                bytes,
-            },
-        )
-    }
+
 
     fn into_parts(
         self,
@@ -746,66 +708,22 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
 }
 
 impl<'mapping, 'bytes> ValidatedWrittenPostHandoffWriterDestination<'mapping, 'bytes> {
-    pub const fn installed_code(&self) -> InstalledCodeId {
-        self.written.installed_code()
-    }
 
-    pub const fn artifact(&self) -> ArtifactId {
-        self.written.artifact()
-    }
 
-    pub const fn site(&self) -> PlacementSite {
-        self.written.site()
-    }
 
-    pub const fn non_authoritative_writer_context_fingerprint(
-        &self,
-    ) -> NonAuthoritativeWriterContextFingerprint64 {
-        self.written.non_authoritative_writer_context_fingerprint()
-    }
 
-    pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
-        self.written.binds_invocation(invocation)
-    }
 
-    pub const fn normalized_fragment_report_fingerprint(&self) -> u64 {
-        self.written.normalized_fragment_report_fingerprint()
-    }
 
-    /// Replay the installed realization and destination preparation without
-    /// downgrading this already-validated custody carrier.
-    pub fn validate_for_consumer(
-        &self,
-        installed_code: &InstalledCode,
-    ) -> Result<(), InstallationDiagnostic> {
-        self.written.validate_for_consumer(installed_code)
-    }
 
     pub const fn context(&self) -> &ResolvedPostHandoffEntryWriterContext {
         &self.written.context
     }
 
-    /// Bytes remain unpublished; this is observation after exact replay.
     pub fn bytes(&self) -> &[u8] {
         self.written.bytes
     }
 
-    pub fn into_written(self) -> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
-        self.written
-    }
 
-    pub fn into_prepared_parts(
-        self,
-    ) -> (
-        ResolvedPostHandoffEntryWriterContext,
-        ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes>,
-    ) {
-        let (context, destination) = self.written.into_prepared_parts();
-        (
-            context,
-            ValidatedPreparedPostHandoffWriterDestination { destination },
-        )
-    }
 
     pub fn into_parts(
         self,

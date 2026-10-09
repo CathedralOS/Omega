@@ -111,7 +111,6 @@ pub(crate) enum ReplacementOutcome {
     },
     Quarantined {
         quarantined: QuarantinedInstallation,
-        patch: ReplacementReceipt,
     },
 }
 
@@ -254,7 +253,7 @@ pub(crate) fn replace_installed(
             Ok(ReplacementOutcome::Retired { retired, patch })
         }
         Ok(UninstallOutcome::Quarantined(quarantined)) => {
-            Ok(ReplacementOutcome::Quarantined { quarantined, patch })
+            Ok(ReplacementOutcome::Quarantined { quarantined })
         }
         Err(error) => {
             let retirement_diagnostic = error.retirement_diagnostic().clone();

@@ -265,9 +265,6 @@ impl Artifact {
         self.0.placement_constraints
     }
 
-    pub(crate) fn entry_set(&self) -> EntrySetId {
-        self.0.entry_set
-    }
 
     pub fn entries(&self) -> &[ArtifactEntry] {
         &self.0.entries

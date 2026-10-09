@@ -73,7 +73,7 @@ use crate::retirement::quarantine::{
     MappingQuarantineCause, MappingQuarantineReceipt,
 };
 use crate::retirement::replacement::{
-    ReplacementAuthority, ReplacementOutcome, ReplacementReceipt, replace_installed,
+    ReplacementAuthority, ReplacementOutcome, replace_installed,
 };
 use crate::retirement::uninstall::{UninstallOutcome, uninstall_installed};
 use crate::retirement::{
@@ -317,7 +317,7 @@ impl OwnedImageProvider {
         &'provider self,
         installed: &'installed InstalledCode,
         authority: EntryReferenceAuthority,
-    ) -> Result<ResidentEntryCall<'provider>, CallCodeError<'installed>> {
+    ) -> Result<ResidentEntryCall<'provider>, CallCodeError> {
         let reference = match self.seal_code_entry(installed, authority) {
             Ok(reference) => reference,
             Err(error) => return Err(CallCodeError::Seal(error)),
@@ -325,7 +325,6 @@ impl OwnedImageProvider {
         match self.call(installed, &reference) {
             Ok(call) => Ok(call),
             Err(diagnostic) => Err(CallCodeError::Call {
-                reference,
                 diagnostic,
             }),
         }
@@ -346,24 +345,16 @@ impl OwnedImageProvider {
             Ok(receipt) => receipt,
             Err(diagnostic) => {
                 return Err(RetireCodeError {
-                    installed,
-                    authority,
-                    receipt: None,
                     diagnostic,
-                });
+                    });
             }
         };
         let identity = installed.identity();
         match retire_installed(installed, authority, receipt) {
             Ok(retired) => Ok((identity, retired)),
             Err(error) => {
-                let diagnostic = error.diagnostic().clone();
-                let (installed, authority, receipt) = error.into_parts();
                 Err(RetireCodeError {
-                    installed,
-                    authority,
-                    receipt: Some(receipt),
-                    diagnostic,
+                    diagnostic: error.diagnostic().clone(),
                 })
             }
         }
@@ -395,7 +386,6 @@ impl OwnedImageProvider {
                         quarantine: None,
                         cause: residual,
                         drain_diagnostic: diagnostic,
-                        quarantine_diagnostic: None,
                     });
                 }
             },
@@ -420,7 +410,6 @@ impl OwnedImageProvider {
                             quarantine: None,
                             cause: residual,
                             drain_diagnostic: diagnostic,
-                            quarantine_diagnostic: None,
                         });
                     }
                 }
@@ -430,7 +419,6 @@ impl OwnedImageProvider {
             Ok(outcome) => Ok((identity, outcome)),
             Err(error) => {
                 let drain_diagnostic = error.retirement_diagnostic().clone();
-                let quarantine_diagnostic = error.quarantine_diagnostic().cloned();
                 let (installed, authority, retirement, quarantine) = error.into_parts();
                 Err(UninstallCodeError {
                     installed,
@@ -439,8 +427,7 @@ impl OwnedImageProvider {
                     quarantine,
                     cause: residual,
                     drain_diagnostic,
-                    quarantine_diagnostic,
-                })
+                    })
             }
         }
     }
@@ -462,16 +449,7 @@ impl OwnedImageProvider {
             Ok(receipt) => receipt,
             Err(diagnostic) => {
                 return Err(ReplaceCodeError {
-                    installed,
-                    authority,
-                    retirement_authority,
-                    patch: None,
-                    retirement: None,
-                    quarantine: None,
-                    cause: residual,
                     diagnostic,
-                    drain_diagnostic: None,
-                    quarantine_diagnostic: None,
                 });
             }
         };
@@ -481,17 +459,8 @@ impl OwnedImageProvider {
                 Ok(receipt) => (receipt, None),
                 Err(diagnostic) => {
                     return Err(ReplaceCodeError {
-                        installed,
-                        authority,
-                        retirement_authority,
-                        patch: Some(patch),
-                        retirement: None,
-                        quarantine: None,
-                        cause: residual,
-                        diagnostic,
-                        drain_diagnostic: None,
-                        quarantine_diagnostic: None,
-                    });
+                    diagnostic,
+                });
                 }
             },
             Some(cause) => {
@@ -506,17 +475,8 @@ impl OwnedImageProvider {
                     Ok(receipt) => (drain, Some(receipt)),
                     Err(diagnostic) => {
                         return Err(ReplaceCodeError {
-                            installed,
-                            authority,
-                            retirement_authority,
-                            patch: Some(patch),
-                            retirement: Some(drain),
-                            quarantine: None,
-                            cause: residual,
-                            diagnostic,
-                            drain_diagnostic: None,
-                            quarantine_diagnostic: None,
-                        });
+                    diagnostic,
+                });
                     }
                 }
             }
@@ -533,23 +493,10 @@ impl OwnedImageProvider {
             Ok(outcome) => Ok((identity, outcome)),
             Err(error) => {
                 let patch_diagnostic = error.patch_diagnostic().cloned();
-                let drain_diagnostic = error.retirement_diagnostic().cloned();
-                let quarantine_diagnostic = error.quarantine_diagnostic().cloned();
-                let (installed, authority, patch, retirement_authority, retirement, quarantine) =
-                    error.into_parts();
                 Err(ReplaceCodeError {
-                    installed,
-                    authority,
-                    retirement_authority,
-                    patch: Some(patch),
-                    retirement: Some(retirement),
-                    quarantine,
-                    cause: residual,
                     diagnostic: patch_diagnostic.unwrap_or_else(|| {
                         InstallationDiagnostic("replacement join refused".into())
                     }),
-                    drain_diagnostic,
-                    quarantine_diagnostic,
                 })
             }
         }
@@ -627,15 +574,14 @@ impl std::error::Error for SealCodeEntryError {}
 /// seal-stage inputs; `Call` keeps the minted reference so the caller can
 /// retry the call without re-sealing.
 #[derive(Debug)]
-pub(crate) enum CallCodeError<'installed> {
+pub(crate) enum CallCodeError {
     Seal(SealCodeEntryError),
     Call {
-        reference: InstalledEntryReference<'installed>,
         diagnostic: InstallationDiagnostic,
     },
 }
 
-impl CallCodeError<'_> {
+impl CallCodeError {
     pub const fn diagnostic(&self) -> &InstallationDiagnostic {
         match self {
             Self::Seal(error) => error.diagnostic(),
@@ -644,37 +590,22 @@ impl CallCodeError<'_> {
     }
 }
 
-impl std::fmt::Display for CallCodeError<'_> {
+impl std::fmt::Display for CallCodeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.diagnostic().fmt(formatter)
     }
 }
 
-impl std::error::Error for CallCodeError<'_> {}
+impl std::error::Error for CallCodeError {}
 
 /// A refused [`OwnedImageProvider::retire_code`] drive.
 #[derive(Debug)]
 pub(crate) struct RetireCodeError {
-    installed: InstalledCode,
-    authority: RetirementAuthority,
-    receipt: Option<RetirementReceipt>,
     diagnostic: InstallationDiagnostic,
 }
 
 impl RetireCodeError {
-    pub const fn diagnostic(&self) -> &InstallationDiagnostic {
-        &self.diagnostic
-    }
 
-    pub fn into_parts(
-        self,
-    ) -> (
-        InstalledCode,
-        RetirementAuthority,
-        Option<RetirementReceipt>,
-    ) {
-        (self.installed, self.authority, self.receipt)
-    }
 }
 
 impl std::fmt::Display for RetireCodeError {
@@ -685,38 +616,6 @@ impl std::fmt::Display for RetireCodeError {
 
 impl std::error::Error for RetireCodeError {}
 
-/// A refused [`OwnedImageProvider::quarantine_code`] drive.
-#[derive(Debug)]
-pub(crate) struct QuarantineCodeError {
-    installed: InstalledCode,
-    cause: MappingQuarantineCause,
-    receipt: Option<MappingQuarantineReceipt>,
-    diagnostic: InstallationDiagnostic,
-}
-
-impl QuarantineCodeError {
-    pub const fn diagnostic(&self) -> &InstallationDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        InstalledCode,
-        MappingQuarantineCause,
-        Option<MappingQuarantineReceipt>,
-    ) {
-        (self.installed, self.cause, self.receipt)
-    }
-}
-
-impl std::fmt::Display for QuarantineCodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.diagnostic.fmt(formatter)
-    }
-}
-
-impl std::error::Error for QuarantineCodeError {}
 
 /// A refused [`OwnedImageProvider::uninstall_code`] drive: every supplied
 /// input returns, and `drain_diagnostic` names the leg that refused first —
@@ -729,7 +628,6 @@ pub(crate) struct UninstallCodeError {
     quarantine: Option<MappingQuarantineReceipt>,
     cause: Option<MappingQuarantineCause>,
     drain_diagnostic: InstallationDiagnostic,
-    quarantine_diagnostic: Option<InstallationDiagnostic>,
 }
 
 impl UninstallCodeError {
@@ -737,9 +635,6 @@ impl UninstallCodeError {
         &self.drain_diagnostic
     }
 
-    pub const fn quarantine_diagnostic(&self) -> Option<&InstallationDiagnostic> {
-        self.quarantine_diagnostic.as_ref()
-    }
 
     pub fn into_parts(
         self,
@@ -773,54 +668,9 @@ impl std::error::Error for UninstallCodeError {}
 /// any later drain-leg diagnostics kept alongside.
 #[derive(Debug)]
 pub(crate) struct ReplaceCodeError {
-    installed: InstalledCode,
-    authority: ReplacementAuthority,
-    retirement_authority: RetirementAuthority,
-    patch: Option<ReplacementReceipt>,
-    retirement: Option<RetirementReceipt>,
-    quarantine: Option<MappingQuarantineReceipt>,
-    cause: Option<MappingQuarantineCause>,
     diagnostic: InstallationDiagnostic,
-    drain_diagnostic: Option<InstallationDiagnostic>,
-    quarantine_diagnostic: Option<InstallationDiagnostic>,
 }
 
-impl ReplaceCodeError {
-    pub const fn diagnostic(&self) -> &InstallationDiagnostic {
-        &self.diagnostic
-    }
-
-    pub const fn drain_diagnostic(&self) -> Option<&InstallationDiagnostic> {
-        self.drain_diagnostic.as_ref()
-    }
-
-    pub const fn quarantine_diagnostic(&self) -> Option<&InstallationDiagnostic> {
-        self.quarantine_diagnostic.as_ref()
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn into_parts(
-        self,
-    ) -> (
-        InstalledCode,
-        ReplacementAuthority,
-        RetirementAuthority,
-        Option<ReplacementReceipt>,
-        Option<RetirementReceipt>,
-        Option<MappingQuarantineReceipt>,
-        Option<MappingQuarantineCause>,
-    ) {
-        (
-            self.installed,
-            self.authority,
-            self.retirement_authority,
-            self.patch,
-            self.retirement,
-            self.quarantine,
-            self.cause,
-        )
-    }
-}
 
 impl std::fmt::Display for ReplaceCodeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
