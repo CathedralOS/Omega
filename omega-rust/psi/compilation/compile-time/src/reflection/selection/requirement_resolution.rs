@@ -68,42 +68,52 @@ pub(crate) fn resolve_requirement<'program>(
     })
 }
 
+fn resolve_unique<'program, T>(
+    items: impl Iterator<Item = &'program T>,
+    symbol_of: impl Fn(&'program T) -> SymbolHandle,
+    typed: &'program TypedTrees,
+    identity: &str,
+    domain: &str,
+) -> Result<&'program T, String> {
+    let mut matches = items.filter(|item| {
+        exact_symbol_identity(typed, symbol_of(item))
+            .is_ok_and(|(candidate, _)| candidate == identity)
+    });
+    match (matches.next(), matches.next()) {
+        (Some(item), None) => Ok(item),
+        (Some(_), Some(_)) => Err(format!(
+            "selection {domain} `{identity}` resolves to more than one declaration"
+        )),
+        _ => Err(format!(
+            "selection {domain} `{identity}` does not resolve to a {domain} in this program"
+        )),
+    }
+}
+
 fn resolve_conformance<'program>(
     typed: &'program TypedTrees,
     identity: &str,
 ) -> Result<&'program Conformance, String> {
-    let mut matches = typed.conformances().iter().filter(|conformance| {
-        exact_symbol_identity(typed, conformance.symbol)
-            .is_ok_and(|(candidate, _)| candidate == identity)
-    });
-    match (matches.next(), matches.next()) {
-        (Some(conformance), None) => Ok(conformance),
-        (Some(_), Some(_)) => Err(format!(
-            "selection conformance `{identity}` resolves to more than one declaration"
-        )),
-        _ => Err(format!(
-            "selection conformance `{identity}` does not resolve to a conformance in this program"
-        )),
-    }
+    resolve_unique(
+        typed.conformances().iter(),
+        |conformance| conformance.symbol,
+        typed,
+        identity,
+        "conformance",
+    )
 }
 
 fn resolve_machine<'program>(
     typed: &'program TypedTrees,
     identity: &str,
 ) -> Result<&'program Machine, String> {
-    let mut matches = typed.machines().iter().filter(|machine| {
-        exact_symbol_identity(typed, machine.symbol)
-            .is_ok_and(|(candidate, _)| candidate == identity)
-    });
-    match (matches.next(), matches.next()) {
-        (Some(machine), None) => Ok(machine),
-        (Some(_), Some(_)) => Err(format!(
-            "selection machine `{identity}` resolves to more than one declaration"
-        )),
-        _ => Err(format!(
-            "selection machine `{identity}` does not resolve to a machine in this program"
-        )),
-    }
+    resolve_unique(
+        typed.machines().iter(),
+        |machine| machine.symbol,
+        typed,
+        identity,
+        "machine",
+    )
 }
 
 /// A selected machine covers a member when the data declaration owning the
