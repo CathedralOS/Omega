@@ -118,6 +118,9 @@ pub use selected_instructions::{
     FixedViewCopyIdentity, PressureRematerializationIdentity, RedundantCompareIdentity,
 };
 
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use rewrites::test_support;
+
 // The unit tests allocate heavily across nextest's parallel processes;
 // mimalloc avoids the system allocator's zone locks and free lists.
 // Test-only: the product keeps the system allocator.
