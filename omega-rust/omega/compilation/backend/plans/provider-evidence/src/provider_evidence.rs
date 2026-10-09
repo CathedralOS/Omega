@@ -8,11 +8,12 @@
 
 pub(crate) mod authority;
 pub(crate) mod component_eras;
+pub(crate) mod digest_encoder;
 pub(crate) mod executable_scopes;
 pub(crate) mod providers;
 
+use crate::provider_evidence::digest_encoder::DomainDigestEncoder;
 use crate::provider_plan::ProviderPlan;
-use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 /// Strong `[u8; 32]` evidence digests: `from_digest` constructs at the
@@ -721,7 +722,7 @@ fn selected_closure_report_fingerprint(
     hash.finish()
 }
 
-struct SelectedProviderClosureDigestEncoder(Sha256);
+struct SelectedProviderClosureDigestEncoder(DomainDigestEncoder);
 
 impl crate::provider_evidence::providers::provider_plan::DigestFeed
     for SelectedProviderClosureDigestEncoder
@@ -733,34 +734,33 @@ impl crate::provider_evidence::providers::provider_plan::DigestFeed
 
 impl SelectedProviderClosureDigestEncoder {
     fn new() -> Self {
-        let mut digest = Sha256::new();
-        digest.update(b"omega.selected-provider-closure.sha256.v1\0");
-        Self(digest)
+        Self(DomainDigestEncoder::new(
+            b"omega.selected-provider-closure.sha256.v1\0",
+        ))
     }
 
     fn finish(self) -> SelectedProviderClosureDigest {
-        SelectedProviderClosureDigest::from_digest(self.0.finalize().into())
+        SelectedProviderClosureDigest::from_digest(self.0.finish())
     }
 
     fn byte(&mut self, value: u8) {
-        self.0.update([value]);
+        self.0.byte(value);
     }
 
     fn len(&mut self, value: usize) {
-        self.0.update((value as u64).to_le_bytes());
+        self.0.len(value);
     }
 
     fn u64(&mut self, value: u64) {
-        self.0.update(value.to_le_bytes());
+        self.0.u64(value);
     }
 
     fn i64(&mut self, value: i64) {
-        self.0.update(value.to_le_bytes());
+        self.0.i64(value);
     }
 
     fn bytes(&mut self, bytes: &[u8]) {
-        self.len(bytes.len());
-        self.0.update(bytes);
+        self.0.bytes(bytes);
     }
 
     fn string(&mut self, value: &str) {
@@ -834,7 +834,7 @@ impl SelectedProviderClosureDigestEncoder {
                     crate::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
                         self.byte(1);
                         self.bytes(&library);
-                        self.0.update(ordinal.to_le_bytes());
+                        self.0.u16(*ordinal);
                     }
                     crate::ForeignLocatorCandidate::ElfVersioned {
                         object,
