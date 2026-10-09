@@ -36,7 +36,7 @@ pub(crate) use codec::{
 pub(crate) use composition::compose_optimized_program_storage_semantic_wrapper_object;
 
 use codec::{decode_manifest, encode_manifest, encode_manifest_content, encode_plan_content};
-use manifest::{construct_manifest, validate_manifest};
+use manifest::{construct_manifest};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
