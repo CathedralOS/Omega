@@ -303,11 +303,7 @@ pub(super) fn lower(
             };
             use terminal_psi::TrappingIntegerOperation as T;
             let (left, right) = match *primitive {
-                T::Add { left, right }
-                | T::Subtract { left, right }
-                | T::Multiply { left, right }
-                | T::Divide { left, right }
-                | T::Remainder { left, right } => {
+                terminal_psi::trapping_arith_set_pattern!(left,right, ..) => {
                     if operand_type != scalar_type {
                         return Err(LoweringError::ValueTypeMismatch(*result));
                     }

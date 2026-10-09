@@ -33,11 +33,7 @@ pub(super) fn lower(
     // Binary arithmetic reads two values of the result carrier; a shift's
     // count and a conversion's source are independently typed.
     let operand_type = match primitive {
-        TrappingIntegerOperation::Add { left, right }
-        | TrappingIntegerOperation::Subtract { left, right }
-        | TrappingIntegerOperation::Multiply { left, right }
-        | TrappingIntegerOperation::Divide { left, right }
-        | TrappingIntegerOperation::Remainder { left, right } => {
+        terminal_psi::trapping_arith_set_pattern!(left,right, ..) => {
             if operand_type(left)? != scalar_type || operand_type(right)? != scalar_type {
                 return Err(malformed());
             }

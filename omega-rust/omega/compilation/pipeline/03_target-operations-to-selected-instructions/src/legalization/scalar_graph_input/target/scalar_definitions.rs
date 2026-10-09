@@ -230,11 +230,7 @@ pub(super) fn observation(
                 })
             };
             let operands_available = match *operation {
-                T::Add { left, right }
-                | T::Subtract { left, right }
-                | T::Multiply { left, right }
-                | T::Divide { left, right }
-                | T::Remainder { left, right } => {
+                terminal_psi::trapping_arith_set_pattern!(left,right, ..) => {
                     typed(left, *scalar_type) && typed(right, *scalar_type)
                 }
                 T::ShiftLeft { value, count } | T::ShiftRight { value, count } => {

@@ -140,3 +140,14 @@ impl TrappingIntegerOperation {
         }
     }
 }
+
+#[macro_export]
+macro_rules! trapping_arith_set_pattern {
+    ($($fields:tt)*) => {
+        $crate::TrappingIntegerOperation::Add { $($fields)* }
+            | $crate::TrappingIntegerOperation::Divide { $($fields)* }
+            | $crate::TrappingIntegerOperation::Multiply { $($fields)* }
+            | $crate::TrappingIntegerOperation::Remainder { $($fields)* }
+            | $crate::TrappingIntegerOperation::Subtract { $($fields)* }
+    };
+}
