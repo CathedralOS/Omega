@@ -1,4 +1,4 @@
-//! Bind selected generic cleanup occurrences to their specialized source.
+//! Bind selected cleanup occurrences to their exact source and edge context.
 //!
 //! Specialization owns the lexical symbol correspondence. Consume its exact
 //! generated-from links instead of reconstructing parameter/local identity from
@@ -7,7 +7,9 @@
 pub(crate) mod entry_flow;
 mod requirements;
 mod sequence;
-pub(crate) use requirements::{check_cleanup_requirements, infer_entry_requirements};
+pub(crate) use requirements::{
+    check_cleanup_requirements, infer_entry_requirements, occurrence_contexts,
+};
 
 use arena::Arena;
 use checked_trees::{ContextualCleanupApplication, ContextualCleanupFacts, FlowFacts};

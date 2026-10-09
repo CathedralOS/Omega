@@ -143,8 +143,13 @@ pub(super) fn lower(
             .transpose()?;
         let erased_proof_parameters = plan.erased_proof_parameters.to_vec();
         // Claims stay machine-local: unrelated callees cannot shift these IDs.
-        let claims =
-            lower_unit_entry_claims(plan.machine, plan.state, plan.entry_claims, &parameters)?;
+        let claims = lower_unit_entry_claims(
+            plan.machine,
+            plan.state,
+            plan.entry_claims,
+            &parameters,
+            structural_types,
+        )?;
         signatures.push(MachineSignature {
             source: plan.machine,
             parameters,

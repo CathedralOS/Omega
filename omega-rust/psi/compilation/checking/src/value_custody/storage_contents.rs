@@ -91,7 +91,10 @@ pub enum ContentsRequirement {
     /// produce runtime contents. An erased member is still resolved so its
     /// declared type exists; its contents never materialize.
     CleanupOwned,
-    /// `CleanupOwned` contents a structural literal establishes. A scalar member
+    /// Finite owned contents a structural literal establishes. Linear claims
+    /// and nominal cleanup remain obligations of the completed operands and
+    /// construction, never permissions granted by this shape classification.
+    /// A scalar member
     /// may additionally carry a complete plain scalar predicate: the field
     /// retains its restriction and construction proves it for that operand.
     /// Bounded byte members also retain represented primitive predicates; the
@@ -651,12 +654,15 @@ fn check_contents(
     // A repeated declaration must consume finite type-argument structure, as
     // in Wrapper<Wrapper<Value>>. Expanding recursive by-value data is not a
     // finite owned carrier and must not make this classifier recurse forever.
-    // A linear declaration is not plain owned storage, but under LinearOwned it
-    // is still a finite carrier whose custody the caller tracks explicitly.
+    // A linear declaration is not plain owned storage. Explicit custody
+    // operations and structural construction still retain its finite carrier;
+    // their independent claim plans authorize transfer and establishment.
     if (data.properties.multiplicity == Multiplicity::Linear
         && !matches!(
             requirement,
-            ContentsRequirement::LinearOwned | ContentsRequirement::BorrowFree
+            ContentsRequirement::LinearOwned
+                | ContentsRequirement::BorrowFree
+                | ContentsRequirement::StructuralConstruction
         ))
         || active.iter().any(|ancestor| {
             matches!(ancestor, ContentType::Data(owner, _)

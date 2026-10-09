@@ -148,6 +148,8 @@ pub(crate) fn prepare_claim_dispositions(
     source: language_semantics::PermissionEventSource,
     root: facts::PlaceRoot,
     type_reference: typed_trees::types::TypeReferenceHandle,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedClaimDisposition>, LoweringError> {
     checked.facts.flow.ownership.permissions.iter().map(|(_, event)| event)
         .filter(|event| event.machine_symbol == machine && event.state_symbol == state && event.root == root
@@ -158,7 +160,7 @@ pub(crate) fn prepare_claim_dispositions(
                 checked.facts.flow.ownership.segments.span_or_empty(event.segments))
                 .map_err(LoweringError::Unsupported)?;
             Ok(PreparedClaimDisposition { identity: event.claim_identity,
-                path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(&path)?,
+                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(&path, structural_type, structural_types)?,
             })
         }).collect()
 }
@@ -173,6 +175,8 @@ pub(crate) fn prepare_establishment_claims(
     statement: usize,
     root: facts::PlaceRoot,
     type_reference: typed_trees::types::TypeReferenceHandle,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedClaim>, LoweringError> {
     checked.facts.flow.ownership.permissions.iter().map(|(_, event)| event)
         .filter(|event| event.machine_symbol == machine && event.state_symbol == state
@@ -199,7 +203,7 @@ pub(crate) fn prepare_establishment_claims(
                 .map_err(LoweringError::Unsupported)?;
             Ok(PreparedClaim {
                 identity: event.claim_identity,
-                path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(&path)?,
+                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(&path, structural_type, structural_types)?,
                 fresh: !transferred && claim_established_here(machine, state, statement, event),
             })
         }).collect()

@@ -18,6 +18,7 @@ use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
+use crate::terminal_identities::lookup_type_id;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationResult, PlaceId,
     StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
@@ -468,6 +469,8 @@ impl OperationFrame<'_, '_> {
             result.statement_index as usize,
             owner,
             occurrence.type_reference,
+            lookup_type_id(type_ids, &result.type_identity)?,
+            structural_types,
         )?;
         let mut result_claims = crate::emission::claim_bindings::emit_establishment_claims(
             &prepared_claims,

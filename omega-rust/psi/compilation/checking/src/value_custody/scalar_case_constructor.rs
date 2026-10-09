@@ -2,8 +2,8 @@
 //!
 //! This is a source classifier, not establishment evidence. Checking still owes
 //! default domains and ownership; lowering must evaluate the returned operands
-//! before constructing the selected nominal case. Only the existing closed,
-//! fully authored scalar-payload sum route is described here.
+//! before constructing the selected nominal case. Scalar and structural
+//! operands share the same exact case declaration and operand ordering.
 
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataMember};

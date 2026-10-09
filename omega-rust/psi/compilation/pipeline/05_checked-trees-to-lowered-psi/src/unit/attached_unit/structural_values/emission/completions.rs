@@ -3,11 +3,10 @@
 //! positionally against the same roster both sides already read.
 
 use super::super::super::super::{StructuralAccess, StructuralArgument};
-use super::super::super::{
-    LoweringError, PlaceId, lookup_type_id, lower_structural_path, unsupported,
-};
+use super::super::super::{LoweringError, PlaceId, lookup_type_id, unsupported};
 use super::{Emission, ProjectedMove, ValueContinuation};
 use crate::expression_preparation::bindings::LoanAccess;
+use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 
 impl Emission<'_, '_, '_> {
     /// Completes `place` against `continuation` when one is armed and hands
@@ -104,7 +103,7 @@ impl Emission<'_, '_, '_> {
             return unsupported("owned selection has untransported residual candidates");
         }
         let selected_path = projection
-            .map(|projected| lower_structural_path(&projected.path))
+            .map(|projected| projected.lowered_path(self.type_ids, self.structural_types))
             .transpose()?
             .unwrap_or_default();
         structural_arguments.push(StructuralArgument {
@@ -152,7 +151,11 @@ impl Emission<'_, '_, '_> {
                 .map(|residual| {
                     Ok(terminal_psi::StructuralAffineDiscard {
                         place: selected,
-                        path: lower_structural_path(&residual.path)?,
+                        path: lower_static_argument_path(
+                            &residual.path,
+                            lookup_type_id(self.type_ids, &projected.root_type_identity)?,
+                            self.structural_types,
+                        )?,
                         structural_type: lookup_type_id(self.type_ids, &residual.type_identity)?,
                     })
                 })

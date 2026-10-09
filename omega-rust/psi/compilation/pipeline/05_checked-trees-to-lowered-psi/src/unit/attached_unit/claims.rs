@@ -6,8 +6,9 @@ use super::super::{
 };
 use super::{
     CheckedTrees, LoweringError, Multiplicity, PlaceId, StructuralPlaceKind, TerminalMachineResult,
-    allocate_dense, lookup_claim_id, lower_structural_path, unsupported,
+    allocate_dense, lookup_claim_id, unsupported,
 };
+use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 #[derive(Clone)]
 pub(super) struct LoweredUnitClaims {
     pub(super) entry_claims: Vec<EntryClaim>,
@@ -74,6 +75,7 @@ pub(super) fn lower_unit_entry_claims(
     state: symbols::SymbolHandle,
     claims: &[CheckedUnitEntryClaimPlan],
     parameters: &[StructuralParameterDeclaration],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<LoweredUnitClaims, LoweringError> {
     let mut entry_claims = Vec::with_capacity(claims.len());
     let mut source_claims = Vec::with_capacity(claims.len());
@@ -111,7 +113,11 @@ pub(super) fn lower_unit_entry_claims(
         entry_claims.push(EntryClaim {
             claim: id,
             input: parameter.place,
-            path: lower_structural_path(&claim.path)?,
+            path: lower_static_argument_path(
+                &claim.path,
+                parameter.structural_type,
+                structural_types,
+            )?,
         });
         source_claims.push((claim.claim_identity, id));
     }

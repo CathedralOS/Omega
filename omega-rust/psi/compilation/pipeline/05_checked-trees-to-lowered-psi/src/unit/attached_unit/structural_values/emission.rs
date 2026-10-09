@@ -18,6 +18,7 @@ use super::CheckedTrees;
 use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
+use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
 use crate::expression_preparation::byte_literals;
 use arena::HandleSpan;
@@ -252,7 +253,7 @@ pub(crate) fn emit(
         )
     {
         let projected = emission.projected_root(source, path, type_identity)?;
-        let alias_path = projected.lowered_path()?;
+        let alias_path = projected.lowered_path(emission.type_ids, emission.structural_types)?;
         // The leaf's claim is published where its root was established: the
         // alias names that exact place and path, so the consuming operation
         // resolves the binding already on the root's result. An alias has no
@@ -308,7 +309,11 @@ pub(crate) fn emit(
                         emission.calls.claims.bindings(),
                         event.claim_identity,
                     )?,
-                    path: lower_structural_path(&path)?,
+                    path: lower_static_argument_path(
+                        &path,
+                        lookup_type_id(emission.type_ids, &projected.root_type_identity)?,
+                        emission.structural_types,
+                    )?,
                 });
             }
         }
@@ -773,9 +778,17 @@ pub(super) struct ProjectedMove {
 
 impl ProjectedMove {
     /// The complete walk from `root`'s storage to the projected leaf.
-    fn lowered_path(&self) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
+    fn lowered_path(
+        &self,
+        type_ids: &[(String, StructuralTypeId)],
+        types: &[StructuralTypeDeclaration],
+    ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
         let mut path = self.root_path.clone();
-        path.extend(lower_structural_path(&self.path)?);
+        path.extend(lower_static_argument_path(
+            &self.path,
+            lookup_type_id(type_ids, &self.root_type_identity)?,
+            types,
+        )?);
         Ok(path)
     }
 }
@@ -1008,7 +1021,7 @@ impl Emission<'_, '_, '_> {
             let projected = self.projected_root(source, path, type_identity)?;
             return Ok(StructuralArgument {
                 place: projected.root,
-                path: projected.lowered_path()?,
+                path: projected.lowered_path(self.type_ids, self.structural_types)?,
                 access: StructuralAccess::Owned,
             });
         }

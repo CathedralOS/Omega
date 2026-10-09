@@ -505,7 +505,7 @@ fn has_symbolic_origin(
     false
 }
 
-pub(super) fn occurrence_contexts(
+pub(crate) fn occurrence_contexts(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,

@@ -182,6 +182,7 @@ pub(crate) fn prepare_value(
     reserved: &Storage,
 ) -> Result<PreparedValue, LoweringError> {
     let (machine, _) = crate::declarations::state_declaration(checked, state)?;
+    let structural_type = carrier_declaration(checked, types, reference)?.id;
     let claims = prepare_establishment_claims(
         checked,
         machine.symbol,
@@ -189,6 +190,8 @@ pub(crate) fn prepare_value(
         statement as usize,
         owner,
         reference,
+        structural_type,
+        types,
     )?;
     let mut preparation = Preparation {
         checked,
@@ -204,7 +207,6 @@ pub(crate) fn prepare_value(
         consumed: Vec::new(),
         claims,
     };
-    let structural_type = carrier_declaration(checked, types, reference)?.id;
     let mut place = preparation.value(value, reference, &[])?;
     if preparation.consumed_calls.len() != calls.len() {
         return unsupported("structural value contains unconsumed call producers");

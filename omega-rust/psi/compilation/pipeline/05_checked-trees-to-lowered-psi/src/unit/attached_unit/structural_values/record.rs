@@ -348,8 +348,10 @@ impl emission::Emission<'_, '_, '_> {
                     self.calls.claims.bindings(),
                     event.claim_identity,
                 )?,
-                path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(
+                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
                     &path,
+                    parameter.structural_type,
+                    self.structural_types,
                 )?,
             });
         }

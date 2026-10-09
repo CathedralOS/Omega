@@ -11,14 +11,15 @@ use super::{
     OperationResult, PlaceId, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeId, UnitBody, ValueDeclaration, allocate_dense,
     argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
-    lower_structural_arguments, lower_structural_crash_route_buckets, lower_structural_path,
-    place_id, primitive_locals, unsupported,
+    lower_structural_arguments, lower_structural_crash_route_buckets, place_id, primitive_locals,
+    unsupported,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
@@ -372,7 +373,11 @@ pub(super) fn emit_structural(
                         *coordinate,
                         received,
                     )?,
-                    path: lower_structural_path(&received.path)?,
+                    path: lower_static_argument_path(
+                        &received.path,
+                        structural_type,
+                        structural_types,
+                    )?,
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?,

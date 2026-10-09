@@ -398,6 +398,17 @@ pub(crate) fn prepare_unscoped_path(
         .collect()
 }
 
+/// Custody paths are static, but still need their declared root to resolve a
+/// case identity. Use the ordinary typed preparation without a runtime frame;
+/// a selector requiring evaluation or a bound obligation remains rejected.
+pub(crate) fn lower_static_argument_path(
+    path: &[CheckedUnitStructuralPathSegment],
+    root: semantic_vocabulary::StructuralTypeId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<StructuralPathSegment>, LoweringError> {
+    lower_typed_argument_path(path, root, types, None, &mut std::iter::empty(), None)
+}
+
 pub(crate) fn lower_typed_argument_path(
     path: &[CheckedUnitStructuralPathSegment],
     root: semantic_vocabulary::StructuralTypeId,

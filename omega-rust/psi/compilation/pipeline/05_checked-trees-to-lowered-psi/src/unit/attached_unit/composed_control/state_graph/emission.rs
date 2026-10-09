@@ -117,6 +117,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         entry.state,
         &entry.entry_claims,
         &parameters,
+        &catalogs.structural_types,
     )?;
     // Fresh linear establishments mint their caller bindings while the graph
     // publishes its claim roster: a composed state reads the machine-wide

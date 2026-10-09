@@ -274,6 +274,32 @@ pub(crate) fn lower_whole_content_entry_claims(
         {
             return unsupported("content entry qualifications are not canonical");
         }
+        // Structural custody is already prepared against its declared root.
+        // This owner translates only claims carrying Content projections;
+        // an unqualified resource must not enter the content-place vocabulary.
+        let content = checked_parameter
+            .qualifications
+            .iter()
+            .copied()
+            .filter(|_| entry_claim.path.is_empty())
+            .chain(
+                checked_parameter
+                    .projected_qualifications
+                    .iter()
+                    .filter(|row| row.path == entry_claim.path)
+                    .map(|row| row.domain),
+            )
+            .filter_map(|qualification| {
+                checked
+                    .facts
+                    .qualifications
+                    .content
+                    .for_semantic_domain(qualification)
+            })
+            .collect::<Vec<_>>();
+        if content.is_empty() {
+            continue;
+        }
         let mut carrier =
             terminal_psi::find_structural_type(structural_types, parameter.structural_type).ok_or(
                 LoweringError::Unsupported("content entry carrier is absent"),
@@ -312,26 +338,8 @@ pub(crate) fn lower_whole_content_entry_claims(
                 LoweringError::Unsupported("content claim leaf carrier is absent"),
             )?;
         }
-        let qualifications = checked_parameter
-            .qualifications
-            .iter()
-            .copied()
-            .filter(|_| entry_claim.path.is_empty())
-            .chain(
-                checked_parameter
-                    .projected_qualifications
-                    .iter()
-                    .filter(|row| row.path == entry_claim.path)
-                    .map(|row| row.domain),
-            );
-        let mut projections = qualifications
-            .filter_map(|qualification| {
-                checked
-                    .facts
-                    .qualifications
-                    .content
-                    .for_semantic_domain(qualification)
-            })
+        let mut projections = content
+            .into_iter()
             .map(|projection| {
                 if projection.carrier_identity != carrier.identity {
                     return unsupported(

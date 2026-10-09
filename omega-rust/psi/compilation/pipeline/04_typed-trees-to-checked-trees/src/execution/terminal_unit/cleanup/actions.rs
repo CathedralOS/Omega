@@ -6,6 +6,9 @@
 //! Translate descendants relative to the disposed value's type, then attach
 //! the retained receiver path. Re-resolving a runtime-selected prefix would
 //! either decline an executable destination or observe it again after the RHS.
+//! Effect discovery includes every possible case. Executable regions instead
+//! consume the exact disposition's edge facts: an inactive payload has neither
+//! a moved region nor a hook, and an unknown tag cannot authorize either.
 
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders};
 use checked_trees::{
@@ -96,6 +99,62 @@ pub(super) fn disposition_actions(
         _ => disposition.exit.statement_index,
     };
     let selected = crate::flow::selected_cleanup_leaves(program, facts, disposition)?;
+    let contexts = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find(|(_, state)| {
+            state.machine_symbol == disposition.machine && state.state_symbol == disposition.state
+        })
+        .and_then(|(_, state)| {
+            crate::facts::contextual_cleanup::occurrence_contexts(
+                program,
+                facts,
+                state,
+                disposition,
+            )
+        });
+    let live_path = |segments: &[facts::PlaceSegment]| -> Option<bool> {
+        if !segments
+            .iter()
+            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+        {
+            return Some(true);
+        }
+        let contexts = contexts.as_ref()?;
+        let subject = validation::CanonicalPlace {
+            root: disposition.root,
+            segments: segments.to_vec(),
+        };
+        if contexts.iter().all(|(statement, contexts)| {
+            crate::flow::place_case_path_is_inactive(
+                program,
+                &facts.semantic,
+                contexts,
+                disposition.machine,
+                disposition.state,
+                *statement,
+                &subject,
+            )
+        }) {
+            return Some(false);
+        }
+        contexts
+            .iter()
+            .all(|(statement, contexts)| {
+                crate::flow::place_cases_are_selected(
+                    program,
+                    &facts.semantic,
+                    contexts,
+                    disposition.machine,
+                    disposition.state,
+                    *statement,
+                    &subject,
+                )
+            })
+            .then_some(true)
+    };
     let place = validation::CanonicalPlace {
         root: disposition.root,
         segments: facts
@@ -139,6 +198,9 @@ pub(super) fn disposition_actions(
         .span(disposition.exclusions)?
     {
         let excluded = facts.contextual_cleanup.segments.span(removed.segments)?;
+        if !live_path(excluded)? {
+            continue;
+        }
         // The contextual row remembers earlier transfers under the original
         // owner. A selected residual ignores siblings outside its subtree;
         // an already removed ancestor cannot authorize another disposition.
@@ -170,6 +232,9 @@ pub(super) fn disposition_actions(
             return None;
         };
         for segments in crate::flow::concrete_cleanup_paths(&selected_path)? {
+            if !live_path(&segments)? {
+                continue;
+            }
             let relative_segments = segments.strip_prefix(place.segments.as_slice())?;
             let selected_place = validation::CanonicalPlace {
                 root: facts::PlaceRoot::TypeReference(reference),

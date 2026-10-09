@@ -820,6 +820,7 @@ pub fn structural_owned_path(
     segments: &[facts::PlaceSegment],
 ) -> Result<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle), &'static str> {
     let mut path = Vec::with_capacity(segments.len());
+    let mut payload_fields: Option<&[typed_trees::data::DataField]> = None;
     for segment in segments {
         structural_result_qualifications(program, reference)?;
         reference = program
@@ -836,14 +837,15 @@ pub fn structural_owned_path(
                 let definition =
                     crate::declarations::data_queries::data_definition_by_symbol(program, *owner)
                         .ok_or("structural claim field has no exact data owner")?;
-                let field = program
-                    .data_members(definition)
-                    .iter()
-                    .find_map(|member| {
+                let field = if let Some(fields) = payload_fields.take() {
+                    fields.iter().find(|field| field.symbol == *symbol)
+                } else {
+                    program.data_members(definition).iter().find_map(|member| {
                         let field = member.as_field()?;
                         (field.symbol == *symbol).then_some(field)
                     })
-                    .ok_or("structural claim field differs from its typed owner")?;
+                }
+                .ok_or("structural claim field differs from its typed owner")?;
                 if field.relevance != language_core::BindingRelevance::Relevant {
                     return Err("structural claim traverses an erased field");
                 }
@@ -853,12 +855,30 @@ pub fn structural_owned_path(
                 reference = field.type_reference;
             }
             (
+                facts::PlaceSegment::Case { variant },
+                TypeReferenceNode::Named { symbol: owner, .. },
+            ) if payload_fields.is_none() => {
+                let definition = program
+                    .data_definition_by_symbol(*owner)
+                    .ok_or("structural claim case has no exact data owner")?;
+                let selected = program
+                    .data_members(definition)
+                    .iter()
+                    .filter_map(|member| member.as_variant())
+                    .find(|candidate| candidate.symbol == *variant)
+                    .ok_or("structural claim case differs from its typed owner")?;
+                path.push(CheckedUnitStructuralPathSegment::Case(
+                    selected.path_identity(),
+                ));
+                payload_fields = Some(program.data_payload_fields(selected));
+            }
+            (
                 facts::PlaceSegment::FixedIndex { index },
                 TypeReferenceNode::FixedArray {
                     element_type,
                     length: typed_trees::types::FixedArrayLength::Literal(length),
                 },
-            ) if *index < *length => {
+            ) if payload_fields.is_none() && *index < *length => {
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(
                     u64::try_from(*index).map_err(|_| "structural claim index exceeds u64")?,
                 ));
@@ -866,6 +886,9 @@ pub fn structural_owned_path(
             }
             _ => return Err("structural claim has an unsupported or mistyped path"),
         }
+    }
+    if payload_fields.is_some() {
+        return Err("structural claim ends at a case namespace rather than a value");
     }
     structural_result_qualifications(program, reference)?;
     Ok((path, reference))
@@ -1269,9 +1292,6 @@ pub fn structural_call_custody(
     )?;
     let mut result_claims = Vec::with_capacity(result_frontier.len());
     for claim in &result_frontier {
-        if claim.conditional {
-            return Err("structural result claim depends on an active case");
-        }
         let identity = if received.is_empty() {
             PermissionClaimIdentity::Unknown
         } else {

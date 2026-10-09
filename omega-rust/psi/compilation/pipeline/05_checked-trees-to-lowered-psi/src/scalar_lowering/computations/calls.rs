@@ -676,6 +676,8 @@ impl Expansion<'_> {
                 },
                 facts::PlaceRoot::Expression(owner),
                 slot.type_reference,
+                slot.structural_type,
+                self.structural_types,
             )?;
             let action_start = actions.len();
             for action in discards {

@@ -183,12 +183,12 @@ impl Builder<'_, '_> {
         ))
     }
 
-    /// One selected projected child of an existing owner. The owned-selection
+    /// One projected owned child of an existing owner. The checked ownership
     /// transfer is the authoritative admission: its recorded canonical path
     /// must equal the authored place, and the projected type must be the
     /// enclosing result type. The root source is built as a whole `Place` (or
     /// `Call` product) node carrying the exact root identity.
-    pub(super) fn projected_selection_place(
+    pub(super) fn projected_owned_place(
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
@@ -209,9 +209,6 @@ impl Builder<'_, '_> {
             self.statement_index,
             expression,
         )?;
-        if !place.has_only_positional_segments() {
-            return None;
-        }
         let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
             self.program,
             self.state,

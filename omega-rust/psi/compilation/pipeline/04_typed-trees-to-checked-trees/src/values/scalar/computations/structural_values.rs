@@ -373,7 +373,7 @@ impl Builder<'_, '_> {
             // custody: a mutable copyable local also has an owned shape, but
             // its original producer is not the value of a later read.
             CheckedStructuralValueKind::Place(argument)
-        } else if let Some(projection) = self.projected_selection_place(expression, expected) {
+        } else if let Some(projection) = self.projected_owned_place(expression, expected) {
             projection
         } else if let Some(constructor) = self.case_construction(expression) {
             if self

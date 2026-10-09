@@ -4,15 +4,14 @@
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, parameter_qualifications, projected_parameter_qualifications,
-    structural_access_for_type_reference, terminal_field_identity,
+    structural_access_for_type_reference,
 };
 use crate::execution::terminal_unit::{
     BTreeSet, CarryPolicy, CheckFacts, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, StateParameter, SymbolHandle, TypeReferenceNode,
-    strips_erased_parameter,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan, Multiplicity,
+    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+    StateParameter, SymbolHandle, TypeReferenceNode, strips_erased_parameter,
 };
 
 /// Which attachment storage a qualified machine's signature retains.
@@ -572,25 +571,12 @@ pub(crate) fn entry_claims(
                 [policy] => policy.effective,
                 _ => return None,
             };
-            let path = facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(event.segments)
-                .iter()
-                .map(|segment| match segment {
-                    facts::PlaceSegment::Field { symbol } => {
-                        terminal_field_identity(program, *symbol)
-                            .map(CheckedUnitStructuralPathSegment::Field)
-                    }
-                    facts::PlaceSegment::FixedIndex { index } => u64::try_from(*index)
-                        .ok()
-                        .map(CheckedUnitStructuralPathSegment::FixedIndex),
-                    facts::PlaceSegment::Case { .. }
-                    | facts::PlaceSegment::FixedRange { .. }
-                    | facts::PlaceSegment::Index { .. } => None,
-                })
-                .collect::<Option<Vec<_>>>()?;
+            let path = validation::structural_claim_path(
+                program,
+                source_type,
+                facts.flow.ownership.segments.span_or_empty(event.segments),
+            )
+            .ok()?;
             output.push(CheckedUnitEntryClaimPlan {
                 claim_identity: event.claim_identity,
                 parameter_index: u32::try_from(parameter_index).ok()?,

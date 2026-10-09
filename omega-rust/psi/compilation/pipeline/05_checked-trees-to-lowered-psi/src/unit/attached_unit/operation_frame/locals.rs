@@ -253,6 +253,8 @@ impl OperationFrame<'_, '_> {
                 statement_index as usize,
                 facts::PlaceRoot::Symbol(result.local.symbol),
                 result.local.declared_type,
+                lookup_type_id(self.type_ids, &result.type_identity)?,
+                self.structural_types.declarations(),
             )?
         } else {
             Vec::new()
