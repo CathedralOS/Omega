@@ -510,13 +510,13 @@ pub(crate) fn bind_structural_arguments(
                 &previous_argument.path,
                 &argument.path,
             );
-            // Multiplicity retains its existing whole-identity restriction.
-            // Exclusive access additionally forbids overlapping projected
-            // referents, even when both values are unrestricted.
-            if previous_parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || (exclusive && overlapping)
-            {
+            // Disjoint members of one root are independent values, whatever
+            // their multiplicity. Overlapping referents alias when either
+            // value carries custody or either access is exclusive; only
+            // shared reads of copyable storage may overlap.
+            let custody = previous_parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted;
+            if overlapping && (custody || exclusive) {
                 return Err(TerminalInterpretError::StructuralArgumentAliasing(
                     argument.opaque_identity,
                 ));
