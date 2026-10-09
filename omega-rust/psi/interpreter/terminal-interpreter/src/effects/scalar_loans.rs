@@ -379,9 +379,7 @@ impl TerminalExecution<'_> {
             else {
                 return Err(malformed());
             };
-            &cases
-                .iter()
-                .find(|row| row.id == case.case)
+            &terminal_psi::find_structural_case(cases, case.case)
                 .ok_or_else(malformed)?
                 .fields
         } else {
