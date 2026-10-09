@@ -1246,6 +1246,21 @@ def main() -> None:
         "IndexOutOfBounds",
         b"a[i]",
     )
+    accepted(program, "array-literal-index-within-its-extent", b"machine f() -> u8 { let a: [u8; 4] = [1, 2, 3, 4]; a[3] }")
+    rejected(
+        program,
+        "array-literal-index-past-its-extent",
+        b"machine f() -> u8 { let a: [u8; 4] = [1, 2, 3, 4]; a[4] }",
+        "IndexOutOfBounds",
+        b"a[4]",
+    )
+    rejected(
+        program,
+        "array-literal-element-proves-its-domain",
+        b"domain u8::Small(value)\nrequires value < 4;\nmachine f() -> u8 { let a: [u8 in Small; 2] = [1, 9]; 0 }",
+        "DomainUnproven",
+        b"9",
+    )
     accepted(program, "literal-constant-is-its-value", b"const LAST: u64 = 3;\nmachine f(a: &[u8; 4]) -> u8 { a[LAST] }")
     rejected(
         program,

@@ -1671,6 +1671,22 @@ def expression_form_cases(program: str) -> None:
     )
     assert actual.expressions[6] == (MATCH, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0,
                                      *span(source, b"match c { 2 -> 1, 13 -> 2, _ -> 3 }")), actual.expressions
+    # `[element, ...]` is a fixed-array literal: its elements are call-style
+    # arguments in authored order, nested literals included, with a trailing
+    # comma allowed.
+    ARRAY = 18
+    source = b"machine f() -> u8 { let a: [u8; 3] = [1, 2, 3]; a[0] }"
+    actual = declaration_accepted(program, "array-literal", source)
+    assert actual.expressions[3][:6] == (ARRAY, 0, 0, 0, 0, 3), actual.expressions
+    assert actual.expressions[3][-3:] == span(source, b"[1, 2, 3]"), actual.expressions
+    assert actual.arguments == (0, 1, 2), actual.arguments
+    source = b"machine f() -> u8 { let m: [[u8; 2]; 2] = [[1, 2], [3, 4],]; m[0][1] }"
+    actual = declaration_accepted(program, "nested-array-literals", source)
+    assert [actual.expressions[handle][:6] for handle in (2, 5, 6)] == [
+        (ARRAY, 0, 0, 0, 0, 2), (ARRAY, 0, 0, 0, 2, 2), (ARRAY, 0, 0, 0, 4, 2),
+    ], actual.expressions
+    assert actual.arguments == (0, 1, 3, 4, 2, 5), actual.arguments
+
     # Commas between arms are optional.
     source = b"machine f(c: i32) -> u8 { match c { 2 -> 1 13 -> 2, _ -> 3 } }"
     actual = declaration_accepted(
@@ -1756,6 +1772,11 @@ def expression_form_cases(program: str) -> None:
         ("indexed-membership-domain", b"machine f(x: u8) requires x in AtMost<8> {}", 170, b"<", 1,
          {"type_reference_count": 1, "parameter_count": 1, "member_count": 1, "expression_count": 1,
           "name_path_count": 1}),
+        ("empty-array-literal", b"machine f() -> u8 { [] }", 194, b"]", 1, {"type_reference_count": 1}),
+        ("array-element", b"machine f() -> u8 { [1, ,] }", 192, b",", 2,
+         {"type_reference_count": 1, "expression_count": 1}),
+        ("array-element-end", b"machine f() -> u8 { [1 2] }", 193, b"2", 1,
+         {"type_reference_count": 1, "expression_count": 1}),
         ("match-subject", b"machine f() -> u8 { match { _ -> 1 } }", 171, b"{", 2, {"type_reference_count": 1}),
         ("match-arms", b"machine f(x: u8) -> u8 { match x 1 }", 172, b"1", 1,
          {"type_reference_count": 2, "parameter_count": 1, "expression_count": 1}),

@@ -3,6 +3,7 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
 use psi::typing::binders;
+use psi::typing::landing;
 use psi::typing::references;
 use psi::typing::typer;
 
@@ -355,9 +356,8 @@ crashes Trap
 
     state parameter(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping, wanted_row: TypeRow, given: u64 in Trapping) {
         let bound: u64 in Trapping = Typer::bound_type(typer, wanted_row.item);
-        let given_row: TypeRow = TypeTable::row(&typer.output.types, given);
-        let concrete: bool = given > 0 && given != typer.output.anonymous && given != typer.output.anonymous_float
-            && given_row.kind != TypeKind::AnonymousChoice;
+        let unlanded: bool = Typer::unlanded(typer, given);
+        let concrete: bool = given > 0 && !unlanded;
         transition wanted_row.item >= first && wanted_row.item < first + count && bound == 0 && concrete {
             true -> bind(typer, first, count, depth, wanted_row, given)
             _ -> next(typer, first, count, depth)

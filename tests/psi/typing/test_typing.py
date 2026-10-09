@@ -14,6 +14,7 @@ from pathlib import Path
 KINDS = (
     "Absent", "Builtin", "Data", "Reference", "Array", "Slice", "GenericParameter",
     "StaticInteger", "Unit", "AnonymousInteger", "AnonymousFloat", "AnonymousChoice",
+    "AnonymousArray",
 )
 BUILTIN_SPELLINGS = (
     "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "addr",
@@ -110,6 +111,8 @@ class Observation:
             return "{float}"
         if kind == "AnonymousChoice":
             return "{choice}"
+        if kind == "AnonymousArray":
+            return f"{{[{self.render(row.inner)}; {self.render(row.length)}]}}"
         return "absent"
 
 
@@ -923,6 +926,71 @@ def main() -> None:
         b"machine f(c: u8) -> u8 { match match c { _ -> 1 } { _ -> 2 } }",
         "NotAValue",
         b"match c { _ -> 1 }",
+    )
+
+    # A fixed-array literal joins its elements into one type, its extent its
+    # element count; unlanded elements make an anonymous array that lands at
+    # a destination of its shape, level by level.
+    accepted(
+        program,
+        "array-literal-lands-at-its-local",
+        b"machine f() -> u8 { let a: [u8; 3] = [1, 2, 3]; a[0] }",
+        ((b"[1, 2, 3]", "[u8; 3]"), (b"1", "u8"), (b"3!2", "u8")),
+        adaptations=((b"1", "landed"), (b"[1, 2, 3]", "")),
+    )
+    accepted(
+        program,
+        "array-literal-of-typed-elements",
+        b"machine f(x: u16) -> u16 { let a: [u16; 2] = [x, 7]; a[1] }",
+        ((b"[x, 7]", "[u16; 2]"), (b"7", "u16")),
+    )
+    accepted(
+        program,
+        "nested-array-literals-land",
+        b"machine f() -> u8 { let m: [[u8; 2]; 2] = [[1, 5], [3, 4]]; m[1][0] }",
+        ((b"[[1, 5], [3, 4]]", "[[u8; 2]; 2]"), (b"[1, 5]", "[u8; 2]"), (b"5", "u8"), (b"4", "u8")),
+    )
+    accepted(
+        program,
+        "array-of-matches-lands",
+        b"machine f(c: u8) -> u32 { let a: [u32; 2] = [match c { 0 -> 1, _ -> 7 }, 9]; a[0] }",
+        ((b"match c { 0 -> 1, _ -> 7 }", "u32"), (b"7", "u32"), (b"9", "u32")),
+    )
+    # An array literal's tree is its elements: names before the machine, a
+    # domain's subject among them, stay out of its scope.
+    accepted(
+        program,
+        "array-literal-tree-is-its-elements",
+        b"domain u8::Small(value)\nrequires value < 4;\nmachine f() -> u8 { let a: [u8; 2] = [1, 9]; a[0] }",
+        ((b"[1, 9]", "[u8; 2]"),),
+    )
+    rejected(
+        program,
+        "array-literal-extent-mismatch",
+        b"machine f() -> u8 { let a: [u8; 2] = [1, 5, 7]; a[0] }",
+        "MismatchedTypes",
+        b"[1, 5, 7]",
+    )
+    rejected(
+        program,
+        "array-literal-element-out-of-range",
+        b"machine f() -> u8 { let a: [u8; 2] = [1, 300]; a[0] }",
+        "LiteralOutOfRange",
+        b"300",
+    )
+    rejected(
+        program,
+        "array-literal-elements-of-two-types",
+        b"machine f(x: u8, y: u16) -> u8 { let a: [u8; 2] = [x, y]; a[0] }",
+        "MismatchedTypes",
+        b"y!2",
+    )
+    rejected(
+        program,
+        "array-literal-mixes-arrays-and-numbers",
+        b"machine f() -> u8 { let a: [u8; 2] = [[1], 2]; a[0] }",
+        "MismatchedTypes",
+        b"2!2",
     )
 
     # A value pattern, a literal or a path or name denoting no case, meets

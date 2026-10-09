@@ -635,6 +635,7 @@ machine TypingHarness::kind_tag(value: TypeKind) -> u8 {
         TypeKind::AnonymousInteger -> tag(9)
         TypeKind::AnonymousFloat -> tag(10)
         TypeKind::AnonymousChoice -> tag(11)
+        TypeKind::AnonymousArray -> tag(12)
     }
 
     state tag(number: u8) -> u8 {

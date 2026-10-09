@@ -2,8 +2,9 @@ use psi::resolution::resolution;
 use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
-use psi::typing::admission;
 use psi::typing::coverage;
+use psi::typing::joins;
+use psi::typing::landing;
 use psi::typing::statements;
 use psi::typing::typer;
 
@@ -12,12 +13,11 @@ use psi::typing::typer;
 // matches. The subject is a value, and each arm's pattern, typed with the
 // match's other children, meets it as a transition arm's head does
 // (`Typer::pattern_head`): `_`, a literal of the subject's type, or a case
-// of its data. The arms' values are compatible: the first
-// arm value of a fixed type gives the match its type, and every other arm
-// value has that type, lands there as an anonymous number, or is `Never`.
-// A match whose arms fix no type is an anonymous choice: it has no value of
-// its own and lands arm by arm where its destination is known
-// (`Typer::land_choice`). The arms cover the subject (coverage.omg).
+// of its data. The arms' values join into one type (joins.omg); a match
+// whose arms fix no type is an unlanded value, an anonymous choice or an
+// anonymous array, which lands arm by arm where its destination is known
+// (landing.omg) and is no subject. The arms cover the subject
+// (coverage.omg).
 pub machine Typer::type_match(
     typer: &mut Typer,
     sources: &SourceSet,
@@ -29,8 +29,8 @@ pub machine Typer::type_match(
 crashes Trap
 {
     let subject_type: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
-    let subject_row: TypeRow = TypeTable::row(&typer.output.types, subject_type);
-    transition subject_type == 0 || subject_row.kind == TypeKind::AnonymousChoice {
+    let joined: bool = Typer::unlanded_join_type(typer, subject_type);
+    transition subject_type == 0 || joined {
         true -> subject_absent(typer, syntax, expression)
         _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, 0)
     }
@@ -100,349 +100,35 @@ crashes Trap
     }
 
     state values(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
-        let result_type: u64 in Trapping = Typer::match_result(typer, syntax, expression);
+        let values: JoinedValues = SyntaxTrees::joined_values(expression);
+        let result_type: u64 in Trapping = Typer::fixed_join(typer, syntax, values);
         transition result_type > 0 {
-            true -> fixed(typer, syntax, index, expression, result_type)
-            _ -> unfixed(typer, syntax, index, expression)
+            true -> fixed(typer, syntax, index, values, result_type)
+            _ -> unfixed(typer, syntax, index, values)
         }
     }
 
-    state fixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, result_type: u64 in Trapping) {
+    state fixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, result_type: u64 in Trapping) {
         Typing::set_expression_type(&mut typer.output, index, result_type);
-        Typer::admit_arms(typer, syntax, expression, result_type);
+        Typer::admit_joined(typer, syntax, values, result_type);
     }
 
-    // Every arm value is an anonymous number, an anonymous choice or
-    // `Never`; a match of `Never` arms is `Never` too.
-    state unfixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
-        let anonymous: bool = Typer::anonymous_arm(typer, syntax, expression);
-        transition anonymous {
-            true -> choice(typer, index)
-            _ -> never(typer, syntax, index, expression)
+    // Arms of `Never` alone make the match `Never` too.
+    state unfixed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues) {
+        let join: UnlandedJoin = Typer::unlanded_join(typer, syntax, values);
+        transition join.mismatch > 0 {
+            true -> mismatched(typer, syntax, join.mismatch - 1)
+            _ -> joined(typer, index, join.joined)
         }
     }
 
-    state choice(typer: &mut Typer, index: u64 in Trapping) {
-        let choice_row: TypeRow = TypeRow::of(TypeKind::AnonymousChoice);
-        let choice_type: u64 in Trapping = TypeTable::intern(&mut typer.output.types, choice_row);
-        Typing::set_expression_type(&mut typer.output, index, choice_type);
+    state joined(typer: &mut Typer, index: u64 in Trapping, joined: u64 in Trapping) {
+        Typing::set_expression_type(&mut typer.output, index, joined);
     }
 
-    state never(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
-        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first);
-        let never_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.target);
-        Typing::set_expression_type(&mut typer.output, index, never_type);
-    }
-
-    state done() {}
-}
-
-// An anonymous number, an anonymous choice or `Never`: an arm value that
-// fixes no match type.
-machine Typer::unfixed_type(typer: &Typer, handle: u64 in Trapping) -> bool
-crashes Trap
-{
-    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
-    let never: bool = Typer::never_type(typer, handle);
-    row.kind == TypeKind::AnonymousInteger || row.kind == TypeKind::AnonymousFloat
-        || row.kind == TypeKind::AnonymousChoice || never
-}
-
-// The type of the match's first arm value of a fixed type, or zero.
-machine Typer::match_result(typer: &Typer, syntax: &SyntaxTrees, expression: Expression) -> u64 in Trapping
-crashes Trap
-{
-    transition { _ -> arm(typer, syntax, expression, 0) }
-
-    state arm(typer: &Typer, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
-        transition offset < expression.count {
-            true -> candidate(typer, syntax, expression, offset)
-            _ -> found(0)
-        }
-    }
-
-    state candidate(typer: &Typer, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
-        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
-        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.target);
-        let unfixed: bool = Typer::unfixed_type(typer, value_type);
-        transition unfixed {
-            true -> arm(typer, syntax, expression, offset + 1)
-            _ -> found(value_type)
-        }
-    }
-
-    state found(handle: u64 in Trapping) -> u64 in Trapping {
-        handle
-    }
-}
-
-// Whether some arm value is an anonymous number or an anonymous choice.
-machine Typer::anonymous_arm(typer: &Typer, syntax: &SyntaxTrees, expression: Expression) -> bool
-crashes Trap
-{
-    transition { _ -> arm(typer, syntax, expression, 0) }
-
-    state arm(typer: &Typer, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> bool {
-        transition offset < expression.count {
-            true -> candidate(typer, syntax, expression, offset)
-            _ -> answer(false)
-        }
-    }
-
-    state candidate(typer: &Typer, syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping) -> bool {
-        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
-        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.target);
-        let never: bool = Typer::never_type(typer, value_type);
-        transition never {
-            true -> arm(typer, syntax, expression, offset + 1)
-            _ -> answer(true)
-        }
-    }
-
-    state answer(anonymous: bool) -> bool {
-        anonymous
-    }
-}
-
-// Each arm value meets the match's type exactly, as an anonymous number that
-// lands there, or as `Never`. An arm qualified differently, or one that would
-// meet it only by a loan or a membership, is incompatible.
-machine Typer::admit_arms(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, result_type: u64 in Trapping)
-crashes Trap
-{
-    transition { _ -> arm(typer, syntax, expression, result_type, 0) }
-
-    state arm(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, result_type: u64 in Trapping, offset: u64 in Trapping) {
-        transition offset < expression.count && typer.output.accepted {
-            true -> admission(typer, syntax, expression, result_type, offset)
-            _ -> done()
-        }
-    }
-
-    state admission(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, result_type: u64 in Trapping, offset: u64 in Trapping) {
-        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
-        let admission: Admission = Typer::admission(typer, syntax, result_type, arm.target);
-        transition admission {
-            Admission::Exact -> arm(typer, syntax, expression, result_type, offset + 1)
-            Admission::Landed -> landed(typer, syntax, expression, result_type, offset, arm)
-            _ -> incompatible(typer, syntax, arm, admission)
-        }
-    }
-
-    state landed(
-        typer: &mut Typer,
-        syntax: &SyntaxTrees,
-        expression: Expression,
-        result_type: u64 in Trapping,
-        offset: u64 in Trapping,
-        arm: TransitionArm
-    ) {
-        let admitted: bool = Typer::admit(typer, syntax, result_type, arm.target, false);
-        transition { _ -> arm(typer, syntax, expression, result_type, offset + 1) }
-    }
-
-    state incompatible(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, admission: Admission) {
-        let value: Expression = SyntaxTrees::expression(syntax, arm.target);
-        transition admission == Admission::OutOfRange {
-            true -> rejected(typer, value, TypeDiagnosticCode::LiteralOutOfRange)
-            _ -> rejected(typer, value, TypeDiagnosticCode::MismatchedTypes)
-        }
-    }
-
-    state rejected(typer: &mut Typer, value: Expression, code: TypeDiagnosticCode) {
-        Typing::reject(&mut typer.output, code, value.source_span);
-    }
-
-    state done() {}
-}
-
-// How an anonymous choice lands: `Landed`, or the first arm value that does
-// not land and why.
-pub data ChoiceLanding [copy] {
-    admission: Admission;
-    value: u64 in Trapping;
-}
-
-// Whether the anonymous choice rooted at `root` lands at `destination`: every
-// anonymous number among its arm values, and among the arm values of the
-// anonymous choices among them, lands there. Those are exactly the matches
-// of its tree still typed as a choice: any other match in the tree has
-// taken a type, and a choice anywhere else, such as a subject or an
-// operand, has been rejected.
-pub machine Typer::choice_landing(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, root: u64 in Trapping) -> ChoiceLanding
-crashes Trap
-{
-    let tree: Expression = SyntaxTrees::expression(syntax, root);
-    let wanted: TypeRow = TypeTable::row(&typer.output.types, destination);
-    transition { _ -> node(typer, syntax, wanted, tree.first_row, root) }
-
-    state node(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, low: u64 in Trapping, handle: u64 in Trapping) -> ChoiceLanding {
-        let expression: Expression = SyntaxTrees::expression(syntax, handle);
-        let handle_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
-        let row: TypeRow = TypeTable::row(&typer.output.types, handle_type);
-        transition expression.kind == ExpressionKind::Match && row.kind == TypeKind::AnonymousChoice {
-            true -> arm(typer, syntax, wanted, low, handle, expression, 0)
-            _ -> next(typer, syntax, wanted, low, handle)
-        }
-    }
-
-    state next(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, low: u64 in Trapping, handle: u64 in Trapping) -> ChoiceLanding {
-        transition handle > low {
-            true -> node(typer, syntax, wanted, low, handle - 1)
-            _ -> landed(handle)
-        }
-    }
-
-    state landed(handle: u64 in Trapping) -> ChoiceLanding {
-        ChoiceLanding { admission: Admission::Landed, value: handle }
-    }
-
-    state arm(
-        typer: &Typer,
-        syntax: &SyntaxTrees,
-        wanted: TypeRow,
-        low: u64 in Trapping,
-        handle: u64 in Trapping,
-        expression: Expression,
-        offset: u64 in Trapping
-    ) -> ChoiceLanding {
-        transition offset < expression.count {
-            true -> arm_value(typer, syntax, wanted, low, handle, expression, offset)
-            _ -> next(typer, syntax, wanted, low, handle)
-        }
-    }
-
-    state arm_value(
-        typer: &Typer,
-        syntax: &SyntaxTrees,
-        wanted: TypeRow,
-        low: u64 in Trapping,
-        handle: u64 in Trapping,
-        expression: Expression,
-        offset: u64 in Trapping
-    ) -> ChoiceLanding {
-        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
-        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.target);
-        let row: TypeRow = TypeTable::row(&typer.output.types, value_type);
-        let number: bool = row.kind == TypeKind::AnonymousInteger || row.kind == TypeKind::AnonymousFloat;
-        transition number {
-            true -> number_value(typer, syntax, wanted, low, handle, expression, offset, arm.target)
-            _ -> arm(typer, syntax, wanted, low, handle, expression, offset + 1)
-        }
-    }
-
-    state number_value(
-        typer: &Typer,
-        syntax: &SyntaxTrees,
-        wanted: TypeRow,
-        low: u64 in Trapping,
-        handle: u64 in Trapping,
-        expression: Expression,
-        offset: u64 in Trapping,
-        value: u64 in Trapping
-    ) -> ChoiceLanding {
-        let admission: Admission = Typer::literal_admission(typer, value, wanted);
-        transition admission == Admission::Landed {
-            true -> arm(typer, syntax, wanted, low, handle, expression, offset + 1)
-            _ -> refused(admission, value)
-        }
-    }
-
-    state refused(admission: Admission, value: u64 in Trapping) -> ChoiceLanding {
-        ChoiceLanding { admission: admission, value: value }
-    }
-}
-
-// Land the anonymous choice rooted at `root` at `destination`, which
-// `Typer::choice_landing` admits: the choice takes the destination's type,
-// each anonymous number among its arm values lands there, and each anonymous
-// choice among them takes the type too and lands its own arms when the walk,
-// which visits parents first, reaches it.
-pub machine Typer::land_choice(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, root: u64 in Trapping)
-crashes Trap
-{
-    let tree: Expression = SyntaxTrees::expression(syntax, root);
-    Typing::set_expression_type(&mut typer.output, root, destination);
-    transition { _ -> node(typer, syntax, destination, tree.first_row, root) }
-
-    state node(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, low: u64 in Trapping, handle: u64 in Trapping) {
-        let expression: Expression = SyntaxTrees::expression(syntax, handle);
-        let handle_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
-        transition expression.kind == ExpressionKind::Match && handle_type == destination {
-            true -> arm(typer, syntax, destination, low, handle, expression, 0)
-            _ -> next(typer, syntax, destination, low, handle)
-        }
-    }
-
-    state next(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, low: u64 in Trapping, handle: u64 in Trapping) {
-        transition handle > low {
-            true -> node(typer, syntax, destination, low, handle - 1)
-            _ -> done()
-        }
-    }
-
-    state arm(
-        typer: &mut Typer,
-        syntax: &SyntaxTrees,
-        destination: u64 in Trapping,
-        low: u64 in Trapping,
-        handle: u64 in Trapping,
-        expression: Expression,
-        offset: u64 in Trapping
-    ) {
-        transition offset < expression.count {
-            true -> arm_value(typer, syntax, destination, low, handle, expression, offset)
-            _ -> next(typer, syntax, destination, low, handle)
-        }
-    }
-
-    state arm_value(
-        typer: &mut Typer,
-        syntax: &SyntaxTrees,
-        destination: u64 in Trapping,
-        low: u64 in Trapping,
-        handle: u64 in Trapping,
-        expression: Expression,
-        offset: u64 in Trapping
-    ) {
-        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
-        let value_type: u64 in Trapping = Typing::expression_type(&typer.output, arm.target);
-        let row: TypeRow = TypeTable::row(&typer.output.types, value_type);
-        transition row.kind {
-            TypeKind::AnonymousInteger -> number(typer, syntax, destination, low, handle, expression, offset, arm.target)
-            TypeKind::AnonymousFloat -> number(typer, syntax, destination, low, handle, expression, offset, arm.target)
-            TypeKind::AnonymousChoice -> choice(typer, syntax, destination, low, handle, expression, offset, arm.target)
-            _ -> arm(typer, syntax, destination, low, handle, expression, offset + 1)
-        }
-    }
-
-    state number(
-        typer: &mut Typer,
-        syntax: &SyntaxTrees,
-        destination: u64 in Trapping,
-        low: u64 in Trapping,
-        handle: u64 in Trapping,
-        expression: Expression,
-        offset: u64 in Trapping,
-        value: u64 in Trapping
-    ) {
-        Typing::set_expression_type(&mut typer.output, value, destination);
-        Typing::set_adaptation(&mut typer.output, value, Adaptation::Landed);
-        transition { _ -> arm(typer, syntax, destination, low, handle, expression, offset + 1) }
-    }
-
-    state choice(
-        typer: &mut Typer,
-        syntax: &SyntaxTrees,
-        destination: u64 in Trapping,
-        low: u64 in Trapping,
-        handle: u64 in Trapping,
-        expression: Expression,
-        offset: u64 in Trapping,
-        value: u64 in Trapping
-    ) {
-        Typing::set_expression_type(&mut typer.output, value, destination);
-        transition { _ -> arm(typer, syntax, destination, low, handle, expression, offset + 1) }
+    state mismatched(typer: &mut Typer, syntax: &SyntaxTrees, value: u64 in Trapping) {
+        let written: Expression = SyntaxTrees::expression(syntax, value);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::MismatchedTypes, written.source_span);
     }
 
     state done() {}

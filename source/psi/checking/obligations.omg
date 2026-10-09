@@ -46,7 +46,58 @@ crashes Trap
         ExpressionKind::Construct -> construct(checker, syntax, resolution, typing, handle, expression, type_handle, row, checking)
         ExpressionKind::Path -> path(checker, syntax, resolution, typing, handle, expression, type_handle, row, checking)
         ExpressionKind::Match -> matched(checker, syntax, resolution, typing, handle, checking)
+        ExpressionKind::Array -> array_literal(checker, syntax, resolution, typing, handle, expression, row, checking)
         _ -> typed(checker, handle, row)
+    }
+
+    // An array literal's elements meet its element type's qualification.
+    state array_literal(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        expression: Expression,
+        row: TypeRow,
+        checking: bool
+    ) {
+        transition checking {
+            true -> array_element(checker, syntax, resolution, typing, handle, expression, row, 0)
+            _ -> typed(checker, handle, row)
+        }
+    }
+
+    state array_element(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        expression: Expression,
+        row: TypeRow,
+        offset: u64 in Trapping
+    ) {
+        transition offset < expression.count {
+            true -> element_qualified(checker, syntax, resolution, typing, handle, expression, row, offset)
+            _ -> typed(checker, handle, row)
+        }
+    }
+
+    state element_qualified(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        expression: Expression,
+        row: TypeRow,
+        offset: u64 in Trapping
+    ) {
+        let element: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
+        let value: Value = Checker::value_at(checker, element);
+        let written: Expression = SyntaxTrees::expression(syntax, element);
+        Checker::require_qualification(checker, syntax, resolution, typing, row.inner, element, value, written.source_span);
+        transition { _ -> array_element(checker, syntax, resolution, typing, handle, expression, row, offset + 1) }
     }
 
     state matched(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, checking: bool) {

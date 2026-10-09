@@ -154,7 +154,8 @@ pub data Parameter [copy] {
 // `SyntaxTrees::construct_fields` (its type path is its `left` child, a Name
 // or a Path), a membership's domains in
 // `SyntaxTrees::name_paths`, or a value-position match's arms in
-// `SyntaxTrees::match_arms`. A membership `value in A & B` tests its value
+// `SyntaxTrees::match_arms`, or a fixed-array literal's elements
+// `[a, b, c]` in `SyntaxTrees::arguments`. A membership `value in A & B` tests its value
 // `left` against each domain, joined by `operator` (`And` for `&`, `Or` for
 // `|`, `None` for one domain); a match tests its subject `left` against each
 // arm's pattern in order, and each arm's target is its value. A range
@@ -180,6 +181,7 @@ pub data ExpressionKind [copy] {
     case Membership;
     case Match;
     case Range;
+    case Array;
 }
 
 pub data OperatorKind [copy] {
@@ -845,6 +847,10 @@ pub data ParseDiagnosticCode [copy] {
     case DefinitionCapacityExceeded;
     // `..=` with no end before the index's `]`.
     case ExpectedRangeEnd;
+    case ExpectedArrayElement;
+    case ExpectedArrayElementEnd;
+    // `[]` names no element type or extent.
+    case EmptyArrayLiteral;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -1354,6 +1360,40 @@ crashes Trap
 
     state invalid() -> TransitionArm {
         crash Trap;
+    }
+}
+
+// The values one expression joins into one type: a value-position match's
+// arm values (`arms`), or a fixed-array literal's elements.
+pub data JoinedValues [copy] {
+    arms: bool;
+    first: u64 in Trapping;
+    count: u64 in Trapping;
+}
+
+// The values a match or an array literal joins.
+pub machine SyntaxTrees::joined_values(expression: Expression) -> JoinedValues {
+    let arms: bool = expression.kind == ExpressionKind::Match;
+    JoinedValues { arms: arms, first: expression.first, count: expression.count }
+}
+
+// The value `offset` of a join: an arm's value or an element.
+pub machine SyntaxTrees::joined_value(syntax_trees: &SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition values.arms {
+        true -> arm(syntax_trees, values.first + offset)
+        _ -> element(syntax_trees, values.first + offset)
+    }
+
+    state arm(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+        let arm: TransitionArm = SyntaxTrees::match_arm(syntax_trees, handle);
+        arm.target
+    }
+
+    state element(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+        let value: u64 in Trapping = SyntaxTrees::argument(syntax_trees, handle);
+        value
     }
 }
 

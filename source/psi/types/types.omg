@@ -40,6 +40,10 @@ pub data TypeKind [copy] {
     // A value-position match whose arms are anonymous numbers: it has no
     // value of its own, and lands arm by arm where its destination is known.
     case AnonymousChoice;
+    // A fixed-array literal whose elements are unlanded: `inner` is their
+    // unlanded type and `length` the handle of its extent's static integer
+    // row. It lands element by element where its destination is known.
+    case AnonymousArray;
 }
 
 // Fields a kind does not carry are zero.

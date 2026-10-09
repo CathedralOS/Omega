@@ -4,7 +4,7 @@ use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
 use psi::typing::literals;
-use psi::typing::matches;
+use psi::typing::landing;
 use psi::typing::references;
 use psi::typing::typer;
 
@@ -20,8 +20,8 @@ use psi::typing::typer;
 // a destination its declared domain qualifies by a membership checking
 // proves, and a predicate-only declared domain disappears implicitly; a
 // routed one, an arithmetic policy or a case's domain does not.
-// An anonymous choice (matches.omg) lands where each anonymous number among
-// its arms would.
+// An unlanded match or array literal (landing.omg) lands where each
+// anonymous number among its values would, at a destination of its shape.
 pub data Admission [copy] {
     case Rejected;
     case NotAValue;
@@ -54,7 +54,8 @@ crashes Trap
         transition given.kind {
             TypeKind::AnonymousInteger -> literal(typer, expression, wanted)
             TypeKind::AnonymousFloat -> literal(typer, expression, wanted)
-            TypeKind::AnonymousChoice -> choice(typer, syntax, destination, expression)
+            TypeKind::AnonymousChoice -> unlanded(typer, syntax, destination, expression)
+            TypeKind::AnonymousArray -> unlanded(typer, syntax, destination, expression)
             _ -> typed(typer, syntax, wanted, given, actual)
         }
     }
@@ -64,8 +65,8 @@ crashes Trap
         admission
     }
 
-    state choice(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission {
-        let landing: ChoiceLanding = Typer::choice_landing(typer, syntax, destination, expression);
+    state unlanded(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission {
+        let landing: Landing = Typer::landing(typer, syntax, destination, expression);
         landing.admission
     }
 
@@ -227,7 +228,7 @@ crashes Trap
 
 // Admit `expression` at `destination`, recording a landing or an implicit
 // shared loan (only where `lend` allows one: a call argument), or reject at
-// the expression, or at an anonymous choice's arm value that does not land.
+// the expression, or at an unlanded value's number that does not land.
 // Whether it was admitted.
 pub machine Typer::admit(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool) -> bool
 crashes Trap
@@ -235,7 +236,7 @@ crashes Trap
     let admission: Admission = Typer::admission(typer, syntax, destination, expression);
     let actual: u64 in Trapping = Typing::expression_type(&typer.output, expression);
     let given: TypeRow = TypeTable::row(&typer.output.types, actual);
-    let chosen: bool = given.kind == TypeKind::AnonymousChoice;
+    let chosen: bool = given.kind == TypeKind::AnonymousChoice || given.kind == TypeKind::AnonymousArray;
     let blamed: u64 in Trapping = Typer::blamed_value(typer, syntax, destination, expression, chosen && admission != Admission::Landed);
     let written: Expression = SyntaxTrees::expression(syntax, blamed);
     transition admission {
@@ -262,7 +263,7 @@ crashes Trap
     }
 
     state chosen_arms(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> bool {
-        Typer::land_choice(typer, syntax, destination, expression);
+        Typer::land(typer, syntax, destination, expression);
         transition { _ -> admitted() }
     }
 
@@ -297,7 +298,7 @@ crashes Trap
     }
 }
 
-// The value a refused admission names: an anonymous choice's first arm value
+// The value a refused admission names: an unlanded value's first number
 // that does not land, else the expression itself.
 machine Typer::blamed_value(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> u64 in Trapping
 crashes Trap
@@ -308,7 +309,7 @@ crashes Trap
     }
 
     state arm(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> u64 in Trapping {
-        let landing: ChoiceLanding = Typer::choice_landing(typer, syntax, destination, expression);
+        let landing: Landing = Typer::landing(typer, syntax, destination, expression);
         transition { _ -> found(landing.value) }
     }
 

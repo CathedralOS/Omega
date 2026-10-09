@@ -42,6 +42,8 @@ pub data ExpressionFrameKind [copy] {
     case MatchValue;
     // A range slice's end inside an index's brackets.
     case RangeEnd;
+    // A fixed-array literal's elements.
+    case Elements;
 }
 
 // One open bracket. Reductions inside it stop at `operator_base`; its staged
@@ -107,6 +109,7 @@ crashes Trap
             Token::Punctuation { punctuation: PunctuationKind::Tilde } -> prefix(parser, input, OperatorKind::BitNot)
             Token::Punctuation { punctuation: PunctuationKind::Ampersand } -> borrow(parser, input)
             Token::Punctuation { punctuation: PunctuationKind::LeftParen } -> open_group(parser, input)
+            Token::Punctuation { punctuation: PunctuationKind::LeftBracket } -> open_array(parser, input)
             Token::Integer { base, empty_digits, has_suffix } -> literal(parser, input, ExpressionKind::Integer)
             Token::Float { has_exponent, empty_exponent, has_suffix } -> literal(parser, input, ExpressionKind::Float)
             Token::StringLiteral -> literal(parser, input, ExpressionKind::String)
@@ -966,6 +969,94 @@ crashes Trap
         }
     }
 
+    // `[element, ...]`: a fixed-array literal of one or more elements, a
+    // trailing comma allowed.
+    state open_array(parser: &mut Parser, input: &TokenStream) {
+        let token: Token = input.tokens[parser.current_index];
+        Parser::push_frame(parser, input, ExpressionFrameKind::Elements, 0);
+        transition parser.output.accepted {
+            true -> array_taken(parser, input, token.start)
+            _ -> done()
+        }
+    }
+
+    state array_taken(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        let frame: ExpressionFrame = Parser::top_frame(parser);
+        Parser::replace_top_frame(parser, Parser::started_frame(frame, start));
+        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBracket);
+        transition closing {
+            true -> reject(parser, input, ParseDiagnosticCode::EmptyArrayLiteral)
+            _ -> operand(parser, input, ParseDiagnosticCode::ExpectedArrayElement)
+        }
+    }
+
+    state element_end(parser: &mut Parser, input: &TokenStream) {
+        let element: u64 in Trapping = Parser::pop_operand(parser);
+        Parser::stage_argument(parser, input, element);
+        transition parser.output.accepted {
+            true -> element_delimiter(parser, input)
+            _ -> done()
+        }
+    }
+
+    state element_delimiter(parser: &mut Parser, input: &TokenStream) {
+        let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        transition separator {
+            true -> element_separator(parser, input)
+            _ -> element_close(parser, input)
+        }
+    }
+
+    state element_separator(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBracket);
+        transition closing {
+            true -> close_array(parser, input)
+            _ -> operand(parser, input, ParseDiagnosticCode::ExpectedArrayElement)
+        }
+    }
+
+    state element_close(parser: &mut Parser, input: &TokenStream) {
+        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBracket);
+        transition closing {
+            true -> close_array(parser, input)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedArrayElementEnd)
+        }
+    }
+
+    state close_array(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        let frame: ExpressionFrame = Parser::top_frame(parser);
+        Parser::commit_arguments(parser, input, frame.pending_base);
+        transition parser.output.accepted {
+            true -> array_node(parser, input, frame)
+            _ -> done()
+        }
+    }
+
+    state array_node(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::pop_frame(parser);
+        let node: Expression = Expression {
+            kind: ExpressionKind::Array,
+            operator: OperatorKind::None,
+            left: 0,
+            right: 0,
+            first: parser.committed_first,
+            count: parser.committed_count,
+            flag: false,
+            name: Parser::identifier_span(parser, 0, 0),
+            type_reference: 0,
+            first_row: 0,
+            source_span: Parser::source_span(parser, frame.start, parser.token_end)
+        };
+        Parser::emit_expression(parser, input, node);
+        transition parser.output.accepted {
+            true -> after_operand(parser, input)
+            _ -> done()
+        }
+    }
+
     state open_call(parser: &mut Parser, input: &TokenStream) {
         let callee: u64 in Trapping = Parser::pop_operand(parser);
         Parser::push_frame(parser, input, ExpressionFrameKind::Arguments, callee);
@@ -1056,6 +1147,7 @@ crashes Trap
             ExpressionFrameKind::MatchPattern -> match_pattern_end(parser, input, frame)
             ExpressionFrameKind::MatchValue -> match_value_end(parser, input, frame)
             ExpressionFrameKind::RangeEnd -> range_node(parser, input, true)
+            ExpressionFrameKind::Elements -> element_end(parser, input)
         }
     }
 
@@ -1286,8 +1378,37 @@ crashes Trap
         }
     }
 
+    // The first child is `left`, except an array literal's first element
+    // and a range's end when it has no start; `..` has no child.
     state composite(parser: &mut Parser, input: &TokenStream, node: Expression, handle: u64 in Trapping) {
-        let first_child: Expression = SyntaxTrees::expression(&parser.output, node.left);
+        transition node.kind {
+            ExpressionKind::Array -> elements(parser, input, node, handle)
+            ExpressionKind::Range -> range(parser, input, node, handle)
+            _ -> child(parser, input, node, handle, node.left)
+        }
+    }
+
+    state elements(parser: &mut Parser, input: &TokenStream, node: Expression, handle: u64 in Trapping) {
+        let first_element: u64 in Trapping = SyntaxTrees::argument(&parser.output, node.first);
+        transition { _ -> child(parser, input, node, handle, first_element) }
+    }
+
+    state range(parser: &mut Parser, input: &TokenStream, node: Expression, handle: u64 in Trapping) {
+        transition node.first == 1 {
+            true -> child(parser, input, node, handle, node.left)
+            _ -> range_end(parser, input, node, handle)
+        }
+    }
+
+    state range_end(parser: &mut Parser, input: &TokenStream, node: Expression, handle: u64 in Trapping) {
+        transition node.count == 1 {
+            true -> child(parser, input, node, handle, node.right)
+            _ -> stored(parser, input, node, handle, handle)
+        }
+    }
+
+    state child(parser: &mut Parser, input: &TokenStream, node: Expression, handle: u64 in Trapping, first: u64 in Trapping) {
+        let first_child: Expression = SyntaxTrees::expression(&parser.output, first);
         transition { _ -> stored(parser, input, node, handle, first_child.first_row) }
     }
 
@@ -1731,6 +1852,24 @@ crashes Trap
 }
 
 // A match frame in `kind` over `subject`, from `start`.
+// A frame that remembers where its construct starts.
+machine Parser::started_frame(frame: ExpressionFrame, start: u64 in Trapping) -> ExpressionFrame {
+    ExpressionFrame {
+        kind: frame.kind,
+        operator_base: frame.operator_base,
+        pending_base: frame.pending_base,
+        callee: frame.callee,
+        field_start: frame.field_start,
+        field_end: frame.field_end,
+        start: start,
+        arm_start: frame.arm_start,
+        pattern: frame.pattern,
+        pattern_kind: frame.pattern_kind,
+        range_start: frame.range_start,
+        range_inclusive: frame.range_inclusive
+    }
+}
+
 machine Parser::match_frame(
     frame: ExpressionFrame,
     kind: ExpressionFrameKind,

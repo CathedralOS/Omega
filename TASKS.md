@@ -5978,8 +5978,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  460 parser cases, `tests/psi/resolver/test-resolver.sh` all 271 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 99 typing cases; run
+  465 parser cases, `tests/psi/resolver/test-resolver.sh` all 271 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 136 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
   beside a fourth native build.
@@ -6103,7 +6103,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `==`/`!=` or `== true`/`== false` guards. A value pattern (a literal, or
   a path or name denoting no case) selects by equality over an
   intrinsically comparable subject, and checking values a constant at its
-  landed literal. A machine binder's
+  landed literal. A fixed-array literal joins its elements into one type,
+  its extent its element count, and unlanded elements land level by level
+  at a destination of the literal's shape. A machine binder's
   call is typed through its contract, and a generic call's static machine
   arguments bind its machine binders, each argument's signature refining its
   contract under the call's bindings and binding the callee's other generic
@@ -6138,16 +6140,15 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   never terminate), and a witness on a bodyless machine rejects; every
   body's derived summary serves its callers, exported or not. Checking
   reports each rejected machine's first rejection.
-  `tests/psi/checking/test-checking.sh` passes 125 checking cases and accepts
+  `tests/psi/checking/test-checking.sh` passes 144 checking cases and accepts
   the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 80
   of the 102 `source/library/std` and `core` files; the other 22 stop first at
   13 retired `boundary requirement` declarations (12 std target files and
   `core/task.omg`) and `core/float_operations.omg`'s retired `boundary
   operator` rows, which **TOP-LEVEL-BOUNDARY-REQUIREMENTS** has not migrated,
-  3 range suffixes **CANONICALIZE-SCALAR-RANGE-CONTRACTS** keeps
-  (`std/time.omg`, `std/entry_shapes.omg`,
-  `std/targets/macos_x86_64/entry.omg`), and one each at an array-literal
-  field value (`core/layout.omg`), a `native callback procedure from`
+  4 range suffixes **CANONICALIZE-SCALAR-RANGE-CONTRACTS** keeps
+  (`core/layout.omg`, `std/time.omg`, `std/entry_shapes.omg`,
+  `std/targets/macos_x86_64/entry.omg`), and one each at a `native callback procedure from`
   telescope row (`std/tests/direct_callback_parameter.omg`), an applied
   type-position domain (`in Quantity<Units::METER>`), an installation reach
   row `reaches <= Bound`, and requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
