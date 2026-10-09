@@ -18,6 +18,7 @@ use terminal_psi::{
     StructuralPlaceDeclaration, TerminalAffineCleanupAction, Terminator,
 };
 
+mod carrier_arrivals;
 mod custody_flow;
 mod projected_transfers;
 
@@ -192,6 +193,15 @@ fn complete_carriers(
             })
             .map(|parameter| parameter.place),
     );
+    carrier_arrivals::inherit(
+        &mut managed,
+        parameters,
+        local_places,
+        blocks,
+        types,
+        &partial_transfers,
+        &scheduled,
+    )?;
     if managed.is_empty() {
         return Ok(());
     }
