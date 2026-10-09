@@ -451,7 +451,7 @@ impl PairMachineEffects {
     /// clobber only narrows what may be destroyed, which is the
     /// intended refinement when the x86-64 `sub` consumer's `rflags`
     /// clobber disappears under the flag-preserving immediate form.
-    pub const ISOLATED: Self = Self {
+    pub(crate) const ISOLATED: Self = Self {
         non_unit: PairNonUnitSurface::Isolated,
         fault: PairFaultDischarge::Isolated,
         unit_defs: PairUnitDefRelation::Covered,
@@ -521,7 +521,7 @@ impl PairMachineEffects {
     /// written. Every landed pair requires this surface regardless of
     /// the declared axes: removing the producer must drop nothing
     /// machine-visible.
-    pub fn admits_producer(self, declaration: &MachineEffectDeclaration) -> bool {
+    pub(crate) fn admits_producer(self, declaration: &MachineEffectDeclaration) -> bool {
         isolated_declaration(declaration)
             && declaration.alternatives.iter().all(|alternative| {
                 isolated_alternative(alternative)
@@ -545,7 +545,7 @@ impl PairMachineEffects {
     /// encoded indexed read at the folded operand position is matched by
     /// every rewritten alternative's direct read over the same pointer
     /// and byte count.
-    pub fn admits_consumer(
+    pub(crate) fn admits_consumer(
         self,
         declaration: &MachineEffectDeclaration,
         rewritten: &MachineEffectDeclaration,

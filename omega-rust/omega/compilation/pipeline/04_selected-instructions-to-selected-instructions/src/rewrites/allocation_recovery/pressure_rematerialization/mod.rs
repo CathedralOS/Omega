@@ -241,13 +241,13 @@ impl PressureRematerializationPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionPressureRematerialization {
+pub(crate) struct FunctionPressureRematerialization {
     pub machine: MachineId,
     pub action: Option<PressureRematerializationAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PressureRematerializationAction {
+pub(crate) struct PressureRematerializationAction {
     pub block: SelectedBlockId,
     pub pressure_point: LiveRangePoint,
     pub victim: VirtualRegisterId,
@@ -265,7 +265,7 @@ pub struct PressureRematerializationAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PressureRematerializationRewrite {
+pub(crate) struct PressureRematerializationRewrite {
     pub point: LiveRangePoint,
     pub instruction: SelectedInstructionId,
     pub operand: u16,
@@ -407,7 +407,7 @@ impl std::fmt::Display for PressureRematerializationError {
 impl std::error::Error for PressureRematerializationError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PressureRematerializationDecodeError {
+pub(crate) enum PressureRematerializationDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

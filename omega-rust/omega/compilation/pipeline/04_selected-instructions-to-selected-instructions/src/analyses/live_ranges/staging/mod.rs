@@ -86,7 +86,7 @@ impl StagedOptimizedLiveRanges {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedLiveRangeCustodyReceipt {
+pub(crate) struct StagedOptimizedLiveRangeCustodyReceipt {
     psi: TerminalPsiIdentity,
     target: target::NativeTarget,
     entry: MachineId,
@@ -212,7 +212,7 @@ impl StagedOptimizedLiveRangeCustodyReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedLiveRangeCustodyError {
+pub(crate) enum OptimizedLiveRangeCustodyError {
     Analysis(LiveRangeError),
 }
 

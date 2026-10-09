@@ -133,7 +133,7 @@ impl StagedOptimizedFixedPrecoloredSegmentHomes {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
+pub(crate) struct StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
     upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
     fixed: FixedPrecoloredIntervalValidationReceipt,
     requirements: FixedPrecoloredSplitRequirementValidationReceipt,

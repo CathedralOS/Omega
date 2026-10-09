@@ -1,7 +1,7 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FixedPrecoloredSplitRequirementError {
+pub(crate) enum FixedPrecoloredSplitRequirementError {
     RootMismatch,
     FunctionMismatch {
         function: usize,

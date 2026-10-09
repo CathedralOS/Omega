@@ -40,11 +40,12 @@ pub use analyses::{
     ValidatedSelectedAnalysis, ValidatedSpillChoices, analyze_allocation_legality,
     analyze_allocation_legality_reusing, analyze_live_ranges, analyze_live_ranges_reusing,
     analyze_liveness, analyze_liveness_reusing, analyze_machine_effects, choose_spill_victims,
-    classify_pressure_recovery, materialize_allocator_availability,
+    classify_pressure_recovery,
     stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_selected_reanalysis,
 };
+pub(crate) use analyses::{ materialize_allocator_availability};
 pub(crate) use analyses::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityError,
     AllocatorAvailabilityValidationReceipt, FixedPrecoloredIntervalValidationReceipt,

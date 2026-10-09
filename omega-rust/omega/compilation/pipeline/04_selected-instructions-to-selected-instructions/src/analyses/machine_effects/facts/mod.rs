@@ -124,7 +124,7 @@ impl ValidatedPreAllocationMachineEffects {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MachineEffectError {
+pub(crate) enum MachineEffectError {
     RegisterEnvironmentMismatch,
     CatalogTargetMismatch,
     CatalogConstraintMismatch,
