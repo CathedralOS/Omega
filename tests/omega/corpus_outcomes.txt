@@ -944,8 +944,14 @@ fail/control_flow/tuple_destructure_duplicate_binding_rejected rejected 8ms expe
 	tests/omega/fail/control_flow/tuple_destructure_duplicate_binding_rejected/main.omg:7:9: tuple destructure binding `value` is introduced by more than one subject; rename one binding with `as`
 fail/core/constant_false_crash_ceiling_forbids_body_crash rejected 410ms expected @cba4ef8c9ab1
 	machine `main` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/core/content_conservation_constructed_duplicate_claim rejected 4891ms expected @bb2471bc66c3+wt
+	cannot use `left` in machine `combine` state `entry` (statement 0) after `left` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `left` first
+fail/core/content_conservation_constructed_wrong_qualification rejected 6708ms expected @bb2471bc66c3+wt
+	construction of `Pair` field `right` is not proven in domain `Chunk::Held`; a field declared `in Chunk::Held` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/core/content_conservation_unqualified_place rejected 326ms expected @2d8ed253669f
 	callable `InvalidSplit::split` has an invalid content-conservation contract: projection `Owned::content` requires exact qualification `Region::Owned`, but `old(&whole)` is not qualified by its type or an ordinary callable contract
+fail/core/content_issuance_consumed_constructed_claims rejected 6753ms expected @bb2471bc66c3+wt
+	cannot establish call-result qualification `Chunk::Held`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
 fail/core/content_projection_arbitrary_call rejected 425ms expected @5718c89849d
 	content projection `Owned::content` is outside the closed projection fragment; use one selected algebra constructor over subject field reads, proof-natural constructors, and closed arithmetic only
 fail/core/content_projection_foreign_owner rejected 371ms expected @2d8ed253669f
@@ -3249,6 +3255,7 @@ pass/control_flow/termination_index_distance_compile checked 978ms check-target:
 pass/control_flow/transition_operand_schedule checked 314ms @2d8ed253669f
 pass/control_flow/transition_tail_self_call checked 295ms @2d8ed253669f
 pass/core/carry_permission_provider_adapter checked 663ms check-target:macos_arm64 @2d8ed253669f
+pass/core/content_conservation_constructed_argument checked 7246ms @bb2471bc66c3+wt
 pass/core/content_conservation_contract incomplete 1854ms check-target:macos_arm64 @e007e1d70f35+wt
 	`Main::main` calls `Main::partition_and_retain`; `Main::partition_and_retain` has no executable body: this compiler does not lower a statement of it yet (call operation: boundary contracts)
 pass/core/content_retained_custody_round_trip checked 387ms check-target:macos_arm64 @2d8ed253669f

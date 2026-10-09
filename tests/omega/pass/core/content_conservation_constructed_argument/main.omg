@@ -1,0 +1,44 @@
+use omega::language::core::content;
+use omega::language::core::binding;
+use omega::language::core::nat;
+
+pub data ByteUnit {}
+pub data Chunk [linear] { length: u64; }
+pub domain Chunk::Held established by ChunkRoot::grant;
+pub machine Held::content(value: &Chunk) -> CountedQuantity<ByteUnit>
+satisfies Content<Chunk, CountedQuantity<ByteUnit>>::project
+{ CountedQuantity { magnitude: embed(value.length) as Nat } }
+pub boundary trait ChunkRoot {
+    machine grant(value: Chunk) -> Chunk in Held;
+}
+pub data Pair { left: Chunk in Held; right: Chunk in Held; }
+pub boundary trait Join {
+    machine merge(parts: Pair) -> Chunk in Held
+    ensures separate(Held::content(old(&parts.left)), Held::content(old(&parts.right)))
+        == Held::content(&result);
+}
+pub boundary trait Sink { machine accept(value: Chunk in Held); }
+pub machine combine(join: &Binding<Join>, sink: &Binding<Sink>, left: Chunk in Held, right: Chunk in Held)
+reaches Join, Sink
+    invokes join;
+    invokes sink;
+{
+    let joined: Chunk in Held = join.merge(Pair { left: left, right: right });
+    sink.accept(joined);
+}
+machine main() {}
+
+pub data Shell { parts: Pair; }
+pub boundary trait NestedJoin {
+    machine merge(shell: Shell) -> Chunk in Held
+    ensures separate(Held::content(old(&shell.parts.left)), Held::content(old(&shell.parts.right)))
+        == Held::content(&result);
+}
+pub machine nested(join: &Binding<NestedJoin>, sink: &Binding<Sink>, left: Chunk in Held, right: Chunk in Held)
+reaches NestedJoin, Sink
+    invokes join;
+    invokes sink;
+{
+    let joined: Chunk in Held = join.merge(Shell { parts: Pair { left: left, right: right } });
+    sink.accept(joined);
+}

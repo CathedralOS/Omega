@@ -1202,12 +1202,22 @@ defines the complete product bar.
   TERMINAL-CONTENT-CLAIMS** (content transfer), **BORROWED-STORAGE-RESTORATION**
   (move-out/replace). No compiler-owned vector/Arena or recursive inline storage.
 
-  Before runtime qualification, `omega --check source/library/alloc/main.omg`
-  rejects six `Extent::Granted` call-result qualifications: exact invocation,
-  authorized route or consumed claims, and result correspondence remain
-  unproved. Complete the content-result join in stage 04's
-  `checks/content/{call_results,retained_custody}.rs`, then repeat package
-  preparation and `omega run --both` on the unchanged growth fixture.
+  Runtime qualification still needs package preparation and
+  `omega run --both tests/omega/pass/collections/runtime_vec_u32_growth_exit/main.omg`.
+  On Linux x86-64 unchanged alloc checks, but the growth command exits 200
+  during Std symbol resolution with 194 diagnostics, beginning with
+  `Clock::sleep` not resolving to an exact trait or top-level boundary
+  requirement. **TOP-LEVEL-BOUNDARY-REQUIREMENTS** supplies the ordinary Std
+  provider migration before package preparation and entry binding review.
+  Normal `omega update --project
+  tests/omega/pass/collections/runtime_vec_u32_growth_exit --target linux_x86_64`
+  exceeded a measured 600-second bound at checkable checkpoint
+  `4a420793ebe249021066b696624eb0a6a773281d` before producing a review document.
+  The unoptimized compiler accumulated 543 CPU seconds with an active
+  `omega-compile` worker and peaked below 608 MiB resident memory.
+  Attribute the remaining checking cost through the ordinary review route.
+  Complete that review and rerun the authored exit-70 oracle on both engines;
+  no current native or Terminal runtime result is established.
 
   Acceptance: native `Vec<u32>` appends through two allocations, preserves the
   exact live prefix and new elements, and cleans up once with exact backing

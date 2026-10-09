@@ -690,79 +690,21 @@ fn consumes_qualified_input(
     parameters: &[StateParameter],
     projection: &ContentProjectionPlan,
 ) -> bool {
-    let Some(state_flow) = facts.flow.control.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == invocation.machine && state.state_symbol == invocation.state)
-            .then_some(state)
-    }) else {
-        return false;
-    };
-    let Some(call_flow) = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state_flow.calls)
-        .iter()
-        .find(|call| {
-            call.statement_index == invocation.statement
-                && call.call_ordinal == invocation.ordinal
-                && call.target_symbol == invocation.call.target_symbol
-        })
-    else {
-        return false;
-    };
-    let mut qualified_places = Vec::new();
-    for reference in facts
-        .flow
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(call_flow.entry_semantic_contexts)
-    {
-        for fact in facts
-            .semantic
-            .context_view(facts.semantic.contexts.get(reference.context))
-            .facts()
-        {
-            if !matches!(fact.payload,
-                facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain)
-                if domain_symbol == projection.domain
-                    && semantic_domain == projection.semantic_domain)
-            {
-                continue;
-            }
-            let Some(place) = fact.place.as_place() else {
-                continue;
-            };
-            let place = facts.semantic.places.get(place);
-            qualified_places.push((
-                place.root,
-                facts.semantic.place_segments.span_or_empty(place.segments),
-            ));
-        }
-    }
-    parameters.iter().enumerate().any(|(position, _)| {
-        let Some(argument) = input_argument(program, invocation, parameters, position) else {
-            return false;
-        };
-        let Some(actual) = validation::canonical_place_from_expression_in_state(
-            program,
-            invocation.state,
-            invocation.statement,
-            argument,
-        ) else {
-            return false;
-        };
-        qualified_places.iter().any(|(root, segments)| {
-            *root == actual.root
-                && unique_claim(
+    parameters.iter().enumerate().any(|(position, parameter)| {
+        crate::checks::multiplicity::linear_claim_frontier(program, parameter.type_reference)
+            .iter()
+            .any(|claim| {
+                input_claim(
+                    program,
                     facts,
                     invocation,
-                    PermissionEventKind::Transfer,
-                    *root,
-                    segments,
-                    false,
+                    parameters,
+                    position,
+                    &claim.path,
+                    projection,
                 )
                 .is_some()
-        })
+            })
     })
 }
 
@@ -837,14 +779,38 @@ fn input_claim(
     if !qualified {
         return None;
     }
-    unique_claim(
+    if let Some(identity) = unique_claim(
         facts,
         invocation,
         PermissionEventKind::Transfer,
         actual.root,
         &actual.segments,
         false,
-    )
+    ) {
+        return Some(identity);
+    }
+    // A constructed argument has completed before the invocation. Its operands
+    // carry the membership premises, but ownership transfers their identities
+    // into the anonymous owner's field frontier before the call consumes it.
+    // Join both moves by exact claim identity: an annotation, matching content,
+    // or a source move without this invocation's owner transfer proves nothing.
+    let transferred = unique_claim(
+        facts,
+        invocation,
+        PermissionEventKind::Transfer,
+        PlaceRoot::Expression(argument),
+        path,
+        false,
+    )?;
+    let operand = unique_claim(
+        facts,
+        invocation,
+        PermissionEventKind::Transfer,
+        actual.root,
+        &actual.segments,
+        true,
+    )?;
+    (operand == transferred).then_some(transferred)
 }
 
 fn result_claim(
@@ -901,7 +867,7 @@ fn unique_claim(
     kind: PermissionEventKind,
     root: PlaceRoot,
     path: &[PlaceSegment],
-    direct_local: bool,
+    allow_statement_source: bool,
 ) -> Option<PermissionClaimIdentity> {
     let source = PermissionEventSource::Call {
         statement_index: invocation.statement,
@@ -918,7 +884,7 @@ fn unique_claim(
             || event.root != root
             || facts.flow.ownership.segments.span_or_empty(event.segments) != path
             || !(event.source == source
-                || (direct_local
+                || (allow_statement_source
                     && event.source
                         == PermissionEventSource::Statement {
                             statement_index: invocation.statement,
