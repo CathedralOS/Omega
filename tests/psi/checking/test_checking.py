@@ -1101,6 +1101,66 @@ def main() -> None:
         "UnsupportedFact",
         b"satisfies Positive::get",
     )
+    # A declared domain's predicates hold of a qualified parameter and are
+    # proved where a value meets a qualified destination, unless it already
+    # carries the qualification; a routed domain or a byte predicate is
+    # established only by carrying it.
+    small = b"domain u64::Small(value)\nrequires value < 4;\nmachine take(index: u64 in Small) -> u64 { index }\n"
+    accepted(
+        program,
+        "qualified-parameter-assumes-its-domain",
+        b"domain u64::Small(value)\nrequires value < 4;\nmachine at(items: &[u8; 4], index: u64 in Small) -> u8 { items[index] }",
+    )
+    rejected(
+        program,
+        "qualifying-argument-proves-the-domain",
+        small + b"machine f(candidate: u64) -> u64 { take(candidate) }",
+        "DomainUnproven",
+        b"candidate!2",
+    )
+    accepted(
+        program,
+        "guarded-argument-meets-the-domain",
+        small + b"machine f(i: u64) -> u64 {\n"
+        b"    transition i < 4 {\n"
+        b"        true -> held(i)\n"
+        b"        _ -> missing()\n"
+        b"    }\n"
+        b"\n"
+        b"    state held(i: u64) -> u64 { take(i) }\n"
+        b"    state missing() -> u64 { 0 }\n"
+        b"}",
+    )
+    accepted(program, "qualified-argument-carries-its-domain", small + b"machine f(i: u64 in Small) -> u64 { take(i) }")
+    accepted(program, "literal-within-the-domain", small + b"machine f() -> u64 { take(3) }")
+    rejected(program, "literal-outside-the-domain", small + b"machine f() -> u64 { take(9) }", "DomainUnproven", b"9")
+    rejected(
+        program,
+        "qualified-result-proves-the-domain",
+        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(count: u64) -> u64 in Small { count }",
+        "DomainUnproven",
+        b"count!2",
+    )
+    rejected(
+        program,
+        "qualifying-cast-proves-the-domain",
+        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(i: u64) -> u64 { let s: u64 in Small = i as u64 in Small; s }",
+        "DomainUnproven",
+        b"i as u64 in Small",
+    )
+    rejected(
+        program,
+        "routed-domain-is-not-minted",
+        b"machine mint() -> u64;\ndomain u64::Issued\nestablished by mint;\n"
+        b"machine take(token: u64 in Issued) -> u64 in Issued { token }\nmachine f() -> u64 in Issued { take(1) }",
+        "DomainUnproven",
+        b"1",
+    )
+    text = b"domain [u8]::Text(bytes)\nrequires valid_utf8(bytes);\nmachine show(text: &[u8] in Text) {}\n"
+    rejected(program, "byte-predicate-domain-needs-carried-evidence", text + b"machine f(raw: &[u8]) { show(raw); }",
+             "DomainUnproven", b"raw!2")
+    accepted(program, "byte-predicate-domain-carried", text + b"machine f(view: &[u8] in Text) { show(view); }")
+
     # A `const` extent serves every specialization, so its body proves no
     # index below it.
     rejected(

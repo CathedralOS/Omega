@@ -592,7 +592,15 @@ crashes Trap
             ValueBinding::ReturnedValue { machine } -> value_tag(resolver_harness, output, index, 13, machine, 0)
             ValueBinding::Proposition { proposition } -> value_tag(resolver_harness, output, index, 14, proposition, 0)
             ValueBinding::PayloadField { field } -> value_tag(resolver_harness, output, index, 15, field, 0)
+            ValueBinding::DomainSubject { domain } -> value_tag(resolver_harness, output, index, 16, domain, 0)
+            ValueBinding::BytePredicate { predicate } -> predicate_row(resolver_harness, output, index, predicate)
         }
+    }
+
+    state predicate_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, predicate: BytePredicate) {
+        let tag: u64 = ResolverHarness::byte_predicate_tag(predicate);
+        let first: u64 in Trapping = tag as u64 in Trapping;
+        transition { _ -> value_tag(resolver_harness, output, index, 17, first, 0) }
     }
 
     state value_tag(
@@ -714,4 +722,17 @@ machine ResolverHarness::write_u64(resolver_harness: &mut ResolverHarness, value
 machine ResolverHarness::write_byte(resolver_harness: &mut ResolverHarness, value: u8) reaches Console {
     let mut output: u8 = value;
     resolver_harness.console.write_byte(output as i32);
+}
+
+machine ResolverHarness::byte_predicate_tag(predicate: BytePredicate) -> u64 {
+    transition predicate {
+        BytePredicate::ValidUtf8 -> tag(1)
+        BytePredicate::NoNul -> tag(2)
+        BytePredicate::AsciiOnly -> tag(4)
+        BytePredicate::NonEmpty -> tag(8)
+    }
+
+    state tag(value: u64) -> u64 {
+        value
+    }
 }

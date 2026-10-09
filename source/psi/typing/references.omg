@@ -63,6 +63,7 @@ crashes Trap
         let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
         row.builtin = builtin;
         row.domain = domain;
+        row.domain_item = NameResolution::domain_item(resolution, index);
         transition admitted {
             true -> intern(typer, sources, syntax, resolution, index, reference, row)
             _ -> domain_rejected(typer, reference)
@@ -83,7 +84,7 @@ crashes Trap
         domain: DomainBinding
     ) {
         let expected: u64 in Trapping = Typer::applied_parameter_count(syntax, item);
-        transition domain == DomainBinding::Unqualified {
+        transition domain == DomainBinding::Unqualified || domain == DomainBinding::Declared {
             true -> data_arity(typer, sources, syntax, resolution, index, reference, item, expected)
             _ -> domain_rejected(typer, reference)
         }
@@ -157,6 +158,8 @@ crashes Trap
         row.item = item;
         row.first_argument = first;
         row.argument_count = reference.argument_count;
+        row.domain = NameResolution::domain_binding_at(resolution, index);
+        row.domain_item = NameResolution::domain_item(resolution, index);
         transition { _ -> intern(typer, sources, syntax, resolution, index, reference, row) }
     }
 
@@ -225,7 +228,8 @@ crashes Trap
         row.inner = Typing::reference_type(&typer.output, reference.inner);
         row.length = length;
         row.domain = domain;
-        transition domain == DomainBinding::Unqualified || domain == DomainBinding::Trapping {
+        row.domain_item = NameResolution::domain_item(resolution, index);
+        transition domain == DomainBinding::Unqualified || domain == DomainBinding::Trapping || domain == DomainBinding::Declared {
             true -> intern(typer, sources, syntax, resolution, index, reference, row)
             _ -> domain_rejected(typer, reference)
         }
@@ -243,7 +247,8 @@ crashes Trap
         let mut row: TypeRow = TypeRow::of(TypeKind::Slice);
         row.inner = Typing::reference_type(&typer.output, reference.inner);
         row.domain = domain;
-        transition domain == DomainBinding::Unqualified || domain == DomainBinding::Trapping {
+        row.domain_item = NameResolution::domain_item(resolution, index);
+        transition domain == DomainBinding::Unqualified || domain == DomainBinding::Trapping || domain == DomainBinding::Declared {
             true -> intern(typer, sources, syntax, resolution, index, reference, row)
             _ -> domain_rejected(typer, reference)
         }
@@ -311,15 +316,16 @@ crashes Trap
 }
 
 // Whether `domain` may qualify `builtin`: an arithmetic policy qualifies a
-// fixed integer, `Finite` a float, and anything may stay unqualified
-// (wiki/spec/language/numeric_values.md#overflow-policies). A declared
-// domain's or a case's implied domain's theory belongs to checking, which
-// this slice does not reach, so it qualifies nothing yet.
+// fixed integer, `Finite` a float, a declared domain the carrier resolution
+// matched it to (wiki/spec/language/domains.md#declaration-and-membership),
+// and anything may stay unqualified
+// (wiki/spec/language/numeric_values.md#overflow-policies). A case's implied
+// domain qualifies data, never a builtin.
 machine Typer::domain_admitted(builtin: BuiltinType, domain: DomainBinding) -> bool {
     transition domain {
         DomainBinding::Unqualified -> yes()
         DomainBinding::Finite -> float(builtin)
-        DomainBinding::Declared -> no()
+        DomainBinding::Declared -> yes()
         DomainBinding::Case -> no()
         _ -> integer(builtin)
     }

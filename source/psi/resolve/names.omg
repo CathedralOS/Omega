@@ -64,6 +64,10 @@ pub data NameScope [copy] {
     // a proposition apply.
     in_fact: bool;
     fact_root: u64 in Trapping;
+    // Whether the names are domain `subject_domain`'s predicates, where its
+    // subject binder names the classified value.
+    names_subject: bool;
+    subject_domain: u64 in Trapping;
 }
 
 pub machine Resolver::bind_body_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
@@ -150,7 +154,9 @@ crashes Trap
             binder_count: 0,
             names_result: false,
             in_fact: false,
-            fact_root: 0
+            fact_root: 0,
+            names_subject: false,
+            subject_domain: 0
         }, item.value);
         transition { _ -> next(resolver, sources, syntax, index + 1) }
     }
@@ -269,7 +275,9 @@ crashes Trap
         binder_count: 0,
         names_result: false,
         in_fact: false,
-        fact_root: 0
+        fact_root: 0,
+        names_subject: false,
+        subject_domain: 0
     }, first_statement + statement_count) }
 
     state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, end: u64 in Trapping) {
@@ -300,7 +308,9 @@ machine Resolver::through_statement(scope: NameScope) -> NameScope {
         binder_count: scope.binder_count,
         names_result: scope.names_result,
         in_fact: scope.in_fact,
-        fact_root: scope.fact_root
+        fact_root: scope.fact_root,
+        names_subject: scope.names_subject,
+        subject_domain: scope.subject_domain
     }
 }
 
@@ -316,7 +326,9 @@ machine Resolver::with_binders(scope: NameScope, first_binder: u64 in Trapping, 
         binder_count: binder_count,
         names_result: scope.names_result,
         in_fact: scope.in_fact,
-        fact_root: scope.fact_root
+        fact_root: scope.fact_root,
+        names_subject: scope.names_subject,
+        subject_domain: scope.subject_domain
     }
 }
 
@@ -645,8 +657,9 @@ crashes Trap
 }
 
 // A value name: the latest earlier `let` of this body, then the arm's
-// pattern binders, then the body's parameters, then, in an `ensures` fact,
-// `result`, then a value binder of the enclosing machine, then a constant.
+// pattern binders, then the body's parameters, then, in a domain's
+// predicates, its subject binder, then, in an `ensures` fact, `result`,
+// then a value binder of the enclosing machine, then a constant.
 // An entry parameter spelled `result` shadows the returned value.
 machine Resolver::local_name(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding
 crashes Trap
@@ -691,6 +704,22 @@ crashes Trap
     state parameter(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         transition offset < scope.parameter_count {
             true -> parameter_named(resolution, sources, syntax, scope, name, offset)
+            _ -> subject(resolution, sources, syntax, scope, name)
+        }
+    }
+
+    state subject(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
+        transition scope.names_subject {
+            true -> subject_named(resolution, sources, syntax, scope, name)
+            _ -> returned(resolution, sources, syntax, scope, name)
+        }
+    }
+
+    state subject_named(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
+        let item: DomainItem = SyntaxTrees::domain_item(syntax, scope.subject_domain);
+        let spelled: bool = SourceSet::spans_equal(sources, item.subject.source_span, name);
+        transition item.has_subject && spelled {
+            true -> found(ValueBinding::DomainSubject { domain: scope.subject_domain })
             _ -> returned(resolution, sources, syntax, scope, name)
         }
     }
@@ -1026,9 +1055,21 @@ crashes Trap
     let named_machine: ValueBinding = Resolver::machine_name(resolution, sources, syntax, false, name, name);
     let named_proposition: Lookup = Resolver::declared_named(sources, syntax, DeclarationKind::Proposition, false, name, name);
     transition named_proposition {
-        Lookup::Absent -> found(named_machine)
+        Lookup::Absent -> machine_found(sources, named_machine, name)
         Lookup::Ambiguous -> found(ValueBinding::Ambiguous)
         Lookup::Found { handle } -> proposition_found(named_machine, handle)
+    }
+
+    state machine_found(sources: &SourceSet, named_machine: ValueBinding, name: SourceSpan) -> ValueBinding {
+        transition named_machine {
+            ValueBinding::Unresolved -> primitive(sources, name)
+            _ -> found(named_machine)
+        }
+    }
+
+    state primitive(sources: &SourceSet, name: SourceSpan) -> ValueBinding {
+        let binding: ValueBinding = Resolver::byte_predicate(sources, name);
+        binding
     }
 
     state proposition_found(named_machine: ValueBinding, handle: u64 in Trapping) -> ValueBinding {
@@ -1040,6 +1081,49 @@ crashes Trap
 
     state found(binding: ValueBinding) -> ValueBinding {
         binding
+    }
+}
+
+// The primitive byte predicate `name` spells, else unresolved.
+machine Resolver::byte_predicate(sources: &SourceSet, name: SourceSpan) -> ValueBinding
+crashes Trap
+{
+    let utf8: bool = SourceSet::span_spells(sources, name, "valid_utf8");
+    let nul: bool = SourceSet::span_spells(sources, name, "no_nul");
+    let ascii: bool = SourceSet::span_spells(sources, name, "ascii_only");
+    let empty: bool = SourceSet::span_spells(sources, name, "non_empty");
+    transition utf8 {
+        true -> found(BytePredicate::ValidUtf8)
+        _ -> nul_spelled(nul, ascii, empty)
+    }
+
+    state nul_spelled(nul: bool, ascii: bool, empty: bool) -> ValueBinding {
+        transition nul {
+            true -> found(BytePredicate::NoNul)
+            _ -> ascii_spelled(ascii, empty)
+        }
+    }
+
+    state ascii_spelled(ascii: bool, empty: bool) -> ValueBinding {
+        transition ascii {
+            true -> found(BytePredicate::AsciiOnly)
+            _ -> empty_spelled(empty)
+        }
+    }
+
+    state empty_spelled(empty: bool) -> ValueBinding {
+        transition empty {
+            true -> found(BytePredicate::NonEmpty)
+            _ -> unresolved()
+        }
+    }
+
+    state found(predicate: BytePredicate) -> ValueBinding {
+        ValueBinding::BytePredicate { predicate: predicate }
+    }
+
+    state unresolved() -> ValueBinding {
+        ValueBinding::Unresolved
     }
 }
 
@@ -1087,7 +1171,22 @@ crashes Trap
 {
     transition scope.has_machine {
         true -> machine_scope(resolution, sources, syntax, scope, name, machine_binder)
-        _ -> found(ValueBinding::Unresolved)
+        _ -> domain_scope(sources, syntax, scope, name, machine_binder)
+    }
+
+    // A domain's predicates see its own generic parameters
+    // (`domain<const Capacity: u64> u64::AtMost<Capacity>(value)`).
+    state domain_scope(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding {
+        transition scope.names_subject {
+            true -> domain_binders(sources, syntax, scope, name, machine_binder)
+            _ -> found(ValueBinding::Unresolved)
+        }
+    }
+
+    state domain_binders(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding {
+        let item: DomainItem = SyntaxTrees::domain_item(syntax, scope.subject_domain);
+        let binder: ValueBinding = Resolver::binder_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name, machine_binder);
+        binder
     }
 
     state machine_scope(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding {

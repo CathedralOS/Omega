@@ -8,7 +8,8 @@ use psi::typing::typer;
 // Facts type like any expression, and each one is a Boolean: a machine's
 // `requires` and `ensures` facts and each state's `requires` facts over
 // their parameters (`result` is the machine's result), each `where
-// machine` contract's `requires` facts over its own parameters, a data
+// machine` contract's `requires` facts over its own parameters, each
+// domain's predicates over its subject binder, a data
 // declaration's `where` facts over its fields, and each case's own `where`
 // facts over its payload fields and those fields. A proposition
 // application, a whole fact, is a Boolean statement (calls.omg).
@@ -60,8 +61,21 @@ crashes Trap
     state next_data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         transition index < syntax.data_count && typer.output.accepted {
             true -> data(typer, sources, syntax, resolution, index)
+            _ -> next_domain(typer, sources, syntax, resolution, 0)
+        }
+    }
+
+    state next_domain(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        transition index < syntax.domain_count && typer.output.accepted {
+            true -> domain(typer, sources, syntax, resolution, index)
             _ -> done()
         }
+    }
+
+    state domain(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        let item: DomainItem = SyntaxTrees::domain_item(syntax, index);
+        Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Requires);
+        transition { _ -> next_domain(typer, sources, syntax, resolution, index + 1) }
     }
 
     state data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {

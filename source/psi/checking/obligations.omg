@@ -4,6 +4,7 @@ use psi::checking::contracts;
 use psi::checking::domains;
 use psi::checking::evaluation;
 use psi::checking::places;
+use psi::checking::qualification;
 use psi::checking::termination;
 use psi::checks::checks;
 use psi::integers::integers;
@@ -39,7 +40,7 @@ crashes Trap
         ExpressionKind::Index -> index(checker, syntax, typing, handle, expression, row, checking)
         ExpressionKind::Unary -> unary(checker, handle, expression, row, integer, checking)
         ExpressionKind::Binary -> binary(checker, syntax, resolution, typing, handle, expression, row, integer, checking)
-        ExpressionKind::Cast -> cast(checker, typing, handle, expression, row, integer, checking)
+        ExpressionKind::Cast -> qualified_cast(checker, syntax, resolution, typing, handle, expression, type_handle, row, integer, checking)
         ExpressionKind::Call -> call(checker, syntax, resolution, typing, handle, expression, row, checking)
         ExpressionKind::Construct -> construct(checker, syntax, resolution, typing, handle, expression, type_handle, row, checking)
         ExpressionKind::Path -> path(checker, syntax, resolution, typing, handle, expression, type_handle, row, checking)
@@ -178,6 +179,42 @@ crashes Trap
         Checker::set_value(checker, handle, value);
     }
 
+    // A cast to a type a declared domain qualifies proves its predicates of
+    // the operand, whose denotation it keeps (qualification.omg).
+    state qualified_cast(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        expression: Expression,
+        type_handle: u64 in Trapping,
+        row: TypeRow,
+        integer: bool,
+        checking: bool
+    ) {
+        transition checking {
+            true -> cast_qualification(checker, syntax, resolution, typing, handle, expression, type_handle, row, integer)
+            _ -> cast(checker, typing, handle, expression, row, integer, checking)
+        }
+    }
+
+    state cast_qualification(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        expression: Expression,
+        type_handle: u64 in Trapping,
+        row: TypeRow,
+        integer: bool
+    ) {
+        let operand: Value = Checker::value_at(checker, expression.left);
+        Checker::require_qualification(checker, syntax, resolution, typing, type_handle, expression.left, operand, expression.source_span);
+        transition { _ -> cast(checker, typing, handle, expression, row, integer, true) }
+    }
+
     state cast(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, integer: bool, checking: bool) {
         transition integer {
             true -> conversion(checker, typing, handle, expression, row, checking)
@@ -230,6 +267,7 @@ crashes Trap
         let selection: Selection = Typing::selection(typing, node);
         Checker::record_call(checker, syntax, resolution, selection);
         Checker::record_supply(checker, syntax, selection, node);
+        Checker::require_call_qualifications(checker, syntax, resolution, typing, selection, expression);
         Checker::require_self_descent(checker, syntax, resolution, typing, selection, expression);
         Checker::require_callee_facts(checker, syntax, resolution, typing, selection, expression);
         transition { _ -> effects(checker, syntax, resolution, typing, node, expression, row) }

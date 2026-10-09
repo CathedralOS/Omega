@@ -6,6 +6,7 @@ use psi::checking::fact_values;
 use psi::checking::facts;
 use psi::checking::obligations;
 use psi::checking::places;
+use psi::checking::qualification;
 use psi::checking::termination;
 use psi::checking::zone;
 use psi::checks::checks;
@@ -652,6 +653,7 @@ crashes Trap
 
     state tail(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
         let value: Value = Checker::value_at(checker, statement.value);
+        Checker::require_result_qualification(checker, syntax, resolution, typing, statement.value, value, statement.source_span);
         Checker::require_guarantees(checker, syntax, resolution, typing, value, statement.source_span);
     }
 
@@ -699,11 +701,13 @@ crashes Trap
         let type_handle: u64 in Trapping = Typing::reference_type(typing, statement.type_reference);
         let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Local, index, 0, type_handle);
         transition statement.has_value {
-            true -> initialized(checker, syntax, resolution, typing, statement, place, checking)
+            true -> initialized(checker, syntax, resolution, typing, statement, place, type_handle, checking)
             _ -> done()
         }
     }
 
+    // A qualified local's initializer meets its qualification, which then
+    // holds of the local (qualification.omg).
     state initialized(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
@@ -711,11 +715,22 @@ crashes Trap
         typing: &Typing,
         statement: Statement,
         place: u64 in Trapping,
+        type_handle: u64 in Trapping,
         checking: bool
     ) {
         Checker::evaluate_tree(checker, syntax, resolution, typing, statement.value, checking);
         let value: Value = Checker::value_at(checker, statement.value);
         Checker::bind_place(checker, typing, place, value);
+        let bound: Value = Checker::place_value(checker, place);
+        Checker::assume_qualification(checker, syntax, resolution, typing, type_handle, bound);
+        transition checking {
+            true -> qualified_local(checker, syntax, resolution, typing, statement, type_handle, value)
+            _ -> done()
+        }
+    }
+
+    state qualified_local(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, type_handle: u64 in Trapping, value: Value) {
+        Checker::require_qualification(checker, syntax, resolution, typing, type_handle, statement.value, value, statement.source_span);
     }
 
     state assignment(
@@ -731,6 +746,8 @@ crashes Trap
         Checker::evaluate_tree(checker, syntax, resolution, typing, statement.target, checking);
         let target: Value = Checker::value_at(checker, statement.target);
         let owner: u64 in Trapping = Checker::window_owner(checker, syntax, typing, target.place);
+        let destination: u64 in Trapping = Typing::expression_type(typing, statement.target);
+        Checker::require_stored_qualification(checker, syntax, resolution, typing, destination, statement.value, value, statement.source_span, checking);
         Checker::bind_place(checker, typing, target.place, value);
         transition owner > 0 {
             true -> window(checker, syntax, resolution, typing, statement, owner, checking)
@@ -1148,9 +1165,16 @@ crashes Trap
     state terminal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, checking: bool) {
         let value: Value = Checker::value_at(checker, arm.target);
         transition checking {
-            true -> owed(checker, syntax, resolution, typing, arm, value)
+            true -> returned(checker, syntax, resolution, typing, arm, value)
             _ -> done()
         }
+    }
+
+    // A returned value meets the result's qualification and its machine's
+    // `ensures` facts.
+    state returned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm, value: Value) {
+        Checker::require_result_qualification(checker, syntax, resolution, typing, arm.target, value, arm.source_span);
+        transition { _ -> owed(checker, syntax, resolution, typing, arm, value) }
     }
 
     // A jump is an edge of the body's local control graph
@@ -1170,6 +1194,7 @@ crashes Trap
         let item: StateItem = SyntaxTrees::state_item(syntax, state);
         let expression: Expression = SyntaxTrees::expression(syntax, call);
         Checker::require_descent(checker, syntax, resolution, typing, expression, node, item.first_parameter, item.parameter_count);
+        Checker::require_argument_qualifications(checker, syntax, resolution, typing, expression, item.first_parameter, item.parameter_count);
         let held: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, item.first_parameter, expression, ClauseKind::Requires, true);
         transition held {
             true -> done()

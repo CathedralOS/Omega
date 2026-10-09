@@ -5856,8 +5856,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  460 parser cases, `tests/psi/resolver/test-resolver.sh` all 269 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 96 typing cases; run
+  460 parser cases, `tests/psi/resolver/test-resolver.sh` all 271 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 99 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
   beside a fourth native build.
@@ -5958,13 +5958,20 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   arguments and by unifying parameter and argument types, and a generic
   construction infers its data's arguments from its fields; value-position
   matches, memberships, trait requirement calls, generic conformance members,
-  target-scoped family calls, declared and case domain qualifiers and equality
+  target-scoped family calls, case domain qualifiers and equality
   needing a declared conformance reject as unsupported (core's theorems over
   `Nat`, `Seq` and record values wait on owner decision
   `proof-fact-data-equality`). An inline array's
   extent is a static integer or a `const` binder, which substitution and
   unification carry like an element type (`take(a)` binds `N` from
-  `a: [u8; 3]`); checking proves no index below a `const` extent. A machine binder's
+  `a: [u8; 3]`); checking proves no index below a `const` extent. A declared
+  domain qualifies its carrier: its predicates bind and type over its subject
+  binder (primitive byte predicates bind by spelling), a carrier value meets
+  a qualified destination by a membership checking proves, a predicate-only
+  qualification disappears implicitly, and a qualified parameter assumes
+  the predicates while arguments, returns, qualified locals, stores and
+  casts prove them unless they carry the qualification; routed domains and
+  byte predicates are established only by carrying them. A machine binder's
   call is typed through its contract, and a generic call's static machine
   arguments bind its machine binders, each argument's signature refining its
   contract under the call's bindings and binding the callee's other generic
@@ -5999,7 +6006,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   never terminate), and a witness on a bodyless machine rejects; every
   body's derived summary serves its callers, exported or not. Checking
   reports each rejected machine's first rejection.
-  `tests/psi/checking/test-checking.sh` passes 114 checking cases and accepts
+  `tests/psi/checking/test-checking.sh` passes 125 checking cases and accepts
   the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 75
   of the 102 `source/library/std` and `core` files; the other 27 stop first at
   13 retired `boundary requirement` declarations (12 std target files and

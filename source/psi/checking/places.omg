@@ -511,7 +511,21 @@ crashes Trap
         ValueBinding::Field { field } -> field_name(checker, typing, field, type_handle)
         ValueBinding::PayloadField { field } -> payload_name(checker, field)
         ValueBinding::ReturnedValue { machine } -> returned(checker)
+        ValueBinding::DomainSubject { domain } -> subject(checker)
         _ -> unbounded()
+    }
+
+    // A domain predicate's subject binder: the value it is decided for.
+    state subject(checker: &Checker) -> Value {
+        transition checker.subjecting {
+            true -> subject_value(checker)
+            _ -> unbounded()
+        }
+    }
+
+    state subject_value(checker: &Checker) -> Value {
+        let value: Value = checker.subject;
+        value
     }
 
     // An `ensures` fact's `result`: the returned value it is decided for.

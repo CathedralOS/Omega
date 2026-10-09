@@ -251,8 +251,11 @@ fields ([`resolve/facts.omg`](resolve/facts.omg)); another case's payload is
 not in scope. A proposition applies only as a
 whole fact (`requires P(x)`): inside a larger fact it rejects as unsupported,
 and in a body, a transition target or a constant's value, where a value is
-computed, it rejects as proof-only. Domain predicates and proposition
-bodies bind no names here; which
+computed, it rejects as proof-only. A domain's predicates bind with its
+subject binder naming the value it classifies; a callee spelling a
+primitive byte predicate (`valid_utf8`, `no_nul`, `ascii_only`,
+`non_empty`) binds it where no declaration does. Proposition bodies bind no
+names here; which
 requirement a member or row fills, row completeness and a domain's
 establishment obligations are checking's.
 
@@ -315,8 +318,15 @@ like a `let` initializer. A trait application's row takes no type. A call
 selects among the callee's family by machine path; a trait requirement (which
 runs only through a selected conformance), a generic conformance's member, a
 target-scoped family's body (a realization's choice), a conformance named as
-a static argument and a declared or case domain qualifier reject as
-unsupported.
+a static argument and a case domain qualifier reject as unsupported. A
+declared domain qualifies its carrier (through a reference, `&[u8] in
+Path` qualifies the slice): a value of the carrier meets a qualified
+destination by a membership checking proves (adaptation `Qualified`), a
+literal lands there, a predicate-only qualification disappears where the
+bare carrier is wanted and a routed one does not, and `as` moves between
+qualifications of one carrier. A domain's predicates type over its carrier,
+and a byte predicate applies to one `u8` view
+([`typing/admission.omg`](typing/admission.omg)).
 Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
 `requires` and `ensures` fact and each state's `requires` fact over its
 parameters (`result` has the machine's result type), each `where machine`
@@ -422,7 +432,15 @@ least fixed point (a bodyless machine as it promises, a body once acyclic
 or ranked, calling no machine binder and only terminating machines besides
 itself), so a promising body reaching a non-terminating callee or a call
 cycle rejects; a witness on a bodyless declaration ranks nothing and
-rejects. Facts evaluate without effects or
+rejects. Declared domains ([`checking/qualification.omg`](checking/qualification.omg)):
+a parameter's qualification holds from its body's entry, decided as the
+domain's predicates with its subject binder standing for the value; a
+call or jump argument, a returned value, a qualified local's initializer, a
+store and an `as` cast meet their destination's qualification by already
+carrying it (an unadapted value of a type it qualifies) or by proving the
+predicates there. A routed domain is never minted from predicates, and byte
+predicates evaluate to no known value yet, so either is established only by
+carrying it. Facts evaluate without effects or
 obligations ([`checking/fact_values.omg`](checking/fact_values.omg)). Crash
 routes settle over the call graph: a private machine without crash clauses
 publishes what it derives, and any other machine must declare every cause it

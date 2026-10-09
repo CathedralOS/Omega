@@ -14,7 +14,11 @@ use psi::typing::typer;
 // its referent implicitly and accepts an exclusive loan as a shared one
 // (wiki/spec/language/expressions.md#calls-places-and-temporaries); and a
 // payload-free case of generic data, which spells no arguments, meets any
-// application of its data.
+// application of its data. Of two types qualifying one carrier
+// (wiki/spec/language/domains.md#exact-coercion-and-erasure), a value meets
+// a destination its declared domain qualifies by a membership checking
+// proves, and a predicate-only declared domain disappears implicitly; a
+// routed one, an arithmetic policy or a case's domain does not.
 pub data Admission [copy] {
     case Rejected;
     case NotAValue;
@@ -22,6 +26,7 @@ pub data Admission [copy] {
     case Exact;
     case Landed;
     case SharedLend;
+    case Qualified;
 }
 
 pub machine Typer::admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
@@ -87,8 +92,44 @@ crashes Trap
     state typed(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
         transition given.kind == TypeKind::Builtin && given.builtin == BuiltinType::Never {
             true -> exact()
+            _ -> carried(typer, syntax, wanted, given, actual)
+        }
+    }
+
+    state carried(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
+        let same: bool = TypeTable::same_carrier(&typer.output.types, wanted, given);
+        transition same {
+            true -> requalified(typer, syntax, wanted, given)
             _ -> lending(typer, syntax, wanted, given, actual)
         }
+    }
+
+    state requalified(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow) -> Admission {
+        let wanted_qualified: TypeRow = TypeTable::qualified_row(&typer.output.types, wanted);
+        let given_qualified: TypeRow = TypeTable::qualified_row(&typer.output.types, given);
+        transition wanted_qualified.domain == DomainBinding::Declared {
+            true -> qualified()
+            _ -> forgotten(syntax, wanted_qualified, given_qualified)
+        }
+    }
+
+    state forgotten(syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow) -> Admission {
+        transition wanted.domain == DomainBinding::Unqualified && given.domain == DomainBinding::Declared {
+            true -> predicate_only(syntax, given)
+            _ -> rejected()
+        }
+    }
+
+    state predicate_only(syntax: &SyntaxTrees, given: TypeRow) -> Admission {
+        let item: DomainItem = SyntaxTrees::domain_item(syntax, given.domain_item);
+        transition item.route_count == 0 {
+            true -> exact()
+            _ -> rejected()
+        }
+    }
+
+    state qualified() -> Admission {
+        Admission::Qualified
     }
 
     state lending(typer: &Typer, syntax: &SyntaxTrees, wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
@@ -165,6 +206,7 @@ crashes Trap
         Admission::Exact -> admitted()
         Admission::Landed -> landed(typer, destination, expression)
         Admission::SharedLend -> lent(typer, written, expression, lend)
+        Admission::Qualified -> qualified(typer, expression)
         Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
         Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue)
         Admission::Rejected -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
@@ -181,6 +223,11 @@ crashes Trap
             true -> mark_lent(typer, expression)
             _ -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
         }
+    }
+
+    state qualified(typer: &mut Typer, expression: u64 in Trapping) -> bool {
+        Typing::set_adaptation(&mut typer.output, expression, Adaptation::Qualified);
+        transition { _ -> admitted() }
     }
 
     state mark_lent(typer: &mut Typer, expression: u64 in Trapping) -> bool {
@@ -212,6 +259,7 @@ crashes Trap
         Admission::Exact -> yes()
         Admission::Landed -> yes()
         Admission::SharedLend -> yes()
+        Admission::Qualified -> yes()
         _ -> no()
     }
 

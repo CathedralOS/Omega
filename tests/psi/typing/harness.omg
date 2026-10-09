@@ -555,6 +555,7 @@ crashes Trap
     TypingHarness::write_byte(typing_harness, kind);
     TypingHarness::write_byte(typing_harness, builtin);
     TypingHarness::write_byte(typing_harness, domain);
+    TypingHarness::write_u64(typing_harness, type_row.domain_item);
     TypingHarness::write_u64(typing_harness, type_row.item);
     TypingHarness::write_byte(typing_harness, access);
     TypingHarness::write_u64(typing_harness, type_row.inner);
@@ -703,6 +704,7 @@ machine TypingHarness::adaptation_tag(value: Adaptation) -> u8 {
         Adaptation::None -> tag(0)
         Adaptation::Landed -> tag(1)
         Adaptation::SharedLend -> tag(2)
+        Adaptation::Qualified -> tag(3)
     }
 
     state tag(number: u8) -> u8 {

@@ -110,6 +110,17 @@ def proposition(handle: int) -> tuple[int, int, int]:
     return (14, handle, 0)
 
 
+def domain_subject(handle: int) -> tuple[int, int, int]:
+    """A domain's subject binder in its predicates."""
+    return (16, handle, 0)
+
+
+def byte_predicate(tag: int) -> tuple[int, int, int]:
+    """A primitive byte predicate: 1 `valid_utf8`, 2 `no_nul`, 4
+    `ascii_only`, 8 `non_empty`."""
+    return (17, tag, 0)
+
+
 def payload_field_name(handle: int) -> tuple[int, int, int]:
     """A payload field a case's own `where` fact names bare."""
     return (15, handle, 0)
@@ -1453,6 +1464,22 @@ def main() -> None:
         (builtin("u8"), builtin("u8"), builtin("bool")),
         None,
         (path_domain(0),),
+    )
+    # A domain's predicates name its subject binder, and a primitive byte
+    # predicate binds by its spelling.
+    accepted(
+        program,
+        "domain-predicates-name-their-subject",
+        b"domain u64::Small(value)\nrequires value < 8;\ndomain [u8]::Text(bytes)\nrequires valid_utf8(bytes);",
+        (builtin("u64"), builtin("u8"), SLICE_ROW),
+        (domain_subject(0), NOT_A_NAME, NOT_A_NAME, byte_predicate(1), domain_subject(1), NOT_A_NAME),
+    )
+    rejected(
+        program,
+        "domain-predicates-see-only-their-subject",
+        b"domain u64::Small(value)\nrequires other < 8;",
+        UNKNOWN_NAME,
+        b"other",
     )
     small = b"domain u8::Small;\ndomain u16::Small;\n"
     accepted(

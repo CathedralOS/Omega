@@ -17,7 +17,8 @@ use psi::syntax::syntax;
 // in either names a case or an owned machine. A fact's callee is a machine or a
 // proposition, and a proposition applies only as a whole fact,
 // `requires P(x)`; inside a larger fact (`P(x) && x > 0`) it rejects as
-// unsupported (wiki/language_guide/chapter_10_compile_time_proofs.md).
+// unsupported (wiki/language_guide/chapter_10_compile_time_proofs.md). A
+// domain's `requires` predicates name its subject binder.
 pub machine Resolver::bind_fact_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
@@ -71,8 +72,24 @@ crashes Trap
     state next_data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.data_count && resolver.output.accepted {
             true -> data(resolver, sources, syntax, index)
+            _ -> next_domain(resolver, sources, syntax, 0)
+        }
+    }
+
+    // A domain's predicates name its subject binder
+    // (wiki/spec/language/domains.md#declaration-and-membership).
+    state next_domain(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.domain_count && resolver.output.accepted {
+            true -> domain(resolver, sources, syntax, index)
             _ -> done()
         }
+    }
+
+    state domain(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let item: DomainItem = SyntaxTrees::domain_item(syntax, index);
+        let scope: NameScope = Resolver::subject_scope(index);
+        Resolver::bind_clause_facts(resolver, sources, syntax, scope, item.first_clause, item.clause_count, ClauseKind::Requires);
+        transition { _ -> next_domain(resolver, sources, syntax, index + 1) }
     }
 
     state data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
@@ -126,7 +143,28 @@ machine Resolver::fact_scope(
         binder_count: 0,
         names_result: names_result,
         in_fact: false,
-        fact_root: 0
+        fact_root: 0,
+        names_subject: false,
+        subject_domain: 0
+    }
+}
+
+// Domain `domain`'s predicates: its subject binder and no machine.
+machine Resolver::subject_scope(domain: u64 in Trapping) -> NameScope {
+    NameScope {
+        has_machine: false,
+        machine: 0,
+        first_parameter: 0,
+        parameter_count: 0,
+        first_statement: 0,
+        visible_statement_end: 0,
+        first_binder: 0,
+        binder_count: 0,
+        names_result: false,
+        in_fact: false,
+        fact_root: 0,
+        names_subject: true,
+        subject_domain: domain
     }
 }
 
@@ -143,7 +181,9 @@ machine Resolver::within_fact(scope: NameScope, root: u64 in Trapping) -> NameSc
         binder_count: scope.binder_count,
         names_result: scope.names_result,
         in_fact: true,
-        fact_root: root
+        fact_root: root,
+        names_subject: scope.names_subject,
+        subject_domain: scope.subject_domain
     }
 }
 

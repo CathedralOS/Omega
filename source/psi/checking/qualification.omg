@@ -1,0 +1,304 @@
+use psi::checking::checker;
+use psi::checking::contracts;
+use psi::checking::evaluation;
+use psi::checking::obligations;
+use psi::checking::places;
+use psi::checks::checks;
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// Declared domain qualification (wiki/spec/language/domains.md). A value
+// whose type a declared domain qualifies (`value: u64 in Positive`, through
+// a reference for `&[u8] in Path`) satisfies that domain's predicates,
+// decided with the domain's subject binder standing for the value: a
+// parameter's from its body's entry, a qualified local's after its binding.
+// Where a value meets a destination a domain qualifies (a call or jump
+// argument, a returned value, a `let` initializer, a store, an `as` cast),
+// the value must already carry that exact qualification, an unadapted value
+// of a type it qualifies, or satisfy the predicates there. A routed domain's
+// provenance is never minted from predicates
+// (wiki/spec/language/domains.md#exact-coercion-and-erasure): only carrying
+// the qualification establishes it. Primitive byte predicates evaluate to
+// no known value yet, so a domain naming one is likewise established only
+// by carrying it.
+
+// The declared domain qualifying a type, directly or as a reference's
+// referent, plus one; zero for none.
+pub machine Checker::qualifying_domain(typing: &Typing, type_handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+    transition row.kind == TypeKind::Reference {
+        true -> referent(typing, row.inner)
+        _ -> own(row)
+    }
+
+    state referent(typing: &Typing, inner: u64 in Trapping) -> u64 in Trapping {
+        let inner_row: TypeRow = TypeTable::row(&typing.types, inner);
+        transition { _ -> own(inner_row) }
+    }
+
+    state own(row: TypeRow) -> u64 in Trapping {
+        transition row.domain == DomainBinding::Declared {
+            true -> declared(row.domain_item)
+            _ -> none()
+        }
+    }
+
+    state declared(domain: u64 in Trapping) -> u64 in Trapping {
+        domain + 1
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
+}
+
+// Decide domain `domain`'s predicates of `subject`: assume them, or, when
+// `proving`, whether every one holds. A routed domain is never proved here.
+pub machine Checker::decide_domain(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    domain: u64 in Trapping,
+    subject: Value,
+    proving: bool
+) -> bool
+crashes Trap
+{
+    let item: DomainItem = SyntaxTrees::domain_item(syntax, domain);
+    transition proving && item.route_count > 0 {
+        true -> routed()
+        _ -> predicates(checker, syntax, resolution, typing, item, subject, proving)
+    }
+
+    state predicates(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
+        let subjecting: bool = checker.subjecting;
+        let previous: Value = checker.subject;
+        checker.subjecting = true;
+        checker.subject = subject;
+        let held: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Requires, proving);
+        checker.subjecting = subjecting;
+        checker.subject = previous;
+        held
+    }
+
+    state routed() -> bool {
+        false
+    }
+}
+
+// A value, `expression`'s, meeting a destination of type `destination`.
+pub machine Checker::require_qualification(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    destination: u64 in Trapping,
+    expression: u64 in Trapping,
+    value: Value,
+    source_span: SourceSpan
+)
+crashes Trap
+{
+    let wanted: u64 in Trapping = Checker::qualifying_domain(typing, destination);
+    transition wanted > 0 {
+        true -> qualified(checker, syntax, resolution, typing, wanted - 1, expression, value, source_span)
+        _ -> done()
+    }
+
+    state qualified(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        domain: u64 in Trapping,
+        expression: u64 in Trapping,
+        value: Value,
+        source_span: SourceSpan
+    ) {
+        let given_type: u64 in Trapping = Typing::expression_type(typing, expression);
+        let given: u64 in Trapping = Checker::qualifying_domain(typing, given_type);
+        let adaptation: Adaptation = Typing::adaptation(typing, expression);
+        transition given == domain + 1 && adaptation == Adaptation::None {
+            true -> done()
+            _ -> decided(checker, syntax, resolution, typing, domain, value, source_span)
+        }
+    }
+
+    state decided(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, domain: u64 in Trapping, value: Value, source_span: SourceSpan) {
+        let held: bool = Checker::decide_domain(checker, syntax, resolution, typing, domain, value, true);
+        transition held {
+            true -> done()
+            _ -> unproven(checker, source_span)
+        }
+    }
+
+    state unproven(checker: &mut Checker, source_span: SourceSpan) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::DomainUnproven, source_span);
+    }
+
+    state done() {}
+}
+
+// A value of type `type_handle` satisfies the predicates of the declared
+// domain qualifying it.
+pub machine Checker::assume_qualification(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, type_handle: u64 in Trapping, value: Value)
+crashes Trap
+{
+    let wanted: u64 in Trapping = Checker::qualifying_domain(typing, type_handle);
+    transition wanted > 0 {
+        true -> assumed(checker, syntax, resolution, typing, wanted - 1, value)
+        _ -> done()
+    }
+
+    state assumed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, domain: u64 in Trapping, value: Value) {
+        let held: bool = Checker::decide_domain(checker, syntax, resolution, typing, domain, value, false);
+    }
+
+    state done() {}
+}
+
+// Each argument of a call or jump meets its formal's qualification, the
+// formals `first_parameter .. first_parameter + parameter_count`.
+pub machine Checker::require_argument_qualifications(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    call: Expression,
+    first_parameter: u64 in Trapping,
+    parameter_count: u64 in Trapping
+)
+crashes Trap
+{
+    let count: u64 in Trapping = Checker::operand_count(call);
+    transition { _ -> next(checker, syntax, resolution, typing, call, first_parameter, parameter_count, count, 0) }
+
+    state next(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        call: Expression,
+        first_parameter: u64 in Trapping,
+        parameter_count: u64 in Trapping,
+        count: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        transition offset < count && offset < parameter_count {
+            true -> argument(checker, syntax, resolution, typing, call, first_parameter, parameter_count, count, offset)
+            _ -> done()
+        }
+    }
+
+    state argument(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        call: Expression,
+        first_parameter: u64 in Trapping,
+        parameter_count: u64 in Trapping,
+        count: u64 in Trapping,
+        offset: u64 in Trapping
+    ) {
+        let parameter: Parameter = SyntaxTrees::parameter(syntax, first_parameter + offset);
+        let destination: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
+        let handle: u64 in Trapping = Checker::operand(syntax, call, offset);
+        let value: Value = Checker::value_at(checker, handle);
+        let written: Expression = SyntaxTrees::expression(syntax, handle);
+        Checker::require_qualification(checker, syntax, resolution, typing, destination, handle, value, written.source_span);
+        transition { _ -> next(checker, syntax, resolution, typing, call, first_parameter, parameter_count, count, offset + 1) }
+    }
+
+    state done() {}
+}
+
+// A call's arguments meet its callee's formals: a machine's, or a machine
+// binder's contract's.
+pub machine Checker::require_call_qualifications(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, call: Expression)
+crashes Trap
+{
+    let clauses: CallClauses = Checker::call_clauses(syntax, resolution, selection);
+    Checker::require_argument_qualifications(checker, syntax, resolution, typing, call, clauses.first_parameter, clauses.parameter_count);
+}
+
+// Each formal of a body that opens satisfies its qualification.
+pub machine Checker::assume_parameter_qualifications(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    first_parameter: u64 in Trapping,
+    parameter_count: u64 in Trapping
+)
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, resolution, typing, first_parameter, parameter_count, 0) }
+
+    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < parameter_count {
+            true -> formal(checker, syntax, resolution, typing, first_parameter, parameter_count, offset)
+            _ -> done()
+        }
+    }
+
+    state formal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
+        let parameter: Parameter = SyntaxTrees::parameter(syntax, first_parameter + offset);
+        let type_handle: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
+        let place: u64 in Trapping = Checker::find_place(checker, PlaceKind::Parameter, first_parameter + offset, 0);
+        let value: Value = Checker::place_value(checker, place);
+        Checker::assume_qualification(checker, syntax, resolution, typing, type_handle, value);
+        transition { _ -> next(checker, syntax, resolution, typing, first_parameter, parameter_count, offset + 1) }
+    }
+
+    state done() {}
+}
+
+// A returned value meets the machine's declared result type.
+pub machine Checker::require_result_qualification(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: u64 in Trapping, value: Value, source_span: SourceSpan)
+crashes Trap
+{
+    let item: MachineItem = SyntaxTrees::machine_item(syntax, checker.machine);
+    transition item.has_return_type {
+        true -> declared(checker, syntax, resolution, typing, item, expression, value, source_span)
+        _ -> done()
+    }
+
+    state declared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
+        let destination: u64 in Trapping = Typing::reference_type(typing, item.return_type);
+        Checker::require_qualification(checker, syntax, resolution, typing, destination, expression, value, source_span);
+    }
+
+    state done() {}
+}
+
+// A store meets its target's qualification in the checking walk.
+pub machine Checker::require_stored_qualification(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    destination: u64 in Trapping,
+    expression: u64 in Trapping,
+    value: Value,
+    source_span: SourceSpan,
+    checking: bool
+)
+crashes Trap
+{
+    transition checking {
+        true -> stored(checker, syntax, resolution, typing, destination, expression, value, source_span)
+        _ -> done()
+    }
+
+    state stored(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, destination: u64 in Trapping, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
+        Checker::require_qualification(checker, syntax, resolution, typing, destination, expression, value, source_span);
+    }
+
+    state done() {}
+}

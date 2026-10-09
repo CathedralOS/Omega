@@ -49,8 +49,13 @@ crashes Trap
             ValueBinding::State { handle } -> state_target(typer, syntax, index, expression, handle)
             ValueBinding::Proposition { proposition } -> applied_proposition(typer, syntax, resolution, index, expression, proposition, statics)
             ValueBinding::GenericParameter { parameter } -> binder(typer, syntax, resolution, index, expression, parameter)
+            ValueBinding::BytePredicate { predicate } -> byte_predicate(typer, syntax, index, expression)
             _ -> not_callable(typer, syntax, expression)
         }
+    }
+
+    state byte_predicate(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        Typer::type_byte_predicate(typer, syntax, index, expression);
     }
 
     // A machine binder is called through its `where machine` contract
@@ -1145,4 +1150,38 @@ crashes Trap
     state none() -> u64 in Trapping {
         18446744073709551615
     }
+}
+
+// A primitive byte predicate (wiki/spec/terminal-psi/byte_views.md) applies
+// to one byte view, a `u8` slice or array or a reference to one, and is a
+// Boolean.
+machine Typer::type_byte_predicate(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
+crashes Trap
+{
+    let boolean: u64 in Trapping = typer.output.boolean;
+    Typing::set_expression_type(&mut typer.output, index, boolean);
+    transition expression.count == 1 {
+        true -> argument(typer, syntax, expression)
+        _ -> reject(typer, expression)
+    }
+
+    state argument(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression) {
+        let handle: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first);
+        let viewed: u64 in Trapping = Typing::expression_type(&typer.output, handle);
+        let referent: u64 in Trapping = Typer::referent(typer, viewed);
+        let view: TypeRow = TypeTable::row(&typer.output.types, referent);
+        let element: TypeRow = TypeTable::row(&typer.output.types, view.inner);
+        let bytes: bool = (view.kind == TypeKind::Slice || view.kind == TypeKind::Array)
+            && element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8;
+        transition bytes {
+            true -> done()
+            _ -> reject(typer, expression)
+        }
+    }
+
+    state reject(typer: &mut Typer, expression: Expression) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::NoMatchingMachine, expression.source_span);
+    }
+
+    state done() {}
 }

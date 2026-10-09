@@ -44,6 +44,9 @@ pub data TypeRow [copy] {
     kind: TypeKind;
     builtin: BuiltinType;
     domain: DomainBinding;
+    // A `Declared` qualifier's domain declaration or a `Case` qualifier's
+    // case; zero for an arithmetic policy or none.
+    domain_item: u64 in Trapping;
     item: u64 in Trapping;
     access: ReferenceAccess;
     inner: u64 in Trapping;
@@ -84,6 +87,9 @@ pub data Adaptation [copy] {
     case None;
     case Landed;
     case SharedLend;
+    // A value of a type's carrier admitted where the type is qualified by a
+    // declared domain: checking proves its predicates.
+    case Qualified;
 }
 
 pub data TypeDiagnosticCode [copy] {
@@ -467,6 +473,7 @@ pub machine TypeRow::of(kind: TypeKind) -> TypeRow {
         kind: kind,
         builtin: BuiltinType::Bool,
         domain: DomainBinding::Unqualified,
+        domain_item: 0,
         item: 0,
         access: ReferenceAccess::Shared,
         inner: 0,
@@ -601,6 +608,7 @@ crashes Trap
     transition left.kind == right.kind
         && left.builtin == right.builtin
         && left.domain == right.domain
+        && left.domain_item == right.domain_item
         && left.item == right.item
         && left.access == right.access
         && left.inner == right.inner
@@ -632,5 +640,65 @@ crashes Trap
 
     state different() -> bool {
         false
+    }
+}
+
+// `row` with its domain qualifier removed: the carrier it qualifies.
+pub machine TypeRow::carrier(row: TypeRow) -> TypeRow {
+    let mut carrier: TypeRow = row;
+    carrier.domain = DomainBinding::Unqualified;
+    carrier.domain_item = 0;
+    carrier
+}
+
+// Whether two rows qualify one carrier: equal once their qualifiers are
+// removed, a reference's from its referent (`&[u8] in Path` qualifies the
+// slice it refers to).
+pub machine TypeTable::same_carrier(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool
+crashes Trap
+{
+    transition left.kind == TypeKind::Reference && right.kind == TypeKind::Reference {
+        true -> referents(table, left, right)
+        _ -> rows(table, left, right)
+    }
+
+    state referents(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool {
+        let left_referent: TypeRow = TypeTable::row(table, left.inner);
+        let right_referent: TypeRow = TypeTable::row(table, right.inner);
+        transition left.access == right.access {
+            true -> rows(table, left_referent, right_referent)
+            _ -> different()
+        }
+    }
+
+    state rows(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool {
+        let left_carrier: TypeRow = TypeRow::carrier(left);
+        let right_carrier: TypeRow = TypeRow::carrier(right);
+        let same: bool = TypeTable::same_row(table, left_carrier, right_carrier);
+        same
+    }
+
+    state different() -> bool {
+        false
+    }
+}
+
+// The row a type's domain qualifier sits on: its own, or a reference's
+// referent's.
+pub machine TypeTable::qualified_row(table: &TypeTable, row: TypeRow) -> TypeRow
+crashes Trap
+{
+    transition row.kind == TypeKind::Reference {
+        true -> referent(table, row.inner)
+        _ -> own(row)
+    }
+
+    state referent(table: &TypeTable, inner: u64 in Trapping) -> TypeRow {
+        let referent_row: TypeRow = TypeTable::row(table, inner);
+        referent_row
+    }
+
+    state own(row: TypeRow) -> TypeRow {
+        row
     }
 }

@@ -7,6 +7,7 @@ use psi::checking::flow;
 use psi::checking::frames;
 use psi::checking::obligations;
 use psi::checking::places;
+use psi::checking::qualification;
 use psi::checking::supply;
 use psi::checking::termination;
 use psi::checking::zone;
@@ -100,6 +101,10 @@ pub data Checker {
     // `returned`: what one of its returns produces, or a call's result.
     returned: Value;
     returning: bool;
+    // While a domain's predicates are decided, its subject binder stands
+    // for `subject` (qualification.omg).
+    subject: Value;
+    subjecting: bool;
     // While a construction's `where` facts are decided, the fields from
     // `field_first` stand for the same argument values.
     field_values: bool;
@@ -274,6 +279,7 @@ crashes Trap
     checker.replay = false;
     checker.substituting = false;
     checker.returning = false;
+    checker.subjecting = false;
     checker.field_values = false;
     checker.payload_values = false;
     checker.domains_pending = false;
@@ -400,6 +406,7 @@ crashes Trap
     checker.walking = 0;
     Checker::open_places(checker);
     Checker::enter_parameters(checker, syntax, typing, item.first_parameter, item.parameter_count);
+    Checker::assume_parameter_qualifications(checker, syntax, resolution, typing, item.first_parameter, item.parameter_count);
     Checker::assume_requirements(checker, syntax, resolution, typing, item.first_clause, item.clause_count);
     Checker::install_domains(checker, syntax, resolution, typing);
 }
@@ -429,6 +436,7 @@ crashes Trap
     // A body whose paths did not take their arrival's numbering keeps only
     // its places' carrier ranges.
     state opened(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, state: StateItem, checking: bool) {
+        Checker::assume_parameter_qualifications(checker, syntax, resolution, typing, state.first_parameter, state.parameter_count);
         Checker::assume_requirements(checker, syntax, resolution, typing, state.first_clause, state.clause_count);
         Checker::install_domains(checker, syntax, resolution, typing);
         Checker::walk_body(checker, syntax, resolution, typing, state.first_statement, state.statement_count, checking);

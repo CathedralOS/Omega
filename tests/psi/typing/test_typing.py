@@ -34,7 +34,7 @@ DIAGNOSTICS = (
     "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall", "PropositionArgumentCount",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
-ADAPTATIONS = ("", "landed", "lent")
+ADAPTATIONS = ("", "landed", "lent", "qualified")
 
 
 @dataclass(frozen=True)
@@ -42,6 +42,7 @@ class TypeRow:
     kind: int
     builtin: int
     domain: int
+    domain_item: int
     item: int
     access: int
     inner: int
@@ -71,13 +72,19 @@ class Observation:
     binders: tuple[int, ...]
 
     def render(self, handle: int) -> str:
-        """A type's spelling: builtins and domains as written, `&`/`&mut`,
+        """A type's spelling: builtins and policies as written, a declared
+        domain as `Domain<handle>`, `&`/`&mut`,
         arrays, slices, data declarations as `D<handle>` with arguments,
         generic parameters as `G<handle>`, `()` for unit and `{integer}`
         for an anonymous integer."""
         row = self.rows[handle]
         kind = KINDS[row.kind]
-        domain = f" in {DOMAINS[row.domain]}" if row.domain else ""
+        if row.domain == 5:
+            domain = f" in Domain{row.domain_item}"
+        elif row.domain == 6:
+            domain = f" in Case{row.domain_item}"
+        else:
+            domain = f" in {DOMAINS[row.domain]}" if row.domain else ""
         if kind == "Builtin":
             return BUILTIN_SPELLINGS[row.builtin] + domain
         if kind == "Data":
@@ -134,7 +141,7 @@ def decode(payload: bytes) -> Observation:
     diagnostic = DIAGNOSTICS[reader.byte()]
     diagnostic_span = reader.span()
     rows = tuple(
-        TypeRow(reader.byte(), reader.byte(), reader.byte(), reader.u64(), reader.byte(),
+        TypeRow(reader.byte(), reader.byte(), reader.byte(), reader.u64(), reader.u64(), reader.byte(),
                 reader.u64(), reader.u64(), reader.u64(), reader.u64())
         for _ in range(reader.u64())
     )
@@ -507,6 +514,25 @@ def main() -> None:
         b"}",
         ((b"items!3", "[u8; G2]"), (b"b.items", "[u16; 4]"), (b"take(a)", "[u8; 3]")),
     )
+    # A declared domain qualifies its carrier: a value of the carrier meets a
+    # qualified destination by a membership checking proves, a literal lands
+    # there, and a predicate-only qualification disappears implicitly.
+    accepted(
+        program,
+        "declared-domains-qualify-their-carrier",
+        b"domain u64::Small(value)\nrequires value < 8;\ndomain [u8]::Text(bytes)\nrequires valid_utf8(bytes);\n"
+        b"machine take(x: u64 in Small) -> u64 { x }\n"
+        b"machine show(text: &[u8] in Text) {}\n"
+        b"machine f(held: u64 in Small, bare: u64, raw: &[u8]) -> u64 {\n"
+        b"    let a: u64 = take(held);\n"
+        b"    let b: u64 = take(bare);\n"
+        b"    let c: u64 = held;\n"
+        b"    show(raw);\n"
+        b"    take(3)\n"
+        b"}",
+        ((b"held!2", "u64 in Domain0"), (b"bare!2", "u64"), (b"take(3)", "u64")),
+        adaptations=((b"held!2", ""), (b"bare!2", "qualified"), (b"raw!2", "qualified"), (b"3", "landed")),
+    )
     accepted(
         program,
         "generic-data-constructions-and-patterns",
@@ -702,6 +728,21 @@ def main() -> None:
     )
     rejected(
         program,
+        "routed-domains-are-not-forgotten-implicitly",
+        b"machine mint() -> u64;\ndomain u64::Issued\nestablished by mint;\n"
+        b"machine f(token: u64 in Issued) -> u64 { token }",
+        "MismatchedTypes",
+        b"token!2",
+    )
+    rejected(
+        program,
+        "byte-predicates-apply-to-byte-views",
+        b"domain u64::Odd(value)\nrequires valid_utf8(value);",
+        "NoMatchingMachine",
+        b"valid_utf8(value)",
+    )
+    rejected(
+        program,
         "array-extents-are-static",
         b"machine g<N: u64>(items: [u8; N]) {}",
         "UnsupportedArrayLength",
@@ -840,19 +881,17 @@ def main() -> None:
         "UnsupportedExpression",
         b"Clock::now()!3",
     )
-    rejected(
+    accepted(
         program,
         "declared-domain",
-        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in Small) {}",
-        "UnsupportedDomain",
-        b"u64 in Small",
+        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in Small) -> u64 in Small { x }",
+        ((b"x!2", "u64 in Domain0"),),
     )
-    rejected(
+    accepted(
         program,
         "path-qualified-declared-domain",
-        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in u64::Small) {}",
-        "UnsupportedDomain",
-        b"u64 in u64::Small",
+        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in u64::Small) -> u64 in Small { x }",
+        ((b"x!2", "u64 in Domain0"),),
     )
     rejected(
         program,

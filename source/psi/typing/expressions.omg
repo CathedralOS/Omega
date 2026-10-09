@@ -206,9 +206,9 @@ crashes Trap
 
 // The declared type a name's binding carries: a local's, a parameter's, a
 // pattern binder's, a constant's, a payload-free case's data type, a data
-// or case fact's field's, or, for an `ensures` fact's `result`, its
-// machine's result type (Unit when it declares none). Every other binding
-// denotes no value and is absent.
+// or case fact's field's, for an `ensures` fact's `result` its machine's
+// result type (Unit when it declares none), or for a domain's subject binder
+// its carrier. Every other binding denotes no value and is absent.
 machine Typer::binding_type(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
@@ -223,7 +223,15 @@ crashes Trap
         ValueBinding::Field { field } -> field(typer, syntax, field)
         ValueBinding::PayloadField { field } -> payload_field(typer, syntax, field)
         ValueBinding::ReturnedValue { machine } -> returned(typer, syntax, machine)
+        ValueBinding::DomainSubject { domain } -> subject(typer, syntax, domain)
         _ -> absent()
+    }
+
+    // A domain's subject binder has its carrier's type.
+    state subject(typer: &mut Typer, syntax: &SyntaxTrees, domain: u64 in Trapping) -> u64 in Trapping {
+        let item: DomainItem = SyntaxTrees::domain_item(syntax, domain);
+        let handle: u64 in Trapping = Typing::reference_type(&typer.output, item.carrier);
+        handle
     }
 
     state returned(typer: &mut Typer, syntax: &SyntaxTrees, machine: u64 in Trapping) -> u64 in Trapping {
@@ -1169,7 +1177,9 @@ crashes Trap
 // `value as Type`: fixed integers and Booleans convert to any fixed integer
 // (a conversion is the explicit boundary between carriers and policies); an
 // anonymous value lands at a fixed-integer target; anything casts to its own
-// type.
+// type, or to another qualification of its carrier, which checking proves
+// when the target's domain is declared
+// (wiki/spec/language/domains.md#exact-coercion-and-erasure).
 machine Typer::type_cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
@@ -1193,6 +1203,16 @@ crashes Trap
         target_integer: bool
     ) {
         transition target_integer && (source_integer || source == typer.output.boolean) {
+            true -> done()
+            _ -> requalified(typer, expression, source, target, target_integer)
+        }
+    }
+
+    state requalified(typer: &mut Typer, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, target_integer: bool) {
+        let source_row: TypeRow = TypeTable::row(&typer.output.types, source);
+        let target_row: TypeRow = TypeTable::row(&typer.output.types, target);
+        let same: bool = TypeTable::same_carrier(&typer.output.types, source_row, target_row);
+        transition same {
             true -> done()
             _ -> anonymous(typer, expression, source, target, target_integer)
         }
