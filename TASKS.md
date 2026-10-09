@@ -3021,6 +3021,8 @@ of a check the same flow already performed, not the check itself.
   `omega run tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg`
   and conflicting-mutation/distinct-region controls in that qualification;
   the bounded operator, algebra-law and returned-loan cohort does not replace it.
+  The std-dependent setter and const-container gates also depend on
+  **PSI-TARGET-FAMILIES** under **PIPELINE-ARCHITECTURE-ENFORCEMENT**.
   Tuple bounds use the actual binding declaration, not an authored trait
   requirement. Only live private-graph roots own admission work. Universal
   template commitments use the retained authored graph, never a concrete
