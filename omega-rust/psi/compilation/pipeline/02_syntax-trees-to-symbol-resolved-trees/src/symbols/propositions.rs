@@ -228,7 +228,13 @@ pub(super) fn assign_expression_symbols(
                     &path,
                 )
             };
-            let member_symbols = if head_symbol.is_valid() {
+            // A bare declaration binder was selected in this exact lexical
+            // telescope above. Its complete path is that one symbol; asking
+            // the executable-state lookup again would drop abstract binders
+            // because entry parameters cannot leak into named states.
+            let member_symbols = if members.len() == 1 && head_symbol.is_valid() {
+                vec![head_symbol]
+            } else if head_symbol.is_valid() {
                 resolve_state_scoped_table_path_member_symbols(
                     symbols,
                     owner_symbol,
