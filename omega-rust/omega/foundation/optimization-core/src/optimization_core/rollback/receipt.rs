@@ -52,6 +52,16 @@ impl OptimizationRollbackReceipt {
         &self.effective
     }
 
+    pub(crate) fn is_consistent(&self) -> bool {
+        self.actually_disabled
+            == canonical_subset(&self.build_selected, |optimization| {
+                self.requested_disabled.contains(optimization)
+            })
+            && self.effective
+                == canonical_subset(&self.build_selected, |optimization| {
+                    !self.requested_disabled.contains(optimization)
+                })
+    }
 }
 
 impl std::fmt::Display for OptimizationRollbackReceipt {
