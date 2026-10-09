@@ -133,6 +133,19 @@ fn validate_locations(
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     constants: &[CountdownInvariantIntegerConstant; 2],
 ) -> Result<(), CountdownInvariantConstantAnalysisError> {
+    validate_moved_constant_locations(function, component, certificate, constants, unsupported)
+}
+
+/// Both countdown analyses verify that any constant which moved out of its
+/// original block now sits in the single preheader's trailing instruction
+/// suffix; `unsupported` builds each analysis's own error variant.
+pub(crate) fn validate_moved_constant_locations<E>(
+    function: &PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+    certificate: &OptimizerUnsignedCountdownRankingCertificate,
+    constants: &[CountdownInvariantIntegerConstant; 2],
+    unsupported: impl Fn(MachineId, OperationId) -> E,
+) -> Result<(), E> {
     let original_blocks = [certificate.header, certificate.descent.backedge.source];
     if constants
         .iter()

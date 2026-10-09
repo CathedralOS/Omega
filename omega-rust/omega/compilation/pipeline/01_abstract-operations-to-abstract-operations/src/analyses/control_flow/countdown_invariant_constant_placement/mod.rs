@@ -17,6 +17,7 @@ use super::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantRole,
     CountdownInvariantIntegerConstant, CountedLoopAnalysisError, UnsignedCountdownLoopSummary,
     ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
+    validate_moved_constant_locations,
 };
 
 mod compute;
