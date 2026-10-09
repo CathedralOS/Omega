@@ -408,7 +408,7 @@ fn bound_term(
             None
         }
         ExpressionNode::Call(call) => {
-            let selected = selected_call_contract(program, call)?;
+            selected_call_contract(program, call)?;
             let arguments = program
                 .expression_table
                 .expression_handles(call.arguments)
@@ -427,9 +427,13 @@ fn bound_term(
                 })
                 .collect::<Option<Vec<_>>>()?;
             Some(StructuralTerm::Application {
-                target: owner_symbol(&selected),
+                target: super::super::structural_terms::structural_call_target(program, call),
                 selections: call.machine_arguments.to_vec(),
-                machine: call.target.as_str().to_owned(),
+                machine: super::super::structural_terms::structural_call_machine_name(
+                    call.target.as_str(),
+                    &call.machine_arguments,
+                    &[],
+                ),
                 arguments,
             })
         }

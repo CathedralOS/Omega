@@ -17,17 +17,12 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
-/// N3 rung 1: the structural mini-judge for contract conjuncts over
-/// proof-only data. Term language (bounded by today's contract grammar --
-/// struct literals do not parse in fact position, so payload-carrying
-/// constructor terms and their injectivity decomposition are the recorded
-/// next rung): variables (single-segment names), nullary case classifiers
-/// (`Nat::Zero`), and opaque applications compared only by display name.
-/// `requires` equalities with a variable side become directed substitutions
-/// (first binding wins; symmetry and transitivity fall out of resolution);
-/// two distinct nullary cases equated make the hypotheses CONTRADICTORY and
-/// every goal holds vacuously, mirroring the polynomial engine's rule.
-/// One recognized case arm of a structurally-inductive proof machine.
+/// One normal-return leaf of the structural proof path walker.
+/// Case refinements and selected public guarantees stay in the leaf's own
+/// frame. Calls retain exact selected owner handles and captured result
+/// occurrences; diagnostic names do not select the imported contract. Cyclic
+/// state paths and unsupported effect statements decline recognition rather
+/// than replaying runtime observations as mathematical calls.
 pub(crate) struct StructuralCaseArm {
     /// Entry parameter names, positionally matching self-call arguments.
     pub(crate) parameter_names: Vec<String>,

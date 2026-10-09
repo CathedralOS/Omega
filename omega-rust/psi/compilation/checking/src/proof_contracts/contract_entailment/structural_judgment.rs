@@ -1022,6 +1022,11 @@ impl<'program> StructuralJudge<'program> {
         let program = self.program;
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
+                if path.symbol.is_valid()
+                    && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
+                {
+                    return Some(StructuralTerm::BoundValue(path.symbol));
+                }
                 let members = program.expression_table.name_path_members(path.members);
                 match members {
                     [single] => environment
@@ -1194,7 +1199,10 @@ impl<'program> StructuralJudge<'program> {
                     )?);
                 }
                 Some(StructuralTerm::Application {
-                    target: selected_target.map_or(call.target_symbol, |selected| selected.symbol),
+                    target: selected_target.map_or_else(
+                        || super::structural_terms::structural_call_target(program, call),
+                        |selected| selected.symbol,
+                    ),
                     selections: call
                         .machine_arguments
                         .iter()

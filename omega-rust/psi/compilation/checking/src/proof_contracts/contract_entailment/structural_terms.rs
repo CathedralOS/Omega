@@ -180,6 +180,19 @@ pub(super) fn structural_call_machine_name(
     format!("{target}<{}>", selected.join(","))
 }
 
+/// A call's retained target can name a machine, its entry state or a public
+/// requirement surface. Structural applications use the same exact public
+/// contract owner as guarantee import. Symbolic selected-machine parameters
+/// keep their retained handle when no concrete contract can be projected.
+pub(super) fn structural_call_target(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+) -> symbols::SymbolHandle {
+    super::specification_calls::selected_call_contract(program, call)
+        .map(|owner| super::specification_calls::owner_symbol(&owner))
+        .unwrap_or(call.target_symbol)
+}
+
 /// Read an expression as a structural term. Single-segment names are
 /// variables; a resolved payload-free case path constructs its common fields.
 /// Record and case literals retain complete sorted fields, including established
@@ -267,7 +280,7 @@ pub(super) fn structural_term_in_scope(
                     .collect();
                 if arguments.len() == handles.len() {
                     return Some(StructuralTerm::Application {
-                        target: call.target_symbol,
+                        target: structural_call_target(program, call),
                         selections: call.machine_arguments.to_vec(),
                         machine: structural_call_machine_name(
                             call.target.as_str(),
@@ -305,7 +318,7 @@ pub(super) fn structural_term_in_scope(
                     let field =
                         call_projection_field_symbol(program, result_type, member.member.as_str())?;
                     return Some(StructuralTerm::CallProjection {
-                        target: call.target_symbol,
+                        target: structural_call_target(program, call),
                         selections: call.machine_arguments.to_vec(),
                         machine: structural_call_machine_name(
                             call.target.as_str(),
