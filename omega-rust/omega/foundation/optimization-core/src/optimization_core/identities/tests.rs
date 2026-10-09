@@ -1,8 +1,12 @@
 use super::{
-    DuplicateOptimizationRuleIdentity, FunctionFragmentObjectContainerManifestIdentity,
+    bundle::IdentityBundleDecodeError,
+    rules_and_facts::DuplicateOptimizationRuleIdentity,
+};
+use super::{
+    FunctionFragmentObjectContainerManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, IDENTITY_WIDTH,
-    IdentityBundleDecodeError, IdentityDecodeError, OptimizationCandidateIdentity,
+    IdentityDecodeError, OptimizationCandidateIdentity,
     OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
     OptimizationIdentityBundle, OptimizationIdentityBundleIdentity, OptimizationPassIdentity,

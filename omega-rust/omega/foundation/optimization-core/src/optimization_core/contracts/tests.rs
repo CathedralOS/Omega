@@ -1,6 +1,7 @@
+use super::budget::InvalidOptimizationWorkBudget;
 use super::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, CoreContractDecodeError,
-    InvalidOptimizationWorkBudget, OPTIMIZATION_REFERENCE_EXTENT, OptimizationCandidateVerdict,
+    OPTIMIZATION_REFERENCE_EXTENT, OptimizationCandidateVerdict,
     OptimizationReasonCode, OptimizationRuleContract, OptimizationSafetyClass,
     OptimizationWorkBudget,
 };
