@@ -84,6 +84,9 @@ pub data ValueBinding [copy] {
     case Constant(constant: u64 in Trapping);
     // A bare name in a data declaration's `where` fact: one of its fields.
     case Field(field: u64 in Trapping);
+    // A bare name in a case's own `where` fact: one of that case's payload
+    // fields (`SyntaxTrees::payload_fields`).
+    case PayloadField(field: u64 in Trapping);
     // `result` in a machine's `ensures` fact: the value the machine returns
     // (wiki/spec/language/state_contracts.md#returns-and-proof-use).
     case ReturnedValue(machine: u64 in Trapping);

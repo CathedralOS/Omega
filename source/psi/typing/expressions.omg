@@ -200,9 +200,10 @@ crashes Trap
 }
 
 // The declared type a name's binding carries: a local's, a parameter's, a
-// pattern binder's, a constant's, a payload-free case's data type, or, for
-// an `ensures` fact's `result`, its machine's result type (Unit when it
-// declares none). Every other binding denotes no value and is absent.
+// pattern binder's, a constant's, a payload-free case's data type, a data
+// or case fact's field's, or, for an `ensures` fact's `result`, its
+// machine's result type (Unit when it declares none). Every other binding
+// denotes no value and is absent.
 machine Typer::binding_type(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
@@ -215,6 +216,7 @@ crashes Trap
         ValueBinding::GenericParameter { parameter } -> generic_value(typer, syntax, parameter)
         ValueBinding::Constant { constant } -> constant_value(typer, syntax, constant)
         ValueBinding::Field { field } -> field(typer, syntax, field)
+        ValueBinding::PayloadField { field } -> payload_field(typer, syntax, field)
         ValueBinding::ReturnedValue { machine } -> returned(typer, syntax, machine)
         _ -> absent()
     }
@@ -228,6 +230,13 @@ crashes Trap
     // A data fact's field name has the field's declared type.
     state field(typer: &mut Typer, syntax: &SyntaxTrees, field: u64 in Trapping) -> u64 in Trapping {
         let declared: DataField = SyntaxTrees::field(syntax, field);
+        let handle: u64 in Trapping = Typing::reference_type(&typer.output, declared.type_reference);
+        handle
+    }
+
+    // A case fact's payload name has the payload field's declared type.
+    state payload_field(typer: &mut Typer, syntax: &SyntaxTrees, field: u64 in Trapping) -> u64 in Trapping {
+        let declared: DataField = SyntaxTrees::payload_field(syntax, field);
         let handle: u64 in Trapping = Typing::reference_type(&typer.output, declared.type_reference);
         handle
     }

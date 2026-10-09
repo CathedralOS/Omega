@@ -10,11 +10,10 @@ use psi::syntax::syntax;
 // machine's `ensures` fact names the same, and `result` the value it
 // returns unless an entry parameter spells `result` (same page, Returns and
 // proof use). A data declaration's `where` fact names its
-// fields bare, then its value binders
-// (wiki/spec/language/data_and_literals.md#case-constraints); a path in it
-// names a case or an owned machine. A case's own `where` facts over its
-// payload fields are not bound yet: checking treats them as unsupported
-// rather than reading them unbound. A fact's callee is a machine or a
+// fields bare, then its value binders, and a case's own `where` fact names
+// that case's payload fields before them; another case's payload is not in
+// scope (wiki/spec/language/data_and_literals.md#case-constraints). A path
+// in either names a case or an owned machine. A fact's callee is a machine or a
 // proposition, and a proposition applies only as a whole fact,
 // `requires P(x)`; inside a larger fact (`P(x) && x > 0`) it rejects as
 // unsupported (wiki/language_guide/chapter_10_compile_time_proofs.md).
@@ -62,8 +61,30 @@ crashes Trap
 
     state data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: DataItem = SyntaxTrees::data_item(syntax, index);
-        Resolver::bind_data_facts(resolver, sources, syntax, item);
-        transition { _ -> next_data(resolver, sources, syntax, index + 1) }
+        Resolver::bind_data_facts(resolver, sources, syntax, item, item.first_clause, item.clause_count, 0, 0);
+        transition { _ -> next_case(resolver, sources, syntax, index, item, 0) }
+    }
+
+    state next_case(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        transition offset < item.case_count && resolver.output.accepted {
+            true -> case_facts(resolver, sources, syntax, index, item, offset)
+            _ -> next_data(resolver, sources, syntax, index + 1)
+        }
+    }
+
+    state case_facts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        let declared: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
+        Resolver::bind_data_facts(
+            resolver,
+            sources,
+            syntax,
+            item,
+            declared.first_clause,
+            declared.clause_count,
+            declared.first_payload_field,
+            declared.payload_field_count
+        );
+        transition { _ -> next_case(resolver, sources, syntax, index, item, offset + 1) }
     }
 
     state done() {}
@@ -148,30 +169,48 @@ crashes Trap
     state done() {}
 }
 
-// A data declaration's own `where` facts.
-machine Resolver::bind_data_facts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem)
+// A case's payload fields, which its own `where` facts name before the
+// declaration's fields; none for the declaration's own facts.
+data FactPayload [copy] {
+    first: u64 in Trapping;
+    count: u64 in Trapping;
+}
+
+// The `where` facts in a data declaration's clause run: its own, or with
+// `payload_count` payload fields from `first_payload`, one case's.
+machine Resolver::bind_data_facts(
+    resolver: &mut Resolver,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    item: DataItem,
+    first_clause: u64 in Trapping,
+    clause_count: u64 in Trapping,
+    first_payload: u64 in Trapping,
+    payload_count: u64 in Trapping
+)
 crashes Trap
 {
-    transition { _ -> next(resolver, sources, syntax, item, item.first_clause, item.first_clause + item.clause_count) }
+    let payload: FactPayload = FactPayload { first: first_payload, count: payload_count };
+    transition { _ -> next(resolver, sources, syntax, item, payload, first_clause, first_clause + clause_count) }
 
-    state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, index: u64 in Trapping, end: u64 in Trapping) {
+    state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end && resolver.output.accepted {
-            true -> clause(resolver, sources, syntax, item, index, end)
+            true -> clause(resolver, sources, syntax, item, payload, index, end)
             _ -> done()
         }
     }
 
-    state clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, index: u64 in Trapping, end: u64 in Trapping) {
+    state clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, index: u64 in Trapping, end: u64 in Trapping) {
         let clause: Clause = SyntaxTrees::clause(syntax, index);
         transition clause.kind == ClauseKind::Where && clause.has_expression {
-            true -> fact(resolver, sources, syntax, item, index, end, clause.expression)
-            _ -> next(resolver, sources, syntax, item, index + 1, end)
+            true -> fact(resolver, sources, syntax, item, payload, index, end, clause.expression)
+            _ -> next(resolver, sources, syntax, item, payload, index + 1, end)
         }
     }
 
-    state fact(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, index: u64 in Trapping, end: u64 in Trapping, root: u64 in Trapping) {
+    state fact(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, index: u64 in Trapping, end: u64 in Trapping, root: u64 in Trapping) {
         let expression: Expression = SyntaxTrees::expression(syntax, root);
-        transition { _ -> node(resolver, sources, syntax, item, index, end, root, expression.first_row) }
+        transition { _ -> node(resolver, sources, syntax, item, payload, index, end, root, expression.first_row) }
     }
 
     state node(
@@ -179,14 +218,15 @@ crashes Trap
         sources: &SourceSet,
         syntax: &SyntaxTrees,
         item: DataItem,
+        payload: FactPayload,
         index: u64 in Trapping,
         end: u64 in Trapping,
         root: u64 in Trapping,
         handle: u64 in Trapping
     ) {
         transition handle <= root && resolver.output.accepted {
-            true -> named(resolver, sources, syntax, item, index, end, root, handle)
-            _ -> next(resolver, sources, syntax, item, index + 1, end)
+            true -> named(resolver, sources, syntax, item, payload, index, end, root, handle)
+            _ -> next(resolver, sources, syntax, item, payload, index + 1, end)
         }
     }
 
@@ -195,21 +235,23 @@ crashes Trap
         sources: &SourceSet,
         syntax: &SyntaxTrees,
         item: DataItem,
+        payload: FactPayload,
         index: u64 in Trapping,
         end: u64 in Trapping,
         root: u64 in Trapping,
         handle: u64 in Trapping
     ) {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
-        Resolver::bind_data_name(resolver, sources, syntax, item, root, handle, expression);
-        transition { _ -> node(resolver, sources, syntax, item, index, end, root, handle + 1) }
+        Resolver::bind_data_name(resolver, sources, syntax, item, payload, root, handle, expression);
+        transition { _ -> node(resolver, sources, syntax, item, payload, index, end, root, handle + 1) }
     }
 
     state done() {}
 }
 
-// One name of the data fact rooted at `root`: a value name binds a field of
-// the declaration, then its value binders; a callee a machine or a
+// One name of the data fact rooted at `root`: a value name binds one of the
+// case's payload fields, then a field of the declaration, then its value
+// binders; a callee a machine or a
 // proposition, which applies only as the whole fact; a path as anywhere
 // else.
 machine Resolver::bind_data_name(
@@ -217,6 +259,7 @@ machine Resolver::bind_data_name(
     sources: &SourceSet,
     syntax: &SyntaxTrees,
     item: DataItem,
+    payload: FactPayload,
     root: u64 in Trapping,
     handle: u64 in Trapping,
     expression: Expression
@@ -225,21 +268,21 @@ crashes Trap
 {
     let role: NameRole = Resolver::role(resolver, handle);
     transition expression.kind {
-        ExpressionKind::Name -> single(resolver, sources, syntax, item, root, handle, expression, role)
+        ExpressionKind::Name -> single(resolver, sources, syntax, item, payload, root, handle, expression, role)
         ExpressionKind::Path -> path(resolver, sources, syntax, root, handle, expression, role)
         _ -> done()
     }
 
-    state single(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
+    state single(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
         transition role {
-            NameRole::Value -> value(resolver, sources, syntax, item, root, handle, expression)
+            NameRole::Value -> value(resolver, sources, syntax, item, payload, root, handle, expression)
             NameRole::Callee -> callee(resolver, sources, syntax, root, handle, expression)
             _ -> bound(resolver, syntax, root, handle, expression, ValueBinding::Unresolved)
         }
     }
 
-    state value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
-        let binding: ValueBinding = Resolver::data_value_name(sources, syntax, item, expression.name.source_span);
+    state value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
+        let binding: ValueBinding = Resolver::data_value_name(sources, syntax, item, payload, expression.name.source_span);
         transition { _ -> bound(resolver, syntax, root, handle, expression, binding) }
     }
 
@@ -303,12 +346,28 @@ crashes Trap
     state done() {}
 }
 
-// A bare value name in a data fact: one of the declaration's own fields,
-// then one of its value binders.
-machine Resolver::data_value_name(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, name: SourceSpan) -> ValueBinding
+// A bare value name in a data fact: one of the case's payload fields, then
+// one of the declaration's own fields, then one of its value binders.
+machine Resolver::data_value_name(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
-    transition { _ -> field(sources, syntax, item, name, 0) }
+    transition { _ -> payload_field(sources, syntax, item, payload, name, 0) }
+
+    state payload_field(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+        transition offset < payload.count {
+            true -> payload_named(sources, syntax, item, payload, name, offset)
+            _ -> field(sources, syntax, item, name, 0)
+        }
+    }
+
+    state payload_named(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+        let field: DataField = SyntaxTrees::payload_field(syntax, payload.first + offset);
+        let spelled: bool = SourceSet::spans_equal(sources, field.name.source_span, name);
+        transition spelled {
+            true -> found(ValueBinding::PayloadField { field: payload.first + offset })
+            _ -> payload_field(sources, syntax, item, payload, name, offset + 1)
+        }
+    }
 
     state field(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         transition offset < item.field_count {

@@ -588,6 +588,7 @@ crashes Trap
             ValueBinding::Field { field } -> value_tag(resolver_harness, output, index, 12, field, 0)
             ValueBinding::ReturnedValue { machine } -> value_tag(resolver_harness, output, index, 13, machine, 0)
             ValueBinding::Proposition { proposition } -> value_tag(resolver_harness, output, index, 14, proposition, 0)
+            ValueBinding::PayloadField { field } -> value_tag(resolver_harness, output, index, 15, field, 0)
         }
     }
 

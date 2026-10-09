@@ -779,13 +779,88 @@ def main() -> None:
         b"    state empty() -> Range { Range { lo: 0, hi: 0 } }\n"
         b"}",
     )
-    rejected(
+    # A case's own `where` facts: construction proves the selected case's,
+    # over the payload values it writes; a chosen arm assumes them over its
+    # binders and the subject's fields; a store to a field one names is not
+    # proved, since the active case is unknown there.
+    accepted(
         program,
-        "case-facts-are-unsupported",
+        "case-construction-proves-its-facts",
         b"data Size { case Some(v: u64) where v < 9; case None; }\n"
         b"machine make() -> Size { Size::Some { v: 1 } }",
-        "UnsupportedFact",
-        b"Size::Some { v: 1 }",
+    )
+    rejected(
+        program,
+        "case-construction-breaks-its-facts",
+        b"data Size { case Some(v: u64) where v < 9; case None; }\n"
+        b"machine make() -> Size { Size::Some { v: 9 } }",
+        "DomainUnproven",
+        b"Size::Some { v: 9 }",
+    )
+    rejected(
+        program,
+        "case-construction-omits-a-payload",
+        b"data Pair { case Both(a: u64, b: u64) where b > 0; case None; }\n"
+        b"machine make() -> Pair { Pair::Both { a: 1 } }",
+        "DomainUnproven",
+        b"Pair::Both { a: 1 }",
+    )
+    accepted(
+        program,
+        "case-arm-assumes-its-facts",
+        b"data Interval { case Empty; case Range(lo: u64, hi: u64) where lo <= hi; }\n"
+        b"machine width(i: Interval) -> u64 {\n"
+        b"    transition i {\n"
+        b"        Interval::Range { lo, hi } -> (hi - lo)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "case-arm-without-the-fact",
+        b"data Interval { case Empty; case Range(lo: u64, hi: u64); }\n"
+        b"machine width(i: Interval) -> u64 {\n"
+        b"    transition i {\n"
+        b"        Interval::Range { lo, hi } -> (hi - lo)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"}",
+        "ArithmeticOverflow",
+        b"hi - lo",
+    )
+    accepted(
+        program,
+        "case-arm-assumes-common-field-facts",
+        b"data Tally { n: u64; case Some(v: u64) where v < n; case None; }\n"
+        b"machine room(t: &Tally) -> u64 {\n"
+        b"    transition t {\n"
+        b"        Tally::Some { v } -> (t.n - v)\n"
+        b"        _ -> (0)\n"
+        b"    }\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "case-value-owes-the-data-facts",
+        b"data Flag\nwhere\n    x > 0,\n{ x: u64; case On; case Off; }\n"
+        b"machine make() -> Flag { Flag::On }",
+        "DomainUnproven",
+        b"Flag::On",
+    )
+    rejected(
+        program,
+        "store-to-a-field-a-case-fact-names",
+        b"data Tally { n: u64; m: u64; case Some(v: u64) where v < n; case None; }\n"
+        b"machine reset(t: &mut Tally) { t.n = 0; }",
+        "DomainUnproven",
+        b"t.n = 0;",
+    )
+    accepted(
+        program,
+        "store-to-a-field-no-case-fact-names",
+        b"data Tally { n: u64; m: u64; case Some(v: u64) where v < n; case None; }\n"
+        b"machine reset(t: &mut Tally) { t.m = 0; }",
     )
     # A proposition application states what no zone fact expresses:
     # assumed, it establishes nothing; owed by a call, a return or a

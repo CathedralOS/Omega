@@ -850,6 +850,22 @@ def main() -> None:
         b"P<u8>(x)",
     )
 
+    # A case's own `where` fact types over its payload fields and the
+    # declaration's fields, and is a Boolean.
+    accepted(
+        program,
+        "case-fact-over-its-payload",
+        b"data Interval { tag: u64; case Empty; case Range(lo: u64, hi: u32) where lo <= 9 && hi > 0 && tag > 0; }",
+        ((b"lo!2", "u64"), (b"hi!2", "u32"), (b"tag!2", "u64"), (b"lo <= 9", "bool")),
+    )
+    rejected(
+        program,
+        "case-fact-is-a-boolean",
+        b"data I { case A(x: u64) where x + 1; }",
+        "NotBoolean",
+        b"x + 1",
+    )
+
     # A fact whose root is the set's first expression types.
     accepted(
         program,

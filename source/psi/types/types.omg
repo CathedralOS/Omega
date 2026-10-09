@@ -131,6 +131,15 @@ pub data TypeDiagnostic [copy] {
     source_span: SourceSpan;
 }
 
+// The declared field a construction's written value establishes or a
+// pattern field matches: one of its data's common fields, or a payload field
+// of the case it writes or matches.
+pub data MemberTarget [copy] {
+    case Unknown;
+    case Common(field: u64 in Trapping);
+    case Payload(field: u64 in Trapping);
+}
+
 // Typing's annotations, indexed by syntax handles: a type per type-reference
 // row, per expression and per pattern field, an expression's selection,
 // adaptation and anonymous value. `unit`, `boolean` and `anonymous` are the
@@ -151,11 +160,11 @@ where
     values: [ExactInteger; 131072];
     expression_count: u64;
     binder_types: [u64; 2048];
+    // Each pattern field's member, indexed like `binder_types`.
+    binder_members: [MemberTarget; 2048];
     binder_count: u64;
-    // Each construction field's common field (its handle plus one), or zero
-    // for a case payload field: which declared field a written value
-    // establishes.
-    construct_targets: [u64; 2048];
+    // Each construction field's member.
+    construct_targets: [MemberTarget; 2048];
     construct_count: u64;
     unit: u64 in Trapping;
     boolean: u64 in Trapping;
@@ -344,7 +353,7 @@ crashes Trap
     }
 }
 
-pub machine Typing::construct_target(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping
+pub machine Typing::construct_target(typing: &Typing, field: u64 in Trapping) -> MemberTarget
 crashes Trap
 {
     transition field < typing.construct_count {
@@ -352,16 +361,16 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping {
-        typing.construct_targets[field] as u64 in Trapping
+    state read(typing: &Typing, field: u64 in Trapping) -> MemberTarget {
+        typing.construct_targets[field]
     }
 
-    state invalid() -> u64 in Trapping {
+    state invalid() -> MemberTarget {
         crash Trap;
     }
 }
 
-pub machine Typing::set_construct_target(typing: &mut Typing, field: u64 in Trapping, target: u64 in Trapping)
+pub machine Typing::set_construct_target(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget)
 crashes Trap
 {
     transition field < typing.construct_count {
@@ -369,8 +378,42 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, field: u64 in Trapping, target: u64 in Trapping) {
-        typing.construct_targets[field] = target as u64;
+    state write(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget) {
+        typing.construct_targets[field] = target;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}
+
+pub machine Typing::binder_member(typing: &Typing, field: u64 in Trapping) -> MemberTarget
+crashes Trap
+{
+    transition field < typing.binder_count {
+        true -> read(typing, field)
+        _ -> invalid()
+    }
+
+    state read(typing: &Typing, field: u64 in Trapping) -> MemberTarget {
+        typing.binder_members[field]
+    }
+
+    state invalid() -> MemberTarget {
+        crash Trap;
+    }
+}
+
+pub machine Typing::set_binder_member(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget)
+crashes Trap
+{
+    transition field < typing.binder_count {
+        true -> write(typing, field, target)
+        _ -> invalid()
+    }
+
+    state write(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget) {
+        typing.binder_members[field] = target;
     }
 
     state invalid() {

@@ -41,6 +41,7 @@ crashes Trap
         ExpressionKind::Cast -> cast(checker, typing, handle, expression, row, integer, checking)
         ExpressionKind::Call -> call(checker, syntax, resolution, typing, handle, expression, row, checking)
         ExpressionKind::Construct -> construct(checker, syntax, resolution, typing, handle, expression, type_handle, row, checking)
+        ExpressionKind::Path -> path(checker, syntax, resolution, typing, handle, expression, type_handle, row, checking)
         _ -> typed(checker, handle, row)
     }
 
@@ -231,33 +232,57 @@ crashes Trap
         Checker::assume_guarantees(checker, syntax, resolution, typing, item, expression, value);
     }
 
-    // Establishing a value of data with `where` facts owes them; facts a
-    // case carries are not reasoned about yet.
+    // Establishing a value of data with `where` facts owes them, and a case
+    // value its case's own facts too: a construction over the values it
+    // writes, a payload-free case value (`Type::Case`) over zero fields.
     state construct(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, row: TypeRow, checking: bool) {
         let constrained: bool = Checker::constrained(syntax, typing, type_handle);
-        let data: TypeRow = Checker::referent_row(typing, type_handle);
-        transition checking && constrained && data.kind == TypeKind::Data {
-            true -> established(checker, syntax, resolution, typing, handle, expression, data.item, row)
+        let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
+        transition checking && constrained {
+            true -> written(checker, syntax, resolution, typing, handle, expression, row, binding)
             _ -> typed(checker, handle, row)
         }
     }
 
-    state established(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, item: u64 in Trapping, row: TypeRow) {
-        let data: DataItem = SyntaxTrees::data_item(syntax, item);
-        let cases: bool = Checker::case_facts(syntax, data);
-        transition cases {
-            true -> unsupported_facts(checker, handle, expression, row)
-            _ -> constructed(checker, syntax, resolution, typing, handle, expression, item, row)
+    state written(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, binding: ValueBinding) {
+        transition binding {
+            ValueBinding::Data { item } -> constructed(checker, syntax, resolution, typing, handle, expression, row, item, false, 0, expression.first, expression.count)
+            ValueBinding::DataCase { item, data_case } -> constructed(checker, syntax, resolution, typing, handle, expression, row, item, true, data_case, expression.first, expression.count)
+            _ -> typed(checker, handle, row)
         }
     }
 
-    state unsupported_facts(checker: &mut Checker, handle: u64 in Trapping, expression: Expression, row: TypeRow) {
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedFact, expression.source_span);
-        transition { _ -> typed(checker, handle, row) }
+    state path(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, row: TypeRow, checking: bool) {
+        let constrained: bool = Checker::constrained(syntax, typing, type_handle);
+        let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
+        transition checking && constrained {
+            true -> case_value(checker, syntax, resolution, typing, handle, expression, row, binding)
+            _ -> typed(checker, handle, row)
+        }
     }
 
-    state constructed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, item: u64 in Trapping, row: TypeRow) {
-        let held: bool = Checker::construction_holds(checker, syntax, resolution, typing, expression, item);
+    state case_value(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, binding: ValueBinding) {
+        transition binding {
+            ValueBinding::DataCase { item, data_case } -> constructed(checker, syntax, resolution, typing, handle, expression, row, item, true, data_case, 0, 0)
+            _ -> typed(checker, handle, row)
+        }
+    }
+
+    state constructed(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        handle: u64 in Trapping,
+        expression: Expression,
+        row: TypeRow,
+        item: u64 in Trapping,
+        has_case: bool,
+        data_case: u64 in Trapping,
+        first: u64 in Trapping,
+        count: u64 in Trapping
+    ) {
+        let held: bool = Checker::construction_holds(checker, syntax, resolution, typing, item, has_case, data_case, first, count);
         transition held {
             true -> typed(checker, handle, row)
             _ -> unproven_domain(checker, handle, expression, row)

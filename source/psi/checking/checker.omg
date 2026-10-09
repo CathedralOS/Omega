@@ -101,6 +101,12 @@ pub data Checker {
     // `field_first` stand for the same argument values.
     field_values: bool;
     field_first: u64 in Trapping;
+    // While a case's own `where` facts are decided or assumed, its payload
+    // fields from `payload_first` stand for the argument values from
+    // `payload_slot`: what a construction writes, or an arm's binders.
+    payload_values: bool;
+    payload_first: u64 in Trapping;
+    payload_slot: u64 in Trapping;
     contribution: Zone;
     // Scratch copies: a runtime-indexed zone is copied out before an
     // operation borrows it and stored back after.
@@ -227,6 +233,7 @@ crashes Trap
     checker.substituting = false;
     checker.returning = false;
     checker.field_values = false;
+    checker.payload_values = false;
     checker.domains_pending = false;
     checker.fields_parent = 0;
     checker.machine = index;

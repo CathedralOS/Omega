@@ -962,7 +962,8 @@ crashes Trap
 // holds or fails, a Boolean literal arm makes the subject hold or fail, and
 // an integer literal arm makes the subject equal it. Passing over a literal
 // arm of an integer subject establishes nothing. A case arm's binders are
-// places of their payload types.
+// places of their payload types, and a chosen case arm assumes its case's
+// own `where` facts.
 machine Checker::select_arm(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
@@ -978,7 +979,28 @@ crashes Trap
     transition arm.kind {
         ArmPatternKind::Guard -> guard(checker, syntax, resolution, typing, arm, chosen, checking)
         ArmPatternKind::Literal -> literal(checker, syntax, resolution, typing, statement, arm, chosen, checking)
+        ArmPatternKind::Case -> case_arm(checker, syntax, resolution, typing, statement, arm, chosen)
         _ -> done()
+    }
+
+    state case_arm(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, chosen: bool) {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, arm.pattern);
+        transition chosen {
+            true -> matched(checker, syntax, resolution, typing, statement, arm, binding)
+            _ -> done()
+        }
+    }
+
+    state matched(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, binding: ValueBinding) {
+        transition binding {
+            ValueBinding::DataCase { item, data_case } -> selected(checker, syntax, resolution, typing, statement, arm, data_case)
+            _ -> done()
+        }
+    }
+
+    state selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, arm: TransitionArm, data_case: u64 in Trapping) {
+        Checker::replay_tree(checker, syntax, resolution, typing, statement.value);
+        Checker::assume_case_facts(checker, syntax, resolution, typing, statement.value, arm, data_case);
     }
 
     state guard(

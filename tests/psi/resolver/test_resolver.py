@@ -106,6 +106,11 @@ def proposition(handle: int) -> tuple[int, int, int]:
     """A proposition application's callee."""
     return (14, handle, 0)
 
+
+def payload_field_name(handle: int) -> tuple[int, int, int]:
+    """A payload field a case's own `where` fact names bare."""
+    return (15, handle, 0)
+
 # Type bindings: (tag, handle, domain tag, declared domain handle).
 BUILTIN = 1
 DATA = 2
@@ -813,6 +818,26 @@ def main() -> None:
             parameter(1), NOT_A_NAME, NOT_A_NAME,
             parameter(1),
         ),
+    )
+    # A case's own `where` fact names its payload fields, then the
+    # declaration's fields; another case's payload is not in scope.
+    accepted(
+        program,
+        "case-fact-names-its-payload",
+        b"data Interval { tag: u64; case Empty; case Range(lo: u64, hi: u64) where lo <= hi && tag > 0; }",
+        (builtin("u64"), builtin("u64"), builtin("u64")),
+        (
+            payload_field_name(0), payload_field_name(1), NOT_A_NAME,
+            field_name(0), NOT_A_NAME, NOT_A_NAME, NOT_A_NAME,
+        ),
+    )
+    rejected(
+        program,
+        "case-fact-names-only-its-own-payload",
+        b"data I { case A(x: u64); case B(y: u64) where x > 0; }",
+        UNKNOWN_NAME,
+        b"x > 0",
+        length=1,
     )
     rejected(program, "fact-unknown-name", b"machine f(x: u64)\nrequires y > 0\n{}", UNKNOWN_NAME, b"y")
     # A fact whose root is the set's first expression (handle zero) binds:

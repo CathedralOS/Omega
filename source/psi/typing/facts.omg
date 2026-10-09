@@ -7,10 +7,10 @@ use psi::typing::typer;
 
 // Facts type like any expression, and each one is a Boolean: a machine's
 // `requires` and `ensures` facts and each state's `requires` facts over
-// their parameters (`result` is the machine's result), and a data
-// declaration's `where` facts over its fields. A proposition application,
-// a whole fact, is a Boolean statement (calls.omg). The facts resolution
-// leaves unbound (a case's own `where`) stay untyped.
+// their parameters (`result` is the machine's result), a data
+// declaration's `where` facts over its fields, and each case's own `where`
+// facts over its payload fields and those fields. A proposition
+// application, a whole fact, is a Boolean statement (calls.omg).
 pub machine Typer::type_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
@@ -53,7 +53,20 @@ crashes Trap
     state data(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         let item: DataItem = SyntaxTrees::data_item(syntax, index);
         Typer::type_clause_facts(typer, sources, syntax, resolution, item.first_clause, item.clause_count, ClauseKind::Where);
-        transition { _ -> next_data(typer, sources, syntax, resolution, index + 1) }
+        transition { _ -> next_case(typer, sources, syntax, resolution, index, item, 0) }
+    }
+
+    state next_case(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        transition offset < item.case_count && typer.output.accepted {
+            true -> case_facts(typer, sources, syntax, resolution, index, item, offset)
+            _ -> next_data(typer, sources, syntax, resolution, index + 1)
+        }
+    }
+
+    state case_facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
+        let declared: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
+        Typer::type_clause_facts(typer, sources, syntax, resolution, declared.first_clause, declared.clause_count, ClauseKind::Where);
+        transition { _ -> next_case(typer, sources, syntax, resolution, index, item, offset + 1) }
     }
 
     state done() {}

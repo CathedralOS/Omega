@@ -328,7 +328,9 @@ crashes Trap
     ) {
         let handle: u64 in Trapping = arm.first_field + offset;
         let pattern_field: PatternField = SyntaxTrees::pattern_field(syntax, handle);
-        let reference: u64 in Trapping = Typer::member_field_type(sources, syntax, declared, true, data_case, pattern_field.name);
+        let target: MemberTarget = Typer::member_target(sources, syntax, declared, true, data_case, pattern_field.name);
+        Typing::set_binder_member(&mut typer.output, handle, target);
+        let reference: u64 in Trapping = Typer::target_reference(syntax, target);
         transition reference < 18446744073709551615 {
             true -> field_typed(typer, sources, syntax, resolution, arm, subject_row, declared, data_case, offset, handle, pattern_field, reference)
             _ -> unknown_field(typer, pattern_field)

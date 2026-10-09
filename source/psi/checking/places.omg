@@ -509,6 +509,7 @@ crashes Trap
         ValueBinding::Parameter { parameter } -> parameter(checker, typing, parameter, type_handle)
         ValueBinding::PatternBinder { field } -> rooted(checker, typing, PlaceKind::Binder, field, type_handle)
         ValueBinding::Field { field } -> field_name(checker, typing, field, type_handle)
+        ValueBinding::PayloadField { field } -> payload_name(checker, field)
         ValueBinding::ReturnedValue { machine } -> returned(checker)
         _ -> unbounded()
     }
@@ -533,6 +534,15 @@ crashes Trap
         transition checker.field_values && field >= checker.field_first {
             true -> written(checker, field - checker.field_first)
             _ -> installed(checker, typing, field, type_handle)
+        }
+    }
+
+    // A case fact's payload name: what the construction writes there, or the
+    // arm's binder for it, while the case's facts are decided or assumed.
+    state payload_name(checker: &Checker, field: u64 in Trapping) -> Value {
+        transition checker.payload_values && field >= checker.payload_first {
+            true -> written(checker, checker.payload_slot + (field - checker.payload_first))
+            _ -> unbounded()
         }
     }
 
