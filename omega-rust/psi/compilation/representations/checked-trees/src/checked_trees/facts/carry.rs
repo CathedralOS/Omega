@@ -167,7 +167,15 @@ fn symbol_identity(
             ));
         }
     }
-    None
+    // A boundary call names the requirement, not its selected implementation.
+    // These declarations have no machine/state row. Use their complete logical
+    // path even without a module so two owners' equally named requirements do
+    // not share a crossing identity. Existing machine/state identities above
+    // retain their published spelling.
+    program
+        .trait_machine_signature(symbol)
+        .filter(|(definition, _)| definition.is_boundary)
+        .map(|_| Cow::Owned(program.symbols.display_path(symbol, "::")))
 }
 
 fn crossing_declaration_name<'program>(

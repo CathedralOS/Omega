@@ -1,0 +1,26 @@
+use omega::language::core::binding;
+
+// A possibly-suspending requirement may complete inline. Its call still needs
+// an exact suspension crossing; this is not a park/resume runtime witness.
+pub boundary trait Scheduler {
+    machine advance(value: i32) -> i32 suspends;
+}
+
+data InlineScheduler {}
+machine InlineScheduler::advance(value: i32) -> i32
+satisfies Scheduler::advance
+{
+    value
+}
+
+data Main { scheduler: Binding<Scheduler>; }
+machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
+    let input: i32 = 40;
+    let result: i32 = suspend main.scheduler.advance(input + 2);
+    transition result == 42 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

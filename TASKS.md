@@ -5181,11 +5181,10 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Suspension production in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`:
     receiver, persistent/structural places, live claims and Unit-call scalar
-    environments need exact joins. Boundary targets fail identity because
-    `symbol_identity` in
-    `omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/facts/carry.rs`
-    resolves only machine/state symbols; boundary-call suspension must keep
-    rejecting until that join exists. Keep storage lifetime, pinning, aliasing,
+    environments need exact joins. Keep
+    `pass/concurrency/boundary_suspension_inline_completion_exit` (0) as the
+    inline boundary-completion control, not a park/resume witness.
+    Keep storage lifetime, pinning, aliasing,
     address stability and cancellation outcome; unsupported frontiers reject.
   - Connect one source-selected provider to argument installation, distinct
     activation, park/resume and returned outcomes, bound to its selection,

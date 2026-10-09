@@ -495,21 +495,19 @@ pub(super) fn build(
         definition,
         signature,
     } = requirement
-        && (!signature_contracts_are_exact_parameter_qualifications(
+        && !signature_contracts_are_exact_parameter_qualifications(
             program,
             definition.symbol,
             signature,
-        ) || signature.suspends)
+        )
     {
         return None;
     }
-    // Suspension parks the activation, which this synchronous call
-    // shape cannot express. Blocking only occupies the worker while
-    // the boundary waits (effects.md, `blocks;`): the call returns
-    // through the same edge, the site already acknowledged `block`
-    // during checking, and the envelope travels on the target
-    // contract fingerprint below, so a blocking boundary is planned
-    // exactly like a nonblocking one.
+    // Suspension retains this ordinary call's incomplete operation, not a
+    // different completion edge. Lowering joins the checked crossing and its
+    // exact live frontier to the emitted call; unsupported storage and claims
+    // still reject there. Blocking likewise preserves the completion edge.
+    // Neither acknowledgement grants a provider or runtime preservation.
     let capsule = facts.contract_plans.crash_capsule(owner, target)?;
     // Completion belongs to the exact source requirement, never its provider.
     // Ordinary calls retain normal receipts; external completion abandons

@@ -256,17 +256,15 @@ pub(crate) fn build_static_boundary_requirements(
                             None => nominal_use_backs_binder(ordinal, parameter),
                         }
                     });
-            // A suspending requirement parks its caller, which no synchronous
-            // boundary plan expresses. A blocking one only occupies the
-            // worker while it waits; its envelope is folded into the
-            // contract commitment below, exactly as an attached `boundary
-            // machine` declaration that blocks is planned above.
+            // Suspension is retained on the ordinary call, with its exact
+            // frontier joined during lowering. The requirement's contract
+            // commitment below retains suspension and blocking independently;
+            // a provider cannot erase either demand by completing inline.
             if !signature_contracts_are_exact_parameter_qualifications(
                 program,
                 definition.symbol,
                 signature,
-            ) || signature.suspends
-            {
+            ) {
                 continue;
             }
             // A generic telescope the callback path cannot reach is still
