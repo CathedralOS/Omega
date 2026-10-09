@@ -39,7 +39,7 @@ pub use workspace_member::{ resolve_git_workspace_member_at_revision_in_lanes,
     resolve_git_workspace_member_from_pin_in_lanes,
 };
 pub(crate) use workspace_member::{
-    resolve_git_workspace_member, resolve_git_workspace_member_in_lanes};
+    resolve_git_workspace_member, };
 
 #[cfg(test)]
 mod tests;

@@ -127,7 +127,7 @@ pub enum SourceResolveError {
 /// pinned submodule commit a gitlink records — the revision an explicit
 /// package edge must name — and is `None` for `.gitmodules` manifests.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitSubmoduleEdge {
+pub struct GitSubmoduleEdge {
     pub path: PathBuf,
     pub commit: Option<String>,
 }
