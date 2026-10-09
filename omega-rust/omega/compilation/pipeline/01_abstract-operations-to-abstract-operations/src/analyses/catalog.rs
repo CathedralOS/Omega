@@ -38,26 +38,6 @@ pub(crate) enum AnalysisProduct {
 }
 
 impl AnalysisProduct {
-    #[cfg(any(test, feature = "test-support"))]
-    pub const fn kind(&self) -> AnalysisKind {
-        match self {
-            Self::ControlFlowGraph(_) => AnalysisKind::ControlFlowGraph,
-            Self::Dominators(_) => AnalysisKind::Dominators,
-            Self::PostDominators(_) => AnalysisKind::PostDominators,
-            Self::LoopForest(_) => AnalysisKind::LoopForest,
-            Self::StronglyConnectedComponents(_) => AnalysisKind::StronglyConnectedComponents,
-            Self::CallGraph(_) => AnalysisKind::CallGraph,
-            Self::PlaceAliases(_) => AnalysisKind::PlaceAliases,
-            Self::UseDefinition(_) => AnalysisKind::UseDefinition,
-            Self::ExecutableEdges(_) => AnalysisKind::ExecutableEdges,
-            Self::ScalarConstants(_) => AnalysisKind::ScalarConstants,
-            Self::ValueRanges(_) => AnalysisKind::ValueRanges,
-            Self::EffectSummaries(_) => AnalysisKind::EffectSummaries,
-            Self::OwnershipFrontiers(_) => AnalysisKind::OwnershipFrontiers,
-            Self::ValueLiveness(_) => AnalysisKind::ValueLiveness,
-            Self::PlaceAccessSummaries(_) => AnalysisKind::PlaceAccessSummaries,
-        }
-    }
 }
 
 pub(crate) fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
