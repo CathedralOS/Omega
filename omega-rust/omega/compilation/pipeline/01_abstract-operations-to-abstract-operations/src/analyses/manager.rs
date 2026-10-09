@@ -8,7 +8,7 @@ use optimization_unit::{PsiOptimizationUnit, recompute_psi_optimization_unit_ide
 use super::{AnalysisProduct, analysis_dependencies, compute_analysis};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AnalysisManagerError {
+pub(crate) enum AnalysisManagerError {
     StaleUnitIdentity {
         stored: OptimizationUnitIdentity,
         recomputed: OptimizationUnitIdentity,
