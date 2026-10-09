@@ -69,7 +69,7 @@ pub(crate) fn stage_validated_optimized_program_storage_semantic_wrapper_object(
 
 #[derive(Debug)]
 #[must_use = "semantic-wrapper object custody retains settlement, encoding, and Omega object sources"]
-pub(crate) struct StagedValidatedOptimizedProgramStorageSemanticWrapperObject {
+pub struct StagedValidatedOptimizedProgramStorageSemanticWrapperObject {
     settlement: ValidatedNativeProgramEntrySettlement,
     source: StagedValidatedOptimizedObjectArtifact,
     encoding: StagedOptimizedProgramStorageSemanticWrapperEncoding,

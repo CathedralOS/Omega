@@ -39,7 +39,7 @@ use codec::{decode_manifest, encode_manifest, encode_manifest_content, encode_pl
 use manifest::{construct_manifest, validate_manifest};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
+pub enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
     SemanticWrapperV1,
     PrivateTerminalContinuationV1,
     PrivateTerminalFunctionV1,
@@ -48,7 +48,7 @@ pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
 /// One symbol in the composite object. The wrapper intentionally has no
 /// `MachineId`; copied Terminal symbols retain their exact Machine identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OptimizedProgramStorageSemanticWrapperObjectSymbol {
+pub struct OptimizedProgramStorageSemanticWrapperObjectSymbol {
     pub symbol: ObjectLocalSymbolId,
     pub source_function_index: Option<u64>,
     pub machine: Option<MachineId>,
@@ -64,7 +64,7 @@ pub(crate) enum OptimizedProgramStorageSemanticWrapperCallResolutionState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct OptimizedProgramStorageSemanticWrapperCallResolution {
+pub struct OptimizedProgramStorageSemanticWrapperCallResolution {
     pub state: OptimizedProgramStorageSemanticWrapperCallResolutionState,
     pub wrapper_section_offset: u64,
     pub continuation_section_offset: u64,
@@ -76,7 +76,7 @@ pub(crate) struct OptimizedProgramStorageSemanticWrapperCallResolution {
 /// but it is not a `RelocationFreeObjectPlan`: its first symbol has no
 /// semantic Machine owner and its text has a distinct source lineage.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OptimizedProgramStorageSemanticWrapperObjectPlan {
+pub struct OptimizedProgramStorageSemanticWrapperObjectPlan {
     pub identity: OptimizedProgramStorageSemanticWrapperObjectIdentity,
     pub source_artifact: OptimizedObjectArtifactIdentity,
     pub source_artifact_manifest: OptimizedObjectArtifactManifestIdentity,
@@ -122,24 +122,24 @@ impl OptimizedProgramStorageSemanticWrapperObjectPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OptimizedProgramStorageSemanticWrapperObjectContainer {
+pub struct OptimizedProgramStorageSemanticWrapperObjectContainer {
     pub identity: OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
     pub object: OptimizedProgramStorageSemanticWrapperObjectIdentity,
     pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectStage {
+pub enum OptimizedProgramStorageSemanticWrapperObjectStage {
     ValidatedResolvedCompositeObjectV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectUnavailableData {
+pub enum OptimizedProgramStorageSemanticWrapperObjectUnavailableData {
     Unavailable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OptimizedProgramStorageSemanticWrapperObjectManifest {
+pub struct OptimizedProgramStorageSemanticWrapperObjectManifest {
     pub identity: OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
     pub stage: OptimizedProgramStorageSemanticWrapperObjectStage,
     pub object: OptimizedProgramStorageSemanticWrapperObjectIdentity,
@@ -186,7 +186,7 @@ impl OptimizedProgramStorageSemanticWrapperObjectManifest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
+pub struct ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
     record: OptimizedProgramStorageSemanticWrapperObjectManifest,
 }
 
@@ -204,13 +204,6 @@ impl ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
 
     /// Replays the retained manifest against an independently recomputed
     /// plan/container pair through its wire round trip.
-    pub fn replay(
-        &self,
-        object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
-        container: &OptimizedProgramStorageSemanticWrapperObjectContainer,
-    ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
-        validate_manifest(object, container, &self.record)
-    }
 
     pub const fn record(&self) -> &OptimizedProgramStorageSemanticWrapperObjectManifest {
         &self.record
@@ -218,7 +211,7 @@ impl ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
+pub struct OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
     pub(super) source_artifact: OptimizedObjectArtifactIdentity,
     pub(super) source_signature: [u8; 32],
     pub(super) object: OptimizedProgramStorageSemanticWrapperObjectIdentity,
@@ -241,25 +234,10 @@ impl OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
         }
     }
 
-    pub const fn source_artifact(self) -> OptimizedObjectArtifactIdentity {
-        self.source_artifact
-    }
 
-    pub const fn source_signature(self) -> [u8; 32] {
-        self.source_signature
-    }
 
-    pub const fn object(self) -> OptimizedProgramStorageSemanticWrapperObjectIdentity {
-        self.object
-    }
 
-    pub const fn container(self) -> OptimizedProgramStorageSemanticWrapperObjectContainerIdentity {
-        self.container
-    }
 
-    pub const fn manifest(self) -> OptimizedProgramStorageSemanticWrapperObjectManifestIdentity {
-        self.manifest
-    }
 }
 
 // Wire identity of the wrapper object, its container, and its manifest.
@@ -272,7 +250,7 @@ const WRAPPER_SYMBOL_NAME: &str = "__omega_program_entry_plan_semantic_wrapper_v
 /// Failures raised by the wrapper object's own record operations. The owning
 /// native-realization stage maps each onto its same-named stage variant.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectRecordError {
+pub enum OptimizedProgramStorageSemanticWrapperObjectRecordError {
     LengthOverflow,
     InvalidObject,
     ManifestMismatch,
@@ -292,7 +270,7 @@ impl std::fmt::Display for OptimizedProgramStorageSemanticWrapperObjectRecordErr
 impl std::error::Error for OptimizedProgramStorageSemanticWrapperObjectRecordError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectDecodeError {
+pub enum OptimizedProgramStorageSemanticWrapperObjectDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

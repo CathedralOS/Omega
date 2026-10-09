@@ -57,7 +57,7 @@ use target_operations::{
 use terminal_psi::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct NativeByteSpan {
+pub struct NativeByteSpan {
     offset: usize,
     byte_count: usize,
 }
@@ -82,7 +82,7 @@ pub(crate) enum NativeCompilerBuiltinCatalogIdentity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct OptimizedBoundaryOccurrence {
+pub struct OptimizedBoundaryOccurrence {
     terminal: TerminalPsiIdentity,
     machine: MachineId,
     invocation_site: semantic_vocabulary::BoundaryInvocationSite,
@@ -132,7 +132,7 @@ impl OptimizedBoundaryOccurrence {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct OptimizedOperatorOccurrence {
+pub struct OptimizedOperatorOccurrence {
     terminal: TerminalPsiIdentity,
     machine: MachineId,
     operation: OperationId,
@@ -141,10 +141,6 @@ pub(crate) struct OptimizedOperatorOccurrence {
 }
 
 impl OptimizedOperatorOccurrence {
-    pub const fn terminal(&self) -> TerminalPsiIdentity {
-        self.terminal
-    }
-
     pub const fn machine(&self) -> MachineId {
         self.machine
     }
@@ -165,7 +161,7 @@ impl OptimizedOperatorOccurrence {
 /// Exact optimized-operation survivor roster used to derive D32 children.
 /// Identity and non-identity optimization lanes share this representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NativeOptimizationProjection {
+pub struct NativeOptimizationProjection {
     terminal: TerminalPsiIdentity,
     operator_occurrences: Vec<OptimizedOperatorOccurrence>,
     boundary_occurrences: Vec<OptimizedBoundaryOccurrence>,
@@ -198,7 +194,7 @@ impl NativeOptimizationProjection {
 /// authority; callers may only retain or move a value issued by that
 /// constructor.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedOptimizedNativePhysicalEvidenceScope {
+pub struct ValidatedOptimizedNativePhysicalEvidenceScope {
     validation: OptimizedAbstractPlanProjectionIdentity,
     final_unit: OptimizationUnitIdentity,
     boundary_application_coverage: [u8; 32],
@@ -208,13 +204,7 @@ pub(crate) struct ValidatedOptimizedNativePhysicalEvidenceScope {
 }
 
 impl ValidatedOptimizedNativePhysicalEvidenceScope {
-    pub const fn validation(&self) -> OptimizedAbstractPlanProjectionIdentity {
-        self.validation
-    }
 
-    pub const fn final_unit(&self) -> OptimizationUnitIdentity {
-        self.final_unit
-    }
 
     pub const fn projection(&self) -> &NativeOptimizationProjection {
         &self.projection
@@ -350,73 +340,23 @@ pub(crate) enum InstalledProviderInternalCallCustody {
     },
 }
 
-impl BoundaryTraitSettlementRole {
-    /// The external execution binding this role carries, when it carries
-    /// one. An installed-provider internal call binds none: its provider is
-    /// a checked machine inside this same artifact.
-    pub const fn execution(&self) -> Option<BoundaryExecutionBinding> {
-        match self {
-            Self::CompilerBuiltin { execution, .. } => {
-                Some(BoundaryExecutionBinding::CompilerBuiltin(*execution))
-            }
-            Self::AdmittedProvider { execution, .. }
-            | Self::AdmittedProviderSettlement { execution, .. } => {
-                Some(BoundaryExecutionBinding::AdmittedProvider(*execution))
-            }
-            Self::InstalledProviderInternalCall { .. } => None,
-        }
-    }
-}
 
 impl BoundaryTraitSettlement {
-    pub const fn occurrence(&self) -> &OptimizedBoundaryOccurrence {
-        &self.occurrence
-    }
 
-    pub fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
-    }
 
-    pub const fn selected_plan_digest(&self) -> NativeSelectedProviderPlanDigest {
-        self.selected_plan_digest
-    }
 
-    pub const fn target(&self) -> NativeTarget {
-        self.target
-    }
 
-    /// The external execution binding this settlement carries, when it
-    /// carries one (`InstalledProviderInternalCall` carries none).
-    pub const fn execution(&self) -> Option<BoundaryExecutionBinding> {
-        self.role.execution()
-    }
 
-    pub const fn role(&self) -> &BoundaryTraitSettlementRole {
-        &self.role
-    }
 
     pub const fn identity(&self) -> &[u8; 32] {
         &self.identity
     }
 
-    pub fn into_parts(self) -> BoundaryTraitSettlementParts {
-        BoundaryTraitSettlementParts {
-            occurrence: self.occurrence,
-            requirement_identity: self.requirement_identity,
-            selected_plan_digest: self.selected_plan_digest,
-            target: self.target,
-            role: self.role,
-            identity: self.identity,
-        }
-    }
 
-    pub(crate) fn from_replayed_parts(parts: BoundaryTraitSettlementParts) -> Self {
-        parts.into()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PhysicalChildParent {
+pub enum PhysicalChildParent {
     OperatorApplicationCoverage(OperatorApplicationCoverageRef),
     BoundaryTraitSettlement(BoundaryTraitSettlement),
 }
@@ -438,7 +378,7 @@ impl PhysicalChildParent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PhysicalRelocationDisposition {
+pub enum PhysicalRelocationDisposition {
     DirectInstructionBytes,
     ResolvedInternalCall,
     UnresolvedNormalizedForeignCall(NormalizedForeignCallRelocation),
@@ -522,16 +462,6 @@ impl NormalizedForeignCallbackRelocation {
 }
 
 impl NormalizedForeignCallbackRelocations {
-    pub const fn callback_function(&self) -> function_identity::MachineFunctionIdentity {
-        match self {
-            Self::X86_64Relative32 {
-                callback_function, ..
-            }
-            | Self::Aarch64PageAddress {
-                callback_function, ..
-            } => *callback_function,
-        }
-    }
 }
 
 /// Exact unresolved import-field custody retained by one normalized-foreign
@@ -649,7 +579,7 @@ impl NormalizedForeignCallRelocation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum NativePhysicalOccurrence {
+pub enum NativePhysicalOccurrence {
     Operator(OptimizedOperatorOccurrenceIdentity),
     Boundary(OptimizedBoundaryOccurrenceIdentity),
 }
@@ -674,7 +604,7 @@ impl NativePhysicalOccurrence {
 /// compiler-only instructions between its ABI transport and result capture;
 /// those gaps are excluded rather than absorbed into a semantic span hull.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NativePhysicalChild {
+pub struct NativePhysicalChild {
     parent: PhysicalChildParent,
     projection: NativeOptimizationProjectionIdentity,
     occurrence: NativePhysicalOccurrence,
@@ -714,9 +644,6 @@ impl NativePhysicalChild {
         &self.final_image_spans
     }
 
-    pub const fn relocation(&self) -> &PhysicalRelocationDisposition {
-        &self.relocation
-    }
 
     pub const fn identity(&self) -> &[u8; 32] {
         &self.identity
@@ -744,7 +671,7 @@ impl NativePhysicalChild {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NativePhysicalEvidence {
+pub struct NativePhysicalEvidence {
     projection: NativeOptimizationProjection,
     children: Vec<NativePhysicalChild>,
     identity: [u8; 32],
@@ -804,7 +731,7 @@ impl From<BoundaryTraitSettlementParts> for BoundaryTraitSettlement {
 }
 
 #[derive(Debug)]
-pub(crate) struct NativePhysicalChildParts {
+pub struct NativePhysicalChildParts {
     pub parent: PhysicalChildParent,
     pub projection: NativeOptimizationProjectionIdentity,
     pub occurrence: NativePhysicalOccurrence,
@@ -819,7 +746,7 @@ pub(crate) struct NativePhysicalChildParts {
 }
 
 #[derive(Debug)]
-pub(crate) struct NativePhysicalEvidenceParts {
+pub struct NativePhysicalEvidenceParts {
     pub projection: NativeOptimizationProjection,
     pub children: Vec<NativePhysicalChild>,
     pub identity: [u8; 32],
@@ -834,7 +761,7 @@ pub(crate) struct NativePhysicalEvidenceParts {
 /// coordinate custody to rejoin the exact Terminal operation or retained
 /// object record independently.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NativePhysicalEvidenceGapSubject {
+pub enum NativePhysicalEvidenceGapSubject {
     /// A normalized foreign call is owned by a cleanup action rather than an
     /// operation, so no surviving boundary occurrence can claim it.
     ForeignCallSiteOwner {
@@ -880,7 +807,7 @@ pub(crate) enum NativePhysicalEvidenceGapSubject {
 /// derivation. The identity binds the complete subject, so an artifact's
 /// identity commits to exactly where its evidence stopped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct NativePhysicalEvidenceGap {
+pub struct NativePhysicalEvidenceGap {
     subject: NativePhysicalEvidenceGapSubject,
     identity: [u8; 32],
 }

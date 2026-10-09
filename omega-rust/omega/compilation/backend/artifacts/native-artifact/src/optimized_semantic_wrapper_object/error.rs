@@ -68,16 +68,4 @@ pub(crate) enum InstalledProgramStorageContinuationEvidenceError {
     CallEvidenceMismatch,
     EntryClaimMismatch,
     ProviderFunctionMismatch,
-    ProviderSettlementMismatch,
 }
-
-impl std::fmt::Display for InstalledProgramStorageContinuationEvidenceError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "installed ProgramStorage continuation evidence failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for InstalledProgramStorageContinuationEvidenceError {}
