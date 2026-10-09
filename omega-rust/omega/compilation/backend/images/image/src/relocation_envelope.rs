@@ -8,7 +8,6 @@ use crate::{
 use diagnostics::Diagnostic;
 use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
 use object_file::{RelocationKind, RelocationPlan, SectionKind, relocation_kind_tag};
-use sha2::{Digest, Sha256};
 
 /// Prove that final initialized data preserves every encoded byte except the
 /// exact eight-byte slots named by checked absolute data relocations.
@@ -166,15 +165,16 @@ pub fn validate_final_text_relocation_envelope(
     ));
     let encoded_text_report_fingerprint = report_fingerprint_bytes(encoded_text_bytes);
     let final_compiler_text_report_fingerprint = report_fingerprint_bytes(final_compiler_text);
-    let mut relocation_digest = Sha256::new();
-    relocation_digest.update(b"omega.compiler-text-relocation-envelope.sha256.v1\0");
-    relocation_digest.update((text_relocations.len() as u64).to_le_bytes());
+    let mut relocation_digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.compiler-text-relocation-envelope.sha256.v1\0",
+    );
+    relocation_digest.u64(text_relocations.len() as u64);
     let mut relocation_envelope_report_fingerprint = FNV_OFFSET;
     for (offset, width, kind, addend) in &text_relocations {
-        relocation_digest.update((*offset as u64).to_le_bytes());
-        relocation_digest.update((*width as u64).to_le_bytes());
-        relocation_digest.update([*kind]);
-        relocation_digest.update(addend.to_le_bytes());
+        relocation_digest.u64(*offset as u64);
+        relocation_digest.u64(*width as u64);
+        relocation_digest.byte(*kind);
+        relocation_digest.raw(&addend.to_le_bytes());
         fingerprint_bytes(
             &mut relocation_envelope_report_fingerprint,
             &(*offset as u64).to_le_bytes(),
@@ -210,7 +210,7 @@ pub fn validate_final_text_relocation_envelope(
         encoded_text_digest,
         final_compiler_text_digest,
         relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest(
-            relocation_digest.finalize().into(),
+            relocation_digest.finish().into(),
         ),
         derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
         encoded_text_report_fingerprint,

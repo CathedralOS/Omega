@@ -6,7 +6,7 @@
 //! This is an invalidation key, not compiler attestation. The separately loaded
 //! Omega library is identified by its loader at acceptance/compilation time.
 
-use sha2::{Digest, Sha256};
+mod digest_encoder;
 use std::error::Error;
 use std::fs;
 use std::io;
@@ -34,8 +34,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         collect_inputs(root, &cargo_configuration, &mut paths)?;
     }
     paths.sort();
-    let mut digest = Sha256::new();
-    digest.update(b"omega-rust-compiler-build-inputs-v1\0");
+    let mut digest = digest_encoder::DomainDigestEncoder::new(
+        b"omega-rust-compiler-build-inputs-v1\0",
+    );
     for relative in paths {
         let path = root.join(&relative);
         println!("cargo:rerun-if-changed={}", path.display());
@@ -73,13 +74,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::env::var_os("OUT_DIR")
             .ok_or_else(|| io::Error::other("Cargo did not provide OUT_DIR"))?,
     );
-    fs::write(output.join("compiler-identity.bin"), digest.finalize())?;
+    fs::write(output.join("compiler-identity.bin"), digest.finish())?;
     Ok(())
 }
 
-fn frame(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
+fn frame(digest: &mut digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
+    digest.bytes(bytes);
 }
 
 fn collect_inputs(root: &Path, directory: &Path, paths: &mut Vec<String>) -> io::Result<()> {

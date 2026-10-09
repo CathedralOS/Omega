@@ -1,7 +1,6 @@
 //! The 14 authority classes, the mechanism identities that carry them, and the
 //! closure review over both - the one file here that encodes big-endian.
 
-use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 /// Closed compiler-owned execution child retained independently of authored
@@ -1024,63 +1023,64 @@ fn terminal_authority_closure_review_identity(
     permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
     leaves: &[TerminalAuthorityClosureLeaf],
 ) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.terminal-authority.closure-review.v3\0");
-    digest.update(terminal_artifact_identity);
-    digest.update([match target.architecture {
+    let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
+        b"omega.terminal-authority.closure-review.v3\0",
+    );
+    digest.raw(&terminal_artifact_identity);
+    digest.byte(match target.architecture {
         target::Architecture::Aarch64 => 0,
         target::Architecture::X86_64 => 1,
-    }]);
-    digest.update([match target.object_format {
+    });
+    digest.byte(match target.object_format {
         target::ObjectFormat::Elf => 0,
         target::ObjectFormat::MachO => 1,
         target::ObjectFormat::Coff => 2,
-    }]);
-    digest.update((target.pointer_size as u64).to_be_bytes());
-    digest.update((target.pointer_alignment as u64).to_be_bytes());
-    digest.update(selected_provider_closure.as_bytes());
-    digest.update(physical_policy.version().to_be_bytes());
-    digest.update(physical_policy.commitment());
+    });
+    digest.raw(&(target.pointer_size as u64).to_be_bytes());
+    digest.raw(&(target.pointer_alignment as u64).to_be_bytes());
+    digest.raw(selected_provider_closure.as_bytes());
+    digest.raw(&physical_policy.version().to_be_bytes());
+    digest.raw(&physical_policy.commitment());
     // Absence is its own encoding: a receiver-less review never aliases an
     // explicit empty or populated permission-policy identity.
     match permission_policy {
-        None => digest.update([0]),
+        None => digest.byte(0),
         Some(permission_policy) => {
-            digest.update([1]);
-            digest.update(permission_policy.version().to_be_bytes());
-            digest.update(permission_policy.commitment());
+            digest.byte(1);
+            digest.raw(&permission_policy.version().to_be_bytes());
+            digest.raw(&permission_policy.commitment());
         }
     }
-    digest.update((leaves.len() as u64).to_be_bytes());
+    digest.raw(&(leaves.len() as u64).to_be_bytes());
     for leaf in leaves {
-        digest.update(leaf.service_schema.as_bytes());
-        digest.update((leaf.requirement_identity.len() as u64).to_be_bytes());
-        digest.update(leaf.requirement_identity.as_bytes());
-        digest.update(leaf.provider_plan.as_bytes());
+        digest.raw(leaf.service_schema.as_bytes());
+        digest.raw(&(leaf.requirement_identity.len() as u64).to_be_bytes());
+        digest.raw(leaf.requirement_identity.as_bytes());
+        digest.raw(leaf.provider_plan.as_bytes());
         let mechanism = terminal_mechanism_identity_bytes(leaf.mechanism);
-        digest.update((mechanism.len() as u64).to_be_bytes());
-        digest.update(mechanism);
+        digest.raw(&(mechanism.len() as u64).to_be_bytes());
+        digest.raw(&mechanism);
         match &leaf.exercised {
-            None => digest.update([0]),
+            None => digest.byte(0),
             Some(exercised) => {
-                digest.update([1]);
+                digest.byte(1);
                 encode_authority_classes(&mut digest, exercised);
             }
         }
         match &leaf.permitted {
-            None => digest.update([0]),
+            None => digest.byte(0),
             Some(permitted) => {
-                digest.update([1]);
+                digest.byte(1);
                 encode_authority_classes(&mut digest, permitted);
             }
         }
     }
-    digest.finalize().into()
+    digest.finish().into()
 }
 
-fn encode_authority_classes(digest: &mut Sha256, disposition: &TerminalAuthorityDisposition) {
-    digest.update((disposition.classes().len() as u64).to_be_bytes());
+fn encode_authority_classes(digest: &mut crate::provider_evidence::digest_encoder::DomainDigestEncoder, disposition: &TerminalAuthorityDisposition) {
+    digest.raw(&(disposition.classes().len() as u64).to_be_bytes());
     for class in disposition.classes() {
-        digest.update([class.canonical_tag()]);
+        digest.byte(class.canonical_tag());
     }
 }

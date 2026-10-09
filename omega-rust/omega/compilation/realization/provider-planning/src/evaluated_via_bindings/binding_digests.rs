@@ -8,7 +8,6 @@ use effects::provider_plan::{
     EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
     EvaluatedBindingProducerClosureDigest,
 };
-use sha2::Digest;
 use source::{SourceFile, SourceOrigin, SourceSpan};
 use std::path::Path;
 use symbols::SymbolHandle;

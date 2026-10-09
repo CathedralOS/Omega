@@ -3,8 +3,6 @@
 use crate::provider_evidence::providers::foreign_locator::{
     ForeignLocatorIdentityDigest, NormalizedForeignLocator,
 };
-use sha2::Digest;
-use sha2::Sha256;
 use target::TargetProfile;
 
 macro_rules! evaluated_binding_digest {
@@ -215,44 +213,43 @@ impl EvaluatedBindingReceipt {
 
     /// Collision-resistant commitment to every retained receipt field.
     pub fn identity_digest(&self) -> [u8; 32] {
-        let mut digest = Sha256::new();
-        digest.update(b"omega.evaluated-binding-receipt.sha256.v1\0");
+        let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
+            b"omega.evaluated-binding-receipt.sha256.v1\0",
+        );
         match self.producer_package {
             Some(package) => {
-                digest.update([1]);
+                digest.byte(1);
                 receipt_hash_bytes(&mut digest, &package.digest());
             }
-            None => digest.update([0]),
+            None => digest.byte(0),
         }
         receipt_hash_bytes(&mut digest, self.producer_callable_identity.as_bytes());
         receipt_hash_bytes(&mut digest, &self.producer_closure_digest.as_bytes());
-        digest.update(self.evaluator_semantics_marker.to_le_bytes());
+        digest.raw(&self.evaluator_semantics_marker.to_le_bytes());
         let usage = self.evaluation_usage;
-        digest.update(usage.usage_schema_version.to_le_bytes());
-        digest.update(usage.step_schedule_marker.to_le_bytes());
-        digest.update(usage.fuel_units.to_le_bytes());
-        digest.update(usage.fuel_ceiling.to_le_bytes());
-        digest.update(usage.build_log_bytes.to_le_bytes());
-        digest.update(usage.filesystem_operation_attempts.to_le_bytes());
-        digest.update(usage.peak_live_cells.to_le_bytes());
-        digest.update(usage.peak_live_text_bytes.to_le_bytes());
-        digest.update(usage.result_cells.to_le_bytes());
-        digest.update(usage.result_text_bytes.to_le_bytes());
+        digest.raw(&usage.usage_schema_version.to_le_bytes());
+        digest.raw(&usage.step_schedule_marker.to_le_bytes());
+        digest.raw(&usage.fuel_units.to_le_bytes());
+        digest.raw(&usage.fuel_ceiling.to_le_bytes());
+        digest.raw(&usage.build_log_bytes.to_le_bytes());
+        digest.raw(&usage.filesystem_operation_attempts.to_le_bytes());
+        digest.raw(&usage.peak_live_cells.to_le_bytes());
+        digest.raw(&usage.peak_live_text_bytes.to_le_bytes());
+        digest.raw(&usage.result_cells.to_le_bytes());
+        digest.raw(&usage.result_text_bytes.to_le_bytes());
         receipt_hash_bytes(&mut digest, &self.evaluation_digest.as_bytes());
-        digest.update(self.materializer_schema_version.to_le_bytes());
+        digest.raw(&self.materializer_schema_version.to_le_bytes());
         receipt_hash_bytes(&mut digest, &self.materialization_digest.as_bytes());
         receipt_hash_bytes(&mut digest, &self.locator_identity_digest.as_bytes());
-        digest.finalize().into()
+        digest.finish().into()
     }
 }
 
-fn receipt_hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update(
-        u64::try_from(bytes.len())
-            .expect("evaluated binding receipt field length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(bytes);
+fn receipt_hash_bytes(
+    digest: &mut crate::provider_evidence::digest_encoder::DomainDigestEncoder,
+    bytes: &[u8],
+) {
+    digest.bytes(bytes);
 }
 
 /// Atomic normalized import plus the receipt that produced it. Construction

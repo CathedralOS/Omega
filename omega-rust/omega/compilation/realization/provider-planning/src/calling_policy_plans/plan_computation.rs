@@ -29,8 +29,6 @@ use calling_conventions::{
 };
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
-use sha2::Digest;
-use sha2::Sha256;
 use target::NativeTarget;
 use typed_trees::TypedTrees;
 
@@ -823,113 +821,113 @@ pub(crate) fn boundary_plan_application_identity(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
 ) -> (u64, [u8; 32]) {
-    let mut strong = Sha256::new();
-    strong.update(b"omega.boundary-plan-application.v4");
-    strong.update((signature.owner_requirement_identity.len() as u64).to_le_bytes());
-    strong.update(signature.owner_requirement_identity.as_bytes());
-    strong.update([match signature.native_target.architecture {
+    let mut strong = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.boundary-plan-application.v4",
+    );
+    strong.string(&signature.owner_requirement_identity);
+    strong.byte(match signature.native_target.architecture {
         target::Architecture::Aarch64 => 1,
         target::Architecture::X86_64 => 2,
-    }]);
-    strong.update([match signature.native_target.object_format {
+    });
+    strong.byte(match signature.native_target.object_format {
         target::ObjectFormat::Elf => 1,
         target::ObjectFormat::MachO => 2,
         target::ObjectFormat::Coff => 3,
-    }]);
-    strong.update((signature.native_target.pointer_size as u64).to_le_bytes());
-    strong.update((signature.native_target.pointer_alignment as u64).to_le_bytes());
-    strong.update((signature.opaque_representations.len() as u64).to_le_bytes());
+    });
+    strong.u64(signature.native_target.pointer_size as u64);
+    strong.u64(signature.native_target.pointer_alignment as u64);
+    strong.u64(signature.opaque_representations.len() as u64);
     for representation in &signature.opaque_representations {
-        strong.update(representation.shape_root.to_le_bytes());
-        strong.update(representation.application_report_fingerprint.to_le_bytes());
-        strong.update(representation.conformance_application_commitment);
-        strong.update(representation.representation_schema_version.to_le_bytes());
-        strong.update([match representation.origin {
+        strong.raw(&representation.shape_root.to_le_bytes());
+        strong.raw(&representation.application_report_fingerprint.to_le_bytes());
+        strong.raw(&representation.conformance_application_commitment);
+        strong.raw(&representation.representation_schema_version.to_le_bytes());
+        strong.byte(match representation.origin {
             representation_planning::OpaqueRepresentationApplicationOrigin::NamedConformance => 1,
-        }]);
-        strong.update([match representation.lifecycle {
+        });
+        strong.byte(match representation.lifecycle {
             representation_planning::OpaqueRepresentationLifecycleDisposition::Inert => 1,
-        }]);
-        strong.update([match representation.copy_disposition {
+        });
+        strong.byte(match representation.copy_disposition {
             representation_planning::OpaqueRepresentationCopyDisposition::PlacementOnly => 1,
             representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy => 2,
-        }]);
-        strong.update(representation.selected_application_commitment);
+        });
+        strong.raw(&representation.selected_application_commitment);
     }
-    strong.update((signature.shapes.len() as u64).to_le_bytes());
+    strong.u64(signature.shapes.len() as u64);
     for shape in &signature.shapes {
         match shape.class {
-            BoundaryValueClass::Integer => strong.update([1]),
-            BoundaryValueClass::Float => strong.update([2]),
-            BoundaryValueClass::Reference => strong.update([3]),
+            BoundaryValueClass::Integer => strong.byte(1),
+            BoundaryValueClass::Float => strong.byte(2),
+            BoundaryValueClass::Reference => strong.byte(3),
             BoundaryValueClass::FixedArray { element, length } => {
-                strong.update([4]);
-                strong.update(element.to_le_bytes());
-                strong.update(length.to_le_bytes());
+                strong.byte(4);
+                strong.raw(&element.to_le_bytes());
+                strong.raw(&length.to_le_bytes());
             }
             BoundaryValueClass::Record {
                 first_field,
                 field_count,
             } => {
-                strong.update([5]);
-                strong.update(first_field.to_le_bytes());
-                strong.update(field_count.to_le_bytes());
+                strong.byte(5);
+                strong.raw(&first_field.to_le_bytes());
+                strong.raw(&field_count.to_le_bytes());
             }
         }
-        strong.update(shape.byte_size.to_le_bytes());
-        strong.update(shape.alignment.to_le_bytes());
+        strong.raw(&shape.byte_size.to_le_bytes());
+        strong.raw(&shape.alignment.to_le_bytes());
     }
-    strong.update((signature.fields.len() as u64).to_le_bytes());
+    strong.u64(signature.fields.len() as u64);
     for field in &signature.fields {
-        strong.update(field.shape.to_le_bytes());
-        strong.update(field.byte_offset.to_le_bytes());
+        strong.raw(&field.shape.to_le_bytes());
+        strong.raw(&field.byte_offset.to_le_bytes());
     }
-    strong.update((signature.parameters.len() as u64).to_le_bytes());
+    strong.u64(signature.parameters.len() as u64);
     for parameter in &signature.parameters {
-        strong.update(parameter.to_le_bytes());
+        strong.raw(&parameter.to_le_bytes());
     }
     match signature.result {
         Some(result) => {
-            strong.update([1]);
-            strong.update(result.to_le_bytes());
+            strong.byte(1);
+            strong.raw(&result.to_le_bytes());
         }
-        None => strong.update([0]),
+        None => strong.byte(0),
     }
-    strong.update((signature.native_parameters.len() as u64).to_le_bytes());
+    strong.u64(signature.native_parameters.len() as u64);
     for parameter in &signature.native_parameters {
-        strong.update(parameter.identity.get().to_le_bytes());
-        strong.update(parameter.native_ordinal.to_le_bytes());
+        strong.raw(&parameter.identity.get().to_le_bytes());
+        strong.raw(&parameter.native_ordinal.to_le_bytes());
         match parameter.origin {
             BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } => {
-                strong.update([1]);
-                strong.update(formal_ordinal.to_le_bytes());
+                strong.byte(1);
+                strong.raw(&formal_ordinal.to_le_bytes());
             }
             BoundaryNativeParameterOrigin::PrivateCallback {
                 binder,
                 requirement,
             } => {
-                strong.update([2]);
-                strong.update(binder.get().to_le_bytes());
-                strong.update(requirement.get().to_le_bytes());
+                strong.byte(2);
+                strong.raw(&binder.get().to_le_bytes());
+                strong.raw(&requirement.get().to_le_bytes());
             }
         }
         match parameter.shape {
             BoundaryNativeParameterShape::Semantic(root) => {
-                strong.update([1]);
-                strong.update(root.to_le_bytes());
+                strong.byte(1);
+                strong.raw(&root.to_le_bytes());
             }
             BoundaryNativeParameterShape::TargetFunctionPointer {
                 byte_size,
                 alignment,
             } => {
-                strong.update([2]);
-                strong.update(byte_size.to_le_bytes());
-                strong.update(alignment.to_le_bytes());
+                strong.byte(2);
+                strong.raw(&byte_size.to_le_bytes());
+                strong.raw(&alignment.to_le_bytes());
             }
         }
     }
-    strong.update(validated.contract_commitment_digest());
-    let commitment: [u8; 32] = strong.finalize().into();
+    strong.raw(&validated.contract_commitment_digest());
+    let commitment: [u8; 32] = strong.finish().into();
     let report = callback_nominal_report_fingerprint(
         b"omega.boundary-plan-application-report.v3",
         &[&commitment],

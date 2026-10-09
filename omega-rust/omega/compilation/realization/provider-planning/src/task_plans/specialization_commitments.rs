@@ -3,8 +3,6 @@
 use crate::task_plans::start_selections::{TaskStartSelection, unique_task_activation_target};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
-use sha2::Digest;
-use sha2::Sha256;
 use task_plans::{TaskSpecializationCommitment, TaskStartOperation};
 use typed_trees::type_identity::TypeIdentityRequest;
 
@@ -113,42 +111,37 @@ pub(crate) fn task_specialization_commitment(
     Ok(strong.finish())
 }
 
-struct ExactSpecializationEncoder(Sha256);
+struct ExactSpecializationEncoder(crate::digest_encoder::DomainDigestEncoder);
 
 impl ExactSpecializationEncoder {
     fn new() -> Self {
-        let mut digest = Sha256::new();
-        digest.update(b"omega.task-specialization.sha256.v2\0");
-        Self(digest)
+        Self(crate::digest_encoder::DomainDigestEncoder::new(
+            b"omega.task-specialization.sha256.v2\0",
+        ))
     }
 
     fn byte(&mut self, value: u8) {
-        self.0.update([value]);
+        self.0.byte(value);
     }
 
     fn length(&mut self, value: usize) {
-        self.0.update((value as u64).to_le_bytes());
+        self.0.len(value);
     }
 
     fn string(&mut self, value: &str) {
-        self.length(value.len());
-        self.0.update(value.as_bytes());
+        self.0.string(value);
     }
 
     fn bytes(&mut self, value: &[u8]) {
-        self.length(value.len());
-        self.0.update(value);
+        self.0.bytes(value);
     }
 
     fn strings(&mut self, values: &[String]) {
-        self.length(values.len());
-        for value in values {
-            self.string(value);
-        }
+        self.0.strings(values);
     }
 
     fn digest(&mut self, value: [u8; 32]) {
-        self.0.update(value);
+        self.0.raw(&value);
     }
 
     fn optional_digest(&mut self, value: Option<[u8; 32]>) {
@@ -162,13 +155,7 @@ impl ExactSpecializationEncoder {
     }
 
     fn optional_string(&mut self, value: Option<&str>) {
-        match value {
-            Some(value) => {
-                self.byte(1);
-                self.string(value);
-            }
-            None => self.byte(0),
-        }
+        self.0.optional_string(value);
     }
 
     fn target_machine_specialization(
@@ -300,7 +287,7 @@ impl ExactSpecializationEncoder {
     }
 
     fn finish(self) -> TaskSpecializationCommitment {
-        TaskSpecializationCommitment::from_digest(self.0.finalize().into())
+        TaskSpecializationCommitment::from_digest(self.0.finish().into())
     }
 }
 
