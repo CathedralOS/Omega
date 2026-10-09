@@ -289,21 +289,6 @@ pub(crate) struct AppliedLoopInvariantScalarMotion {
 }
 
 impl AppliedLoopInvariantScalarMotion {
-    #[cfg(any(test, feature = "test-support"))]
-    pub const fn session(&self) -> &VerifiedPsiOptimizationSession {
-        &self.session
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub const fn candidate(&self) -> &LoopInvariantScalarMotionCandidate {
-        &self.candidate
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub const fn ledger(&self) -> &PsiTransformationLedger {
-        &self.ledger
-    }
-
     /// Release the applied custody: the transformed session, the bound
     /// declaration, and the per-commit transformation ledger whose single
     /// record the caller chains into the pass ledger.

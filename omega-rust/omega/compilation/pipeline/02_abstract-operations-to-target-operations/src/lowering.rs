@@ -41,18 +41,6 @@ pub(crate) struct TargetLoweringRequest<'a> {
     pub native_callbacks: &'a [crate::AdmittedNativeCallbackArgument],
 }
 
-impl TargetLoweringRequest<'_> {
-    /// A lowering with no admitted settlements.
-    pub fn new(target: NativeTarget) -> Self {
-        Self {
-            target,
-            settlements: &[],
-            installation: None,
-            native_callbacks: &[],
-        }
-    }
-}
-
 /// Lower one abstract plan to target operations.
 pub(crate) fn lower_to_target_operations(
     plan: &AbstractOperationPlan,

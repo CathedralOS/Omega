@@ -75,26 +75,6 @@ impl AnalysisManager {
         }
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub const fn revision(&self) -> OptimizationUnitIdentity {
-        self.revision
-    }
-
-    /// Resolve a request set in canonical `AnalysisKind::ALL` order. Caller
-    /// insertion order cannot influence dependency or output order.
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) fn require_all(
-        &mut self,
-        unit: &PsiOptimizationUnit,
-        requested: AnalysisSet,
-    ) -> Result<Vec<&AnalysisProduct>, AnalysisManagerError> {
-        self.require_revision(unit)?;
-        for kind in requested.iter() {
-            self.compute_with_dependencies(unit, kind)?;
-        }
-        Ok(requested.iter().map(|kind| &self.cache[&kind]).collect())
-    }
-
     /// Atomically move to a candidate revision. In pass-validation mode every
     /// supposedly retained cache row is cold-recomputed first; any difference
     /// proves the candidate lied about invalidation and leaves this manager
