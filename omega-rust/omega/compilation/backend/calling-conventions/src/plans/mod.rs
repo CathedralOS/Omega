@@ -29,7 +29,7 @@ pub use call_plan_evaluation::{
 };
 pub(crate) use call_plan_evaluation::{ validate_call_plan};
 pub use diagnostics::{ PlanDiagnostic};
-pub use diagnostics::{BoundaryPlanDiagnostic};
+pub(crate) use diagnostics::{BoundaryPlanDiagnostic};
 pub use state_footprints::{ StateFootprintEvidence,
 };
 pub(crate) use state_footprints::{

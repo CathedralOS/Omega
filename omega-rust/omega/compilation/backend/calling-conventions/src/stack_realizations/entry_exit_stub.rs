@@ -25,7 +25,7 @@ use crate::{
 /// Where the normalized frame's error-code word comes from for one arrival
 /// context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum X86_64ErrorCodeDisposition {
+pub(crate) enum X86_64ErrorCodeDisposition {
     /// The CPU pushed the architectural error-code word; the stub leaves the
     /// frame as delivered.
     HardwarePushed,
@@ -45,14 +45,14 @@ pub enum X86_64ErrorCodeDisposition {
 /// Both are derived from the admitted boundary plan here so the emitted
 /// bytes and the composed stack demand read one contract-owned number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X86_64DeriverStubCallFrame {
+pub(crate) struct X86_64DeriverStubCallFrame {
     pub outgoing_stack_bytes: u64,
     pub reserved_bytes: u64,
 }
 
 /// The deriver-owned stub shape for one admissible arrival context.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64DeriverStubContext {
+pub(crate) struct X86_64DeriverStubContext {
     pub context: ArrivalContextId,
     pub mechanism: X86_64ArrivalMechanism,
     pub error_code: X86_64ErrorCodeDisposition,
@@ -74,7 +74,7 @@ pub struct X86_64DeriverStubContext {
 /// admitted plan's save/restore law; `exit` is the evidence the exit bytes
 /// satisfy.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64DeriverStub {
+pub(crate) struct X86_64DeriverStub {
     pub identity: InstalledEntryFactIdentity,
     pub vector: u8,
     pub gate: X86_64GateKind,
@@ -99,7 +99,7 @@ impl X86_64DeriverStub {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedX86_64DeriverStub {
+pub(crate) struct ValidatedX86_64DeriverStub {
     stub: X86_64DeriverStub,
     non_authoritative_report_fingerprint: u64,
 }
@@ -125,7 +125,7 @@ impl ValidatedX86_64DeriverStub {
 /// preemption and stack disposition; a context that disagrees means the
 /// installed facts were built against a different boundary than the member
 /// was admitted under.
-pub fn derive_x86_64_entry_exit_stub(
+pub(crate) fn derive_x86_64_entry_exit_stub(
     installed: &ValidatedX86_64InstalledHardwareEntryFacts,
     boundary: &ValidatedBoundaryEntryPlan,
 ) -> Result<ValidatedX86_64DeriverStub, PlanDiagnostic> {

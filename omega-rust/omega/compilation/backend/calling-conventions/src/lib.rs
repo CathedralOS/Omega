@@ -26,7 +26,7 @@ mod stack_realizations;
 pub use aggregate_layout::{ ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,
     evaluate_conventional_sum_layout,
 };
-pub use aggregate_layout::{
+pub(crate) use aggregate_layout::{
     AggregateLayoutError};
 pub use boundary_application::{
     BoundaryCallingApplication, BoundaryOpaqueApplication, BoundarySignatureGeometry,
@@ -58,12 +58,13 @@ pub use plans::{
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
 pub(crate) use plans::{ ProviderExitRealization};
-pub use plans::{ BoundaryPlanDiagnostic};
+pub(crate) use plans::{ BoundaryPlanDiagnostic};
 pub use stack_realizations::{
+};
+pub(crate) use stack_realizations::{
     ArrivalContextId, InstalledEntryFactIdentity,
     ValidatedX86_64DeriverStub, X86_64ArrivalMechanism, X86_64ErrorCodeDisposition, X86_64GateKind,
     X86_64HardwareStackSelection, X86_64InstalledArrivalContext,
-    X86_64InstalledHardwareEntryFacts, X86_64TargetProfileIdentity, derive_x86_64_entry_exit_stub, validate_x86_64_installed_hardware_entry_facts,
-};
-pub use stack_realizations::{
+    X86_64InstalledHardwareEntryFacts, X86_64TargetProfileIdentity, derive_x86_64_entry_exit_stub, validate_x86_64_installed_hardware_entry_facts};
+pub(crate) use stack_realizations::{
     X86_64DeriverStub, X86_64DeriverStubContext};
