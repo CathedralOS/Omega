@@ -47,11 +47,7 @@ pub(crate) fn filter_expired_borrow_loans(
                 keep
             }
             FlowConstraintKind::Unknown
-            | FlowConstraintKind::SemanticContext { .. }
-            | FlowConstraintKind::BorrowState { .. }
-            | FlowConstraintKind::BorrowCall { .. }
-            | FlowConstraintKind::BorrowWritableRoot { .. }
-            | FlowConstraintKind::BorrowAccess { .. } => true,
+            | checked_trees::borrow_context_quint_pattern!(..) => true,
         }
     })
 }
@@ -208,11 +204,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                 keep
             }
             FlowConstraintKind::Unknown
-            | FlowConstraintKind::SemanticContext { .. }
-            | FlowConstraintKind::BorrowState { .. }
-            | FlowConstraintKind::BorrowCall { .. }
-            | FlowConstraintKind::BorrowWritableRoot { .. }
-            | FlowConstraintKind::BorrowAccess { .. } => true,
+            | checked_trees::borrow_context_quint_pattern!(..) => true,
         }
     })
 }

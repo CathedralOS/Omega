@@ -49,3 +49,14 @@ macro_rules! borrow_set_quint_pattern {
             | $crate::FlowConstraintKind::BorrowWritableRoot { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! borrow_context_quint_pattern {
+    ($($fields:tt)*) => {
+        $crate::FlowConstraintKind::BorrowAccess { $($fields)* }
+            | $crate::FlowConstraintKind::BorrowCall { $($fields)* }
+            | $crate::FlowConstraintKind::BorrowState { $($fields)* }
+            | $crate::FlowConstraintKind::BorrowWritableRoot { $($fields)* }
+            | $crate::FlowConstraintKind::SemanticContext { $($fields)* }
+    };
+}

@@ -65,11 +65,7 @@ impl FlowFacts {
             .filter_map(|constraint| match constraint.kind {
                 FlowConstraintKind::BorrowLoan { loan } => Some(loan),
                 FlowConstraintKind::Unknown
-                | FlowConstraintKind::SemanticContext { .. }
-                | FlowConstraintKind::BorrowState { .. }
-                | FlowConstraintKind::BorrowCall { .. }
-                | FlowConstraintKind::BorrowWritableRoot { .. }
-                | FlowConstraintKind::BorrowAccess { .. } => None,
+                | crate::borrow_context_quint_pattern!(..) => None,
             })
     }
 }
