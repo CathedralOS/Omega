@@ -1,7 +1,8 @@
 use crate::SelectedInstructionProvenance;
 use optimization_unit::PsiProvenance;
 
-use super::values::{encode_ids, encode_len};
+use super::values::encode_ids;
+use crate::codec_bytes::encode_len;
 
 pub fn encode_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstructionProvenance) {
     encode_ids(bytes, provenance.operations.iter().map(|id| id.get()));

@@ -1,7 +1,8 @@
 use optimization_unit::OwnershipEvent;
 use terminal_psi::{StructuralPathSegment, TerminalAffineCleanupAction};
 
-use super::values::{encode_ids, encode_len};
+use super::values::encode_ids;
+use crate::codec_bytes::encode_len;
 
 pub fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
     encode_len(bytes, ownership.len());
@@ -110,4 +111,3 @@ pub fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
         }
     }
 }
-

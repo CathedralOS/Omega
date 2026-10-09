@@ -19,15 +19,15 @@ pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTermin
                 terminal_psi::CrashCause::Trap => 1,
                 terminal_psi::CrashCause::Abort => 2,
             });
-            super::encode_len(bytes, site_guard.len());
+            crate::codec_bytes::encode_len(bytes, site_guard.len());
             for predicate in site_guard {
                 let encoded =
                     terminal_codec::canonical_proposition_order_key(predicate.proposition())
                         .expect("validated crash predicate");
-                super::encode_len(bytes, encoded.len());
+                crate::codec_bytes::encode_len(bytes, encoded.len());
                 bytes.extend_from_slice(&encoded);
             }
-            super::encode_len(bytes, frontier_lower_bound.len());
+            crate::codec_bytes::encode_len(bytes, frontier_lower_bound.len());
             for claim in frontier_lower_bound {
                 crate::codec_bytes::push_encoded(bytes, claim.get().to_le_bytes());
             }

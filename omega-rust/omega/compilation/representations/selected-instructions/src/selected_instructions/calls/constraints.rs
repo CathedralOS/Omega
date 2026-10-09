@@ -75,12 +75,11 @@ pub fn foreign_argument_registers(
     parameters
         .into_iter()
         .flat_map(|(position, placement)| {
-            placement
-                .locations
-                .iter()
-                .filter_map(move |location| {
-                    location.direct_register().map(|register| (position, register))
-                })
+            placement.locations.iter().filter_map(move |location| {
+                location
+                    .direct_register()
+                    .map(|register| (position, register))
+            })
         })
         .collect()
 }

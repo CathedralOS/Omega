@@ -8,8 +8,23 @@ pub(crate) fn push_encoded<const N: usize>(buffer: &mut Vec<u8>, encoded: [u8; N
 }
 
 /// Write a fixed-width little-endian encoding at `offset` inside `bytes`.
-
-/// Write a fixed-width little-endian encoding at `offset` inside `bytes`.
 pub(crate) fn patch_encoded<const N: usize>(bytes: &mut [u8], offset: usize, encoded: [u8; N]) {
     bytes[offset..offset + N].copy_from_slice(&encoded);
+}
+
+/// Append the canonical u64-le collection length tag.
+pub(crate) fn encode_len(bytes: &mut Vec<u8>, length: usize) {
+    push_encoded(bytes, (length as u64).to_le_bytes());
+}
+
+/// Append a length-prefixed list of little-endian encodings.
+pub(crate) fn encode_le_list<T, const N: usize>(
+    bytes: &mut Vec<u8>,
+    values: &[T],
+    to_le: impl Fn(&T) -> [u8; N],
+) {
+    encode_len(bytes, values.len());
+    for value in values {
+        push_encoded(bytes, to_le(value));
+    }
 }

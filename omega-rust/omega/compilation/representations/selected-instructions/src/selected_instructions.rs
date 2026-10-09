@@ -99,7 +99,8 @@ pub use live_ranges::{
 };
 pub use liveness::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessIdentity,
-    LivenessPlan, LivenessPosition, OperandPosition, SuccessorLiveness, liveness_function_digest, liveness_identity_from_digests,
+    LivenessPlan, LivenessPosition, OperandPosition, SuccessorLiveness, liveness_function_digest,
+    liveness_identity_from_digests,
 };
 pub use plan_identity::selected_instruction_plan_identity;
 pub use provenance::SelectedInstructionProvenance;

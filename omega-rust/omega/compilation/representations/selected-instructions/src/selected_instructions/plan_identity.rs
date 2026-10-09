@@ -16,7 +16,6 @@ use optimization_unit::{FuelSettlement, PsiProvenance};
 use register_model::RegisterOperandAccess;
 use semantic_vocabulary::{IntegerSign, ScalarType};
 
-
 use crate::{
     SaturatingCarrier, SaturatingOperation, SelectedFunction, SelectedInstruction,
     SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
@@ -49,7 +48,7 @@ pub fn selected_instruction_plan_identity(
     crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&plan.target.identity_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
-    encode_len(&mut bytes, plan.functions.len());
+    crate::codec_bytes::encode_len(&mut bytes, plan.functions.len());
     for digest in plan.functions.identity_digests() {
         bytes.extend_from_slice(&digest);
     }
@@ -86,11 +85,11 @@ pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] 
     );
     contracts::encode(&mut bytes, function);
     crate::codec_bytes::push_encoded(&mut bytes, function.entry_block.0.to_le_bytes());
-    encode_len(&mut bytes, function.virtual_registers.len());
+    crate::codec_bytes::encode_len(&mut bytes, function.virtual_registers.len());
     for register in &function.virtual_registers {
         register::encode(&mut bytes, register);
     }
-    encode_len(&mut bytes, function.blocks.len());
+    crate::codec_bytes::encode_len(&mut bytes, function.blocks.len());
     for block in &function.blocks {
         crate::codec_bytes::push_encoded(&mut bytes, block.id.0.to_le_bytes());
         match block.origin {
@@ -112,7 +111,7 @@ pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] 
                 crate::codec_bytes::push_encoded(&mut bytes, target.get().to_le_bytes());
             }
         }
-        encode_len(&mut bytes, block.instructions.len());
+        crate::codec_bytes::encode_len(&mut bytes, block.instructions.len());
         for instruction in &block.instructions {
             encode_instruction(&mut bytes, instruction);
         }
@@ -319,7 +318,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        crate::exact_add_or_sub_pair_pattern!(immediate,obligation,accepted_fact, ..) => {
+        crate::exact_add_or_sub_pair_pattern!(immediate, obligation, accepted_fact, ..) => {
             match immediate {
                 semantic_vocabulary::IntegerValue::Signed(value) => {
                     bytes.push(0);
@@ -403,7 +402,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         }
     }
     encode_constraint_key(bytes, instruction.constraint);
-    encode_len(bytes, instruction.operands.len());
+    crate::codec_bytes::encode_len(bytes, instruction.operands.len());
     for operand in &instruction.operands {
         crate::codec_bytes::push_encoded(bytes, operand.operand.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.virtual_register.0.to_le_bytes());
@@ -460,7 +459,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
     crate::codec_bytes::push_encoded(bytes, successor.psi_edge.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, successor.block.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, successor.source_target.get().to_le_bytes());
-    encode_len(bytes, successor.bindings.len());
+    crate::codec_bytes::encode_len(bytes, successor.bindings.len());
     for binding in &successor.bindings {
         crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, binding.semantic.argument.get().to_le_bytes());
@@ -484,11 +483,14 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
             case.encode_identity(bytes);
         }
     }
-    encode_len(bytes, successor.structural_bindings.len());
+    crate::codec_bytes::encode_len(bytes, successor.structural_bindings.len());
     for binding in &successor.structural_bindings {
         crate::codec_bytes::push_encoded(bytes, binding.semantic.parameter.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, binding.semantic.argument.place.get().to_le_bytes());
-        encode_len(bytes, binding.semantic.argument.path.len());
+        crate::codec_bytes::push_encoded(
+            bytes,
+            binding.semantic.argument.place.get().to_le_bytes(),
+        );
+        crate::codec_bytes::encode_len(bytes, binding.semantic.argument.path.len());
         for segment in &binding.semantic.argument.path {
             match segment {
                 terminal_psi::StructuralPathSegment::Case(case) => {
@@ -503,7 +505,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 }
                 terminal_psi::StructuralPathSegment::Field(field) => {
                     bytes.push(0);
-                    encode_len(bytes, field.len());
+                    crate::codec_bytes::encode_len(bytes, field.len());
                     bytes.extend_from_slice(field.as_bytes());
                 }
                 terminal_psi::StructuralPathSegment::FixedIndex(index) => {
@@ -644,12 +646,8 @@ fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
     }
 }
 
-fn encode_len(bytes: &mut Vec<u8>, len: usize) {
-    crate::codec_bytes::push_encoded(bytes, (len as u64).to_le_bytes());
-}
-
 fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) {
-    encode_len(bytes, values.len());
+    crate::codec_bytes::encode_len(bytes, values.len());
     for value in values {
         crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
     }

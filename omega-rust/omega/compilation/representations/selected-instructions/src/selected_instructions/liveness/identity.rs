@@ -31,7 +31,7 @@ pub fn liveness_identity_from_digests(
         &mut bytes,
         (plan.target.pointer_alignment as u64).to_le_bytes(),
     );
-    encode_len(&mut bytes, digests.len());
+    crate::codec_bytes::encode_len(&mut bytes, digests.len());
     for digest in digests {
         bytes.extend_from_slice(digest);
     }
@@ -48,13 +48,13 @@ pub fn liveness_function_digest(function: &FunctionLiveness) -> [u8; 32] {
 
 fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {
     crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
-    encode_len(bytes, function.entry_definitions.len());
+    crate::codec_bytes::encode_len(bytes, function.entry_definitions.len());
     for definition in &function.entry_definitions {
         crate::codec_bytes::push_encoded(bytes, definition.virtual_register.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, definition.class.0.to_le_bytes());
         encode_option_u16(bytes, definition.fixed_view.map(|view| view.0));
     }
-    encode_len(bytes, function.operand_positions.len());
+    crate::codec_bytes::encode_len(bytes, function.operand_positions.len());
     for operand in &function.operand_positions {
         crate::codec_bytes::push_encoded(bytes, operand.position.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, operand.instruction.0.to_le_bytes());
@@ -66,7 +66,7 @@ fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {
         encode_option_u16(bytes, operand.tied_to);
         bytes.push(u8::from(operand.early_clobber));
     }
-    encode_len(bytes, function.blocks.len());
+    crate::codec_bytes::encode_len(bytes, function.blocks.len());
     for block in &function.blocks {
         crate::codec_bytes::push_encoded(bytes, block.block.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, block.source_block.get().to_le_bytes());
@@ -74,7 +74,7 @@ fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {
         encode_vregs(bytes, &block.virtual_live_out);
         encode_units(bytes, &block.unit_live_in);
         encode_units(bytes, &block.unit_live_out);
-        encode_len(bytes, block.instructions.len());
+        crate::codec_bytes::encode_len(bytes, block.instructions.len());
         for instruction in &block.instructions {
             crate::codec_bytes::push_encoded(bytes, instruction.position.0.to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, instruction.instruction.0.to_le_bytes());
@@ -88,7 +88,7 @@ fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {
             encode_units(bytes, &instruction.unit_live_in);
             encode_units(bytes, &instruction.unit_live_out);
         }
-        encode_len(bytes, block.successors.len());
+        crate::codec_bytes::encode_len(bytes, block.successors.len());
         for successor in &block.successors {
             crate::codec_bytes::push_encoded(bytes, successor.terminator.0.to_le_bytes());
             bytes.push(successor.polarity_ordinal);
@@ -111,28 +111,9 @@ fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
 }
 
 fn encode_vregs(bytes: &mut Vec<u8>, values: &[crate::VirtualRegisterId]) {
-    encode_le_list(bytes, values, |value| value.0.to_le_bytes());
+    crate::codec_bytes::encode_le_list(bytes, values, |value| value.0.to_le_bytes());
 }
 
 fn encode_units(bytes: &mut Vec<u8>, values: &[register_model::RegisterUnitId]) {
-    encode_le_list(bytes, values, |value| value.0.to_le_bytes());
-}
-
-fn encode_le_list<T, const N: usize>(
-    bytes: &mut Vec<u8>,
-    values: &[T],
-    to_le: impl Fn(&T) -> [u8; N],
-) {
-    encode_len(bytes, values.len());
-    for value in values {
-        crate::codec_bytes::push_encoded(bytes, to_le(value));
-    }
-}
-
-fn encode_len(bytes: &mut Vec<u8>, length: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(length)
-            .expect("canonical liveness collection length fits u64")
-            .to_le_bytes(),
-    );
+    crate::codec_bytes::encode_le_list(bytes, values, |value| value.0.to_le_bytes());
 }

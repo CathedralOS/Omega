@@ -12,11 +12,12 @@ mod values;
 mod tests;
 use crate::{PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan};
 
+use crate::codec_bytes::encode_len;
 use instruction::encode_cfg_instruction;
 pub use ownership::{encode_cleanup, encode_ownership, encode_path};
 pub use provenance::encode_provenance;
 pub use values::encode_ids;
-use values::{encode_len, encode_target};
+use values::encode_target;
 
 pub fn pre_allocation_machine_effect_identity(
     plan: &PreAllocationMachineEffectPlan,
@@ -28,12 +29,12 @@ fn identity_with_domain(
     plan: &PreAllocationMachineEffectPlan,
     domain: &[u8],
 ) -> PreAllocationMachineEffectIdentity {
-    
-
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(&encode_terminal_pre_allocation_machine_effect_content(plan));
-    PreAllocationMachineEffectIdentity::from_bytes(crate::digest_encoder::content_identity(&bytes).into())
+    PreAllocationMachineEffectIdentity::from_bytes(
+        crate::digest_encoder::content_identity(&bytes).into(),
+    )
 }
 
 pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(

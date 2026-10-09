@@ -4,9 +4,7 @@
 //! to the selected-instruction transformation stage.
 
 mod identity;
-pub use identity::{
-    live_range_function_digest, live_range_identity_from_digests,
-};
+pub use identity::{live_range_function_digest, live_range_identity_from_digests};
 
 use crate::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,

@@ -56,7 +56,8 @@ mod values;
 
 pub(crate) use framing::{
     decode_terminal_pre_allocation_machine_effect_plan,
-    encode_terminal_pre_allocation_machine_effect_plan};
+    encode_terminal_pre_allocation_machine_effect_plan,
+};
 use instruction::decode_instruction;
 pub use instruction::{
     decode_alternative, decode_alternative_legacy, decode_alternative_without_jump,

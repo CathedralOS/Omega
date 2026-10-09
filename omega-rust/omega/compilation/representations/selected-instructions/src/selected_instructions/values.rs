@@ -111,10 +111,7 @@ impl VirtualRegisterOrigin {
             } => {
                 bytes.push(4);
                 crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(
-                    bytes,
-                    (*parameter_index as u64).to_le_bytes(),
-                );
+                crate::codec_bytes::push_encoded(bytes, (*parameter_index as u64).to_le_bytes());
             }
             VirtualRegisterOrigin::AbiTransport {
                 instruction,
@@ -134,10 +131,7 @@ impl VirtualRegisterOrigin {
                 bytes.push(3);
                 crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(bytes, block.0.to_le_bytes());
-                crate::codec_bytes::push_encoded(
-                    bytes,
-                    (*parameter_index as u64).to_le_bytes(),
-                );
+                crate::codec_bytes::push_encoded(bytes, (*parameter_index as u64).to_le_bytes());
             }
             VirtualRegisterOrigin::EntryParameter {
                 source_value,
@@ -145,10 +139,7 @@ impl VirtualRegisterOrigin {
             } => {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, source_value.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(
-                    bytes,
-                    (*parameter_index as u64).to_le_bytes(),
-                );
+                crate::codec_bytes::push_encoded(bytes, (*parameter_index as u64).to_le_bytes());
             }
             VirtualRegisterOrigin::InstructionResult {
                 instruction,

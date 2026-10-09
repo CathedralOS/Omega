@@ -16,19 +16,12 @@ pub(super) fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
 }
 
 pub(super) fn encode_units(bytes: &mut Vec<u8>, units: &[RegisterUnitId]) {
-    encode_len(bytes, units.len());
-    for unit in units {
-        crate::codec_bytes::push_encoded(bytes, unit.0.to_le_bytes());
-    }
+    crate::codec_bytes::encode_le_list(bytes, units, |unit| unit.0.to_le_bytes());
 }
 
 pub fn encode_ids(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
-    encode_len(bytes, values.len());
+    crate::codec_bytes::encode_len(bytes, values.len());
     for value in values {
         crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
     }
-}
-
-pub(super) fn encode_len(bytes: &mut Vec<u8>, length: usize) {
-    crate::codec_bytes::push_encoded(bytes, (length as u64).to_le_bytes());
 }

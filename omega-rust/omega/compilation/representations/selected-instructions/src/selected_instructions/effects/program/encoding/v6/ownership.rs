@@ -1,6 +1,6 @@
 use super::{
-    ClaimId, Cursor, ObligationId, OwnershipEvent, PlaceId,
-    PreAllocationMachineEffectDecodeError, StructuralTypeId, decode_ids, decode_machine,
+    ClaimId, Cursor, ObligationId, OwnershipEvent, PlaceId, PreAllocationMachineEffectDecodeError,
+    StructuralTypeId, decode_ids, decode_machine,
 };
 pub fn decode_ownership(
     cursor: &mut Cursor<'_>,

@@ -100,8 +100,14 @@ impl SelectedStructuralCaseEdge {
         crate::codec_bytes::push_encoded(bytes, (self.payloads.len() as u64).to_le_bytes());
         for payload in &self.payloads {
             crate::codec_bytes::push_encoded(bytes, payload.semantic.field.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, payload.semantic.field_byte_offset.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, payload.semantic.parameter.value.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                bytes,
+                payload.semantic.field_byte_offset.to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(
+                bytes,
+                payload.semantic.parameter.value.get().to_le_bytes(),
+            );
             encode_scalar_type(bytes, payload.semantic.parameter.scalar_type);
             encode_value_definition_site_identity(
                 bytes,

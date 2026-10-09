@@ -132,13 +132,19 @@ pub fn machine_effect_catalog_identity(
                 pre_call_stack_alignment,
             } => {
                 bytes.push(1);
-                crate::codec_bytes::push_encoded(&mut bytes, pre_call_stack_alignment.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    pre_call_stack_alignment.to_le_bytes(),
+                );
             }
             crate::MachineCallEffect::DirectExternalNormalReturnV1 {
                 pre_call_stack_alignment,
             } => {
                 bytes.push(2);
-                crate::codec_bytes::push_encoded(&mut bytes, pre_call_stack_alignment.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    pre_call_stack_alignment.to_le_bytes(),
+                );
             }
         }
         bytes.push(match declaration.cleanup {

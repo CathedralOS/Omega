@@ -1,5 +1,5 @@
-use super::encode_len;
 use crate::SelectedFunction;
+use crate::codec_bytes::encode_len;
 use crate::{OutgoingArgumentSlotId, SelectedMemoryAccessRole};
 fn blob(bytes: &mut Vec<u8>, content: &[u8]) {
     encode_len(bytes, content.len());
