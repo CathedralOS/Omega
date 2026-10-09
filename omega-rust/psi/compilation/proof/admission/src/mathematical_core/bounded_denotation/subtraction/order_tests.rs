@@ -23,14 +23,7 @@ fn value(integer: IntegerType, identity: u64) -> ScalarTerm {
 }
 
 fn zero(integer: IntegerType) -> ScalarTerm {
-    ScalarTerm::integer(
-        integer,
-        match integer.sign() {
-            IntegerSign::Signed => IntegerValue::Signed(0),
-            IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-        },
-    )
-    .unwrap()
+    ScalarTerm::integer(integer, integer.zero()).unwrap()
 }
 
 fn context(integer: IntegerType) -> PropositionContext {

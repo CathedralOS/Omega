@@ -22,10 +22,7 @@ fn fixture(
         result.clone(),
         ScalarTerm::exact_integer_subtract(integer, left.clone(), right.clone()).unwrap(),
     );
-    let zero = match integer.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(0),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-    };
+    let zero = integer.zero();
     let positive = Proposition::LessThan(ScalarTerm::integer(integer, zero).unwrap(), right);
     let assumptions = vec![difference.clone(), positive.clone()];
     let proof = ProofNode {

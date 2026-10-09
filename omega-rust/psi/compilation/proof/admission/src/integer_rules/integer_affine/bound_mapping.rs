@@ -622,14 +622,8 @@ fn map_correlated_multiply_bound(
     let [sign_evidence, bound_evidence] = parts.as_slice() else {
         return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
     };
-    let one = ScalarTerm::integer(
-        form.integer_type(),
-        match form.integer_type().sign() {
-            IntegerSign::Signed => IntegerValue::Signed(1),
-            IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-        },
-    )
-    .map_err(|_| IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?;
+    let one = ScalarTerm::integer(form.integer_type(), form.integer_type().one())
+        .map_err(|_| IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?;
     let positive = sign_evidence == &Proposition::LessOrEqual(one, right.as_ref().clone());
     let negative_two = ScalarTerm::integer(form.integer_type(), IntegerValue::Signed(-2)).ok();
     let negative = negative_two.is_some_and(|negative_two| {
@@ -1183,20 +1177,12 @@ fn map_direct_shift_left_bound(
         if !count_lower {
             return Err(IntegerAffineBoundConversionError::DirectShiftCountLowerMissing);
         }
-        let zero = match count_type.sign() {
-            IntegerSign::Signed => IntegerValue::Signed(0),
-            IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-        };
-        (zero, upper)
+        (count_type.zero(), upper)
     } else {
         if !count_lower {
             return Err(IntegerAffineBoundConversionError::DirectShiftCountLowerMissing);
         }
-        let zero = match count_type.sign() {
-            IntegerSign::Signed => IntegerValue::Signed(0),
-            IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-        };
-        (zero, count_type.maximum_value())
+        (count_type.zero(), count_type.maximum_value())
     };
     let minimum_count = integer_value_to_u128(minimum_count)
         .and_then(|count| u32::try_from(count).ok())

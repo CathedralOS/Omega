@@ -54,10 +54,7 @@ fn fixture(
         axioms.push(Proposition::Equal(quotient.clone(), divide));
         (quotient, vec![definition_index], vec![landed.then_some(0)])
     };
-    let one = literal(match integer.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(1),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-    });
+    let one = literal(integer.one());
     let sign = if positive {
         Proposition::LessOrEqual(one, right.clone())
     } else {

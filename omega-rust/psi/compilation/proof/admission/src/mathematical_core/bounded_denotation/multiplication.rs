@@ -30,8 +30,7 @@ use std::collections::BTreeMap;
 
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{
-    IntegerCarrier, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition,
-    ScalarTerm,
+    IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm,
 };
 
 use super::super::scheme_dsl::{self, apps, pi, scheme_at, v};
@@ -393,14 +392,8 @@ impl Denotation {
         let [sign_evidence, bound_evidence] = parts.as_slice() else {
             return Ok(None);
         };
-        let one = ScalarTerm::integer(
-            *scalar_type,
-            match scalar_type.sign() {
-                IntegerSign::Signed => IntegerValue::Signed(1),
-                IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-            },
-        )
-        .expect("one is admitted by every fixed carrier");
+        let one = ScalarTerm::integer(*scalar_type, scalar_type.one())
+            .expect("one is admitted by every fixed carrier");
         let negative_two = ScalarTerm::integer(*scalar_type, IntegerValue::Signed(-2)).ok();
         let positive = sign_evidence == &Proposition::LessOrEqual(one, right.as_ref().clone());
         let negative = negative_two.is_some_and(|negative_two| {
