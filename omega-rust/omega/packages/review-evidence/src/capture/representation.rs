@@ -8,5 +8,5 @@
 pub(super) mod physical_contract;
 mod policy;
 
-pub use policy::project_checked_representation_policy;
+pub(crate) use policy::project_checked_representation_policy;
 pub(crate) use policy::rederive_selections;

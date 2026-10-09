@@ -51,7 +51,7 @@ impl PackagePolicyMutation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyCrashGuard {
+pub(crate) enum PackagePolicyCrashGuard {
     Truth,
     Expression(PackageReviewContractExpression),
 }
@@ -103,7 +103,7 @@ impl PackagePolicyCrash {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyProgressPremise {
+pub(crate) struct PackagePolicyProgressPremise {
     pub(crate) profile: PackageReviewNominalIdentity,
     pub(crate) subject: PackageReviewProgressSubject,
     pub(crate) projections: Vec<PackageReviewNominalIdentity>,

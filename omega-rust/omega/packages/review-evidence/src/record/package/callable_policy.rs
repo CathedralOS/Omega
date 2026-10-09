@@ -3,8 +3,8 @@
 mod conformances;
 mod getters;
 mod reach_dependency;
-pub use conformances::PackagePolicyCallableConformance;
-pub use reach_dependency::PackagePolicyServiceReachDependency;
+pub(crate) use conformances::PackagePolicyCallableConformance;
+pub(crate) use reach_dependency::PackagePolicyServiceReachDependency;
 pub(in crate::record) mod validation;
 
 use crate::record::{

@@ -1,7 +1,7 @@
 //! Exact replay-validated physical movement for one opaque occurrence.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewBoundaryValueClass {
+pub(crate) enum PackageReviewBoundaryValueClass {
     BorrowedScalarReference,
     Integer,
     Float,
@@ -16,13 +16,13 @@ pub enum PackageReviewBoundaryValueClass {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewSystemVEightbyteClass {
+pub(crate) enum PackageReviewSystemVEightbyteClass {
     Integer,
     Sse,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewBoundaryCallingPolicy {
+pub(crate) enum PackageReviewBoundaryCallingPolicy {
     MicrosoftX64,
     SystemVAMD64,
     Aapcs64,
@@ -31,7 +31,7 @@ pub enum PackageReviewBoundaryCallingPolicy {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewMachineRegister {
+pub(crate) enum PackageReviewMachineRegister {
     X86Rax,
     X86Rcx,
     X86Rdx,
@@ -54,7 +54,7 @@ pub enum PackageReviewMachineRegister {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewIndirectPointerLocation {
+pub(crate) enum PackageReviewIndirectPointerLocation {
     Register(PackageReviewMachineRegister),
     Stack {
         stack_byte_offset: u32,
@@ -63,7 +63,7 @@ pub enum PackageReviewIndirectPointerLocation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewBoundaryValueLocation {
+pub(crate) enum PackageReviewBoundaryValueLocation {
     Register {
         register: PackageReviewMachineRegister,
         value_byte_offset: u32,
@@ -84,7 +84,7 @@ pub enum PackageReviewBoundaryValueLocation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewBoundaryValueShape {
+pub(crate) struct PackageReviewBoundaryValueShape {
     pub(crate) class: PackageReviewBoundaryValueClass,
     pub(crate) byte_size: u32,
     pub(crate) alignment: u16,
@@ -105,7 +105,7 @@ impl PackageReviewBoundaryValueShape {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewBoundaryValuePlacement {
+pub(crate) struct PackageReviewBoundaryValuePlacement {
     pub(crate) shape: PackageReviewBoundaryValueShape,
     pub(crate) locations: Vec<PackageReviewBoundaryValueLocation>,
 }
@@ -121,7 +121,7 @@ impl PackageReviewBoundaryValuePlacement {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewOpaqueRepresentationMovementRole {
+pub(crate) enum PackageReviewOpaqueRepresentationMovementRole {
     Parameter {
         formal_ordinal: u32,
         native_ordinal: u32,
@@ -130,13 +130,13 @@ pub enum PackageReviewOpaqueRepresentationMovementRole {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewOpaqueRepresentationPathElement {
+pub(crate) enum PackageReviewOpaqueRepresentationPathElement {
     FixedArrayElement,
     RecordField { ordinal: u16 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewOpaqueRepresentationOccurrence {
+pub(crate) struct PackageReviewOpaqueRepresentationOccurrence {
     pub(crate) carrier_shape_root: u16,
     pub(crate) role: PackageReviewOpaqueRepresentationMovementRole,
     pub(crate) path: Vec<PackageReviewOpaqueRepresentationPathElement>,

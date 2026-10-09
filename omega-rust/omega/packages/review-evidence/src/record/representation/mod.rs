@@ -6,25 +6,29 @@ mod shape;
 mod target;
 
 pub use movement::{
+};
+pub(crate) use movement::{
     PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryValueClass,
     PackageReviewBoundaryValueLocation, PackageReviewBoundaryValuePlacement,
     PackageReviewBoundaryValueShape, PackageReviewIndirectPointerLocation,
     PackageReviewMachineRegister, PackageReviewOpaqueRepresentationMovementRole,
     PackageReviewOpaqueRepresentationOccurrence, PackageReviewOpaqueRepresentationPathElement,
-    PackageReviewSystemVEightbyteClass,
-};
+    PackageReviewSystemVEightbyteClass};
 pub use policy::{
-    PackagePolicyRepresentation, PackagePolicyRepresentationAvailability,
-    PackagePolicyRepresentationDemand, PackagePolicyRepresentationSelection,
+    PackagePolicyRepresentation,
 };
+pub(crate) use policy::{ PackagePolicyRepresentationAvailability,
+    PackagePolicyRepresentationDemand, PackagePolicyRepresentationSelection};
 pub use shape::{
+};
+pub(crate) use shape::{
     PackageReviewBoundaryShape, PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
-    PackageReviewBoundaryShapeGraph,
-};
+    PackageReviewBoundaryShapeGraph};
 pub use target::{
-    PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
-    PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
 };
+pub(crate) use target::{
+    PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
+    PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewOpaqueRepresentationApplicationOrigin {

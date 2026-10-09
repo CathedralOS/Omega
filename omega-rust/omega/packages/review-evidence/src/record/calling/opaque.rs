@@ -12,7 +12,7 @@ use crate::record::{
 /// roots refer to that graph, not to compiler handles or equal-looking shapes.
 /// Unused selections and producer availability are not calling-use rows.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyCallingOpaqueUse {
+pub(crate) struct PackagePolicyCallingOpaqueUse {
     pub(crate) opaque: PackageReviewNominalIdentity,
     pub(crate) carrier: PackageReviewNominalIdentity,
     pub(crate) selection_owner: PackageReviewNominalOwner,

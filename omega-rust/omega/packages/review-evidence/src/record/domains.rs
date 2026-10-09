@@ -7,7 +7,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewDomainClassification {
+pub(crate) enum PackageReviewDomainClassification {
     ProgressProfile,
 }
 
@@ -18,13 +18,13 @@ pub enum PackageReviewDomainClassification {
 /// not cross the canonical package-review boundary; the package-qualified
 /// domain identity is the persistent subject.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewDomainSemanticRole {
+pub(crate) enum PackageReviewDomainSemanticRole {
     DenotationDimension,
     ArithmeticPolicy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewDomainEstablishmentKind {
+pub(crate) enum PackageReviewDomainEstablishmentKind {
     CheckedRequirement,
     BoundaryRequirement,
     ExactMachine,
@@ -33,7 +33,7 @@ pub enum PackageReviewDomainEstablishmentKind {
 /// Inert issuer identity. A concrete machine has no invented trait or
 /// requirement; no variant grants invocation or package admission.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewDomainEstablishmentRoute {
+pub(crate) enum PackageReviewDomainEstablishmentRoute {
     CheckedRequirement {
         trait_identity: PackageReviewNominalIdentity,
         requirement_identity: PackageReviewNominalIdentity,
@@ -91,13 +91,13 @@ impl PackageReviewDomainEstablishmentRoute {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewDomainAliasAtom {
+pub(crate) enum PackageReviewDomainAliasAtom {
     Declared(PackageReviewNominalIdentity),
     Carry(language_semantics::CarryPermission),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewDomainShape {
+pub(crate) struct PackageReviewDomainShape {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
     pub(crate) target_type: PackageReviewTypeIdentity,

@@ -10,7 +10,7 @@ use compilation_products::CheckedCompilation;
 /// and selection custody. This view cannot construct a checked compilation,
 /// change compiler state, or authorize execution or package admission.
 #[derive(Clone, Copy)]
-pub struct PackageReviewInput<'a> {
+pub(crate) struct PackageReviewInput<'a> {
     pub(crate) program: &'a CheckedTrees,
     pub(crate) custody: &'a CheckedCompilation,
     /// Read-only query state travels with the exact supplied semantic program.

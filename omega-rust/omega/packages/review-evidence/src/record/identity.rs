@@ -55,13 +55,13 @@ impl PackageReviewNominalIdentity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewSemanticDependencyExposure {
+pub(crate) enum PackageReviewSemanticDependencyExposure {
     PrivateImplementation,
     PublicInterface,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewSemanticDependencyKind {
+pub(crate) enum PackageReviewSemanticDependencyKind {
     NominalIdentity,
     Layout,
     OwnershipBehavior,

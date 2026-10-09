@@ -11,14 +11,17 @@ mod signature;
 mod validation;
 
 pub use authority::{
+};
+pub(crate) use authority::{
     PackagePolicyServiceAuthority, PackagePolicyServiceProgressPremise,
-    PackagePolicyServiceProgressRoute,
-};
-pub use families::{PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate};
+    PackagePolicyServiceProgressRoute};
+pub(crate) use families::{PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate};
 pub use methods::PackagePolicyServiceMethod;
-pub use plans::{PackagePolicyProviderPlan, PackagePolicySelectedProviders};
+pub use plans::{ PackagePolicySelectedProviders};
+pub(crate) use plans::{PackagePolicyProviderPlan};
 pub use rows::{
-    PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall, PackagePolicyProviderRow,
 };
+pub(crate) use rows::{
+    PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall, PackagePolicyProviderRow};
 pub(crate) use service_validation::validate_service_methods;
-pub use signature::PackagePolicyServiceSignature;
+pub(crate) use signature::PackagePolicyServiceSignature;

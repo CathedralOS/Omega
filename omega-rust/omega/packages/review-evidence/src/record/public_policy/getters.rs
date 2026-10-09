@@ -84,10 +84,10 @@ impl PackagePolicyDomainShape {
     pub const fn predicate_body(&self) -> language_semantics::DomainPredicateBody {
         self.predicate_body
     }
-    pub fn predicate_facts(&self) -> &[PackageReviewContractFact] {
+    pub(crate) fn predicate_facts(&self) -> &[PackageReviewContractFact] {
         &self.predicate_facts
     }
-    pub fn alias_expansion(&self) -> Option<&[PackageReviewDomainAliasAtom]> {
+    pub(crate) fn alias_expansion(&self) -> Option<&[PackageReviewDomainAliasAtom]> {
         self.alias_expansion.as_deref()
     }
     pub const fn classification(&self) -> Option<PackageReviewDomainClassification> {
@@ -125,7 +125,7 @@ impl PackagePolicyOperatorShape {
     pub fn contracts(&self) -> &[PackageReviewCallableContract] {
         &self.contracts
     }
-    pub fn published_crash(&self) -> &[PackagePolicyCrashRoute] {
+    pub(crate) fn published_crash(&self) -> &[PackagePolicyCrashRoute] {
         &self.published_crash
     }
 }

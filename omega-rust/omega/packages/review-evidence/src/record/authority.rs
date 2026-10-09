@@ -1,10 +1,11 @@
 pub use super::authority_expressions::{
+};
+pub(crate) use super::authority_expressions::{
     PackageReviewBooleanExpression, PackageReviewIeeeFloatComparisonKind,
     PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
     PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
     PackageReviewPrimitiveType, PackageReviewRuntimeIndex, PackageReviewScalarExpression,
-    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
-};
+    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment};
 use super::{contracts::PackageReviewContractExpression, identity::PackageReviewNominalIdentity};
 
 /// A compiler-owned risk class for authority exposed by a reviewed package.
@@ -85,13 +86,13 @@ impl PackageReviewInstallationReach {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewWriteFrameCompleteness {
+pub(crate) enum PackageReviewWriteFrameCompleteness {
     Complete,
     Opaque,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewCrashCause {
+pub(crate) enum PackageReviewCrashCause {
     Trap,
     Abort,
 }
@@ -103,12 +104,12 @@ pub enum PackageReviewCrashInterface {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewCrashPredicate {
+pub(crate) struct PackageReviewCrashPredicate {
     pub(crate) canonical_bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewCrashRouteGuard {
+pub(crate) enum PackageReviewCrashRouteGuard {
     Truth,
     Predicate(PackageReviewCrashPredicate),
     /// Exact structural guard for an abstract public-operator crash ceiling.
@@ -118,13 +119,13 @@ pub enum PackageReviewCrashRouteGuard {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewCrashRoute {
+pub(crate) struct PackageReviewCrashRoute {
     pub(crate) cause: PackageReviewCrashCause,
     pub(crate) alternative_guards: Vec<PackageReviewCrashRouteGuard>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewProgressSubject {
+pub(crate) enum PackageReviewProgressSubject {
     Declaration(PackageReviewNominalIdentity),
     Parameter(u32),
 }
@@ -146,14 +147,14 @@ impl PackageReviewProgressSubject {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewProgressPremise {
+pub(crate) struct PackageReviewProgressPremise {
     pub(crate) profile: PackageReviewNominalIdentity,
     pub(crate) subject: PackageReviewProgressSubject,
     pub(crate) projections: Vec<PackageReviewNominalIdentity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewTermination {
+pub(crate) enum PackageReviewTermination {
     NoGuarantee,
     Terminates {
         premises: Vec<PackageReviewProgressPremise>,

@@ -6,7 +6,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicySemanticDependencyConsumer {
+pub(crate) enum PackagePolicySemanticDependencyConsumer {
     /// An exact callable retained by the enclosing normalized callable surface.
     Callable(PackageReviewNominalIdentity),
     /// Private consumers are grouped under the enclosing baseline's package.

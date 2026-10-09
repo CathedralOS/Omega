@@ -3,7 +3,7 @@
 mod validation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewRepresentationTargetProfile {
+pub(crate) enum PackageReviewRepresentationTargetProfile {
     LinuxArm64,
     LinuxX64,
     MacosArm64,
@@ -15,13 +15,13 @@ pub enum PackageReviewRepresentationTargetProfile {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewRepresentationArchitecture {
+pub(crate) enum PackageReviewRepresentationArchitecture {
     Aarch64,
     X86_64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewRepresentationObjectFormat {
+pub(crate) enum PackageReviewRepresentationObjectFormat {
     Elf,
     MachO,
     Coff,

@@ -7,7 +7,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewDataField {
+pub(crate) struct PackageReviewDataField {
     pub(crate) identity: Option<u64>,
     pub(crate) name: String,
     pub(crate) relevance: language_core::BindingRelevance,
@@ -33,7 +33,7 @@ impl PackageReviewDataField {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageReviewDataMember {
+pub(crate) enum PackageReviewDataMember {
     Field(PackageReviewDataField),
     Variant {
         identity: Option<u64>,
@@ -47,7 +47,7 @@ pub enum PackageReviewDataMember {
 /// the carrier family plus relation declaration; the proof implementation that
 /// licensed formation is intentionally not API identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageReviewDataKind {
+pub(crate) enum PackageReviewDataKind {
     Ordinary,
     Quotient {
         carrier: PackageReviewTypeIdentity,
@@ -59,7 +59,7 @@ pub enum PackageReviewDataKind {
 /// policy. The language semantics remain explicit without retaining a typed-
 /// tree declaration node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewDataProperties {
+pub(crate) struct PackageReviewDataProperties {
     pub(crate) multiplicity: language_semantics::Multiplicity,
     pub(crate) carry: Option<language_semantics::CarryPolicy>,
 }
@@ -75,7 +75,7 @@ impl PackageReviewDataProperties {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewDataShape {
+pub(crate) struct PackageReviewDataShape {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) kind: PackageReviewDataKind,
     pub(crate) supply: language_semantics::DataSupplyMode,

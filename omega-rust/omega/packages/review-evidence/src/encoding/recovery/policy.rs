@@ -28,9 +28,10 @@ pub(in crate::encoding::recovery) mod terminal_permissions;
 pub(in crate::encoding::recovery) mod text;
 
 use PackagePolicyRecoveryError as Error;
-pub use policy_recovery_accounting::{
-    PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,
+pub use policy_recovery_accounting::{ PackagePolicyRecoveryLimits,
 };
+pub(crate) use policy_recovery_accounting::{
+    PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};
 
 /// Keep component framing and scratch charges on the decoder's shared budget.
 /// Validation stays component-specific; canonical encoding is an independent

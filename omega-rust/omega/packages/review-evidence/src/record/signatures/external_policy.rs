@@ -6,11 +6,11 @@ use super::{
     PackageReviewExternalBinding, PackageReviewForeignLocator, PackageReviewNominalIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
-pub use signatures::{PackagePolicyExternalCallableSignature, PackagePolicyExternalRequirement};
+pub(crate) use signatures::{PackagePolicyExternalCallableSignature, PackagePolicyExternalRequirement};
 
 /// Exact producer identity retained independently of its evaluation history.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyEvaluatedBindingProducer {
+pub(crate) struct PackagePolicyEvaluatedBindingProducer {
     pub(crate) declaration: PackageReviewNominalIdentity,
     pub(crate) package: Option<PackageKeyIdentity>,
     pub(crate) callable_identity: String,

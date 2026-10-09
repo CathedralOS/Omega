@@ -9,26 +9,31 @@ mod signature_vocabulary;
 mod traits;
 
 pub use callables::{
-    PackageReviewCallableParameter, PackageReviewRequirementRealization,
-    PackageReviewTraitRequirementParameter,
 };
+pub(crate) use callables::{
+    PackageReviewCallableParameter, PackageReviewRequirementRealization,
+    PackageReviewTraitRequirementParameter};
 pub use external_policy::{
+};
+pub(crate) use external_policy::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
     PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
-    PackagePolicyExternalRequirement,
-};
+    PackagePolicyExternalRequirement};
 pub use external_supply::{
+};
+pub(crate) use external_supply::{
     PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
     PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
-    PackageReviewExternalCallableParameter, PackageReviewForeignLocator,
-};
+    PackageReviewExternalCallableParameter, PackageReviewForeignLocator};
 pub use signature_vocabulary::{
+};
+pub(crate) use signature_vocabulary::{
     PackageReviewConformanceBound, PackageReviewMachineParameterContract,
     PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
-    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
-};
+    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind};
 pub use traits::{
-    PackageReviewConformanceShape, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
-    PackageReviewTraitRequirement, PackageReviewTraitShape,
 };
+pub(crate) use traits::{
+    PackageReviewConformanceShape, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
+    PackageReviewTraitRequirement, PackageReviewTraitShape};

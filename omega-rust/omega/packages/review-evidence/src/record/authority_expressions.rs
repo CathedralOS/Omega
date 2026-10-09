@@ -3,7 +3,7 @@
 use super::contracts::PackageReviewArithmeticDomain;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewPrimitiveType {
+pub(crate) enum PackageReviewPrimitiveType {
     Bool,
     F32,
     F64,
@@ -21,7 +21,7 @@ pub enum PackageReviewPrimitiveType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageReviewStructuralPredicatePathSegment {
+pub(crate) enum PackageReviewStructuralPredicatePathSegment {
     Field(String),
     Case(String),
     FixedIndex(u64),
@@ -33,7 +33,7 @@ pub enum PackageReviewStructuralPredicatePathSegment {
 /// verbatim: a scalar parameter, an assignment's indexed step, a
 /// program-point field read, or an immutable integer local.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageReviewRuntimeIndex {
+pub(crate) enum PackageReviewRuntimeIndex {
     Parameter { position: u32 },
     AssignmentIndex { depth: u32 },
     StructuralField(PackageReviewStructuralParameterField),
@@ -41,7 +41,7 @@ pub enum PackageReviewRuntimeIndex {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewStructuralParameterField {
+pub(crate) struct PackageReviewStructuralParameterField {
     pub(crate) parameter_position: u32,
     pub(crate) path: Vec<PackageReviewStructuralPredicatePathSegment>,
 }
@@ -57,14 +57,14 @@ impl PackageReviewStructuralParameterField {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewIntegerComparisonKind {
+pub(crate) enum PackageReviewIntegerComparisonKind {
     Equal,
     LessThan,
     LessOrEqual,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewIeeeFloatComparisonKind {
+pub(crate) enum PackageReviewIeeeFloatComparisonKind {
     Equal,
     NotEqual,
     LessThan,
@@ -74,7 +74,7 @@ pub enum PackageReviewIeeeFloatComparisonKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewIntegerBinaryKind {
+pub(crate) enum PackageReviewIntegerBinaryKind {
     ExactAdd,
     ExactSubtract,
     ExactMultiply,
@@ -109,7 +109,7 @@ pub enum PackageReviewIntegerBinaryKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewIntegerLiteralLanding {
+pub(crate) struct PackageReviewIntegerLiteralLanding {
     pub(crate) landed_type: PackageReviewPrimitiveType,
     pub(crate) arithmetic_domain: PackageReviewArithmeticDomain,
 }
@@ -125,7 +125,7 @@ impl PackageReviewIntegerLiteralLanding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewIntegerLiteral {
+pub(crate) struct PackageReviewIntegerLiteral {
     pub(crate) canonical_text: String,
     pub(crate) landing: Option<PackageReviewIntegerLiteralLanding>,
 }
@@ -141,7 +141,7 @@ impl PackageReviewIntegerLiteral {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewIntegerRange {
+pub(crate) struct PackageReviewIntegerRange {
     pub(crate) minimum: String,
     pub(crate) maximum: String,
 }
@@ -157,7 +157,7 @@ impl PackageReviewIntegerRange {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageReviewScalarExpression {
+pub(crate) enum PackageReviewScalarExpression {
     Parameter {
         position: usize,
         primitive_type: PackageReviewPrimitiveType,
@@ -221,7 +221,7 @@ pub enum PackageReviewScalarExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageReviewBooleanExpression {
+pub(crate) enum PackageReviewBooleanExpression {
     Constant(bool),
     Parameter {
         position: usize,

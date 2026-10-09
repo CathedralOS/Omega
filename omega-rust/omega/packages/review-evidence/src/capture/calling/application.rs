@@ -14,7 +14,7 @@ use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 
 /// Capture the complete published calling application. This is inert policy,
 /// not a validator certificate and not a replacement for fresh compilation.
-pub fn project_checked_calling_policy<'a>(
+pub(crate) fn project_checked_calling_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     realization: &BoundaryCallingPlanRealization,
 ) -> Result<PackagePolicyCallingPlan, Vec<Diagnostic>> {

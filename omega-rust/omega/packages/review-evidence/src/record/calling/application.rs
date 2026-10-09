@@ -32,7 +32,7 @@ pub struct PackagePolicyCallingPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyCallingParameter {
+pub(crate) struct PackagePolicyCallingParameter {
     pub(crate) name: String,
     pub(crate) value_type: PackageReviewTypeIdentity,
     pub(crate) is_mutable: bool,
@@ -43,13 +43,13 @@ pub struct PackagePolicyCallingParameter {
 /// Position in this ordered vector is the authored native ordinal. Names are
 /// nominal parameter coordinates; physical shapes do not identify parameters.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyNativeParameter {
+pub(crate) struct PackagePolicyNativeParameter {
     pub(crate) name: String,
     pub(crate) origin: PackagePolicyNativeParameterOrigin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyNativeParameterOrigin {
+pub(crate) enum PackagePolicyNativeParameterOrigin {
     SemanticFormal {
         formal_ordinal: u32,
         shape_root: u16,
@@ -95,7 +95,7 @@ impl PackagePolicyCallingPlan {
     pub const fn shape_graph(&self) -> &PackageReviewBoundaryShapeGraph {
         &self.shape_graph
     }
-    pub fn semantic_parameters(&self) -> &[PackagePolicyCallingParameter] {
+    pub(crate) fn semantic_parameters(&self) -> &[PackagePolicyCallingParameter] {
         &self.semantic_parameters
     }
     pub const fn semantic_result(&self) -> Option<&PackageReviewTypeIdentity> {
@@ -107,7 +107,7 @@ impl PackagePolicyCallingPlan {
     pub const fn callbacks(&self) -> &PackagePolicyCallbacks {
         &self.callbacks
     }
-    pub fn opaque_uses(&self) -> &[PackagePolicyCallingOpaqueUse] {
+    pub(crate) fn opaque_uses(&self) -> &[PackagePolicyCallingOpaqueUse] {
         &self.opaque_uses
     }
     pub const fn physical(&self) -> &PackagePolicyPhysicalCallingContract {

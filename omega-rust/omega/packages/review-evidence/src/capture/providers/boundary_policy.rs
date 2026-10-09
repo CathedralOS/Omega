@@ -11,7 +11,7 @@ use target::TargetProfile;
 
 /// Retain exact open demands and closed selected relationships, not coverage.
 /// Plan coordinates use the same canonical order as selected-provider policy.
-pub fn project_checked_boundary_application_policy<'a>(
+pub(crate) fn project_checked_boundary_application_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,

@@ -6,7 +6,7 @@ use crate::record::{
     PackageReviewOperatorCoordinate, PackageReviewTypeIdentity,
 };
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackagePolicyExternalCallableSignature {
+pub(crate) struct PackagePolicyExternalCallableSignature {
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) static_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) conformance_bounds: Vec<PackageReviewConformanceBound>,
@@ -33,7 +33,7 @@ impl PackagePolicyExternalCallableSignature {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyExternalRequirement {
+pub(crate) enum PackagePolicyExternalRequirement {
     Trait(PackagePolicyCallableConformance),
     Operator {
         coordinate: PackageReviewOperatorCoordinate,
