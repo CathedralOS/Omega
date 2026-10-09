@@ -426,7 +426,18 @@ pub(super) fn validate(
         {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || !super::byte_views::contains_view(optimized, *source, types)
+                || !super::element_views::descriptor_geometry(optimized, source, types).is_some_and(
+                    |geometry| {
+                        geometry.readable
+                            && types.iter().any(|declaration| {
+                                declaration.id == geometry.selected
+                                    && matches!(
+                                        declaration.shape,
+                                        terminal_psi::StructuralTypeShape::ByteSequence(_)
+                                    )
+                            })
+                    },
+                )
                 || [start, end, length].iter().any(|value| {
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })
@@ -445,7 +456,18 @@ pub(super) fn validate(
         {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || !super::byte_views::contains_view(optimized, *source, types)
+                || !super::element_views::descriptor_geometry(optimized, source, types).is_some_and(
+                    |geometry| {
+                        geometry.readable
+                            && types.iter().any(|declaration| {
+                                declaration.id == geometry.selected
+                                    && matches!(
+                                        declaration.shape,
+                                        terminal_psi::StructuralTypeShape::ElementView { .. }
+                                    )
+                            })
+                    },
+                )
                 || [start, end, length].iter().any(|value| {
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })

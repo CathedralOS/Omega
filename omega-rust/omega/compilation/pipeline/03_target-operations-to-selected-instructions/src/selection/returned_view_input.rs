@@ -74,10 +74,32 @@ fn collect_calls(
                 .find(|row| row.operation == producer)
                 .ok_or(SelectedInstructionError::custody())?;
             match &row.kind {
-                I::ByteSequenceSubslice { source: parent, .. }
-                | I::ElementViewSubslice { source: parent, .. }
-                | I::StructuralLeafCopy { source: parent, .. } => {
-                    collect_calls(source, *parent, visited, calls)?
+                I::ByteSequenceSubslice {
+                    source: parent,
+                    indices,
+                    ..
+                }
+                | I::ElementViewSubslice {
+                    source: parent,
+                    indices,
+                    ..
+                } => {
+                    // Origin accounting is opaque, not a backing bound or
+                    // permission. First retain the exact selected descriptor
+                    // coordinate and its own selector certificates; then account
+                    // conservatively for the parent home's completed calls.
+                    let root = super::reference_input::root_type(source, parent.place)
+                        .ok_or(SelectedInstructionError::custody())?;
+                    let geometry = crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
+                        root, &parent.path, &signature.structural_types,
+                    ).ok_or(SelectedInstructionError::custody())?;
+                    if !geometry.readable || !crate::structural_inputs::structural_reference_input::runtime_indices_match(indices, &geometry.elements) {
+                        return Err(SelectedInstructionError::custody());
+                    }
+                    collect_calls(source, parent.place, visited, calls)?;
+                }
+                I::StructuralLeafCopy { source: parent, .. } => {
+                    collect_calls(source, *parent, visited, calls)?;
                 }
                 I::EstablishElementView { source: parent, .. } => {
                     collect_calls(source, parent.place, visited, calls)?
