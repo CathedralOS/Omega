@@ -121,7 +121,7 @@ pub fn relocation_free_text_section_identity(
     }
     if !section.unresolved_implementation_table_addresses.is_empty() {
         hasher.raw(b"implementation-table-addresses");
-        hasher
+        hasher.u64(section.unresolved_implementation_table_addresses.len() as u64);
         for placed in &section.unresolved_implementation_table_addresses {
             let mut identity = Vec::new();
             placed.encode_identity(&mut identity);
