@@ -672,6 +672,33 @@ pub(crate) fn remove_affine_root(
     frontier.remove(&root)
 }
 
+/// The affine debt one whole owned value carries: its root minus the linear
+/// regions its own claims cover, or nothing when it is not affine. A value
+/// moved or returned whole carries exactly these rows; any other row on its
+/// place means part of it was already consumed or disposed.
+pub(crate) fn whole_value_frontier<'a>(
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+    multiplicity: StructuralMultiplicity,
+    claim_paths: impl IntoIterator<Item = &'a [StructuralPathSegment]>,
+) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
+    let mut frontier = BTreeSet::new();
+    if multiplicity == StructuralMultiplicity::Affine {
+        frontier.insert(StructuralAffineDiscard {
+            place,
+            path: Vec::new(),
+            structural_type,
+        });
+        exclude_linear_regions(
+            structural_types,
+            &mut frontier,
+            claim_paths.into_iter().map(|path| (place, path)),
+        )?;
+    }
+    Ok(frontier)
+}
+
 /// Fresh affine storage owes only the complement of its linear regions.
 /// Invocation entry and value completion share this partition; a claim can
 /// never overlap a second whole-root affine disposal obligation.

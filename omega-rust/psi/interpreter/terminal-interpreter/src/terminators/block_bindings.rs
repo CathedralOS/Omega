@@ -28,7 +28,6 @@ use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::bind_affine_frontier;
 use crate::custody::bind_arguments;
 use crate::custody::bind_structural_arguments;
-use crate::custody::remove_affine_root;
 use crate::custody::resolve_structural_arguments;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
@@ -83,7 +82,9 @@ impl BlockBindings {
             execution.scalar_array_values.remove(&source);
             execution.element_view_values.remove(&source);
             execution.primitive_loan_values.remove(&source);
-            remove_affine_root(&mut execution.live_affine_frontier, source);
+            execution
+                .live_affine_frontier
+                .retain(|entry| entry.place != source);
         }
         for destination in self.structural.keys() {
             execution.scalar_array_values.remove(destination);
@@ -411,18 +412,21 @@ impl TerminalExecution<'_> {
                         if !source_matches {
                             return Err(malformed());
                         }
-                        let root = StructuralAffineDiscard {
-                            place: argument.place,
-                            path: Vec::new(),
-                            structural_type: parameter.structural_type,
-                        };
-                        let expected = (parameter.multiplicity == StructuralMultiplicity::Affine)
-                            .then_some(&root);
+                        let carried = crate::custody::whole_value_frontier(
+                            &self.program.structural_types(),
+                            argument.place,
+                            parameter.structural_type,
+                            parameter.multiplicity,
+                            self.live_claims
+                                .values()
+                                .filter(|claim| claim.place == Some(argument.place))
+                                .map(|claim| claim.path.as_slice()),
+                        )?;
                         if self
                             .live_affine_frontier
                             .iter()
                             .filter(|entry| entry.place == argument.place)
-                            .ne(expected)
+                            .ne(carried.iter())
                             || projected_sources.contains(&argument.place)
                         {
                             return Err(TerminalInterpretError::AffineFrontierMismatch);
@@ -700,6 +704,8 @@ impl TerminalExecution<'_> {
         }
         let mut structural = bind_structural_arguments(descriptor_parameters, &resolved_arguments)?;
         let mut affine_destinations = bind_affine_frontier(descriptor_parameters, &structural)?;
+        // A whole affine value arrives with the claims it carried; its new
+        // debt is the same complement of those linear regions.
         crate::custody::exclude_linear_regions(
             &self.program.structural_types(),
             &mut affine_destinations,

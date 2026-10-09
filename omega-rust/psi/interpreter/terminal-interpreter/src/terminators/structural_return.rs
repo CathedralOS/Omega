@@ -127,6 +127,26 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
+            // The returned value leaves whole: its affine rows are exactly its
+            // root's complement of the linear regions it returns.
+            let carried = crate::custody::whole_value_frontier(
+                &self.program.structural_types(),
+                *source,
+                signature.structural_type,
+                signature.multiplicity,
+                self.live_claims
+                    .values()
+                    .filter(|live| live.place == Some(*source))
+                    .map(|live| live.path.as_slice()),
+            )?;
+            if self
+                .live_affine_frontier
+                .iter()
+                .filter(|entry| entry.place == *source)
+                .ne(carried.iter())
+            {
+                return Err(TerminalInterpretError::AffineFrontierMismatch);
+            }
             let rebound_claims = match self.call_stack.last() {
                 Some(SuspendedCall {
                     live_claims,
@@ -195,7 +215,8 @@ impl TerminalExecution<'_> {
         self.scalar_array_values.remove(source);
         self.byte_sequence_values.remove(source);
         self.element_view_values.remove(source);
-        remove_affine_root(&mut self.live_affine_frontier, *source);
+        self.live_affine_frontier
+            .retain(|entry| entry.place != *source);
         for claim in returned_claims {
             self.live_claims.remove(claim);
         }
