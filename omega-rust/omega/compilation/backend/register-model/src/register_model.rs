@@ -115,11 +115,10 @@ pub enum RegisterModelValidationError {
     EmptyReservation,
 }
 
-impl std::fmt::Display for RegisterModelValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid physical register model: {self:?}")
-    }
-}
+invalid_display!(
+    RegisterModelValidationError,
+    "invalid physical register model"
+);
 
 impl std::error::Error for RegisterModelValidationError {}
 

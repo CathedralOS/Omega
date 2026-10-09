@@ -33,11 +33,10 @@ pub enum PreservationStorageCatalogValidationError {
     NonCanonicalCoverage,
 }
 
-impl std::fmt::Display for PreservationStorageCatalogValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid preservation-storage catalog: {self:?}")
-    }
-}
+invalid_display!(
+    PreservationStorageCatalogValidationError,
+    "invalid preservation-storage catalog"
+);
 
 impl std::error::Error for PreservationStorageCatalogValidationError {}
 

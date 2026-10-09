@@ -79,11 +79,10 @@ pub enum RegisterReservationProfileValidationError {
     UnknownOverlay(String),
 }
 
-impl std::fmt::Display for RegisterReservationProfileValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid register reservation profile: {self:?}")
-    }
-}
+invalid_display!(
+    RegisterReservationProfileValidationError,
+    "invalid register reservation profile"
+);
 
 impl std::error::Error for RegisterReservationProfileValidationError {}
 

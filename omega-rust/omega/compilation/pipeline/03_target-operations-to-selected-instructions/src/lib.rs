@@ -19,6 +19,17 @@
 //! Reference formation and transport retain their separate custody contracts,
 //! consistent with pipeline.md's verification-placement boundary.
 
+/// `Display` for the crate's `<context> failed: {self:?}` error convention.
+macro_rules! failed_display {
+    ($type:ty, $message:literal) => {
+        impl std::fmt::Display for $type {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, concat!($message, ": {:?}"), self)
+            }
+        }
+    };
+}
+
 mod legalization;
 mod optimized;
 mod selection;
@@ -27,18 +38,14 @@ mod structural_inputs;
 // The stage entry and its custody join.
 pub use optimized::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
-    StagedOptimizedSelectionCustodyReceipt,
-    stage_optimized_instruction_selection,
+    StagedOptimizedSelectionCustodyReceipt, stage_optimized_instruction_selection,
 };
 // The two joins the entry sequences.
 pub(crate) use legalization::{
-    LegalizationError,
-    ValidatedLegalizedOperations, legalize_target_operations};
-pub use selection::{ ValidatedSelectedInstructions, selected_instruction_plan_identity,
+    LegalizationError, ValidatedLegalizedOperations, legalize_target_operations,
 };
-pub(crate) use selection::{
-    SelectedInstructionError,
-    select_instructions};
+pub(crate) use selection::{SelectedInstructionError, select_instructions};
+pub use selection::{ValidatedSelectedInstructions, selected_instruction_plan_identity};
 
 // The unit tests allocate heavily across nextest's parallel processes;
 // mimalloc avoids the system allocator's zone locks and free lists.

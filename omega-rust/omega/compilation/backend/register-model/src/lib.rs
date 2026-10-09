@@ -14,6 +14,17 @@
 //! (fingerprints of validated declarations) and `preservation_storage`
 //! (preserved-register storage).
 
+/// `Display` for the crate's `<context> invalid: {self:?}` error convention.
+macro_rules! invalid_display {
+    ($type:ty, $message:literal) => {
+        impl std::fmt::Display for $type {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, concat!($message, ": {:?}"), self)
+            }
+        }
+    };
+}
+
 mod codec_bytes;
 mod digest_encoder;
 mod register_model;
@@ -35,19 +46,20 @@ pub use register_model::identities::{
 pub use register_model::preservation_storage::{
     FrameAbiPreservationConvention, PreservationStorageCatalog, PreservationStorageCatalogIdentity,
     PreservationStorageCatalogValidationError, PreservationStorageGroup,
-    PreservationStorageGroupId, ValidatedPreservationStorageCatalog, validate_preservation_storage_catalog,
+    PreservationStorageGroupId, ValidatedPreservationStorageCatalog,
+    validate_preservation_storage_catalog,
 };
 pub use register_model::register_vocabulary::{
     RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView,
-    RegisterViewId, RegisterWriteSemantics, Sha256RegisterDigest, sha256_length, sha256_register_units,
+    RegisterViewId, RegisterWriteSemantics, Sha256RegisterDigest, sha256_length,
+    sha256_register_units,
 };
-pub use register_model::reservation_profiles::{ RegisterReservationProfile,
-    RegisterReservationProfileValidationError, ReservationReason,
+pub(crate) use register_model::reservation_profiles::RegisterReservationOverlay;
+pub use register_model::reservation_profiles::{
+    RegisterReservationProfile, RegisterReservationProfileValidationError, ReservationReason,
     ValidatedRegisterReservationProfile, reservation_overlay, sorted_units,
     validate_register_reservation_profile,
 };
-pub(crate) use register_model::reservation_profiles::{
-    RegisterReservationOverlay};
 pub use register_model::{
     PhysicalRegisterModel, PreservationConvention, RegisterModelValidationError,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,

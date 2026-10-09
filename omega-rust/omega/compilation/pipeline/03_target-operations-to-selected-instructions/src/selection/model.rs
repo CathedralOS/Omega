@@ -202,11 +202,10 @@ impl SelectedInstructionError {
     }
 }
 
-impl std::fmt::Display for SelectedInstructionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "Terminal instruction selection failed: {self:?}")
-    }
-}
+failed_display!(
+    SelectedInstructionError,
+    "Terminal instruction selection failed"
+);
 
 impl std::error::Error for SelectedInstructionError {}
 

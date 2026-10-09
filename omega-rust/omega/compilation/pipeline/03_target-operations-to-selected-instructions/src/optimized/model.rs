@@ -137,13 +137,9 @@ pub enum OptimizedSelectionPipelineError {
     Selection(SelectedInstructionError),
 }
 
-impl std::fmt::Display for OptimizedSelectionPipelineError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized instruction selection failed: {self:?}"
-        )
-    }
-}
+failed_display!(
+    OptimizedSelectionPipelineError,
+    "optimized instruction selection failed"
+);
 
 impl std::error::Error for OptimizedSelectionPipelineError {}

@@ -317,11 +317,10 @@ pub enum RegisterConstraintCatalogValidationError {
     },
 }
 
-impl std::fmt::Display for RegisterConstraintCatalogValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid register constraint catalog: {self:?}")
-    }
-}
+invalid_display!(
+    RegisterConstraintCatalogValidationError,
+    "invalid register constraint catalog"
+);
 
 impl std::error::Error for RegisterConstraintCatalogValidationError {}
 
