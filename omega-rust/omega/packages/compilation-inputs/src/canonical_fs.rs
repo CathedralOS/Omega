@@ -2,6 +2,7 @@
 //! layouts. Unix takes the raw byte/mode surfaces; other hosts go through
 //! portable UTF-8.
 
+#[cfg(unix)]
 use std::path::Path;
 
 /// Reject a directory whose permission bits are not the canonical Source

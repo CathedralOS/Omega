@@ -45,7 +45,9 @@
 //! the store, fingerprint, and capture protocol; that choice of lane and
 //! the caller opt-in live with the resolving consumers.
 
-use crate::canonical_fs::{os_str_bytes, require_canonical_mode};
+use crate::canonical_fs::os_str_bytes;
+#[cfg(unix)]
+use crate::canonical_fs::require_canonical_mode;
 use filesystem_authority::{
     CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT, CanonicalFilesystemMetadataIndex,
     CanonicalFilesystemMetadataRow, CanonicalFilesystemMetadataRowKind,
