@@ -4,7 +4,7 @@ const BUILD_DECLARATION_COMMITMENT_DOMAIN: &[u8] = b"omega-git-workspace-build-d
 
 /// SHA-256 commitment to the exact authenticated bytes of one `build.omg`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BuildDeclarationCommitment([u8; 32]);
+pub(crate) struct BuildDeclarationCommitment([u8; 32]);
 
 impl BuildDeclarationCommitment {
     pub fn derive(bytes: &[u8]) -> Self {

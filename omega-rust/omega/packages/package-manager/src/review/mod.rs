@@ -9,25 +9,17 @@ mod timings;
 
 pub(crate) use candidate::verify_transitive_source_custody;
 
-pub use audit::{
-    CompilerReviewTriage, PackageSourceReviewCustodyRole, PackageSourceReviewError,
-    PackageSourceReviewInput, PackageSourceReviewLimits, PackageSourceReviewRenderError,
+pub(crate) use audit::{
+    CompilerReviewTriage,
     PackageTriageDecision, PackageTriageDisposition, PackageTriageReason, TriageRenderError,
-    assemble_initial_source_review, assemble_update_source_review,
-    triage_initial_install, triage_review_update, triage_update_without_admission_baseline,
-};
+    triage_initial_install};
 pub(crate) use audit::{ PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits, render_package_source_patch};
-pub use candidate::{
-    CandidateCompilation, CompileResolvedPackageReviewsError,
-    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
-    ConsumerScopedSemanticBindingReviewInput, PackageSourceVerificationPhase,
-    ReviewOnlySourceConsumptionCommitment, SemanticBindingReview, SemanticBindingReviewCandidate,
-    compile_resolved_package_reviews, compile_resolved_package_reviews_reusing,
+pub use candidate::{ CompileResolvedPackageReviewsError,
 };
+pub(crate) use candidate::{
+    CandidateCompilation,
+    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase, SemanticBindingReview, compile_resolved_package_reviews_reusing};
 pub(crate) use candidate::{ CandidateSourcePreparation};
-pub use compare::{
-    LockedPolicyComparisonError, compare_locked_package_policies,
-};
 pub(crate) use compare::{ PackagePolicyChangeError, PackagePolicyChangeFingerprint,
     PackagePolicyChangeKind, PackagePolicyChangeLimits, PackagePolicyChangeSet,
     PackagePolicyDependencyPath,

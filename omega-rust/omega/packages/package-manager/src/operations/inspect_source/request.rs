@@ -20,7 +20,7 @@ impl SourceAdapter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageSourceRequest {
+pub(crate) enum PackageSourceRequest {
     LocalPath(PathBuf),
     Git(GitSourceRequest),
 }

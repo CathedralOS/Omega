@@ -18,7 +18,7 @@ pub(crate) use document::{
 /// root-role compatibility change. Digests come from the comparison; they are
 /// identifiers, not authorization until checked against that comparison.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackagePolicyDecisionSubject {
+pub(crate) enum PackagePolicyDecisionSubject {
     RootRole,
     SourceReplacement([u8; 32]),
     Row([u8; 32]),
@@ -27,7 +27,7 @@ pub enum PackagePolicyDecisionSubject {
 /// Caller-supplied project choice. A parser or UI may construct it directly;
 /// completeness and association are checked by `resolve_package_policy_decisions`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PackagePolicyDecision {
+pub(crate) struct PackagePolicyDecision {
     pub subject: PackagePolicyDecisionSubject,
     pub disposition: ReviewOnlyRootPolicyDisposition,
 }
@@ -35,7 +35,7 @@ pub struct PackagePolicyDecision {
 /// Complete choices for one comparison, not a proof, audit receipt, or file
 /// transaction. A rejection is retained and prevents permission to proceed.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackagePolicyResolution {
+pub(crate) struct PackagePolicyResolution {
     comparison: PackagePolicyChangeFingerprint,
     decisions: Vec<PackagePolicyDecision>,
 }

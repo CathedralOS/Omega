@@ -37,7 +37,7 @@ pub enum PackageSelection {
 
 /// One source request projected without evaluating `build.omg`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DependencySourceRequest {
+pub(crate) enum DependencySourceRequest {
     Path {
         explicit_alias: Option<AliasName>,
         location: String,
@@ -53,7 +53,7 @@ pub enum DependencySourceRequest {
 /// The one ordered set of unconditional direct dependency rows within a
 /// single purpose scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectedDependencies {
+pub(crate) struct ProjectedDependencies {
     authored_dependencies: Vec<DependencySourceRequest>,
 }
 
@@ -87,7 +87,7 @@ impl From<Vec<DependencySourceRequest>> for ProjectedDependencies {
 /// alias scopes. One package may appear in both scopes, and each scope's
 /// aliases are validated independently.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DependencyProjections {
+pub(crate) struct DependencyProjections {
     product: ProjectedDependencies,
     build: ProjectedDependencies,
 }
@@ -124,7 +124,7 @@ impl DependencyProjections {
 
     /// Validate requester-local aliases for one purpose scope after every
     /// selected package name is known for that scope.
-    pub fn validate_aliases(
+    pub(crate) fn validate_aliases(
         &self,
         purpose: DependencyPurpose,
         selected_package_names: &[PackageName],

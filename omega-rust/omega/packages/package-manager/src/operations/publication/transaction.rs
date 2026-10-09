@@ -18,7 +18,7 @@ use super::{
 /// before using either file; two independent renames are not a simultaneous
 /// update for readers that ignore the guard. The persistent lock file is never
 /// unlinked: its OS lock, not its existence, represents a running operation.
-pub struct PackageFileTransaction {
+pub(crate) struct PackageFileTransaction {
     directories: ProjectDirectories,
     project: RecordFileRoot,
     journal: RecordFileRoot,
@@ -27,7 +27,7 @@ pub struct PackageFileTransaction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PublicationStep {
+pub(crate) enum PublicationStep {
     IntentRecorded,
     BuildReplaced,
     LockReplaced,
@@ -37,7 +37,7 @@ impl PackageFileTransaction {
     /// Reader entry for projects with existing transaction state. Ordinary
     /// source-only compilation does not create control files in a read-only
     /// checkout. Package commands use `open` before reading their lock baseline.
-    pub fn open_if_present(
+    pub(crate) fn open_if_present(
         root: &Path,
         limits: PackagePublicationLimits,
     ) -> Result<Option<Self>, PackagePublicationError> {
@@ -110,7 +110,7 @@ impl PackageFileTransaction {
     }
 
     /// Read a reconciled accepted pair while holding the project mutex.
-    pub fn read_pair(&self) -> Result<(Vec<u8>, Option<Vec<u8>>), PackagePublicationError> {
+    pub(crate) fn read_pair(&self) -> Result<(Vec<u8>, Option<Vec<u8>>), PackagePublicationError> {
         if self.has_pending()? {
             return Err(PackagePublicationError::RecoveryRequired);
         }

@@ -4,7 +4,7 @@ use crate::build_session::PackageBuildSession;
 use crate::review::SemanticBindingReview;
 
 mod error;
-pub use error::PackageChangeError;
+pub(crate) use error::PackageChangeError;
 
 use crate::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockTarget,
@@ -25,7 +25,7 @@ use target::TargetProfile;
 /// needed for review and lock construction, not a package certificate or file
 /// publication permission. No accepted project file is changed by this type.
 #[derive(Debug)]
-pub struct PackageChangeReview {
+pub(crate) struct PackageChangeReview {
     source_closure: ResolvedPackageSourceClosure,
     reviews: CompilerIssuedPackageReviewSet,
     changes: PackagePolicyChangeSet,
@@ -59,7 +59,7 @@ impl PackageChangeReview {
     /// immediate pre-publication source/build checks, and other selected targets.
     /// This function writes neither `build.omg` nor `omega.lock`, and emits no
     /// native artifact. A rejection leaves this review available for inspection.
-    pub fn propose_lock_target(
+    pub(crate) fn propose_lock_target(
         &self,
         resolution: &PackagePolicyResolution,
     ) -> Result<PackageLockTarget, PackageChangeError> {
@@ -126,7 +126,7 @@ impl PackageChangeReview {
 /// No old source, native emission, reconstruction question, or admission
 /// promotion is needed. Resume after a source edit by creating a new review and
 /// recovering saved decisions against its new comparison, not the old object.
-pub fn review_package_change(
+pub(crate) fn review_package_change(
     source_closure: ResolvedPackageSourceClosure,
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
@@ -150,7 +150,7 @@ pub fn review_package_change(
 /// A caller-selected snapshot applies only to the root and is rechecked in
 /// both discovery and final review. The command owner retains that selection
 /// across pending review; this operation grants no output publication authority.
-pub fn review_package_change_reusing(
+pub(crate) fn review_package_change_reusing(
     source_closure: ResolvedPackageSourceClosure,
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,

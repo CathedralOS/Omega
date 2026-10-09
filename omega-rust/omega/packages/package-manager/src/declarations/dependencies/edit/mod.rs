@@ -10,7 +10,6 @@ use crate::declarations::dependencies::read::{
 pub(crate) use planning::{ plan_dependency_addition_from_source,
     plan_dependency_replacement_from_source,
 };
-pub(crate) use rendering::canonical_dependency_statement;
 use rendering::source_digest;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -32,7 +31,7 @@ pub(crate) enum BuildDependencyEditPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildFileReplacement {
+pub(crate) struct BuildFileReplacement {
     build_path: PathBuf,
     expected_sha256: [u8; 32],
     replacement_source: String,

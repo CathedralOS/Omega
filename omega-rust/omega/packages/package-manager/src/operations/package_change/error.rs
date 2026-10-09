@@ -4,7 +4,7 @@ use crate::review::{CompileResolvedPackageReviewsError, PackagePolicyChangeError
 use std::fmt;
 
 #[derive(Debug)]
-pub enum PackageChangeError {
+pub(crate) enum PackageChangeError {
     CompilerIdentity(String),
     Compilation(CompileResolvedPackageReviewsError),
     Comparison(PackagePolicyChangeError),

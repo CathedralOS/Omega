@@ -3,7 +3,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DependencyProjectionError {
+pub(crate) enum DependencyProjectionError {
     MissingBuildFile { path: PathBuf },
     ReadBuildFile { path: PathBuf, message: String },
     InvalidBuildFileEncoding { path: PathBuf },

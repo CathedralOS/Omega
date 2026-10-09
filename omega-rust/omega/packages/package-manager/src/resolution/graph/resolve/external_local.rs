@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// Resolve an external-local package closure beneath private resolver storage.
-pub fn resolve_external_local_package_closure(
+pub(crate) fn resolve_external_local_package_closure(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
     storage: &SourceResolver,
@@ -44,7 +44,7 @@ pub fn resolve_external_local_package_closure(
 /// still required to be a package. The Git policy in `options` applies to
 /// every dependency, including requests first discovered in transitive
 /// sources; accepted pins must belong to this exact root request.
-pub fn resolve_external_local_project_closure(
+pub(crate) fn resolve_external_local_project_closure(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
     storage: &SourceResolver,
@@ -69,7 +69,7 @@ pub fn resolve_external_local_project_closure(
 /// `options` carries the invocation-wide Git selection policy; accepted pins
 /// (an install or selective update preserving unchanged accepted Git
 /// requests) must belong to the original live root request and context.
-pub fn resolve_staged_external_local_project_closure(
+pub(crate) fn resolve_staged_external_local_project_closure(
     stage: &StagedLocalSnapshot,
     source_context: ExternalSourceContext,
     storage: &SourceResolver,

@@ -161,7 +161,7 @@ pub struct CheckedProjectTargetOutcome {
 /// uses the retained result after staging disposal without another build run.
 /// This is the per-target route of [`check_prepared_local_project_for_targets`]
 /// for one target, staging directly into `build_dir`.
-pub fn check_prepared_local_project(
+pub(crate) fn check_prepared_local_project(
     request: PreparedLocalProjectCheckRequest,
 ) -> Result<CompileReport, CheckPreparedLocalProjectError> {
     let PreparedLocalProjectCheckRequest {
