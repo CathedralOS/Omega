@@ -135,7 +135,7 @@ impl TargetEntryStackGuarantee {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TargetSemanticObservationError {
+pub struct TargetSemanticObservationError {
     projection: &'static str,
     subject: &'static str,
     selected_profile: TargetProfile,
