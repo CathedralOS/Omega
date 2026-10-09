@@ -16,5 +16,6 @@ pub(super) fn build_carry_facts(program: &dyn ::validation::CheckingInput) -> Ca
         suspension_crossings: Vec::new(),
         activation_wide_carry: Vec::new(),
         claim_policies: Vec::new(),
+        suspension_loans: arena::Arena::new(),
     }
 }

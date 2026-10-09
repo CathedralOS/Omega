@@ -8,6 +8,8 @@
 //!   primitive, a shared reference, or a data type that declares the property.
 //! - `carry(...)`: the authored four-axis floor may not be more permissive
 //!   than the policy derived from every stored field.
+//!   Effective value policies also keep that declaration's stricter floor;
+//!   portable fields cannot erase it during named/generic composition.
 //!   The same walk retains borrowed-storage requirements independently:
 //!   qualifying a descriptor's carry cannot prove its referent's preservation.
 //!

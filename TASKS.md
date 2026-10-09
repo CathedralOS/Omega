@@ -5229,7 +5229,13 @@ wait for Cathedral's instruction coverage. The interpreter is
     join in stage 04 `checks/carry.rs`, its activation envelope and stage 05
     `retention/suspension_call_plan.rs`. The
     [local-loan reproduction](tests/omega/pass/concurrency/boundary_suspension_inline_completion_exit/README.md#retained-loan-implementation-frontier)
-    first rejects the live reference's strict type policy. The canonical frontier
+    first rejects the live reference's strict type policy. Checked crossings
+    retain exact call-entry loan occurrences, parent/supplier dependency closure,
+    captured operands and logical backing coordinates. Continuation-live loans
+    retain backing demands to a fixed point; descriptor replacement keeps only
+    current occurrences. Incoming referents remain a separate namespace from
+    descriptor slots. Keep `fail/concurrency/suspend_with_indirect_resource_backing`
+    for resource floors and indirect backing. The canonical Terminal frontier
     retains current structural access but no loan lineage/lifetime relation;
     activation-wide analysis separately treats borrow formation as strict.
     Descriptor `Carry::AcrossSuspend` permission cannot substitute for that

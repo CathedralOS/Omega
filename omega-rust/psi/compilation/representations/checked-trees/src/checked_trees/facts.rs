@@ -64,7 +64,8 @@ pub use calls::{
 };
 pub use carry::{
     CarryFacts, ClaimCarryPolicyFact, DataCarryFact, MachineActivationCarryFact,
-    SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact, SuspensionCrossingStorage,
+    SuspensionCrossingBorrowFrontier, SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact,
+    SuspensionCrossingLoanBacking, SuspensionCrossingLoanFact, SuspensionCrossingStorage,
     SuspensionCrossingValueOrigin, canonical_suspension_crossing_id,
 };
 pub use checked_crash_operator_site::{CheckedCrashOperatorSite, OperatorSiteLocation};

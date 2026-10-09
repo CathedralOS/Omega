@@ -38,8 +38,14 @@ parent lineage and last use; these are not physical backing or pinning evidence.
 The canonical suspension frontier retains the complete current structural
 operand, including owned/shared/mutable/write-only access, in its wire bytes
 and frontier commitment. That access describes the existing binding; it is
-not proof of loan backing or pinning. The checked suspension frontier still
-records no loan relation, and activation-wide analysis in stage 04 assigns
+not proof of loan backing or pinning. The checked suspension frontier now
+retains exact call-entry loan occurrences, their parent/supplier dependency
+closure, logical backing coordinates and captured operand facts. A live loan
+retains its backing's independent carry demand, including backing reached
+through another carrier; replaced occurrences do not revive old backing.
+Incoming referents stay distinct from the parameter slots holding descriptors.
+These checked demands are not yet a preservation proof or a canonical Terminal
+loan graph. Activation-wide analysis in stage 04 still assigns
 every borrow formation a strict CPU/thread contribution. Carry the loan
 lineage and lifetime obligations into the canonical frontier and activation
 envelope before relaxing admission; runtime backing, preservation and
@@ -48,3 +54,6 @@ cancellation joins remain separate requirements.
 `fail/concurrency/suspend_reference_permission_without_backing` also refuses
 descriptor carry permissions that would otherwise bypass this missing join,
 including a generic carrier, a slice and an argument used only by the call.
+`fail/concurrency/suspend_with_indirect_resource_backing` pins the independent
+resource demand, current replacement and nested backing retention. Portable
+fields do not erase an explicitly stricter data carry floor.

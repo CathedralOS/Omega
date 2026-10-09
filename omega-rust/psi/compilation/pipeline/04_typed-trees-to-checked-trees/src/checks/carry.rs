@@ -1,9 +1,44 @@
+//! Suspension demands from live values and their actual loan backing.
+//!
+//! Flow owns the invocation epoch and current loan roster. Retain its graph,
+//! then close continuation liveness over backing dependencies before weighing
+//! type floors and resource permissions. Parameters and locals share one
+//! source-coordinate table, independent of lowering's sparse operand lanes.
+//! Logical backing demands are not preservation proofs: until the lifetime,
+//! access, canonical Terminal and runtime joins exist, carry qualification
+//! cannot discharge the borrowed-storage admission fence.
+
 use diagnostics::Diagnostic;
 use facts::QualificationEvidence;
 use language_semantics::{CarryPolicy, CarrySuspension};
 
 mod activation;
 mod intra_statement;
+mod loans;
+
+/// One source environment coordinate, prepared once per state. Both direct
+/// liveness and loan backing use this same namespace; neither reconstructs a
+/// local from its name or from a sparse scalar/structural operand lane.
+struct StateCarryValue<'program> {
+    symbol: symbols::SymbolHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    name: &'program str,
+    storage: checked_trees::SuspensionCrossingStorage,
+    origin: checked_trees::SuspensionCrossingValueOrigin,
+}
+
+impl StateCarryValue<'_> {
+    fn available_before(&self, statement_index: usize) -> bool {
+        match self.origin {
+            checked_trees::SuspensionCrossingValueOrigin::Parameter { .. } => true,
+            checked_trees::SuspensionCrossingValueOrigin::Local {
+                statement_index: definition_index,
+                ..
+            } => definition_index < statement_index,
+            checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => false,
+        }
+    }
+}
 
 struct ClaimCarryContext<'facts> {
     semantic: &'facts facts::FactPlan,
@@ -223,6 +258,7 @@ pub(super) fn check_suspension_carry(
     facts.carry.activation_wide_carry = activation_wide_carry;
     let mut diagnostics = Vec::new();
     let mut suspension_crossings = Vec::new();
+    let mut suspension_loans = arena::Arena::new();
 
     for state_borrows in facts.borrow.states.iter().map(|(_, state)| state) {
         let Some(machine) = program.machine_by_symbol(state_borrows.machine_symbol) else {
@@ -231,6 +267,7 @@ pub(super) fn check_suspension_carry(
         let Some(state) = program.state_in_machine(machine, state_borrows.state_symbol) else {
             continue;
         };
+        let source_values = state_carry_values(program, state);
         let Some(state_flow) = facts
             .flow
             .control
@@ -273,6 +310,21 @@ pub(super) fn check_suspension_carry(
                 call.call_ordinal,
             );
             let mut crossing = CrossingAccumulator::default();
+            let borrows = match loans::retain_call_frontier(
+                program,
+                &facts.borrow,
+                &facts.flow,
+                state_borrows,
+                call_flow,
+                &source_values,
+                &mut suspension_loans,
+            ) {
+                Ok(frontier) => frontier,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
             let claim_carry = ClaimCarryContext {
                 semantic: &facts.semantic,
                 ownership: &facts.flow.ownership,
@@ -300,22 +352,15 @@ pub(super) fn check_suspension_carry(
                 &mut crossing,
                 &mut diagnostics,
             );
-            append_live_parameter_diagnostics(
+            append_live_value_diagnostics(
                 program,
                 machine,
                 state,
                 call,
                 call_site.as_ref(),
-                &claim_carry,
-                &mut crossing,
-                &mut diagnostics,
-            );
-            append_live_local_diagnostics(
-                program,
-                machine,
-                state,
-                call,
-                call_site.as_ref(),
+                &source_values,
+                &facts.borrow,
+                suspension_loans.span_mut_or_empty(borrows.loans),
                 &claim_carry,
                 &mut crossing,
                 &mut diagnostics,
@@ -328,11 +373,13 @@ pub(super) fn check_suspension_carry(
                 target: call.target_symbol,
                 effective: crossing.effective,
                 live_values: crossing.live_values,
+                borrows,
             });
         }
     }
 
     facts.carry.suspension_crossings = suspension_crossings;
+    facts.carry.suspension_loans = suspension_loans;
 
     if diagnostics.is_empty() {
         Ok(())
@@ -451,108 +498,100 @@ fn append_call_carried_argument_diagnostics(
     }
 }
 
-fn append_live_parameter_diagnostics(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+fn state_carry_values<'program>(
+    program: &'program dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
-    call: &checked_trees::BorrowCallFact,
-    call_site: Option<&validation::CallSite<'_>>,
-    claim_carry: &ClaimCarryContext<'_>,
-    crossing: &mut CrossingAccumulator,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
-        if !crate::borrow::place_is_used_after_statement(
-            program,
-            state.statement_nodes,
-            call.statement_index,
-            parameter.symbol,
-            parameter.name.as_str(),
-        ) && !call_site.is_some_and(|call_site| {
-            intra_statement::place_is_used_after_call(
-                program,
-                state,
-                call.statement_index,
-                call_site,
-                parameter.symbol,
-                parameter.name.as_str(),
-            )
-        }) {
-            continue;
-        }
-        append_if_suspension_forbidden(
-            program,
-            machine,
-            parameter.type_reference,
-            parameter.name.as_str(),
-            call,
-            claim_carry,
-            checked_trees::SuspensionCrossingStorage::Parameter,
-            checked_trees::SuspensionCrossingValueOrigin::Parameter {
+) -> Vec<StateCarryValue<'program>> {
+    let parameters = program.state_parameters(state);
+    let mut values = parameters
+        .iter()
+        .enumerate()
+        .map(|(position, parameter)| StateCarryValue {
+            symbol: parameter.symbol,
+            type_reference: parameter.type_reference,
+            name: parameter.name.as_str(),
+            storage: checked_trees::SuspensionCrossingStorage::Parameter,
+            origin: checked_trees::SuspensionCrossingValueOrigin::Parameter {
                 symbol: parameter.symbol,
                 position,
             },
-            crossing,
-            diagnostics,
-        );
+        })
+        .collect::<Vec<_>>();
+    let mut local_position = 0;
+    for (statement_index, statement) in program
+        .statement_table
+        .indexed_statements(state.statement_nodes)
+    {
+        let Some(local) = statement.as_local_data() else {
+            continue;
+        };
+        values.push(StateCarryValue {
+            symbol: local.symbol,
+            type_reference: local.type_reference,
+            name: local.name.as_str(),
+            storage: checked_trees::SuspensionCrossingStorage::Local,
+            origin: checked_trees::SuspensionCrossingValueOrigin::Local {
+                symbol: local.symbol,
+                statement_index,
+                environment_position: parameters.len() + local_position,
+            },
+        });
+        local_position += 1;
     }
+    values
 }
 
-fn append_live_local_diagnostics(
+fn append_live_value_diagnostics(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &checked_trees::BorrowCallFact,
     call_site: Option<&validation::CallSite<'_>>,
+    source_values: &[StateCarryValue<'_>],
+    borrow: &checked_trees::BorrowFacts,
+    frontier_loans: &mut [checked_trees::SuspensionCrossingLoanFact],
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let parameter_count = program.state_parameters(state).iter().count();
-    let mut local_position = 0;
-    for (definition_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
+    let mut live_symbols = Vec::new();
+    for value in source_values
+        .iter()
+        .filter(|value| value.available_before(call.statement_index))
     {
-        if definition_index >= call.statement_index {
-            break;
-        }
-        let Some(local) = statement.as_local_data() else {
-            continue;
-        };
-        let position = local_position;
-        local_position += 1;
-        if !crate::borrow::place_is_used_after_statement(
+        if crate::borrow::place_is_used_after_statement(
             program,
             state.statement_nodes,
             call.statement_index,
-            local.symbol,
-            local.name.as_str(),
-        ) && !call_site.is_some_and(|call_site| {
+            value.symbol,
+            value.name,
+        ) || call_site.is_some_and(|call_site| {
             intra_statement::place_is_used_after_call(
                 program,
                 state,
                 call.statement_index,
                 call_site,
-                local.symbol,
-                local.name.as_str(),
+                value.symbol,
+                value.name,
             )
         }) {
+            live_symbols.push(value.symbol);
+        }
+    }
+    loans::retain_backing_values(borrow, frontier_loans, &mut live_symbols);
+    for value in source_values {
+        if !value.available_before(call.statement_index) || !live_symbols.contains(&value.symbol) {
             continue;
         }
         append_if_suspension_forbidden(
             program,
             machine,
-            local.type_reference,
-            local.name.as_str(),
+            value.type_reference,
+            value.name,
             call,
             claim_carry,
-            checked_trees::SuspensionCrossingStorage::Local,
-            checked_trees::SuspensionCrossingValueOrigin::Local {
-                symbol: local.symbol,
-                statement_index: definition_index,
-                environment_position: parameter_count + position,
-            },
+            value.storage,
+            value.origin,
             crossing,
             diagnostics,
         );

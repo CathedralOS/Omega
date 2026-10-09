@@ -3,6 +3,7 @@
 //! shape so later liveness, runtime-admission, artifact, and model-export
 //! passes never need to reinterpret source syntax.
 
+use arena::{Arena, Handle, HandleSpan};
 use language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use std::borrow::Cow;
 use symbols::SymbolHandle;
@@ -25,6 +26,9 @@ pub struct CarryFacts {
     /// This is independent of the carrier's structural policy and survives
     /// path-indexed n-ary transformations through the ownership outcome map.
     pub claim_policies: Vec<ClaimCarryPolicyFact>,
+    /// Current call-entry loans and the occurrences supplying or parenting
+    /// them. These are preservation demands, not runtime backing receipts.
+    pub suspension_loans: Arena<SuspensionCrossingLoanFact>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +68,50 @@ pub struct SuspensionCrossingCarryFact {
     pub target: SymbolHandle,
     pub effective: CarryPolicy,
     pub live_values: Vec<SuspensionCrossingLiveValueFact>,
+    pub borrows: SuspensionCrossingBorrowFrontier,
+}
+
+/// The borrow observations already produced for this invocation. Captured
+/// actuals include their constructed children and evaluation epochs; keeping
+/// that span avoids re-reading an argument after a later operand mutates it.
+/// Empty loans do not establish that an incoming or unresolved carrier is
+/// borrow-free. Admission still needs the independent lifetime/access join.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SuspensionCrossingBorrowFrontier {
+    pub loans: HandleSpan<SuspensionCrossingLoanFact>,
+    pub operands: HandleSpan<crate::FlowOperandFact>,
+}
+
+/// One exact occurrence in a crossing's loan dependency closure. The loan row
+/// owns its access, captured referent, carrier path, parent and supplying-loan
+/// identities. A supplying loan transports custody; it is not a reborrow
+/// parent. Neither edge is inferred from matching storage or source labels.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SuspensionCrossingLoanFact {
+    pub loan: Handle<crate::BorrowLoanFact>,
+    /// False for a dependency retained solely by a current descendant. This
+    /// does not reactivate an expired/replaced descriptor or restore access.
+    pub active_at_call: bool,
+    /// Selected by a continuation-live carrier or its dependency closure.
+    /// Call-only actuals have their separate captured operand frontier.
+    pub retained_for_continuation: bool,
+    pub backing: SuspensionCrossingLoanBacking,
+}
+
+/// Logical backing identity, kept separate from the descriptor containing a
+/// loan. An incoming reference's opaque referent cannot become the parameter
+/// slot merely because they have the same root symbol. Stack provisioning and
+/// physical address stability remain runtime obligations, not these coordinates.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SuspensionCrossingLoanBacking {
+    #[default]
+    Unresolved,
+    StateValue {
+        origin: SuspensionCrossingValueOrigin,
+    },
+    IncomingReferent {
+        identity: Handle<crate::IncomingReferenceIdentity>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

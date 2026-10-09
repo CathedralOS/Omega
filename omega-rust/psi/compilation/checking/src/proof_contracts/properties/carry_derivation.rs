@@ -203,7 +203,14 @@ impl<'program> CarryDerivation<'program> {
         for_each_stored_field(self.program, definition, &mut |field, _| {
             field_types.push(field.type_reference);
         });
-        let mut effective = CarryPolicy::PERMISSIVE;
+        // A declaration may deliberately impose a stricter floor than its
+        // fields. Retain it at every named-data edge, including substitutions
+        // and nested carriers; inspecting portable fields cannot erase the
+        // declared CPU/thread, address or suspension obligation.
+        let mut effective = definition
+            .properties
+            .carry
+            .unwrap_or(CarryPolicy::PERMISSIVE);
         for field_type in field_types {
             effective = effective.intersect(self.derive(field_type));
         }
