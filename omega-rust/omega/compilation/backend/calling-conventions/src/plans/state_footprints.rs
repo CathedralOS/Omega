@@ -4,8 +4,8 @@
 
 use crate::plans::plan_identity::Fnv1a;
 use crate::plans::{
-    BoundaryEntryPlan, EntryControl, MachineRegister, MachineState, MachineStateSet,
-    PlanDiagnostic, RegisterSet,
+EntryControl, MachineRegister, MachineState, MachineStateSet,
+    RegisterSet,
 };
 
 /// Implementation evidence. This is intentionally not a field of
