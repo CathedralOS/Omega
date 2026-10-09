@@ -21,7 +21,6 @@ pub(crate) fn prepare_checked_build(
     typed: &mut typed_trees::TypedTrees,
     pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
     entry: symbols::SymbolHandle,
-    target_machine_declarations: &provider_planning::target_machines::SelectedTargetMachineDeclarations,
     packages: Option<&PackageCompilationInputs>,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
@@ -57,12 +56,12 @@ pub(crate) fn prepare_checked_build(
         &provisional,
         source::DependencyScope::Build,
     );
-    let defaults = target_machine_declarations.retain_provider_defaults(context)?;
-    let declarations = target_machine_declarations.settle_provider_defaults(
+    let defaults = provider_planning::target_machines::retain_provider_defaults(context)?;
+    let declarations = provider_planning::target_machines::settle_provider_defaults(
         context,
         &defaults,
         execution_profile.unwrap_or_else(target::TargetProfile::host),
-    )?;
+    );
     let bindings = provider_planning::evaluated_via_bindings::evaluate_via_bindings(
         context,
         execution_profile,

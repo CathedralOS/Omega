@@ -357,7 +357,7 @@ fn complete_prepared_build(
         mut timings,
     } = prepared;
     let retained_build_check = built.retained_build_check.take();
-    let (typed, target_declarations, pending_pre_checks, computed_build_config, admission) =
+    let (typed, pending_pre_checks, computed_build_config, admission) =
         build_continuation::complete_product_frontend(
             built,
             &mut build_sources,
@@ -366,7 +366,6 @@ fn complete_prepared_build(
         )?;
     Ok(PreparedProductSource {
         typed,
-        target_declarations,
         pending_pre_checks,
         computed_build_config,
         admission,

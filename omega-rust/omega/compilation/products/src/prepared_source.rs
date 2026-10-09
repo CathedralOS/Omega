@@ -19,8 +19,6 @@ use std::sync::{Arc, Mutex};
 pub struct TypedCompilationFrontier {
     pub typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pub pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
-    pub selected_target_machine_declarations:
-        provider_planning::target_machines::SelectedTargetMachineDeclarations,
     pub build_source_id: Option<source::SourceId>,
     pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub source_file_count: usize,

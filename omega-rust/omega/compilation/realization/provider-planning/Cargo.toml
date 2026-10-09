@@ -10,7 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 typed-trees-to-checked-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
-syntax-trees = { path = "../../../../psi/compilation/representations/syntax-trees" }
 checked-interpreter = { path = "../../../../psi/interpreter/checked-interpreter" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
@@ -39,4 +38,3 @@ symbols = { path = "../../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
 validation = { path = "../../../../psi/compilation/checking" }
 sha2 = "0.10.9"
-

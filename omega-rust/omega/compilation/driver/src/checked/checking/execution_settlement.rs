@@ -27,13 +27,12 @@ pub(crate) fn check_selected_execution(
 > {
     let PreparedProductSource {
         mut typed,
-        target_declarations: selected_target_machine_declarations,
         pending_pre_checks,
         computed_build_config,
         mut admission,
         ..
     } = source;
-    admission.provider_defaults = selected_target_machine_declarations.retain_provider_defaults(
+    admission.provider_defaults = provider_planning::target_machines::retain_provider_defaults(
         provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
     )?;
     let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
@@ -61,11 +60,11 @@ pub(crate) fn check_selected_execution(
         &boundary_calling_plan_realizations,
         package_inputs,
     )?;
-    let settled_target_machines = selected_target_machine_declarations.settle_provider_defaults(
+    let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
         provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
         &admission.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-    )?;
+    );
     let provider_planning::CheckedProviderSelection {
         settlement: mut providers,
         selected_provider_plan_facts,

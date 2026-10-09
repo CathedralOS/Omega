@@ -15,6 +15,7 @@ pub(crate) mod declaration_selection;
 pub(crate) mod generic_data;
 pub(crate) mod machine_equations;
 pub(crate) mod module_normalization;
+mod target_families;
 pub(crate) mod trait_defaults;
 pub(crate) mod type_equations;
 
@@ -44,6 +45,7 @@ pub(crate) fn prepare(
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     constants: crate::resolution::lowerer::ConstResolutionMode,
 ) -> Result<Prepared, Vec<Diagnostic>> {
+    target_families::normalize(&mut syntax, sources.as_deref())?;
     let constant_selection =
         declaration_selection::ConstantSelection::new(&syntax, sources, top_level_bindings)?;
     // Initializer-selection probes can arrive before generic synthesis. Their

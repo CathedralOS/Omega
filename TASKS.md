@@ -2091,7 +2091,7 @@ crash and native exit behavior.
     `checked/checking/execution_settlement.rs` still plans providers before
     checking and Terminal production; target-layout source folding is removed,
     with portable layout-query execution tracked by **TARGET-SEMANTIC-APPLICATIONS**;
-    `realization/provider-planning` depends on syntax/typed/checked trees,
+    `realization/provider-planning` still depends on typed/checked trees,
     stage 04, validation and the checked interpreter; Omega stage 00 consumes
     checked entry and source-shaped callback ABI/resource placements beside the
     canonical artifact; stage 05 selects shape-specific routes. Callback body

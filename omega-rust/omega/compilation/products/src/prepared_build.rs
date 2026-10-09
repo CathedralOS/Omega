@@ -16,8 +16,6 @@ pub struct BuiltTypedProgram {
     pub typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pub pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     pub base_sources: Arc<source::SourceMap>,
-    pub selected_target_machine_declarations:
-        provider_planning::target_machines::SelectedTargetMachineDeclarations,
     pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
@@ -41,7 +39,6 @@ pub struct PreparedBuild {
 #[derive(Clone)]
 pub struct PreparedProductSource {
     pub typed: typed_trees::TypedTrees,
-    pub target_declarations: provider_planning::target_machines::SelectedTargetMachineDeclarations,
     pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,

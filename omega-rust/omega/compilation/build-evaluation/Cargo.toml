@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 typed-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03b_typed-trees-to-typed-trees" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 artifacts = { path = "../../foundation/artifacts" }

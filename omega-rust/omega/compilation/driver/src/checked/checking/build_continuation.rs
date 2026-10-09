@@ -40,7 +40,6 @@ pub(crate) fn evaluate_build_and_continue(
     let TypedCompilationFrontier {
         mut typing,
         pending_bodies,
-        selected_target_machine_declarations,
         build_source_id,
         mut pending_pre_checks,
         source_file_count,
@@ -59,7 +58,6 @@ pub(crate) fn evaluate_build_and_continue(
             root_path,
             typed: typing.typed_mut(),
             pre_checks: &mut pending_pre_checks,
-            target_machine_declarations: &selected_target_machine_declarations,
             build_source_id,
             sources: &base_sources,
             package_inputs,
@@ -96,7 +94,6 @@ pub(crate) fn evaluate_build_and_continue(
             typing,
             pending_bodies,
             base_sources,
-            selected_target_machine_declarations,
             pending_pre_checks,
             computed_build_config,
             admission,
@@ -132,15 +129,11 @@ pub(super) fn lower_typed_frontier(
             execution.target_name(),
         ))]);
     }
-    let selected_target_machine_declarations =
-        provider_planning::target_machines::prepare_target_machines(
-            &mut syntax.syntax_trees,
-            Some(&syntax.sources),
-            Some(provider_planning::target_machines::BuildTargetScope {
-                execution,
-                sources: &build_scope_sources,
-            }),
-        )?;
+    build_evaluation::select_build_helpers(
+        &mut syntax.syntax_trees,
+        execution,
+        &build_scope_sources,
+    );
     let evaluated = build_time_evaluation::evaluate_pre_resolution(
         build_time_evaluation::BuildTimeEvaluationRequest {
             syntax_trees: syntax.syntax_trees,
@@ -157,8 +150,6 @@ pub(super) fn lower_typed_frontier(
     )?;
     let (syntax_trees, pre_check) = evaluated.into_syntax_and_pre_check();
     syntax.syntax_trees = syntax_trees;
-    selected_target_machine_declarations
-        .release_provider_default_declarations(&mut syntax.syntax_trees);
     let build_source_id = syntax.build_source_id;
     let mut pending_bodies = timings.record(
         artifacts::compile_timings::SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
@@ -210,12 +201,6 @@ pub(super) fn lower_typed_frontier(
             .map_err(|diagnostic| vec![diagnostic])
         },
     )?;
-    selected_target_machine_declarations.admit_provider_default_calls(
-        provider_planning::ProviderPlanningContext::new(
-            typing_base.typed(),
-            source::DependencyScope::Build,
-        ),
-    )?;
     // Build selects its work from this declaration frontier and settles that
     // work in the retained arenas. Product implementations are still pending;
     // evaluating the whole continuation here would demand unrelated layouts
@@ -224,7 +209,6 @@ pub(super) fn lower_typed_frontier(
     Ok(TypedCompilationFrontier {
         typing: typing_base,
         pending_bodies,
-        selected_target_machine_declarations,
         build_source_id,
         pending_pre_checks,
         source_file_count,
@@ -245,7 +229,6 @@ pub(super) fn complete_product_frontend(
 ) -> Result<
     (
         typed_trees::TypedTrees,
-        provider_planning::target_machines::SelectedTargetMachineDeclarations,
         Vec<build_time_evaluation::PreCheckEvaluation>,
         Arc<compilation_products::ComputedBuildConfig>,
         BuildAdmission,
@@ -257,7 +240,6 @@ pub(super) fn complete_product_frontend(
         mut typing,
         pending_bodies,
         base_sources,
-        mut selected_target_machine_declarations,
         pending_pre_checks,
         computed_build_config,
         admission,
@@ -299,51 +281,25 @@ pub(super) fn complete_product_frontend(
         package_inputs,
         &computed_build_config.generated_sources,
     )? {
-        let (typed, declarations, checks) = continue_generated_sources(
-            typing,
-            &base_sources,
-            extension,
-            selected_target_machine_declarations,
-            package_inputs,
-            timings,
-        )?;
-        selected_target_machine_declarations = declarations;
+        let (typed, checks) =
+            continue_generated_sources(typing, &base_sources, extension, package_inputs, timings)?;
         pending_pre_checks.extend(checks);
         typed
     } else {
         typing.into_typed()
     };
-    // Product implementations have only just become available. Admit their
-    // calls here even when Build emitted no generated-source extension.
-    for scope in [
-        source::DependencyScope::Build,
-        source::DependencyScope::Product,
-    ] {
-        selected_target_machine_declarations.admit_provider_default_calls(
-            provider_planning::ProviderPlanningContext::new(&typed, scope),
-        )?;
-    }
-    Ok((
-        typed,
-        selected_target_machine_declarations,
-        pending_pre_checks,
-        computed_build_config,
-        admission,
-    ))
+    Ok((typed, pending_pre_checks, computed_build_config, admission))
 }
 
 fn continue_generated_sources(
     mut base: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     base_sources: &Arc<source::SourceMap>,
     extension: package_compilation::source_imports::GeneratedSourceExtension,
-    selected_target_machine_declarations:
-        provider_planning::target_machines::SelectedTargetMachineDeclarations,
     package_inputs: &PackageCompilationInputs,
     timings: &mut CompileTimings,
 ) -> Result<
     (
         typed_trees::TypedTrees,
-        provider_planning::target_machines::SelectedTargetMachineDeclarations,
         Vec<build_time_evaluation::PreCheckEvaluation>,
     ),
     Vec<Diagnostic>,
@@ -351,7 +307,7 @@ fn continue_generated_sources(
     let (sources, units) = extension.parse(base_sources, timings)?;
     let wire_schema_frontier = base.typed().wire_schemas().len();
     let resolved_base = base.resolved_base_for_extension()?;
-    let (mut extension_syntax, pre_checks) =
+    let (extension_syntax, pre_checks) =
         build_time_evaluation::PreResolutionEvaluation::evaluate_extension(
             units,
             source::SourceId(base_sources.len()),
@@ -362,8 +318,6 @@ fn continue_generated_sources(
                 retained_base: Some(&resolved_base),
             },
         )?;
-    let selected_target_machine_declarations = selected_target_machine_declarations
-        .filter_generated_extension(&mut extension_syntax, Some(&sources))?;
     let seeded = timings.record(
         artifacts::compile_timings::SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
         || {
@@ -387,9 +341,5 @@ fn continue_generated_sources(
             wire_schema_frontier,
             &mut typed,
         )?;
-    Ok((
-        typed,
-        selected_target_machine_declarations,
-        pending_pre_checks,
-    ))
+    Ok((typed, pending_pre_checks))
 }

@@ -140,9 +140,7 @@ fn retain_attached_data_type_reference(lowerer: &mut Lowerer, symbol: symbols::S
     {
         return;
     }
-    let Some(owner) = lowerer
-        .source_trees.data_definition_by_symbol(symbol)
-    else {
+    let Some(owner) = lowerer.source_trees.data_definition_by_symbol(symbol) else {
         return;
     };
     if !owner.type_parameters.is_empty() {
@@ -190,6 +188,10 @@ fn lower_machine_contents(
         purpose: typed::machine::MachinePurpose::Runtime,
         target: machine
             .target
+            .as_ref()
+            .map(crate::lowerer::name::lower_name),
+        authored_target: machine
+            .authored_target
             .as_ref()
             .map(crate::lowerer::name::lower_name),
         body_is_present: machine.body_is_present,

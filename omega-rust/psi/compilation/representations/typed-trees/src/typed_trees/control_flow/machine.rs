@@ -14,12 +14,7 @@ impl crate::TypedTrees {
         &'program self,
         machine: &'program Machine,
     ) -> Option<&'program str> {
-        self.target_machine_families
-            .iter()
-            .flat_map(|family| &family.members)
-            .find(|member| member.machine == machine.symbol)
-            .map(|member| member.target.as_str())
-            .or_else(|| machine.target.as_ref().map(|target| target.as_str()))
+        machine.authored_target.as_ref().map(Identifier::as_str)
     }
 }
 
@@ -71,6 +66,9 @@ pub struct Machine {
     /// is checked here and retained through product lowering; `None` for the selected
     /// declaration and every ordinary machine.
     pub target: Option<Identifier>,
+    /// Authored target identity, independent of canonical family naming or
+    /// Build execution selection. Consumers never reconstruct it from names.
+    pub authored_target: Option<Identifier>,
     /// Exact source-body presence copied from symbol-resolved trees. Boundary
     /// supply can be either bodyless or a checked adapter.
     pub body_is_present: bool,
@@ -190,6 +188,7 @@ impl Default for Machine {
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
             purpose: MachinePurpose::Runtime,
             target: None,
+            authored_target: None,
             body_is_present: true,
             body_status: MachineBodyStatus::Complete,
             structural_type_equations_pending: false,

@@ -203,6 +203,12 @@ This product owner consumes artifact and custody owners without depending
 on compiler orchestration or build evaluation. It is an output lifecycle, not a
 new program representation or pipeline phase. The CLI publishes through it directly.
 
+Product target families form during ordinary Psi resolution, including generated
+source extensions. Typed machines retain their authored target independently of
+canonical naming. Build helpers select their separately admitted execution target;
+provider planning consumes typed identities, not a parallel source-name roster
+carried through compilation. A canonical body is not a portable family contract.
+
 `omega/compilation/driver/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
 owns the source-free Terminal-to-image sequence. Its entry is

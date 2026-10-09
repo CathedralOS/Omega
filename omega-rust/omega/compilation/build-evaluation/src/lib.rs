@@ -69,8 +69,9 @@
 //! admission, initial facet construction and evaluated settings, including
 //! exact optimization selection. The compiler retains those settings directly
 //! beside the independently checked selection receipts. Provider planning
-//! including target declarations, selection decoding and settlement belongs to
-//! the independent `provider-planning` realization owner.
+//! including selection decoding and settlement belongs to the independent
+//! `provider-planning` realization owner. This crate selects Build helpers for
+//! the admitted execution target before ordinary Psi resolution.
 
 mod admission;
 mod admitted_build_program;
@@ -78,6 +79,7 @@ mod build_evaluation;
 mod completed_pure_build;
 mod execution;
 
+pub use admission::target_helpers::select_build_helpers;
 use admitted_build_program::{AdmittedBuildProgram, admit_build_program};
 pub use artifacts::compile_timings::counters::preliminary_check_totals;
 pub use build_evaluation::{
