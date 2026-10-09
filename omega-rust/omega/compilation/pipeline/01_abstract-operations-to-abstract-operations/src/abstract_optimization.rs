@@ -50,11 +50,7 @@ pub enum AbstractOptimizationError {
     EmptySelectionChangedPlan,
 }
 
-impl std::fmt::Display for AbstractOptimizationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "abstract optimization failed: {self:?}")
-    }
-}
+failed_display!(AbstractOptimizationError, "abstract optimization failed");
 
 impl std::error::Error for AbstractOptimizationError {}
 

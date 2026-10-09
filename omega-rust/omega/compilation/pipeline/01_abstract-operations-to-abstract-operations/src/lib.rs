@@ -17,9 +17,20 @@
 //! the loop analyses it consumes stay available to scheduled steps and to
 //! harnesses through `test_support`, which names what the
 //! `psi_optimization_allocations` example drives directly.
-mod codec_bytes;
+/// `Display` for the crate's `<context> failed: {self:?}` error convention.
+macro_rules! failed_display {
+    ($type:ty, $message:literal) => {
+        impl std::fmt::Display for $type {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, concat!($message, ": {:?}"), self)
+            }
+        }
+    };
+}
+
 mod abstract_optimization;
 mod analyses;
+mod codec_bytes;
 mod field_value_specialization;
 mod pass_manager;
 mod publication;

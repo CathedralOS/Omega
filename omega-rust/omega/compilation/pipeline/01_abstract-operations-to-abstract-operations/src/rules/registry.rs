@@ -20,7 +20,6 @@ pub(crate) struct RuleAnalysisView<'a> {
 
 #[derive(Debug, Clone, Copy)]
 enum RuleAnalysisProducts<'a> {
-
     Cache {
         products: &'a BTreeMap<AnalysisKind, AnalysisProduct>,
         requested: AnalysisSet,
@@ -28,8 +27,6 @@ enum RuleAnalysisProducts<'a> {
 }
 
 impl<'a> RuleAnalysisView<'a> {
-
-
     pub(crate) const fn from_cache(
         products: &'a BTreeMap<AnalysisKind, AnalysisProduct>,
         requested: AnalysisSet,
@@ -44,7 +41,6 @@ impl<'a> RuleAnalysisView<'a> {
 
     pub fn get(self, kind: AnalysisKind) -> Option<&'a AnalysisProduct> {
         match self.products {
-
             RuleAnalysisProducts::Cache {
                 products,
                 requested,
@@ -89,11 +85,7 @@ pub enum RuleProposalError {
     },
 }
 
-impl std::fmt::Display for RuleProposalError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "Psi optimizer rule proposal failed: {self:?}")
-    }
-}
+failed_display!(RuleProposalError, "Psi optimizer rule proposal failed");
 
 impl std::error::Error for RuleProposalError {}
 
@@ -205,7 +197,6 @@ impl OrderedRuleRegistry {
     pub fn len(&self) -> usize {
         self.rules.len()
     }
-
 
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &dyn PsiOptimizationRule> {
         self.rules.iter().map(Arc::as_ref)

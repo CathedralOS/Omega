@@ -337,17 +337,12 @@ pub enum ExternalDecisionContextAxis {
     CostModel,
 }
 
-impl std::fmt::Display for ExternalDecisionReplayError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "external Psi decision replay failed: {self:?}")
-    }
-}
+failed_display!(
+    ExternalDecisionReplayError,
+    "external Psi decision replay failed"
+);
 
 impl std::error::Error for ExternalDecisionReplayError {}
-impl std::fmt::Display for OptimizationRunError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "Psi optimization run failed: {self:?}")
-    }
-}
+failed_display!(OptimizationRunError, "Psi optimization run failed");
 
 impl std::error::Error for OptimizationRunError {}
