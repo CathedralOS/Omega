@@ -168,7 +168,9 @@ pub fn closed_conformance_application_commitment(
         digest.raw(value.as_bytes());
     }
 
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.psi.terminal.closed-conformance-application.v5\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.psi.terminal.closed-conformance-application.v5\0",
+    );
     push(&mut digest, &application.declaration_identity);
     push(&mut digest, &application.trait_identity);
     digest.u64(application.trait_lifetime_arguments.len() as u64);

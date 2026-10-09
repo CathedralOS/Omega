@@ -15,8 +15,6 @@
 //! records and their checked kernel signature for typed preparation. Its
 //! result feeds checked-fact assembly without a dependency on a pipeline stage.
 
-mod codec_bytes;
-
 pub mod boundary;
 pub mod checker;
 pub mod derivation_store;

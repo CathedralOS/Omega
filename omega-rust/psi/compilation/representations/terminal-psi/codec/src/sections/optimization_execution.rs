@@ -170,7 +170,10 @@ fn execution_identity(
     PsiOptimizationExecutionIdentity(digest.finish())
 }
 
-fn append_identity_to_digest(digest: &mut crate::digest_encoder::DomainDigestEncoder, identity: TerminalPsiIdentity) {
+fn append_identity_to_digest(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    identity: TerminalPsiIdentity,
+) {
     digest.raw(&identity.vocabulary_marker.get().to_le_bytes());
     digest.raw(identity.program_fingerprint.as_bytes());
 }

@@ -20,7 +20,11 @@ const SOURCE_DIGEST_DOMAIN: &[u8] = b"psi-terminal-debug-source\0";
 
 pub fn source_digest(source: &[u8]) -> DebugSourceDigest {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SOURCE_DIGEST_DOMAIN);
-    digest.raw(&u64::try_from(source.len()) .expect("source bytes fit the debug digest domain") .to_le_bytes(),);
+    digest.raw(
+        &u64::try_from(source.len())
+            .expect("source bytes fit the debug digest domain")
+            .to_le_bytes(),
+    );
     digest.raw(&source);
     DebugSourceDigest::from_bytes(digest.finish())
 }
@@ -266,21 +270,20 @@ fn subject_exists(module: &TerminalModule, subject: DebugSubject) -> bool {
             .iter()
             .flat_map(|machine| &machine.structural_places)
             .any(|place| place.id == id),
-        DebugSubject::Claim { machine, claim } => module.machine(machine)
-            .is_some_and(|machine| {
-                machine
-                    .content_entry_claims
+        DebugSubject::Claim { machine, claim } => module.machine(machine).is_some_and(|machine| {
+            machine
+                .content_entry_claims
+                .iter()
+                .any(|binding| binding.claim == claim)
+                || machine
+                    .content_identity_reshuffles
                     .iter()
-                    .any(|binding| binding.claim == claim)
-                    || machine
-                        .content_identity_reshuffles
-                        .iter()
-                        .any(|reshuffle| reshuffle.claim == claim)
-                    || machine
-                        .content_partition_compositions
-                        .iter()
-                        .any(|composition| composition.input_claims.contains(&claim))
-            }),
+                    .any(|reshuffle| reshuffle.claim == claim)
+                || machine
+                    .content_partition_compositions
+                    .iter()
+                    .any(|composition| composition.input_claims.contains(&claim))
+        }),
     }
 }
 

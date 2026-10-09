@@ -22,10 +22,6 @@ impl DomainDigestEncoder {
         self.0.update([value]);
     }
 
-    pub(crate) fn bool(&mut self, value: bool) {
-        self.byte(u8::from(value));
-    }
-
     pub(crate) fn len(&mut self, value: usize) {
         self.0.update((value as u64).to_le_bytes());
     }
@@ -39,10 +35,6 @@ impl DomainDigestEncoder {
     }
 
     pub(crate) fn u64(&mut self, value: u64) {
-        self.0.update(value.to_le_bytes());
-    }
-
-    pub(crate) fn i64(&mut self, value: i64) {
         self.0.update(value.to_le_bytes());
     }
 
@@ -65,16 +57,6 @@ impl DomainDigestEncoder {
         self.len(values.len());
         for value in values {
             self.string(value);
-        }
-    }
-
-    pub(crate) fn optional_string(&mut self, value: Option<&str>) {
-        match value {
-            Some(value) => {
-                self.byte(1);
-                self.string(value);
-            }
-            None => self.byte(0),
         }
     }
 }
