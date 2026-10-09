@@ -348,19 +348,8 @@ fn take_length_delimited(rest: &mut &str) -> Option<String> {
 mod tests {
     use super::{
         CanonicalConstIdentity, CanonicalConstValue, DecodedCanonicalConstValue, MAX_DECODE_DEPTH,
-        MAX_DECODED_NODES, MAX_ENCODING_BYTES, boolean_literal_spelling,
+        MAX_DECODED_NODES, MAX_ENCODING_BYTES, boolean_literal_spelling, framed,
     };
-
-    fn framed(tag: &str, pieces: impl IntoIterator<Item = impl AsRef<str>>) -> String {
-        let mut encoding = tag.to_owned();
-        for piece in pieces {
-            let piece = piece.as_ref();
-            encoding.push_str(piece.len().to_string().as_str());
-            encoding.push(':');
-            encoding.push_str(piece);
-        }
-        encoding
-    }
 
     fn decode(encoding: impl Into<String>) -> Option<DecodedCanonicalConstValue> {
         CanonicalConstValue::new("ignored outer carrier", encoding, "ignored display")
