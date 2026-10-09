@@ -325,10 +325,23 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             &mut consumed,
         )?;
     }
-    for call in calls
+    // Flow rows retain completion order: nested producers finish before their
+    // enclosing invocation. Ownership discovery instead follows exact source
+    // occurrence preorder, so an enclosing call can claim its operand calls
+    // before they are considered independent statement operations. This does
+    // not schedule execution; retained operand plans keep authored effect order.
+    let mut occurrence_order = calls
         .iter()
         .filter(|call| !scalar_intrinsic(call) && !omitted(call))
-    {
+        .collect::<Vec<_>>();
+    occurrence_order.sort_by_key(|call| (call.statement_index, call.call_ordinal));
+    if occurrence_order.windows(2).any(|pair| {
+        (pair[0].statement_index, pair[0].call_ordinal)
+            == (pair[1].statement_index, pair[1].call_ordinal)
+    }) {
+        return None;
+    }
+    for call in occurrence_order {
         if consumed
             .iter()
             .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), call))
@@ -374,125 +387,74 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 return None;
             }
         }
-        if !facts
-            .values
-            .scalar_computations
-            .roots
-            .iter()
-            .any(|(_, root)| {
-                root.state == state.symbol
-                    && root.statement_ordinal as usize == call.statement_index
-                    && match root.role {
-                        CheckedScalarExpressionRole::BoundaryCallArgument { .. }
-                        | CheckedScalarExpressionRole::UnitCallArgument { .. } => true,
-                        CheckedScalarExpressionRole::SubsliceStart { site }
-                        | CheckedScalarExpressionRole::SubsliceEnd { site } => matches!(site,
-                            checked_trees::CheckedSubsliceSite::CallArgument { call_ordinal, .. }
-                            if call_ordinal as usize == call.call_ordinal),
-                        _ => false,
-                    }
-            })
-        {
-            continue;
+        // The statement still owns its whole result operation. Destination
+        // type and statement position do not decide argument ownership: the
+        // exact call occurrence supplies its own positional operand roster.
+        let result_expression = match statement {
+            StatementNode::LocalData(local) => Some(local.initial_value),
+            StatementNode::Assignment(assignment) => Some(assignment.value),
+            _ => None,
+        };
+        if result_expression.is_some_and(|expression| call.authored_expression != expression) {
+            return None;
         }
-        trace.phase("outer calls: statement shape");
-        trace.statement(u32::try_from(call.statement_index).ok());
-        let (target, arguments) = match statement {
-            StatementNode::Transition(_)
-                if terminal_named_call(program, owner, state, call.statement_index)
-                    == Some(call.target_symbol) =>
-            {
-                let site = validation::find_call_site(
-                    program,
-                    machine,
-                    state.symbol,
-                    call.statement_index,
-                    call.call_ordinal,
-                )?;
-                (
-                    call.target_symbol,
-                    validation::call_site_argument_expressions(program, &site),
-                )
-            }
-            StatementNode::Call(authored) => (
-                authored.target_symbol,
-                program
-                    .statement_table
-                    .expression_handles(authored.arguments),
-            ),
-            StatementNode::Expression(_) => {
-                let (_, authored) =
-                    ordered_statement_call(program, owner, state, call.statement_index)?;
-                (
-                    validation::call_target_symbol(program, authored),
-                    program
-                        .expression_table
-                        .expression_handles(authored.arguments),
-                )
-            }
-            StatementNode::LocalData(local)
-                // Mutability belongs to the destination binding, not to the
-                // initializer's call schedule. Both scalar binding forms
-                // consume the same retained call and evaluated arguments.
-                if program
-                    .primitive_type_reference(local.type_reference)
-                    .is_some()
-                    || (!local.is_mutable && call.statement_index == 0)
-                    || statement_sequence::has_structural_result(
-                        program, facts, owner, statement,
-                    ) =>
-            {
-                if !program
-                    .expression_table
-                    .expression_is_valid(local.initial_value)
-                    || call.authored_expression != local.initial_value
-                {
-                    return None;
-                }
-                let authored = program.expression_table.call_node(local.initial_value)?;
-                (
-                    validation::call_target_symbol(program, authored),
-                    program
-                        .expression_table
-                        .expression_handles(authored.arguments),
-                )
-            }
-            // A store's whole-value call is the statement's result operation;
-            // its computed operands (nested applications) are consumed below
-            // exactly like an initializer's.
-            StatementNode::Assignment(assignment)
-                if call.authored_expression == assignment.value =>
-            {
-                let authored = program.expression_table.call_node(assignment.value)?;
-                (
-                    validation::call_target_symbol(program, authored),
-                    program
-                        .expression_table
-                        .expression_handles(authored.arguments),
-                )
-            }
-            // A machine or state name in a non-completing transition target is
-            // an invocation the edge routes own — a state-graph jump, a
-            // conditional successor, or a guarded arm — not a call the linear
-            // statement sequence emits. Skip it rather than decline: the
-            // terminator's own coverage decides whether the target plans.
-            StatementNode::Transition(transition)
-                if matches!(
-                    program.statement_table.transition_target(transition.target),
-                    typed_trees::statement::TransitionTargetNode::Named { .. }
-                ) =>
-            {
+        // Non-completing named transitions remain selected control edges,
+        // never unconditional calls emitted by this linear sequence.
+        if let StatementNode::Transition(transition) = statement
+            && terminal_named_call(program, owner, state, call.statement_index)
+                != Some(call.target_symbol)
+        {
+            if matches!(
+                program.statement_table.transition_target(transition.target),
+                typed_trees::statement::TransitionTargetNode::Named { .. }
+            ) {
                 continue;
             }
-            _ => {
-                return None;
-            }
-        };
-        trace.phase("outer calls: target agreement");
+            return None;
+        }
+        trace.phase("outer calls: exact call occurrence");
         trace.statement(u32::try_from(call.statement_index).ok());
+        let site = validation::find_call_site_in_state(
+            program,
+            owner,
+            state,
+            call.statement_index,
+            call.call_ordinal,
+        )?;
+        // Occurrence traversal marks every transition target as selected.
+        // The exact terminal named occurrence instead has its control authority
+        // from terminal_named_call: final Always, no preceding transition or
+        // continuation, and an ordinary result matching the enclosing return.
+        // Nested expression calls cannot inherit that completion proof.
+        let terminal_completion = matches!(site, validation::CallSite::TransitionNamed { .. })
+            && terminal_named_call(program, owner, state, call.statement_index)
+                == Some(call.target_symbol);
+        if !terminal_completion {
+            validation::call_is_unconditional(
+                program,
+                machine,
+                state.symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )?;
+        }
+        let target = match &site {
+            validation::CallSite::Expression {
+                expression,
+                call: authored,
+            } => {
+                if *expression != call.authored_expression {
+                    return None;
+                }
+                validation::call_target_symbol(program, authored)
+            }
+            validation::CallSite::Statement(authored) => authored.target_symbol,
+            validation::CallSite::TransitionNamed { path, .. } => path.symbol,
+        };
         if target != call.target_symbol {
             return None;
         }
+        let arguments = validation::call_site_argument_expressions(program, &site);
         trace.phase("outer calls: argument calls");
         trace.statement(u32::try_from(call.statement_index).ok());
         collect_argument_calls(

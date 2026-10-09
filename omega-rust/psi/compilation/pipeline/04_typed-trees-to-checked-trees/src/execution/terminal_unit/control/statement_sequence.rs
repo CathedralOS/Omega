@@ -83,66 +83,6 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
     pub(in crate::execution::terminal_unit) next_scalar_binding: usize,
 }
 
-pub(super) fn has_structural_result(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    statement: &StatementNode,
-) -> bool {
-    let Some(local) = statement.as_local_data() else {
-        return false;
-    };
-    if !local.initial_value.is_valid() {
-        return false;
-    }
-    if facts
-        .values
-        .structural_values
-        .roots
-        .iter()
-        .any(|(_, root)| {
-            root.machine == machine.symbol
-                && root.expression == local.initial_value
-                && root.type_reference == local.type_reference
-        })
-    {
-        return true;
-    }
-    if validation::is_scalar_case_value(program, local.initial_value, local.type_reference) {
-        return !local.is_mutable;
-    }
-    if validation::is_closed_primitive_array_type(program, local.type_reference) {
-        return validation::scalar_array_elements(
-            program,
-            machine.symbol,
-            local.initial_value,
-            local.type_reference,
-        )
-        .is_some()
-            || matches!(
-                program.expression_table.expression(local.initial_value),
-                ExpressionNode::Call(_)
-            );
-    }
-    if !matches!(
-        program.expression_table.expression(local.initial_value),
-        ExpressionNode::Call(_)
-    ) {
-        return false;
-    }
-    // Only the local's own result shape decides sequencing: the call
-    // operation rejoins the callee's actual result (including a routed or
-    // generic callee's specialized one) when it binds this local, and
-    // closure pruning still requires the actual ordinary/composed callee plan.
-    super::checked_structural_result_type(
-        program,
-        &mut ShapeCollector::new(program),
-        local.type_reference,
-        &machine_binders(program, machine),
-    )
-    .is_some()
-}
-
 /// The trace phase for one statement kind in the shared sequence, so an
 /// omission names which statement family stopped local construction.
 fn statement_phase(statement: &StatementNode) -> &'static str {
