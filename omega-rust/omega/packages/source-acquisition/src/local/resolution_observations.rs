@@ -40,7 +40,7 @@ pub use crate::tree::{
 /// snapshot custody, and the final exact-tree rehash. It records successful
 /// source resolution; package review and lock admission remain separate.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LocalSourceResolutionObservation {
+pub struct LocalSourceResolutionObservation {
     pub(super) schema_version: u32,
     pub(super) identity: String,
     pub(super) custody_identity: String,

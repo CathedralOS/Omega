@@ -22,34 +22,24 @@ pub mod storage;
 pub mod tree;
 
 pub use error::SourceResolveError;
-pub(crate) use git::executable::selection::PrimaryGitSelection;
 pub use git::request::{GitSourceRequest, GitSourceRequestError, GitTransportProfile};
-pub(crate) use git::resolution::{resolve_git_source, resolve_git_workspace_member};
 pub use git::workspace::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits,
     GitWorkspaceProjectionError, GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult,
     GitWorkspaceSelection,
 };
-pub(crate) use git::workspace::{ GitWorkspaceProjectionCustody};
 pub use identity::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitObjectIdAlgorithm, GitTransport,
     GitTreeId, IdentityError, ImmutableSourceResolution, SourceContentDigest, SourceLineage,
     SourceRelativePath, WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
-pub(crate) use identity::{ GenericGitLineage,
-    GitHubRepositoryLineage, GitLabRepositoryLineage};
 pub use limits::LocalSourceLimits;
 pub use local::operations::{resolve_local_source};
-pub(crate) use local::operations::{ resolve_local_source_snapshot};
 pub use local::resolution_observations::{ ResolvedLocalSnapshot,
     ResolvedLocalSource,
 };
-pub(crate) use local::resolution_observations::{
-    CapturedLocalSource, LocalSourceResolutionObservation};
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
-pub(crate) use observations::storage::GitRetainedStorageCustody;
 pub use source_resolver::{PrimaryGitChoices, SourceResolver};
-pub(crate) use tree::ResolvedSourceTree;
 
 #[cfg(test)]
 mod test_support;
