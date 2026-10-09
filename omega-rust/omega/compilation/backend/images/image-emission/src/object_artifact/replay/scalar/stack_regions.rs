@@ -535,7 +535,7 @@ mod tests {
             0xcb20_401f,
         ] {
             let mut changed = bytes.clone();
-            changed[4..8].copy_from_slice(&encoded.to_le_bytes());
+            crate::codec_bytes::patch_encoded(&mut changed, 4, encoded.to_le_bytes());
             assert!(
                 matches!(validate_stack(Architecture::Aarch64, machine, &changed, &evidence, &branch), Err(ObjectError::UnsupportedScalarStackMutation { machine: owner, offset: 4 } | ObjectError::UnclaimedScalarStackMutation { machine: owner, offset: 4 }) if owner == machine),
                 "SP replacement {encoded:08x}"
