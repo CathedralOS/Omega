@@ -756,7 +756,7 @@ fn scan_construction_field_domains(
 /// The declared predicate-domain symbols of a constructed field: a case literal's
 /// PAYLOAD field (for the named variant) or a record/common struct field whose
 /// declared type carries one or more predicate-bearing domain constraints.
-/// Mirrors validation `struct_literals::construction_field_type` + domain
+/// `validation::field_domains::construction_field_type` plus domain
 /// extraction.
 fn construction_field_domain_identities(
     program: &dyn ::validation::CheckingInput,
@@ -771,8 +771,12 @@ fn construction_field_domain_identities(
         return Vec::new();
     }
 
-    let Some(field_type) = construction_field_type(program, data_definition, case_name, field_name)
-    else {
+    let Some(field_type) = validation::field_domains::construction_field_type(
+        program,
+        data_definition,
+        case_name,
+        field_name,
+    ) else {
         return Vec::new();
     };
     validation::field_domains::domain_constraint_identities(program, field_type)
@@ -799,38 +803,12 @@ fn construction_field_type_by_symbol(
     if data_definition.type_parameters.count() > 0 {
         return None;
     }
-    construction_field_type(program, data_definition, case_name, field_name)
-}
-
-fn construction_field_type(
-    program: &dyn ::validation::CheckingInput,
-    data_definition: &typed_trees::data::DataDefinition,
-    case_name: Option<&str>,
-    field_name: &str,
-) -> Option<TypeReferenceHandle> {
-    if let Some(case_name) = case_name
-        && let Some(variant) = program
-            .data_members(data_definition)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == case_name =>
-                {
-                    Some(variant)
-                }
-                _ => None,
-            })
-    {
-        for payload_field in program.data_payload_fields(variant) {
-            if payload_field.name.as_str() == field_name {
-                return payload_field
-                    .type_reference
-                    .is_valid()
-                    .then_some(payload_field.type_reference);
-            }
-        }
-    }
-    validation::field_domains::data_field_type_by_name(program, data_definition, field_name)
+    validation::field_domains::construction_field_type(
+        program,
+        data_definition,
+        case_name,
+        field_name,
+    )
 }
 
 /// Retain the successful source judgment, not the field annotation. The walk

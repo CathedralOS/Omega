@@ -495,34 +495,12 @@ pub(crate) fn construction_field_type(
     case_name: Option<&str>,
     field_name: &str,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    if let Some(case_name) = case_name
-        && let Some(variant) = program
-            .data_members(data_definition)
-            .iter()
-            .find_map(|member| match member {
-                DataMember::Variant(variant) if variant.name.as_str() == case_name => Some(variant),
-                _ => None,
-            })
-    {
-        for payload_field in program.data_payload_fields(variant) {
-            if payload_field.name.as_str() == field_name {
-                return payload_field
-                    .type_reference
-                    .is_valid()
-                    .then_some(payload_field.type_reference);
-            }
-        }
-    }
-    program
-        .data_members(data_definition)
-        .iter()
-        .find_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == field_name => field
-                .type_reference
-                .is_valid()
-                .then_some(field.type_reference),
-            _ => None,
-        })
+    crate::value_custody::field_domains::construction_field_type(
+        program,
+        data_definition,
+        case_name,
+        field_name,
+    )
 }
 
 /// Literal children already carry selected field identities. Rejoin their

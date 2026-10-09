@@ -229,6 +229,39 @@ fn self_field_path(
     }
 }
 
+/// The declared type of a constructed field: a case literal's PAYLOAD field
+/// (for the named variant) or a record/common struct field.
+pub fn construction_field_type(
+    program: &dyn crate::CheckingInput,
+    data_definition: &typed_trees::data::DataDefinition,
+    case_name: Option<&str>,
+    field_name: &str,
+) -> Option<TypeReferenceHandle> {
+    if let Some(case_name) = case_name
+        && let Some(variant) = program
+            .data_members(data_definition)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == case_name =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })
+    {
+        for payload_field in program.data_payload_fields(variant) {
+            if payload_field.name.as_str() == field_name {
+                return payload_field
+                    .type_reference
+                    .is_valid()
+                    .then_some(payload_field.type_reference);
+            }
+        }
+    }
+    data_field_type_by_name(program, data_definition, field_name)
+}
+
 pub fn data_field_type_by_name(
     program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
