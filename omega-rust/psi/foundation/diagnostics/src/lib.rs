@@ -59,3 +59,9 @@ macro_rules! string_diagnostic {
         impl std::error::Error for $type {}
     };
 }
+
+/// Single `error`-severity diagnostic with the producing site prefixed, for
+/// call sites that surface exactly one refusal.
+pub fn error_in_context(context: &str, message: impl std::fmt::Display) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(format!("{context}: {message}"))]
+}
