@@ -19,11 +19,15 @@ ensures helpers::predicate(value) {}
 machine generic(value: u8)
 ensures helpers::identity<u8>(value) == value {}
 
+machine typed_result()
+ensures helpers::byte_mask() == helpers::byte_mask() {}
+
 machine main() crashes Trap {
     formed(7u8);
     qualified(9u8);
     returned(13u8);
     generic(17u8);
+    typed_result();
     let observed: u8 = identity(11u8);
     transition observed == 11u8 {
         true -> done()

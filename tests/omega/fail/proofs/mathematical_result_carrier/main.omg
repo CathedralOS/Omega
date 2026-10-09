@@ -1,0 +1,2 @@
+let wrong(): u8 = 256u16;
+machine main() {}

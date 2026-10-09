@@ -5,3 +5,5 @@ pub let reflexive(value: u8): core::Strict<0> = value == value;
 pub let predicate(): u8 -> core::Strict<0> = reflexive();
 
 pub let identity<A: core::Type<0> >(value: A): A = value;
+
+pub let byte_mask(): u8 = ~0u8;
