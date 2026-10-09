@@ -19,13 +19,12 @@ pub(crate) use statistics::text_section_statistics;
 
 #[derive(Clone, Copy)]
 pub(crate) enum TextPlacementInput<'a> {
-    RelocationFree(&'a FunctionFragmentEmissionPlan),
     InternalCalls(&'a FunctionFragmentEmissionPlan),
 }
 impl<'a> TextPlacementInput<'a> {
     fn fragments(self) -> &'a FunctionFragmentEmissionPlan {
         match self {
-            Self::RelocationFree(fragments) | Self::InternalCalls(fragments) => fragments,
+            Self::InternalCalls(fragments) => fragments,
         }
     }
 }
@@ -34,7 +33,6 @@ pub(crate) fn place_fragment_text_section(
 ) -> Result<RelocationFreeTextSectionPlacement, TextPlacementError> {
     source::validate(input)?;
     match input {
-        TextPlacementInput::RelocationFree(fragments) => production::relocation_free(fragments),
         TextPlacementInput::InternalCalls(fragments) => production::fixed_frame(fragments),
     }
 }
