@@ -1798,6 +1798,8 @@ fail/ownership/selected_carrier_partial_refill_contains_consumed_owner rejected 
 fail/ownership/selected_carrier_refill_reads_consumed_source rejected 380ms expected @ee5c54594b4f+wt
 	owned value may have been transferred by an earlier match; it cannot be used here
 	owned value may have been transferred by an earlier match; it cannot be used here
+fail/ownership/selective_constructed_owner_reuse rejected 322ms expected @61ca70507df5
+	cannot use `token.value` in machine `choose` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/ownership/view_element_window_live_borrow rejected 433ms expected @37c6aa84a411+wt
 	statement 1 mutates `tokens[0]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/ownership/view_element_window_missing_repair rejected 365ms expected @37c6aa84a411+wt
@@ -3802,6 +3804,7 @@ pass/ownership/runtime_nested_projected_claim_return_exit checked 1603ms check-t
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 1325ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_repeated_linear_result_forwarding_exit checked 1453ms check-target:macos_arm64 @6605065c28a7
 pass/ownership/runtime_retained_alias_referent_transform_exit checked 1771ms check-target:macos_arm64 @76bbeef8b4d2
+pass/ownership/runtime_selective_constructed_owner_custody_exit checked 3456ms check-target:macos_arm64 @61ca70507df5
 pass/ownership/runtime_view_parameter_element_window_exit checked 1946ms check-target:macos_arm64 @37c6aa84a411+wt
 pass/ownership/runtime_whole_borrowed_transform_exit checked 1786ms check-target:macos_arm64 @50701b2d3809+wt
 pass/ownership/runtime_whole_borrowed_window_crash_exit checked 1781ms check-target:macos_arm64 @7d761e0fef5f

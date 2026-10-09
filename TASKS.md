@@ -726,6 +726,16 @@ defines the complete product bar.
   construction prefixes in
   [reverse establishment order](wiki/spec/language/ownership.md#construction-and-disposal-order).
   Crash/abort/process exit has no cleanup successor. Remaining work:
+  - Complete selected nominal-owner disposition at actual normal completion,
+    retaining each alternative's residual custody until its roots die in
+    reverse declaration order. The checked result-custody path still declines
+    a hook-bearing owner transferred only by a Boolean-selected call; disposing
+    that owner at the selection join would run its hook before newer roots.
+    Preserve `pass/ownership/runtime_selective_constructed_owner_custody_exit`
+    for no-code custody through Boolean selection, branch-only births, generic
+    records and field/indexed replacement before selected whole transfer.
+    Keep `fail/ownership/selective_constructed_owner_reuse` as the conservative
+    source-availability control after a possibly executed transfer.
   - Qualify the ordered normal-edge cleanup plans in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/normal_edges.rs`
     on Windows and Linux, including abandoned construction prefixes and
