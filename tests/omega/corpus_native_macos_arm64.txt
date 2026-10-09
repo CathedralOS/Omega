@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 5.83, "load1_start": 5.55, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 4.47, "load1_start": 3.21, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -74,7 +74,7 @@ pass/atomics/runtime_atomic_fetch_add_exit built 2588ms exit:70 @fb2178def922
 pass/atomics/runtime_case_payload_atomic_events_exit built 15001ms exit:0 @0919e048c9f8+wt
 pass/atomics/runtime_mixed_common_atomic_cell_exit built 2188ms exit:0 @aea569c35b63
 pass/atomics/runtime_nested_case_payload_atomic_event_exit built 14918ms exit:0 @0919e048c9f8+wt
-pass/atomics/runtime_shared_case_waived_atomic_exit built 2630ms exit:70 @dde8f25ea565
+pass/atomics/runtime_shared_case_waived_atomic_exit built 3671ms exit:70 @0c36a0fe0b35
 pass/atomics/shared_receiver_atomic_store built 1028ms exit:70 @e7aa25bff706+wt
 pass/blockexec/blocking_executor_custody_claims_compile built 335ms
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 209ms
@@ -633,8 +633,8 @@ pass/control_flow/runtime_boundary_case_subject_exit built 2694ms exit:70 @02be2
 pass/control_flow/runtime_branch_parameter_cleanup_exit built 4989ms exit:0 @9beb2be72f2d+wt
 pass/control_flow/runtime_branch_transfer_owned_record_exit built 2612ms exit:70 @64c766216f02+wt
 pass/control_flow/runtime_branching_helper_string built 4587ms @4ffed225fc45+wt
-pass/control_flow/runtime_captured_case_reference_arm_forwarding_exit built 2818ms exit:70 @dde8f25ea565
-pass/control_flow/runtime_captured_case_reference_child_arm_forwarding_exit built 2718ms exit:70 @dde8f25ea565
+pass/control_flow/runtime_captured_case_reference_arm_forwarding_exit built 3753ms exit:70 @0c36a0fe0b35
+pass/control_flow/runtime_captured_case_reference_child_arm_forwarding_exit built 3586ms exit:70 @0c36a0fe0b35
 pass/control_flow/runtime_captured_local_remutated_field_exit built 677ms exit:70
 pass/control_flow/runtime_compare_pair_dispatch_exit built 609ms exit:70
 pass/control_flow/runtime_computed_case_subject_call_operand_exit built 2779ms exit:70 @02be27637e24+wt
@@ -659,8 +659,8 @@ pass/control_flow/runtime_nonentry_state_local_shared_loan_exit built 1751ms exi
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit built 1032ms exit:70 @48008365d839
 pass/control_flow/runtime_projected_case_large_offset_exit built 5014ms exit:70 @441e8f33f8c7+wt
 pass/control_flow/runtime_projected_case_payload_forwarding_exit built 1757ms exit:70 @441e8f33f8c7+wt
-pass/control_flow/runtime_projected_index_case_payload_forwarding_exit built 2541ms exit:70 @dde8f25ea565
-pass/control_flow/runtime_projected_index_single_case_payload_exit built 1583ms exit:70 @dde8f25ea565
+pass/control_flow/runtime_projected_index_case_payload_forwarding_exit built 3843ms exit:70 @0c36a0fe0b35
+pass/control_flow/runtime_projected_index_single_case_payload_exit built 2297ms exit:70 @0c36a0fe0b35
 pass/control_flow/runtime_projected_single_case_payload_exit built 1166ms exit:70 @441e8f33f8c7+wt
 pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit built 2954ms exit:70 @64c766216f02+wt
 pass/control_flow/runtime_ranked_state_cycle_owned_record_exit built 2788ms exit:70 @64c766216f02+wt
@@ -1029,7 +1029,7 @@ pass/generics/runtime_const_data_multiple_instances_exit built 590ms exit:70
 pass/generics/runtime_const_data_symbolic_expression_exit built 580ms exit:70
 pass/generics/runtime_const_data_where_fact_exit built 2044ms exit:70 @fb2178def922
 pass/generics/runtime_container_setter_matrix_exit built 754ms exit:1
-pass/generics/runtime_copied_indexed_case_subject_exit built 1594ms exit:70 @dde8f25ea565
+pass/generics/runtime_copied_indexed_case_subject_exit built 2360ms exit:70 @0c36a0fe0b35
 pass/generics/runtime_forwarded_value_contract_exit built 528ms exit:0 @fbbbc025398+wt
 pass/generics/runtime_generic_multiple_specializations_exit built 1743ms exit:14 @fb2178def922
 pass/generics/runtime_grouped_decimal_const_argument_exit built 3964ms exit:0 @9beb2be72f2d+wt
