@@ -43,3 +43,19 @@ macro_rules! diagnostic_display {
         }
     };
 }
+
+/// String-newtype diagnostic convention: `Display` writes the carried message
+/// and `Error` adds the marker impl. Single-line declaration for the common
+/// `pub struct XDiagnostic(pub String)` shape.
+#[macro_export]
+macro_rules! string_diagnostic {
+    ($type:ty) => {
+        impl std::fmt::Display for $type {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str(&self.0)
+            }
+        }
+
+        impl std::error::Error for $type {}
+    };
+}
