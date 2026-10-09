@@ -45,17 +45,11 @@ pub struct NativeParameterApplication {
 }
 
 pub fn callback_nominal_report_fingerprint(domain: &[u8], parts: &[&[u8]]) -> u64 {
-    let mut report_fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    let mut hasher = crate::fnv1a::Fnv1a::new();
     for bytes in std::iter::once(domain).chain(parts.iter().copied()) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            report_fingerprint ^= u64::from(byte);
-            report_fingerprint = report_fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
-        }
+        hasher.bytes_framed(bytes);
     }
+    let report_fingerprint = hasher.finish();
     if report_fingerprint == 0 {
         1
     } else {

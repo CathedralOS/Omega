@@ -5,6 +5,7 @@
 //! installation still has to bind the plan to sealed target facts, emitted
 //! adapter bytes, or an admitted opaque-provider receipt.
 
+use crate::fnv1a::Fnv1a;
 use crate::{EntryStack, PlanDiagnostic, Preemption};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -435,28 +436,6 @@ fn report_fingerprint_domain(hash: &mut Fnv1a, domain: StackDomainRef) {
     }
 }
 
-struct Fnv1a(u64);
-
-impl Fnv1a {
-    const fn new() -> Self {
-        Self(0xcbf29ce484222325)
-    }
-
-    fn u64(&mut self, value: u64) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in bytes {
-            self.0 ^= u64::from(*byte);
-            self.0 = self.0.wrapping_mul(0x100000001b3);
-        }
-    }
-
-    const fn finish(self) -> u64 {
-        self.0
-    }
-}
 
 mod entry_exit_stub;
 
