@@ -1,6 +1,5 @@
-// A transition observes an enum element of a policy-qualified array through
-// a runtime index. The element's declared type is `Mode in Trapping`; its
-// storage is plain `Mode`, so the dispatch lends the plain `Mode` plan.
+// The collection's Trapping policy governs indexing. Its structural enum
+// element keeps the declared Mode type and storage identity through dispatch.
 data Mode [copy] {
     case Idle;
     case Busy;

@@ -8,6 +8,21 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "4", "load1_end": 3.83, "load1_start": 3.99, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
+	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
+	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
+	anonymous integer value `18446744073709551616` does not fit destination `addr` in machine `too_wide_address` state `entry` local `value`
+	anonymous integer value `-1` does not fit destination `addr` in machine `negative_address` state `entry` local `value`
+fail/arithmetic/anonymous_decimal_zero_division_rejected rejected 184ms expected @d0e40a213f35
+	anonymous division by zero has no exact numeric value
+fail/arithmetic/anonymous_large_literal_requires_representable_destination rejected 225ms expected @d0e40a213f35
+	anonymous integer value `18446744073709551615` does not fit destination `u32` in construction of `Narrow` field `value`
+	anonymous integer value `18446744073709551615` does not fit destination `i64` in construction of `Signed` field `value`
+	anonymous integer value `18446744073709551615` does not fit destination `u32` in machine `narrow` state `entry` terminal expression
+	anonymous integer value `18446744073709551616` does not fit destination `u64` in machine `beyond_unsigned` state `entry` terminal expression
+	anonymous integer value `18446744073709551615` does not fit destination `u32` in array literal element of type `u32`
+	anonymous integer value `18446744073709551615` does not fit destination `u32` in array literal element of type `u32`
+	anonymous integer value `18446744073709551615` does not fit destination `u32` in array literal element of type `u32`
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -91,6 +106,13 @@ fail/arithmetic/fractional_integer_operand rejected 256ms expected @2d8ed253669f
 	anonymous operand `4097/2` is not an integer in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	anonymous operand `4097/2` cannot land exactly in `i32` in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	exact arithmetic in machine `value` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/full_width_literal_requires_explicit_policy_conversion rejected 218ms expected @d0e40a213f35
+	store in machine `invalid` state `entry` argument `value` implicitly converts `u64 in Saturating` to `u64`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u64`)
+	implicit domain weakening in argument `value` for state `exact::entry` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/arithmetic/full_width_literal_requires_representable_carrier rejected 217ms expected @d0e40a213f35
+	literal `18446744073709551615` does not fit its `i64` suffix -- a width suffix chooses the literal's type at the spelling, and the spelled value must fit that type's range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)
+	literal `18446744073709551615` does not fit its `u8` suffix -- a width suffix chooses the literal's type at the spelling, and the spelled value must fit that type's range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)
+	literal `18446744073709551616` does not fit its `u64` suffix -- a width suffix chooses the literal's type at the spelling, and the spelled value must fit that type's range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)
 fail/arithmetic/guarded_read_count_exceeds_target rejected 146ms expected @6197860b335c+wt
 	cannot prove assignment value `reader.received + reader.count as u64` satisfies bounded target `reader.received` in `Reader::advance.store`; expected 0..=16384
 fail/arithmetic/guarded_read_count_stale_before_assignment rejected 148ms expected @6197860b335c+wt
@@ -115,8 +137,8 @@ fail/arithmetic/match_constructor_divisor_requires_nonzero rejected 446ms expect
 	partial exact division in machine `make` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/modulo_by_zero_rejected rejected 298ms expected @2d8ed253669f
 	remainder by zero in machine `Main::main` state `main` local `x`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
-fail/arithmetic/narrowing_anonymous_expression_unproven rejected 299ms expected @2d8ed253669f
-	narrowing store in array literal element of type `i32` may not fit `i32`: the value is not provably in range (decision 17 -- a narrowing store is a proof obligation, like exact arithmetic). Truncate explicitly with an `as` cast, or constrain the source's range.
+fail/arithmetic/narrowing_anonymous_expression_unproven rejected 294ms expected @d0e40a213f35
+	anonymous integer value `2147483648` does not fit destination `i32` in array literal element of type `i32`
 fail/arithmetic/narrowing_literal_wider_than_target rejected 291ms expected @2d8ed253669f
 	anonymous integer value `3000000123` does not fit destination `i32` in machine `Main::main` state `main` assignment
 fail/arithmetic/narrowing_signedness_rejected rejected 254ms expected @2d8ed253669f
@@ -183,6 +205,9 @@ fail/arithmetic/wrong_struct_type_argument_rejected rejected 385ms expected @2d8
 	argument `f` for state `Main::take_foo::take_foo` expects the `Foo` data type but got `Bar` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/arithmetic/zii_range_excludes_zero_rejected rejected 283ms expected @693920652f41
 	reading `main.console` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 236ms expected @d0e40a213f35
+	implicit domain weakening in array literal element drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
 fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 3ms expected @2d8ed253669f
 	tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
 fail/atomics/atomic_load_publish_ordering_rejected rejected 0ms expected @2d8ed253669f
@@ -1249,6 +1274,17 @@ fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 10ms expe
 	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped, Wrapped); a second spelling needs a distinct operand shape or a separate owner
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 31ms expected @2d8ed253669f
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
+fail/float/closed_integer_conversion_predicate_retains_result rejected 1378ms expected @d0e40a213f35
+	cannot prove requires contract for call infinite_value from main: F32.is_infinite(F32.from_i32(1)) (needs fact `F32.is_infinite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/float/closed_integer_conversion_requires_exact_cast rejected 559ms expected @d0e40a213f35
+	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
+fail/float/closed_integer_conversion_requires_exact_format rejected 564ms expected @d0e40a213f35
+	machine `main` state `entry` cannot prove Exact float-to-`f32` cast operand `from_i32(16777217) as f64` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+fail/float/closed_integer_conversion_trapping_source_no_normal_result rejected 1351ms expected @d0e40a213f35
+	cannot prove requires contract for call finite_value from main: F32.is_finite((from_u8((250 as u8 ) + (10 as u8 )) as f32)) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/float/closed_integer_conversion_trapping_zero_divisor rejected 556ms expected @d0e40a213f35
+	division by zero in integer-to-float coercion source: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+	division by zero in machine `main` state `entry` local `observed`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/float/closed_public_float_predicate_requires_bound_actual rejected 1326ms expected @cba4ef8c9ab1
 	cannot prove requires contract for call finite_right from main: F32.is_finite(340282346638528859811704183484516925440.0 * 2.0) (needs fact `F32.is_finite(right * 2.0)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/closed_public_float_predicate_requires_finite_actual rejected 1322ms expected @cba4ef8c9ab1
@@ -1281,6 +1317,10 @@ fail/float/exact_integer_coercion_requires_denotation rejected 523ms expected @a
 	machine `nan` state `entry` cannot prove Exact float-to-`i32` cast operand `divide(0.0, 0.0)` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `nan` state `entry` cannot prove unqualified `I32::from_f64` operand `divide(0.0, 0.0)` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 	machine `stale_guard` state `guarded` cannot prove Exact float-to-`i32` cast operand `subject.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+fail/float/exact_integer_to_float_all_policies_requires_denotation rejected 549ms expected @d0e40a213f35
+	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
+	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
+	machine `main` state `entry` cannot prove integer-to-`f32` cast operand `16777217` preserves its denotation; prove exact format representability or use a named conversion to round
 fail/float/exclusive_float_range_endpoint_rejected rejected 431ms expected @2d8ed253669f
 	cannot prove call argument `1.5` satisfies bounded parameter `value` for `accept` in `Main::main.main`; expected 0..1.5
 fail/float/field_range_conversion_after_invalid_write rejected 262ms expected @c67082a3bcd4+wt
@@ -1335,6 +1375,8 @@ fail/float/named_nan_runtime_materialization rejected 4324ms expected @2d8ed2536
 	constant initializer: undetermined NaN has no representation for a raw-bit recast
 fail/float/named_trapping_cast_operand_requires_site_coverage rejected 2180ms expected @cba4ef8c9ab1
 	`F32.multiply_then_add(3.4028234663852886e38 as f32 , 2.0, 0.0)` in machine `overflow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+fail/float/named_trapping_index_operand_requires_site_coverage rejected 1275ms expected @d0e40a213f35
+	`F32.multiply_then_add(values[0], 2.0, 0.0)` in machine `overflow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/float/negated_ordered_guard_cast rejected 479ms expected @aef1e846927f+wt
 	machine `Guarded::convert` state `bounded` cannot prove Exact float-to-`i32` cast operand `guarded.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `Guarded::convert` state `bounded` cannot prove unqualified `I32::from_f64` operand `guarded.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
@@ -2273,6 +2315,7 @@ pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit checked 3662
 pass/arithmetic/const_fold_unsigned_landed_ops_exit checked 1539ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/constant_trapping_shift_value_overflow_traps checked 1526ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/exact_integer_cast_proven checked 306ms @2d8ed253669f
+pass/arithmetic/full_width_integer_literals_compose_exit checked 1889ms check-target:macos_arm64 @d0e40a213f35
 pass/arithmetic/narrowing_flow_and_widen_permitted checked 1602ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/qualified_cast_in_entry_body_exit checked 1185ms check-target:macos_arm64 @2e29bd5fedcf
 pass/arithmetic/qualified_float_cast_abstract_prior_fact checked 1458ms @cba4ef8c9ab1
@@ -2328,6 +2371,7 @@ pass/arithmetic/total_contract_guarded_division checked 747ms @f2ab4f931c37+wt
 pass/arithmetic/typed_integer_remainder checked 285ms @2d8ed253669f
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one checked 1656ms check-target:macos_arm64 @8778c440081
 pass/arrays/local_record_array_guard_exit checked 1631ms check-target:macos_arm64 @cfe60a3a242
+pass/arrays/qualified_array_literal_retains_element_policy_exit checked 1890ms check-target:macos_arm64 @d0e40a213f35
 pass/atomics/atomic_global_order_operations checked 290ms @2d8ed253669f
 pass/atomics/runtime_atomic_after_quoted_write_exit checked 2158ms check-target:macos_arm64 @40568cef1361+wt
 pass/atomics/runtime_atomic_bitwise_widths_exit checked 3130ms check-target:macos_arm64 @8ed2986d3282
@@ -2584,6 +2628,7 @@ pass/calls/nested_call_runtime_index_arg_exit checked 920ms check-target:macos_a
 pass/calls/nested_call_tail_roots_exit checked 4392ms check-target:macos_arm64 @c773c4ad3c3
 pass/calls/nested_indexed_scalar_arguments_exit checked 1381ms check-target:macos_arm64 @63377f7122bb+wt
 pass/calls/nested_machine_continuation checked 1469ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/nested_scalar_argument_evaluation_order_exit checked 1913ms check-target:macos_arm64 @d0e40a213f35
 pass/calls/nested_self_call_argument_exit checked 1287ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/nested_subject_call_operand checked 126ms @cb6b089b27de+wt
 pass/calls/nested_value_call_arg_compile checked 1255ms check-target:macos_arm64 @2d8ed253669f
@@ -3261,6 +3306,7 @@ pass/float/build_runtime_semantics_twins_x86_baseline rejected 9392ms check-targ
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_normal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_normal(named(name(f64)))->named(name(bool))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` for Terminal boundary `operator::F64::is_subnormal(named(name(f64)))->named(name(bool))` has no native boundary realization
 pass/float/builtin_extrema_field_store_exit checked 5149ms check-target:macos_arm64 @2d8ed253669f
+pass/float/closed_integer_conversion_predicate_proof_exit checked 6380ms check-target:macos_arm64 @d0e40a213f35
 pass/float/computed_comparison_literal_landing_exit checked 5759ms check-target:macos_arm64 @7a3fe5365463
 pass/float/computed_float_bare_literal_comparison checked 3981ms check-target:macos_arm64 @042fba1c8b0d+wt
 pass/float/data_where_float_field_restored_exit checked 2202ms check-target:macos_arm64 @8cb8c462809d+wt
@@ -3286,6 +3332,7 @@ pass/float/named_ieee_truncations_exit checked 18313ms check-target:macos_arm64 
 pass/float/named_infinity_classification_exit checked 4472ms check-target:macos_arm64 @2d8ed253669f
 pass/float/named_integer_conversion_source_proofs_exit checked 4711ms check-target:macos_arm64 @aef1e846927f+wt
 pass/float/named_nan_semantic_only_exit checked 23555ms check-target:macos_arm64 @2d8ed253669f
+pass/float/named_operation_retains_collection_element_policy_exit checked 6327ms check-target:macos_arm64 @d0e40a213f35
 pass/float/named_provider_directed_divide_exit checked 22722ms check-target:macos_arm64 @cb6b089b27de+wt
 pass/float/named_provider_fused_multiply_add_exit checked 28752ms check-target:macos_arm64 @a730a3a70c28+wt
 pass/float/named_provider_min_max_sqrt_exit checked 7600ms check-target:macos_arm64 @2d8ed253669f
@@ -3293,6 +3340,7 @@ pass/float/named_provider_multiply_then_add_exit checked 4722ms check-target:mac
 pass/float/named_provider_negate_is_nan_exit checked 5868ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nearest_even_binary_arithmetic_exit checked 5916ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nested_float_operator_applications_exit checked 9657ms check-target:macos_arm64 @2d8ed253669f
+pass/float/qualified_integer_source_exact_float_coercion_exit checked 6292ms check-target:macos_arm64 @d0e40a213f35
 pass/float/runtime_coercion_future_policy_exit checked 5024ms check-target:macos_arm64 @8794607e5caa+wt
 pass/float/runtime_exact_format_narrowing_exit checked 4634ms check-target:macos_arm64 @4ea513cebecf+wt
 pass/float/runtime_exact_integer_coercion_exit checked 5070ms check-target:macos_arm64 @aef1e846927f+wt

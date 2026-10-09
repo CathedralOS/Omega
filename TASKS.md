@@ -5300,15 +5300,19 @@ wait for Cathedral's instruction coverage. The interpreter is
 - **FLOAT-PROVIDERS.** Complete the `FloatSemantics` obligations of the actual
   `Float`, `F32`/`F64` and conversion slots under
   [FloatMeaning](wiki/spec/terminal-psi/mathematical_values.md#floatmeaning).
-  Closed Meaning arithmetic works: `add(BINARY32, meaning32(1), meaning32(2))
-  == meaning32(3)` checks and `== meaning32(4)` rejects. Reuse that route.
-  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/float_meaning.rs`
-    and `omega-rust/psi/compilation/checking/src/proof_contracts/float_projection_bindings/semantic_values.rs`
-    accept only Meaning results with Format/Meaning operands. Closed true
-    `is_finite`, `to_i32` and `from_integer` ensures stop at unsupported proof
-    entailment. Add Boolean, classification and integer results and integer
-    operands through their own proof carriers; non-Meaning results must not
-    use the FloatMeaning carrier.
+  Extend the existing canonical Meaning proof route.
+  - Remaining: durable semantic applications in
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/float_meaning.rs`
+    retain only Meaning results with Format/Meaning operands. Add integer
+    operands and Boolean, classification and integer results through their own
+    proof carriers, so slot contracts and imported call/operator guarantees
+    survive the Terminal boundary. Non-Meaning results must not use the
+    FloatMeaning carrier. The bounded closed source evaluator in
+    `omega-rust/psi/compilation/checking/src/proof_contracts/float_projection_bindings/semantic_values.rs`
+    supplies no portable proof evidence; reuse its sealed catalog selection
+    and exact carrier rules. Preserve closed integer-source regression behavior
+    with `python3 tools/corpus_gate.py --both --filter
+    closed_integer_conversion_predicate_proof_exit,qualified_integer_source_exact_float_coercion_exit`.
   Acceptance: corpus fixtures where slot contracts and imported
   call/operator results discharge those obligations; false claims, lookalike
   declarations and changed operands/formats/results reject. IEEE Boolean
