@@ -2,7 +2,7 @@
 //! These identify a possible source; declaration, reference-boundary, and
 //! access checks remain with the origin consumer.
 
-use facts::{FactPlan, PlaceRoot, PlaceSegment};
+use facts::{PlaceRoot, PlaceSegment};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -63,16 +63,19 @@ impl FrameSourcePlace {
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
     ) -> Self {
-        let mut facts = FactPlan::default();
-        let place = facts.append_place_from_expression(program, expression);
-        let place = facts.places.get(place);
+        // Use the address algebra, not the raw evidence-place builder:
+        // fixed windows must retain their bounds rather than masquerading
+        // as runtime element selectors in every later origin consumer.
+        let Some(place) = crate::canonical_place_from_expression(program, expression) else {
+            return Self::default();
+        };
         let Some(root) = place.root.as_symbol() else {
             return Self::default();
         };
         if !root.is_valid() {
             return Self::default();
         }
-        let segments = facts.place_segments.span_or_empty(place.segments);
+        let segments = place.segments.as_slice();
         let builtin_coordinates = !segments_have_index_geometry(segments)
             || source_has_builtin_coordinates(program, root, expression);
         Self {
@@ -136,11 +139,12 @@ impl FrameSourcePlace {
         if !self.root.is_valid() && !self.is_static() {
             return Self::default();
         }
-        let mut facts = FactPlan::default();
-        let whole = facts.append_place_from_expression(program, whole_expression);
-        let base = facts.append_place_from_expression(program, base_expression);
-        let whole = facts.places.get(whole);
-        let base = facts.places.get(base);
+        let Some(whole) = crate::canonical_place_from_expression(program, whole_expression) else {
+            return Self::default();
+        };
+        let Some(base) = crate::canonical_place_from_expression(program, base_expression) else {
+            return Self::default();
+        };
         let known_base = match base.root {
             PlaceRoot::Symbol(root) => root.is_valid(),
             PlaceRoot::Expression(expression) => expression.is_valid(),
@@ -149,8 +153,8 @@ impl FrameSourcePlace {
         if whole.root != base.root || !known_base {
             return Self::default();
         }
-        let whole_segments = facts.place_segments.span_or_empty(whole.segments);
-        let base_segments = facts.place_segments.span_or_empty(base.segments);
+        let whole_segments = whole.segments.as_slice();
+        let base_segments = base.segments.as_slice();
         let Some(suffix) = whole_segments.strip_prefix(base_segments) else {
             return Self::default();
         };

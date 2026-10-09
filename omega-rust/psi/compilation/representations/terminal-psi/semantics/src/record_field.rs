@@ -184,7 +184,7 @@ fn walk_record_fields<'types>(
     let mut runtime_path = Vec::with_capacity(path.len());
     let mut crosses_view = false;
     let mut payload_fields = None;
-    for (index, segment) in path.iter().enumerate() {
+    for segment in path {
         let declaration = types
             .clone()
             .find(|declaration| declaration.id == structural_type)?;
@@ -208,7 +208,7 @@ fn walk_record_fields<'types>(
         }
         if let CanonicalStructuralPathSegment::FixedIndex(element_index) = segment {
             // Fixed arrays retain every element identity through nested fields.
-            // Views keep their existing terminal-index route: their bound is
+            // Views use the same element/member namespace, but their bound is
             // a live length, not the declaration-owned extent checked here.
             let declaration = types
                 .clone()
@@ -220,7 +220,7 @@ fn walk_record_fields<'types>(
                     }
                     *element
                 }
-                StructuralTypeShape::ElementView { element } if index + 1 == path.len() => {
+                StructuralTypeShape::ElementView { element } => {
                     crosses_view = true;
                     *element
                 }

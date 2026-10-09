@@ -147,12 +147,39 @@ pub(crate) fn is_scalar_roster_local(
 }
 
 impl ExitScalars<'_, '_> {
+    /// Current pointees retain their entry binders; later states must retain
+    /// the exact parameter correspondence for this contract. A write changes
+    /// storage facts, not the declaration namespace used to name that storage.
+    fn contract_place_at_exit(
+        &self,
+        mut place: validation::CanonicalPlace,
+    ) -> Option<validation::CanonicalPlace> {
+        let entry = self.program.machine_states(self.machine).first()?;
+        if entry.symbol != self.exit.state_symbol {
+            let root = place.root.as_symbol()?;
+            let origin = self
+                .facts
+                .flow
+                .control
+                .exit_parameter_origins
+                .span_or_empty(self.exit.parameter_origins)
+                .iter()
+                .find(|origin| {
+                    origin.contract == self.contract
+                        && origin.entry_parameter == root
+                        && origin.state_parameter.is_valid()
+                })?;
+            place.root = PlaceRoot::Symbol(origin.state_parameter);
+        }
+        Some(place)
+    }
+
     fn current_predicate(&self, expression: ExpressionHandle) -> bool {
-        use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
-        // The scalar leaf resolver can rebind entry parameters through exact
-        // origins. The ordinary predicate prover does not perform that
-        // substitution, so only unchanged binder identities may reach it.
-        if self
+        // Non-scalar propositions retain their existing semantic owner. It
+        // speaks directly in declaration symbols only while those binders
+        // still agree with the exit namespace; rebased scalar observations
+        // below use the explicit origin correspondence instead.
+        if !self
             .facts
             .flow
             .control
@@ -162,44 +189,142 @@ impl ExitScalars<'_, '_> {
             .any(|origin| {
                 origin.contract == self.contract && origin.entry_parameter != origin.state_parameter
             })
-        {
-            return false;
-        }
-        let Some(state) = self.state() else {
-            return false;
-        };
-        let boolean = match self.program.expression_table.expression(expression) {
-            ExpressionNode::Binary(binary) => matches!(
-                binary.operator,
-                BinaryOperator::And
-                    | BinaryOperator::Or
-                    | BinaryOperator::Equal
-                    | BinaryOperator::NotEqual
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-                    | BinaryOperator::CaseMembership
-            ),
-            ExpressionNode::Unary(unary) => unary.operator == UnaryOperator::LogicalNot,
-            _ => {
-                validation::expression_result_type_reference(
-                    self.program,
-                    self.machine,
-                    state,
-                    expression,
-                )
+            && self
+                .state()
+                .and_then(|state| {
+                    validation::expression_result_type_reference(
+                        self.program,
+                        self.machine,
+                        state,
+                        expression,
+                    )
+                })
                 .and_then(|reference| self.program.primitive_type_reference(reference))
-                    == Some(typed_trees::types::PrimitiveType::Bool)
-            }
-        };
-        boolean
+                == Some(typed_trees::types::PrimitiveType::Bool)
             && semantic_contexts_prove_boolean_expression(
                 self.program,
                 &self.facts.semantic,
                 self.contexts,
                 expression,
             )
+        {
+            return true;
+        }
+        let caller = self
+            .facts
+            .flow
+            .control
+            .states
+            .iter()
+            .find_map(|(_, state)| {
+                (state.machine_symbol == self.exit.machine_symbol
+                    && state.state_symbol == self.exit.state_symbol)
+                    .then_some(state)
+            });
+        if let Some(frames) = self.call_frames
+            && let Some(caller) = caller
+            && let Some(entry) = self.program.machine_states(self.machine).first()
+            && super::super::prover::call_guarantees::proves_current(
+                self.program,
+                self.facts,
+                caller,
+                self.exit.statement_index,
+                self.contexts,
+                frames,
+                super::super::prover::call_guarantees::callable::Callable::Machine {
+                    machine: self.machine,
+                    state: entry,
+                },
+                expression,
+                &|expression| {
+                    let parameters = self.program.state_parameters(entry);
+                    let (position, path, _) = crate::values::structural_parameter_place(
+                        self.program,
+                        parameters,
+                        expression,
+                    )?;
+                    let (root, segments, _, _) = crate::values::resolve_structural_parameter_path(
+                        self.program,
+                        parameters,
+                        position,
+                        &path,
+                    )?;
+                    let place = validation::CanonicalPlace {
+                        root: PlaceRoot::Symbol(root),
+                        segments,
+                    };
+                    let place = self.contract_place_at_exit(place)?;
+                    crate::flow::rebase_exact_local_place(
+                        self.program,
+                        self.exit.state_symbol,
+                        self.exit.statement_index,
+                        place,
+                        Some(frames),
+                    )
+                },
+            )
+        {
+            return true;
+        }
+        let Some(expression) = crate::values::lower_scalar_contract_predicate(
+            self.program,
+            &self.facts.operators,
+            self.machine,
+            expression,
+            true,
+            &mut 4096,
+        ) else {
+            return false;
+        };
+        let Some(mut required) = crate::facts::boolean_predicates::bind_entry(
+            self.program,
+            self.machine.symbol,
+            expression,
+        ) else {
+            return false;
+        };
+        for binding in &mut required.bindings {
+            let Some(place) = self.contract_place_at_exit(binding.place.clone()) else {
+                return false;
+            };
+            binding.place = place;
+        }
+        let mut predicates = crate::facts::boolean_predicates::retained(
+            self.program,
+            &self.facts.semantic,
+            self.contexts,
+        );
+        if let Some(frames) = self.call_frames
+            && let Some(state) = caller
+        {
+            predicates.extend(super::super::prover::call_guarantees::current_predicates(
+                self.program,
+                self.facts,
+                state,
+                self.exit.statement_index,
+                self.contexts,
+                frames,
+            ));
+        }
+        crate::facts::boolean_predicates::proves(&predicates, &required, |place| {
+            super::super::prover::boolean_value_at_place(
+                self.program,
+                &self.facts.semantic,
+                self.contexts,
+                place,
+            )
+            .map(ScalarValue::Boolean)
+            .or_else(|| {
+                crate::values::scalar_value_at_place(
+                    self.program,
+                    &self.facts.semantic,
+                    self.contexts
+                        .iter()
+                        .map(|context| self.facts.semantic.contexts.get(*context)),
+                    place,
+                )
+            })
+        })
     }
 
     fn proves_immutable_result_comparison(&self, expression: ExpressionHandle) -> bool {

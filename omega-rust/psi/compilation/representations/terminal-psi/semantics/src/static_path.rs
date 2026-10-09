@@ -281,13 +281,18 @@ fn canonical_projection_type<'a>(
                 root = child;
             }
             CanonicalStructuralPathSegment::FixedIndex(index) => {
-                let StructuralTypeShape::FixedArray { element, length } = shape else {
-                    return None;
-                };
-                if case_fields.is_some() || index >= length {
+                if case_fields.is_some() {
                     return None;
                 }
-                root = *element;
+                root = match shape {
+                    StructuralTypeShape::FixedArray { element, length } if index < length => {
+                        *element
+                    }
+                    // This query resolves only type identity. A view's live
+                    // bound and backing access remain independent obligations.
+                    StructuralTypeShape::ElementView { element } => *element,
+                    _ => return None,
+                };
             }
         }
     }

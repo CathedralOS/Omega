@@ -323,10 +323,28 @@ fn selected_requirements(
             let current = &mut occurrences[position].current;
             for selected in &hooks {
                 let hook = selected.machine;
-                let place = CanonicalPlace {
+                let mut place = CanonicalPlace {
                     root: disposition.root,
                     segments: selected.path.clone(),
                 };
+                // This is the captured subject, not a may-effect range set.
+                // Immutable selector copies retain their exact value at this
+                // edge even when a later operand changes their former source.
+                crate::flow::narrow_pinned_index_segments(
+                    program,
+                    &facts.semantic,
+                    state.state_symbol,
+                    statement,
+                    &current.contexts,
+                    &mut place.segments,
+                );
+                crate::flow::compose_captured_view_segments(&mut place.segments).ok_or_else(
+                    || {
+                        vec![Diagnostic::error(
+                            "selected cleanup receiver has invalid captured view coordinates",
+                        )]
+                    },
+                )?;
                 let hook_machine = program
                     .machine_by_symbol(hook)
                     .ok_or_else(|| vec![Diagnostic::error("selected cleanup hook is absent")])?;

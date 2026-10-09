@@ -1,8 +1,9 @@
 //! Statement transfers: after a `let` or an assignment, the facts that held
 //! for the written value's source hold for the written place.
 //!
-//! `propagate_statement_transfers` runs one statement's phases in order.
-//! `write_target` resolves the written place and narrows pinned selectors;
+//! The statement owner resolves its write target and narrows captured selectors
+//! before retiring destination facts, then shares that completed coordinate
+//! with `propagate_statement_transfers`. Its phases run in order:
 //! `context_transport` carries each active context's source facts onto it;
 //! `owned_qualifications`, `projected`, `constructed` and `byte_sequences`
 //! re-anchor evidence below the destination from a moved owner, a copied
@@ -23,8 +24,7 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowFacts, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint,
-    QualificationEvidence,
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
 use facts::{PlaceHandle, QualificationCorrespondence, QualificationPayloadIdentity};
 use symbols::SymbolHandle;
@@ -37,6 +37,7 @@ mod owned_qualifications;
 mod projected;
 mod scalar_values;
 mod write_target;
+pub(super) use write_target::{StatementWrite, narrow_pinned_selectors, statement_write};
 
 pub(super) fn propagate_statement_transfers(
     program: &dyn ::validation::CheckingInput,
@@ -48,19 +49,12 @@ pub(super) fn propagate_statement_transfers(
     statement_index: usize,
     statement: &StatementNode,
     statement_fact: arena::Handle<checked_trees::FlowStatementFact>,
+    write: Option<StatementWrite>,
     assignment_source_contexts: HandleSpan<FlowSemanticContextRef>,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
-    let Some(mut write) = write_target::statement_write(
-        program,
-        semantic,
-        build,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        statement,
-    ) else {
+    let Some(write) = write else {
         return;
     };
     let source_expression = write.source_expression;
@@ -68,17 +62,9 @@ pub(super) fn propagate_statement_transfers(
     let source_place = write.source_place;
 
     let mut refs = HandleSpan::empty();
-    let context_handles: Vec<_> = crate::flow::active_context_handles(build, *active_contexts);
-
-    let (target_place, stable_value_target) = write_target::narrow_pinned_selectors(
-        program,
-        semantic,
-        state_symbol,
-        statement_index,
-        &context_handles,
-        write.target_place,
-    );
-    write.target_place = target_place;
+    let context_handles = crate::flow::active_context_handles(build, *active_contexts);
+    let target_place = write.target_place;
+    let stable_value_target = write.stable_value_target;
 
     if stable_value_target {
         build
@@ -347,7 +333,7 @@ pub(super) fn propagate_statement_transfers(
             || (matches!(
                 program.expression_table.expression(source_expression),
                 ExpressionNode::Call(_)
-            ) && semantic.places.get(target_place).segments.is_empty()))
+            )))
     {
         // A call is retained only as the exact source occurrence of this
         // completed assignment. It is not evaluated here. Consumers need its

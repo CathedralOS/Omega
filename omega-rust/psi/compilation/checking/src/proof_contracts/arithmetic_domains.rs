@@ -52,6 +52,7 @@ mod ordered_values;
 mod place_paths;
 mod range_constraints;
 mod return_ranges;
+pub use return_ranges::normal_return_integer_bounds;
 mod stored_integer_writes;
 pub(crate) use guard_narrowing::occurrence_value_environment;
 mod total_specification;

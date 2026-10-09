@@ -8,6 +8,25 @@ use crate::proofs::{
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, unsupported,
 };
 
+/// Resolve type meaning, not access or bounds evidence. Fixed arrays own a
+/// static extent; views keep their independently admitted live-length
+/// obligation while continuing through the same element/member namespace.
+fn indexed_element_type(
+    shape: &StructuralTypeShape,
+    element_index: u64,
+) -> Result<StructuralTypeId, LoweringError> {
+    match shape {
+        StructuralTypeShape::FixedArray { element, length } => {
+            if element_index >= *length {
+                return unsupported("structural contract fixed index is out of bounds");
+            }
+            Ok(*element)
+        }
+        StructuralTypeShape::ElementView { element } => Ok(*element),
+        _ => unsupported("structural contract index receiver is not a collection"),
+    }
+}
+
 pub(crate) fn lower_structural_member_path(
     parameter_position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -60,23 +79,16 @@ pub(crate) fn lower_structural_member_path(
         if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
             segment
         {
-            // A literal fixed-array index selects an inline element. Below
+            // A literal index selects an element. Below
             // the root it continues into the element's structure; as the
             // final segment it names one primitive scalar element, the leaf
             // a collection invariant's per-element row observes.
             if selected_case_fields.is_some() {
                 return unsupported("structural scalar contract has a malformed indexed path");
             }
-            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
-                return unsupported(
-                    "structural scalar contract index receiver is not a fixed array",
-                );
-            };
-            if *element_index >= *length {
-                return unsupported("structural scalar contract fixed index is out of bounds");
-            }
+            let element = indexed_element_type(&declaration.shape, *element_index)?;
             terminal_path.push(CanonicalStructuralPathSegment::FixedIndex(*element_index));
-            structural_type = *element;
+            structural_type = element;
             if index + 1 == path.len() {
                 let element_shape =
                     terminal_psi::find_structural_type(structural_types, structural_type)
@@ -248,14 +260,9 @@ fn lower_sum_path(
             if selected_case_fields.is_some() {
                 return unsupported("structural sum predicate has an indexed case selection");
             }
-            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
-                return unsupported("structural sum predicate index receiver is not a fixed array");
-            };
-            if *element_index >= *length {
-                return unsupported("structural sum predicate fixed index is out of bounds");
-            }
+            let element = indexed_element_type(&declaration.shape, *element_index)?;
             terminal_path.push(CanonicalStructuralPathSegment::FixedIndex(*element_index));
-            structural_type = *element;
+            structural_type = element;
             continue;
         }
         let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {

@@ -39,6 +39,58 @@ struct Invocation<'program> {
     ordinal: usize,
 }
 
+/// Declaration meaning and observation custody are independent. Invocation
+/// and exit consumers supply exact value bindings to the same matcher.
+struct PredicateScope<'program, 'bindings> {
+    callable: Callable<'program>,
+    literal: &'bindings dyn Fn(ExpressionHandle) -> Option<facts::ScalarValue>,
+    place: &'bindings dyn Fn(ExpressionHandle) -> Option<CanonicalPlace>,
+}
+
+/// Match a current-storage obligation with an independently available normal
+/// guarantee. The caller authenticates its declaration projections; the common
+/// matcher joins them through surviving completed-value provenance.
+pub(in crate::checks) fn proves_current(
+    program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    caller: &FlowStateFact,
+    statement: usize,
+    contexts: &[facts::FactContextHandle],
+    frames: &validation::CallFrameResolver<'_>,
+    callable: Callable<'_>,
+    expression: ExpressionHandle,
+    place: &dyn Fn(ExpressionHandle) -> Option<CanonicalPlace>,
+) -> bool {
+    if !super::has_builtin_operators(program, &facts.operators, expression)
+        || !callable.builtin_meaning(program, expression)
+    {
+        return false;
+    }
+    let required = PredicateScope {
+        callable,
+        literal: &|expression| crate::flow::literal(program, expression),
+        place,
+    };
+    let guarantees = available(program, facts, caller, statement, contexts, frames);
+    guarantees.into_iter().any(|guarantee| {
+        let supplied = PredicateScope {
+            callable: guarantee.invocation.callable,
+            literal: &|expression| bound_literal(program, &guarantee.invocation, expression),
+            place: &|expression| bound_place(program, &guarantee.invocation, expression),
+        };
+        predicates_match(
+            program,
+            &facts.semantic,
+            contexts,
+            &required,
+            expression,
+            &supplied,
+            guarantee.expression,
+            &mut Vec::new(),
+        )
+    })
+}
+
 /// Read surviving normal guarantees as formulas over the caller's current
 /// storage. Availability owns declaration identity, actual capture and write
 /// preservation; this join only changes the formula's observation namespace.
@@ -148,13 +200,23 @@ pub(super) fn proves(
                 holds: true,
             });
         }
+        let required_scope = PredicateScope {
+            callable: required.callable,
+            literal: &|expression| bound_literal(program, &required, expression),
+            place: &|expression| bound_place(program, &required, expression),
+        };
+        let supplied_scope = PredicateScope {
+            callable: guarantee.invocation.callable,
+            literal: &|expression| bound_literal(program, &guarantee.invocation, expression),
+            place: &|expression| bound_place(program, &guarantee.invocation, expression),
+        };
         predicates_match(
             program,
             semantic,
             contexts,
-            &required,
+            &required_scope,
             expression,
-            &guarantee.invocation,
+            &supplied_scope,
             guarantee.expression,
             &mut Vec::new(),
         )
@@ -252,16 +314,20 @@ fn capture_preserved(
         }) {
             return true;
         }
-        // An operand bound through an exclusive-borrow actual is written by the
-        // callee's own contract — that write is the establishment the
-        // guarantee describes, not capture.
-        let Some((actual, _)) = actual_projection(program, supplied, occurrence) else {
+        // An exclusive formal describes post-call storage regardless of
+        // whether its actual spells a borrow or forwards an existing loan.
+        // The callee's write establishes that guarantee, not an old snapshot.
+        let Some(formal) = formal_place(program, supplied, occurrence) else {
             return false;
         };
-        matches!(
-            program.expression_table.expression(actual),
-            ExpressionNode::Borrow(borrow) if borrow.access.is_exclusive()
-        )
+        supplied
+            .callable
+            .parameters(program)
+            .iter()
+            .any(|parameter| {
+                formal.root == PlaceRoot::Symbol(parameter.symbol)
+                    && crate::values::exclusive_reference(program, parameter.type_reference)
+            })
     })
 }
 
@@ -388,9 +454,7 @@ fn exclusive_borrow_place(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
-    let Some(borrow) = program.expression_table.borrow_expression(expression) else {
-        return None;
-    };
+    let borrow = program.expression_table.borrow_expression(expression)?;
     if !borrow.access.is_exclusive() {
         return None;
     }
@@ -440,9 +504,9 @@ fn predicates_match(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
-    required: &Invocation<'_>,
+    required: &PredicateScope<'_, '_>,
     left: ExpressionHandle,
-    supplied: &Invocation<'_>,
+    supplied: &PredicateScope<'_, '_>,
     right: ExpressionHandle,
     pending: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
 ) -> bool {
@@ -458,16 +522,16 @@ fn predicates_match(
             left_binary.operator == right_binary.operator
                 && same_scalar_type(
                     program,
-                    required,
+                    &required.callable,
                     left_binary.left,
-                    supplied,
+                    &supplied.callable,
                     right_binary.left,
                 )
                 && same_scalar_type(
                     program,
-                    required,
+                    &required.callable,
                     left_binary.right,
-                    supplied,
+                    &supplied.callable,
                     right_binary.right,
                 )
                 && predicates_match(
@@ -495,9 +559,9 @@ fn predicates_match(
             left_unary.operator == right_unary.operator
                 && same_scalar_type(
                     program,
-                    required,
+                    &required.callable,
                     left_unary.operand,
-                    supplied,
+                    &supplied.callable,
                     right_unary.operand,
                 )
                 && predicates_match(
@@ -512,7 +576,7 @@ fn predicates_match(
                 )
         }
         (ExpressionNode::Cast(left_cast), ExpressionNode::Cast(right_cast)) => {
-            same_scalar_type(program, required, left, supplied, right)
+            same_scalar_type(program, &required.callable, left, &supplied.callable, right)
                 && predicates_match(
                     program,
                     semantic,
@@ -524,35 +588,67 @@ fn predicates_match(
                     pending,
                 )
         }
-        _ => {
-            match (
-                bound_literal(program, required, left),
-                bound_literal(program, supplied, right),
-            ) {
-                (Some(left), Some(right)) => left == right,
-                _ => bound_place(program, required, left)
-                    .zip(bound_place(program, supplied, right))
-                    .is_some_and(|(left, right)| {
-                        captured_place(program, semantic, contexts, left)
-                            .zip(captured_place(program, semantic, contexts, right))
-                            .is_some_and(|(left, right)| left == right)
-                    }),
-            }
-        }
+        _ => match ((required.literal)(left), (supplied.literal)(right)) {
+            (Some(left), Some(right)) => left == right,
+            _ => (required.place)(left)
+                .zip((supplied.place)(right))
+                .is_some_and(|(left, right)| {
+                    captured_place(program, semantic, contexts, left)
+                        .zip(captured_place(program, semantic, contexts, right))
+                        .is_some_and(|(left, right)| left == right)
+                }),
+        },
     };
+    // A surviving conjunction establishes each constituent proposition. This
+    // is logical decomposition, not another source arrangement recognizer.
+    let matched = matched
+        || program
+            .expression_table
+            .binary_node(right)
+            .filter(|binary| binary.operator == typed_trees::expression::BinaryOperator::And)
+            .is_some_and(|binary| {
+                predicates_match(
+                    program,
+                    semantic,
+                    contexts,
+                    required,
+                    left,
+                    supplied,
+                    binary.left,
+                    pending,
+                ) || predicates_match(
+                    program,
+                    semantic,
+                    contexts,
+                    required,
+                    left,
+                    supplied,
+                    binary.right,
+                    pending,
+                )
+            });
     pending.pop();
     matched
 }
 
 fn same_scalar_type(
     program: &dyn ::validation::CheckingInput,
-    left_owner: &Invocation<'_>,
+    left_owner: &Callable<'_>,
     left: ExpressionHandle,
-    right_owner: &Invocation<'_>,
+    right_owner: &Callable<'_>,
     right: ExpressionHandle,
 ) -> bool {
-    let reference =
-        |owner: &Invocation<'_>, expression| owner.callable.scalar_reference(program, expression);
+    let reference = |owner: &Callable<'_>, expression| owner.scalar_reference(program, expression);
+    // Contextual literals need not retain a standalone carrier reference.
+    // The enclosing operation was independently selected and its observed
+    // operands still owe identical carriers and policies. Compare exact
+    // literal values rather than inventing an expected type for them.
+    if let (Some(left), Some(right)) = (
+        crate::flow::literal(program, left),
+        crate::flow::literal(program, right),
+    ) {
+        return left == right;
+    }
     match (reference(left_owner, left), reference(right_owner, right)) {
         (Some(left), Some(right)) => {
             program.primitive_type_reference(left).is_some()
@@ -569,13 +665,32 @@ fn actual_projection(
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
-    direct_place(program, expression)?;
+    formal_place(program, invocation, expression)?;
     crate::semantic::places::call_contract_argument_projection(
         program,
         invocation.callable.parameters(program),
         validation::call_site_argument_expressions(program, &invocation.site),
         expression,
     )
+}
+
+/// A contract projection belongs to its declaration and selected builtin
+/// operations. Literal indexes have exact coordinates; runtime selectors need
+/// capture evidence this static projection cannot supply.
+fn formal_place(
+    program: &dyn ::validation::CheckingInput,
+    invocation: &Invocation<'_>,
+    expression: ExpressionHandle,
+) -> Option<CanonicalPlace> {
+    let parameters = invocation.callable.parameters(program);
+    let (position, path, _) =
+        crate::values::structural_parameter_place(program, parameters, expression)?;
+    let (root, segments, _, _) =
+        crate::values::resolve_structural_parameter_path(program, parameters, position, &path)?;
+    Some(CanonicalPlace {
+        root: PlaceRoot::Symbol(root),
+        segments,
+    })
 }
 
 fn bound_literal(
@@ -626,10 +741,13 @@ fn captured_place(
     contexts: &[facts::FactContextHandle],
     mut place: CanonicalPlace,
 ) -> Option<CanonicalPlace> {
-    // Flow copies this provenance with a whole-value copy and removes it on
-    // overlapping writes. Its current statement need not be the original call.
+    // A completed value can be stored at any exact projection. Its surviving
+    // provenance rebases the remaining path onto that occurrence. The deepest
+    // matching assignment wins; a newer non-call value cannot revive an older
+    // ancestor's call. Flow retires these rows on overlapping writes.
     let mut source = None;
     let mut non_call_value = false;
+    let mut prefix_length = None;
     for fact in contexts.iter().flat_map(|context| {
         semantic
             .context_view(semantic.contexts.get(*context))
@@ -645,8 +763,17 @@ fn captured_place(
             continue;
         };
         let destination = semantic.places.get(destination);
-        if destination.root != place.root || !destination.segments.is_empty() {
+        let segments = semantic.place_segments.span_or_empty(destination.segments);
+        if destination.root != place.root || !place.segments.starts_with(segments) {
             continue;
+        }
+        if prefix_length.is_some_and(|previous| previous > segments.len()) {
+            continue;
+        }
+        if prefix_length != Some(segments.len()) {
+            prefix_length = Some(segments.len());
+            source = None;
+            non_call_value = false;
         }
         match fact.payload {
             FactPayload::AssignedValue { value }
@@ -668,6 +795,7 @@ fn captured_place(
             return None;
         }
         place.root = PlaceRoot::Expression(source);
+        place.segments.drain(..prefix_length?);
     }
     Some(place)
 }

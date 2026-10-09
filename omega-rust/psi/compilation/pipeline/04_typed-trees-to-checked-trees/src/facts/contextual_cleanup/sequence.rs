@@ -269,8 +269,10 @@ pub(super) struct SelectedHook {
 /// Ancestors sort before their descendants; field/index ordinals come from
 /// declaration geometry, never symbol allocation or rendered names. Every leaf
 /// retains the selected receiver prefix for predicate substitution. Its shared
-/// fields and computed selectors are not relative ordering coordinates; only
-/// a prefix range selects several receivers whose expanded indices must order.
+/// fields, view ranges and computed selectors are not relative ordering
+/// coordinates. Only ranges below the disposed value select several child
+/// receivers. Execution uses that same selected-prefix/relative-child split;
+/// expanding a captured view prefix would invent several cleanup invocations.
 pub(super) fn ordered_hooks(
     program: &dyn ::validation::CheckingInput,
     selected_path: &[PlaceSegment],
@@ -281,29 +283,16 @@ pub(super) fn ordered_hooks(
         let CleanupLeaf::Nominal { machine, path } = leaf else {
             continue;
         };
-        if !path.starts_with(selected_path) {
-            return None;
-        }
-        let count = path.iter().try_fold(1_usize, |count, segment| {
-            if let PlaceSegment::FixedRange { start, end } = *segment {
-                count.checked_mul(end.checked_sub(start)?)
-            } else {
-                Some(count)
-            }
-        })?;
-        hooks.try_reserve_exact(count).ok()?;
-        let paths = crate::flow::concrete_cleanup_paths(path)?;
-        for path in paths {
-            let order = path
+        let relative_path = path.strip_prefix(selected_path)?;
+        let paths = crate::flow::concrete_cleanup_paths(relative_path)?;
+        hooks.try_reserve_exact(paths.len()).ok()?;
+        for relative_path in paths {
+            let order = relative_path
                 .iter()
-                .enumerate()
-                .filter(|(segment_ordinal, _)| {
-                    selected_path
-                        .get(*segment_ordinal)
-                        .is_none_or(|segment| matches!(segment, PlaceSegment::FixedRange { .. }))
-                })
-                .map(|(_, segment)| segment_order(program, *segment))
+                .map(|segment| segment_order(program, *segment))
                 .collect::<Option<Vec<_>>>()?;
+            let mut path = selected_path.to_vec();
+            path.extend(relative_path);
             hooks.push(SelectedHook {
                 machine: *machine,
                 path,

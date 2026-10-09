@@ -150,7 +150,18 @@ pub(super) fn capture_bounds(
         source,
         active,
     ) {
-        return captured;
+        return captured.or_else(|| {
+            // The completed result keeps its declared normal-return bounds,
+            // even when reference arguments prevent scalar body evaluation.
+            // Apply the same admitted conversion as a captured body value.
+            let selected = selected_call(program, context.exact_integer_casts, source)?;
+            let (minimum, maximum) =
+                validation::normal_return_integer_bounds(program, selected.call)?;
+            selected.convert(facts::IntegerRange {
+                minimum: numerics::bignum::BigInt::from_i64(minimum?),
+                maximum: numerics::bignum::BigInt::from_i64(maximum?),
+            })
+        });
     }
     let builtin = builtin_bound_meaning_source(program, context, machine_symbol, state, source);
     let located = context.state_location(program, state);

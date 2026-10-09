@@ -11,15 +11,17 @@ use super::{
 };
 
 /// The place one statement writes and the value it writes there.
-pub(super) struct StatementWrite {
-    pub(super) target_place: PlaceHandle,
-    pub(super) source_expression: ExpressionHandle,
-    pub(super) source_place: Option<PlaceHandle>,
+pub(in crate::flow) struct StatementWrite {
+    pub(in crate::flow) target_place: PlaceHandle,
+    pub(in crate::flow) source_expression: ExpressionHandle,
+    pub(in crate::flow) source_place: Option<PlaceHandle>,
     /// The finite origins a write through a reference local may reach.
-    pub(super) candidate_targets: Vec<CanonicalPlace>,
+    pub(in crate::flow) candidate_targets: Vec<CanonicalPlace>,
+    pub(in crate::flow) target_is_exact: bool,
+    pub(in crate::flow) stable_value_target: bool,
 }
 
-pub(super) fn statement_write(
+pub(in crate::flow) fn statement_write(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
@@ -35,6 +37,7 @@ pub(super) fn statement_write(
     // holds a declared domain after the write exactly when it held it
     // before, and those rows are re-established below.
     let mut candidate_targets: Vec<CanonicalPlace> = Vec::new();
+    let mut target_is_exact = true;
     let (target_place, source_expression, source_place) = match statement {
         StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => return None,
         StatementNode::LocalData(local_data) => (
@@ -91,6 +94,7 @@ pub(super) fn statement_write(
                     ) {
                         Some(exact) => exact,
                         None => {
+                            target_is_exact = false;
                             if let Some(root) = canonical.root.as_symbol()
                                 && let Some(candidates) = build.reference_candidate_places_at(
                                     program,
@@ -138,13 +142,15 @@ pub(super) fn statement_write(
         source_expression,
         source_place,
         candidate_targets,
+        target_is_exact,
+        stable_value_target: false,
     })
 }
 
 /// Narrow each runtime `Index` segment of `target_place` whose selector
 /// value is pinned in the active contexts, and report whether the narrowed
 /// place is stable enough to carry value facts.
-pub(super) fn narrow_pinned_selectors(
+pub(in crate::flow) fn narrow_pinned_selectors(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     state_symbol: SymbolHandle,
@@ -172,14 +178,16 @@ pub(super) fn narrow_pinned_selectors(
         context_handles,
         &mut target_segments,
     );
-    let stable_value_target = target_segments.iter().all(|segment| {
-        matches!(
-            segment,
-            facts::PlaceSegment::Field { .. }
-                | facts::PlaceSegment::Case { .. }
-                | facts::PlaceSegment::FixedIndex { .. }
-        )
-    });
+    let stable_value_target = crate::flow::compose_captured_view_segments(&mut target_segments)
+        .is_some()
+        && target_segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+            )
+        });
     if stable_value_target
         && target_segments
             != semantic

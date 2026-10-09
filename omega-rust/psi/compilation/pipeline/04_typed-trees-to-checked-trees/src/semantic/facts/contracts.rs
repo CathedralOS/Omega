@@ -22,6 +22,7 @@ use points::{contract_fact_origin, contract_fact_point};
 pub(super) fn append_contract_semantic_facts(
     program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
+    operators: &checked_trees::CheckedOperatorFacts,
     facts: &mut FactPlan,
 ) {
     let mut semantic_handles = Vec::with_capacity(proof.contract_facts.len());
@@ -38,6 +39,7 @@ pub(super) fn append_contract_semantic_facts(
             evidence: QualificationEvidence::default(),
             payload,
         };
+        seed_current_requirement(program, operators, facts, &declaration_fact);
         let fact = match contract.kind {
             ContractProofFactKind::Requires => {
                 let dependency_places =
@@ -297,6 +299,60 @@ pub(super) fn append_contract_semantic_facts(
         );
         facts.append_symbol_set(exit.machine_symbol, refs);
     }
+}
+
+/// An authored precondition is an assumption only at its exact arrival, with
+/// the same storage-dependent lifetime as every other current predicate.
+/// Its declaration row remains for contract identity and admission; this
+/// checked formula lets ordinary value consumers use the whole proposition.
+/// Ensures declarations are obligations and never enter this premise path.
+fn seed_current_requirement(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    facts: &mut FactPlan,
+    fact: &Fact,
+) {
+    let FactPayload::ContractBooleanExpression {
+        kind: facts::ContractFactKind::Requires,
+        expression,
+        instantiated,
+        ..
+    } = fact.payload
+    else {
+        return;
+    };
+    // Inherited declarations retain their foreign formal namespace until
+    // the existing contract substitution owner instantiates them.
+    if instantiated.is_valid() {
+        return;
+    }
+    let ProgramPoint::State {
+        machine_symbol,
+        state_symbol,
+    } = fact.point
+    else {
+        return;
+    };
+    let Some((machine, state)) = validation::find_state_with_machine(program, state_symbol)
+        .filter(|(machine, _)| machine.symbol == machine_symbol)
+    else {
+        return;
+    };
+    let Some(expression) = crate::values::lower_state_scalar_contract_predicate(
+        program, operators, machine, state, expression, &mut 4096,
+    ) else {
+        return;
+    };
+    let Some(predicate) = crate::facts::boolean_predicates::bind_parameters(
+        program,
+        machine_symbol,
+        state_symbol,
+        program.state_parameters(state),
+        expression,
+    ) else {
+        return;
+    };
+    crate::facts::boolean_predicates::seed(facts, &predicate, fact.point, fact.origin);
 }
 
 /// Resolve one inherited contract fact's migrated proposition endpoint: the

@@ -72,4 +72,5 @@ pub(crate) use scalar_lowering::{
 };
 pub(crate) use structural_fields::{
     exclusive_reference, resolve_structural_parameter_path, structural_data,
+    structural_parameter_place,
 };

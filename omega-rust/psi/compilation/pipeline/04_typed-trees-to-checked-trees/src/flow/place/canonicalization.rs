@@ -51,6 +51,52 @@ pub(crate) fn narrow_pinned_index_segments(
     }
 }
 
+/// Compose the collection coordinates of one captured address. A view keeps
+/// its collection dimension, so indexing a fixed window adds its base rather
+/// than descending into another array. These are address projections, not the
+/// pointwise range sets used to summarize effects or residual cleanup.
+pub(crate) fn compose_captured_view_segments(
+    segments: &mut Vec<facts::PlaceSegment>,
+) -> Option<()> {
+    use facts::PlaceSegment;
+    let mut composed = Vec::with_capacity(segments.len());
+    for &segment in segments.iter() {
+        let combined = match (composed.last().copied(), segment) {
+            (Some(PlaceSegment::FixedRange { start, end }), PlaceSegment::FixedIndex { index }) => {
+                if index >= end.checked_sub(start)? {
+                    return None;
+                }
+                Some(PlaceSegment::FixedIndex {
+                    index: start.checked_add(index)?,
+                })
+            }
+            (
+                Some(PlaceSegment::FixedRange { start, end }),
+                PlaceSegment::FixedRange {
+                    start: next_start,
+                    end: next_end,
+                },
+            ) => {
+                if next_start > next_end || next_end > end.checked_sub(start)? {
+                    return None;
+                }
+                Some(PlaceSegment::FixedRange {
+                    start: start.checked_add(next_start)?,
+                    end: start.checked_add(next_end)?,
+                })
+            }
+            _ => None,
+        };
+        if let Some(segment) = combined {
+            *composed.last_mut()? = segment;
+        } else {
+            composed.push(segment);
+        }
+    }
+    *segments = composed;
+    Some(())
+}
+
 pub(crate) fn canonical_place_from_symbol(symbol: SymbolHandle) -> Option<CanonicalPlace> {
     symbol.is_valid().then_some(CanonicalPlace {
         root: facts::PlaceRoot::Symbol(symbol),

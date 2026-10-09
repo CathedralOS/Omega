@@ -223,13 +223,62 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             );
         }
 
-        let storage_writes = build.statement_storage_writes_at(
+        // Prepare the completed store once, before retiring its destination.
+        // Invalidation and establishment must consume the same captured
+        // address, including a view's base and a pinned selector. A coarse
+        // frame path remains a may-write set, never an exact value origin.
+        let mut write = super::transfers::statement_write(
             program,
+            semantic,
+            build,
             machine.symbol,
             state.symbol,
             statement_index,
             statement,
         );
+        if let Some(write) = &mut write {
+            let contexts = crate::flow::active_context_handles(build, *active_contexts);
+            let (target, stable) = super::transfers::narrow_pinned_selectors(
+                program,
+                semantic,
+                state.symbol,
+                statement_index,
+                &contexts,
+                write.target_place,
+            );
+            write.target_place = target;
+            write.stable_value_target = stable && write.target_is_exact;
+        }
+        let storage_writes = if let Some(write) =
+            write.as_ref().filter(|write| write.stable_value_target)
+            && statement.as_assignment().is_some()
+        {
+            let target = super::canonical_place_from_semantic_place(
+                program,
+                semantic,
+                semantic.places.get(write.target_place),
+            );
+            target.and_then(|target| {
+                super::close_storage_places_over_aliases_with_resolver(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    vec![target],
+                    build.call_frames,
+                )
+            })
+        } else {
+            build
+                .statement_storage_writes_at(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    statement,
+                )
+                .map(|places| (*places).clone())
+        };
         if let Some(writes) = &storage_writes {
             let mut completed = build
                 .control
@@ -279,10 +328,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             .statements
             .get_mut(statement_fact)
             .pre_store_constraints = *active_constraints;
-        let mut mutated_places = storage_writes
-            .as_ref()
-            .map(|places| (**places).clone())
-            .unwrap_or_default();
+        let mut mutated_places = storage_writes.unwrap_or_default();
         // A runtime `Index` selector whose scalar value is pinned in the live
         // contexts names exactly one element. Narrow it to that `FixedIndex`
         // before overlap matching so the write retires only the element it
@@ -360,6 +406,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             statement_index,
             statement,
             statement_fact,
+            write,
             assignment_source_contexts,
             active_contexts,
             active_constraints,

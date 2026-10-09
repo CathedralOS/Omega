@@ -16,10 +16,11 @@ use points::proof_obligation_point;
 pub(crate) fn build_semantic_facts(
     program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
+    operators: &checked_trees::CheckedOperatorFacts,
 ) -> FactPlan {
     let mut facts = validation::build_definition_fact_plan(program);
     append_proof_obligation_semantic_facts(proof, &mut facts);
-    append_contract_semantic_facts(program, proof, &mut facts);
+    append_contract_semantic_facts(program, proof, operators, &mut facts);
     // Receivers and named inputs have the same caller-enforced declared domains.
     // Actual zero-initialized storage is established separately below.
     append_state_parameter_domain_facts(program, &mut facts);

@@ -7,8 +7,9 @@ mod comparison;
 mod literal_projection;
 
 pub(crate) use canonicalization::{
-    canonical_place_from_semantic_place, canonical_place_from_symbol, narrow_pinned_index_segments,
-    projected_leaf_place, reference_source_place, reference_source_place_through_collection_views,
+    canonical_place_from_semantic_place, canonical_place_from_symbol,
+    compose_captured_view_segments, narrow_pinned_index_segments, projected_leaf_place,
+    reference_source_place, reference_source_place_through_collection_views,
     source_independent_place,
 };
 pub(crate) use case_access::{

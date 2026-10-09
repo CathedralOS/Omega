@@ -43,14 +43,37 @@ fn structural_origin(
         // expression value cannot narrow a later write through that binding.
         let segment = match segment {
             facts::PlaceSegment::Index { .. } => return Some((place, false)),
-            facts::PlaceSegment::FixedRange { .. } => return None,
             _ => *segment,
         };
         place.segments.push(segment);
-        canonical_place_type_reference(program, state.symbol, statement_index, &place)?;
+        crate::flow::compose_captured_view_segments(&mut place.segments)?;
+        origin_type_reference(program, state, statement_index, &place)?;
     }
-    canonical_place_type_reference(program, state.symbol, statement_index, &place)?;
     Some((place, true))
+}
+
+/// A frozen window is an exact descriptor origin, not an unknown element.
+/// It retains its collection dimension; the type query below checks the
+/// underlying carrier without pretending the window selected one child.
+fn origin_type_reference(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    place: &CanonicalPlace,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let mut carrier = place.clone();
+    if let Some(facts::PlaceSegment::FixedRange { start, end }) = carrier.segments.last().copied() {
+        if start > end {
+            return None;
+        }
+        carrier.segments.pop();
+        let reference =
+            canonical_place_type_reference(program, state.symbol, statement_index, &carrier)?;
+        validation::collection_element_type_reference(program, reference)?;
+        Some(reference)
+    } else {
+        canonical_place_type_reference(program, state.symbol, statement_index, place)
+    }
 }
 
 /// The sole whole-local write origin of `local_symbol` before `statement`,

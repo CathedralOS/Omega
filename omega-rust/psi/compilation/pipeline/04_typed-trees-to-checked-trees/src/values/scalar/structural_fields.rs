@@ -544,11 +544,17 @@ pub(super) fn fixed_index_element_type(
             (element_index < u64::try_from(*length).ok()?)
                 .then(|| validation::collection_element_type_reference(program, reference))?
         }
+        // A slice declares the element, not its current extent. Resolving
+        // this observation's type supplies no bounds proof; the authored
+        // index still owes its ordinary live-length obligation.
+        TypeReferenceNode::Slice { .. } => {
+            validation::collection_element_type_reference(program, reference)
+        }
         _ => None,
     }
 }
 
-/// The element type a runtime selector reaches inside a fixed array: the
+/// The element type a runtime selector reaches inside a collection: the
 /// same unwrap `fixed_index_element_type` walks, with no literal to prove
 /// against the extent — the read's own obligation checks the bound.
 pub(super) fn runtime_index_element_type(
@@ -560,6 +566,9 @@ pub(super) fn runtime_index_element_type(
         TypeReferenceNode::FixedArray { length, .. } => {
             matches!(length, typed_trees::types::FixedArrayLength::Literal(_))
                 .then(|| validation::collection_element_type_reference(program, reference))?
+        }
+        TypeReferenceNode::Slice { .. } => {
+            validation::collection_element_type_reference(program, reference)
         }
         _ => None,
     }
@@ -657,7 +666,7 @@ pub(super) fn lower_structural_parameter_field(
     ))
 }
 
-pub(super) fn structural_parameter_place(
+pub(crate) fn structural_parameter_place(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     expression: ExpressionHandle,

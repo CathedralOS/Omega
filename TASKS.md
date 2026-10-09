@@ -680,8 +680,14 @@ defines the complete product bar.
     selector captures, disjoint intervening writes and detached copies after
     an alias write; keep `borrowed_window_selector_alias_write` and
     `borrowed_window_mutable_selector_observes_hole` for changed versions and
-    observing an absent selected element. Qualify cleanup prerequisites on
-    narrowed receivers and remaining native hosts.
+    observing an absent selected element. Keep
+    `pass/drops/runtime_narrowed_cleanup_receiver_exit` (0) for authored
+    prerequisites at a captured local subslice receiver, exact replacement
+    result guarantees and untouched siblings; keep
+    `fail/drops/narrowed_cleanup_requires_actual_element` and
+    `fail/contracts/{aggregate_result_false_guarantee,projected_result_guarantee_after_overwrite}`
+    for wrong-coordinate, false-producer and stale-result rejection. Qualify
+    these cleanup prerequisites on the remaining native hosts.
     Qualify runtime-selected cleanup on the remaining native hosts. Keep
     `pass/drops/runtime_case_selected_cleanup_continuations_exit` (0) for
     captured scalar returns, computed temporaries, parent retention and

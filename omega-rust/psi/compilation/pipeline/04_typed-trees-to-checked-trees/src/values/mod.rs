@@ -64,8 +64,8 @@ pub(crate) use scalar::{
     lower_unit_scalar_argument_with_places, nested_structural_call_return_type,
     occupies_scalar_position, operator_is_builtin, parameter_position,
     resolve_structural_parameter_path, retain_nested_structural_call_arguments,
-    scalar_expression_type, structural_data, unit_scalar_binding_symbols,
-    zeroed_scalar_local_initializer,
+    scalar_expression_type, structural_data, structural_parameter_place,
+    unit_scalar_binding_symbols, zeroed_scalar_local_initializer,
 };
 
 pub(crate) fn build_value_facts(

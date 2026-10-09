@@ -69,6 +69,31 @@ pub(crate) fn ensured_call_result_interval(
     (interval != Interval::UNBOUNDED).then_some(interval)
 }
 
+/// Declaration-owned bounds on this selected call's normal result, without
+/// replaying its body or rereading mutable actuals. Call admission and normal
+/// exit checking still owe the declaration's prerequisites and guarantees.
+pub fn normal_return_integer_bounds(
+    program: &dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> Option<(Option<i64>, Option<i64>)> {
+    if !call.selects_only_nominal_route()
+        || !program
+            .primitive_type_reference(call_return_type(program, call)?)
+            .is_some_and(PrimitiveType::is_fixed_integer)
+    {
+        return None;
+    }
+    let interval = ensured_call_result_interval(program, call, &[])?;
+    if interval
+        .low
+        .zip(interval.high)
+        .is_some_and(|(low, high)| low > high)
+    {
+        return None;
+    }
+    Some((interval.low, interval.high))
+}
+
 /// Invocation-specific return bounds consume the complete ordinary arrival
 /// graph, including copied immutable locals and named state transfers. The
 /// arrival owner retains effects and branch facts; this facade contributes no
