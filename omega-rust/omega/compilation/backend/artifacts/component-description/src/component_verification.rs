@@ -326,12 +326,6 @@ impl VerifiedComponent {
         &self.description.outgoing
     }
 
-    /// Every retained installation-bound reach row with its declared
-    /// conservative bound — the roster of bounds installation still owes,
-    /// published separately from the concrete reach's `ServiceCeiling` rows.
-    pub(crate) fn service_bounds(&self) -> &[InstallationServiceBound] {
-        &self.description.service_bounds
-    }
 
     /// Every custody constraint the component carries.
     pub fn custody(&self) -> &[CustodyConstraint] {
