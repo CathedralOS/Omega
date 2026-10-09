@@ -525,9 +525,7 @@ fn formula_closure(
         expressions.push(expression.clone());
         match expression {
             Boolean::Not(operand) => collect(operand, expressions),
-            Boolean::And { left, right }
-            | Boolean::Or { left, right }
-            | Boolean::Equal { left, right } => {
+            facts::checked_boolean_triple_pattern!(left,right, ..) => {
                 collect(left, expressions);
                 collect(right, expressions);
             }
@@ -670,9 +668,7 @@ fn simplify(expression: &mut Boolean) {
                 *expression = Boolean::Constant(!value);
             }
         }
-        Boolean::And { left, right }
-        | Boolean::Or { left, right }
-        | Boolean::Equal { left, right } => {
+        facts::checked_boolean_triple_pattern!(left,right, ..) => {
             simplify(left);
             simplify(right);
             let replacement = match &*expression {
@@ -753,9 +749,7 @@ pub(crate) fn map_observations(
             *expression = boolean_operand(scalar)?;
         }
         Boolean::Not(operand) => map_observations(operand, map)?,
-        Boolean::And { left, right }
-        | Boolean::Or { left, right }
-        | Boolean::Equal { left, right } => {
+        facts::checked_boolean_triple_pattern!(left,right, ..) => {
             map_observations(left, map)?;
             map_observations(right, map)?;
         }

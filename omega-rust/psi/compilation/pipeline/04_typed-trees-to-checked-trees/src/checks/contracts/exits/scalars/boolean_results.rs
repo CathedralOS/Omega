@@ -453,9 +453,7 @@ fn bind_boolean(
             Boolean::Not(operand) => *operand,
             operand => Boolean::Not(Box::new(operand)),
         },
-        Boolean::Equal { left, right }
-        | Boolean::And { left, right }
-        | Boolean::Or { left, right } => {
+        facts::checked_boolean_triple_pattern!(left,right, ..) => {
             let left = Box::new(bind_boolean(left, resolve, remaining, depth + 1)?);
             let right = Box::new(bind_boolean(right, resolve, remaining, depth + 1)?);
             match expression {
