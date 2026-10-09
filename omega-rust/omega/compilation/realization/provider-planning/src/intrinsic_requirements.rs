@@ -22,6 +22,8 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod closed_execution;
 mod diagnostic_label;
+mod numeric_type;
+pub use numeric_type::primitive_numeric_type;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IntrinsicRequirementKind {
@@ -61,9 +63,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
         }
         // A token view is the machine's signature, not a second requirement.
         // Its provider identity and satisfaction edges belong to that machine.
-        if let Some(requirement) = typed
-            .machine(operator.symbol)
-        {
+        if let Some(requirement) = typed.machine(operator.symbol) {
             return Self::from_requirement(typed, requirement);
         }
         let [namespace, name] = typed.operator_path_members(operator.name) else {
@@ -120,8 +120,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
             return_type: entry.return_type,
             package_identity: typed.symbols.symbol_package_identity(requirement.symbol),
             requirement_identity,
-            operator: typed
-                .machine_token_binding_by_symbol(requirement.symbol),
+            operator: typed.machine_token_binding_by_symbol(requirement.symbol),
         })
     }
 
@@ -132,9 +131,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
         if !symbol.is_valid() {
             return None;
         }
-        if let Some(operator) = typed
-            .operator_definition_by_symbol(symbol)
-        {
+        if let Some(operator) = typed.operator_definition_by_symbol(symbol) {
             return Self::from_operator(typed, operator);
         }
         typed

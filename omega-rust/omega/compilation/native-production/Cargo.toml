@@ -1,0 +1,26 @@
+[package]
+name = "native-production"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+abstract-operations-to-abstract-operations = { path = "../pipeline/01_abstract-operations-to-abstract-operations" }
+abstract-operations-to-target-operations = { path = "../pipeline/02_abstract-operations-to-target-operations" }
+target-operations-to-selected-instructions = { path = "../pipeline/03_target-operations-to-selected-instructions" }
+selected-instructions-to-selected-instructions = { path = "../pipeline/04_selected-instructions-to-selected-instructions" }
+selected-instructions-to-register-homes = { path = "../pipeline/05_selected-instructions-to-register-homes" }
+register-homes-to-post-allocation-machine = { path = "../pipeline/06_register-homes-to-post-allocation-machine" }
+terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
+backend-plan = { path = "../backend/plans/backend-plan" }
+boundary-applications = { path = "../backend/artifacts/boundary-applications" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+image-emission = { path = "../backend/images/image-emission" }
+machine-code = { path = "../representations/machine-code" }
+machine-emission = { path = "../backend/machine-emission" }
+native-artifact = { path = "../backend/artifacts/native-artifact" }
+optimization-core = { path = "../../foundation/optimization-core" }
+register-environment = { path = "../backend/register-environment" }
+runtime-abi = { path = "../backend/runtime/runtime-abi" }
+target = { path = "../backend/target" }
+terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }

@@ -473,24 +473,6 @@ impl CompilerNumericType {
         Self::F64,
     ];
 
-    pub const fn from_primitive(primitive: typed_trees::types::PrimitiveType) -> Option<Self> {
-        use typed_trees::types::PrimitiveType;
-
-        match primitive {
-            PrimitiveType::I8 => Some(Self::I8),
-            PrimitiveType::I16 => Some(Self::I16),
-            PrimitiveType::I32 => Some(Self::I32),
-            PrimitiveType::I64 => Some(Self::I64),
-            PrimitiveType::U8 => Some(Self::U8),
-            PrimitiveType::U16 => Some(Self::U16),
-            PrimitiveType::U32 => Some(Self::U32),
-            PrimitiveType::U64 => Some(Self::U64),
-            PrimitiveType::F32 => Some(Self::F32),
-            PrimitiveType::F64 => Some(Self::F64),
-            PrimitiveType::Bool | PrimitiveType::Addr | PrimitiveType::Selector => None,
-        }
-    }
-
     pub const fn name(self) -> &'static str {
         match self {
             Self::I8 => "i8",
@@ -736,7 +718,6 @@ impl TerminalAuthorityDisposition {
     pub fn classes(&self) -> &[TerminalAuthorityClass] {
         &self.classes
     }
-
 
     /// Whether every class exercised by `other` is admitted by this
     /// disposition. Both inputs are canonical sets, so containment never

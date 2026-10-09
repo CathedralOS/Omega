@@ -8,7 +8,7 @@ mod callback_thunks;
 mod object_emission;
 pub(crate) mod realization_diagnostics;
 
-use compilation_products::{NativeRealizationRequest, RequestedNativeArtifactError};
+use crate::request::NativeRealizationRequest;
 use diagnostics::Diagnostic;
 use native_artifact::RequestedNativeArtifact;
 
@@ -19,25 +19,18 @@ use terminal_psi_to_abstract_operations::{AdmittedNativeRealization, admit_nativ
 /// The backend image does not own host interpretation policy or runtime state.
 pub struct RealizedNativeProduct {
     pub artifact: RequestedNativeArtifact,
-    pub runtime_provisions: Option<compilation_products::TerminalRuntimeProvisions>,
+    pub runtime_provisions: Option<native_artifact::TerminalRuntimeProvisions>,
 }
 
 /// Realize one Terminal artifact using explicit image, custody, reuse, and
 /// behavior-exclusion inputs. The request's retained behavior-exclusion union
 /// is adjudicated against the mechanism-closure review by stage 00,
 /// so a requested absence holds whether or not the request carries a receiver
-/// permission policy, and a violated exclusion publishes no product. Failure
-/// returns the exact image request; no product is silently substituted.
+/// permission policy, and a violated exclusion publishes no product. The public
+/// compiler entrance retains the image request on every failure path.
 pub(crate) fn realize_native_artifact(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,
-) -> Result<RealizedNativeProduct, RequestedNativeArtifactError> {
-    realize_image(artifact, &request).map_err(|diagnostics| request.into_failure(diagnostics))
-}
-
-fn realize_image(
-    artifact: terminal_codec::CanonicalTerminalArtifact,
-    request: &NativeRealizationRequest<'_>,
 ) -> Result<RealizedNativeProduct, Vec<Diagnostic>> {
     let AdmittedNativeRealization {
         input,
@@ -56,7 +49,7 @@ fn realize_image(
     let runtime_provisions = entry
         .checked_entry
         .map(|checked| {
-            compilation_products::TerminalRuntimeProvisions::capture_native_admission(
+            native_artifact::TerminalRuntimeProvisions::capture_native_admission(
                 checked,
                 entry.fused_service_establishments(),
                 providers
@@ -66,12 +59,10 @@ fn realize_image(
                 providers
                     .settlements
                     .iter()
-                    .map(
-                        |settlement| compilation_products::TerminalRuntimeHostProvision {
-                            boundary: settlement.boundary,
-                            realization: settlement.realization.clone(),
-                        },
-                    )
+                    .map(|settlement| native_artifact::TerminalRuntimeHostProvision {
+                        boundary: settlement.boundary,
+                        realization: settlement.realization.clone(),
+                    })
                     .collect(),
                 &input.plan().boundary_machines,
                 request.admission.providers.selected_provider_plans,
@@ -88,7 +79,7 @@ fn realize_image(
         boundary_application_coverage.as_ref(),
         receiver_settlement.as_ref(),
         &artifact,
-        request,
+        &request,
     )?;
     let runtime_provisions = runtime_provisions.map(|provisions| {
         provisions.with_borrowed_storage_layouts(emitted.borrowed_storage_layouts)

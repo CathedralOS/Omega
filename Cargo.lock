@@ -420,8 +420,6 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
- "abstract-operations-to-abstract-operations",
- "abstract-operations-to-target-operations",
  "artifacts",
  "backend-plan",
  "boundary-applications",
@@ -439,10 +437,9 @@ dependencies = [
  "installation-evidence",
  "lowered-psi",
  "lowered-psi-to-terminal-psi",
- "machine-code",
- "machine-emission",
  "mimalloc",
  "native-artifact",
+ "native-production",
  "numerics",
  "object-file",
  "optimization",
@@ -450,12 +447,8 @@ dependencies = [
  "package-compilation",
  "proof-admission",
  "provider-planning",
- "register-environment",
- "register-homes-to-post-allocation-machine",
  "runtime-abi",
  "selected-dispatch",
- "selected-instructions-to-register-homes",
- "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "sha2",
  "source",
@@ -466,7 +459,6 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
- "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
  "terminal-fuel",
@@ -569,7 +561,6 @@ dependencies = [
  "symbols",
  "target",
  "terminal-psi",
- "typed-trees",
 ]
 
 [[package]]
@@ -1108,6 +1099,7 @@ dependencies = [
  "platform-custody",
  "program-entry-plan",
  "register-model",
+ "runtime-abi",
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
@@ -1116,10 +1108,36 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
  "x86-encoding",
+]
+
+[[package]]
+name = "native-production"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations-to-abstract-operations",
+ "abstract-operations-to-target-operations",
+ "backend-plan",
+ "boundary-applications",
+ "diagnostics",
+ "image-emission",
+ "machine-code",
+ "machine-emission",
+ "native-artifact",
+ "optimization-core",
+ "register-environment",
+ "register-homes-to-post-allocation-machine",
+ "runtime-abi",
+ "selected-instructions-to-register-homes",
+ "selected-instructions-to-selected-instructions",
+ "target",
+ "target-operations-to-selected-instructions",
+ "terminal-codec",
+ "terminal-psi-to-abstract-operations",
 ]
 
 [[package]]

@@ -10,6 +10,7 @@ autotests = false
 
 
 [dependencies]
+native-production = { path = "../native-production" }
 typed-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03b_typed-trees-to-typed-trees" }
 compilation-products = { path = "../products" }
 lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
@@ -24,7 +25,6 @@ trust-model = { path = "../realization/trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 optimization = { path = "../../../psi/foundation/optimization-selections" }
 optimization-core = { path = "../../foundation/optimization-core" }
-abstract-operations-to-target-operations = { path = "../pipeline/02_abstract-operations-to-target-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 runtime-abi = { path = "../backend/runtime/runtime-abi" }
 numerics = { path = "../../../psi/foundation/numerics" }
@@ -49,15 +49,7 @@ target-operations = { path = "../representations/target-operations" }
 calling-conventions = { path = "../backend/calling-conventions" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
-selected-instructions-to-selected-instructions = { path = "../pipeline/04_selected-instructions-to-selected-instructions" }
-abstract-operations-to-abstract-operations = { path = "../pipeline/01_abstract-operations-to-abstract-operations" }
-register-homes-to-post-allocation-machine = { path = "../pipeline/06_register-homes-to-post-allocation-machine" }
-selected-instructions-to-register-homes = { path = "../pipeline/05_selected-instructions-to-register-homes" }
-target-operations-to-selected-instructions = { path = "../pipeline/03_target-operations-to-selected-instructions" }
-register-environment = { path = "../backend/register-environment" }
 image-emission = { path = "../backend/images/image-emission" }
-machine-code = { path = "../representations/machine-code" }
-machine-emission = { path = "../backend/machine-emission" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 

@@ -33,7 +33,7 @@ pub(super) fn callable_conformance(
             requirement,
         )?,
         requirement_lifetime_partition:
-            typed_trees::machine::normalize_requirement_lifetime_partition(
+            language_semantics::type_identity::normalize_requirement_lifetime_partition(
                 &conformance.trait_lifetime_arguments,
             ),
         trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),

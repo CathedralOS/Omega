@@ -1,14 +1,14 @@
 //! One abstract-to-object sequence, independent of optimization selection.
 
-use crate::native::native_realization::callback_thunks::lower_callback_thunks;
-use crate::native::native_realization::realization_diagnostics::selected_physical_pipeline_failed;
-use crate::native::stage_optimized_verified_physical_pipeline;
+use crate::physical_pipeline::stage_optimized_verified_physical_pipeline;
+use crate::realization::callback_thunks::lower_callback_thunks;
+use crate::realization::realization_diagnostics::selected_physical_pipeline_failed;
+use crate::request::NativeRealizationRequest;
 use abstract_operations_to_target_operations::{
     AdmittedBoundarySettlement, OptimizedTargetLoweringRequest,
     lower_optimized_to_target_operations,
 };
 use boundary_applications::TerminalBoundaryApplicationCoverage;
-use compilation_products::NativeRealizationRequest;
 use diagnostics::Diagnostic;
 use native_artifact::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,

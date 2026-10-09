@@ -35,9 +35,9 @@ pub(crate) fn produce_native_product(
     let terminal =
         crate::terminal::produce_retained_terminal_artifact(&mut checked, rollback.effective())?;
     let post_terminal = rollback.effective().project_post_terminal();
-    let realized = crate::native::realize_retained_native_artifact(
+    let realized = native_production::compile(
         terminal.artifact,
-        compilation_products::RetainedNativeRealizationRequest {
+        native_production::NativeCompileRequest {
             optimization_selections: post_terminal.selections(),
             terminal_authority_policy: request.terminal_authority_policy,
             accepted_package_terminal_authority_permission_policy,

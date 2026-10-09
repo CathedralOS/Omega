@@ -46,7 +46,7 @@ pub struct BoundaryCallingPlanRealization {
     /// application. Exact plan and materialized-signature custody below remain
     /// the authority for realization joins.
     pub report_fingerprint: u64,
-    pub commitment: typed_trees::typed_trees::BoundaryCallingPlanCommitment,
+    pub commitment: effects::provider_plan::BoundaryCallingPlanCommitment,
     pub boundary_entry_plan: BoundaryEntryPlan,
     /// Crate-sealed exact evidence minted with the validated realization.
     /// The public fingerprint remains a compact compatibility/report
@@ -151,7 +151,7 @@ impl BoundaryCallingPlanRealization {
         (
             ValidatedBoundaryEntryPlan,
             u64,
-            typed_trees::typed_trees::BoundaryCallingPlanCommitment,
+            effects::provider_plan::BoundaryCallingPlanCommitment,
         ),
         calling_conventions::PlanDiagnostic,
     > {
@@ -194,7 +194,7 @@ impl BoundaryCallingPlanRealization {
         Ok((
             validated,
             report_fingerprint,
-            typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(commitment),
+            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(commitment),
         ))
     }
 }
@@ -856,7 +856,7 @@ pub fn close_outbound_callback_materializations(
             boundary_plan_application_identity(&signature, &validated);
         realization.report_fingerprint = new_fingerprint;
         realization.commitment =
-            typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(new_commitment);
+            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(new_commitment);
         realization.boundary_entry_plan = validated.plan().clone();
         realization.validated_boundary_entry_plan = validated;
         realization.callback_demands = demands;

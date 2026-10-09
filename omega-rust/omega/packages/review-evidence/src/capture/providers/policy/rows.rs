@@ -142,7 +142,7 @@ fn validate_lifetime_partition(
         requirement,
     )
     .ok_or_else(|| rejected("lifetime partition has no exact selected provider application"))?;
-    if typed_trees::machine::normalize_requirement_lifetime_partition(
+    if language_semantics::type_identity::normalize_requirement_lifetime_partition(
         application.lifetime_arguments(),
     ) != retained
     {

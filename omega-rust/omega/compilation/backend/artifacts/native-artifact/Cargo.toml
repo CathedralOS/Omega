@@ -9,6 +9,8 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+runtime-abi = { path = "../../runtime/runtime-abi" }
+terminal-installation = { path = "../../../../../psi/compilation/checking/terminal-installation" }
 platform-custody = { path = "../../../../foundation/platform-custody" }
 register-model = { path = "../../register-model" }
 selected-instructions = { path = "../../../representations/selected-instructions" }

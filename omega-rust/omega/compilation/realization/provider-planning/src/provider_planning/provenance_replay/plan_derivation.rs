@@ -174,7 +174,7 @@ pub(crate) fn derive_provider_plans(
                     method: requirement.as_str().to_owned(),
                     requirement_identity: semantic_requirement_identity.clone(),
                     requirement_lifetime_partition:
-                        typed_trees::machine::normalize_requirement_lifetime_partition(
+                        language_semantics::type_identity::normalize_requirement_lifetime_partition(
                             &clause.trait_lifetime_arguments,
                         ),
                     binding: row_binding.clone(),
@@ -298,7 +298,7 @@ fn derive_named_provider_plans(
                                 .symbols
                                 .symbol_package_identity(machine.symbol),
                         },
-                        typed_trees::machine::normalize_requirement_lifetime_partition(
+                        language_semantics::type_identity::normalize_requirement_lifetime_partition(
                             lifetime_arguments,
                         ),
                         None,

@@ -1,6 +1,6 @@
 //! Native re-entry: prepare the retained product, admit providers, then realize.
 
-use compilation_products::RetainedNativeRealizationRequest;
+use crate::NativeCompileRequest;
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 
@@ -8,11 +8,11 @@ use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 /// Package permissions and optional receiver policy stay distinct and are
 /// independently rejoined by provider preparation and admission. Rejection
 /// returns the original complete image request, including its interpreter.
-pub fn realize_retained_native_artifact(
-    retained: compilation_products::RetainedTerminalArtifact,
-    mut request: RetainedNativeRealizationRequest<'_>,
+pub fn compile(
+    retained: terminal_psi_to_abstract_operations::RetainedTerminalArtifact,
+    mut request: NativeCompileRequest<'_>,
 ) -> Result<
-    super::RealizedNativeProduct,
+    crate::RealizedNativeProduct,
     (
         image_emission::ExecutableImageEmissionRequest,
         Vec<Diagnostic>,
@@ -31,9 +31,9 @@ pub fn realize_retained_native_artifact(
             },
         )?;
         let native_settlements = prepared.bindings.settlements();
-        crate::native::realize_native_artifact(
+        crate::realization::realize_native_artifact(
             artifact,
-            compilation_products::NativeRealizationRequest {
+            crate::request::NativeRealizationRequest {
                 admission: prepared.admission_request(
                     &native_settlements,
                     &request.terminal_authority_policy,
@@ -45,7 +45,6 @@ pub fn realize_retained_native_artifact(
                 callback_thunks: &prepared.callback_thunks,
             },
         )
-        .map_err(|error| error.into_parts().1)
     })();
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
 }

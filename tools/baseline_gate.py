@@ -29,6 +29,7 @@ import time
 # command-line limit (os error 206). The rest take the resolved Rust runner.
 def baseline_commands(runner):
     return [
+        ("native-boundary", [sys.executable, "tools/check_native_boundary.py"]),
         ("fmt", [sys.executable, "tools/fmt.py", "--check"]),
         ("clippy", [runner, "clippy", "--workspace", "--all-targets", "--",
                     "-D", "warnings"]),

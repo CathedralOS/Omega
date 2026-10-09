@@ -37,11 +37,6 @@ pub struct FusedServiceErasureAuthorization {
     pub requirement: symbols::SymbolHandle,
 }
 
-digest_commitment! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    BoundaryCallingPlanCommitment
-}
-
 /// One compile-time machine specialization. Const arguments are canonical
 /// proof-static identities and static machine arguments are symbols; neither
 /// becomes a runtime value. Preparation records the template and arguments;

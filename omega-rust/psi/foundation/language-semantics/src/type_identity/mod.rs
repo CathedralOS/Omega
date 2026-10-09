@@ -7,6 +7,8 @@
 mod framing;
 mod grammar;
 mod index;
+mod lifetime_partition;
+pub use lifetime_partition::normalize_requirement_lifetime_partition;
 
 /// Closed failures without source/compiler handles or allocated diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

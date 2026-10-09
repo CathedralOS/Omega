@@ -5,7 +5,24 @@ use super::DigestFeed;
 use crate::provider_evidence::evidence_digest;
 use crate::provider_evidence::providers::provider_plan::ProviderPlanRow;
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
-use typed_trees::typed_trees::BoundaryCallingPlanCommitment;
+/// Exact evaluated calling-application identity. This is realization evidence,
+/// not a typed-source declaration or permission to execute an application.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BoundaryCallingPlanCommitment([u8; 32]);
+
+impl BoundaryCallingPlanCommitment {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
+    }
+}
 
 evidence_digest!(
     /// Collision-resistant identity of one exact normalized provider plan.

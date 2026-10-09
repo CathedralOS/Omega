@@ -313,7 +313,7 @@ pub fn compute_boundary_calling_plans(
             boundary_arguments,
             requirement_machine,
             report_fingerprint: application_report_fingerprint,
-            commitment: typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+            commitment: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
                 application_commitment,
             ),
             boundary_entry_plan: validated.plan().clone(),

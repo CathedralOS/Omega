@@ -263,7 +263,7 @@ fn validate_exact_requirement_lifetime_partition(
     match matching.as_slice() {
         [] if row.requirement_lifetime_partition.is_empty() => Ok(()),
         [conformance]
-            if typed_trees::machine::normalize_requirement_lifetime_partition(
+            if language_semantics::type_identity::normalize_requirement_lifetime_partition(
                 &conformance.trait_lifetime_arguments,
             ) == row.requirement_lifetime_partition =>
         {

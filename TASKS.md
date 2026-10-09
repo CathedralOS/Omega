@@ -2086,6 +2086,10 @@ crash and native exit behavior.
     ABI/resource planning and entry signatures still need source-free inputs.
     Native stage 00 and product records consume shared Terminal installation
     contracts, not interpreter types; runtime dispatch stays in the interpreter.
+    Native sequencing now lives in `native-production`, with no transitive
+    source-IR/checker/interpreter dependency; `check_native_boundary.py` enforces
+    that cut. Extend enforcement to the remaining source-aware producer and
+    consumer boundaries below, rather than restoring access through evidence.
   - Make topology enforce ownership. Remove forbidden production dependencies
     so Rust cannot name a representation or operation outside the consuming
     stage's declared inputs. Add one workspace architecture gate derived from

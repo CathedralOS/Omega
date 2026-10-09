@@ -11,8 +11,10 @@ package under this driver, not a Psi transform. Permission-ledger validation
 belongs to stage 05; entry eligibility, source receipt joins and publication
 belong to stage 07. Their language rules do not live in the coordinator.
 
-The public `native` module exposes realization sequences and their orchestration
-errors, not a façade for backend artifacts or provider authority. Consumers use
+The independent [native compiler](../native-production/README.md) owns the
+Terminal-to-image sequence behind a source-free dependency boundary. This
+coordinator calls it after Terminal production; it no longer owns native stages.
+Consumers use
 `native-artifact`, `image-emission`, and stage 00's `provider_admission` directly
 for those contracts. Reports and publication come from `compilation-products`;
 there is no compiler-owned `report` or `artifact_publication` module. Root-level
@@ -121,9 +123,9 @@ loading, parsing and exact-input typed preparation, never checked semantics or
 Build authority; every child still performs custody admission and subsequent
 checking. Retained preparation is invocation-local, not a persistent cache.
 
-[Native compilation](src/native/native_product.rs) produces the same retained
+[Native product preparation](src/native.rs) produces the same retained
 Terminal product as Terminal-only compilation, then consumes it through
-[`realize_retained_native_artifact`](src/native/retained_native_product.rs).
+[`native_production::compile`](../native-production/src/native_compilation.rs).
 Fresh compilation and package re-entry share one source-free realization route:
 there is no direct-source native driver, second program-entry artifact, or
 prepared-compilation cache lifecycle. Package acceptance is captured separately
@@ -341,25 +343,26 @@ The coordinator supplies source-free selected-plan projections and forwards the
 emitted object and retained evidence; the backend constructs and independently
 replays the complete product. No compiler-local artifact assembler remains.
 
-This coordinator consumes canonical Terminal Psi and explicit realization
+The [native compiler](../native-production/README.md) consumes canonical Terminal Psi and explicit realization
 inputs. Its public contracts are [boundary realization](../../../../wiki/spec/terminal-psi/boundary_calls.md),
 [private callbacks](../../../../wiki/spec/build/private_callbacks.md), and
 [component publication](../../../../wiki/spec/build/component_publication.md).
-Start at [native_realization.rs](src/native/native_realization.rs):
+Start at [native_compilation.rs](../native-production/src/native_compilation.rs):
 validate scope and entry, obtain the abstract input, admit providers, emit the
-object, and assemble the image. One `NativeRealizationRequest` carries the image
-request, optional checked scope and optional prepared input alongside target and
-provider evidence. Those inputs do not select alternate API entrypoints.
+object, and assemble the image. One `NativeCompileRequest` carries the image
+request, optimization selections, admitted imports and authority policies.
+The retained Terminal proposal supplies target and provider evidence. Those
+inputs do not select alternate API entrypoints.
 
 Program and callback realization pass verified abstract input directly to
 [Omega's abstract optimization stage](../pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs),
 then feed its validated plan into target lowering. The
-[product request](../products/src/compile_request/native.rs)
+[native request](../native-production/src/request.rs)
 supplies the work budget; optimization stages own its use. Callback and identity
 admission belong to the product and realization owners. The coordinator sequences
 those calls.
 
-[Object emission](src/native/native_realization/object_emission.rs) feeds the
+[Object emission](../native-production/src/realization/object_emission.rs) feeds the
 target-lowering result directly into the shared physical sequence. That sequence
 returns the backend's fragment-emission input, which publication, callback
 emission and optimization reporting consume directly. No compiler-owned program

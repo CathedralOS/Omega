@@ -51,11 +51,10 @@ pub mod values;
 mod wire_schema_queries;
 
 pub use commitments::{
-    BoundaryCallingPlanCommitment, ClosedConformanceApplication,
-    ClosedConformanceApplicationCommitment, ClosedConformanceConstArgument,
-    ClosedConformanceRowIdentity, FusedServiceErasureAuthorization, MachineSpecialization,
-    MachineSpecializationCommitment, MachineTemplateCommitment, StaticRequirementDispatch,
-    closed_conformance_applications_of,
+    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
+    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, FusedServiceErasureAuthorization,
+    MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
+    StaticRequirementDispatch, closed_conformance_applications_of,
 };
 pub use placed_plans::{
     PlacedAccessorTarget, PlacedAtomicObservingResultContract, PlacedAtomicResidentContract,

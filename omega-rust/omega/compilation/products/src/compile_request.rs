@@ -18,10 +18,7 @@ mod checked;
 mod native;
 pub use checked::{CheckedCompileRequest, CheckedExecutionRequest, SettledCheckReuse};
 pub mod options;
-pub use native::{
-    NativeProductRequest, NativeRealizationRequest, RequestedNativeArtifactError,
-    RetainedNativeRealizationRequest,
-};
+pub use native::NativeProductRequest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestedCompileProduct {

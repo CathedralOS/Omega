@@ -5,8 +5,8 @@
 //! identity and a boundary entry plan. Every thunk follows the ordinary native
 //! pipeline; emission derives its linker name from the retained identity.
 
+use crate::request::NativeRealizationRequest;
 use backend_plan::NativeCallbackThunkSettlement;
-use compilation_products::NativeRealizationRequest;
 use diagnostics::Diagnostic;
 use machine_code::CompilerPrivateMachineCodeFunction;
 use terminal_psi_to_abstract_operations::{
@@ -74,8 +74,9 @@ fn lower_callback_thunk(
             ),
         )
         .map_err(|error| realization_error("callback thunk target lowering", error))?;
-    let physical = crate::native::stage_optimized_verified_physical_pipeline(optimized_target)
-        .map_err(|error| realization_error("callback thunk physical pipeline", error))?;
+    let physical =
+        crate::physical_pipeline::stage_optimized_verified_physical_pipeline(optimized_target)
+            .map_err(|error| realization_error("callback thunk physical pipeline", error))?;
     let emitted = machine_emission::stage_optimized_function_fragment_emission(physical)
         .map_err(|error| realization_error("callback thunk fragment emission", error))?;
     let applied = machine_emission::stage_function_fragment_frame_application(emitted)

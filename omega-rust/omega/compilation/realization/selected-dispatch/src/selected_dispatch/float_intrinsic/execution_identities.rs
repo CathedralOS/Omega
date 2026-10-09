@@ -11,9 +11,7 @@ use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 use numerics::arithmetic::ArithmeticDomain;
-use provider_planning::{
-    CompilerIntrinsicExecutionIdentity, CompilerNumericType, IntrinsicRequirement,
-};
+use provider_planning::{CompilerIntrinsicExecutionIdentity, IntrinsicRequirement};
 
 /// Rederive the closed execution child for one exact selected provider row.
 ///
@@ -93,14 +91,14 @@ fn named_float_conversion_execution_identity(
     let source = checked
         .typed
         .primitive_type_reference(value.type_reference)
-        .and_then(CompilerNumericType::from_primitive)
+        .and_then(provider_planning::primitive_numeric_type)
         .ok_or_else(|| {
             Diagnostic::error("selected named-float conversion has no closed numeric source type")
         })?;
     let target = checked
         .typed
         .primitive_type_reference(requirement.return_type)
-        .and_then(CompilerNumericType::from_primitive)
+        .and_then(provider_planning::primitive_numeric_type)
         .ok_or_else(|| {
             Diagnostic::error("selected named-float conversion has no closed numeric target type")
         })?;

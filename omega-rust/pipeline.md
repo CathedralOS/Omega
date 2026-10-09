@@ -204,6 +204,17 @@ on compiler orchestration or build evaluation. It is an output lifecycle, not a
 new program representation or pipeline phase. The CLI publishes through it directly.
 
 `omega/compilation/driver/` owns only compilation orchestration.
+[`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
+owns the source-free Terminal-to-image sequence. Its entry is
+`native_compilation.rs`; realization captures runtime provisions before the
+abstract, target and physical stages produce the image. Those provisions belong
+to `native-artifact`, not the source compilation products. Provider evidence
+contains no source-IR helpers: source-to-evidence conversion stays with the
+source-aware producer, while lifetime partition normalization belongs to shared
+language semantics. The native compiler's transitive production dependencies
+are enforced by `python tools/check_native_boundary.py`, including optional,
+build and target-specific edges. This boundary is implemented; the common Psi
+prefix and package/application facade boundaries above remain unfinished.
 [`omega/compilation/build-evaluation/`](omega/compilation/build-evaluation/README.md)
 owns Build admission, consent and execution; it is not a new pipeline phase.
 The shared package-input contracts live with the package system, not compiler

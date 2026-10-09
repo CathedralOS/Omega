@@ -9,7 +9,7 @@
 
 use super::IntrinsicRequirement;
 use effects::{
-    CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };
 use typed_trees::types::PrimitiveType;
@@ -67,7 +67,7 @@ impl IntrinsicRequirement<'_> {
     ) -> Option<CompilerIntrinsicExecutionIdentity> {
         let operator = self.as_operator()?;
         let (operation, primitive) = primitive_integer_comparison_semantics(typed, operator)?;
-        let integer_type = CompilerNumericType::from_primitive(primitive)?;
+        let integer_type = super::numeric_type::primitive_numeric_type(primitive)?;
         if integer_type.is_float() {
             return None;
         }

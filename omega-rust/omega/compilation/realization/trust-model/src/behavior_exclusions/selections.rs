@@ -116,7 +116,11 @@ fn authored_service_exclusion(
         ));
     };
     validation::compiler_operations::resolve_build_declaration_operand(typed, expression, 0, occurrence)
-        .and_then(|symbol| effects::boundary_trait_identity(typed.product_declarations(), symbol))
+        .and_then(|symbol| {
+            typed.product_declarations().trait_definition_by_symbol(symbol)
+                .filter(|definition| definition.is_boundary)
+                .map(|definition| definition.name.as_str().to_owned())
+        })
         .ok_or_else(|| Diagnostic::error(
             "service exclusion does not resolve to an exact visible product boundary trait declaration",
         ))

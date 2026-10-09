@@ -1,20 +1,7 @@
-//! Build selection identity projection and human descriptions of exclusion evidence.
+//! Human descriptions of exclusion evidence.
 //! Diagnostic text never supplies service ownership or grants authority.
 
 use super::{BehaviorExclusion, EvidenceGapKind, ProhibitedSite};
-
-/// Map a checked boundary-trait symbol to the identity Terminal service
-/// declarations carry for it: the trait's declared name.
-pub fn boundary_trait_identity(
-    program: &typed_trees::TypedTrees,
-    symbol: symbols::SymbolHandle,
-) -> Option<String> {
-    program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == symbol && definition.is_boundary)
-        .map(|definition| definition.name.as_str().to_owned())
-}
 
 impl BehaviorExclusion {
     /// Describe this exclusion, resolving service identities in the exact module.

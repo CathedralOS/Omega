@@ -41,10 +41,9 @@
 //! checks settled mechanism evidence without consulting receiver permissions.
 //! Build authoring and source-spanned selection provenance remain with build
 //! evaluation. Neither semantic nor physical checking executes the Build.
-//! `attribution` owns Build selection identity projection and human descriptions.
+//! `attribution` owns human descriptions of retained exclusion evidence.
 
 mod attribution;
-pub use attribution::boundary_trait_identity;
 
 use crate::TerminalAuthorityClass;
 use diagnostics::Diagnostic;

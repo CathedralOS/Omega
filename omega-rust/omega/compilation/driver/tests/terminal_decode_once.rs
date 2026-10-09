@@ -16,10 +16,7 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-use compiler::{
-    CompileOptions, CompileRequest, RequestedCompileProduct, RetainedNativeRealizationRequest,
-    compile, realize_retained_native_artifact,
-};
+use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
 use std::fs;
 use std::path::PathBuf;
@@ -106,9 +103,9 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // Everything above is Psi production and proposal retention. The
     // measurement starts here so it attributes only the realization.
     let before = terminal_codec::module_decode_count();
-    let product = realize_retained_native_artifact(
+    let product = native_production::compile(
         retained,
-        RetainedNativeRealizationRequest {
+        native_production::NativeCompileRequest {
             optimization_selections:
                 &optimization_core::PostTerminalOptimizationSelections::default(),
             terminal_authority_policy: provider_admission::terminal_authority_policy_with_rows(
@@ -241,8 +238,7 @@ fn exercise_owned_and_borrowed_instances() {
     );
     let (transferred_module, _) = published.into_semantics();
     assert_eq!(machine_storage, transferred_module.machines.as_ptr());
-    let entry = module.machine(module.entry)
-        .unwrap();
+    let entry = module.machine(module.entry).unwrap();
     assert!(
         std::ptr::eq(borrowed.entry().unwrap().result, &entry.result),
         "execution descriptions must borrow the original declarations"

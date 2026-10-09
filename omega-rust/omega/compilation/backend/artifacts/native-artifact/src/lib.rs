@@ -25,6 +25,7 @@ pub(crate) mod optimized_semantic_wrapper_object;
 mod package_publication;
 mod physical;
 mod publication;
+mod runtime_provisions;
 mod semantic_wrapper_object;
 
 pub use entry_receiver::admit_executable_entry_receiver;
@@ -32,24 +33,24 @@ pub use fragment_object_publication::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
 };
 pub use image_emission::BoundaryExecutionRecord;
-pub use native_artifact::{
-    DynamicElfNativeArtifact, NativeArtifact, RequestedNativeArtifact,
-};
+pub use native_artifact::{DynamicElfNativeArtifact, NativeArtifact, RequestedNativeArtifact};
 pub(crate) use native_artifact::{
-    NativePhysicalEvidenceScope, NativeProviderExecution,
-    NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest};
+    NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan,
+    NativeSelectedProviderPlanDigest,
+};
 pub use package_publication::{
     NativePackagePublicationReceipt, PackagePublicationComponent, publish_macos_application_package,
 };
+pub use runtime_provisions::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 
-pub(crate) use physical::{ BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
-    CompilerBuiltinResult, CompilerBuiltinScalarArgument, InstalledProviderInternalCallCustody,
-    NativeByteSpan, NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection,
-    NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
-    NativePhysicalOccurrence,
+pub(crate) use physical::{
+    BoundaryTraitSettlementParts, BoundaryTraitSettlementRole, CompilerBuiltinResult,
+    CompilerBuiltinScalarArgument, InstalledProviderInternalCallCustody, NativeByteSpan,
+    NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
+    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalOccurrence,
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
-    OptimizedBoundaryOccurrence, PhysicalChildParent,
-    PhysicalRelocationDisposition};
+    OptimizedBoundaryOccurrence, PhysicalChildParent, PhysicalRelocationDisposition,
+};
 pub use publication::{
     DynamicElfPublicationReceipt, ExecutableContainerDigest, ExecutableInstallationEvidenceDigest,
     ExecutablePublicationReceipt, NativePackageEvidenceDigest, NativePublicationCertificateDigest,
@@ -63,4 +64,5 @@ pub(crate) use semantic_wrapper_object::{
     OptimizedProgramStorageSemanticWrapperObjectPlan,
     OptimizedProgramStorageSemanticWrapperObjectRecordError,
     ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
-    compose_optimized_program_storage_semantic_wrapper_object};
+    compose_optimized_program_storage_semantic_wrapper_object,
+};

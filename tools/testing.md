@@ -483,12 +483,20 @@ the whole chain.
 Use these gates when establishing or refreshing a full checkout baseline:
 
 ```bash
+python tools/check_native_boundary.py
 python tools/fmt.py --check
 mbx clippy --workspace --all-targets -- -D warnings
 python tools/corpus_gate.py
 mbx check --workspace --all-targets
 mbx nextest run --workspace --lib --no-fail-fast
 ```
+
+The native-boundary gate walks Cargo's declared production path dependencies,
+including optional, build and target-specific edges. It rejects source/compiler,
+package and interpreter owners anywhere behind `native-production`. Its seeded
+negative controls run with `python tools/tests/test_native_boundary.py -v`.
+This is a check of the native facade, not a claim that all workspace topology
+has converged to the two-driver contract.
 
 `mbx nextest run --workspace --lib --no-fail-fast` is the platform-portable
 subset: all library tests, no target-specific executable/runtime legs.

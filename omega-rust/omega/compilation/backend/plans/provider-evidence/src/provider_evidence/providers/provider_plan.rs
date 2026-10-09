@@ -26,13 +26,13 @@ pub use evaluated_bindings::{
     EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
     EvaluatedForeignImport, EvaluatedForeignSyscall, evaluated_syscall_identity_digest,
 };
+pub use service_schemas::BoundaryCallingPlanCommitment;
 pub use service_schemas::{
     ProviderPlanDigest, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
     ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
     ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSchema,
     ServiceSchemaDigest,
 };
-pub use typed_trees::typed_trees::BoundaryCallingPlanCommitment;
 
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
 
@@ -762,7 +762,7 @@ impl ProviderPlan {
                     self.name, row.method
                 ));
             }
-            if typed_trees::machine::normalize_requirement_lifetime_partition(
+            if language_semantics::type_identity::normalize_requirement_lifetime_partition(
                 &row.requirement_lifetime_partition,
             ) != row.requirement_lifetime_partition
             {

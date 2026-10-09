@@ -36,7 +36,6 @@ mod package_build;
 mod prepared_build;
 mod prepared_source;
 pub mod publication;
-mod runtime_provisions;
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, RetainedCompilationChecks,
@@ -49,8 +48,7 @@ pub use compile_outcomes::{
 pub use compile_request::options::CompileOptions;
 pub use compile_request::{
     CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeProductRequest,
-    NativeRealizationRequest, RequestedCompileProduct, RequestedNativeArtifactError,
-    RetainedNativeRealizationRequest, SettledCheckReuse,
+    RequestedCompileProduct, SettledCheckReuse,
 };
 pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery,
@@ -62,6 +60,7 @@ pub use native_artifact::{
     executable_installation_evidence_digest,
 };
 pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};
+pub use native_artifact::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 pub use optimization_core::OptimizationRollbackReceipt;
 pub use package_build::{PackageBuildOutcome, PreparedPackageBuild};
 pub use package_compilation::RetainedBuildOutputs;
@@ -69,7 +68,6 @@ pub use prepared_build::{BuiltTypedProgram, PreparedBuild, PreparedProductSource
 pub use prepared_source::{
     PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier,
 };
-pub use runtime_provisions::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 pub use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,

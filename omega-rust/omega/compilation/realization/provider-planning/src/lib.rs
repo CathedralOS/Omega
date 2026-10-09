@@ -40,7 +40,9 @@ pub use provider_settlement::{
     verify_selected_compositions_are_realized,
 };
 
-pub use intrinsic_requirements::{IntrinsicRequirement, IntrinsicRequirementKind};
+pub use intrinsic_requirements::{
+    IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
+};
 pub use planning_context::ProviderPlanningContext;
 pub use provider_declarations::collect_executed_provider_selections;
 pub(crate) use provider_declarations::harvest_provider_selections;
