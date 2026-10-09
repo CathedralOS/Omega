@@ -110,7 +110,23 @@ fn validate_expression(
         .map(|(parameter, argument)| {
             Some((
                 parameter.name.as_str().to_owned(),
-                structural_term(program, *argument)?,
+                match state {
+                    Some(state) => super::structural_terms::structural_term_in_scope(
+                        program,
+                        Some((machine, state, Default::default())),
+                        *argument,
+                    )?,
+                    None => super::structural_terms::structural_term_for_parameters(
+                        program,
+                        machine.symbol,
+                        program
+                            .machine_states(machine)
+                            .first()
+                            .map(|entry| program.state_parameters(entry))
+                            .unwrap_or_default(),
+                        *argument,
+                    )?,
+                },
             ))
         })
         .collect::<Option<Vec<_>>>();

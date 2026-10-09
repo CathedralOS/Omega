@@ -247,7 +247,7 @@ pub(super) fn instantiated_fact_judgment(
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> StructuralJudgment {
     if super::structural_terms::is_case_observation(program, fact) {
-        return judge.instantiated_case_judgment(callee_parameters, fact, map);
+        return judge.instantiated_case_judgment(callee_owner, callee_parameters, fact, map);
     }
     let Some(binary) = program.expression_table.binary_node(fact) else {
         return StructuralJudgment::Unknown;

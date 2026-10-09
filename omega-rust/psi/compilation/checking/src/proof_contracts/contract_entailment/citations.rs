@@ -17,7 +17,7 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
     CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm,
 };
 use crate::proof_contracts::contract_entailment::structural_terms::{
-    structural_term, structural_term_in_scope, structural_term_pair,
+    structural_term_in_scope, structural_term_pair,
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -224,7 +224,12 @@ pub(crate) fn collect_citation_equations(
     for statement in program.statement_table.statements(entry.statement_nodes) {
         if let Some(local) = statement.as_local_data() {
             if let Some(judge) = site_judge.as_ref()
-                && let Some(term) = judge.callee_term(local.initial_value, &environment, 0)
+                && let Some(term) = judge.callee_term_in_scope(
+                    Some((machine, entry, local.type_reference)),
+                    local.initial_value,
+                    &environment,
+                    0,
+                )
             {
                 environment.push((local.name.as_str().to_owned(), term));
             }
@@ -237,10 +242,19 @@ pub(crate) fn collect_citation_equations(
         let mut argument_terms: Vec<StructuralTerm> = Vec::with_capacity(argument_handles.len());
         let mut arguments_termify = true;
         for argument in &argument_handles {
-            let term = site_judge
-                .as_ref()
-                .and_then(|judge| judge.callee_term(*argument, &environment, 0))
-                .or_else(|| structural_term(program, *argument));
+            let term = match site_judge.as_ref() {
+                Some(judge) => judge.callee_term_in_scope(
+                    Some((machine, entry, Default::default())),
+                    *argument,
+                    &environment,
+                    0,
+                ),
+                None => structural_term_in_scope(
+                    program,
+                    Some((machine, entry, Default::default())),
+                    *argument,
+                ),
+            };
             let Some(term) = term else {
                 arguments_termify = false;
                 break;
@@ -920,7 +934,7 @@ pub(crate) fn instantiated_fact_established(
     if super::structural_terms::is_case_observation(program, fact) {
         return judge.has_exact_case_subjects()
             && matches!(
-                judge.instantiated_case_judgment(parameters, fact, map),
+                judge.instantiated_case_judgment(scope, parameters, fact, map),
                 StructuralJudgment::Proven
             );
     }

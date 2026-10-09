@@ -14,9 +14,7 @@ use crate::proof_contracts::contract_entailment::citations::{
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
-use crate::proof_contracts::contract_entailment::structural_terms::{
-    structural_term, structural_term_in_scope,
-};
+use crate::proof_contracts::contract_entailment::structural_terms::structural_term_in_scope;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
@@ -123,7 +121,11 @@ pub(crate) fn proof_edge_strict_decrease_judged(
                 judge.intake(program, guard);
                 continue;
             }
-            let Some(subject_term) = structural_term(program, comparison.left) else {
+            let Some(subject_term) = structural_term_in_scope(
+                program,
+                Some((machine, other, Default::default())),
+                comparison.left,
+            ) else {
                 continue;
             };
             let Some((definition, variant)) = super::structural_terms::case_guard_classifier(
@@ -171,7 +173,11 @@ pub(crate) fn proof_edge_strict_decrease_judged(
                 let Some(member) = program.expression_table.member_node(*argument) else {
                     continue;
                 };
-                let Some(receiver_term) = structural_term(program, member.receiver) else {
+                let Some(receiver_term) = structural_term_in_scope(
+                    program,
+                    Some((machine, other, Default::default())),
+                    member.receiver,
+                ) else {
                     continue;
                 };
                 if receiver_term != subject_term {
@@ -252,11 +258,15 @@ pub(crate) fn proof_edge_strict_decrease_judged(
     }
 
     // The obligation.
-    let Some(argument_term) = structural_term(program, edge_argument) else {
+    let Some(argument_term) = structural_term_in_scope(
+        program,
+        Some((machine, state, Default::default())),
+        edge_argument,
+    ) else {
         return false;
     };
     let left = StructuralTerm::Application {
-        result_type: typed_trees::types::TypeReferenceHandle::invalid(),
+        result_type: crate::call_target_return_type(program, relation).unwrap_or_default(),
         target: relation,
         selections: Vec::new(),
         machine: "saturating_sub".to_owned(),

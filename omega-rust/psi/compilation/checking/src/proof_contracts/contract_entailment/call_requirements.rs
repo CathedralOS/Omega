@@ -337,7 +337,12 @@ fn intake_state_induction(
     if !crate::machine_calls::calls::proof_call_has_structural_descent(program, machine, call) {
         return;
     }
-    let Some(value) = judge.callee_term(value, environment, 0) else {
+    let Some(value) = judge.callee_term_in_scope(
+        Some((machine, state, state.return_type)),
+        value,
+        environment,
+        0,
+    ) else {
         return;
     };
     let parameters = program

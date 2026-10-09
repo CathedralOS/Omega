@@ -203,6 +203,9 @@ pub(super) fn structural_call_target(
 /// variables; a resolved payload-free case path constructs its common fields.
 /// Record and case literals retain complete sorted fields, including established
 /// runtime defaults; unsupported expressions stay opaque or fail closed.
+/// Without a declaring frame, selected applications retain absent result-type
+/// authority. This route serves closed literals and structural shape matching;
+/// semantic premises/goals must use the state or parameter-frame entry point.
 pub(super) fn structural_term(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -237,7 +240,9 @@ pub(super) fn structural_term_pair_for_parameters(
 }
 
 /// `structural_term` with an explicit declaring `(machine, state)` fallback for
-/// name-free binary operands (see `binary_term_in_scope`).
+/// name-free binary operands and selected application result references. The
+/// runtime state binds actual source storage; abstract declaration telescopes
+/// use `structural_term_for_parameters` and never borrow a caller's state.
 pub(super) fn structural_term_in_scope(
     program: &dyn crate::CheckingInput,
     scope: Option<(

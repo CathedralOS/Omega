@@ -10,7 +10,7 @@ use crate::proof_contracts::contract_entailment::self_induction::intake_availabl
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
-use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
+use crate::proof_contracts::contract_entailment::structural_terms::structural_term_in_scope;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -542,8 +542,17 @@ fn recognize_structural_state_leaves_from(
                 ) {
                     return None;
                 }
-                let raw_subject = structural_term(program, comparison.left)?;
-                let subject = judge.callee_term(comparison.left, &branch_environment, 0)?;
+                let raw_subject = structural_term_in_scope(
+                    program,
+                    Some((machine, state, Default::default())),
+                    comparison.left,
+                )?;
+                let subject = judge.callee_term_in_scope(
+                    Some((machine, state, Default::default())),
+                    comparison.left,
+                    &branch_environment,
+                    0,
+                )?;
                 let (definition, variant) = super::structural_terms::case_guard_classifier(
                     program,
                     machine,

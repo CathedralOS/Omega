@@ -1,7 +1,7 @@
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, StatementNode, SymbolHandle,
     TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker, structural_call_machine_name,
-    structural_term, term_contains,
+    term_contains,
 };
 use language_semantics::const_value::boolean_literal_spelling;
 use typed_trees::types::TypeReferenceHandle;
@@ -862,7 +862,11 @@ impl<'program> StructuralJudge<'program> {
                     ) {
                         return None;
                     }
-                    let subject = structural_term(program, comparison.left)?;
+                    let subject = super::structural_terms::structural_term_in_scope(
+                        program,
+                        Some((machine, state, Default::default())),
+                        comparison.left,
+                    )?;
                     let StructuralTerm::Variable(subject_name) = subject else {
                         return None;
                     };
@@ -927,8 +931,12 @@ impl<'program> StructuralJudge<'program> {
         self.callee_term_with_machines(expression, environment, &[], None, depth)
     }
 
-    /// `callee_term` with an explicit declaring `(machine, state)` fallback for
-    /// name-free binary operands (see `binary_term_in_scope`).
+    /// Form an expression under its actual declaring machine/state before
+    /// substituting the captured environment. The frame retains selected call
+    /// result carriers/policies and builtin computation meaning. The final
+    /// reference is only a caller's retained landing for anonymous arithmetic;
+    /// it does not replace an expression's own selected result type. Abstract
+    /// contract telescopes use `structural_term_for_parameters` instead.
     pub(super) fn callee_term_in_scope(
         &self,
         scope: Option<(&Machine, &typed_trees::state::State, TypeReferenceHandle)>,
@@ -1365,7 +1373,7 @@ impl<'program> StructuralJudge<'program> {
             // A boolean-valued proof call is itself a proposition. Resolve a
             // closed checked application exactly as `call == true`; N6
             // equivalence laws use this ordinary contract shape.
-            let Some(term) = structural_term(program, fact) else {
+            let Some(term) = self.declaration_term(fact) else {
                 return StructuralJudgment::Unknown;
             };
             return match self.resolve(term) {
@@ -1395,7 +1403,7 @@ impl<'program> StructuralJudge<'program> {
             else {
                 return StructuralJudgment::Unknown;
             };
-            let Some(subject) = structural_term(program, binary.left) else {
+            let Some(subject) = self.declaration_term(binary.left) else {
                 return StructuralJudgment::Unknown;
             };
             // Existing result/guarantee checking retains its value-normalizer
@@ -1505,6 +1513,7 @@ impl<'program> StructuralJudge<'program> {
     /// expression against the caller would confuse identically named binders.
     pub(super) fn instantiated_case_judgment(
         &self,
+        scope: SymbolHandle,
         parameters: &[typed_trees::signature::StateParameter],
         fact: ExpressionHandle,
         map: &[(String, StructuralTerm)],
@@ -1522,7 +1531,12 @@ impl<'program> StructuralJudge<'program> {
         else {
             return StructuralJudgment::Unknown;
         };
-        let Some(subject) = structural_term(self.program, binary.left) else {
+        let Some(subject) = super::structural_terms::structural_term_for_parameters(
+            self.program,
+            scope,
+            parameters,
+            binary.left,
+        ) else {
             return StructuralJudgment::Unknown;
         };
         self.judge_case(
@@ -1569,7 +1583,15 @@ impl<'program> StructuralJudge<'program> {
         else {
             return;
         };
-        let Some(subject) = structural_term(self.program, binary.left) else {
+        let Some(entry) = self.program.machine_states(callee).first() else {
+            return;
+        };
+        let Some(subject) = super::structural_terms::structural_term_for_parameters(
+            self.program,
+            callee.symbol,
+            self.program.state_parameters(entry),
+            binary.left,
+        ) else {
             return;
         };
         let Some(subject) = self.resolve_case_subject(Self::substitute_term(&subject, map), 0)
