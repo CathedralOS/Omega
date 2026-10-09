@@ -25,7 +25,7 @@ const DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] =
 /// candidate.  This identity is domain-separated from [`crate::NativeArtifactIdentity`]
 /// so equal output bytes cannot collapse the two authority classes.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DynamicElfNativeArtifactIdentity([u8; 32]);
+pub(crate) struct DynamicElfNativeArtifactIdentity([u8; 32]);
 
 impl DynamicElfNativeArtifactIdentity {
     pub const fn as_bytes(&self) -> &[u8; 32] {
@@ -83,7 +83,7 @@ pub struct DynamicElfNativeArtifact {
 
 /// Reconstructible parts of one non-installable dynamic-ELF native candidate.
 #[derive(Debug)]
-pub struct DynamicElfNativeArtifactParts {
+pub(crate) struct DynamicElfNativeArtifactParts {
     pub target: target::NativeTarget,
     pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
     pub object: image_emission::ObjectArtifact,
@@ -106,7 +106,7 @@ pub struct DynamicElfNativeArtifactParts {
 /// Fresh dynamic writer inputs.  Physical evidence is rederived from the
 /// canonical Terminal/object/final-image join rather than accepted from the
 /// caller.
-pub type DynamicElfNativeArtifactEmissionParts =
+pub(crate) type DynamicElfNativeArtifactEmissionParts =
     super::NativeArtifactEmissionParts<image_emission::RequestedDynamicElfImage>;
 
 impl DynamicElfNativeArtifact {
@@ -115,7 +115,7 @@ impl DynamicElfNativeArtifact {
     /// The artifact is sealed over the parts this compile just produced; it is
     /// not replayed. [`Self::from_replayed_parts`] and [`Self::validate`]
     /// replay it for retained-artifact readers.
-    pub fn from_emitted_parts(
+    pub(crate) fn from_emitted_parts(
         parts: DynamicElfNativeArtifactEmissionParts,
     ) -> Result<Self, &'static str> {
         let final_image_symbol_digest =
@@ -415,7 +415,7 @@ impl DynamicElfNativeArtifact {
         self.boundary_application_coverage.as_ref()
     }
 
-    pub fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
+    pub(crate) fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
         self.physical_evidence_scope.clone()
     }
 

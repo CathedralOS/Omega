@@ -8,7 +8,7 @@ use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 /// ProgramStorage continuation. This function is intentionally
 /// diagnostic-only: it accepts borrowed evidence and returns no carrier,
 /// receipt, encoding, object, installation, or publication authority.
-pub fn validate_installed_program_storage_continuation_evidence(
+pub(crate) fn validate_installed_program_storage_continuation_evidence(
     installation: &AdmittedProviderInstallation,
     selected: &SelectedInstructionPlan,
     semantic_entry: MachineId,

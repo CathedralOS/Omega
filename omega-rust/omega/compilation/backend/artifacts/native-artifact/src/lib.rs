@@ -22,21 +22,13 @@ mod callable_entry;
 mod entry_receiver;
 mod fragment_object_publication;
 mod native_artifact;
-pub mod optimized_semantic_wrapper_object;
+pub(crate) mod optimized_semantic_wrapper_object;
 mod package_publication;
 mod physical;
 mod publication;
 mod semantic_wrapper_object;
 
 pub use callable_entry::{
-    OptimizedOrdinaryCallableEntryCustodyReceipt, OptimizedOrdinaryCallableEntryDecodeError,
-    OptimizedOrdinaryCallableEntryDisposition, OptimizedOrdinaryCallableEntryError,
-    OptimizedOrdinaryCallableEntryManifest, OptimizedOrdinaryCallableEntryManifestDecodeError,
-    OptimizedOrdinaryCallableEntryRecord, OptimizedOrdinaryCallableEntryStage,
-    OptimizedOrdinaryCallableEntryUnavailableData, OptimizedOrdinaryCallableParameter,
-    OptimizedOrdinaryCallableResult, OptimizedOrdinaryCallableReturn,
-    StagedValidatedOptimizedOrdinaryCallableEntry, ValidatedOptimizedOrdinaryCallableEntryManifest,
-    stage_validated_optimized_ordinary_callable_entry,
 };
 pub use entry_receiver::admit_executable_entry_receiver;
 pub use fragment_object_publication::{
@@ -44,26 +36,24 @@ pub use fragment_object_publication::{
 };
 pub use image_emission::BoundaryExecutionRecord;
 pub use native_artifact::{
-    DynamicElfNativeArtifact, DynamicElfNativeArtifactEmissionParts,
-    DynamicElfNativeArtifactIdentity, DynamicElfNativeArtifactParts, NativeArtifact,
-    NativeArtifactEmissionParts, NativeArtifactIdentity, NativeArtifactParts,
-    NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderClosureDigest,
-    NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest, RequestedNativeArtifact,
+    DynamicElfNativeArtifact, NativeArtifact, RequestedNativeArtifact,
 };
+pub(crate) use native_artifact::{
+    NativePhysicalEvidenceScope, NativeProviderExecution,
+    NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest};
 pub use package_publication::{
     NativePackagePublicationReceipt, PackagePublicationComponent, publish_macos_application_package,
 };
 pub use physical::{
-    BoundaryTraitSettlement, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
+};
+pub(crate) use physical::{ BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
     CompilerBuiltinResult, CompilerBuiltinScalarArgument, InstalledProviderInternalCallCustody,
     NativeByteSpan, NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection,
     NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
-    NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts,
-    NativePhysicalOccurrence, NormalizedForeignCallImportField, NormalizedForeignCallRelocation,
+    NativePhysicalOccurrence,
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
-    OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
-    PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
-};
+    OptimizedBoundaryOccurrence, PhysicalChildParent,
+    PhysicalRelocationDisposition};
 pub use publication::{
     DynamicElfPublicationReceipt, ExecutableContainerDigest, ExecutableInstallationEvidenceDigest,
     ExecutablePublicationReceipt, NativePackageEvidenceDigest, NativePublicationCertificateDigest,
@@ -71,21 +61,11 @@ pub use publication::{
     PreparedExecutablePublication, executable_installation_evidence_digest,
 };
 pub use semantic_wrapper_object::{
-    OptimizedProgramStorageSemanticWrapperCallResolution,
-    OptimizedProgramStorageSemanticWrapperCallResolutionState,
+};
+pub(crate) use semantic_wrapper_object::{
     OptimizedProgramStorageSemanticWrapperObjectContainer,
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
-    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
-    OptimizedProgramStorageSemanticWrapperObjectManifest,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
     OptimizedProgramStorageSemanticWrapperObjectRecordError,
-    OptimizedProgramStorageSemanticWrapperObjectStage,
-    OptimizedProgramStorageSemanticWrapperObjectSymbol,
-    OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
-    OptimizedProgramStorageSemanticWrapperObjectUnavailableData,
     ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
-    compose_optimized_program_storage_semantic_wrapper_object,
-    decode_optimized_program_storage_semantic_wrapper_object,
-    encode_optimized_program_storage_semantic_wrapper_object,
-    encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
-};
+    compose_optimized_program_storage_semantic_wrapper_object};

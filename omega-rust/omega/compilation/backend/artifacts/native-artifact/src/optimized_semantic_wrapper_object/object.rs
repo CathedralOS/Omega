@@ -13,7 +13,7 @@ use object_file::StagedValidatedOptimizedObjectArtifact;
 use program_entry_plan::StagedOptimizedProgramStorageSemanticWrapperEncoding;
 use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
-pub fn construct_object(
+pub(crate) fn construct_object(
     settlement: &ValidatedNativeProgramEntrySettlement,
     source: &StagedValidatedOptimizedObjectArtifact,
     encoding: &StagedOptimizedProgramStorageSemanticWrapperEncoding,

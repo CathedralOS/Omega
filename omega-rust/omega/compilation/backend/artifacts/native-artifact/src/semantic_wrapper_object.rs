@@ -29,17 +29,18 @@ mod validation;
 
 pub(crate) use codec::encode_sealed_optimized_program_storage_semantic_wrapper_object;
 pub use codec::{
+};
+pub(crate) use codec::{
     decode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object,
-    encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
-};
-pub use composition::compose_optimized_program_storage_semantic_wrapper_object;
+    encode_optimized_program_storage_semantic_wrapper_object_preserving_seal};
+pub(crate) use composition::compose_optimized_program_storage_semantic_wrapper_object;
 
 use codec::{decode_manifest, encode_manifest, encode_manifest_content, encode_plan_content};
 use manifest::{construct_manifest, validate_manifest};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
     SemanticWrapperV1,
     PrivateTerminalContinuationV1,
     PrivateTerminalFunctionV1,
@@ -48,7 +49,7 @@ pub enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
 /// One symbol in the composite object. The wrapper intentionally has no
 /// `MachineId`; copied Terminal symbols retain their exact Machine identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizedProgramStorageSemanticWrapperObjectSymbol {
+pub(crate) struct OptimizedProgramStorageSemanticWrapperObjectSymbol {
     pub symbol: ObjectLocalSymbolId,
     pub source_function_index: Option<u64>,
     pub machine: Option<MachineId>,
@@ -59,12 +60,12 @@ pub struct OptimizedProgramStorageSemanticWrapperObjectSymbol {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperCallResolutionState {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperCallResolutionState {
     ResolvedInCompositeTextSectionV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptimizedProgramStorageSemanticWrapperCallResolution {
+pub(crate) struct OptimizedProgramStorageSemanticWrapperCallResolution {
     pub state: OptimizedProgramStorageSemanticWrapperCallResolutionState,
     pub wrapper_section_offset: u64,
     pub continuation_section_offset: u64,
@@ -76,7 +77,7 @@ pub struct OptimizedProgramStorageSemanticWrapperCallResolution {
 /// but it is not a `RelocationFreeObjectPlan`: its first symbol has no
 /// semantic Machine owner and its text has a distinct source lineage.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizedProgramStorageSemanticWrapperObjectPlan {
+pub(crate) struct OptimizedProgramStorageSemanticWrapperObjectPlan {
     pub identity: OptimizedProgramStorageSemanticWrapperObjectIdentity,
     pub source_artifact: OptimizedObjectArtifactIdentity,
     pub source_artifact_manifest: OptimizedObjectArtifactManifestIdentity,
@@ -122,24 +123,24 @@ impl OptimizedProgramStorageSemanticWrapperObjectPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizedProgramStorageSemanticWrapperObjectContainer {
+pub(crate) struct OptimizedProgramStorageSemanticWrapperObjectContainer {
     pub identity: OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
     pub object: OptimizedProgramStorageSemanticWrapperObjectIdentity,
     pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperObjectStage {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectStage {
     ValidatedResolvedCompositeObjectV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperObjectUnavailableData {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectUnavailableData {
     Unavailable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OptimizedProgramStorageSemanticWrapperObjectManifest {
+pub(crate) struct OptimizedProgramStorageSemanticWrapperObjectManifest {
     pub identity: OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
     pub stage: OptimizedProgramStorageSemanticWrapperObjectStage,
     pub object: OptimizedProgramStorageSemanticWrapperObjectIdentity,
@@ -186,7 +187,7 @@ impl OptimizedProgramStorageSemanticWrapperObjectManifest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
+pub(crate) struct ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
     record: OptimizedProgramStorageSemanticWrapperObjectManifest,
 }
 
@@ -218,7 +219,7 @@ impl ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
+pub(crate) struct OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
     pub(super) source_artifact: OptimizedObjectArtifactIdentity,
     pub(super) source_signature: [u8; 32],
     pub(super) object: OptimizedProgramStorageSemanticWrapperObjectIdentity,
@@ -272,7 +273,7 @@ const WRAPPER_SYMBOL_NAME: &str = "__omega_program_entry_plan_semantic_wrapper_v
 /// Failures raised by the wrapper object's own record operations. The owning
 /// native-realization stage maps each onto its same-named stage variant.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperObjectRecordError {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectRecordError {
     LengthOverflow,
     InvalidObject,
     ManifestMismatch,
@@ -292,7 +293,7 @@ impl std::fmt::Display for OptimizedProgramStorageSemanticWrapperObjectRecordErr
 impl std::error::Error for OptimizedProgramStorageSemanticWrapperObjectRecordError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperObjectDecodeError {
+pub(crate) enum OptimizedProgramStorageSemanticWrapperObjectDecodeError {
     Truncated,
     WrongMagic,
     UnsupportedVersion(u32),

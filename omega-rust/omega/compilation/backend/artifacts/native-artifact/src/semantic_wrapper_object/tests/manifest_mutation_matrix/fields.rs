@@ -33,7 +33,7 @@ optimization_core::custody_field_inventory! {
     /// One independently representable field of the wrapper object manifest;
     /// checked by `validate_manifest`, which re-derives the manifest from the
     /// plan/container pair and compares the retained record.
-    pub enum ManifestFieldForTest {
+    pub(crate) enum ManifestFieldForTest {
         Object,
         Container,
         SourceArtifact,

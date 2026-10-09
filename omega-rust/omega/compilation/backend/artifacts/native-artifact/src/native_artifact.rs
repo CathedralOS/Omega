@@ -34,9 +34,10 @@ use crate::physical::{
 pub(super) use boundary_applications::boundary_application_coverage_identity;
 use boundary_applications::validate_boundary_application_coverage;
 pub use dynamic_elf::{
-    DynamicElfNativeArtifact, DynamicElfNativeArtifactEmissionParts,
-    DynamicElfNativeArtifactIdentity, DynamicElfNativeArtifactParts,
+    DynamicElfNativeArtifact,
 };
+pub(crate) use dynamic_elf::{ DynamicElfNativeArtifactEmissionParts,
+    DynamicElfNativeArtifactIdentity, DynamicElfNativeArtifactParts};
 pub use emission::RequestedNativeArtifact;
 use identity::{
     NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
@@ -70,7 +71,7 @@ pub struct NativeArtifact {
 }
 
 #[derive(Debug)]
-pub struct NativeArtifactParts {
+pub(crate) struct NativeArtifactParts {
     pub target: target::NativeTarget,
     pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
     pub object: image_emission::ObjectArtifact,
@@ -99,7 +100,7 @@ pub struct NativeArtifactParts {
 /// request consumed by [`RequestedNativeArtifact::emit`]. It does not change
 /// the evidence required by either image product.
 #[derive(Debug)]
-pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> {
+pub(crate) struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> {
     pub target: target::NativeTarget,
     pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
     pub object: image_emission::ObjectArtifact,
@@ -501,7 +502,7 @@ impl NativeArtifact {
 /// [`NativeArtifact`]. It is derived by this owner and cannot be supplied by a
 /// caller reconstructing an artifact from parts.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NativeArtifactIdentity([u8; 32]);
+pub(crate) struct NativeArtifactIdentity([u8; 32]);
 
 impl NativeArtifactIdentity {
     pub const fn as_bytes(&self) -> &[u8; 32] {
@@ -530,7 +531,7 @@ impl std::fmt::Display for NativeArtifactIdentity {
 /// The digest is derived by the selected-closure owner and independently
 /// replayed when the standalone component candidate rejoins source policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NativeSelectedProviderClosureDigest([u8; 32]);
+pub(crate) struct NativeSelectedProviderClosureDigest([u8; 32]);
 
 impl NativeSelectedProviderClosureDigest {
     pub const fn from_digest(digest: [u8; 32]) -> Self {
@@ -546,7 +547,7 @@ impl NativeSelectedProviderClosureDigest {
 /// digest. Unlike the compact report coordinate, these bytes bind every plan
 /// field and can be carried into D41 physical-parent custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NativeSelectedProviderPlanDigest([u8; 32]);
+pub(crate) struct NativeSelectedProviderPlanDigest([u8; 32]);
 
 impl NativeSelectedProviderPlanDigest {
     pub const fn from_digest(digest: [u8; 32]) -> Self {
@@ -565,7 +566,7 @@ impl NativeSelectedProviderPlanDigest {
 /// projection. Unsupported boundary/provider mechanisms still produce no
 /// evidence during native replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NativePhysicalEvidenceScope {
+pub(crate) enum NativePhysicalEvidenceScope {
     Unavailable,
     UnoptimizedCompleteBoundaryEvidence,
     ValidatedOptimizedProjection(ValidatedOptimizedNativePhysicalEvidenceScope),
@@ -585,7 +586,7 @@ impl NativePhysicalEvidenceScope {
     /// program and object evidence. Empty and nonempty selections use the same
     /// join; no selected-lowering completion is invented for another phase.
     #[allow(clippy::too_many_arguments)]
-    pub fn from_validated_fragment_publication(
+    pub(crate) fn from_validated_fragment_publication(
         final_plan: &AbstractOperationPlan,
         terminal: TerminalPsiIdentity,
         validation: OptimizedAbstractPlanProjectionIdentity,
@@ -623,7 +624,7 @@ impl NativePhysicalEvidenceScope {
 /// complete for this selected plan; the compact plan coordinate is not
 /// authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeSelectedProviderPlan {
+pub(crate) struct NativeSelectedProviderPlan {
     report_identity: u64,
     plan_digest: NativeSelectedProviderPlanDigest,
     requirement_identities: Vec<String>,
@@ -634,7 +635,7 @@ impl NativeSelectedProviderPlan {
     /// Specialized rows supply closed identities instead of the authored
     /// template identity, matching provider admission without selecting or
     /// reconstructing providers from source. Artifact replay remains independent.
-    pub fn project_selection(selection: &SelectedProviderPlanFacts) -> Vec<Self> {
+    pub(crate) fn project_selection(selection: &SelectedProviderPlanFacts) -> Vec<Self> {
         let mut plans = selection
             .plans()
             .iter()
@@ -699,7 +700,7 @@ impl NativeSelectedProviderPlan {
 /// provider authority stays with the non-constructible evidence borrowed by
 /// lowering and the selected-closure digest retained by the artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeProviderExecution {
+pub(crate) struct NativeProviderExecution {
     requirement_identity: String,
     provider_plan_report_identity: u64,
     provider_execution_report_identity: u64,

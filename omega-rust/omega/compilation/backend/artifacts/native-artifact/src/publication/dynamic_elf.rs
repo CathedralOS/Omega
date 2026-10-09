@@ -107,7 +107,7 @@ impl DynamicElfPublicationReceipt {
     }
 
     /// Recompute the installation commitment from the retained fields.
-    pub fn has_consistent_installation_identity(&self) -> bool {
+    pub(crate) fn has_consistent_installation_identity(&self) -> bool {
         self.installation_evidence_digest
             == dynamic_elf_installation_evidence_digest(
                 &self.dynamic_elf_artifact_identity,

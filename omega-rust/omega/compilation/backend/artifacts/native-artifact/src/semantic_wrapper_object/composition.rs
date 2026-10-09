@@ -25,7 +25,7 @@ use optimization_core::{
 /// first section bytes and every child symbol shifts behind it. The caller
 /// owns the joins that bind `child` and the source identities to their
 /// settlement; this constructor binds only the object-format facts.
-pub fn compose_optimized_program_storage_semantic_wrapper_object(
+pub(crate) fn compose_optimized_program_storage_semantic_wrapper_object(
     source_signature: [u8; 32],
     source_artifact: OptimizedObjectArtifactIdentity,
     source_artifact_manifest: OptimizedObjectArtifactManifestIdentity,
