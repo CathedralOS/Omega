@@ -25,7 +25,7 @@ use typed_trees::TypedTrees;
 
 /// Bind selected execution without changing typed source or source-derived plans.
 /// All fallible work completes before publishing the association set.
-pub fn settle_selected_boundary_adapter_dispatch(
+pub(crate) fn settle_selected_boundary_adapter_dispatch(
     checked: &mut Arc<CheckedTrees>,
     selected_plans: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {

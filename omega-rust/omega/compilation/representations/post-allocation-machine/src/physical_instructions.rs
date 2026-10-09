@@ -12,12 +12,13 @@ pub mod identity;
 pub mod instructions;
 pub mod operands;
 
-pub use codec::PostAllocationMachineDecodeError;
+pub(crate) use codec::PostAllocationMachineDecodeError;
 pub use control_flow::{PostAllocationMachineBlock, PostAllocationMachineFunction};
-pub use costs::{
-    NonAuthoritativeLatencyCost, NonAuthoritativeMachineCost, NonAuthoritativeMachineSizeCost,
-    TargetCostModel, TargetCostModelIdentity, TargetCostModelVersion, target_cost_model,
+pub use costs::{ TargetCostModelIdentity, target_cost_model,
 };
+pub(crate) use costs::{
+    NonAuthoritativeLatencyCost, NonAuthoritativeMachineCost, NonAuthoritativeMachineSizeCost,
+    TargetCostModel, TargetCostModelVersion};
 pub use evidence::{
     Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity,
     PostAllocationMachineOptimizationCustody,

@@ -20,19 +20,21 @@ mod operator_adapter;
 
 pub use float_intrinsic::{
     SelectedCompilerIntrinsicExecutionIdentity,
-    derive_selected_compiler_intrinsic_execution_identity,
-    derive_selected_primitive_float_binary_execution,
 };
-pub use operator_adapter::{
-    CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind,
-    CheckedSpecializedOperatorApplicationRealization,
+pub(crate) use float_intrinsic::{
+    derive_selected_compiler_intrinsic_execution_identity,
+    derive_selected_primitive_float_binary_execution};
+pub use operator_adapter::{ CheckedOperatorAuthoredUseKind,
     derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
 };
+pub(crate) use operator_adapter::{
+    CheckedNongenericOperatorApplicationRealization,
+    CheckedSpecializedOperatorApplicationRealization};
 
 /// Settle selected execution for the checked program the caller hands over.
 /// Failure publishes nothing.
-pub fn settle_selected_execution_dispatch(
+pub(crate) fn settle_selected_execution_dispatch(
     mut checked: Arc<CheckedTrees>,
     selected_provider_plans: &SelectedProviderPlanFacts,
     selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],

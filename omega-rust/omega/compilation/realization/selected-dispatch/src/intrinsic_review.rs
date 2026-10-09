@@ -34,7 +34,7 @@ impl ResolvedAcceptedSemanticBinding {
 /// Resolve one requirement-only semantic role against an exact package-owned
 /// boundary declaration. Unlike Console execution settlement, this does not
 /// claim or synthesize a provider plan.
-pub fn resolve_accepted_service_binding(
+pub(crate) fn resolve_accepted_service_binding(
     checked: &CheckedTrees,
     binding: &package_compilation::AcceptedSemanticBinding,
 ) -> Result<ResolvedAcceptedSemanticBinding, Diagnostic> {
@@ -108,7 +108,7 @@ pub fn resolve_accepted_service_binding(
 /// Unsupported compiler-intrinsic executions also retain `None`; package
 /// review rederives that unsupported child and rejects it until a closed
 /// identity exists.
-pub fn retain_selected_compiler_intrinsic_review_identities(
+pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     checked: &CheckedTrees,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     provenance: &mut [SelectedProviderReviewProvenance],

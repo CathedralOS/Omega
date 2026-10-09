@@ -21,7 +21,7 @@ use provider_planning::{
 /// realization-machine string is validated only as an authored-plan join; it
 /// is never parsed into compiler identity. A package-authored lookalike name
 /// cannot enter the returned closed lane.
-pub fn derive_selected_compiler_intrinsic_execution_identity(
+pub(crate) fn derive_selected_compiler_intrinsic_execution_identity(
     checked: &CheckedTrees,
     plan: &effects::provider_plan::ProviderPlan,
     requirement_symbol: symbols::SymbolHandle,
@@ -118,7 +118,7 @@ fn named_float_conversion_execution_identity(
 
 /// Derive the sealed binary semantic child only after the ordinary exact
 /// selected-provider/overload/realization join. No default provider is chosen.
-pub fn derive_selected_primitive_float_binary_execution(
+pub(crate) fn derive_selected_primitive_float_binary_execution(
     typed: &typed_trees::TypedTrees,
     plan: &effects::provider_plan::ProviderPlan,
     requirement: symbols::SymbolHandle,

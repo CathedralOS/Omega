@@ -12,7 +12,7 @@ mod error;
 mod tests;
 mod v3;
 
-pub use error::PostAllocationMachineDecodeError;
+pub(crate) use error::PostAllocationMachineDecodeError;
 
 use crate::{
     PostAllocationMachineIdentity, PostAllocationMachinePlan, post_allocation_machine_identity,

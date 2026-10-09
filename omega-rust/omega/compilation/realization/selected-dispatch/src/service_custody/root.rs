@@ -57,7 +57,7 @@ pub fn program_entry_service_requirements(
         .collect()
 }
 
-pub fn derive_fused_program_entry_establishments(
+pub(crate) fn derive_fused_program_entry_establishments(
     checked: &CheckedTrees,
     entry: &provider_planning::program_entry::SelectedCompilerProgramEntry,
     selected: &[SelectedProviderReviewProvenance],

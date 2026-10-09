@@ -10,7 +10,8 @@
 
 mod root;
 
-pub use root::{derive_fused_program_entry_establishments, program_entry_service_requirements};
+pub use root::{ program_entry_service_requirements};
+pub(crate) use root::{derive_fused_program_entry_establishments};
 
 use checked_trees::{CheckedTrees, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape};
 use diagnostics::Diagnostic;
