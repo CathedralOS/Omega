@@ -1,5 +1,7 @@
 //! Checked crash predicates and boolean propositions under an expansion
-//! budget.
+//! budget. Constants retain their Boolean denotation in site guards and
+//! connective leaves. Route-bucket normalization separately turns an authored
+//! false ceiling into no allowed route; a false predicate never grants a crash.
 
 use crate::proofs::crash_routes::scalar_terms::{checked_boolean_scalar_term, checked_scalar_term};
 use crate::proofs::{
@@ -115,9 +117,11 @@ fn checked_boolean_proposition_with_budget(
         CheckedBooleanExpression::Equal { .. } if contains_boolean_connective(expression) => {
             checked_boolean_connective_polarity(expression, values, true, remaining, depth + 1)
         }
-        CheckedBooleanExpression::Constant(_) => {
-            unsupported("constant crash predicates must normalize before terminal lowering")
-        }
+        CheckedBooleanExpression::Constant(value) => Ok(if *value {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        }),
         CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } => {
             let conjunction = matches!(expression, CheckedBooleanExpression::And { .. });
@@ -190,9 +194,11 @@ fn checked_boolean_connective_polarity(
 ) -> Result<Proposition, LoweringError> {
     charge_boolean_expansion(remaining, depth)?;
     match expression {
-        CheckedBooleanExpression::Constant(_) => {
-            unsupported("constant crash predicates must normalize before terminal lowering")
-        }
+        CheckedBooleanExpression::Constant(value) => Ok(if *value == positive {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        }),
         CheckedBooleanExpression::Not(operand) => {
             checked_boolean_connective_polarity(operand, values, !positive, remaining, depth + 1)
         }

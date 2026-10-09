@@ -1,0 +1,3 @@
+machine main() crashes Trap false {
+    crash Trap;
+}
