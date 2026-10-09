@@ -6,7 +6,6 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
-use sha2::{Digest, Sha256};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
@@ -731,14 +730,13 @@ fn application_identity(
         bytes.push(0xfe);
     }
     let mut hash = semantic_vocabulary::Fnv1a::new();
-    let mut strong = Sha256::new();
-    strong.update(b"omega.psi.closed-conformance-application.v3\0");
-    strong.update(&bytes);
+    let mut strong = crate::digest_encoder::DomainDigestEncoder::new(b"omega.psi.closed-conformance-application.v3\0");
+    strong.raw(&bytes);
     hash.bytes(&bytes);
     ApplicationIdentity {
         report_fingerprint: hash.finish(),
         commitment: typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
-            strong.finalize().into(),
+            strong.finish(),
         ),
     }
 }

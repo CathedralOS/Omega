@@ -9,7 +9,6 @@
 
 use crate::contract_structure;
 use diagnostics::Diagnostic;
-use sha2::{Digest, Sha256};
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::type_identity::TypeIdentityRequest;
@@ -224,10 +223,9 @@ fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
 pub fn machine_template_commitment(
     canonical_template_contract_bytes: &[u8],
 ) -> typed_trees::typed_trees::MachineTemplateCommitment {
-    let mut strong = Sha256::new();
-    strong.update(b"omega.machine-template.v2\0");
-    strong.update(canonical_template_contract_bytes);
-    typed_trees::typed_trees::MachineTemplateCommitment::from_digest(strong.finalize().into())
+    let mut strong = crate::digest_encoder::DomainDigestEncoder::new(b"omega.machine-template.v2\0");
+    strong.raw(&canonical_template_contract_bytes);
+    typed_trees::typed_trees::MachineTemplateCommitment::from_digest(strong.finish())
 }
 
 /// Deterministic identity of an authored generic machine declaration before
@@ -435,15 +433,14 @@ fn machine_specialization_identity(
         }
         None => bytes.push(0),
     }
-    let mut strong = Sha256::new();
-    strong.update(b"omega.machine-specialization.v2\0");
-    strong.update(&bytes);
+    let mut strong = crate::digest_encoder::DomainDigestEncoder::new(b"omega.machine-specialization.v2\0");
+    strong.raw(&bytes);
     Ok(checked_trees::CheckedMachineSpecializationIdentity {
         instance: specialization.instance,
         template_contract_commitment,
         machine_argument_contract_commitments: machine_contract_commitments.into_boxed_slice(),
         commitment: typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
-            strong.finalize().into(),
+            strong.finish(),
         ),
     })
 }
