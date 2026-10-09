@@ -84,6 +84,28 @@ impl SymbolicMaterializationPlan {
     }
 }
 
+/// The materialization byte requirement of a fixed-size layout plan: the
+/// adjective names the failing consumer in the diagnostic.
+pub(crate) fn fixed_layout_byte_len(
+    layout: &LayoutPlanReport,
+    materialization: &str,
+) -> Result<usize, MaterializationDiagnostic> {
+    layout
+        .size
+        .ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "{materialization} requires a fixed-size layout plan"
+            ))
+        })
+        .and_then(|size| {
+            usize::try_from(size).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "fixed layout size {size} cannot be represented on this compiler host"
+                ))
+            })
+        })
+}
+
 /// Materializes one complete ordinary scalar value through validated layout
 /// entries. Output starts from zero so padding and reserved bits stay
 /// deterministic. The destination is changed only after every field and
@@ -98,20 +120,7 @@ pub fn materialize_scalar_layout_into(
     byte_order: ByteOrder,
     destination: &mut [u8],
 ) -> Result<(), MaterializationDiagnostic> {
-    let byte_len = layout
-        .size
-        .ok_or_else(|| {
-            MaterializationDiagnostic(
-                "scalar materialization requires a fixed-size layout plan".into(),
-            )
-        })
-        .and_then(|size| {
-            usize::try_from(size).map_err(|_| {
-                MaterializationDiagnostic(format!(
-                    "fixed layout size {size} cannot be represented on this compiler host"
-                ))
-            })
-        })?;
+    let byte_len = fixed_layout_byte_len(layout, "scalar materialization")?;
     if destination.len() < byte_len {
         return Err(MaterializationDiagnostic(format!(
             "scalar materialization needs {byte_len} bytes, destination has {}",
@@ -198,20 +207,7 @@ pub fn materialize_aggregate_layout_into(
     byte_order: ByteOrder,
     destination: &mut [u8],
 ) -> Result<(), MaterializationDiagnostic> {
-    let byte_len = layout
-        .size
-        .ok_or_else(|| {
-            MaterializationDiagnostic(
-                "aggregate materialization requires a fixed-size layout plan".into(),
-            )
-        })
-        .and_then(|size| {
-            usize::try_from(size).map_err(|_| {
-                MaterializationDiagnostic(format!(
-                    "fixed layout size {size} cannot be represented on this compiler host"
-                ))
-            })
-        })?;
+    let byte_len = fixed_layout_byte_len(layout, "aggregate materialization")?;
     if destination.len() < byte_len {
         return Err(MaterializationDiagnostic(format!(
             "aggregate materialization needs {byte_len} bytes, destination has {}",
