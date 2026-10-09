@@ -1,0 +1,17 @@
+// The live pair.left measure decreases around the ranked cycle. Its
+// original bounded snapshot may be returned from an acyclic finishing state
+// without retaining the measure in that state's telescope.
+data Pair { left: u32 [0..=5]; }
+
+machine walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> s(Pair { left: remaining }, remaining) }
+    state s(pair: Pair, copy: u32 [0..=5]) {
+        transition pair.left > 0 {
+            true -> s(Pair { left: pair.left - 1 }, copy)
+            false -> finish(copy)
+        }
+    }
+    state finish(result: u32 [0..=5]) { result }
+}

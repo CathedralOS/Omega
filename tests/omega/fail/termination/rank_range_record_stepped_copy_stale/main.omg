@@ -1,6 +1,6 @@
-// FAIL CANARY. The moved copy of `remaining` lives inside the rebuilt
-// `pair`; `copy` demoted to a stale snapshot with no role, so feeding it to
-// `finish` leaves the rank unreadable there.
+// A bounded snapshot may be returned after the live measure decreases, but
+// it cannot reset the cyclic measure on a recurrent edge. The finishing
+// state reenters s with the old snapshot instead of completing the walk.
 data Pair { left: u32 [0..=5]; }
 
 machine walk(remaining: u32 [0..=5])
@@ -13,5 +13,7 @@ terminates by remaining in 0..=5;
             false -> finish(copy)
         }
     }
-    state finish(result: u32 [0..=5]) { result }
+    state finish(result: u32 [0..=5]) {
+        transition { _ -> s(Pair { left: result }, result) }
+    }
 }
