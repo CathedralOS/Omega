@@ -690,7 +690,13 @@ fn argument_mapping(
     let mut subjects = Vec::new();
     for (position, argument) in arguments.iter().enumerate() {
         subjects.clear();
-        argument_subjects(program, machine, source, *argument, &mut subjects, 0)?;
+        if argument_subjects(program, machine, source, *argument, &mut subjects, 0).is_none() {
+            // Unknown lineage cannot supply an entry premise. It also cannot
+            // erase a sibling argument's independently discovered role. The
+            // rank coordinate and every required premise still need their
+            // own unique carrier; edge checking proves the completed actuals.
+            subjects.clear();
+        }
         // A bare forward names the exact formal -- including under one
         // borrow, the only way a record carrier forwards its role: `&card`
         // denotes `card`'s record, while `&pair.left` denotes a projection
