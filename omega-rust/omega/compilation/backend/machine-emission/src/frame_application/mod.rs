@@ -12,7 +12,7 @@ mod error;
 pub(crate) mod insertion;
 mod validation;
 
-pub use error::FunctionFragmentFrameApplicationError;
+pub(crate) use error::FunctionFragmentFrameApplicationError;
 pub use machine_code::function_fragment_frame_application_identity;
 pub use machine_code::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
@@ -78,7 +78,7 @@ impl StagedFunctionFragmentFrameApplication {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FunctionFragmentFrameApplicationReceipt {
+pub(crate) struct FunctionFragmentFrameApplicationReceipt {
     identity: FunctionFragmentFrameApplicationIdentity,
     source_fragment_manifest: FunctionFragmentEmissionManifestIdentity,
     source_fragments: FunctionFragmentEmissionIdentity,

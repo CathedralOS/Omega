@@ -57,7 +57,7 @@ impl StagedFixedFrameFunctionRelativeRealization {
     pub fn layout(&self) -> &ResolvedMachineLayout {
         self.layout_optimization.layout()
     }
-    pub fn layout_optimization(&self) -> &ResolvedLayoutOptimization {
+    pub(crate) fn layout_optimization(&self) -> &ResolvedLayoutOptimization {
         &self.layout_optimization
     }
     pub const fn requirements(&self) -> &ValidatedAllocatedCalleeSavedRequirements {
@@ -84,7 +84,7 @@ impl StagedFixedFrameFunctionRelativeRealization {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
+pub(crate) struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     pub(super) source: AllocationEvidence,
     pub(super) machine: physical_instructions::PostAllocationMachineIdentity,
     pub(super) requirements: AllocatedCalleeSavedRequirementIdentity,

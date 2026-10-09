@@ -21,7 +21,7 @@ mod validation;
 
 pub use carriers::{ StagedOptimizedFixedFrameTextSection,
 };
-pub use carriers::{
+pub(crate) use carriers::{
     StagedFixedFrameTextSectionCustodyReceipt,
     ValidatedFunctionFragmentTextSectionManifest};
 pub use error::{

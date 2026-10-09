@@ -23,7 +23,7 @@ mod source;
 mod validation;
 
 pub use error::{ FunctionFragmentEmissionManifestDecodeError};
-pub use error::{FunctionFragmentEmissionError};
+pub(crate) use error::{FunctionFragmentEmissionError};
 pub use source::StagedOptimizedFunctionFragmentEmissionSource;
 
 use crate::function_realization::ValidatedFunctionRelativeOptimizationRealizationManifest;
@@ -137,7 +137,7 @@ impl StagedOptimizedFunctionFragmentEmission {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedFunctionFragmentEmissionCustodyReceipt {
+pub(crate) struct StagedFunctionFragmentEmissionCustodyReceipt {
     source_realization: FunctionRelativeOptimizationRealizationManifestIdentity,
     fragments: FunctionFragmentEmissionIdentity,
     manifest: FunctionFragmentEmissionManifestIdentity,
