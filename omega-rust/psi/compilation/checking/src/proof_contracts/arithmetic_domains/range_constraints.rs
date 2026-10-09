@@ -33,21 +33,7 @@ pub(crate) fn check_range_under_non_exact_domain(
         program: &dyn crate::CheckingInput,
         handle: typed_trees::types::TypeReferenceHandle,
     ) -> bool {
-        match program.type_reference_table.type_reference(handle) {
-            TypeReferenceNode::Reference { referee, .. } => has_range_constraint(program, *referee),
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                program
-                    .type_reference_table
-                    .constraints(*constraints)
-                    .iter()
-                    .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }))
-                    || has_range_constraint(program, *base_type)
-            }
-            _ => false,
-        }
+        declares_bracketed_range(program, handle)
     }
     if !has_range_constraint(program, handle) {
         return;
