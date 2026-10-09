@@ -164,17 +164,16 @@ fn execution_identity(
     input_semantic: TerminalPsiIdentity,
     output_semantic: TerminalPsiIdentity,
 ) -> PsiOptimizationExecutionIdentity {
-    let mut digest = Sha256::new();
-    digest.update(IDENTITY_DOMAIN);
-    digest.update(selection.bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(IDENTITY_DOMAIN);
+    digest.raw(&selection.bytes());
     append_identity_to_digest(&mut digest, input_semantic);
     append_identity_to_digest(&mut digest, output_semantic);
-    PsiOptimizationExecutionIdentity(digest.finalize().into())
+    PsiOptimizationExecutionIdentity(digest.finish())
 }
 
-fn append_identity_to_digest(digest: &mut Sha256, identity: TerminalPsiIdentity) {
-    digest.update(identity.vocabulary_marker.get().to_le_bytes());
-    digest.update(identity.program_fingerprint.as_bytes());
+fn append_identity_to_digest(digest: &mut crate::digest_encoder::DomainDigestEncoder, identity: TerminalPsiIdentity) {
+    digest.raw(&identity.vocabulary_marker.get().to_le_bytes());
+    digest.raw(identity.program_fingerprint.as_bytes());
 }
 
 fn append_terminal_identity(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {

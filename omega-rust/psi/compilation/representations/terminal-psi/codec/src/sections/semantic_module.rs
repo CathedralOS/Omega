@@ -187,11 +187,10 @@ pub fn terminal_psi_identity(module: &TerminalModule) -> Result<TerminalPsiIdent
 }
 
 fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
-    let mut digest = Sha256::new();
-    digest.update(FINGERPRINT_DOMAIN);
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(FINGERPRINT_DOMAIN);
     let byte_len =
         u64::try_from(bytes.len()).expect("terminal-Psi bytes fit the u64 digest domain");
-    digest.update(byte_len.to_le_bytes());
-    digest.update(bytes);
-    SemanticFingerprint::from_bytes(digest.finalize().into())
+    digest.raw(&byte_len.to_le_bytes());
+    digest.raw(&bytes);
+    SemanticFingerprint::from_bytes(digest.finish())
 }

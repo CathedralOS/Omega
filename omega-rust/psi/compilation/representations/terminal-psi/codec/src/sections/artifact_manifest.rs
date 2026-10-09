@@ -160,12 +160,11 @@ fn encode_optional_fingerprint(bytes: &mut Vec<u8>, fingerprint: Option<SectionF
 }
 
 fn hash(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(domain);
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
     let byte_len = u64::try_from(bytes.len()).expect("artifact section fits the digest domain");
-    digest.update(byte_len.to_le_bytes());
-    digest.update(bytes);
-    digest.finalize().into()
+    digest.raw(&byte_len.to_le_bytes());
+    digest.raw(&bytes);
+    digest.finish()
 }
 
 fn write_hex(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8; 32]) -> std::fmt::Result {

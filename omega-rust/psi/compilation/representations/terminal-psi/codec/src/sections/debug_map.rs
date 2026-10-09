@@ -20,15 +20,10 @@ const FORMAT_MARKER: u16 = 1;
 const SOURCE_DIGEST_DOMAIN: &[u8] = b"psi-terminal-debug-source\0";
 
 pub fn source_digest(source: &[u8]) -> DebugSourceDigest {
-    let mut digest = Sha256::new();
-    digest.update(SOURCE_DIGEST_DOMAIN);
-    digest.update(
-        u64::try_from(source.len())
-            .expect("source bytes fit the debug digest domain")
-            .to_le_bytes(),
-    );
-    digest.update(source);
-    DebugSourceDigest::from_bytes(digest.finalize().into())
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SOURCE_DIGEST_DOMAIN);
+    digest.raw(&u64::try_from(source.len()) .expect("source bytes fit the debug digest domain") .to_le_bytes(),);
+    digest.raw(&source);
+    DebugSourceDigest::from_bytes(digest.finish())
 }
 
 pub fn encode_debug_map(
