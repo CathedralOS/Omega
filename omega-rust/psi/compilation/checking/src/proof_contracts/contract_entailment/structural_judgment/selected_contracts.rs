@@ -100,7 +100,16 @@ impl StructuralJudge<'_> {
                 if !crate::machine_calls::denotational_calls::selected_operator_has_closed_value_denotation(
                     program, operator,
                 ) {
-                    return None;
+                    let (machine, state) = crate::machine_calls::denotational_calls::selected_operator_authored_body(
+                        program, operator,
+                    )?;
+                    if !independent_callee(program, self.machine_symbol, operator.symbol) {
+                        return None;
+                    }
+                    let plans = crate::operand_call_plans(program, None);
+                    crate::machine_calls::denotational_calls::checked_value_call_candidate(
+                        program, machine, state, &plans.0, &plans.1,
+                    ).ok()?;
                 }
                 operator.return_type
             }

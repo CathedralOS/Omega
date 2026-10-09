@@ -79,13 +79,17 @@ pub(crate) fn validate_specification_calls(
         let (machine, state) = match selected_call_contract(program, call) {
             Some(SelectedCallContract::Concrete(machine, state)) => (machine, state),
             Some(SelectedCallContract::Operator(operator)) => {
-                if !super::selected_operator_has_closed_value_denotation(program, operator) {
+                if super::selected_operator_has_closed_value_denotation(program, operator) {
+                    continue;
+                }
+                let Some(body) = super::selected_operator_authored_body(program, operator) else {
                     diagnostics.push(Diagnostic::error(format!(
                         "specification call `{}` has no observation-free, reach-free, crash-free value denotation",
                         program.symbols.name(operator.symbol),
                     )));
-                }
-                continue;
+                    continue;
+                };
+                body
             }
             Some(SelectedCallContract::Signature(signature)) => {
                 // An abstract invocation consumes its selected public promise,
@@ -110,14 +114,6 @@ pub(crate) fn validate_specification_calls(
             }
             None => continue,
         };
-        // A catalog-owned token machine can also expose a concrete signature
-        // view. The exact sealed declaration, rather than its boundary body,
-        // independently owns that application's complete value meaning.
-        if typed_trees::operator::declaration_by_symbol(program, machine.symbol).is_some_and(
-            |operator| super::selected_operator_has_closed_value_denotation(program, operator),
-        ) {
-            continue;
-        }
         if let Err(reason) = super::checked_value_call_candidate(
             program,
             machine,

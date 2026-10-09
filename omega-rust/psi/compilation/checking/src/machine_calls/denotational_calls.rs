@@ -418,6 +418,37 @@ pub(crate) fn has_no_crash_routes(
     })
 }
 
+/// Rejoin a selected public operator with its exact authored implementation.
+/// The operator remains the contract owner; its body only supplies the existing
+/// concrete effect and deferred termination judgments. Boundary token shells
+/// and subordinate states cannot provide this implementation authority.
+pub(crate) fn selected_operator_authored_body<'program>(
+    program: &'program dyn crate::CheckingInput,
+    operator: &typed_trees::operator::OperatorDefinition,
+) -> Option<(
+    &'program typed_trees::machine::Machine,
+    &'program typed_trees::state::State,
+)> {
+    if operator.is_boundary
+        || program.operator_contracts(operator).iter().any(|contract| {
+            matches!(
+                contract.kind,
+                typed_trees::signature::SignatureContractKind::Crashes { .. }
+            )
+        })
+    {
+        return None;
+    }
+    let machine = program.machine(operator.symbol)?;
+    if !machine.body_is_present {
+        return None;
+    }
+    let entry = program.machine_states(machine).first()?;
+    (operator.return_type == entry.return_type
+        && program.operator_parameters(operator) == program.state_parameters(entry))
+    .then_some((machine, entry))
+}
+
 /// Closed compiler catalogs independently establish a total value meaning.
 /// A selected runtime slot must retain its exact sealed declaration and a
 /// complete catalog result equation. Ordinary boundary admission or a matching

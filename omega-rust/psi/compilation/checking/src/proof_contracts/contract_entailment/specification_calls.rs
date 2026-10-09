@@ -335,13 +335,33 @@ pub(super) fn selected_contract_by_symbol(
     if !symbol.is_valid() {
         return None;
     }
-    selected_machine(program, symbol)
-        .map(|(machine, state)| SelectedCallContract::Concrete(machine, state))
-        .or_else(|| signature_by_symbol(program, symbol).map(SelectedCallContract::Signature))
-        .or_else(|| {
-            typed_trees::operator::declaration_by_symbol(program, symbol)
-                .map(SelectedCallContract::Operator)
+    if let Some(signature) = signature_by_symbol(program, symbol) {
+        return Some(SelectedCallContract::Signature(signature));
+    }
+    let concrete = selected_machine(program, symbol);
+    // Only the exact entry has its callable's public interface. A subordinate
+    // state retains its own parameter and contract frame, even when its
+    // machine also presents an operator declaration.
+    let entry_machine = concrete.and_then(|(machine, state)| {
+        program
+            .machine_states(machine)
+            .first()
+            .filter(|entry| entry.symbol == state.symbol)
+            .map(|_| machine)
+    });
+    if let Some(signature) =
+        entry_machine.and_then(|machine| signature_by_symbol(program, machine.symbol))
+    {
+        return Some(SelectedCallContract::Signature(signature));
+    }
+    let operator = typed_trees::operator::declaration_by_symbol(program, symbol).or_else(|| {
+        entry_machine.and_then(|machine| {
+            typed_trees::operator::declaration_by_symbol(program, machine.symbol)
         })
+    });
+    operator
+        .map(SelectedCallContract::Operator)
+        .or_else(|| concrete.map(|(machine, state)| SelectedCallContract::Concrete(machine, state)))
 }
 
 /// A proof application retains its own abstract operand telescope before

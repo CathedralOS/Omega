@@ -9,7 +9,7 @@
 use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_parameters, owner_symbol, selected_call_contract,
 };
-use super::selected_contracts::{bound_term, capture_equations, independent_callee};
+use super::selected_contracts::{bound_term, capture_equations, independent_application};
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
 use symbols::SymbolHandle;
@@ -351,9 +351,12 @@ impl<'program> StructuralJudge<'program> {
         }) {
             return;
         }
-        if let SelectedCallContract::Concrete(callee, _) = owner
-            && !independent_callee(program, self.machine_symbol, callee.symbol)
-        {
+        if !independent_application(
+            program,
+            self.machine_symbol,
+            owner_symbol(&owner),
+            &call.machine_arguments,
+        ) {
             return;
         }
         let arguments = program.expression_table.expression_handles(call.arguments);
