@@ -90,8 +90,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::Jump { .. }
         | AbstractOperation::Conditional { .. }
         | AbstractOperation::StructuralCase { .. }
-        | AbstractOperation::Return { .. }
-        | AbstractOperation::ReturnUnit { .. }
+        | abstract_operations::return_or_return_unit_pattern!(..)
         | AbstractOperation::ReturnStructural { .. }
         | AbstractOperation::Crash { .. } => AuthorityEdge::None,
     }

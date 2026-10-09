@@ -7,8 +7,7 @@ pub(crate) fn expected_provenance(
 ) -> Vec<PsiProvenance> {
     match operation {
         abstract_operations::jump_or_conditional_pattern!() | O::StructuralCase { .. } => Vec::new(),
-        O::Return { psi_edge, .. }
-        | O::ReturnUnit { psi_edge, .. }
+        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
         | O::ExternalCompletion { psi_edge, .. }
         | O::Crash { psi_edge, .. } => {
             vec![PsiProvenance::Edge(*psi_edge)]

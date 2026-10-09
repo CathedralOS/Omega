@@ -23,12 +23,7 @@ pub(crate) fn expected_ownership(
                 .map(|receipt| receipt.claim)
                 .collect(),
         )],
-        O::Return {
-            cleanup_actions, ..
-        }
-        | O::ReturnUnit {
-            cleanup_actions, ..
-        } => vec![OwnershipEvent::Cleanup(cleanup_actions.clone())],
+        abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) => vec![OwnershipEvent::Cleanup(cleanup_actions.clone())],
         O::ReturnStructural {
             returned_claims,
             cleanup_actions,

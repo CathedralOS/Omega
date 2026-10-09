@@ -275,12 +275,7 @@ pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<Ownershi
                 .map(|receipt| receipt.claim)
                 .collect(),
         )],
-        O::Return {
-            cleanup_actions, ..
-        }
-        | O::ReturnUnit {
-            cleanup_actions, ..
-        } => {
+        abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) => {
             vec![OwnershipEvent::Cleanup(cleanup_actions.clone())]
         }
         O::ReturnStructural {

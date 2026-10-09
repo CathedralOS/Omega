@@ -157,8 +157,7 @@ fn case_result_owned_sites(
             match &node.operation {
                 // Return/crash edges retain entry state only — the custody
                 // arriving at the terminator, before its cleanup actions.
-                O::Return { psi_edge, .. }
-                | O::ReturnUnit { psi_edge, .. }
+                abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
                 | O::ReturnStructural { psi_edge, .. }
                 | O::Crash { psi_edge, .. } => {
                     edge_rows.insert(*psi_edge, (block.id, *psi_edge, false));

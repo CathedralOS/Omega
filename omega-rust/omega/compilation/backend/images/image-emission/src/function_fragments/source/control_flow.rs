@@ -26,8 +26,7 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
                     },
                 ) => psi_edge == actual,
                 (
-                    AbstractOperation::Return { psi_edge, .. }
-                    | AbstractOperation::ReturnUnit { psi_edge, .. },
+                    abstract_operations::return_or_return_unit_pattern!(psi_edge, ..),
                     TargetControlTerminator::ReturnScalar { psi_edge: edge, .. }
                     | TargetControlTerminator::Return { psi_edge: edge, .. },
                 ) => edge == psi_edge,
@@ -133,8 +132,7 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
                     &candidate.operations,
                     &target.graph.structural_types,
                     match source {
-                        AbstractOperation::Return { psi_edge, .. }
-                        | AbstractOperation::ReturnUnit { psi_edge, .. } => *psi_edge,
+                        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..) => *psi_edge,
                         _ => unreachable!(),
                     },
                 )
@@ -154,8 +152,7 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
                     &candidate.operations,
                     &target.graph.structural_types,
                     match source {
-                        AbstractOperation::Return { psi_edge, .. }
-                        | AbstractOperation::ReturnUnit { psi_edge, .. } => *psi_edge,
+                        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..) => *psi_edge,
                         _ => unreachable!(),
                     },
                 )

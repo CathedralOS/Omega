@@ -2100,8 +2100,7 @@ pub(in crate::legalization) fn block_entry_states(
         for node in &blocks[position].nodes {
             if matches!(
                 node.operation,
-                AbstractOperation::Return { .. }
-                    | AbstractOperation::ReturnUnit { .. }
+                abstract_operations::return_or_return_unit_pattern!(..)
                     | AbstractOperation::ReturnStructural { .. }
                     | AbstractOperation::Jump { .. }
                     | AbstractOperation::Conditional { .. }

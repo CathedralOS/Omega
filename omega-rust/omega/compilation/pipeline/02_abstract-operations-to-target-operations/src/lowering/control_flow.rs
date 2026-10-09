@@ -399,12 +399,7 @@ pub(super) fn lower(
             AbstractOperation::ReturnStructural { .. }
             | AbstractOperation::ExternalCompletion { .. }
             | AbstractOperation::Crash { .. } => Vec::new(),
-            AbstractOperation::Return {
-                cleanup_actions, ..
-            }
-            | AbstractOperation::ReturnUnit {
-                cleanup_actions, ..
-            } if cleanup_actions.iter().all(|action| {
+            abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) if cleanup_actions.iter().all(|action| {
                 matches!(
                     action,
                     TerminalAffineCleanupAction::DiscardRoot(_)

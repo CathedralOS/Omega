@@ -6,8 +6,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         abstract_operations::jump_or_conditional_pattern!() | O::StructuralCase { .. } => {
             return Vec::new();
         }
-        O::Return { psi_edge, .. }
-        | O::ReturnUnit { psi_edge, .. }
+        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
         | O::ExternalCompletion { psi_edge, .. }
         | O::Crash { psi_edge, .. } => PsiProvenance::Edge(*psi_edge),
         O::ReturnStructural {

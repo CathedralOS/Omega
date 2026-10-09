@@ -1126,6 +1126,10 @@ macro_rules! return_or_return_unit_pattern {
     () => {
         $crate::AbstractOperation::Return { .. } | $crate::AbstractOperation::ReturnUnit { .. }
     };
+    ($($fields:tt)+) => {
+        $crate::AbstractOperation::Return { $($fields)+ }
+            | $crate::AbstractOperation::ReturnUnit { $($fields)+ }
+    };
 }
 
 #[macro_export]

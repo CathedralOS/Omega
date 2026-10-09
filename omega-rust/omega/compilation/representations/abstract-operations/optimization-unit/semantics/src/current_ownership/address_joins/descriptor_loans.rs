@@ -839,12 +839,7 @@ fn descriptor_inputs(
         O::Jump {
             cleanup_actions, ..
         }
-        | O::Return {
-            cleanup_actions, ..
-        }
-        | O::ReturnUnit {
-            cleanup_actions, ..
-        }
+        | abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..)
         | O::ReturnStructural {
             cleanup_actions, ..
         } => {

@@ -293,12 +293,7 @@ pub(crate) fn scalar_case_result_contained(
             // shape requires all-nominal actions once any appear — so the
             // custody rewrite could not express its disposal and the
             // relocation refuses.
-            if let O::Return {
-                cleanup_actions, ..
-            }
-            | O::ReturnUnit {
-                cleanup_actions, ..
-            } = &node.operation
+            if let abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) = &node.operation
                 && cleanup_actions.iter().any(|action| {
                     matches!(
                         action,
@@ -417,12 +412,7 @@ pub(crate) fn rewrite_scalar_case_custody(
                 );
             }
         }
-        O::Return {
-            cleanup_actions, ..
-        }
-        | O::ReturnUnit {
-            cleanup_actions, ..
-        } => {
+        abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) => {
             for place in case_results {
                 insert_case_cleanup_discard(structural_places, cleanup_actions, *place);
             }
