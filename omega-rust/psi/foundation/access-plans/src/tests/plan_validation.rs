@@ -30,7 +30,7 @@ fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
         );
     }
     assert!(
-        source.contains("omega.placement-plan.authoritative.v1\\0") && source.contains("Sha256"),
+        source.contains("omega.placement-plan.authoritative.v1\\0") && include_str!("../digest_encoder.rs").contains("DomainDigestEncoder"),
         "provider-content interpretation must retain a domain-separated strong commitment"
     );
     assert!(

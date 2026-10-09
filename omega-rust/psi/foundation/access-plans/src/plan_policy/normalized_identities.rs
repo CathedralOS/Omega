@@ -8,7 +8,6 @@ use extents::{ExtentContentInterpretation, ExtentContentInterpretationId};
 use layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };
-use sha2::{Digest, Sha256};
 
 pub(crate) fn non_authoritative_placement_compatibility_fingerprint(
     access: AccessPlanId,
@@ -30,10 +29,11 @@ pub(crate) fn non_authoritative_placement_compatibility_fingerprint(
 pub(crate) fn authoritative_access_layout_commitment(
     layout: &LayoutPlanReport,
 ) -> AccessLayoutCommitment {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.access-field-layout.authoritative.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.access-field-layout.authoritative.v1\0",
+    );
     hash_canonical_layout(&mut digest, layout);
-    AccessLayoutCommitment(digest.finalize().into())
+    AccessLayoutCommitment(digest.finish().into())
 }
 
 /// Collision-resistant identity for the complete canonical placement policy.
@@ -43,8 +43,9 @@ pub(crate) fn authoritative_access_layout_commitment(
 pub(crate) fn authoritative_placement_interpretation(
     plan: &crate::placements::placement_plan::ValidatedPlacementPlan,
 ) -> ExtentContentInterpretation {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.placement-plan.authoritative.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.placement-plan.authoritative.v1\0",
+    );
     hash_canonical_layout(&mut digest, &plan.layout);
     hash_u64_sha(&mut digest, plan.access.plan.entries.len() as u64);
     for entry in &plan.access.plan.entries {
@@ -55,7 +56,7 @@ pub(crate) fn authoritative_placement_interpretation(
     for service in plan.reach.services() {
         hash_u64_sha(&mut digest, service.normalized_identity());
     }
-    let commitment: [u8; 32] = digest.finalize().into();
+    let commitment: [u8; 32] = digest.finish().into();
     let compatibility_fingerprint = ExtentContentInterpretationId::from_normalized_identity(
         plan.identity.compatibility_fingerprint(),
     )
@@ -63,14 +64,14 @@ pub(crate) fn authoritative_placement_interpretation(
     ExtentContentInterpretation::from_sha256_commitment(compatibility_fingerprint, commitment)
 }
 
-fn hash_canonical_layout(digest: &mut Sha256, layout: &layout_plans::LayoutPlanReport) {
+fn hash_canonical_layout(digest: &mut crate::digest_encoder::DomainDigestEncoder, layout: &layout_plans::LayoutPlanReport) {
     hash_u64_sha(digest, layout.schema_report_fingerprint);
     match layout.size {
         Some(size) => {
-            digest.update([1]);
+            digest.byte(1);
             hash_u64_sha(digest, size);
         }
-        None => digest.update([0]),
+        None => digest.byte(0),
     }
     hash_u64_sha(digest, layout.align);
     let mut entries = layout
@@ -82,7 +83,7 @@ fn hash_canonical_layout(digest: &mut Sha256, layout: &layout_plans::LayoutPlanR
     hash_u64_sha(digest, entries.len() as u64);
     for entry in entries {
         hash_u64_sha(digest, entry.len() as u64);
-        digest.update(entry);
+        digest.raw(&entry);
     }
 }
 
@@ -139,18 +140,19 @@ fn canonical_layout_entry_bytes(entry: &LayoutFieldEntryReport) -> Vec<u8> {
     bytes
 }
 
-fn hash_field_access_sha(digest: &mut Sha256, access: &FieldAccess) {
+fn hash_field_access_sha(digest: &mut crate::digest_encoder::DomainDigestEncoder, access: &FieldAccess) {
     match access {
-        FieldAccess::Inaccessible => digest.update([0]),
+        FieldAccess::Inaccessible => digest.byte(0),
         FieldAccess::Stable {
             transfer_width_bits,
             read,
             write,
             exposure,
         } => {
-            digest.update([1]);
+            digest.byte(1);
             hash_u64_sha(digest, u64::from(*transfer_width_bits));
-            digest.update([u8::from(*read), u8::from(*write)]);
+            digest.byte(u8::from(*read));
+            digest.byte(u8::from(*write));
             hash_exposure_sha(digest, *exposure);
         }
         FieldAccess::External {
@@ -159,16 +161,14 @@ fn hash_field_access_sha(digest: &mut Sha256, access: &FieldAccess) {
             write,
             exposure,
         } => {
-            digest.update([2]);
+            digest.byte(2);
             hash_u64_sha(digest, u64::from(*transfer_width_bits));
-            digest.update([
-                match read {
-                    ExternalRead::None => 0,
-                    ExternalRead::Read => 1,
-                    ExternalRead::Take => 2,
-                },
-                u8::from(*write),
-            ]);
+            digest.byte(match read {
+                ExternalRead::None => 0,
+                ExternalRead::Read => 1,
+                ExternalRead::Take => 2,
+            });
+            digest.byte(u8::from(*write));
             hash_exposure_sha(digest, *exposure);
         }
         FieldAccess::Atomic {
@@ -176,7 +176,7 @@ fn hash_field_access_sha(digest: &mut Sha256, access: &FieldAccess) {
             operations,
             exposure,
         } => {
-            digest.update([3]);
+            digest.byte(3);
             hash_u64_sha(digest, u64::from(*transfer_width_bits));
             for enabled in [
                 operations.load,
@@ -192,22 +192,22 @@ fn hash_field_access_sha(digest: &mut Sha256, access: &FieldAccess) {
                 operations.try_exchange,
                 operations.try_exchange_once,
             ] {
-                digest.update([u8::from(enabled)]);
+                digest.byte(u8::from(enabled));
             }
             hash_exposure_sha(digest, *exposure);
         }
     }
 }
 
-fn hash_exposure_sha(digest: &mut Sha256, exposure: AccessExposure) {
-    digest.update([match exposure {
+fn hash_exposure_sha(digest: &mut crate::digest_encoder::DomainDigestEncoder, exposure: AccessExposure) {
+    digest.byte(match exposure {
         AccessExposure::Exported => 0,
         AccessExposure::BindingPrivate => 1,
-    }]);
+    });
 }
 
-fn hash_u64_sha(digest: &mut Sha256, value: u64) {
-    digest.update(value.to_le_bytes());
+fn hash_u64_sha(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: u64) {
+    digest.u64(value);
 }
 
 pub(crate) fn non_authoritative_resource_profile_compatibility_fingerprint(
