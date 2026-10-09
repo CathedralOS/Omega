@@ -72,7 +72,7 @@ pub fn encode_x86_64_selected_memory_form(
     if base & 7 == 4 {
         bytes.push(0x24);
     }
-    crate::codec_bytes::push_encoded(bytes, displacement.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, displacement.to_le_bytes());
     validate_x86_64_selected_memory_form(
         physical,
         kind,

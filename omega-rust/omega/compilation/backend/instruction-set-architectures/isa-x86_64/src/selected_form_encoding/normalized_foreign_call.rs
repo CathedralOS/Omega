@@ -329,7 +329,7 @@ fn callback_group_bytes(destination: X86_64CallbackMaterializationDestination) -
             if root & 7 == 4 {
                 group.push(0x24);
             }
-            crate::codec_bytes::push_encoded(group, byte_offset.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut group, byte_offset.to_le_bytes());
             Some(group)
         }
     }

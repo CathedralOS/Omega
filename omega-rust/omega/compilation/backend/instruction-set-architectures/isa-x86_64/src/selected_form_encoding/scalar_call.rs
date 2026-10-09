@@ -815,7 +815,7 @@ pub fn encode_x86_64_selected_dynamic_call_template(
     let offset = u64::from(slot) * 8;
     let mut bytes = Vec::with_capacity(24);
     bytes.extend_from_slice(&[0x49, 0xba]); // movabs r10, offset
-    crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, offset.to_le_bytes());
     bytes.extend_from_slice(&[
         0x4f, 0x8b, 0x1c, 0x13, // mov r11, [r11+r10]
         0x4d, 0x85, 0xdb, // test r11, r11
