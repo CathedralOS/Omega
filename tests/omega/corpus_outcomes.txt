@@ -3672,6 +3672,7 @@ pass/layouts/runtime_size_of_align_of_exit rejected 5214ms check-target:macos_ar
 	unimplemented: `size_of` requires a portable Terminal data-layout query; native layout must not rewrite the checked source
 pass/layouts/runtime_sparse_fragmented_bits_exit checked 1653ms check-target:macos_arm64 @acdf102c21ea+wt
 pass/layouts/runtime_stored_returned_encoded_reference_exit checked 1712ms check-target:macos_arm64 @4cbb568dee2d+wt
+pass/layouts/runtime_transition_scalar_reference_codec_exit checked 4994ms check-target:macos_arm64 @e26ee75babed
 pass/locals/mutable_local_call_initializer_exit checked 1412ms check-target:macos_arm64 @2d8ed253669f
 pass/locals/mutable_local_call_multistate_reassignment_exit checked 510ms check-target:macos_arm64 @ca8c127c90c5
 pass/locals/mutable_local_call_reassignment_exit checked 1238ms check-target:macos_arm64 @2d8ed253669f
