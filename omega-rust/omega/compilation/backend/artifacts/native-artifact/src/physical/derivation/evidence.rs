@@ -38,7 +38,6 @@ use optimization_core::{
     OptimizedOperatorOccurrenceIdentity,
 };
 use sha2::Digest;
-use sha2::Sha256;
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::CallSiteOwner;
@@ -647,46 +646,45 @@ pub(crate) fn physical_child_identity(
     final_image_bytes_digest: [u8; 32],
     relocation: &PhysicalRelocationDisposition,
 ) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.native-physical-child.sha256.v3\0");
-    digest.update([parent.role_tag()]);
-    digest.update(parent.identity());
-    digest.update(projection.bytes());
-    digest.update([occurrence.role_tag()]);
-    digest.update(occurrence.identity());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-physical-child.sha256.v3\0");
+    digest.byte(parent.role_tag());
+    digest.raw(&parent.identity());
+    digest.raw(&projection.bytes());
+    digest.byte(occurrence.role_tag());
+    digest.raw(&occurrence.identity());
     for spans in [machine_spans, object_spans, final_image_spans] {
-        digest.update(canonical_usize(spans.len()));
+        digest.raw(&canonical_usize(spans.len()));
         for span in spans {
-            digest.update(canonical_usize(span.offset()));
-            digest.update(canonical_usize(span.byte_count()));
+            digest.raw(&canonical_usize(span.offset()));
+            digest.raw(&canonical_usize(span.byte_count()));
         }
     }
-    digest.update(machine_bytes_digest);
-    digest.update(object_bytes_digest);
-    digest.update(final_image_bytes_digest);
-    digest.update([match *relocation {
+    digest.raw(&machine_bytes_digest);
+    digest.raw(&object_bytes_digest);
+    digest.raw(&final_image_bytes_digest);
+    digest.byte(match *relocation {
         PhysicalRelocationDisposition::DirectInstructionBytes => 1,
         PhysicalRelocationDisposition::ResolvedInternalCall => 2,
         PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(_) => 3,
         PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(_) => 4,
-    }]);
+    });
     if let PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(relocation) = relocation {
-        digest.update(relocation.locator_identity());
-        digest.update(relocation.boundary_plan_identity());
+        digest.raw(relocation.locator_identity());
+        digest.raw(relocation.boundary_plan_identity());
         hash_object_symbol(&mut digest, relocation.object_symbol());
         hash_relocation_origin(&mut digest, relocation.origin());
-        digest.update(canonical_usize(relocation.offset()));
-        digest.update(canonical_usize(relocation.byte_width()));
-        digest.update(relocation.addend().to_le_bytes());
-        digest.update([relocation_kind_tag(relocation.kind())]);
-        digest.update(canonical_usize(relocation.callbacks().len()));
+        digest.raw(&canonical_usize(relocation.offset()));
+        digest.raw(&canonical_usize(relocation.byte_width()));
+        digest.raw(&relocation.addend().to_le_bytes());
+        digest.byte(relocation_kind_tag(relocation.kind()));
+        digest.raw(&canonical_usize(relocation.callbacks().len()));
         for callback in relocation.callbacks() {
             match callback {
                 NormalizedForeignCallbackRelocations::X86_64Relative32 {
                     callback_function,
                     relocation,
                 } => {
-                    digest.update([1]);
+                    digest.byte(1);
                     hash_machine_function_identity(&mut digest, *callback_function);
                     hash_callback_relocation(&mut digest, *relocation);
                 }
@@ -695,55 +693,54 @@ pub(crate) fn physical_child_identity(
                     page,
                     page_offset,
                 } => {
-                    digest.update([2]);
+                    digest.byte(2);
                     hash_machine_function_identity(&mut digest, *callback_function);
                     hash_callback_relocation(&mut digest, *page);
                     hash_callback_relocation(&mut digest, *page_offset);
                 }
             }
         }
-        digest.update(relocation.final_image_symbol_identity());
+        digest.raw(relocation.final_image_symbol_identity());
     }
     if let PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(field) =
         relocation
     {
-        digest.update(field.locator_identity());
-        digest.update(field.boundary_plan_identity());
-        digest.update(field.caller().get().to_le_bytes());
+        digest.raw(field.locator_identity());
+        digest.raw(field.boundary_plan_identity());
+        digest.raw(&field.caller().get().to_le_bytes());
         match field.invocation_site() {
             semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
-                digest.update([0]);
-                digest.update(operation.get().to_le_bytes());
+                digest.byte(0);
+                digest.raw(&operation.get().to_le_bytes());
             }
             semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
-                digest.update([1]);
-                digest.update(edge.get().to_le_bytes());
+                digest.byte(1);
+                digest.raw(&edge.get().to_le_bytes());
             }
         }
-        digest.update(field.boundary().get().to_le_bytes());
-        digest.update(field.ordinal().to_le_bytes());
-        digest.update(field.object_symbol().get().to_le_bytes());
-        digest.update(canonical_usize(field.offset()));
-        digest.update(canonical_usize(field.byte_width()));
-        digest.update(field.addend().to_le_bytes());
-        digest.update([relocation_kind_tag(field.kind())]);
-        digest.update(field.final_image_symbol_identity());
+        digest.raw(&field.boundary().get().to_le_bytes());
+        digest.raw(&field.ordinal().to_le_bytes());
+        digest.raw(&field.object_symbol().get().to_le_bytes());
+        digest.raw(&canonical_usize(field.offset()));
+        digest.raw(&canonical_usize(field.byte_width()));
+        digest.raw(&field.addend().to_le_bytes());
+        digest.byte(relocation_kind_tag(field.kind()));
+        digest.raw(field.final_image_symbol_identity());
     }
-    digest.finalize().into()
+    digest.finish()
 }
 
 fn physical_evidence_identity(
     projection: NativeOptimizationProjectionIdentity,
     children: &[NativePhysicalChild],
 ) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.native-physical-evidence.sha256.v2\0");
-    digest.update(projection.bytes());
-    digest.update(canonical_usize(children.len()));
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-physical-evidence.sha256.v2\0");
+    digest.raw(&projection.bytes());
+    digest.raw(&canonical_usize(children.len()));
     for child in children {
-        digest.update(child.identity());
+        digest.raw(child.identity());
     }
-    digest.finalize().into()
+    digest.finish()
 }
 
 fn terminal_identity_bytes(terminal: terminal_psi::TerminalPsiIdentity) -> Vec<u8> {

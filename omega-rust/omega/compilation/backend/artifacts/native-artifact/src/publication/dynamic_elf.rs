@@ -11,7 +11,7 @@
 
 use super::{ExecutableContainerDigest, executable_container_digest};
 use crate::DynamicElfNativeArtifact;
-use sha2::{Digest, Sha256};
+use sha2::Digest;
 use std::path::{Path, PathBuf};
 
 /// Publication evidence admitted before any destination is modified.
@@ -117,14 +117,13 @@ fn dynamic_elf_installation_evidence_digest(
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
 ) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.installed-dynamic-elf-publication-evidence.sha256.v1\0");
-    digest.update(dynamic_elf_artifact_identity);
-    digest.update(text_validation_digest.as_bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.installed-dynamic-elf-publication-evidence.sha256.v1\0");
+    digest.raw(dynamic_elf_artifact_identity);
+    digest.raw(text_validation_digest.as_bytes());
     let path = output_path.as_os_str().as_encoded_bytes();
-    digest.update((path.len() as u64).to_le_bytes());
-    digest.update(path);
-    digest.update((container_byte_count as u64).to_le_bytes());
-    digest.update(container_digest.as_bytes());
-    digest.finalize().into()
+    digest.u64(path.len() as u64);
+    digest.raw(&path);
+    digest.u64(container_byte_count as u64);
+    digest.raw(container_digest.as_bytes());
+    digest.finish()
 }

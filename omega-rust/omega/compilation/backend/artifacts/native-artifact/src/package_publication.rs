@@ -30,7 +30,7 @@
 //! encoded in the installed executable's CodeDirectory; matching producer
 //! assertions alone are insufficient.
 
-use sha2::{Digest, Sha256};
+use sha2::Digest;
 use std::path::{Path, PathBuf};
 
 use crate::ExecutableContainerDigest;
@@ -38,11 +38,10 @@ use crate::{NativePackageEvidenceDigest, PackageComponentDigest};
 
 /// Digest one installed package member's exact bytes under its own domain.
 fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.published-package-component.sha256.v1\0");
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
-    PackageComponentDigest::from_digest(digest.finalize().into())
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.published-package-component.sha256.v1\0");
+    digest.u64(bytes.len() as u64);
+    digest.raw(&bytes);
+    PackageComponentDigest::from_digest(digest.finish())
 }
 
 /// The package-level commitment: package root, authored name, authored
@@ -57,26 +56,25 @@ fn native_package_evidence_digest(
     executable_container_digest: ExecutableContainerDigest,
     components: &[PackagePublicationComponent],
 ) -> NativePackageEvidenceDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.native-package-evidence.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-package-evidence.sha256.v1\0");
     let root = package_root.as_os_str().as_encoded_bytes();
-    digest.update((root.len() as u64).to_le_bytes());
-    digest.update(root);
-    digest.update((application_name.len() as u64).to_le_bytes());
-    digest.update(application_name.as_bytes());
+    digest.u64(root.len() as u64);
+    digest.raw(&root);
+    digest.u64(application_name.len() as u64);
+    digest.raw(application_name.as_bytes());
     let identifier = application_identifier.as_str().as_bytes();
-    digest.update((identifier.len() as u64).to_le_bytes());
-    digest.update(identifier);
-    digest.update(executable_container_digest.as_bytes());
-    digest.update((components.len() as u64).to_le_bytes());
+    digest.u64(identifier.len() as u64);
+    digest.raw(&identifier);
+    digest.raw(executable_container_digest.as_bytes());
+    digest.u64(components.len() as u64);
     for component in components {
         let relative = component.relative_path.as_os_str().as_encoded_bytes();
-        digest.update((relative.len() as u64).to_le_bytes());
-        digest.update(relative);
-        digest.update((component.byte_count as u64).to_le_bytes());
-        digest.update(component.digest.as_bytes());
+        digest.u64(relative.len() as u64);
+        digest.raw(&relative);
+        digest.u64(component.byte_count as u64);
+        digest.raw(component.digest.as_bytes());
     }
-    NativePackageEvidenceDigest::from_digest(digest.finalize().into())
+    NativePackageEvidenceDigest::from_digest(digest.finish())
 }
 
 /// One installed package member, recorded package-relative so the receipt is

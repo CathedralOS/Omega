@@ -3,9 +3,9 @@
 fn reference_projection_identity_is_distinct_from_owned_paths() {
     use terminal_psi::StructuralPathSegment;
     let identity = |path: &[StructuralPathSegment]| {
-        let mut digest = sha2::Sha256::default();
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
         crate::physical::derivation::hashing::hash_structural_path(&mut digest, path);
-        sha2::Digest::finalize(digest)
+        digest.finish()
     };
     let reference = identity(&[StructuralPathSegment::Referent]);
     assert_ne!(reference, identity(&[]));

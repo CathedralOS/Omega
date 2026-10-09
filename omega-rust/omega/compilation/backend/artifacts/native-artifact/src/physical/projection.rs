@@ -8,7 +8,7 @@ use optimization_core::{
     OptimizedOperatorOccurrenceIdentity,
 };
 use semantic_vocabulary::OperationId;
-use sha2::{Digest, Sha256};
+use sha2::Digest;
 use terminal_psi::TerminalPsiIdentity;
 
 use super::{
@@ -214,12 +214,11 @@ fn optimized_scope_identity(
     boundary_application_coverage: [u8; 32],
     projection: NativeOptimizationProjectionIdentity,
 ) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(OPTIMIZED_SCOPE_IDENTITY_DOMAIN);
-    digest.update(validated_authority_bytes(authority));
-    digest.update(boundary_application_coverage);
-    digest.update(projection.bytes());
-    digest.finalize().into()
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(OPTIMIZED_SCOPE_IDENTITY_DOMAIN);
+    digest.raw(&validated_authority_bytes(authority));
+    digest.raw(&boundary_application_coverage);
+    digest.raw(&projection.bytes());
+    digest.finish()
 }
 
 fn optimized_operator_occurrence_identity(

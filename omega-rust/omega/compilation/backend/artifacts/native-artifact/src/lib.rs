@@ -19,6 +19,7 @@
 //! semantic-wrapper object records and codec that native realization stages.
 
 mod cursor;
+mod digest_encoder;
 mod entry_receiver;
 mod fragment_object_publication;
 mod native_artifact;

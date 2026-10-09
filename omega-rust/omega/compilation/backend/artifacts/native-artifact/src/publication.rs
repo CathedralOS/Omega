@@ -6,7 +6,7 @@
 //! before file installation and binds the resulting receipt to its destination.
 //! It does not write files or grant permission to execute them.
 
-use sha2::{Digest, Sha256};
+use sha2::Digest;
 use std::path::PathBuf;
 
 mod dynamic_elf;
@@ -50,18 +50,17 @@ pub fn executable_installation_evidence_digest(
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
 ) -> ExecutableInstallationEvidenceDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.installed-executable-publication-evidence.sha256.v1\0");
-    digest.update(publication_evidence_digest.as_bytes());
-    digest.update(callback_placement_identity_report_fingerprint.to_le_bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.installed-executable-publication-evidence.sha256.v1\0");
+    digest.raw(publication_evidence_digest.as_bytes());
+    digest.raw(&callback_placement_identity_report_fingerprint.to_le_bytes());
     // The fixed v1 flat-destination tag preserves existing installation digests.
-    digest.update([0]);
+    digest.byte(0);
     let path = output_path.as_os_str().as_encoded_bytes();
-    digest.update((path.len() as u64).to_le_bytes());
-    digest.update(path);
-    digest.update((container_byte_count as u64).to_le_bytes());
-    digest.update(container_digest.as_bytes());
-    ExecutableInstallationEvidenceDigest::from_digest(digest.finalize().into())
+    digest.u64(path.len() as u64);
+    digest.raw(&path);
+    digest.u64(container_byte_count as u64);
+    digest.raw(container_digest.as_bytes());
+    ExecutableInstallationEvidenceDigest::from_digest(digest.finish())
 }
 
 /// Commit the producer's retained native publication evidence. This local
@@ -79,35 +78,30 @@ pub(crate) fn native_publication_certificate_digest(
     inventory_digest: image::PlacedExecutableRegionInventoryDigest,
     inventory_report_fingerprint: u64,
 ) -> NativePublicationCertificateDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.native-publication-certificate.sha256.v1\0");
-    digest.update(native_artifact_identity);
-    digest.update((semantic_bytes.len() as u64).to_le_bytes());
-    digest.update(semantic_bytes);
-    digest.update([match target.architecture {
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-publication-certificate.sha256.v1\0");
+    digest.raw(native_artifact_identity);
+    digest.u64(semantic_bytes.len() as u64);
+    digest.raw(&semantic_bytes);
+    digest.byte(match target.architecture {
         target::Architecture::Aarch64 => 1,
         target::Architecture::X86_64 => 2,
-    }]);
-    digest.update([match target.object_format {
+    });
+    digest.byte(match target.object_format {
         target::ObjectFormat::Elf => 1,
         target::ObjectFormat::MachO => 2,
         target::ObjectFormat::Coff => 3,
-    }]);
-    digest.update((target.pointer_size as u64).to_le_bytes());
-    digest.update((target.pointer_alignment as u64).to_le_bytes());
-    digest.update(final_image_symbol_digest.as_bytes());
-    digest.update([u8::from(boundary_contract_report_fingerprint.is_some())]);
-    digest.update(
-        boundary_contract_report_fingerprint
-            .unwrap_or_default()
-            .to_le_bytes(),
-    );
-    digest.update(text_validation_digest.as_bytes());
-    digest.update(function_validation_digest.as_bytes());
-    digest.update(function_validation_report_fingerprint.to_le_bytes());
-    digest.update(inventory_digest.as_bytes());
-    digest.update(inventory_report_fingerprint.to_le_bytes());
-    NativePublicationCertificateDigest::from_digest(digest.finalize().into())
+    });
+    digest.u64(target.pointer_size as u64);
+    digest.u64(target.pointer_alignment as u64);
+    digest.raw(final_image_symbol_digest.as_bytes());
+    digest.byte(u8::from(boundary_contract_report_fingerprint.is_some()));
+    digest.raw(&boundary_contract_report_fingerprint .unwrap_or_default() .to_le_bytes(),);
+    digest.raw(text_validation_digest.as_bytes());
+    digest.raw(function_validation_digest.as_bytes());
+    digest.raw(&function_validation_report_fingerprint.to_le_bytes());
+    digest.raw(inventory_digest.as_bytes());
+    digest.raw(&inventory_report_fingerprint.to_le_bytes());
+    NativePublicationCertificateDigest::from_digest(digest.finish())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -123,31 +117,29 @@ pub(crate) fn native_publication_evidence_digest(
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
 ) -> NativePublicationEvidenceDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.native-publication-evidence.sha256.v1\0");
-    digest.update(native_artifact_identity);
-    digest.update(certificate_digest.as_bytes());
-    digest.update(function_validation_digest.as_bytes());
-    digest.update(inventory_digest.as_bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-publication-evidence.sha256.v1\0");
+    digest.raw(native_artifact_identity);
+    digest.raw(certificate_digest.as_bytes());
+    digest.raw(function_validation_digest.as_bytes());
+    digest.raw(inventory_digest.as_bytes());
     for value in [
         callback_placement_identity_report_fingerprint,
         inventory_report_fingerprint,
         function_validation_report_fingerprint,
         container_byte_count as u64,
     ] {
-        digest.update(value.to_le_bytes());
+        digest.raw(&value.to_le_bytes());
     }
-    digest.update(text_validation_digest.as_bytes());
-    digest.update(container_digest.as_bytes());
-    NativePublicationEvidenceDigest::from_digest(digest.finalize().into())
+    digest.raw(text_validation_digest.as_bytes());
+    digest.raw(container_digest.as_bytes());
+    NativePublicationEvidenceDigest::from_digest(digest.finish())
 }
 
 pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.published-executable-container.sha256.v1\0");
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
-    ExecutableContainerDigest::from_digest(digest.finalize().into())
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.published-executable-container.sha256.v1\0");
+    digest.u64(bytes.len() as u64);
+    digest.raw(&bytes);
+    ExecutableContainerDigest::from_digest(digest.finish())
 }
 
 /// Immutable custody for one compiler-published executable container.

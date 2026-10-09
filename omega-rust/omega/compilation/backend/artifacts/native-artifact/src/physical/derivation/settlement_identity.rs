@@ -14,7 +14,6 @@ use crate::{
 use machine_code::PortEffectRecord;
 use semantic_vocabulary::BoundaryMachineId;
 use sha2::Digest;
-use sha2::Sha256;
 use target::NativeTarget;
 use target_operations::{CallSiteOwner, ProviderExecutionBinding};
 
@@ -33,10 +32,9 @@ pub(crate) fn hosted_builtin_settlement_identity(
     scalar_argument: Option<&CompilerBuiltinScalarArgument>,
     result: &CompilerBuiltinResult,
 ) -> Result<[u8; 32], &'static str> {
-    let mut digest = Sha256::new();
     // Structural-result custody has its own domain; scalar-only and unit-result
     // custody share the original builtin domain.
-    digest.update(match result {
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(match result {
         CompilerBuiltinResult::Unit => {
             b"omega.d41-boundary-trait-settlement.sha256.v1\0".as_slice()
         }
@@ -44,12 +42,12 @@ pub(crate) fn hosted_builtin_settlement_identity(
             b"omega.d41-boundary-trait-settlement.sha256.v3\0".as_slice()
         }
     });
-    digest.update(occurrence.identity().bytes());
+    digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
-    digest.update(selected_plan_digest.as_bytes());
+    digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.update([1]); // HostedV1 compiler-builtin catalog.
-    digest.update(identity_tags);
+    digest.byte(1); // HostedV1 compiler-builtin catalog.
+    digest.raw(&identity_tags);
     if let Some(scalar_argument) = scalar_argument {
         hash_builtin_scalar_argument(&mut digest, scalar_argument)?;
     }
@@ -58,30 +56,24 @@ pub(crate) fn hosted_builtin_settlement_identity(
             |_| "hosted builtin settlement result declaration cannot be encoded canonically",
         )?;
     }
-    Ok(digest.finalize().into())
+    Ok(digest.finish())
 }
 
 fn hash_builtin_scalar_argument(
-    digest: &mut Sha256,
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
     scalar_argument: &CompilerBuiltinScalarArgument,
 ) -> Result<(), &'static str> {
     match scalar_argument {
         CompilerBuiltinScalarArgument::Immediate(scalar_argument) => {
-            digest.update(scalar_argument.source_value.get().to_le_bytes());
-            digest.update([1]); // exact signed i32 scalar schema
+            digest.raw(&scalar_argument.source_value.get().to_le_bytes());
+            digest.byte(1); // exact signed i32 scalar schema
             let semantic_vocabulary::IntegerValue::Signed(value) = scalar_argument.immediate else {
                 return Err("hosted builtin settlement argument requires a signed i32 immediate");
             };
-            digest.update(
-                i32::try_from(value)
-                    .map_err(
-                        |_| "hosted builtin settlement argument requires a signed i32 immediate",
-                    )?
-                    .to_le_bytes(),
-            );
+            digest.raw(&i32::try_from(value) .map_err( |_| "hosted builtin settlement argument requires a signed i32 immediate", )? .to_le_bytes(),);
         }
         CompilerBuiltinScalarArgument::RuntimeScalar(scalar_argument) => {
-            digest.update(scalar_argument.parameter_index.to_le_bytes());
+            digest.raw(&scalar_argument.parameter_index.to_le_bytes());
             hash_internal_scalar_argument_source(digest, &scalar_argument.source);
         }
     }
@@ -108,59 +100,45 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     structural_arguments: &[terminal_psi::StructuralArgument],
     structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
 ) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v7\0");
-    digest.update(occurrence.identity().bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v7\0");
+    digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
-    digest.update(selected_plan_digest.as_bytes());
+    digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.update([2]); // AdmittedProvider::NormalizedForeignCall.
-    digest.update(
-        execution
-            .provider_plan_report_identity()
-            .get()
-            .to_le_bytes(),
-    );
-    digest.update(execution.provider_execution_report_identity().to_le_bytes());
-    digest.update(
-        execution
-            .provider_execution_report_fingerprint()
-            .to_le_bytes(),
-    );
-    digest.update(execution.normalized_root_report_identity().to_le_bytes());
-    digest.update(
-        execution
-            .boundary_contract_report_fingerprint()
-            .to_le_bytes(),
-    );
+    digest.byte(2); // AdmittedProvider::NormalizedForeignCall.
+    digest.raw(&execution .provider_plan_report_identity() .get() .to_le_bytes(),);
+    digest.raw(&execution.provider_execution_report_identity().to_le_bytes());
+    digest.raw(&execution .provider_execution_report_fingerprint() .to_le_bytes(),);
+    digest.raw(&execution.normalized_root_report_identity().to_le_bytes());
+    digest.raw(&execution .boundary_contract_report_fingerprint() .to_le_bytes(),);
     match mechanism {
         target_operations::NormalizedForeignCallMechanism::Import {
             locator,
             same_stack_contribution,
         } => {
-            digest.update([1]);
-            digest.update(locator.identity_digest().as_bytes());
-            digest.update(same_stack_contribution.commitment().as_bytes());
+            digest.byte(1);
+            digest.raw(&locator.identity_digest().as_bytes());
+            digest.raw(&same_stack_contribution.commitment().as_bytes());
         }
         target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
-            digest.update([2]);
+            digest.byte(2);
             hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
-            digest.update(kernel.number.to_le_bytes());
-            digest.update(kernel.provider_plan_report_identity.to_le_bytes());
-            digest.update(kernel.provider_plan_commitment);
+            digest.raw(&kernel.number.to_le_bytes());
+            digest.raw(&kernel.provider_plan_report_identity.to_le_bytes());
+            digest.raw(&kernel.provider_plan_commitment);
             hash_bytes(&mut digest, kernel.requirement_identity.as_bytes());
         }
     }
-    digest.update(boundary_plan_identity);
-    digest.update(canonical_usize(structural_arguments.len()));
+    digest.raw(&boundary_plan_identity);
+    digest.raw(&canonical_usize(structural_arguments.len()));
     for argument in structural_arguments {
         hash_structural_argument(&mut digest, argument);
     }
-    digest.update(canonical_usize(structural_parameters.len()));
+    digest.raw(&canonical_usize(structural_parameters.len()));
     for parameter in structural_parameters {
         hash_structural_parameter_declaration(&mut digest, parameter);
     }
-    digest.finalize().into()
+    digest.finish()
 }
 
 /// Strong identity for one exact installed provider settlement realized in
@@ -178,40 +156,26 @@ pub(crate) fn admitted_provider_settlement_identity(
     settlement: &machine_code::BoundarySettlementRecord,
     port_effect: Option<&PortEffectRecord>,
 ) -> Result<[u8; 32], &'static str> {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v4\0");
-    digest.update(occurrence.identity().bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v4\0");
+    digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
-    digest.update(selected_plan_digest.as_bytes());
+    digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.update([3]); // AdmittedProviderSettlement role.
-    digest.update(
-        execution
-            .provider_plan_report_identity()
-            .get()
-            .to_le_bytes(),
-    );
-    digest.update(execution.provider_execution_report_identity().to_le_bytes());
-    digest.update(
-        execution
-            .provider_execution_report_fingerprint()
-            .to_le_bytes(),
-    );
-    digest.update(execution.normalized_root_report_identity().to_le_bytes());
-    digest.update(
-        execution
-            .boundary_contract_report_fingerprint()
-            .to_le_bytes(),
-    );
+    digest.byte(3); // AdmittedProviderSettlement role.
+    digest.raw(&execution .provider_plan_report_identity() .get() .to_le_bytes(),);
+    digest.raw(&execution.provider_execution_report_identity().to_le_bytes());
+    digest.raw(&execution .provider_execution_report_fingerprint() .to_le_bytes(),);
+    digest.raw(&execution.normalized_root_report_identity().to_le_bytes());
+    digest.raw(&execution .boundary_contract_report_fingerprint() .to_le_bytes(),);
     hash_boundary_settlement_record(&mut digest, settlement)?;
     match port_effect {
-        None => digest.update([0]),
+        None => digest.byte(0),
         Some(effect) => {
-            digest.update([1]);
+            digest.byte(1);
             hash_port_effect_record(&mut digest, effect);
         }
     }
-    Ok(digest.finalize().into())
+    Ok(digest.finish())
 }
 
 /// Strong identity for one installed provider boundary call realized as a
@@ -232,14 +196,13 @@ pub(crate) fn installed_provider_internal_call_identity(
     candidate_identity: &str,
     call: &InstalledProviderInternalCallCustody,
 ) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v5\0");
-    digest.update(occurrence.identity().bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v5\0");
+    digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
-    digest.update(selected_plan_digest.as_bytes());
+    digest.raw(selected_plan_digest.as_bytes());
     hash_target(&mut digest, target);
-    digest.update([4]); // InstalledProviderInternalCall role.
-    digest.update(boundary.get().to_le_bytes());
+    digest.byte(4); // InstalledProviderInternalCall role.
+    digest.raw(&boundary.get().to_le_bytes());
     hash_bytes(&mut digest, provider_identity.as_bytes());
     hash_bytes(&mut digest, candidate_identity.as_bytes());
     let (family_tag, owner, call_target, call_field_offset, frame_terms, caller_live_bytes) =
@@ -273,37 +236,37 @@ pub(crate) fn installed_provider_internal_call_identity(
                 *caller_live_bytes,
             ),
         };
-    digest.update([family_tag]);
+    digest.byte(family_tag);
     match owner {
         CallSiteOwner::Operation(operation) => {
-            digest.update([1]);
-            digest.update(operation.get().to_le_bytes());
-            digest.update(0_u32.to_le_bytes());
+            digest.byte(1);
+            digest.raw(&operation.get().to_le_bytes());
+            digest.raw(&0_u32.to_le_bytes());
         }
         CallSiteOwner::ExternalCompletion(edge) => {
-            digest.update([3]);
-            digest.update(edge.get().to_le_bytes());
-            digest.update(0_u32.to_le_bytes());
+            digest.byte(3);
+            digest.raw(&edge.get().to_le_bytes());
+            digest.raw(&0_u32.to_le_bytes());
         }
         CallSiteOwner::CleanupAction {
             edge,
             action_ordinal,
         } => {
-            digest.update([2]);
-            digest.update(edge.get().to_le_bytes());
-            digest.update(action_ordinal.to_le_bytes());
+            digest.byte(2);
+            digest.raw(&edge.get().to_le_bytes());
+            digest.raw(&action_ordinal.to_le_bytes());
         }
     }
-    digest.update(call_target.get().to_le_bytes());
-    digest.update(canonical_usize(call_field_offset));
+    digest.raw(&call_target.get().to_le_bytes());
+    digest.raw(&canonical_usize(call_field_offset));
     match frame_terms {
-        None => digest.update([0]),
+        None => digest.byte(0),
         Some((active_frame_bytes, transient_bytes)) => {
-            digest.update([1]);
-            digest.update(active_frame_bytes.to_le_bytes());
-            digest.update(transient_bytes.to_le_bytes());
+            digest.byte(1);
+            digest.raw(&active_frame_bytes.to_le_bytes());
+            digest.raw(&transient_bytes.to_le_bytes());
         }
     }
-    digest.update(caller_live_bytes.to_le_bytes());
-    digest.finalize().into()
+    digest.raw(&caller_live_bytes.to_le_bytes());
+    digest.finish()
 }

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use image_emission::ObjectArtifact;
 use installation_evidence::ObjectEvidence;
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
-use sha2::{Digest, Sha256};
+use sha2::Digest;
 
 use super::ValidatedOptimizedNativePhysicalEvidenceScope;
 /// Immutable admitted object evidence. Equality deliberately covers the complete
@@ -113,12 +113,11 @@ pub(crate) fn derive_scope(
         coverage,
         coverage_identity,
     )?;
-    let mut digest = Sha256::new();
-    digest.update(b"omega.native-artifact.fragment-publication-binding.sha256.v1\0");
-    digest.update(source.custody().manifest().bytes());
-    digest.update(source.custody().source_text_section_manifest().bytes());
-    digest.update(source.custody().object().bytes());
-    digest.update(source.custody().object_container().bytes());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-artifact.fragment-publication-binding.sha256.v1\0");
+    digest.raw(&source.custody().manifest().bytes());
+    digest.raw(&source.custody().source_text_section_manifest().bytes());
+    digest.raw(&source.custody().object().bytes());
+    digest.raw(&source.custody().object_container().bytes());
     // Independent projection is a deterministic function of this exact source
     // custody. Its role domain binds that interpretation; retained full-object
     // equality below checks all derived fields without a parallel serializer.
@@ -128,16 +127,15 @@ pub(crate) fn derive_scope(
         relocation_free_object,
         text_section,
         selected,
-        identity: digest.finalize().into(),
+        identity: digest.finish(),
     };
-    let mut digest = Sha256::new();
-    digest.update(b"omega.native-artifact.validated-fragment-physical-scope.sha256.v1\0");
-    digest.update(scope.identity());
-    digest.update(publication.identity());
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-artifact.validated-fragment-physical-scope.sha256.v1\0");
+    digest.raw(scope.identity());
+    digest.raw(publication.identity());
     Ok(super::validated_fragment_native_physical_evidence_scope(
         scope,
         publication,
-        digest.finalize().into(),
+        digest.finish(),
     ))
 }
 
