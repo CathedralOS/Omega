@@ -4721,7 +4721,11 @@ wait for Cathedral's instruction coverage. The interpreter is
 
   Acceptance: `tests/omega/fail/arithmetic/implicit_store_{conversion,widening,call_result_conversion}_rejected`
   and `implicit_call_operand_conversion_rejected` each report one actionable
-  conversion error. The shared carrier check in
+  conversion error. Keep `implicit_call_result_policy_change_rejected` refusing
+  implicit policy additions independently of result bounds and `ensures`;
+  `runtime_explicit_call_result_policy_exit` preserves explicit policy changes,
+  anonymous literal landing and declared qualified results (exit 0 in both engines).
+  The shared carrier check in
   `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/operand_reports.rs`
   keeps treating declared types as types, not range facts; heterogeneous declared
   operators, mixed-integer comparisons and independently typed shift counts stay

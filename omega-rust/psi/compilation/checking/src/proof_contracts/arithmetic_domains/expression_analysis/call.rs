@@ -55,11 +55,14 @@ pub(super) fn analyze(
 /// arithmetic, exactly as a field or local of that type does. The range
 /// sources above only bound the value; without this a receiver method's
 /// Wrapping result read as Exact whenever its body defeated inference, and the
-/// overflow diagnostic then asked for the annotation already present. An
-/// Exact result keeps the neutral domain it had, but not a missing carrier:
-/// the declared type bounds an unknown value for ordinary and receiver calls
-/// alike. Otherwise an unbounded call could evade its enclosing operation's
-/// formation checks merely because it failed the static-call recognizer.
+/// overflow diagnostic then asked for the annotation already present.
+/// Exact is a declared result policy too, not the absence of one. Bounds can
+/// be unknown without making a typed call result anonymous: omitting Exact
+/// here would let a store silently add Wrapping, Saturating or Trapping to
+/// that result. Preserve an operation's already selected policy and fill any
+/// missing policy from the signature, independently of result-range inference.
+/// The declared type likewise bounds an unknown value for ordinary and
+/// receiver calls so they retain their enclosing formation obligations.
 fn with_declared_result_carrier(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
@@ -73,9 +76,7 @@ fn with_declared_result_carrier(
         .primitive
         .or_else(|| program.primitive_type_reference(return_type));
     Analysis {
-        domain: analysis
-            .domain
-            .or((domain != ArithmeticDomain::Exact).then_some(domain)),
+        domain: Some(analysis.domain.unwrap_or(domain)),
         primitive,
         interval: primitive
             .and_then(primitive_range)

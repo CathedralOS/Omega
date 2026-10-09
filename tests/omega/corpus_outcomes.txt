@@ -122,6 +122,11 @@ fail/arithmetic/guarded_read_count_unguarded_arrival rejected 149ms expected @61
 fail/arithmetic/implicit_call_operand_conversion_rejected rejected 584ms expected @cfe60a3a242
 	machine `Values::signed_operand` state `signed_operand` applies `Add` to a `i32` value and a `u32` value -- the operands have different integer types and the operation would silently truncate or reinterpret a value; convert one with an exact `as` cast so both are the same type
 	machine `Values::wide_operand` state `wide_operand` applies `Add` to a `u16` value and a `u32` value -- the operands have different integer types and the operation would silently truncate or reinterpret a value; convert one with an exact `as` cast so both are the same type
+fail/arithmetic/implicit_call_result_policy_change_rejected rejected 604ms expected @30eb6513ae80+wt
+	store in machine `main` state `entry` local `wrapping` implicitly converts `u32` to `u32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
+	store in machine `main` state `entry` local `saturating` implicitly converts `u32` to `u32 in Saturating`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Saturating`)
+	store in machine `main` state `entry` local `trapping` implicitly converts `u32` to `u32 in Trapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Trapping`)
+	store in machine `main` state `entry` local `guaranteed` implicitly converts `u32` to `u32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
 fail/arithmetic/implicit_store_call_result_conversion_rejected rejected 127ms expected @d9720a4fa49b+wt
 	state `roll` expects 1 argument(s), got 0
 	exact arithmetic in machine `Main::main` state `main` assignment may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `roll(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u32 in Wrapping`).
@@ -2577,6 +2582,7 @@ pass/arithmetic/runtime_exact_guarded_shift_count_exit checked 1304ms check-targ
 pass/arithmetic/runtime_exact_projection_sibling_exit checked 6155ms check-target:macos_arm64 @cfe60a3a242
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit checked 973ms check-target:macos_arm64 @d9720a4fa49b+wt
 pass/arithmetic/runtime_explicit_call_operand_policy_exit checked 9664ms check-target:macos_arm64 @cfe60a3a242
+pass/arithmetic/runtime_explicit_call_result_policy_exit checked 7066ms check-target:macos_arm64 @30eb6513ae80+wt
 pass/arithmetic/runtime_float_nan_comparison_exit checked 4994ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_float_self_compare_nan_exit checked 4254ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_guard_narrowed_transition_arg_exit checked 1292ms check-target:macos_arm64 @2d8ed253669f

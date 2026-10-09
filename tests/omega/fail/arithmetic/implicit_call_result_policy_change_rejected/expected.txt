@@ -1,0 +1,3 @@
+implicitly converts `u32` to `u32 in Wrapping`
+implicitly converts `u32` to `u32 in Saturating`
+implicitly converts `u32` to `u32 in Trapping`

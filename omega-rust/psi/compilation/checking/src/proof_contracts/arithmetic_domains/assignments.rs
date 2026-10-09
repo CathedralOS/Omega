@@ -88,22 +88,13 @@ fn carrier_spelling(primitive: PrimitiveType, domain: Option<ArithmeticDomain>) 
     }
 }
 
-/// The carrier a stored value keeps when range analysis names none. Range
-/// analysis deliberately leaves an unbounded call result (a plain `-> u32`
-/// with no declared range or `ensures`) without a primitive, so it does not
-/// turn the carrier's full range into an overflow obligation; an anonymous
-/// operand combined with that call then has no analysed carrier either,
-/// although it lands on the call's type (`6 + self.rng.range(random, 3)` is a
-/// `u32`). Named values, fields, indexes, call results and cast outputs
-/// retain their types, so the consumer-facing result type supplies the
-/// carrier the store compares. A wholly anonymous value has no carrier of its
-/// own and keeps landing by range, and an analysed carrier is never replaced.
-///
-/// Only the carrier is supplied. The analysed policy stays as range analysis
-/// reported it, so a plain call result keeps the same policy judgment whether
-/// or not its callee publishes a range: supplying `Exact` here would reject an
-/// unranged call stored into a `Wrapping` slot while the same call with an
-/// `ensures` row still lands there.
+/// Supply a stored value's declared integer carrier when interval analysis
+/// names none. A selected expression result remains typed even when the
+/// interval walk cannot describe it; the destination cannot choose its type.
+/// Anonymous values keep ordinary literal landing, and established carrier
+/// and policy judgments are never replaced here. Call-result analysis owns
+/// recovery of both the carrier and the declared policy from its signature,
+/// independently of whether the callee supplies result bounds or `ensures`.
 pub(crate) fn stored_value_carrier(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
