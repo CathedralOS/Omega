@@ -276,10 +276,7 @@ fn collect_type(
             element_type,
             length,
         } => {
-            let typed_trees::types::FixedArrayLength::Literal(length) = length else {
-                return false;
-            };
-            if *length == 0 {
+            if matches!(length, typed_trees::types::FixedArrayLength::Literal(0)) {
                 return true;
             }
             // The path does not participate in frontier admission. Check the
@@ -301,8 +298,14 @@ fn collect_type(
                 return false;
             }
             if element_frontier.is_empty() {
+                // A symbolic extent does not hide references when the element
+                // frontier is empty. Only view-bearing arrays require an exact
+                // count to publish their per-element owner paths.
                 return true;
             }
+            let typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                return false;
+            };
             for element_index in 0..*length {
                 for leaf in &element_frontier {
                     let mut path = owner_path.to_vec();

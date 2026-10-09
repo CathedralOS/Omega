@@ -17,6 +17,14 @@ pub(super) fn check_calls(
     }
     let mut expressions = Vec::new();
     for machine in program.machines() {
+        // The producer retains authored templates beside their selected
+        // instances. Only the latter can supply an executable call contract;
+        // body cloning clears their specialization parameters. Source-body
+        // checking still runs, but this closed-application fence belongs to
+        // those instances, not to calls with deliberately unbound operands.
+        if machine.has_specialization_parameters() {
+            continue;
+        }
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {

@@ -3,12 +3,11 @@
 //! origins belong to that declaration's lifetime relation. Unknown body
 //! reconstruction is not confused with a known contradictory source.
 //!
-//! Stage 1 (elision) links a `&self` method or a single-ref-input machine to its
-//! one obvious source. Stage 2 (frozen decision 15) adds EXPLICIT lifetimes: a
-//! `-> &'buf T` output names the input it borrows, so a machine with two or more
-//! ref inputs is no longer inherently ambiguous — it is resolved by matching the
-//! output lifetime to an input lifetime. The decision is shared with the loan
-//! attributor (`borrow::view_link`) so the two never disagree.
+//! Explicit output lifetimes name matching input leaves; elided outputs need
+//! one unambiguous input. Type-dependent declarations are templates, not closed
+//! loan contracts: selected instances and closed bodyless calls must establish
+//! the complete relation. Declaration checks and caller loan attribution share
+//! `borrow::view_link` rather than deriving different structural frontiers.
 
 use crate::borrow::returned_body_source_mismatch;
 use diagnostics::Diagnostic;
@@ -46,13 +45,12 @@ pub(super) fn check_view_return_elision(
                     parameter.name,
                 )));
             }
-            if declaration_lifetime_frontier(program, state.return_type, &parameters)
-                == DeclarationLifetimeFrontier::TemplateDependent
-                && program.state_parameters(state).iter().all(|parameter| {
-                    declaration_lifetime_frontier(program, parameter.type_reference, &parameters)
-                        != DeclarationLifetimeFrontier::Incomplete
-                })
-            {
+            if frontier_requires_application(
+                program,
+                state.return_type,
+                program.state_parameters(state),
+                &parameters,
+            ) {
                 // Authored generic bodies and bodyless requirements obey the
                 // same frontier rule: no raw dependent signature is a closed
                 // loan contract. The call fence below admits only complete
@@ -86,6 +84,25 @@ pub(super) fn check_view_return_elision(
                 .machine_parameter_contract_view(contract)
                 .expect("typed machine-parameter contract must retain a valid requirement identity")
                 .signature();
+            let mut signature_parameters = parameters.clone();
+            signature_parameters.extend(
+                program
+                    .state_signature_type_parameters(signature)
+                    .iter()
+                    .filter(|parameter| {
+                        matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                    })
+                    .map(|parameter| parameter.symbol),
+            );
+            if frontier_requires_application(
+                program,
+                signature.return_type,
+                program.state_signature_parameters(signature),
+                &signature_parameters,
+            ) {
+                deferred.push(signature.symbol);
+                continue;
+            }
             check_bodyless_signature(program, signature, diagnostics);
         }
     }
@@ -101,19 +118,12 @@ pub(super) fn check_view_return_elision(
                 })
                 .map(|parameter| parameter.symbol)
                 .collect::<Vec<_>>();
-            if declaration_lifetime_frontier(program, signature.return_type, &parameters)
-                == DeclarationLifetimeFrontier::TemplateDependent
-                && program
-                    .state_signature_parameters(signature)
-                    .iter()
-                    .all(|parameter| {
-                        declaration_lifetime_frontier(
-                            program,
-                            parameter.type_reference,
-                            &parameters,
-                        ) != DeclarationLifetimeFrontier::Incomplete
-                    })
-            {
+            if frontier_requires_application(
+                program,
+                signature.return_type,
+                program.state_signature_parameters(signature),
+                &parameters,
+            ) {
                 // A template is not an executable lifetime contract. Every
                 // use that still selects this raw signature is fenced below;
                 // concrete machine instances retain the ordinary full check.
@@ -124,6 +134,20 @@ pub(super) fn check_view_return_elision(
         }
     }
     templates::check_calls(program, &deferred, diagnostics);
+}
+
+fn frontier_requires_application(
+    program: &dyn ::validation::CheckingInput,
+    result: typed_trees::types::TypeReferenceHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    type_parameters: &[symbols::SymbolHandle],
+) -> bool {
+    declaration_lifetime_frontier(program, result, type_parameters)
+        == DeclarationLifetimeFrontier::TemplateDependent
+        && parameters.iter().all(|parameter| {
+            declaration_lifetime_frontier(program, parameter.type_reference, type_parameters)
+                != DeclarationLifetimeFrontier::Incomplete
+        })
 }
 
 fn check_bodyless_signature(

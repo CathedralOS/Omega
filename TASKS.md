@@ -3013,8 +3013,9 @@ of a check the same flow already performed, not the check itself.
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
   corpus and focused native cohort. Include prepared lifetime-bearing field
-  views, independent nested regions, repeated generic heads, inherited symbolic
-  const arguments and complete returned-loan frontiers. Keep
+  views, independent nested regions, repeated generic heads, authored callable
+  templates, symbolic view-free arrays, inherited const arguments and complete
+  returned-loan frontiers. Keep
   `omega run tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg`
   and conflicting-mutation/distinct-region controls in that qualification;
   the bounded operator, algebra-law and returned-loan cohort does not replace it.
