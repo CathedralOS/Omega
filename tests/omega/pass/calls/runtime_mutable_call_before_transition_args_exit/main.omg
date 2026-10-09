@@ -64,8 +64,10 @@ machine Loader::run(loader: &mut Loader) reaches Console {
         }
     }
     state loaded_input(loader: &mut Loader) {
-        loader.tags[1] = loader.line[0];
-        loader.firsts[1] = loader.line[1];
+        // The input bytes retain their bare policy. Select the destination's
+        // future Trapping operations explicitly without changing their values.
+        loader.tags[1] = loader.line[0] as u8 in Trapping;
+        loader.firsts[1] = loader.line[1] as u8 in Trapping;
         loader.starts[1] = loader.line[2] as u64 in Wrapping;
         loader.ends[1] = loader.line[3] as u64 in Wrapping;
         loader.cursor = 1;
