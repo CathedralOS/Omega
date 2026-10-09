@@ -65,5 +65,3 @@
 //!   consumer writes memory (`WritePointerV1`).
 //!
 mod projected_access;
-
-pub(crate) use projected_access::ValidatedProjectedAccess;

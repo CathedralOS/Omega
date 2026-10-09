@@ -3,8 +3,6 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
-
-use crate::rewrites::unexecuted::peepholes::ValidatedProjectedAccess;
 use crate::rewrites::unexecuted::{
     ValidatedArmRelocation, ValidatedBoundaryBoolean, ValidatedBoundaryBranch,
     ValidatedCommutingRelocation, ValidatedConfluenceRelocation, ValidatedInflowRelocation,
@@ -262,7 +260,6 @@ impl ValidatedSelectedAnalysis for ValidatedPressureRematerialization {
     }
 }
 
-validated_selected_analysis!(ValidatedProjectedAccess);
 
 validated_selected_analysis!(ValidatedCopiedCallOperand);
 
