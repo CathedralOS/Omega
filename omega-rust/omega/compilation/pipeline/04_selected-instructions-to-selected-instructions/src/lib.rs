@@ -64,6 +64,7 @@ macro_rules! validated_analysis_accessors {
 }
 
 mod analyses;
+mod codec_bytes;
 mod cursor;
 mod rewrites;
 mod selected_optimization;

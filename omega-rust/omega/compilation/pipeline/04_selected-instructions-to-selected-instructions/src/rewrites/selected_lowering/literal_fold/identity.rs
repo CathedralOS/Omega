@@ -20,28 +20,28 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.machine_effect_catalog.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
-    bytes.extend_from_slice(&plan.policy.canonical_bits().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, plan.policy.canonical_bits().to_le_bytes());
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     length(&mut bytes, plan.functions.len());
     for function in &plan.functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
         length(&mut bytes, function.actions.len());
         for action in &function.actions {
-            bytes.extend_from_slice(&action.block.0.to_le_bytes());
-            bytes.extend_from_slice(&action.literal_instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&action.victim.0.to_le_bytes());
-            bytes.extend_from_slice(&action.consumer_instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&action.surviving.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, action.block.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, action.literal_instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, action.victim.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, action.consumer_instruction.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, action.surviving.0.to_le_bytes());
             match action.result {
                 None => bytes.push(0),
                 Some(result) => {
                     bytes.push(1);
-                    bytes.extend_from_slice(&result.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(&mut bytes, result.0.to_le_bytes());
                 }
             }
-            bytes.extend_from_slice(&action.immediate.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, action.immediate.to_le_bytes());
             bytes.push(match action.immediate_constraint.family {
                 register_model::RegisterConstraintFamily::Call => 0,
                 register_model::RegisterConstraintFamily::Return => 1,
@@ -49,7 +49,7 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
                 register_model::RegisterConstraintFamily::InlineAssembly => 3,
                 register_model::RegisterConstraintFamily::Instruction => 4,
             });
-            bytes.extend_from_slice(&action.immediate_constraint.variant.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut bytes, action.immediate_constraint.variant.to_le_bytes());
         }
     }
     bytes.extend_from_slice(&plan.transformed_selected.bytes());

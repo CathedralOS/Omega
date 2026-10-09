@@ -119,14 +119,14 @@ pub(crate) fn copied_call_operand_identity(
     bytes.extend_from_slice(&receipt.source_selected.bytes());
     bytes.extend_from_slice(&receipt.transformed_selected.bytes());
     bytes.extend_from_slice(&receipt.optimization_unit.bytes());
-    bytes.extend_from_slice(&receipt.fuel_schedule.marker().to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, receipt.fuel_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(
         &u64::try_from(receipt.function_index)
             .expect("copied-call-operand function index fits u64")
             .to_le_bytes(),
     );
-    bytes.extend_from_slice(&receipt.producer.0.to_le_bytes());
-    bytes.extend_from_slice(&receipt.call.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, receipt.producer.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(&mut bytes, receipt.call.0.to_le_bytes());
     CopiedCallOperandIdentity::from_canonical_bytes(&bytes)
 }
 
