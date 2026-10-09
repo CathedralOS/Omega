@@ -1,5 +1,6 @@
-//! `value as T in Wrapping` compositions: the modular image `value mod 2^B`
-//! read on T's carrier, where B is T's width in bits.
+//! Integer representation views and stores: the modular bit image
+//! `value mod 2^B` read on the destination carrier, where B is its width.
+//! This operation serves explicit byte views, never an authored numeric `as`.
 //!
 //! Every pair spells that image from operations Terminal Psi already admits,
 //! and every exact cast's operand is bound by the mask or remainder that
@@ -31,8 +32,8 @@ use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 
-/// Lower `operand as target in Wrapping` for `operand : source_type`.
-pub(crate) fn wrapping_cast(
+/// Interpret the source bit image on the selected representation carrier.
+pub(crate) fn integer_bit_image(
     operand: LoweredDirectExpression,
     source_type: IntegerType,
     target: ScalarType,

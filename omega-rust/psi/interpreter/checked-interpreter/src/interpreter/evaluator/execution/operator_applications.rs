@@ -145,7 +145,7 @@ impl<'program> Evaluator<'program> {
                     return trap("a destination-owned conversion takes exactly one argument");
                 };
                 let value = self.eval_expression_at_type(*argument, conversion.parameter, frame)?;
-                self.eval_cast(
+                self.eval_named_conversion(
                     value,
                     Some(conversion.source),
                     Some(conversion.destination),

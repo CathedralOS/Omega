@@ -46,6 +46,7 @@
 module verify;
 
 use digest;
+use omega::language::core::numeric_conversion;
 
 pub data Verify {
     // ---- verdict + latch -------------------------------------------------
@@ -384,7 +385,7 @@ machine Verify::ru32(verify: &mut Verify) {
     verify.acc = verify.acc + ((verify.b8 as u64 in Wrapping) << 16);
     Verify::rd(verify);
     verify.acc = verify.acc + ((verify.b8 as u64 in Wrapping) << 24);
-    verify.w32 = (verify.acc as u32 in Wrapping) as u32;
+    verify.w32 = narrow_u64_to_u32_wrapping(verify.acc as u64);
 }
 
 // 32 identity bytes -> `ident`.

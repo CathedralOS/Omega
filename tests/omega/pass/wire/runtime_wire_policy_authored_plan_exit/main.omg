@@ -29,6 +29,7 @@
 
 use omega_language_std::console;
 use omega::language::core::binding;
+use omega::language::core::numeric_conversion;
 
 data CounterMessage {
     #0 counter: u32;
@@ -141,7 +142,7 @@ terminates by fuel;
     state place(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64, index: u64 in Wrapping)
     requires 1 <= fuel
     requires fuel <= 128 {
-        compact_binary.tag = (schema.fields[index].number as u64 in Wrapping) as u64;
+        compact_binary.tag = narrow_i64_to_u64_wrapping(schema.fields[index].number);
         compact_binary.plans[index] = field_plan(schema.fields[index].kind, compact_binary.tag);
         transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1, index + 1) _ -> done(compact_binary, schema) }
     }

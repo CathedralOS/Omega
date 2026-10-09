@@ -17,7 +17,10 @@ use super::{
 };
 use crate::machine_calls::machine_parameters::contract_facts::contract_kind_name;
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
-use crate::proof_contracts::arithmetic_domains::integer_ranges::{primitive_name, primitive_range};
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+    integer_interval_fits_primitive, primitive_name, primitive_range,
+    validate_anonymous_integer_primitive_range,
+};
 use crate::proof_contracts::arithmetic_domains::operand_reports::arithmetic_operator_spelling;
 use language_core::is_self_receiver;
 
@@ -84,6 +87,12 @@ pub(crate) fn validate_total_specification_arithmetic(
         owner,
         &expression_domain,
         &expression_interval,
+        &|candidate| {
+            crate::proof_contracts::bound_expression_meaning::builtin_arithmetic(
+                program, machine, state, candidate,
+            )
+        },
+        &|_, _, _| {},
         true,
         diagnostics,
     );
@@ -95,45 +104,11 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
     owner: &str,
     expression_domain: &impl Fn(ExpressionHandle) -> Option<ArithmeticDomain>,
     expression_interval: &impl Fn(ExpressionHandle) -> Option<Interval>,
+    builtin_arithmetic: &impl Fn(ExpressionHandle) -> bool,
+    numeric_coercion: &impl Fn(ExpressionHandle, TypeReferenceHandle, &mut Vec<Diagnostic>),
     integer_formation_prevalidated: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    fn selected_domain(
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-        expression_domain: &impl Fn(ExpressionHandle) -> Option<ArithmeticDomain>,
-    ) -> Option<ArithmeticDomain> {
-        if !expression.is_valid() {
-            return None;
-        }
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Cast(cast) if !cast.form.is_recast() => Some(cast.domain),
-            ExpressionNode::Borrow(value) => {
-                selected_domain(program, value.target, expression_domain)
-            }
-            ExpressionNode::Unary(unary) => {
-                selected_domain(program, unary.operand, expression_domain)
-            }
-            ExpressionNode::Binary(binary) => {
-                let left = selected_domain(program, binary.left, expression_domain);
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-                ) {
-                    return left;
-                }
-                let right = selected_domain(program, binary.right, expression_domain);
-                match (left, right) {
-                    (Some(ArithmeticDomain::Exact), Some(right)) => Some(right),
-                    (Some(left), Some(_)) => Some(left),
-                    (Some(domain), None) | (None, Some(domain)) => Some(domain),
-                    (None, None) => None,
-                }
-            }
-            _ => expression_domain(expression),
-        }
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn walk(
         program: &dyn crate::CheckingInput,
@@ -141,6 +116,8 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
         owner: &str,
         expression_domain: &impl Fn(ExpressionHandle) -> Option<ArithmeticDomain>,
         expression_interval: &impl Fn(ExpressionHandle) -> Option<Interval>,
+        builtin_arithmetic: &impl Fn(ExpressionHandle) -> bool,
+        numeric_coercion: &impl Fn(ExpressionHandle, TypeReferenceHandle, &mut Vec<Diagnostic>),
         integer_formation_prevalidated: bool,
         diagnostics: &mut Vec<Diagnostic>,
         visited: &mut Vec<ExpressionHandle>,
@@ -157,6 +134,8 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
                 owner,
                 expression_domain,
                 expression_interval,
+                builtin_arithmetic,
+                numeric_coercion,
                 integer_formation_prevalidated,
                 diagnostics,
                 visited,
@@ -166,25 +145,14 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
             ExpressionNode::Binary(binary) => {
                 recurse(binary.left, diagnostics, visited);
                 recurse(binary.right, diagnostics, visited);
-                if !is_arithmetic(binary.operator) {
+                if !is_arithmetic(binary.operator) || !builtin_arithmetic(expression) {
                     return;
                 }
 
-                let left = selected_domain(program, binary.left, expression_domain);
-                let right = selected_domain(program, binary.right, expression_domain);
-                let selected = if matches!(
-                    binary.operator,
-                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-                ) {
-                    left
-                } else {
-                    match (left, right) {
-                        (Some(ArithmeticDomain::Exact), Some(right)) => Some(right),
-                        (Some(left), Some(_)) => Some(left),
-                        (Some(domain), None) | (None, Some(domain)) => Some(domain),
-                        (None, None) => None,
-                    }
-                };
+                // The selected result owner already distinguishes builtin
+                // operations from declarations and supplies their policy.
+                // Operand qualifications cannot reconstruct that selection.
+                let selected = expression_domain(expression);
                 if selected == Some(ArithmeticDomain::Trapping) {
                     diagnostics.push(Diagnostic::error(format!(
                         "direct Trapping arithmetic `{}` is illegal in {owner}: specification terms are total and cannot transfer runtime control. Use `embed(..)` for unbounded proof `Int` mathematics, or explicitly cast the operands to the same unqualified carrier and discharge the resulting Exact formation obligations",
@@ -222,16 +190,26 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
             }
             ExpressionNode::Cast(cast) => {
                 recurse(cast.value, diagnostics, visited);
-                if !cast.form.is_recast() && cast.domain == ArithmeticDomain::Trapping {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "direct Trapping conversion is illegal in {owner}: specification terms are total and cannot transfer runtime control. Use a total Exact or Saturating conversion and discharge its formation obligations",
-                    )));
+                // An authored coercion preserves denotation. Its destination
+                // policy governs enclosing operations, not this conversion.
+                // Concrete formation already owns this obligation; abstract
+                // owners supply the same judgment with their prior-fact
+                // interval and resolved source carrier.
+                if integer_formation_prevalidated || cast.form.is_recast() {
+                    return;
                 }
+                numeric_coercion(cast.value, cast.target_type, diagnostics);
             }
             ExpressionNode::Call(call) => {
                 recurse(call.receiver, diagnostics, visited);
                 for argument in program.expression_table.expression_handles(call.arguments) {
                     recurse(*argument, diagnostics, visited);
+                }
+                if !integer_formation_prevalidated
+                    && call.exact_coercion_target.is_valid()
+                    && let [operand] = program.expression_table.expression_handles(call.arguments)
+                {
+                    numeric_coercion(*operand, call.exact_coercion_target, diagnostics);
                 }
                 // A call's declared result policy governs enclosing operations.
                 // Operand qualification does not synthesize a trapping adapter
@@ -250,6 +228,8 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
         owner,
         expression_domain,
         expression_interval,
+        builtin_arithmetic,
+        numeric_coercion,
         integer_formation_prevalidated,
         diagnostics,
         &mut Vec::new(),
@@ -367,10 +347,55 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
 
 #[derive(Clone, Copy, Default)]
 pub(super) struct AbstractSpecificationBindings<'program> {
+    owner_symbol: symbols::SymbolHandle,
     parameters: &'program [typed_trees::signature::StateParameter],
     result_type: Option<TypeReferenceHandle>,
     domain: Option<&'program typed_trees::domain::DomainDefinition>,
     data: Option<&'program typed_trees::data::DataDefinition>,
+}
+
+fn abstract_specification_result_type(
+    program: &dyn crate::CheckingInput,
+    bindings: AbstractSpecificationBindings<'_>,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    crate::value_custody::expression_types::declaration_expression_result_type_reference(
+        program,
+        bindings.owner_symbol,
+        &|expression| abstract_specification_place_type(program, bindings, expression),
+        expression,
+    )
+}
+
+pub(super) fn abstract_specification_builtin_arithmetic(
+    program: &dyn crate::CheckingInput,
+    bindings: AbstractSpecificationBindings<'_>,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
+    crate::proof_contracts::bound_expression_meaning::builtin_arithmetic_with_operand_types(
+        program,
+        bindings.owner_symbol,
+        expression,
+        &[
+            abstract_specification_result_type(program, bindings, binary.left),
+            abstract_specification_result_type(program, bindings, binary.right),
+        ],
+    )
+}
+
+fn abstract_specification_constant_has_builtin_meaning(
+    program: &dyn crate::CheckingInput,
+    bindings: AbstractSpecificationBindings<'_>,
+    expression: ExpressionHandle,
+) -> bool {
+    crate::proof_contracts::bound_expression_meaning::folded_constant_has_builtin_meaning(
+        program,
+        expression,
+        &|expression| abstract_specification_builtin_arithmetic(program, bindings, expression),
+    )
 }
 
 pub(super) fn abstract_specification_place_type(
@@ -505,24 +530,117 @@ pub(super) fn abstract_specification_place_type(
 }
 
 /// A direct abstract specification operand's current integer interval. Abstract
-/// signatures do not have an executable machine/state analyzer, so this stays
-/// deliberately limited to literals and resolved places. Missing structure is
-/// not evidence of definedness: callers fail closed when this returns `None`.
+/// signatures do not have an executable machine/state analyzer. Literals and
+/// live place facts refine the selected source's declared range; computations
+/// retain their selected carrier without borrowing input predicates.
 pub(super) fn abstract_specification_interval(
     program: &dyn crate::CheckingInput,
     bindings: AbstractSpecificationBindings<'_>,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
 ) -> Option<Interval> {
-    if let Some(literal) = literal_i64(program, expression) {
+    if let Some(literal) = literal_i64(program, expression)
+        && abstract_specification_constant_has_builtin_meaning(program, bindings, expression)
+    {
         return Some(Interval::constant(literal));
     }
-    let type_reference = abstract_specification_place_type(program, bindings, expression)?;
+    let type_reference = abstract_specification_result_type(program, bindings, expression)?;
     let primitive = program.primitive_type_reference(type_reference)?;
     place_path(program, expression)
         .and_then(|path| environment.get(&path))
         .or_else(|| range_constraint_interval(program, type_reference))
         .or_else(|| primitive_range(primitive))
+}
+
+/// Form an abstract authored numeric coercion before exporting its result
+/// qualification. The declaration supplies source types and prior facts;
+/// integer landing, carrier fit, float denotation and target predicates remain
+/// judgments of their existing shared owners.
+fn validate_abstract_numeric_coercion(
+    program: &dyn crate::CheckingInput,
+    bindings: AbstractSpecificationBindings<'_>,
+    environment: &ValueEnvironment,
+    operand: ExpressionHandle,
+    target_reference: TypeReferenceHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(target) = program.primitive_type_reference(target_reference) else {
+        return;
+    };
+    let result_type =
+        |expression| abstract_specification_result_type(program, bindings, expression);
+    let mut source =
+        result_type(operand).and_then(|reference| program.primitive_type_reference(reference));
+    let mut source_interval =
+        abstract_specification_interval(program, bindings, environment, operand)
+            .or_else(|| source.and_then(primitive_range));
+    let anonymous = if primitive_range(target).is_some() {
+        validate_anonymous_integer_primitive_range(program, target, operand, owner, diagnostics)
+    } else {
+        None
+    };
+    if let Some((interval, primitive, _)) = anonymous {
+        source = primitive;
+        source_interval = Some(interval);
+    }
+    let float_bounds = |expression| {
+        super::float_source_bounds_with_result_type(program, environment, expression, &result_type)
+    };
+    let integer_bounds = || {
+        super::integer_ranges::integer_source_bounds_from_interval(
+            program,
+            environment,
+            operand,
+            source?,
+            source_interval?,
+        )
+    };
+    super::cast_ranges::validate_target_range_membership(
+        program,
+        operand,
+        target_reference,
+        source,
+        integer_bounds(),
+        &float_bounds,
+        owner,
+        diagnostics,
+    );
+    if anonymous.is_some() {
+        return;
+    }
+    if let Some(proven) = source.and_then(|source| {
+        crate::value_custody::expression_types::float_coercion_preserves_denotation(
+            source,
+            target,
+            || float_bounds(operand),
+            integer_bounds,
+        )
+    }) {
+        if !proven {
+            diagnostics.push(Diagnostic::error(format!(
+                "Exact numeric cast in {owner} to `{}` is not provably denotation preserving; \
+                 prove source integrality and exact representability independently or use a named numeric conversion",
+                primitive_name(target),
+            )).with_source_span(program.expression_table.source_span(operand)));
+        }
+        return;
+    }
+    if primitive_range(target).is_none() {
+        return;
+    }
+    let fits = source.is_some_and(|source| {
+        source == PrimitiveType::Bool
+            || source_interval
+                .is_some_and(|interval| integer_interval_fits_primitive(interval, source, target))
+    });
+    if !fits {
+        diagnostics.push(Diagnostic::error(format!(
+            "Exact integer cast in {owner} to `{}` is not provably representable; \
+             constrain the source with an independently accepted prior fact or use a named numeric conversion",
+            primitive_name(target),
+        )).with_source_span(program.expression_table.source_span(operand)));
+    }
 }
 
 /// The settled abstract slice is deliberately narrower than executable
@@ -544,7 +662,9 @@ fn validate_abstract_exact_policy_erasure_formation(
         environment: &ValueEnvironment,
         expression: ExpressionHandle,
     ) -> Option<(Option<PrimitiveType>, Interval, bool)> {
-        if let Some(literal) = literal_i64(program, expression) {
+        if let Some(literal) = literal_i64(program, expression)
+            && abstract_specification_constant_has_builtin_meaning(program, bindings, expression)
+        {
             return Some((None, Interval::constant(literal), false));
         }
         let (type_reference, place, erased) = match program.expression_table.expression(expression)
@@ -554,7 +674,8 @@ fn validate_abstract_exact_policy_erasure_formation(
                     && cast.semantic_domain.is_empty()
                     && cast.domain == ArithmeticDomain::Exact =>
             {
-                let source_type = abstract_specification_place_type(program, bindings, cast.value)?;
+                let source_type =
+                    abstract_specification_result_type(program, bindings, cast.value)?;
                 if program.arithmetic_domain_for_type_reference(source_type)
                     == ArithmeticDomain::Exact
                 {
@@ -569,7 +690,7 @@ fn validate_abstract_exact_policy_erasure_formation(
             }
             _ => {
                 let type_reference =
-                    abstract_specification_place_type(program, bindings, expression)?;
+                    abstract_specification_result_type(program, bindings, expression)?;
                 if program.arithmetic_domain_for_type_reference(type_reference)
                     != ArithmeticDomain::Exact
                 {
@@ -586,17 +707,8 @@ fn validate_abstract_exact_policy_erasure_formation(
         Some((Some(primitive), interval, erased))
     }
 
-    let mut check = |node: &ExpressionNode| {
-        let ExpressionNode::Binary(binary) = node else {
-            return;
-        };
-        if !matches!(
-            binary.operator,
-            BinaryOperator::Add
-                | BinaryOperator::Subtract
-                | BinaryOperator::Multiply
-                | BinaryOperator::ShiftLeft
-        ) {
+    let mut check = |expression, binary: &typed_trees::expression::TableBinaryExpression| {
+        if !abstract_specification_builtin_arithmetic(program, bindings, expression) {
             return;
         }
         let Some((left_primitive, left, left_erased)) =
@@ -633,7 +745,17 @@ fn validate_abstract_exact_policy_erasure_formation(
             )));
         }
     };
-    crate::expression_traversal::visit_post_order(program, expression, &mut Vec::new(), &mut check);
+    super::visit_binary_operators(
+        program,
+        expression,
+        &[
+            BinaryOperator::Add,
+            BinaryOperator::Subtract,
+            BinaryOperator::Multiply,
+            BinaryOperator::ShiftLeft,
+        ],
+        &mut check,
+    );
 }
 
 fn narrow_abstract_specification_environment(
@@ -642,12 +764,34 @@ fn narrow_abstract_specification_environment(
     environment: &mut ValueEnvironment,
     expression: ExpressionHandle,
 ) {
-    let Some(comparison) = program.expression_table.binary_node(expression) else {
+    let source_type =
+        |expression| abstract_specification_result_type(program, bindings, expression);
+    let Some(comparison) =
+        crate::proof_contracts::bound_expression_meaning::guard_comparison_with_operand_types(
+            program,
+            bindings.owner_symbol,
+            expression,
+            &source_type,
+        )
+    else {
         return;
     };
     if comparison.operator == BinaryOperator::And {
         narrow_abstract_specification_environment(program, bindings, environment, comparison.left);
         narrow_abstract_specification_environment(program, bindings, environment, comparison.right);
+        return;
+    }
+    if crate::proof_contracts::bound_expression_meaning::has_builtin_or_sealed_float_comparison_meaning(
+        program, bindings.owner_symbol, expression, comparison.operator,
+        &[source_type(comparison.left), source_type(comparison.right)],
+    ) && super::float_arithmetic::record_float_comparison_bounds(
+        program, environment, &comparison, &source_type,
+    ) {
+        return;
+    }
+    if !abstract_specification_constant_has_builtin_meaning(program, bindings, comparison.left)
+        || !abstract_specification_constant_has_builtin_meaning(program, bindings, comparison.right)
+    {
         return;
     }
     let Some((path, low, high)) = comparison_bound(program, expression) else {
@@ -735,12 +879,25 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 diagnostics,
             );
             let expression_domain = |candidate| {
-                abstract_specification_place_type(program, bindings, candidate).map(
+                abstract_specification_result_type(program, bindings, candidate).map(
                     |type_reference| program.arithmetic_domain_for_type_reference(type_reference),
                 )
             };
             let expression_interval = |candidate| {
                 abstract_specification_interval(program, bindings, environment, candidate)
+            };
+            let builtin_arithmetic =
+                |candidate| abstract_specification_builtin_arithmetic(program, bindings, candidate);
+            let numeric_coercion = |operand, target, diagnostics: &mut Vec<Diagnostic>| {
+                validate_abstract_numeric_coercion(
+                    program,
+                    bindings,
+                    environment,
+                    operand,
+                    target,
+                    owner,
+                    diagnostics,
+                );
             };
             validate_total_specification_arithmetic_with_domain_lookup(
                 program,
@@ -748,6 +905,8 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 owner,
                 &expression_domain,
                 &expression_interval,
+                &builtin_arithmetic,
+                &numeric_coercion,
                 false,
                 diagnostics,
             );
@@ -793,27 +952,41 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
 
     for proposition in program.propositions() {
         use typed_trees::proposition::{PropositionBody, PropositionFormula};
-        if let PropositionBody::Transparent { proposition } = &proposition.body {
-            match proposition {
+        if let PropositionBody::Transparent {
+            proposition: formula,
+        } = &proposition.body
+        {
+            let bindings = AbstractSpecificationBindings {
+                owner_symbol: proposition.symbol,
+                parameters: program.proposition_parameters(proposition),
+                ..Default::default()
+            };
+            let owner = format!("proposition `{}`", proposition.name);
+            let mut environment = ValueEnvironment::new();
+            let mut prior_facts = Vec::new();
+            let mut validate_term = |expression| {
+                validate_facts(
+                    program,
+                    &[ProofFact::Expression(expression)],
+                    &owner,
+                    bindings,
+                    false,
+                    &mut environment,
+                    &mut prior_facts,
+                    &mut seen,
+                    diagnostics,
+                );
+            };
+            match formula {
                 PropositionFormula::BooleanExpression(expression) => {
-                    crate::proof_contracts::contract_entailment::validate_proof_integer_casts(
-                        program,
-                        *expression,
-                        &[],
-                        diagnostics,
-                    );
+                    validate_term(*expression);
                 }
                 PropositionFormula::Application(application) => {
                     for argument in program
                         .expression_table
                         .expression_handles(application.arguments)
                     {
-                        crate::proof_contracts::contract_entailment::validate_proof_integer_casts(
-                            program,
-                            *argument,
-                            &[],
-                            diagnostics,
-                        );
+                        validate_term(*argument);
                     }
                 }
             }
@@ -828,6 +1001,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             program.proof_facts(domain),
             &format!("domain `{}` predicate", domain.name),
             AbstractSpecificationBindings {
+                owner_symbol: domain.symbol,
                 domain: Some(domain),
                 ..Default::default()
             },
@@ -847,6 +1021,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             program.proof_facts.span_or_empty(data.where_facts),
             &format!("data `{}` default-domain predicate", data.name),
             AbstractSpecificationBindings {
+                owner_symbol: data.symbol,
                 data: Some(data),
                 ..Default::default()
             },
@@ -870,6 +1045,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             program.state_signature_contracts(signature),
             &owner,
             AbstractSpecificationBindings {
+                owner_symbol: signature.symbol,
                 parameters: program.state_signature_parameters(signature),
                 result_type: signature
                     .return_type
@@ -921,6 +1097,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             program.operator_contracts(operator),
             &format!("operator `{name}`"),
             AbstractSpecificationBindings {
+                owner_symbol: operator.symbol,
                 parameters: program.operator_parameters(operator),
                 result_type: operator
                     .return_type
@@ -934,25 +1111,17 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
     }
 }
 
-/// The operand a domain check reads directly: a non-recast cast's target or
-/// a borrow's referent, else the expression's own abstract-specification type.
+/// The source expression's selected carrier and policy in the owning abstract
+/// declaration. Computed operands use the same result typing as executable
+/// expressions; the cast destination contributes no source information.
 pub(super) fn direct_abstract_operand(
     program: &dyn crate::CheckingInput,
     bindings: AbstractSpecificationBindings<'_>,
     expression: ExpressionHandle,
 ) -> Option<(PrimitiveType, ArithmeticDomain)> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Cast(cast) if !cast.form.is_recast() => Some((
-            program.primitive_type_reference(cast.target_type)?,
-            cast.domain,
-        )),
-        ExpressionNode::Borrow(value) => direct_abstract_operand(program, bindings, value.target),
-        _ => {
-            let type_reference = abstract_specification_place_type(program, bindings, expression)?;
-            Some((
-                program.primitive_type_reference(type_reference)?,
-                program.arithmetic_domain_for_type_reference(type_reference),
-            ))
-        }
-    }
+    let type_reference = abstract_specification_result_type(program, bindings, expression)?;
+    Some((
+        program.primitive_type_reference(type_reference)?,
+        program.arithmetic_domain_for_type_reference(type_reference),
+    ))
 }

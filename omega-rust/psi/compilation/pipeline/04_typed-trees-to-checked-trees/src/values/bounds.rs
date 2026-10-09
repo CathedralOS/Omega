@@ -169,11 +169,7 @@ fn integer(
         }
         // An equal-width integer re-view reads the same two's-complement
         // bits on the view carrier: exactly the modular image.
-        Expression::IntegerWrappingCast {
-            primitive_type,
-            operand,
-        }
-        | Expression::RepresentationView {
+        Expression::RepresentationView {
             primitive_type,
             operand,
         } => {
@@ -186,40 +182,6 @@ fn integer(
                     bounds
                 } else {
                     carrier
-                },
-            )
-        }
-        Expression::IntegerSaturatingCast {
-            primitive_type,
-            operand,
-        } => {
-            // The clamp is monotone: each endpoint of the operand range
-            // saturates at the target carrier bounds independently.
-            let (_, bounds) = integer(operand, source)?;
-            let carrier = primitive_range(*primitive_type)?;
-            (
-                *primitive_type,
-                IntegerRange {
-                    minimum: bounds.minimum.max(carrier.minimum.clone()),
-                    maximum: bounds.maximum.min(carrier.maximum.clone()),
-                },
-            )
-        }
-        Expression::IntegerTrappingCast {
-            primitive_type,
-            operand,
-        } => {
-            // This only describes successful results; it does not prove that
-            // the conversion or its enclosing invocation returns normally. A
-            // result that did return is representable, so the carrier bounds
-            // the operand range even when the operand's own interval is wider.
-            let (_, bounds) = integer(operand, source)?;
-            let carrier = primitive_range(*primitive_type)?;
-            (
-                *primitive_type,
-                IntegerRange {
-                    minimum: bounds.minimum.max(carrier.minimum.clone()),
-                    maximum: bounds.maximum.min(carrier.maximum.clone()),
                 },
             )
         }

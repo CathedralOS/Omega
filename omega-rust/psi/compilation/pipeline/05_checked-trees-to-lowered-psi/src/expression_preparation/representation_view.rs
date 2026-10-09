@@ -12,7 +12,7 @@
 //!
 //! - Two fixed integer carriers of equal width hold the same two's-complement
 //!   bits, so the view reads the source value's modular image at the view
-//!   width. `wrapping_cast` composes that image from admitted Terminal
+//!   width. `integer_bit_image` composes that image from admitted Terminal
 //!   operations; at equal width it never drops a bit.
 //! - A wider integer view whose operand is one runtime-selected `u8` element
 //!   is a byte-region view (`&self.buf[offset] as &u32`): the region's bytes
@@ -75,7 +75,11 @@ pub(crate) fn replay(
             if !observes_one_place(&operand) {
                 return unsupported("a representation re-view must observe one scalar place");
             }
-            crate::expression_preparation::wrapping_cast::wrapping_cast(operand, source_type, view)
+            crate::expression_preparation::integer_bit_image::integer_bit_image(
+                operand,
+                source_type,
+                view,
+            )
         }
         // Every cross-family pair the shared table admits is one Terminal
         // re-view of the place's own read. A byte's `{0, 1}` landing on
@@ -186,7 +190,7 @@ fn byte_region(
     if region_type == view_type {
         return Ok(assembled);
     }
-    crate::expression_preparation::wrapping_cast::wrapping_cast(
+    crate::expression_preparation::integer_bit_image::integer_bit_image(
         assembled,
         region_type,
         ScalarType::Integer(view_type),

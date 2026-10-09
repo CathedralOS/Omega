@@ -37,7 +37,9 @@ pub(super) fn analyze(
         return Some(Analysis {
             // Counts keep their declared carrier even when their value is known.
             // They do not select an arithmetic policy for enclosing operations.
-            interval,
+            interval: super::super::place_path(walk.program, expression)
+                .and_then(|path| walk.environment.get(&path))
+                .map_or(interval, |retained| interval.intersect(retained)),
             primitive: Some(PrimitiveType::U64),
             ..NEUTRAL
         });
@@ -73,6 +75,15 @@ fn collection_length_interval(
                 return Some(Interval {
                     low: Some(length.unwrap_or(0)),
                     high: length,
+                });
+            }
+            // A dynamic extent still denotes a u64 count. Unknown length is
+            // an unknown value of that carrier, not an anonymous expression
+            // exempt from exact conversion and arithmetic obligations.
+            TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. } => {
+                return Some(Interval {
+                    low: Some(0),
+                    high: None,
                 });
             }
             _ => return None,

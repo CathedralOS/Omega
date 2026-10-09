@@ -379,7 +379,7 @@ impl<'program> Evaluator<'program> {
                     }
                     return self.eval_recast_to_type(value, cast.target_type);
                 }
-                self.eval_cast(value, source, target, cast.domain)
+                self.eval_cast(value, source, target)
             }
             ExpressionNode::ArrayLiteral(values) => {
                 let mut elements = Vec::new();

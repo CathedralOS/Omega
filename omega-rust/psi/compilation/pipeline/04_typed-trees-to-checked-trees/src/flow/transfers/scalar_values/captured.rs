@@ -13,7 +13,6 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::{CheckedScalarExpression, CheckedStructuralPredicatePathSegment};
 use facts::FactPlan;
 use facts::IntegerRange;
-use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 
 pub(super) struct LiveValues<'a, 'plans> {
@@ -161,15 +160,6 @@ impl CapturedValue for ScalarValue {
         let admitted = crate::values::admitted_integer(source, &value)?;
         let converted = match &conversion.kind {
             ConversionKind::Widen => source.widen_value_to(target, admitted)?,
-            ConversionKind::Wrapping => {
-                crate::values::wrapping_cast_value(conversion.target, admitted)?
-            }
-            ConversionKind::Trapping => source.exact_cast_value_to(target, admitted)?,
-            ConversionKind::Saturating => {
-                let minimum = crate::values::integer_magnitude(target.minimum_value());
-                let maximum = crate::values::integer_magnitude(target.maximum_value());
-                return Some(Self::Integer(value.max(minimum).min(maximum)));
-            }
             ConversionKind::Exact(range) => {
                 // The retained occurrence fact proved the spelling's range;
                 // a captured value outside it never denoted this conversion's
@@ -279,34 +269,11 @@ impl CapturedValue for IntegerRange {
 
     fn convert(self, conversion: &SelectedConversion) -> Option<Self> {
         let carrier = crate::values::bounds::primitive_range(conversion.target)?;
-        // These branches mirror the cast arms of `bounds::evaluate`: widening
-        // is transparent, wrapping keeps the interval only inside the
-        // carrier, a representable normal return is the meet, and a partial
-        // exact conversion keeps the meet with its proved spelling range.
+        // Widening preserves the captured bounds. A partial conversion keeps
+        // the meet with its proved spelling range, independently of the
+        // arithmetic policy attached to its result.
         let bounds = match &conversion.kind {
             ConversionKind::Widen => self,
-            ConversionKind::Wrapping => {
-                if crate::values::bounds::contains(&carrier, &self) {
-                    self
-                } else {
-                    carrier.clone()
-                }
-            }
-            ConversionKind::Trapping => Self {
-                minimum: self.minimum.max(carrier.minimum.clone()),
-                maximum: self.maximum.min(carrier.maximum.clone()),
-            },
-            ConversionKind::Saturating => {
-                let clamp = |endpoint: BigInt| {
-                    endpoint
-                        .max(carrier.minimum.clone())
-                        .min(carrier.maximum.clone())
-                };
-                Self {
-                    minimum: clamp(self.minimum),
-                    maximum: clamp(self.maximum),
-                }
-            }
             ConversionKind::Exact(range) => Self {
                 minimum: self.minimum.max(range.minimum.clone()),
                 maximum: self.maximum.min(range.maximum.clone()),

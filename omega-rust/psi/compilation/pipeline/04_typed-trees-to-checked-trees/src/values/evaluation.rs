@@ -167,36 +167,13 @@ fn integer(
         }
         // An equal-width integer re-view reads the same two's-complement
         // bits on the view carrier: exactly the modular image.
-        CheckedScalarExpression::IntegerWrappingCast {
-            primitive_type,
-            operand,
-        }
-        | CheckedScalarExpression::RepresentationView {
+        CheckedScalarExpression::RepresentationView {
             primitive_type,
             operand,
         } => {
             let target = integer_type(*primitive_type)?;
             let (_, value) = integer(operand, resolve_binding)?;
-            Some((target, wrapping_cast_value(*primitive_type, value)?))
-        }
-        CheckedScalarExpression::IntegerSaturatingCast {
-            primitive_type,
-            operand,
-        } => {
-            let target = integer_type(*primitive_type)?;
-            let (_, value) = integer(operand, resolve_binding)?;
-            Some((target, saturating_cast_value(*primitive_type, value)?))
-        }
-        CheckedScalarExpression::IntegerTrappingCast {
-            primitive_type,
-            operand,
-        } => {
-            // Only the known representable normal-return payload is retained.
-            // Failure to represent yields no fact, never wrapping or a proof
-            // that the surrounding machine returns normally.
-            let target = integer_type(*primitive_type)?;
-            let (source, value) = integer(operand, resolve_binding)?;
-            Some((target, source.exact_cast_value_to(target, value)?))
+            Some((target, representation_view_value(*primitive_type, value)?))
         }
         CheckedScalarExpression::IntegerExactCast {
             primitive_type,
@@ -376,12 +353,9 @@ pub(crate) fn integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
     IntegerType::new(sign, bits).ok()
 }
 
-/// Fixed-width integer casts retain the low target bits and interpret those
-/// bits with the target signedness. The caller has admitted the source value.
-pub(crate) fn wrapping_cast_value(
-    target: PrimitiveType,
-    value: IntegerValue,
-) -> Option<IntegerValue> {
+/// An admitted representation view interprets the source bits with the target
+/// signedness. Its caller has already established the carrier relation.
+fn representation_view_value(target: PrimitiveType, value: IntegerValue) -> Option<IntegerValue> {
     let bits = match value {
         IntegerValue::Signed(value) => value as u128,
         IntegerValue::Unsigned(value) => value,
@@ -395,31 +369,6 @@ pub(crate) fn wrapping_cast_value(
         PrimitiveType::U16 => IntegerValue::Unsigned(u128::from(bits as u16)),
         PrimitiveType::U32 => IntegerValue::Unsigned(u128::from(bits as u32)),
         PrimitiveType::U64 => IntegerValue::Unsigned(u128::from(bits as u64)),
-        _ => return None,
-    })
-}
-
-/// Fold a checked saturating conversion: the source clamps at the target's
-/// unsigned maximum. Only unsigned-to-unsigned narrowings carry this form.
-pub(crate) fn saturating_cast_value(
-    target: PrimitiveType,
-    value: IntegerValue,
-) -> Option<IntegerValue> {
-    let bits = match value {
-        IntegerValue::Unsigned(value) => value,
-        IntegerValue::Signed(_) => return None,
-    };
-    Some(match target {
-        PrimitiveType::U8 => {
-            IntegerValue::Unsigned(u128::from(u8::try_from(bits).unwrap_or(u8::MAX)))
-        }
-        PrimitiveType::U16 => {
-            IntegerValue::Unsigned(u128::from(u16::try_from(bits).unwrap_or(u16::MAX)))
-        }
-        PrimitiveType::U32 => {
-            IntegerValue::Unsigned(u128::from(u32::try_from(bits).unwrap_or(u32::MAX)))
-        }
-        PrimitiveType::U64 => IntegerValue::Unsigned(bits.min(u128::from(u64::MAX))),
         _ => return None,
     })
 }

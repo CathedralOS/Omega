@@ -32,7 +32,7 @@ use crate::emission::operation_emission::integer::{
     LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
 };
 use crate::emission::runtime_elements::{self, ProjectionStep};
-use crate::expression_preparation::wrapping_cast::wrapping_cast;
+use crate::expression_preparation::integer_bit_image::integer_bit_image;
 use crate::structural_types::unique_declaration;
 use checked_trees::{CheckedRuntimeIndex, CheckedStorePlan, CheckedStoreRoot};
 use semantic_vocabulary::IntegerValue;
@@ -413,7 +413,7 @@ impl ByteStoreDestination {
                     formation_decided: false,
                 }
             };
-            let byte_expression = wrapping_cast(shifted, stored_integer, byte_scalar)?;
+            let byte_expression = integer_bit_image(shifted, stored_integer, byte_scalar)?;
             let byte = emit_direct_expression(&byte_expression, &[encoded], next_value, operations);
             kinds.push(OperationKind::WriteOnlyPrimitiveStore {
                 destination: self.destination,
@@ -664,7 +664,7 @@ fn walk_carrier_prefix<'a>(
 
 /// Retag the authored store value from the view's carrier onto the leaf's
 /// declared carrier. Two integer carriers spell the modular image through
-/// `wrapping_cast`, exactly like the read side's equal-width re-view.
+/// `integer_bit_image`, exactly like the read side's equal-width re-view.
 ///
 /// An integer view reaching a Boolean leaf lands the leaf's `{0, 1}` bit
 /// image as `operand != 0` — total for every admitted operand, and exact
@@ -681,7 +681,7 @@ fn view_leaf_image(
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match (view, leaf) {
         (ScalarType::Integer(view_integer), ScalarType::Integer(_)) => {
-            wrapping_cast(operand, view_integer, leaf)
+            integer_bit_image(operand, view_integer, leaf)
         }
         (ScalarType::Integer(_), ScalarType::Boolean) => {
             let zero = match view {

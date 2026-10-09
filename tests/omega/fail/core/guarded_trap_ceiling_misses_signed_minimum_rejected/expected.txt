@@ -1,1 +1,2 @@
-uncovered Trap crash in machine `narrow` state `entry` terminal expression: Trapping conversion of `input` from `i16` to `i8`
+machine `narrow` has an uncovered Trap crash
+publish a same-cause `crashes` route whose guard covers this site

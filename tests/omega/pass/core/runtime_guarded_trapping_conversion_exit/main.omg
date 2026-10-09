@@ -3,7 +3,11 @@ use omega::language::core::binding;
 
 machine narrow(input: u16) -> u8
 crashes Trap input > 255u16 {
-    (input as u8 in Trapping) as u8
+    transition input > 255u16 {
+        true -> invalid(input)
+        _ -> (input as u8)
+    }
+    state invalid(input: u16) -> u8 { crash Trap; }
 }
 
 data Main { console: Binding<Console>; }

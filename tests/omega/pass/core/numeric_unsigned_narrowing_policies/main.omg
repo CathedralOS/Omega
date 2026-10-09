@@ -5,7 +5,7 @@
 // the target width, Saturating clamps to the target maximum, and an
 // in-range Trapping conversion returns its value. `literal_checks` passes
 // constants, `runtime_checks` reads the boundaries through a borrowed
-// record, and `direct_casts` covers the policy-cast intrinsic both folded
+// record, and `named_conversion_checks` checks conversions on typed literals
 // and on loaded operands.
 //
 // Exit 0 when every result holds; a wrong result executes `crash Trap;`.
@@ -125,16 +125,16 @@ machine runtime_checks(inputs: &Inputs) -> bool {
     held_r16
 }
 
-machine direct_casts(inputs: &Inputs) -> bool {
-    let d1: u8 = (300u16 as u8 in Wrapping) as u8;
+machine named_conversion_checks(inputs: &Inputs) -> bool {
+    let d1: u8 = narrow_u16_to_u8_wrapping(300u16);
     let held_d1: bool = d1 == 44;
-    let d2: u16 = (70000u32 as u16 in Saturating) as u16;
+    let d2: u16 = narrow_u32_to_u16_saturating(70000u32);
     let held_d2: bool = also(held_d1, d2 == 65535);
-    let d3: u32 = (4294967295u64 as u32 in Trapping) as u32;
+    let d3: u32 = narrow_u64_to_u32_trapping(4294967295u64);
     let held_d3: bool = also(held_d2, d3 == 4294967295);
-    let d4: u32 = (inputs.past_i64_in_u64 as u32 in Wrapping) as u32;
+    let d4: u32 = narrow_u64_to_u32_wrapping(inputs.past_i64_in_u64);
     let held_d4: bool = also(held_d3, d4 == 0);
-    let d5: u8 = (inputs.max_u64 as u8 in Saturating) as u8;
+    let d5: u8 = narrow_u64_to_u8_saturating(inputs.max_u64);
     let held_d5: bool = also(held_d4, d5 == 255);
     held_d5
 }
@@ -151,8 +151,8 @@ machine main() crashes Trap {
     };
     let literal_checks_held: bool = literal_checks();
     let runtime_checks_held: bool = runtime_checks(&inputs);
-    let direct_casts_held: bool = direct_casts(&inputs);
-    transition literal_checks_held && runtime_checks_held && direct_casts_held {
+    let named_conversion_checks_held: bool = named_conversion_checks(&inputs);
+    transition literal_checks_held && runtime_checks_held && named_conversion_checks_held {
         true -> passed()
         _ -> failed()
     }

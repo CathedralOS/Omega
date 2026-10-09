@@ -7,7 +7,6 @@
 //! value fails the capture, never a widened guess.
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use facts::IntegerRange;
-use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::types::PrimitiveType;
 
 /// A call nested under authored integer conversions: the call itself plus the
@@ -30,15 +29,6 @@ pub(super) enum ConversionKind {
     /// A same-carrier retag or a total carrier inclusion leaves the captured
     /// result untouched, matching `IntegerWiden`'s lowering selection.
     Widen,
-    /// Modular conversion: monotone only while the operand interval stays
-    /// inside the target carrier, otherwise the full carrier is all that is
-    /// known.
-    Wrapping,
-    /// A representable normal return keeps the meet of the operand interval
-    /// and the target carrier; an empty meet describes no returning value.
-    Trapping,
-    /// Clamping is monotone over the operand interval's endpoints.
-    Saturating,
     /// A partial exact conversion keeps the meet of the operand interval and
     /// the retained occurrence fact's proved spelling range.
     Exact(IntegerRange),
@@ -132,13 +122,7 @@ fn classify_cast_chain(
     let mut conversions = Vec::with_capacity(casts.len());
     for (cast_expression, cast) in casts.iter().rev() {
         let target_type = program.primitive_type_reference(cast.target_type)?;
-        let conversion = classify(
-            *cast_expression,
-            cast,
-            source_type,
-            target_type,
-            exact_casts,
-        )?;
+        let conversion = classify(*cast_expression, source_type, target_type, exact_casts)?;
         source_type = conversion.target;
         conversions.push(conversion);
     }
@@ -184,7 +168,7 @@ pub(super) fn selected_operand(
 /// non-call operand is simply not a qualified call. Every cast between the
 /// call and the landing must classify against the running carrier — this
 /// keeps `scalar_qualified_call_expression`'s same-carrier transparency and
-/// extends it to the remaining fixed-integer cast policies.
+/// extends it to occurrence-proved fixed-integer carrier conversions.
 pub(super) fn selected_call<'a>(
     program: &'a dyn ::validation::CheckingInput,
     exact_casts: &[validation::ExactIntegerCastFact],
@@ -214,13 +198,10 @@ pub(super) fn selected_call<'a>(
 
 /// Classify one authored cast over the running result carrier, in
 /// `construct_integer_cast`'s order: a same-carrier or total inclusion is a
-/// widening, a partial `Exact` conversion needs its retained occurrence fact,
-/// and the remaining policies keep their own result law. `Saturating` needs
-/// no occurrence proof — the clamp is total — so it is admitted here where
-/// the selected-scalar plan has no node for it.
+/// widening and every partial conversion needs its retained occurrence fact.
+/// The destination policy changes future operations, never the captured value.
 fn classify(
     expression: ExpressionHandle,
-    cast: &typed_trees::expression::TableCastExpression,
     source: PrimitiveType,
     target: PrimitiveType,
     exact_casts: &[validation::ExactIntegerCastFact],
@@ -231,22 +212,15 @@ fn classify(
     let kind = if source == target || validation::integer_widen_is_total(source, target) {
         ConversionKind::Widen
     } else {
-        match cast.domain {
-            ArithmeticDomain::Exact => {
-                let fact = exact_casts.iter().find(|fact| {
-                    fact.expression == expression
-                        && fact.source_type == source
-                        && fact.target_type == target
-                })?;
-                ConversionKind::Exact(IntegerRange {
-                    minimum: fact.minimum.clone(),
-                    maximum: fact.maximum.clone(),
-                })
-            }
-            ArithmeticDomain::Wrapping => ConversionKind::Wrapping,
-            ArithmeticDomain::Trapping => ConversionKind::Trapping,
-            ArithmeticDomain::Saturating => ConversionKind::Saturating,
-        }
+        let fact = exact_casts.iter().find(|fact| {
+            fact.expression == expression
+                && fact.source_type == source
+                && fact.target_type == target
+        })?;
+        ConversionKind::Exact(IntegerRange {
+            minimum: fact.minimum.clone(),
+            maximum: fact.maximum.clone(),
+        })
     };
     Some(SelectedConversion {
         source,

@@ -1,0 +1,2 @@
+Exact integer cast
+from `u16` to `u8` is not provably representable

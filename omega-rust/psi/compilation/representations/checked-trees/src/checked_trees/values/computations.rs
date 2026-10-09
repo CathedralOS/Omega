@@ -246,13 +246,12 @@ pub enum CheckedScalarComputationKind {
     /// Authored conversion at one cast occurrence that cannot travel the pure
     /// lane: non-vacuous detags, policy-carrying attaches, and narrowing
     /// destinations all require source custody. The node keeps the cast's
-    /// source occurrence and authored domain; checked qualification facts
+    /// source occurrence and complete result type; checked qualification facts
     /// and boundary authorizations rejoin the exact use at publication.
     AuthoredCast {
         source_expression: typed_trees::expression::ExpressionHandle,
         operand: CheckedScalarComputationHandle,
         result_type: typed_trees::types::TypeReferenceHandle,
-        domain: numerics::arithmetic::ArithmeticDomain,
         /// Source checking proved this exact occurrence's partial integer
         /// conversion, at these source and destination carriers. Completing
         /// its operand through private blocks does not withdraw that decision.

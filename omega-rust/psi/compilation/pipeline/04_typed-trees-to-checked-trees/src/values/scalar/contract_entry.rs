@@ -213,10 +213,7 @@ impl EntryOperands<'_> {
                     && matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. }) => {}
             CheckedScalarExpression::Local { .. }
             | CheckedScalarExpression::StructuralParameterByteLength { .. }
-            | CheckedScalarExpression::IntegerTrappingCast { .. }
-            | CheckedScalarExpression::IntegerWrappingCast { .. }
             | CheckedScalarExpression::RepresentationView { .. }
-            | CheckedScalarExpression::IntegerSaturatingCast { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
             CheckedScalarExpression::IntegerBinary { left, right, .. } => {
                 self.scalar(left)?;

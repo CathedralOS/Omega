@@ -1,0 +1,5 @@
+Exact integer cast
+not provably representable
+domain `i16::Invalid` predicate
+domain `u16::SelfBound` predicate
+proposition `invalid`

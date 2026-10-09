@@ -17,9 +17,9 @@ use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 
 use super::total_specification::{
-    direct_abstract_operand,
-    AbstractSpecificationBindings, abstract_specification_interval,
-    };
+    AbstractSpecificationBindings, abstract_specification_builtin_arithmetic,
+    abstract_specification_interval, direct_abstract_operand,
+};
 use super::{Interval, ValueEnvironment, ordered_values};
 use typed_trees::expression::TableBinaryExpression;
 
@@ -32,7 +32,6 @@ fn signed_minimum(primitive: PrimitiveType) -> Option<i64> {
         _ => None,
     }
 }
-
 
 fn may_contain(interval: Option<Interval>, value: i64) -> bool {
     let Some(interval) = interval else {
@@ -204,25 +203,17 @@ pub(super) fn validate_abstract(
         program,
         expression,
         &[BinaryOperator::Divide, BinaryOperator::Modulo],
-        |binary| {
-            let left_operand = direct_abstract_operand(program, bindings, binary.left);
-            let right_operand = direct_abstract_operand(program, bindings, binary.right);
-            let selected = match (left_operand, right_operand) {
-                (Some((_, ArithmeticDomain::Exact)), Some((_, right))) => Some(right),
-                (Some((_, left)), Some(_)) => Some(left),
-                (Some((_, domain)), None) | (None, Some((_, domain))) => Some(domain),
-                (None, None) => None,
-            };
-            if selected.unwrap_or(ArithmeticDomain::Exact) != ArithmeticDomain::Exact {
+        |expression, binary| {
+            if !abstract_specification_builtin_arithmetic(program, bindings, expression) {
                 return;
             }
-            let Some(primitive) = left_operand
-                .or(right_operand)
-                .map(|(primitive, _)| primitive)
-                .filter(|primitive| primitive.is_fixed_integer())
+            let Some((primitive, domain)) = direct_abstract_operand(program, bindings, expression)
             else {
                 return;
             };
+            if domain != ArithmeticDomain::Exact || !primitive.is_fixed_integer() {
+                return;
+            }
             _ = report_partial(
                 binary.operator,
                 ArithmeticDomain::Exact,

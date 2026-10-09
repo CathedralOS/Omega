@@ -76,10 +76,13 @@ pub use result_type::{
 pub(crate) use reference_values::{
     declared_reference_access, place_forwards_mutable_reference, place_permits_reference_borrow,
 };
+pub(crate) use result_type::declaration_expression_result_type_reference;
 pub(crate) use result_type::domain_expression_result_type_reference;
 
 pub(crate) use cast_validation::validate_cast_types;
-pub(crate) use float_coercions::validate_exact_float_coercion;
+pub(crate) use float_coercions::{
+    float_coercion_preserves_denotation, validate_exact_float_coercion,
+};
 
 pub(crate) use operator_validation::{
     report_non_bool_logical_not, report_non_integer_bitwise_not, report_non_integer_index,

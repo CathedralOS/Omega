@@ -113,7 +113,7 @@ impl ValueEnvironment {
                         Some(target.clone())
                     } else {
                         path.strip_prefix(source)
-                            .filter(|suffix| suffix.starts_with('.'))
+                            .filter(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
                             .map(|suffix| format!("{target}{suffix}"))
                     }
                 })

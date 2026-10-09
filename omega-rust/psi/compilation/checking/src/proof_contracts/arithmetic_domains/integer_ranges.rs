@@ -420,7 +420,6 @@ pub(crate) fn integer_source_bounds(
     environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<(i128, i128)> {
-    let carrier = primitive_range(primitive)?;
     let (interval, _, _) = validate_value_range(
         program,
         machine,
@@ -432,6 +431,20 @@ pub(crate) fn integer_source_bounds(
         "integer-to-float coercion source",
         diagnostics,
     );
+    integer_source_bounds_from_interval(program, environment, expression, primitive, interval)
+}
+
+/// Complete a source owner's interval with that source carrier and its exact
+/// unsigned snapshot. Abstract and executable coercion obligations share this
+/// endpoint completion; the receiving format supplies no source bound.
+pub(crate) fn integer_source_bounds_from_interval(
+    program: &dyn crate::CheckingInput,
+    environment: &ValueEnvironment,
+    expression: ExpressionHandle,
+    primitive: PrimitiveType,
+    interval: Interval,
+) -> Option<(i128, i128)> {
+    let carrier = primitive_range(primitive)?;
     if let Some(value) = known_u64_value(program, environment, expression) {
         return Some((i128::from(value), i128::from(value)));
     }

@@ -166,7 +166,6 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. }
         | CheckedScalarExpression::ImplementationSelection { .. }
-        | CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::RepresentationView { .. } => false,
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::ErasedParameter { .. }
@@ -191,9 +190,7 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
         }
         CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
         | CheckedScalarExpression::IntegerWiden { operand, .. }
-        | CheckedScalarExpression::IntegerExactCast { operand, .. }
-        | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
-        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
+        | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
             contract_scoped_scalar(operand)
         }
         CheckedScalarExpression::Boolean(expression) => contract_scoped(expression),

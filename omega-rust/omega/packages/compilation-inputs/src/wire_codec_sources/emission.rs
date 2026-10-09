@@ -180,15 +180,15 @@ impl MachineEmitter<'_> {
         );
     }
 
-    /// `let bits: u64 = expr;` then the varint loop.
-    fn enc_varint(&mut self, name: &str, expression: &str, next: &str) {
+    /// Bind the scalar payload to `bits`, then enter the varint loop.
+    fn enc_varint(&mut self, name: &str, binding: &str, next: &str) {
         let loop_state = format!("{name}_loop");
         self.state(
             name,
             "",
             "",
             &format!(
-                "        let bits: u64 = {expression};\n        transition {{ _ -> {loop_state}(value, out, written, at, bits) }}\n"
+                "{binding}        transition {{ _ -> {loop_state}(value, out, written, at, bits) }}\n"
             ),
         );
         self.enc_varint_loop(&loop_state, next);
@@ -200,14 +200,14 @@ impl MachineEmitter<'_> {
     /// extent in every reachable program, but `acc + 1` is an overflow-proof
     /// obligation the checker cannot discharge inductively, so the domain
     /// names its totality instead of a bound.
-    fn enc_measure(&mut self, name: &str, expression: &str, next: &str) {
+    fn enc_measure(&mut self, name: &str, binding: &str, next: &str) {
         let loop_state = format!("{name}_loop");
         self.state(
             name,
             "acc: u64 in Wrapping",
             "",
             &format!(
-                "        let bits: u64 = {expression};\n        transition {{ _ -> {loop_state}(value, out, written, at, acc, bits) }}\n"
+                "{binding}        transition {{ _ -> {loop_state}(value, out, written, at, acc, bits) }}\n"
             ),
         );
         self.state(
@@ -336,7 +336,7 @@ impl MachineEmitter<'_> {
         let emit_last_put = format!("{name}_emit_last_put");
         let emit_more = format!("{name}_emit_more");
         let emit_more_put = format!("{name}_emit_more_put");
-        let bits_expr = |i: &str| element.encode_bits_expression(&format!("{items_expr}[{i}]"));
+        let bits_binding = |i: &str| element.encode_bits_binding(&format!("{items_expr}[{i}]"));
         // `FixedVec` seeds `slen` (`value.samples.length` is a member path
         // no predicate admits); slices seed `view` from the member itself —
         // `i < view.len` is parameter-rooted everywhere it rides. The bound
@@ -377,8 +377,8 @@ impl MachineEmitter<'_> {
             &format!("i: u64, acc: u64 in Wrapping{carry}"),
             &index_requires,
             &format!(
-                "        let bits: u64 = {};\n        transition {{ _ -> {measure_varint}(value, out, written, at, i, acc, bits{carry_arg}) }}\n",
-                bits_expr("i")
+                "{}        transition {{ _ -> {measure_varint}(value, out, written, at, i, acc, bits{carry_arg}) }}\n",
+                bits_binding("i")
             ),
         );
         self.state(
@@ -484,8 +484,8 @@ impl MachineEmitter<'_> {
             &format!("i: u64{carry}"),
             &index_requires,
             &format!(
-                "        let bits: u64 = {};\n        transition {{ _ -> {emit_varint}(value, out, written, at, i, bits{carry_arg}) }}\n",
-                bits_expr("i")
+                "{}        transition {{ _ -> {emit_varint}(value, out, written, at, i, bits{carry_arg}) }}\n",
+                bits_binding("i")
             ),
         );
         self.state(
@@ -572,7 +572,7 @@ impl MachineEmitter<'_> {
             };
             self.enc_measure(
                 &label,
-                &kind.encode_bits_expression(&format!("value.{field}.{}", sub.name)),
+                &kind.encode_bits_binding(&format!("value.{field}.{}", sub.name)),
                 &measure_next,
             );
         }
@@ -610,7 +610,7 @@ impl MachineEmitter<'_> {
             } else {
                 self.enc_varint(
                     &content,
-                    &kind.encode_bits_expression(&format!("value.{field}.{}", sub.name)),
+                    &kind.encode_bits_binding(&format!("value.{field}.{}", sub.name)),
                     &after_sub,
                 );
             }
@@ -768,9 +768,7 @@ impl MachineEmitter<'_> {
                     name,
                     &entry_extras,
                     "",
-                    &format!(
-                        "        let half: u64 = raw >> 1;\n        let mask: i64 = 0 - ((raw & 1) as i64);\n        let wide: i64 = ((half as i64 in Wrapping) ^ (mask as i64 in Wrapping)) as i64;\n{entry}"
-                    ),
+                    &format!("{}{entry}", ScalarKind::decode_signed_binding()),
                 );
                 self.state(
                     &store,
@@ -829,9 +827,7 @@ impl MachineEmitter<'_> {
                 name,
                 entry_extras,
                 "",
-                &format!(
-                    "        let half: u64 = raw >> 1;\n        let mask: i64 = 0 - ((raw & 1) as i64);\n        let wide: i64 = ((half as i64 in Wrapping) ^ (mask as i64 in Wrapping)) as i64;\n{entry}"
-                ),
+                &format!("{}{entry}", ScalarKind::decode_signed_binding()),
             );
             self.state(
                 &store,
@@ -1053,6 +1049,27 @@ fn byte_next_label(
 }
 
 impl ScalarKind {
+    /// Bind one scalar's canonical unsigned varint payload. Signed values
+    /// widen exactly before a total same-width storage view reads their bits;
+    /// zigzag's shift and sign mask are explicit modular u64 operations.
+    /// Every scalar storage shape uses this binding, including measurement.
+    fn encode_bits_binding(self, member: &str) -> String {
+        match self {
+            Self::U32 | Self::Bool => format!("        let bits: u64 = {member} as u64;\n"),
+            Self::U64 => format!("        let bits: u64 = {member};\n"),
+            Self::I32 | Self::I64 => format!(
+                "        let number: i64 = {member} as i64;\n        let representation: &u64 = &number as &u64;\n        let raw: u64 in Wrapping = representation as u64 in Wrapping;\n        let zero: u64 in Wrapping = 0;\n        let sign_mask: u64 in Wrapping = zero - (raw >> 63);\n        let bits: u64 = ((raw << 1) ^ sign_mask) as u64;\n"
+            ),
+        }
+    }
+
+    /// Inverse zigzag reads the shifted payload through the total i64 view,
+    /// then complements it for an odd payload. These are representation and
+    /// bit operations; no numeric cast changes a denoted signed value.
+    fn decode_signed_binding() -> &'static str {
+        "        let half: u64 = raw >> 1;\n        let representation: &i64 = &half as &i64;\n        let signed_half: i64 = representation;\n        let low: i64 = (raw & 1) as i64;\n        let mask: i64 = 0 - low;\n        let wide: i64 = signed_half ^ mask;\n"
+    }
+
     fn decodes_signed(self) -> bool {
         matches!(self, Self::I32 | Self::I64)
     }
@@ -1358,7 +1375,7 @@ pub(super) fn emit_encode_machine(
                 emitter.enc_bool_member(&content_label, &format!("value.{}", member.name), &after);
             }
             MemberShape::Scalar(kind) => {
-                let bits = kind.encode_bits_expression(&format!("value.{}", member.name));
+                let bits = kind.encode_bits_binding(&format!("value.{}", member.name));
                 emitter.enc_varint(&content_label, &bits, &after);
             }
             MemberShape::BorrowedSlice { element } => {
@@ -1370,7 +1387,8 @@ pub(super) fn emit_encode_machine(
                         let stage = format!("field_{}_body", member.number);
                         emitter.enc_varint(
                             &content_label,
-                            &format!("value.{}.len", member.name),
+                            &ScalarKind::U64
+                                .encode_bits_binding(&format!("value.{}.len", member.name)),
                             &stage,
                         );
                         emitter.enc_slice_bytes(&stage, &member.name, &after);
@@ -1422,7 +1440,7 @@ pub(super) fn emit_encode_machine(
                     };
                     emitter.enc_measure(
                         &format!("field_{}_measure_{index}", member.number),
-                        &element.encode_bits_expression(&format!("value.{}[{index}]", member.name)),
+                        &element.encode_bits_binding(&format!("value.{}[{index}]", member.name)),
                         &measure_next,
                     );
                 }
@@ -1447,7 +1465,7 @@ pub(super) fn emit_encode_machine(
                     };
                     emitter.enc_varint(
                         &format!("field_{}_element_{index}", member.number),
-                        &element.encode_bits_expression(&format!("value.{}[{index}]", member.name)),
+                        &element.encode_bits_binding(&format!("value.{}[{index}]", member.name)),
                         &next,
                     );
                 }
@@ -1691,26 +1709,17 @@ pub(super) fn emit_decode_machine(
             }
             MemberShape::BorrowedSlice { .. } => {}
             MemberShape::FixedScalarArray { element, length } => {
-                let open = format!("field_{}_open", member.number);
-                emitter.dec_varint(&content_label, &open, "", "");
-                let close = format!("field_{}_close", member.number);
+                let close = format!("{content_label}_close");
                 let first = if *length == 0 {
                     close.clone()
                 } else {
                     format!("field_{}_element_0", member.number)
                 };
-                // Open bounds: the length must fit the remaining buffer. On
-                // failure `end = 0` stands in for the interpreter's wrapped
-                // cursor sum — element reads still run and the close check
-                // flags `bad` either way.
-                emitter.state(
-                    &open,
-                    "raw: u64",
-                    "",
-                    &format!(
-                        "        let room: u64 = buffer.len - at;\n        transition raw <= room {{\n            true -> {first}(value, buffer, read, verdict, at, bad, at + raw)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
-                    ),
-                );
+                // Fixed arrays use the same checked byte window as growable
+                // collections. The varint decoder cannot promise a cursor
+                // bound on malformed input; opening the window establishes it
+                // before any subtraction or end calculation.
+                emitter.dec_open_window(&content_label, &first);
                 for index in 0..*length {
                     let read = format!("field_{}_element_{index}", member.number);
                     let store = format!("field_{}_element_{index}_store", member.number);
@@ -1729,12 +1738,7 @@ pub(super) fn emit_decode_machine(
                         &facts_by_member[member_index],
                     );
                 }
-                emitter.state(
-                    &close,
-                    "end: u64",
-                    "",
-                    "        transition at == end {\n            true -> decode_finish(value, buffer, read, verdict, at, bad)\n            _ -> decode_finish(value, buffer, read, verdict, at, bad + 1)\n        }\n",
-                );
+                emitter.dec_close_window(&content_label, &after);
             }
         }
     }

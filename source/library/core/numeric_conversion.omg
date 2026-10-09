@@ -1,38 +1,49 @@
 // Ordinary numeric conversion operations.
 //
-// Proof-directed exact integer `as` is the compiler-derived surface for a
-// representation change that preserves the mathematical value. It invokes no
-// machine. This module supplies named library conveniences for exact conversion
-// and the required visible operations for loss, saturation, or trapping. The
-// policy-qualified casts inside those operations are compiler intrinsics that
-// implement the named contract; they are not a hidden public conversion path.
+// Every numeric `as` preserves the mathematical value. Arithmetic-policy
+// qualification changes future operations; it cannot narrow a value by loss,
+// saturation, or trapping. These named machines implement those contracts
+// visibly before their final exact carrier conversions.
 //
-// A widening name is used only when the complete source range fits the target.
-// Narrowing names the conversion behavior explicitly. The policy applies to
-// this conversion only; each result is an ordinary Exact integer. Callers that
-// want later arithmetic to wrap, saturate, or trap qualify the returned value
-// separately.
+// Wrapping selects the low destination-width bits. A signed source first
+// widens exactly to i64, preserving its sign, before a shared same-width view
+// reads the two's-complement representation. Unsigned bit patterns become
+// signed results through the corresponding total shared representation view.
+// All fixed-width signed and unsigned carriers admit every bit pattern, so
+// these views satisfy ordinary recast geometry and validity obligations.
 //
-// An unsigned widening machine publishes its source carrier's interval as a
-// postcondition (`widen_u8_to_i32(value: u8) -> i32 ensures result >= 0 &&
-// result <= 255`). The body is one value-preserving `as`, so the result is
-// exactly the source's own interval, never the wider target's. Without that
-// published bound a caller's Exact arithmetic on the result has no bound to
-// reason from and owes an undischargeable decision-17 representability proof;
-// with it, `result << 8` folds to 65280 and stays Exact. The postcondition
-// describes the call's exact result without changing its carrier, so a caller
-// storing into the plain target type is unaffected.
+// Saturating machines select a representable endpoint or retain an in-range
+// value. Trapping machines have explicit `crash Trap` states; the successful
+// path proves representability before its exact conversion. Every public
+// result is Exact, so callers explicitly choose any policy for later work.
 //
-// Every `*_trapping` machine publishes `crashes Trap`. Its Trapping cast is an
-// executable operation-level trap site (as is the Trapping shift in
-// `numeric_conversion_trap_if`), and a published surface names every crash
-// cause it may commit; omitting the clause would forbid the trap.
+// Widening publishes the source carrier's bounds where later Exact arithmetic
+// needs them. A widening name is used only when the complete source range fits
+// the target; changing signedness can narrow a range despite increasing width.
 
-machine numeric_conversion_trap_if(invalid: bool) {
-    let invalid_value: u32 in Wrapping = invalid as u32 in Wrapping;
-    let count: u32 in Wrapping = invalid_value * 8;
-    let probe: u8 in Trapping =
-        (1 as u8 in Trapping) << (count as u32 in Trapping);
+machine numeric_conversion_signed_bits(value: i64) -> u64 {
+    let bits: &u64 = &value as &u64;
+    bits
+}
+
+machine numeric_conversion_signed_8(bits: u8) -> i8 {
+    let value: &i8 = &bits as &i8;
+    value
+}
+
+machine numeric_conversion_signed_16(bits: u16) -> i16 {
+    let value: &i16 = &bits as &i16;
+    value
+}
+
+machine numeric_conversion_signed_32(bits: u32) -> i32 {
+    let value: &i32 = &bits as &i32;
+    value
+}
+
+machine numeric_conversion_signed_64(bits: u64) -> i64 {
+    let value: &i64 = &bits as &i64;
+    value
 }
 
 // --- Unsigned 16 -> 8 ------------------------------------------------------
@@ -45,19 +56,27 @@ requires
 }
 
 pub machine narrow_u16_to_u8_wrapping(value: u16) -> u8 {
-    (value as u8 in Wrapping) as u8
+    let bits: u64 = value as u64;
+    let narrowed: u8 = (bits & 255) as u8;
+    narrowed
 }
 
 pub machine narrow_u16_to_u8_saturating(value: u16) -> u8 {
-    (value as u8 in Saturating) as u8
+    transition value > 255 {
+        true -> (255)
+        _ -> (value as u8)
+    }
 }
 
 pub machine narrow_u16_to_u8_trapping(value: u16) -> u8
 crashes Trap
 {
-    let invalid: bool = value > 255;
-    numeric_conversion_trap_if(invalid);
-    (value as u8 in Trapping) as u8
+    transition value > 255 {
+        true -> invalid()
+        _ -> (value as u8)
+    }
+
+    state invalid() -> u8 { crash Trap; }
 }
 
 pub machine widen_u8_to_u16(value: u8) -> u16
@@ -88,19 +107,27 @@ requires
 }
 
 pub machine narrow_u32_to_u8_wrapping(value: u32) -> u8 {
-    (value as u8 in Wrapping) as u8
+    let bits: u64 = value as u64;
+    let narrowed: u8 = (bits & 255) as u8;
+    narrowed
 }
 
 pub machine narrow_u32_to_u8_saturating(value: u32) -> u8 {
-    (value as u8 in Saturating) as u8
+    transition value > 255 {
+        true -> (255)
+        _ -> (value as u8)
+    }
 }
 
 pub machine narrow_u32_to_u8_trapping(value: u32) -> u8
 crashes Trap
 {
-    let invalid: bool = value > 255;
-    numeric_conversion_trap_if(invalid);
-    (value as u8 in Trapping) as u8
+    transition value > 255 {
+        true -> invalid()
+        _ -> (value as u8)
+    }
+
+    state invalid() -> u8 { crash Trap; }
 }
 
 pub machine narrow_u32_to_u16_exact(value: u32) -> u16
@@ -111,19 +138,27 @@ requires
 }
 
 pub machine narrow_u32_to_u16_wrapping(value: u32) -> u16 {
-    (value as u16 in Wrapping) as u16
+    let bits: u64 = value as u64;
+    let narrowed: u16 = (bits & 65535) as u16;
+    narrowed
 }
 
 pub machine narrow_u32_to_u16_saturating(value: u32) -> u16 {
-    (value as u16 in Saturating) as u16
+    transition value > 65535 {
+        true -> (65535)
+        _ -> (value as u16)
+    }
 }
 
 pub machine narrow_u32_to_u16_trapping(value: u32) -> u16
 crashes Trap
 {
-    let invalid: bool = value > 65535;
-    numeric_conversion_trap_if(invalid);
-    (value as u16 in Trapping) as u16
+    transition value > 65535 {
+        true -> invalid()
+        _ -> (value as u16)
+    }
+
+    state invalid() -> u16 { crash Trap; }
 }
 
 pub machine widen_u16_to_u32(value: u16) -> u32
@@ -148,19 +183,27 @@ requires
 }
 
 pub machine narrow_u64_to_u8_wrapping(value: u64) -> u8 {
-    (value as u8 in Wrapping) as u8
+    let bits: u64 = value as u64;
+    let narrowed: u8 = (bits & 255) as u8;
+    narrowed
 }
 
 pub machine narrow_u64_to_u8_saturating(value: u64) -> u8 {
-    (value as u8 in Saturating) as u8
+    transition value > 255 {
+        true -> (255)
+        _ -> (value as u8)
+    }
 }
 
 pub machine narrow_u64_to_u8_trapping(value: u64) -> u8
 crashes Trap
 {
-    let invalid: bool = value > 255;
-    numeric_conversion_trap_if(invalid);
-    (value as u8 in Trapping) as u8
+    transition value > 255 {
+        true -> invalid()
+        _ -> (value as u8)
+    }
+
+    state invalid() -> u8 { crash Trap; }
 }
 
 pub machine narrow_u64_to_u16_exact(value: u64) -> u16
@@ -171,19 +214,27 @@ requires
 }
 
 pub machine narrow_u64_to_u16_wrapping(value: u64) -> u16 {
-    (value as u16 in Wrapping) as u16
+    let bits: u64 = value as u64;
+    let narrowed: u16 = (bits & 65535) as u16;
+    narrowed
 }
 
 pub machine narrow_u64_to_u16_saturating(value: u64) -> u16 {
-    (value as u16 in Saturating) as u16
+    transition value > 65535 {
+        true -> (65535)
+        _ -> (value as u16)
+    }
 }
 
 pub machine narrow_u64_to_u16_trapping(value: u64) -> u16
 crashes Trap
 {
-    let invalid: bool = value > 65535;
-    numeric_conversion_trap_if(invalid);
-    (value as u16 in Trapping) as u16
+    transition value > 65535 {
+        true -> invalid()
+        _ -> (value as u16)
+    }
+
+    state invalid() -> u16 { crash Trap; }
 }
 
 pub machine narrow_u64_to_u32_exact(value: u64) -> u32
@@ -194,19 +245,27 @@ requires
 }
 
 pub machine narrow_u64_to_u32_wrapping(value: u64) -> u32 {
-    (value as u32 in Wrapping) as u32
+    let bits: u64 = value as u64;
+    let narrowed: u32 = (bits & 4294967295) as u32;
+    narrowed
 }
 
 pub machine narrow_u64_to_u32_saturating(value: u64) -> u32 {
-    (value as u32 in Saturating) as u32
+    transition value > 4294967295 {
+        true -> (4294967295)
+        _ -> (value as u32)
+    }
 }
 
 pub machine narrow_u64_to_u32_trapping(value: u64) -> u32
 crashes Trap
 {
-    let invalid: bool = value > 4294967295;
-    numeric_conversion_trap_if(invalid);
-    (value as u32 in Trapping) as u32
+    transition value > 4294967295 {
+        true -> invalid()
+        _ -> (value as u32)
+    }
+
+    state invalid() -> u32 { crash Trap; }
 }
 
 pub machine widen_u32_to_u64(value: u32) -> u64
@@ -226,7 +285,9 @@ requires
 }
 
 pub machine narrow_i16_to_i8_wrapping(value: i16) -> i8 {
-    (value as i8 in Wrapping) as i8
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u8 = (bits & 255) as u8;
+    numeric_conversion_signed_8(narrowed)
 }
 
 pub machine narrow_i16_to_i8_saturating(value: i16) -> i8 {
@@ -242,11 +303,15 @@ pub machine narrow_i16_to_i8_saturating(value: i16) -> i8 {
 pub machine narrow_i16_to_i8_trapping(value: i16) -> i8
 crashes Trap
 {
-    let below: bool = value < -128;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 127;
-    numeric_conversion_trap_if(above);
-    (value as i8 in Trapping) as i8
+    transition value < -128 {
+        true -> invalid()
+    }
+    transition value > 127 {
+        true -> invalid()
+        _ -> (value as i8)
+    }
+
+    state invalid() -> i8 { crash Trap; }
 }
 
 pub machine widen_i8_to_i16(value: i8) -> i16 {
@@ -271,7 +336,9 @@ requires
 }
 
 pub machine narrow_i32_to_i8_wrapping(value: i32) -> i8 {
-    (value as i8 in Wrapping) as i8
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u8 = (bits & 255) as u8;
+    numeric_conversion_signed_8(narrowed)
 }
 
 pub machine narrow_i32_to_i8_saturating(value: i32) -> i8 {
@@ -287,11 +354,15 @@ pub machine narrow_i32_to_i8_saturating(value: i32) -> i8 {
 pub machine narrow_i32_to_i8_trapping(value: i32) -> i8
 crashes Trap
 {
-    let below: bool = value < -128;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 127;
-    numeric_conversion_trap_if(above);
-    (value as i8 in Trapping) as i8
+    transition value < -128 {
+        true -> invalid()
+    }
+    transition value > 127 {
+        true -> invalid()
+        _ -> (value as i8)
+    }
+
+    state invalid() -> i8 { crash Trap; }
 }
 
 pub machine narrow_i32_to_i16_exact(value: i32) -> i16
@@ -302,7 +373,9 @@ requires
 }
 
 pub machine narrow_i32_to_i16_wrapping(value: i32) -> i16 {
-    (value as i16 in Wrapping) as i16
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u16 = (bits & 65535) as u16;
+    numeric_conversion_signed_16(narrowed)
 }
 
 pub machine narrow_i32_to_i16_saturating(value: i32) -> i16 {
@@ -318,11 +391,15 @@ pub machine narrow_i32_to_i16_saturating(value: i32) -> i16 {
 pub machine narrow_i32_to_i16_trapping(value: i32) -> i16
 crashes Trap
 {
-    let below: bool = value < -32768;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 32767;
-    numeric_conversion_trap_if(above);
-    (value as i16 in Trapping) as i16
+    transition value < -32768 {
+        true -> invalid()
+    }
+    transition value > 32767 {
+        true -> invalid()
+        _ -> (value as i16)
+    }
+
+    state invalid() -> i16 { crash Trap; }
 }
 
 pub machine widen_i16_to_i32(value: i16) -> i32 {
@@ -343,7 +420,9 @@ requires
 }
 
 pub machine narrow_i64_to_i8_wrapping(value: i64) -> i8 {
-    (value as i8 in Wrapping) as i8
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u8 = (bits & 255) as u8;
+    numeric_conversion_signed_8(narrowed)
 }
 
 pub machine narrow_i64_to_i8_saturating(value: i64) -> i8 {
@@ -359,11 +438,15 @@ pub machine narrow_i64_to_i8_saturating(value: i64) -> i8 {
 pub machine narrow_i64_to_i8_trapping(value: i64) -> i8
 crashes Trap
 {
-    let below: bool = value < -128;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 127;
-    numeric_conversion_trap_if(above);
-    (value as i8 in Trapping) as i8
+    transition value < -128 {
+        true -> invalid()
+    }
+    transition value > 127 {
+        true -> invalid()
+        _ -> (value as i8)
+    }
+
+    state invalid() -> i8 { crash Trap; }
 }
 
 pub machine narrow_i64_to_i16_exact(value: i64) -> i16
@@ -374,7 +457,9 @@ requires
 }
 
 pub machine narrow_i64_to_i16_wrapping(value: i64) -> i16 {
-    (value as i16 in Wrapping) as i16
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u16 = (bits & 65535) as u16;
+    numeric_conversion_signed_16(narrowed)
 }
 
 pub machine narrow_i64_to_i16_saturating(value: i64) -> i16 {
@@ -390,11 +475,15 @@ pub machine narrow_i64_to_i16_saturating(value: i64) -> i16 {
 pub machine narrow_i64_to_i16_trapping(value: i64) -> i16
 crashes Trap
 {
-    let below: bool = value < -32768;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 32767;
-    numeric_conversion_trap_if(above);
-    (value as i16 in Trapping) as i16
+    transition value < -32768 {
+        true -> invalid()
+    }
+    transition value > 32767 {
+        true -> invalid()
+        _ -> (value as i16)
+    }
+
+    state invalid() -> i16 { crash Trap; }
 }
 
 pub machine narrow_i64_to_i32_exact(value: i64) -> i32
@@ -405,7 +494,9 @@ requires
 }
 
 pub machine narrow_i64_to_i32_wrapping(value: i64) -> i32 {
-    (value as i32 in Wrapping) as i32
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u32 = (bits & 4294967295) as u32;
+    numeric_conversion_signed_32(narrowed)
 }
 
 pub machine narrow_i64_to_i32_saturating(value: i64) -> i32 {
@@ -421,11 +512,15 @@ pub machine narrow_i64_to_i32_saturating(value: i64) -> i32 {
 pub machine narrow_i64_to_i32_trapping(value: i64) -> i32
 crashes Trap
 {
-    let below: bool = value < -2147483648;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 2147483647;
-    numeric_conversion_trap_if(above);
-    (value as i32 in Trapping) as i32
+    transition value < -2147483648 {
+        true -> invalid()
+    }
+    transition value > 2147483647 {
+        true -> invalid()
+        _ -> (value as i32)
+    }
+
+    state invalid() -> i32 { crash Trap; }
 }
 
 pub machine widen_i32_to_i64(value: i32) -> i64 {
@@ -449,20 +544,27 @@ requires
 }
 
 pub machine narrow_u8_to_i8_wrapping(value: u8) -> i8 {
-    (value as i8 in Wrapping) as i8
+    let bits: u64 = value as u64;
+    let narrowed: u8 = (bits & 255) as u8;
+    numeric_conversion_signed_8(narrowed)
 }
 
 pub machine narrow_u8_to_i8_saturating(value: u8) -> i8 {
-    let capped: u8 = clamp(value, 0, 127);
-    capped as i8
+    transition value > 127 {
+        true -> (127)
+        _ -> (value as i8)
+    }
 }
 
 pub machine narrow_u8_to_i8_trapping(value: u8) -> i8
 crashes Trap
 {
-    let invalid: bool = value > 127;
-    numeric_conversion_trap_if(invalid);
-    (value as i8 in Trapping) as i8
+    transition value > 127 {
+        true -> invalid()
+        _ -> (value as i8)
+    }
+
+    state invalid() -> i8 { crash Trap; }
 }
 
 pub machine widen_u8_to_i16(value: u8) -> i16
@@ -491,20 +593,27 @@ requires
 }
 
 pub machine narrow_u16_to_i8_wrapping(value: u16) -> i8 {
-    (value as i8 in Wrapping) as i8
+    let bits: u64 = value as u64;
+    let narrowed: u8 = (bits & 255) as u8;
+    numeric_conversion_signed_8(narrowed)
 }
 
 pub machine narrow_u16_to_i8_saturating(value: u16) -> i8 {
-    let capped: u16 = clamp(value, 0, 127);
-    capped as i8
+    transition value > 127 {
+        true -> (127)
+        _ -> (value as i8)
+    }
 }
 
 pub machine narrow_u16_to_i8_trapping(value: u16) -> i8
 crashes Trap
 {
-    let invalid: bool = value > 127;
-    numeric_conversion_trap_if(invalid);
-    (value as i8 in Trapping) as i8
+    transition value > 127 {
+        true -> invalid()
+        _ -> (value as i8)
+    }
+
+    state invalid() -> i8 { crash Trap; }
 }
 
 pub machine narrow_u16_to_i16_exact(value: u16) -> i16
@@ -515,20 +624,27 @@ requires
 }
 
 pub machine narrow_u16_to_i16_wrapping(value: u16) -> i16 {
-    (value as i16 in Wrapping) as i16
+    let bits: u64 = value as u64;
+    let narrowed: u16 = (bits & 65535) as u16;
+    numeric_conversion_signed_16(narrowed)
 }
 
 pub machine narrow_u16_to_i16_saturating(value: u16) -> i16 {
-    let capped: u16 = clamp(value, 0, 32767);
-    capped as i16
+    transition value > 32767 {
+        true -> (32767)
+        _ -> (value as i16)
+    }
 }
 
 pub machine narrow_u16_to_i16_trapping(value: u16) -> i16
 crashes Trap
 {
-    let invalid: bool = value > 32767;
-    numeric_conversion_trap_if(invalid);
-    (value as i16 in Trapping) as i16
+    transition value > 32767 {
+        true -> invalid()
+        _ -> (value as i16)
+    }
+
+    state invalid() -> i16 { crash Trap; }
 }
 
 pub machine widen_u16_to_i32(value: u16) -> i32
@@ -551,20 +667,27 @@ requires
 }
 
 pub machine narrow_u32_to_i8_wrapping(value: u32) -> i8 {
-    (value as i8 in Wrapping) as i8
+    let bits: u64 = value as u64;
+    let narrowed: u8 = (bits & 255) as u8;
+    numeric_conversion_signed_8(narrowed)
 }
 
 pub machine narrow_u32_to_i8_saturating(value: u32) -> i8 {
-    let capped: u32 = clamp(value, 0, 127);
-    capped as i8
+    transition value > 127 {
+        true -> (127)
+        _ -> (value as i8)
+    }
 }
 
 pub machine narrow_u32_to_i8_trapping(value: u32) -> i8
 crashes Trap
 {
-    let invalid: bool = value > 127;
-    numeric_conversion_trap_if(invalid);
-    (value as i8 in Trapping) as i8
+    transition value > 127 {
+        true -> invalid()
+        _ -> (value as i8)
+    }
+
+    state invalid() -> i8 { crash Trap; }
 }
 
 pub machine narrow_u32_to_i16_exact(value: u32) -> i16
@@ -575,20 +698,27 @@ requires
 }
 
 pub machine narrow_u32_to_i16_wrapping(value: u32) -> i16 {
-    (value as i16 in Wrapping) as i16
+    let bits: u64 = value as u64;
+    let narrowed: u16 = (bits & 65535) as u16;
+    numeric_conversion_signed_16(narrowed)
 }
 
 pub machine narrow_u32_to_i16_saturating(value: u32) -> i16 {
-    let capped: u32 = clamp(value, 0, 32767);
-    capped as i16
+    transition value > 32767 {
+        true -> (32767)
+        _ -> (value as i16)
+    }
 }
 
 pub machine narrow_u32_to_i16_trapping(value: u32) -> i16
 crashes Trap
 {
-    let invalid: bool = value > 32767;
-    numeric_conversion_trap_if(invalid);
-    (value as i16 in Trapping) as i16
+    transition value > 32767 {
+        true -> invalid()
+        _ -> (value as i16)
+    }
+
+    state invalid() -> i16 { crash Trap; }
 }
 
 pub machine narrow_u32_to_i32_exact(value: u32) -> i32
@@ -599,20 +729,27 @@ requires
 }
 
 pub machine narrow_u32_to_i32_wrapping(value: u32) -> i32 {
-    (value as i32 in Wrapping) as i32
+    let bits: u64 = value as u64;
+    let narrowed: u32 = (bits & 4294967295) as u32;
+    numeric_conversion_signed_32(narrowed)
 }
 
 pub machine narrow_u32_to_i32_saturating(value: u32) -> i32 {
-    let capped: u32 = clamp(value, 0, 2147483647);
-    capped as i32
+    transition value > 2147483647 {
+        true -> (2147483647)
+        _ -> (value as i32)
+    }
 }
 
 pub machine narrow_u32_to_i32_trapping(value: u32) -> i32
 crashes Trap
 {
-    let invalid: bool = value > 2147483647;
-    numeric_conversion_trap_if(invalid);
-    (value as i32 in Trapping) as i32
+    transition value > 2147483647 {
+        true -> invalid()
+        _ -> (value as i32)
+    }
+
+    state invalid() -> i32 { crash Trap; }
 }
 
 pub machine widen_u32_to_i64(value: u32) -> i64
@@ -629,20 +766,27 @@ requires
 }
 
 pub machine narrow_u64_to_i8_wrapping(value: u64) -> i8 {
-    (value as i8 in Wrapping) as i8
+    let bits: u64 = value as u64;
+    let narrowed: u8 = (bits & 255) as u8;
+    numeric_conversion_signed_8(narrowed)
 }
 
 pub machine narrow_u64_to_i8_saturating(value: u64) -> i8 {
-    let capped: u64 = clamp(value, 0, 127);
-    capped as i8
+    transition value > 127 {
+        true -> (127)
+        _ -> (value as i8)
+    }
 }
 
 pub machine narrow_u64_to_i8_trapping(value: u64) -> i8
 crashes Trap
 {
-    let invalid: bool = value > 127;
-    numeric_conversion_trap_if(invalid);
-    (value as i8 in Trapping) as i8
+    transition value > 127 {
+        true -> invalid()
+        _ -> (value as i8)
+    }
+
+    state invalid() -> i8 { crash Trap; }
 }
 
 pub machine narrow_u64_to_i16_exact(value: u64) -> i16
@@ -653,20 +797,27 @@ requires
 }
 
 pub machine narrow_u64_to_i16_wrapping(value: u64) -> i16 {
-    (value as i16 in Wrapping) as i16
+    let bits: u64 = value as u64;
+    let narrowed: u16 = (bits & 65535) as u16;
+    numeric_conversion_signed_16(narrowed)
 }
 
 pub machine narrow_u64_to_i16_saturating(value: u64) -> i16 {
-    let capped: u64 = clamp(value, 0, 32767);
-    capped as i16
+    transition value > 32767 {
+        true -> (32767)
+        _ -> (value as i16)
+    }
 }
 
 pub machine narrow_u64_to_i16_trapping(value: u64) -> i16
 crashes Trap
 {
-    let invalid: bool = value > 32767;
-    numeric_conversion_trap_if(invalid);
-    (value as i16 in Trapping) as i16
+    transition value > 32767 {
+        true -> invalid()
+        _ -> (value as i16)
+    }
+
+    state invalid() -> i16 { crash Trap; }
 }
 
 pub machine narrow_u64_to_i32_exact(value: u64) -> i32
@@ -677,20 +828,27 @@ requires
 }
 
 pub machine narrow_u64_to_i32_wrapping(value: u64) -> i32 {
-    (value as i32 in Wrapping) as i32
+    let bits: u64 = value as u64;
+    let narrowed: u32 = (bits & 4294967295) as u32;
+    numeric_conversion_signed_32(narrowed)
 }
 
 pub machine narrow_u64_to_i32_saturating(value: u64) -> i32 {
-    let capped: u64 = clamp(value, 0, 2147483647);
-    capped as i32
+    transition value > 2147483647 {
+        true -> (2147483647)
+        _ -> (value as i32)
+    }
 }
 
 pub machine narrow_u64_to_i32_trapping(value: u64) -> i32
 crashes Trap
 {
-    let invalid: bool = value > 2147483647;
-    numeric_conversion_trap_if(invalid);
-    (value as i32 in Trapping) as i32
+    transition value > 2147483647 {
+        true -> invalid()
+        _ -> (value as i32)
+    }
+
+    state invalid() -> i32 { crash Trap; }
 }
 
 pub machine narrow_u64_to_i64_exact(value: u64) -> i64
@@ -701,33 +859,26 @@ requires
 }
 
 pub machine narrow_u64_to_i64_wrapping(value: u64) -> i64 {
-    (value as i64 in Wrapping) as i64
+    let bits: u64 = value as u64;
+    numeric_conversion_signed_64(bits)
 }
 
 pub machine narrow_u64_to_i64_saturating(value: u64) -> i64 {
-    // Select i64::MAX from the source high bit. This stays unsigned until the
-    // representable result is selected, so no host signed comparison can
-    // misclassify u64 values above i64::MAX.
-    let modular_value: u64 in Wrapping = value as u64 in Wrapping;
-    let high_bit: u64 in Wrapping = modular_value >> 63;
-    let zero: u64 in Wrapping = 0;
-    let high_mask: u64 in Wrapping = zero - high_bit;
-    let all_bits: u64 in Wrapping = 18446744073709551615;
-    let low_mask: u64 in Wrapping = high_mask ^ all_bits;
-    let signed_max_bits: u64 in Wrapping = 9223372036854775807;
-    let selected: u64 in Wrapping =
-        (modular_value & low_mask) | (signed_max_bits & high_mask);
-    // Expose the result bound without requiring correlation between the masks.
-    (selected & signed_max_bits) as i64
+    transition value > 9223372036854775807 {
+        true -> (9223372036854775807)
+        _ -> (value as i64)
+    }
 }
 
 pub machine narrow_u64_to_i64_trapping(value: u64) -> i64
 crashes Trap
 {
-    let first_invalid: u64 = 9223372036854775808;
-    let invalid: bool = value >= first_invalid;
-    numeric_conversion_trap_if(invalid);
-    (value as i64 in Trapping) as i64
+    transition value > 9223372036854775807 {
+        true -> invalid()
+        _ -> (value as i64)
+    }
+
+    state invalid() -> i64 { crash Trap; }
 }
 
 // --- Signed -> unsigned ---------------------------------------------------
@@ -740,20 +891,27 @@ requires
 }
 
 pub machine narrow_i8_to_u8_wrapping(value: i8) -> u8 {
-    (value as u8 in Wrapping) as u8
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u8 = (bits & 255) as u8;
+    narrowed
 }
 
 pub machine narrow_i8_to_u8_saturating(value: i8) -> u8 {
-    let capped: i8 = clamp(value, 0, 127);
-    capped as u8
+    transition value < 0 {
+        true -> (0)
+        _ -> (value as u8)
+    }
 }
 
 pub machine narrow_i8_to_u8_trapping(value: i8) -> u8
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    (value as u8 in Trapping) as u8
+    transition value < 0 {
+        true -> invalid()
+        _ -> (value as u8)
+    }
+
+    state invalid() -> u8 { crash Trap; }
 }
 
 pub machine narrow_i8_to_u16_exact(value: i8) -> u16
@@ -764,20 +922,27 @@ requires
 }
 
 pub machine narrow_i8_to_u16_wrapping(value: i8) -> u16 {
-    (value as u16 in Wrapping) as u16
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u16 = (bits & 65535) as u16;
+    narrowed
 }
 
 pub machine narrow_i8_to_u16_saturating(value: i8) -> u16 {
-    let capped: i8 = clamp(value, 0, 127);
-    capped as u16
+    transition value < 0 {
+        true -> (0)
+        _ -> (value as u16)
+    }
 }
 
 pub machine narrow_i8_to_u16_trapping(value: i8) -> u16
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    (value as u16 in Trapping) as u16
+    transition value < 0 {
+        true -> invalid()
+        _ -> (value as u16)
+    }
+
+    state invalid() -> u16 { crash Trap; }
 }
 
 pub machine narrow_i8_to_u32_exact(value: i8) -> u32
@@ -788,20 +953,27 @@ requires
 }
 
 pub machine narrow_i8_to_u32_wrapping(value: i8) -> u32 {
-    (value as u32 in Wrapping) as u32
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u32 = (bits & 4294967295) as u32;
+    narrowed
 }
 
 pub machine narrow_i8_to_u32_saturating(value: i8) -> u32 {
-    let capped: i8 = clamp(value, 0, 127);
-    capped as u32
+    transition value < 0 {
+        true -> (0)
+        _ -> (value as u32)
+    }
 }
 
 pub machine narrow_i8_to_u32_trapping(value: i8) -> u32
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    (value as u32 in Trapping) as u32
+    transition value < 0 {
+        true -> invalid()
+        _ -> (value as u32)
+    }
+
+    state invalid() -> u32 { crash Trap; }
 }
 
 pub machine narrow_i8_to_u64_exact(value: i8) -> u64
@@ -812,20 +984,26 @@ requires
 }
 
 pub machine narrow_i8_to_u64_wrapping(value: i8) -> u64 {
-    (value as u64 in Wrapping) as u64
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    bits
 }
 
 pub machine narrow_i8_to_u64_saturating(value: i8) -> u64 {
-    let capped: i8 = clamp(value, 0, 127);
-    capped as u64
+    transition value < 0 {
+        true -> (0)
+        _ -> (value as u64)
+    }
 }
 
 pub machine narrow_i8_to_u64_trapping(value: i8) -> u64
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    (value as u64 in Trapping) as u64
+    transition value < 0 {
+        true -> invalid()
+        _ -> (value as u64)
+    }
+
+    state invalid() -> u64 { crash Trap; }
 }
 
 pub machine narrow_i16_to_u8_exact(value: i16) -> u8
@@ -836,22 +1014,33 @@ requires
 }
 
 pub machine narrow_i16_to_u8_wrapping(value: i16) -> u8 {
-    (value as u8 in Wrapping) as u8
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u8 = (bits & 255) as u8;
+    narrowed
 }
 
 pub machine narrow_i16_to_u8_saturating(value: i16) -> u8 {
-    let capped: i16 = clamp(value, 0, 255);
-    capped as u8
+    transition value < 0 {
+        true -> (0)
+    }
+    transition value > 255 {
+        true -> (255)
+        _ -> (value as u8)
+    }
 }
 
 pub machine narrow_i16_to_u8_trapping(value: i16) -> u8
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 255;
-    numeric_conversion_trap_if(above);
-    (value as u8 in Trapping) as u8
+    transition value < 0 {
+        true -> invalid()
+    }
+    transition value > 255 {
+        true -> invalid()
+        _ -> (value as u8)
+    }
+
+    state invalid() -> u8 { crash Trap; }
 }
 
 pub machine narrow_i16_to_u16_exact(value: i16) -> u16
@@ -862,20 +1051,27 @@ requires
 }
 
 pub machine narrow_i16_to_u16_wrapping(value: i16) -> u16 {
-    (value as u16 in Wrapping) as u16
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u16 = (bits & 65535) as u16;
+    narrowed
 }
 
 pub machine narrow_i16_to_u16_saturating(value: i16) -> u16 {
-    let capped: i16 = clamp(value, 0, 32767);
-    capped as u16
+    transition value < 0 {
+        true -> (0)
+        _ -> (value as u16)
+    }
 }
 
 pub machine narrow_i16_to_u16_trapping(value: i16) -> u16
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    (value as u16 in Trapping) as u16
+    transition value < 0 {
+        true -> invalid()
+        _ -> (value as u16)
+    }
+
+    state invalid() -> u16 { crash Trap; }
 }
 
 pub machine narrow_i16_to_u32_exact(value: i16) -> u32
@@ -886,20 +1082,27 @@ requires
 }
 
 pub machine narrow_i16_to_u32_wrapping(value: i16) -> u32 {
-    (value as u32 in Wrapping) as u32
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u32 = (bits & 4294967295) as u32;
+    narrowed
 }
 
 pub machine narrow_i16_to_u32_saturating(value: i16) -> u32 {
-    let capped: i16 = clamp(value, 0, 32767);
-    capped as u32
+    transition value < 0 {
+        true -> (0)
+        _ -> (value as u32)
+    }
 }
 
 pub machine narrow_i16_to_u32_trapping(value: i16) -> u32
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    (value as u32 in Trapping) as u32
+    transition value < 0 {
+        true -> invalid()
+        _ -> (value as u32)
+    }
+
+    state invalid() -> u32 { crash Trap; }
 }
 
 pub machine narrow_i16_to_u64_exact(value: i16) -> u64
@@ -910,20 +1113,26 @@ requires
 }
 
 pub machine narrow_i16_to_u64_wrapping(value: i16) -> u64 {
-    (value as u64 in Wrapping) as u64
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    bits
 }
 
 pub machine narrow_i16_to_u64_saturating(value: i16) -> u64 {
-    let capped: i16 = clamp(value, 0, 32767);
-    capped as u64
+    transition value < 0 {
+        true -> (0)
+        _ -> (value as u64)
+    }
 }
 
 pub machine narrow_i16_to_u64_trapping(value: i16) -> u64
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    (value as u64 in Trapping) as u64
+    transition value < 0 {
+        true -> invalid()
+        _ -> (value as u64)
+    }
+
+    state invalid() -> u64 { crash Trap; }
 }
 
 pub machine narrow_i32_to_u8_exact(value: i32) -> u8
@@ -934,22 +1143,33 @@ requires
 }
 
 pub machine narrow_i32_to_u8_wrapping(value: i32) -> u8 {
-    (value as u8 in Wrapping) as u8
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u8 = (bits & 255) as u8;
+    narrowed
 }
 
 pub machine narrow_i32_to_u8_saturating(value: i32) -> u8 {
-    let capped: i32 = clamp(value, 0, 255);
-    capped as u8
+    transition value < 0 {
+        true -> (0)
+    }
+    transition value > 255 {
+        true -> (255)
+        _ -> (value as u8)
+    }
 }
 
 pub machine narrow_i32_to_u8_trapping(value: i32) -> u8
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 255;
-    numeric_conversion_trap_if(above);
-    (value as u8 in Trapping) as u8
+    transition value < 0 {
+        true -> invalid()
+    }
+    transition value > 255 {
+        true -> invalid()
+        _ -> (value as u8)
+    }
+
+    state invalid() -> u8 { crash Trap; }
 }
 
 pub machine narrow_i32_to_u16_exact(value: i32) -> u16
@@ -960,22 +1180,33 @@ requires
 }
 
 pub machine narrow_i32_to_u16_wrapping(value: i32) -> u16 {
-    (value as u16 in Wrapping) as u16
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u16 = (bits & 65535) as u16;
+    narrowed
 }
 
 pub machine narrow_i32_to_u16_saturating(value: i32) -> u16 {
-    let capped: i32 = clamp(value, 0, 65535);
-    capped as u16
+    transition value < 0 {
+        true -> (0)
+    }
+    transition value > 65535 {
+        true -> (65535)
+        _ -> (value as u16)
+    }
 }
 
 pub machine narrow_i32_to_u16_trapping(value: i32) -> u16
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 65535;
-    numeric_conversion_trap_if(above);
-    (value as u16 in Trapping) as u16
+    transition value < 0 {
+        true -> invalid()
+    }
+    transition value > 65535 {
+        true -> invalid()
+        _ -> (value as u16)
+    }
+
+    state invalid() -> u16 { crash Trap; }
 }
 
 pub machine narrow_i32_to_u32_exact(value: i32) -> u32
@@ -986,20 +1217,27 @@ requires
 }
 
 pub machine narrow_i32_to_u32_wrapping(value: i32) -> u32 {
-    (value as u32 in Wrapping) as u32
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u32 = (bits & 4294967295) as u32;
+    narrowed
 }
 
 pub machine narrow_i32_to_u32_saturating(value: i32) -> u32 {
-    let capped: i32 = clamp(value, 0, 2147483647);
-    capped as u32
+    transition value < 0 {
+        true -> (0)
+        _ -> (value as u32)
+    }
 }
 
 pub machine narrow_i32_to_u32_trapping(value: i32) -> u32
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    (value as u32 in Trapping) as u32
+    transition value < 0 {
+        true -> invalid()
+        _ -> (value as u32)
+    }
+
+    state invalid() -> u32 { crash Trap; }
 }
 
 pub machine narrow_i32_to_u64_exact(value: i32) -> u64
@@ -1010,20 +1248,26 @@ requires
 }
 
 pub machine narrow_i32_to_u64_wrapping(value: i32) -> u64 {
-    (value as u64 in Wrapping) as u64
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    bits
 }
 
 pub machine narrow_i32_to_u64_saturating(value: i32) -> u64 {
-    let capped: i32 = clamp(value, 0, 2147483647);
-    capped as u64
+    transition value < 0 {
+        true -> (0)
+        _ -> (value as u64)
+    }
 }
 
 pub machine narrow_i32_to_u64_trapping(value: i32) -> u64
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    (value as u64 in Trapping) as u64
+    transition value < 0 {
+        true -> invalid()
+        _ -> (value as u64)
+    }
+
+    state invalid() -> u64 { crash Trap; }
 }
 
 pub machine narrow_i64_to_u8_exact(value: i64) -> u8
@@ -1034,22 +1278,33 @@ requires
 }
 
 pub machine narrow_i64_to_u8_wrapping(value: i64) -> u8 {
-    (value as u8 in Wrapping) as u8
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u8 = (bits & 255) as u8;
+    narrowed
 }
 
 pub machine narrow_i64_to_u8_saturating(value: i64) -> u8 {
-    let capped: i64 = clamp(value, 0, 255);
-    capped as u8
+    transition value < 0 {
+        true -> (0)
+    }
+    transition value > 255 {
+        true -> (255)
+        _ -> (value as u8)
+    }
 }
 
 pub machine narrow_i64_to_u8_trapping(value: i64) -> u8
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 255;
-    numeric_conversion_trap_if(above);
-    (value as u8 in Trapping) as u8
+    transition value < 0 {
+        true -> invalid()
+    }
+    transition value > 255 {
+        true -> invalid()
+        _ -> (value as u8)
+    }
+
+    state invalid() -> u8 { crash Trap; }
 }
 
 pub machine narrow_i64_to_u16_exact(value: i64) -> u16
@@ -1060,22 +1315,33 @@ requires
 }
 
 pub machine narrow_i64_to_u16_wrapping(value: i64) -> u16 {
-    (value as u16 in Wrapping) as u16
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u16 = (bits & 65535) as u16;
+    narrowed
 }
 
 pub machine narrow_i64_to_u16_saturating(value: i64) -> u16 {
-    let capped: i64 = clamp(value, 0, 65535);
-    capped as u16
+    transition value < 0 {
+        true -> (0)
+    }
+    transition value > 65535 {
+        true -> (65535)
+        _ -> (value as u16)
+    }
 }
 
 pub machine narrow_i64_to_u16_trapping(value: i64) -> u16
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 65535;
-    numeric_conversion_trap_if(above);
-    (value as u16 in Trapping) as u16
+    transition value < 0 {
+        true -> invalid()
+    }
+    transition value > 65535 {
+        true -> invalid()
+        _ -> (value as u16)
+    }
+
+    state invalid() -> u16 { crash Trap; }
 }
 
 pub machine narrow_i64_to_u32_exact(value: i64) -> u32
@@ -1086,22 +1352,33 @@ requires
 }
 
 pub machine narrow_i64_to_u32_wrapping(value: i64) -> u32 {
-    (value as u32 in Wrapping) as u32
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    let narrowed: u32 = (bits & 4294967295) as u32;
+    narrowed
 }
 
 pub machine narrow_i64_to_u32_saturating(value: i64) -> u32 {
-    let capped: i64 = clamp(value, 0, 4294967295);
-    capped as u32
+    transition value < 0 {
+        true -> (0)
+    }
+    transition value > 4294967295 {
+        true -> (4294967295)
+        _ -> (value as u32)
+    }
 }
 
 pub machine narrow_i64_to_u32_trapping(value: i64) -> u32
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    let above: bool = value > 4294967295;
-    numeric_conversion_trap_if(above);
-    (value as u32 in Trapping) as u32
+    transition value < 0 {
+        true -> invalid()
+    }
+    transition value > 4294967295 {
+        true -> invalid()
+        _ -> (value as u32)
+    }
+
+    state invalid() -> u32 { crash Trap; }
 }
 
 pub machine narrow_i64_to_u64_exact(value: i64) -> u64
@@ -1112,18 +1389,24 @@ requires
 }
 
 pub machine narrow_i64_to_u64_wrapping(value: i64) -> u64 {
-    (value as u64 in Wrapping) as u64
+    let bits: u64 = numeric_conversion_signed_bits(value as i64);
+    bits
 }
 
 pub machine narrow_i64_to_u64_saturating(value: i64) -> u64 {
-    let capped: i64 = clamp(value, 0, 9223372036854775807);
-    capped as u64
+    transition value < 0 {
+        true -> (0)
+        _ -> (value as u64)
+    }
 }
 
 pub machine narrow_i64_to_u64_trapping(value: i64) -> u64
 crashes Trap
 {
-    let below: bool = value < 0;
-    numeric_conversion_trap_if(below);
-    (value as u64 in Trapping) as u64
+    transition value < 0 {
+        true -> invalid()
+        _ -> (value as u64)
+    }
+
+    state invalid() -> u64 { crash Trap; }
 }

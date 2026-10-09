@@ -20,8 +20,6 @@ use crate::emission::scalar_types::{
 };
 use crate::expression_preparation::bindings::structural_fields::CasePayloadRead;
 use crate::expression_preparation::bindings::view_locals::{self, ViewCarrier, ViewLocalBinding};
-use crate::expression_preparation::saturating_cast;
-use crate::expression_preparation::wrapping_cast;
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess,
@@ -729,29 +727,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 }),
             }
         }
-        CheckedScalarExpression::IntegerWrappingCast {
-            primitive_type,
-            operand,
-            ..
-        } => {
-            let operand = lower_checked_scalar_expression_with_parameters(
-                operand,
-                structural_parameters,
-                structural_fields,
-                structural_cases,
-                primitive_storage,
-                element_views,
-                view_locals,
-                structural_locals,
-                scalar_bindings,
-                proven_indexes,
-            )?;
-            let target = terminal_scalar_type(*primitive_type)?;
-            let Some(source_type) = operand.scalar_type().as_integer() else {
-                return unsupported("wrapping conversion requires fixed integer carriers");
-            };
-            wrapping_cast::wrapping_cast(operand, source_type, target)
-        }
         // The source place is lowered at its declared carrier -- every
         // declared-type check of that read still applies -- and the view
         // replays the carrier relation instead of retagging the read.
@@ -776,58 +751,13 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 terminal_scalar_type(*primitive_type)?,
             )
         }
-        CheckedScalarExpression::IntegerSaturatingCast {
-            primitive_type,
-            operand,
-        } => {
-            let operand = lower_checked_scalar_expression_with_parameters(
-                operand,
-                structural_parameters,
-                structural_fields,
-                structural_cases,
-                primitive_storage,
-                element_views,
-                view_locals,
-                structural_locals,
-                scalar_bindings,
-                proven_indexes,
-            )?;
-            let target = terminal_scalar_type(*primitive_type)?;
-            let Some(source_type) = operand.scalar_type().as_integer() else {
-                return unsupported("saturating conversion requires fixed integer carriers");
-            };
-            saturating_cast::saturating_cast(operand, source_type, target)
-        }
-        CheckedScalarExpression::IntegerTrappingCast {
-            primitive_type,
-            operand,
-        } => {
-            let operand = lower_checked_scalar_expression_with_parameters(
-                operand,
-                structural_parameters,
-                structural_fields,
-                structural_cases,
-                primitive_storage,
-                element_views,
-                view_locals,
-                structural_locals,
-                scalar_bindings,
-                proven_indexes,
-            )?;
-            crate::expression_preparation::trapping_cast::trapping_cast(
-                operand,
-                terminal_scalar_type(*primitive_type)?,
-            )
-        }
         CheckedScalarExpression::IntegerExactCast {
             primitive_type,
             operand,
             formation_decided,
             ..
-        } => Ok(LoweredDirectExpression::IntegerExactCast {
-            formation_decided: *formation_decided,
-            scalar_type: terminal_scalar_type(*primitive_type)?,
-            operand: Box::new(lower_checked_scalar_expression_with_parameters(
+        } => crate::expression_preparation::integer_coercion::coerce_integer_carrier(
+            lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
@@ -838,8 +768,10 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 structural_locals,
                 scalar_bindings,
                 proven_indexes,
-            )?),
-        }),
+            )?,
+            terminal_scalar_type(*primitive_type)?,
+            *formation_decided,
+        ),
         CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
             expression: Box::new(lower_checked_boolean_expression_with_parameters(
                 expression,

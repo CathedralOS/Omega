@@ -1155,14 +1155,8 @@ fn cast_integer_carrier(
     program: &TypedTrees,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> Result<LandedIntegerType, String> {
-    if cast.form.is_recast()
-        || !cast.semantic_domain.is_empty()
-        || !matches!(
-            cast.domain,
-            ArithmeticDomain::Exact | ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
-        )
-    {
-        return Err("constant cast requires an ordinary nontrapping integer conversion".into());
+    if cast.form.is_recast() || !cast.semantic_domain.is_empty() {
+        return Err("constant cast requires an ordinary exact integer coercion".into());
     }
     let target = super::exact_probe_destination(program, cast.target_type)
         .ok_or("constant cast target requires an unqualified fixed integer carrier")?;

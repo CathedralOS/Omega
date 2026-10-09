@@ -12,11 +12,17 @@ use super::{
     place_path,
 };
 use crate::CallFrameResolver;
-use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
+use crate::proof_contracts::arithmetic_domains::CopiedIntegerValue;
+use crate::proof_contracts::arithmetic_domains::expression_analysis::{CheckedAnalysis, analyze};
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 mod transition_arguments;
+
+struct EvaluatedValue {
+    interval: Interval,
+    copied: CopiedIntegerValue,
+}
 
 /// Bound one exact terminal expression using every arrival and the effects of
 /// its state prefix, or a named target-arm argument under its co-located guard.
@@ -166,6 +172,7 @@ fn expression_observation(
         frames: frames.as_ref(),
         arrivals: Vec::new(),
         observation: None,
+        infer_call_bodies: true,
     };
     if !walk.statements(state, prefix, &mut environment) {
         return None;
@@ -420,6 +427,18 @@ pub(super) fn incoming_environments(
     machine: &Machine,
     frames: Option<&CallFrameResolver>,
 ) -> Vec<(SymbolHandle, ValueEnvironment)> {
+    incoming_environments_with_entry(program, machine, frames, None)
+}
+
+/// A captured invocation supplies immutable entry values. This uses the same
+/// arrival joins and effect transfer as body checking; descendant calls retain
+/// declared guarantees so a recursive body cannot justify its own bound.
+fn incoming_environments_with_entry(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    frames: Option<&CallFrameResolver>,
+    invocation: Option<(&State, &[(SymbolHandle, Interval)])>,
+) -> Vec<(SymbolHandle, ValueEnvironment)> {
     let states = program.machine_states(machine);
     let mut current = states
         .iter()
@@ -442,13 +461,37 @@ pub(super) fn incoming_environments(
             )
         })
         .collect::<Vec<_>>();
-    // The entry's external arrival is the same in every round.
+    // A source body starts at its ordinary entry; a selected state call
+    // starts at that exact declaration. The external arrival is immutable in
+    // every round, and backedges still join with it rather than overwrite it.
+    let external_index = invocation
+        .and_then(|(entry, _)| typed_trees::state::state_position(states, entry.symbol))
+        .unwrap_or(0);
     let external = states
-        .first()
-        .zip(seeds.first())
+        .get(external_index)
+        .zip(seeds.get(external_index))
         .map(|(entry, entry_seeds)| {
             let mut external = ValueEnvironment::new();
             entry_seeds.apply(program, machine, entry, &mut external);
+            if let Some((_, actuals)) = invocation {
+                for parameter in program.state_parameters(entry) {
+                    if parameter.is_mutable || parameter.is_const {
+                        continue;
+                    }
+                    if let Some(carrier) = program
+                        .primitive_type_reference(parameter.type_reference)
+                        .and_then(super::super::primitive_range)
+                        && let Some((_, actual)) = actuals
+                            .iter()
+                            .find(|(symbol, _)| *symbol == parameter.symbol)
+                    {
+                        external.narrow(
+                            parameter.name.as_str().to_owned(),
+                            carrier.intersect(*actual),
+                        );
+                    }
+                }
+            }
             external
         });
     // One round per state propagates acyclic chains. Cycles also contribute in
@@ -472,6 +515,7 @@ pub(super) fn incoming_environments(
                 frames,
                 arrivals: Vec::new(),
                 observation: None,
+                infer_call_bodies: invocation.is_none(),
             };
             let mut environment = environment.clone();
             state_seeds.apply(program, machine, state, &mut environment);
@@ -484,7 +528,7 @@ pub(super) fn incoming_environments(
         }
         let mut joined: Vec<Option<ValueEnvironment>> = vec![None; states.len()];
         if let Some(external) = &external {
-            joined[0] = Some(external.clone());
+            joined[external_index] = Some(external.clone());
         }
         for (target, environment) in arrivals.iter().flatten() {
             joined[*target] = Some(match joined[*target].take() {
@@ -508,6 +552,107 @@ pub(super) fn incoming_environments(
     current
 }
 
+/// Infer copied normal-return values with the ordinary state-arrival owner.
+/// Every return in the complete graph contributes, including guarded value
+/// arms and states reached through named transfers. Captures, writes and
+/// argument order use the same walk as source observations. Crash transitions
+/// contribute no normal value; incomplete ordinary exits decline inference.
+pub(crate) fn inferred_normal_return_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    entry: &State,
+    target_primitive: Option<typed_trees::types::PrimitiveType>,
+    actuals: &[(SymbolHandle, Interval)],
+) -> Option<Interval> {
+    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || !crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
+            program, machine,
+        )
+    {
+        return None;
+    }
+    let frames = CallFrameResolver::new(program);
+    let incoming =
+        incoming_environments_with_entry(program, machine, frames.as_ref(), Some((entry, actuals)));
+    let mut combined: Option<Interval> = None;
+    for state in program.machine_states(machine) {
+        let statements = program.statement_table.statements(state.statement_nodes);
+        if program.primitive_type_reference(state.return_type) != target_primitive {
+            return None;
+        }
+        if !matches!(
+            statements.last(),
+            Some(StatementNode::Expression(_) | StatementNode::Transition(_))
+        ) {
+            return None;
+        }
+        let mut returns = Vec::new();
+        if let Some(StatementNode::Expression(expression)) = statements.last() {
+            returns.push(*expression);
+        }
+        for statement in statements {
+            let Some(transition) = statement.as_transition() else {
+                continue;
+            };
+            if !matches!(
+                transition.exit,
+                typed_trees::statement::TransitionExit::Ordinary
+            ) {
+                continue;
+            }
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    TransitionTargetNode::Value(expression) => returns.push(*expression),
+                    TransitionTargetNode::Named {
+                        path,
+                        static_machine_parameter,
+                        evidence_arguments,
+                        ..
+                    } => {
+                        if static_machine_parameter.is_valid()
+                            || !evidence_arguments.is_empty()
+                            || typed_trees::state::state_by_symbol(
+                                program.machine_states(machine),
+                                path.symbol,
+                            )
+                            .is_none()
+                        {
+                            return None;
+                        }
+                    }
+                    TransitionTargetNode::Terminal => return None,
+                }
+            }
+        }
+        for expression in returns {
+            let mut environment = incoming.iter().find_map(|(symbol, environment)| {
+                (*symbol == state.symbol).then(|| environment.clone())
+            })?;
+            seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
+            let mut walk = ArrivalWalk {
+                program,
+                machine,
+                frames: frames.as_ref(),
+                arrivals: Vec::new(),
+                observation: Some(ExpressionObservation {
+                    expression,
+                    interval: None,
+                    environment: None,
+                }),
+                infer_call_bodies: false,
+            };
+            walk.statements(state, statements, &mut environment);
+            let interval = walk.observation?.interval?;
+            combined = Some(combined.map_or(interval, |previous| previous.union(interval)));
+        }
+    }
+    let combined = combined?;
+    (combined.low.is_some() && combined.high.is_some()).then_some(combined)
+}
+
 struct ExpressionObservation {
     expression: ExpressionHandle,
     interval: Option<Interval>,
@@ -521,6 +666,7 @@ struct ArrivalWalk<'program, 'frames> {
     /// Each arrival this walk delivers, by target state position, in order.
     arrivals: Vec<(usize, ValueEnvironment)>,
     observation: Option<ExpressionObservation>,
+    infer_call_bodies: bool,
 }
 
 impl ArrivalWalk<'_, '_> {
@@ -542,8 +688,41 @@ impl ArrivalWalk<'_, '_> {
         expression: ExpressionHandle,
         environment: &ValueEnvironment,
     ) -> Interval {
+        self.checked_value(source, expression, environment)
+            .map_or(Interval::UNBOUNDED, |analysis| analysis.value.interval)
+    }
+
+    fn evaluated_value(
+        &self,
+        source: &State,
+        expression: ExpressionHandle,
+        environment: &ValueEnvironment,
+    ) -> EvaluatedValue {
+        match self.checked_value(source, expression, environment) {
+            Some(analysis) => EvaluatedValue {
+                interval: analysis.value.interval,
+                copied: CopiedIntegerValue::capture(
+                    self.program,
+                    expression,
+                    environment,
+                    &analysis.decisions.expression_intervals,
+                ),
+            },
+            None => EvaluatedValue {
+                interval: Interval::UNBOUNDED,
+                copied: CopiedIntegerValue::default(),
+            },
+        }
+    }
+
+    fn checked_value(
+        &self,
+        source: &State,
+        expression: ExpressionHandle,
+        environment: &ValueEnvironment,
+    ) -> Option<CheckedAnalysis> {
         let mut diagnostics = Vec::new();
-        let value = analyze(
+        let analysis = analyze(
             self.program,
             self.machine,
             Some(source),
@@ -552,15 +731,10 @@ impl ArrivalWalk<'_, '_> {
             None,
             ArithmeticDomain::Exact,
             "state arrival",
-            true,
+            self.infer_call_bodies,
             &mut diagnostics,
-        )
-        .value;
-        if diagnostics.is_empty() {
-            value.interval
-        } else {
-            Interval::UNBOUNDED
-        }
+        );
+        diagnostics.is_empty().then_some(analysis)
     }
 
     fn cross_writes(
@@ -595,12 +769,12 @@ impl ArrivalWalk<'_, '_> {
         source: &State,
         arguments: &[ExpressionHandle],
         environment: &mut ValueEnvironment,
-    ) -> Vec<Interval> {
+    ) -> Vec<EvaluatedValue> {
         arguments
             .iter()
             .map(|argument| {
                 self.expression(source, *argument, environment);
-                self.interval(source, *argument, environment)
+                self.evaluated_value(source, *argument, environment)
             })
             .collect()
     }
@@ -610,7 +784,7 @@ impl ArrivalWalk<'_, '_> {
         source: &State,
         symbol: SymbolHandle,
         arguments: &[ExpressionHandle],
-        intervals: &[Interval],
+        values: &[EvaluatedValue],
         environment: &ValueEnvironment,
     ) {
         let Some(target) = self
@@ -652,7 +826,7 @@ impl ArrivalWalk<'_, '_> {
         }
         rebound.ordered_values =
             ordered_values::rebind_relations(&environment.ordered_values, &exact_bindings);
-        for (parameter, interval) in parameters.iter().zip(intervals) {
+        for (parameter, value) in parameters.iter().zip(values) {
             // A scalar value is a snapshot taken at its own argument position.
             // Reference parameters retain only facts surviving later arguments.
             if !is_reference(self.program, parameter.type_reference) {
@@ -666,10 +840,13 @@ impl ArrivalWalk<'_, '_> {
                 // value the parameter can never hold.
                 let interval = match enforced_declared_range(self.program, parameter.type_reference)
                 {
-                    Some(declared) => interval.intersect(declared),
-                    None => *interval,
+                    Some(declared) => value.interval.intersect(declared),
+                    None => value.interval,
                 };
                 rebound.set(parameter.name.as_str().to_owned(), interval);
+                value
+                    .copied
+                    .record(&mut rebound, Some(parameter.name.as_str().to_owned()));
             }
         }
         self.join(symbol, rebound);
@@ -767,10 +944,11 @@ impl ArrivalWalk<'_, '_> {
                 }
                 StatementNode::LocalData(local) => {
                     self.expression(source, local.initial_value, environment);
-                    let interval = self.interval(source, local.initial_value, environment);
+                    let value = self.evaluated_value(source, local.initial_value, environment);
                     let path = local.name.as_str().to_owned();
                     environment.invalidate_written_paths(std::slice::from_ref(&path));
-                    environment.set(path.clone(), interval);
+                    environment.set(path.clone(), value.interval);
+                    value.copied.record(environment, Some(path.clone()));
                     super::boolean_values::record_boolean_local(
                         self.program,
                         self.machine,
@@ -789,7 +967,7 @@ impl ArrivalWalk<'_, '_> {
                 StatementNode::Assignment(assignment) => {
                     self.expression(source, assignment.target, environment);
                     self.expression(source, assignment.value, environment);
-                    let interval = self.interval(source, assignment.value, environment);
+                    let value = self.evaluated_value(source, assignment.value, environment);
                     let written = self.frames.and_then(|frames| {
                         frames
                             .assignment_write_frame(self.machine, statement)
@@ -831,11 +1009,12 @@ impl ArrivalWalk<'_, '_> {
                         record_assignment(
                             environment,
                             path.clone(),
-                            interval,
+                            value.interval,
                             reference.and_then(|reference| {
                                 enforced_declared_range(self.program, reference)
                             }),
                         );
+                        value.copied.record(environment, path.clone());
                         let primitive = reference
                             .and_then(|reference| self.program.primitive_type_reference(reference));
                         super::boolean_values::record_boolean_assignment(

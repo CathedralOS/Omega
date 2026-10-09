@@ -40,6 +40,50 @@ pub(super) fn binary(
     carrier.hull(result)
 }
 
+/// A completed right shift uses the operand carrier's finite bounds, including
+/// unsigned ceilings outside the interval endpoint window. Count formation is
+/// checked by the expression owner; a count that may select modular behavior
+/// keeps the complete carrier instead of assuming an ordinary shift.
+pub(super) fn shift_right(
+    primitive: PrimitiveType,
+    value: Interval,
+    count: Interval,
+    known: Option<u64>,
+) -> Interval {
+    let Some(carrier) = Carrier::new(primitive) else {
+        return Interval::UNBOUNDED;
+    };
+    let complete = primitive_range(primitive).unwrap_or(Interval::UNBOUNDED);
+    let (Some(count_low), Some(count_high)) = (count.low, count.high) else {
+        return complete;
+    };
+    let Some(width) = integer_bit_width(primitive) else {
+        return complete;
+    };
+    if count_low < 0 || count_low > count_high || count_high >= width {
+        return complete;
+    }
+    let (value_low, value_high) = known
+        .filter(|value| {
+            carrier.integer.sign() == IntegerSign::Unsigned
+                && carrier
+                    .integer
+                    .admits(IntegerValue::Unsigned(u128::from(*value)))
+        })
+        .map(|value| (i128::from(value), i128::from(value)))
+        .unwrap_or_else(|| carrier.bounds(value));
+    let corners = [
+        value_low >> count_low,
+        value_low >> count_high,
+        value_high >> count_low,
+        value_high >> count_high,
+    ];
+    project(
+        *corners.iter().min().expect("four shift corners exist"),
+        *corners.iter().max().expect("four shift corners exist"),
+    )
+}
+
 pub(super) fn complement(
     primitive: PrimitiveType,
     interval: Interval,
@@ -232,5 +276,83 @@ fn project(low: i128, high: i128) -> Interval {
         // Its ceiling is unknown in this representation, not i64::MAX.
         low: Some(i64::try_from(low).unwrap_or(i64::MAX)),
         high: i64::try_from(high).ok(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Interval, PrimitiveType, shift_right};
+
+    #[test]
+    fn right_shift_retains_full_unsigned_ceiling_and_signed_floor() {
+        let unsigned = Interval {
+            low: Some(0),
+            high: None,
+        };
+        assert_eq!(
+            shift_right(PrimitiveType::U64, unsigned, Interval::constant(32), None),
+            Interval {
+                low: Some(0),
+                high: Some(i64::from(u32::MAX))
+            },
+        );
+        assert_eq!(
+            shift_right(PrimitiveType::U64, unsigned, Interval::constant(1), None),
+            Interval {
+                low: Some(0),
+                high: Some(i64::MAX)
+            },
+        );
+        assert_eq!(
+            shift_right(
+                PrimitiveType::U64,
+                unsigned,
+                Interval::constant(32),
+                Some(u64::MAX),
+            ),
+            Interval::constant(i64::from(u32::MAX)),
+        );
+        assert_eq!(
+            shift_right(
+                PrimitiveType::I64,
+                Interval {
+                    low: Some(i64::MIN),
+                    high: Some(i64::MAX)
+                },
+                Interval {
+                    low: Some(32),
+                    high: Some(40)
+                },
+                None,
+            ),
+            Interval {
+                low: Some(i64::from(i32::MIN)),
+                high: Some(i64::from(i32::MAX))
+            },
+        );
+    }
+
+    #[test]
+    fn right_shift_does_not_assume_an_ordinary_modular_count() {
+        let unsigned = Interval {
+            low: Some(0),
+            high: None,
+        };
+        assert_eq!(
+            shift_right(
+                PrimitiveType::U64,
+                unsigned,
+                Interval {
+                    low: Some(32),
+                    high: Some(64)
+                },
+                None,
+            ),
+            unsigned,
+        );
+        assert_eq!(
+            shift_right(PrimitiveType::U64, unsigned, Interval::constant(-1), None),
+            unsigned,
+        );
     }
 }

@@ -13,11 +13,63 @@ impl<'program> Evaluator<'program> {
         self.program.primitive_type_reference(target_type)
     }
 
-    /// Apply the authored conversion policy before storing destination bits.
+    /// An authored coercion preserves denotation. Its result qualification
+    /// governs later operations and cannot select rounding or truncation here.
+    pub(in crate::interpreter::evaluator) fn eval_cast(
+        &self,
+        value: Value,
+        source: Option<PrimitiveType>,
+        target: Option<PrimitiveType>,
+    ) -> EvalResult<Value> {
+        if target.is_some_and(|target| semantic_integer_format(target).is_some())
+            && matches!(value, Value::Float(_) | Value::UndeterminedNaN(_))
+        {
+            let integral = match value.float_meaning() {
+                Some(FloatMeaning::FiniteNonZero(value)) => value.to_integer_exact().is_some(),
+                Some(FloatMeaning::Zero { .. }) => true,
+                _ => false,
+            };
+            if !integral {
+                return trap("exact authored float-to-integer coercion changes denotation");
+            }
+        }
+        let original_float = matches!(value, Value::Float(_) | Value::UndeterminedNaN(_))
+            .then(|| value.float_meaning())
+            .flatten();
+        let original_integer = match &value {
+            Value::Int(value) if source.is_some_and(is_unsigned_integer_primitive) => {
+                Some(BigInt::from_u64(*value as u64))
+            }
+            Value::Int(value) => Some(BigInt::from_i64(*value)),
+            _ => None,
+        };
+        let converted =
+            self.eval_named_conversion(value, source, target, ArithmeticDomain::Exact)?;
+        if target.is_some_and(|target| matches!(target, PrimitiveType::F32 | PrimitiveType::F64)) {
+            let result = converted.float_meaning();
+            if let Some(original) = original_float {
+                if result.as_ref() != Some(&original) {
+                    return trap("exact authored float coercion changes denotation");
+                }
+            } else if let Some(original) = original_integer {
+                let represented = match result {
+                    Some(FloatMeaning::FiniteNonZero(value)) => value.to_integer_exact(),
+                    Some(FloatMeaning::Zero { .. }) => Some(BigInt::zero()),
+                    _ => None,
+                };
+                if represented != Some(original) {
+                    return trap("exact authored integer-to-float coercion changes denotation");
+                }
+            }
+        }
+        Ok(converted)
+    }
+
+    /// Apply a selected destination-owned named conversion's policy.
     /// Integer values use an i64 payload even for u64 and the retained 64-bit
     /// address model: source signedness must recover the mathematical value
     /// before checking destination bounds, or a high address looks negative.
-    pub(in crate::interpreter::evaluator) fn eval_cast(
+    pub(in crate::interpreter::evaluator) fn eval_named_conversion(
         &self,
         value: Value,
         source: Option<PrimitiveType>,

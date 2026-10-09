@@ -156,6 +156,7 @@ pub(super) fn validate(
         diagnostics,
     );
     let before = diagnostics.len();
+    let first_checked_interval = arithmetic_decisions.expression_intervals.len();
     let local_target_domain =
         program.arithmetic_domain_for_type_reference(local_data.type_reference);
     let (interval, source_primitive, source_domain) =
@@ -243,6 +244,12 @@ pub(super) fn validate(
         }
     }
     if local_data.initial_value.is_valid() {
+        let copied_value = arithmetic_domains::CopiedIntegerValue::capture(
+            program,
+            local_data.initial_value,
+            value_environment,
+            &arithmetic_decisions.expression_intervals[first_checked_interval..],
+        );
         arithmetic_domains::record_assignment(
             value_environment,
             Some(local_data.name.as_str().to_owned()),
@@ -256,6 +263,7 @@ pub(super) fn validate(
                 .flatten(),
         );
         if diagnostics.len() == before {
+            copied_value.record(value_environment, Some(local_data.name.as_str().to_owned()));
             arithmetic_domains::record_boolean_local(
                 program,
                 machine,

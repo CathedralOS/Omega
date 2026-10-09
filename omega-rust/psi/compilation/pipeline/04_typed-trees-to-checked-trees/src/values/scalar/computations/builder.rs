@@ -139,19 +139,17 @@ impl Builder<'_, '_> {
         // namespaces. Preserve the checker's exact cast occurrence and both
         // carriers here; the lowering must not search again after detagging
         // or mistake another cast of this operand for the checked conversion.
-        let formation_decided = cast.domain == ArithmeticDomain::Exact
-            && self.exact_integer_casts.iter().any(|fact| {
-                fact.expression == expression
-                    && fact.source_type == source_primitive
-                    && fact.target_type == target_primitive
-            });
+        let formation_decided = self.exact_integer_casts.iter().any(|fact| {
+            fact.expression == expression
+                && fact.source_type == source_primitive
+                && fact.target_type == target_primitive
+        });
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::AuthoredCast {
                 source_expression: expression,
                 operand,
                 result_type,
-                domain: cast.domain,
                 formation_decided,
             },
         ))

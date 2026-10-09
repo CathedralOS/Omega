@@ -78,18 +78,16 @@ pub(crate) fn validate_range_cast_at_use(
             .iter()
             .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }));
     });
-    // A bare integer target still demands an exact fit. In call arguments the
+    // Every integer target demands an exact fit, independently of result policy.
+    // In call arguments the
     // expression scanner is the validation owner; collecting successful cast
     // facts afterward cannot diagnose missing evidence. Reuse the same live
     // arithmetic judgment as ranged casts rather than deferring rejection to
-    // the Unit planner. Address interpretation is a separate conversion rule.
-    let exact_integer_target = cast.domain == numerics::arithmetic::ArithmeticDomain::Exact
-        && program
-            .primitive_type_reference(cast.target_type)
-            .is_some_and(|primitive| {
-                primitive != PrimitiveType::Addr && primitive_range(primitive).is_some()
-            });
-    if !has_range && !exact_integer_target {
+    // the Unit planner. Lowering retains the distinct address interpretation.
+    let integer_target = program
+        .primitive_type_reference(cast.target_type)
+        .is_some_and(|primitive| primitive_range(primitive).is_some());
+    if !has_range && !integer_target {
         return;
     }
     let owner = format!(
@@ -152,7 +150,33 @@ pub(super) fn validate_target_ranges(
                 })?,
         ))
     });
-    walk_constrained_bases(program, cast.target_type, |constraints| {
+    validate_target_range_membership(
+        program,
+        cast.value,
+        cast.target_type,
+        source_primitive,
+        source_bounds,
+        &|expression| super::float_source_bounds(program, machine, state, environment, expression),
+        owner,
+        diagnostics,
+    );
+}
+
+/// Prove target range membership from a source owner's completed evidence.
+/// Executable and abstract declarations share this obligation; the target is
+/// inspected only for predicates to prove, never to obtain source bounds.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn validate_target_range_membership(
+    program: &dyn crate::CheckingInput,
+    operand: ExpressionHandle,
+    target: TypeReferenceHandle,
+    source_primitive: Option<PrimitiveType>,
+    source_bounds: Option<(i128, i128)>,
+    float_bounds: &dyn Fn(ExpressionHandle) -> Option<super::FloatSourceBounds>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    walk_constrained_bases(program, target, |constraints| {
         for constraint in constraints {
             let TypeConstraintNode::Range {
                 minimum,
@@ -164,7 +188,7 @@ pub(super) fn validate_target_ranges(
             };
             let integer_proven = source_primitive.and_then(primitive_range).is_some()
                 && program
-                    .primitive_type_reference(cast.target_type)
+                    .primitive_type_reference(target)
                     .and_then(primitive_range)
                     .is_some()
                 && integer_bound(program, *minimum)
@@ -185,16 +209,15 @@ pub(super) fn validate_target_ranges(
                     });
             let float_proven = float_membership(
                 program,
-                machine,
-                state,
-                cast,
-                environment,
+                operand,
+                target,
+                float_bounds,
                 *minimum,
                 *maximum,
                 *end_inclusive,
             );
             if !integer_proven && !float_proven {
-                let span = Some(program.expression_table.source_span(cast.value));
+                let span = Some(program.expression_table.source_span(operand));
                 if diagnostics.iter().any(|existing| {
                     existing.source_span == span
                         && existing.message.starts_with("cast target range in ")
@@ -203,7 +226,7 @@ pub(super) fn validate_target_ranges(
                 }
                 diagnostics.push(Diagnostic::error(format!(
                     "cast target range in {owner} is not proven from the source value; all target predicates must hold before policy qualification (unknown numeric bounds or unsupported non-integer membership require an explicit proof)"
-                )).with_source_span(program.expression_table.source_span(cast.value)));
+                )).with_source_span(program.expression_table.source_span(operand)));
             }
         }
     });
@@ -211,20 +234,19 @@ pub(super) fn validate_target_ranges(
 
 fn float_membership(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    cast: &TableCastExpression,
-    environment: &ValueEnvironment,
+    operand: ExpressionHandle,
+    target: TypeReferenceHandle,
+    float_bounds: &dyn Fn(ExpressionHandle) -> Option<super::FloatSourceBounds>,
     minimum: ExpressionHandle,
     maximum: ExpressionHandle,
     end_inclusive: bool,
 ) -> bool {
     let Some(target @ (PrimitiveType::F32 | PrimitiveType::F64)) =
-        program.primitive_type_reference(cast.target_type)
+        program.primitive_type_reference(target)
     else {
         return false;
     };
-    let source = super::float_source_bounds(program, machine, state, environment, cast.value);
+    let source = float_bounds(operand);
     let endpoint_bounds = |expression| {
         if let Some(endpoint) = crate::closed_float_range_endpoint(program, expression, target) {
             let value = match endpoint {
@@ -235,7 +257,7 @@ fn float_membership(
             };
             return Some((value, value));
         }
-        let bounds = super::float_source_bounds(program, machine, state, environment, expression)?;
+        let bounds = float_bounds(expression)?;
         Some((bounds.minimum, bounds.maximum))
     };
     match (source, endpoint_bounds(minimum), endpoint_bounds(maximum)) {

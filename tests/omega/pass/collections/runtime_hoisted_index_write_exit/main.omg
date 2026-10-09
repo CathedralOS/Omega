@@ -12,6 +12,7 @@
 // always lowered (probed); this pins the runtime-RHS shape.
 use omega_language_std::console;
 use omega::language::core::binding;
+use omega::language::core::numeric_conversion;
 data Main
 where
     rows <= 2,
@@ -29,7 +30,7 @@ machine Main::main(main: &mut Main) reaches Console {
         // The RHS must be genuinely runtime: a static-folding value lowers
         // through the write cascade's immediate path (probed -- `= 7`
         // compiles and runs).
-        let next: u8 = ((y as u8 in Wrapping) + 5) as u8;
+        let next: u8 = ((narrow_u32_to_u8_wrapping(y) as u8 in Wrapping) + 5) as u8;
         main.cells[y * 4 + x] = next;
         main.out = main.cells[11] as i32;
         main.console.exit_process(main.out);

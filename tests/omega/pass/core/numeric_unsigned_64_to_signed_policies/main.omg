@@ -5,8 +5,8 @@
 // u64::MAX to -1, and Saturating maps every value from 2^63 upward to the
 // target maximum rather than reading the high bit as a sign.
 // `literal_checks` passes constants, `runtime_checks` reads the
-// boundaries through a borrowed record, and `direct_casts` covers the
-// policy-cast intrinsic both folded and on loaded operands.
+// boundaries through a borrowed record, and `named_conversion_checks` checks conversions
+// on typed literals and on loaded operands.
 //
 // Exit 0 when every result holds; a wrong result executes `crash Trap;`.
 // `main` takes no arguments and reaches no service, so the Terminal
@@ -94,12 +94,12 @@ machine runtime_checks(inputs: &Inputs) -> bool {
     held_r11
 }
 
-machine direct_casts(inputs: &Inputs) -> bool {
-    let d1: i64 = (9223372036854775807u64 as i64 in Trapping) as i64;
+machine named_conversion_checks(inputs: &Inputs) -> bool {
+    let d1: i64 = narrow_u64_to_i64_trapping(9223372036854775807u64);
     let held_d1: bool = d1 == 9223372036854775807;
-    let d2: i64 = (inputs.max_u64 as i64 in Wrapping) as i64;
+    let d2: i64 = narrow_u64_to_i64_wrapping(inputs.max_u64);
     let held_d2: bool = also(held_d1, d2 == -1);
-    let d3: i64 = (inputs.past_i64_in_u64 as i64 in Wrapping) as i64;
+    let d3: i64 = narrow_u64_to_i64_wrapping(inputs.past_i64_in_u64);
     let held_d3: bool = also(held_d2, d3 == -9223372036854775808);
     held_d3
 }
@@ -113,8 +113,8 @@ machine main() crashes Trap {
     };
     let literal_checks_held: bool = literal_checks();
     let runtime_checks_held: bool = runtime_checks(&inputs);
-    let direct_casts_held: bool = direct_casts(&inputs);
-    transition literal_checks_held && runtime_checks_held && direct_casts_held {
+    let named_conversion_checks_held: bool = named_conversion_checks(&inputs);
+    transition literal_checks_held && runtime_checks_held && named_conversion_checks_held {
         true -> passed()
         _ -> failed()
     }

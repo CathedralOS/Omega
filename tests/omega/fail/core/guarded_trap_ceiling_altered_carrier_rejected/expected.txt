@@ -1,1 +1,1 @@
-uncovered Trap crash in machine `narrow` state `entry` terminal expression: Trapping conversion of `input` from `u16` to `i8`
+machine `narrow` has an uncovered Trap crash at statement 0

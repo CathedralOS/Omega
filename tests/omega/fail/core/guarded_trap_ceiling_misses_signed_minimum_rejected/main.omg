@@ -1,13 +1,16 @@
-// `i16 -> i8` in Trapping traps above 127 and below -128. This ceiling names
-// only the upper side, so input -129 would trap without a declared route and
-// checking rejects the machine. The caller's argument disproves the route, so
-// the conversion site inside `narrow` is the only undischarged obligation.
+// Signed narrowing has two invalid regions. This explicit conversion body
+// crashes for either region, while its contract covers only the upper one.
+// Carrying the original input into the crash state must preserve that debt.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 machine narrow(input: i16) -> i8
 crashes Trap input > 127i16 {
-    (input as i8 in Trapping) as i8
+    transition input < -128i16 || input > 127i16 {
+        true -> invalid(input)
+        _ -> (input as i8)
+    }
+    state invalid(input: i16) -> i8 { crash Trap; }
 }
 
 data Main { console: Binding<Console>; }

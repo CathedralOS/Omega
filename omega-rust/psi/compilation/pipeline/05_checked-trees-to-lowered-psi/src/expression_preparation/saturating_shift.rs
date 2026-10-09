@@ -13,7 +13,7 @@
 
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
-use crate::expression_preparation::wrapping_cast::binary;
+use crate::expression_preparation::integer_bit_image::binary;
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 

@@ -13,9 +13,9 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 
 use super::ValueEnvironment;
 use super::total_specification::{
-    direct_abstract_operand,
-    AbstractSpecificationBindings, abstract_specification_interval,
-    };
+    AbstractSpecificationBindings, abstract_specification_builtin_arithmetic,
+    abstract_specification_interval, direct_abstract_operand,
+};
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_bit_width, primitive_name,
 };
@@ -32,8 +32,11 @@ pub(super) fn validate(
         program,
         expression,
         &[BinaryOperator::ShiftLeft, BinaryOperator::ShiftRight],
-        |binary| {
-            let Some((primitive, domain)) = direct_abstract_operand(program, bindings, binary.left)
+        |expression, binary| {
+            if !abstract_specification_builtin_arithmetic(program, bindings, expression) {
+                return;
+            }
+            let Some((primitive, domain)) = direct_abstract_operand(program, bindings, expression)
             else {
                 return;
             };

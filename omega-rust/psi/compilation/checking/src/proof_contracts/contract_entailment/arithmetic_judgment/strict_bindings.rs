@@ -293,8 +293,6 @@ impl<'program> Engine<'program> {
     }
 
     /// The caller establishes exact builtin operand meaning and live captures.
-    /// Widenings are transparent only while those actuals are normalized; a
-    /// strict symbol namespace alone does not license this reading elsewhere.
     /// Every actual resolves in the caller's namespace before any formal is
     /// bound, and a formal named twice must receive one polynomial.
     pub(in crate::proof_contracts::contract_entailment) fn exact_argument_values(
@@ -304,7 +302,6 @@ impl<'program> Engine<'program> {
         if !self.strict_symbol_bindings_valid || self.strict_symbol_bindings.is_none() {
             return None;
         }
-        self.exact_argument_widening = true;
         let resolved = arguments
             .iter()
             .map(|argument| {
@@ -312,7 +309,6 @@ impl<'program> Engine<'program> {
                 Some((argument.symbol, self.normalize(argument.expression)?))
             })
             .collect::<Option<Vec<_>>>();
-        self.exact_argument_widening = false;
         let mut formals: Vec<(SymbolHandle, Polynomial)> = Vec::new();
         for (symbol, polynomial) in resolved? {
             match formals.iter().find(|(candidate, _)| *candidate == symbol) {

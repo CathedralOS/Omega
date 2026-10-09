@@ -1,5 +1,8 @@
 //! `as` conversions: the source value, the cast-ruling obligations, and the
-//! interval the converted value keeps.
+//! interval the converted value keeps. Arithmetic policy qualifies future
+//! operations; it never changes the denotation or discharges carrier fit.
+//! Publish the same occurrence proof for every accepted target qualification
+//! so later lowering consumes the decision without inventing a lossy cast.
 
 use super::{Analysis, BOOLEAN_INTERVAL, ExpressionWalk, NEUTRAL};
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
@@ -67,17 +70,12 @@ pub(super) fn analyze(
         diagnostics,
     );
     require_float_to_integer_denotation(walk, cast, &source, primitive, diagnostics);
-    require_exact_integer_fit(walk, cast, &source, primitive, diagnostics);
-    require_trapping_conversion_coverage(walk, expression, cast, &source, primitive, diagnostics);
+    require_exact_integer_fit(walk, expression, &source, primitive, diagnostics);
     if !diagnostics[first_diagnostic..]
         .iter()
         .any(Diagnostic::is_error)
-        && cast.semantic_domain.is_empty()
-        && cast.domain == ArithmeticDomain::Exact
         && let (Some(source_type), Some(target_type)) = (source.primitive, primitive)
         && source_type != target_type
-        && source_type != PrimitiveType::Addr
-        && target_type != PrimitiveType::Addr
         && primitive_range(source_type).is_some()
         && primitive_range(target_type).is_some()
         && integer_interval_fits_primitive(source.interval, source_type, target_type)
@@ -95,7 +93,7 @@ pub(super) fn analyze(
     }
     Analysis {
         domain: Some(cast.domain),
-        interval: result_interval(cast, &source, primitive),
+        interval: result_interval(&source, primitive),
         primitive,
     }
 }
@@ -213,84 +211,47 @@ fn require_float_to_integer_denotation(
 /// signedness changes therefore need a proof that the source interval fits the
 /// complete target range; a cast is not an opt-in truncation/reinterpretation
 /// surface. Widening succeeds from the source carrier's ordinary full-range
-/// fact.
+/// fact. Target policy governs later operations, so it never waives this proof.
 fn require_exact_integer_fit(
     walk: &ExpressionWalk,
-    cast: &TableCastExpression,
+    expression: typed_trees::expression::ExpressionHandle,
     source: &Analysis,
     primitive: Option<PrimitiveType>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if cast.domain == ArithmeticDomain::Exact
-        && let Some(source_primitive) = source
-            .primitive
-            .filter(|source| primitive_range(*source).is_some())
+    if let Some(source_primitive) = source
+        .primitive
+        .filter(|source| primitive_range(*source).is_some())
         && let Some(target) = primitive.filter(|target| primitive_range(*target).is_some())
         && !integer_interval_fits_primitive(source.interval, source_primitive, target)
     {
-        diagnostics.push(Diagnostic::error(format!(
-            "Exact integer cast in {} from `{}` to `{}` is not provably \
+        let source_span = walk.program.expression_table.source_span(expression);
+        // The executing scanner and enclosing arithmetic walk can both reach
+        // this same authored coercion. Its occurrence owns one obligation;
+        // changing the outer walk's owner must not multiply the diagnostic.
+        if source_span.span.start < source_span.span.end
+            && diagnostics.iter().any(|existing| {
+                existing.source_span == Some(source_span)
+                    && existing.message.starts_with("Exact integer cast in ")
+            })
+        {
+            return;
+        }
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "Exact integer cast in machine `{}`{} from `{}` to `{}` is not provably \
              representable; constrain the source with a range or dominating guard, \
              or use a named Wrapping, Saturating, or Trapping conversion.",
-            walk.owner,
-            source.primitive.map(primitive_name).unwrap_or("integer"),
-            primitive_name(target),
-        )));
-    }
-}
-
-/// A Trapping numeric conversion traps exactly when its Exact counterpart is
-/// not provably representable: an integer (or address) operand outside the
-/// target carrier. Float coercions never trap: their source proof is mandatory.
-/// That same judgment, over this conversion's own operand and carriers,
-/// decides whether the machine's published Trap ceiling covers the site.
-fn require_trapping_conversion_coverage(
-    walk: &ExpressionWalk,
-    expression: typed_trees::expression::ExpressionHandle,
-    cast: &TableCastExpression,
-    source: &Analysis,
-    primitive: Option<PrimitiveType>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if cast.domain != ArithmeticDomain::Trapping {
-        return;
-    }
-    let Some(target) = primitive.filter(|target| primitive_range(*target).is_some()) else {
-        return;
-    };
-    let Some(source_primitive) = source.primitive else {
-        return;
-    };
-    if primitive_range(source_primitive).is_none() {
-        return;
-    }
-    let forms = |source: &Analysis| {
-        integer_interval_fits_primitive(source.interval, source_primitive, target)
-    };
-    walk.require_trap_coverage(
-        expression,
-        || forms(source),
-        |covering| {
-            let source = source_value(
-                covering,
-                cast,
-                primitive,
-                &mut Vec::new(),
-                &mut super::ArithmeticDecisions::default(),
-            );
-            source.primitive == Some(source_primitive) && forms(&source)
-        },
-        || {
-            format!(
-                "Trapping conversion of `{}` from `{}` to `{target}` traps when that value lies outside \
-                 `{target}`",
-                walk.operand_label(cast.value),
+                walk.machine.name,
+                walk.state
+                    .map(|state| format!(" state `{}`", state.name))
+                    .unwrap_or_default(),
                 primitive_name(source_primitive),
-                target = primitive_name(target),
-            )
-        },
-        diagnostics,
-    );
+                primitive_name(target),
+            ))
+            .with_source_span(source_span),
+        );
+    }
 }
 
 /// Numeric conversion of a Boolean preserves its binary value. Keep that
@@ -304,19 +265,13 @@ fn require_trapping_conversion_coverage(
 /// remains useful proof evidence for enclosing arithmetic. Wrapped expressions
 /// can carry a computed interval outside their carrier; in that case use the
 /// carrier's full range rather than manufacturing an impossible intersection.
-/// Same-carrier policy qualification also preserves payload and source bounds.
-/// Other non-Exact casts retain the conservative target-carrier approximation.
-fn result_interval(
-    cast: &TableCastExpression,
-    source: &Analysis,
-    primitive: Option<PrimitiveType>,
-) -> Interval {
+/// Target policy qualifies later operations and preserves these payload bounds.
+fn result_interval(source: &Analysis, primitive: Option<PrimitiveType>) -> Interval {
     let target_is_integer = primitive.is_some_and(|target| integer_bit_width(target).is_some());
     if source.primitive == Some(PrimitiveType::Bool) && target_is_integer {
         return BOOLEAN_INTERVAL;
     }
-    if (cast.domain == ArithmeticDomain::Exact || source.primitive == primitive)
-        && let Some(source_primitive) = source.primitive
+    if let Some(source_primitive) = source.primitive
         && integer_bit_width(source_primitive).is_some()
         && target_is_integer
         && let Some(source_range) = primitive_range(source_primitive)

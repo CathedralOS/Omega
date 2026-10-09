@@ -173,25 +173,6 @@ pub enum CheckedScalarExpression {
         /// substitution synthesizes leaves this false and keeps its search.
         formation_decided: bool,
     },
-    /// Selected modular conversion at the target width, never an Exact proof.
-    IntegerWrappingCast {
-        primitive_type: typed_trees::types::PrimitiveType,
-        operand: Box<CheckedScalarExpression>,
-    },
-    /// Selected clamping conversion at the target width; total on every
-    /// source value. Only unsigned-to-unsigned narrowings carry this form —
-    /// other saturating pairs have no checked cast kind.
-    IntegerSaturatingCast {
-        primitive_type: typed_trees::types::PrimitiveType,
-        operand: Box<CheckedScalarExpression>,
-    },
-    /// A selected trapping conversion, not a proof of exactness or termination.
-    /// Known representable inputs may supply a conditional normal-return fact;
-    /// runtime consumers must retain the policy or reject this form.
-    IntegerTrappingCast {
-        primitive_type: typed_trees::types::PrimitiveType,
-        operand: Box<CheckedScalarExpression>,
-    },
     Boolean(Box<CheckedBooleanExpression>),
     /// A §5b representation re-view of one whole scalar place
     /// (`&place as &T`, or a read through a loan local bound to one). The
@@ -233,15 +214,13 @@ pub fn u64_integer_literal(
     Some(CheckedScalarExpression::IntegerLiteral { literal })
 }
 
-
 impl CheckedScalarExpression {
-    /// Whether evaluating this expression executes any Trapping primitive or
-    /// Trapping conversion, i.e. whether it owns an operation-level `Trap`
-    /// crash site. Boolean subterms are inspected through their integer
+    /// Whether evaluating this expression executes any Trapping primitive,
+    /// i.e. whether it owns an operation-level `Trap` crash site.
+    /// Boolean subterms are inspected through their integer
     /// comparisons.
     pub fn contains_trapping_operation(&self) -> bool {
         match self {
-            Self::IntegerTrappingCast { .. } => true,
             Self::IntegerBinary {
                 kind, left, right, ..
             } => {
@@ -252,8 +231,6 @@ impl CheckedScalarExpression {
             Self::IntegerBitwiseNot { operand, .. }
             | Self::IntegerWiden { operand, .. }
             | Self::IntegerExactCast { operand, .. }
-            | Self::IntegerWrappingCast { operand, .. }
-            | Self::IntegerSaturatingCast { operand, .. }
             | Self::RepresentationView { operand, .. } => operand.contains_trapping_operation(),
             Self::StructuralParameterIndexedRead {
                 index,
@@ -297,9 +274,6 @@ impl CheckedScalarExpression {
             | Self::IntegerBitwiseNot { primitive_type, .. }
             | Self::IntegerWiden { primitive_type, .. }
             | Self::IntegerExactCast { primitive_type, .. }
-            | Self::IntegerTrappingCast { primitive_type, .. }
-            | Self::IntegerWrappingCast { primitive_type, .. }
-            | Self::IntegerSaturatingCast { primitive_type, .. }
             | Self::RepresentationView { primitive_type, .. } => Some(*primitive_type),
             Self::IntegerLiteral { literal } => Some(PrimitiveType::from_landed_integer(
                 literal.landing()?.landed_type,

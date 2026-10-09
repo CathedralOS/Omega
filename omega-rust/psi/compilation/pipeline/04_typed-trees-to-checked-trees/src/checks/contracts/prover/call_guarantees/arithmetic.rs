@@ -421,7 +421,7 @@ fn term(
                 && term(program, operators, callable, binary.right)
         }
         ExpressionNode::Cast(cast) => {
-            exact_same_carrier_policy_erasure(program, callable, cast)
+            value_preserving_integer_coercion(program, callable, cast)
                 && term(program, operators, callable, cast.value)
         }
         ExpressionNode::Call(_) => validation::integer_embedding_argument(program, expression)
@@ -481,7 +481,7 @@ fn admitted_wrapping_unsigned_remainder(
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let cast = program.expression_table.cast_node(expression)?;
-    if !exact_same_carrier_policy_erasure(program, callable, cast) {
+    if !value_preserving_integer_coercion(program, callable, cast) {
         return None;
     }
     let Some(binary) = program.expression_table.binary_node(cast.value) else {
@@ -494,43 +494,25 @@ fn admitted_wrapping_unsigned_remainder(
     .then_some(cast.value)
 }
 
-/// Bare `as` from a policy-qualified integer to the identical unqualified
-/// carrier preserves every bit and mathematical payload. Retain the complete
-/// normalized cast identity so semantic domains, recasts and carrier changes
-/// cannot borrow this policy-erasure reading.
-fn exact_same_carrier_policy_erasure(
+/// An admitted authored integer coercion preserves its mathematical payload.
+/// Source formation independently proves any narrowing and target predicates;
+/// policy qualifications govern later operations. Recasts remain bit views,
+/// and floating conversions keep their separate denotation proof owner.
+fn value_preserving_integer_coercion(
     program: &dyn ::validation::CheckingInput,
     callable: &Callable<'_>,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> bool {
-    if cast.form.is_recast()
-        || cast.domain != ArithmeticDomain::Exact
-        || !cast.semantic_domain.is_empty()
-        || !cast.semantic_domain_arguments.is_empty()
-        || cast.semantic_domain_symbol.is_valid()
-        || cast.semantic_domain_id.is_valid()
-        || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
-    {
-        return false;
-    }
-    let Some(source) = callable.scalar_reference(program, cast.value) else {
-        return false;
-    };
-    let Some(source_primitive) = program.primitive_type_reference(source) else {
-        return false;
-    };
-    let Some(target_primitive) = program.primitive_type_reference(cast.target_type) else {
-        return false;
-    };
-    source_primitive == target_primitive
-        && fixed_unsigned_integer(source_primitive)
-        && program.arithmetic_domain_for_type_reference(source) == ArithmeticDomain::Wrapping
-        && program.arithmetic_domain_for_type_reference(cast.target_type) == ArithmeticDomain::Exact
+    !cast.form.is_recast()
+        && callable
+            .scalar_reference(program, cast.value)
+            .and_then(|source| program.primitive_type_reference(source))
+            .is_some_and(|source| source.is_fixed_integer())
+        && program
+            .primitive_type_reference(cast.target_type)
+            .is_some_and(|target| target.is_fixed_integer())
 }
 
-// The ordinary runtime result-type query deliberately does not fabricate a
-// runtime carrier for embed. Its exact builtin identity selects proof Int;
-// only mathematical composition of those terms gets this fallback.
 fn proof_integer_term(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,

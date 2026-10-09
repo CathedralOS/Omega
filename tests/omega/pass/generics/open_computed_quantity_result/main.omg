@@ -3,6 +3,7 @@
 // bound trait's checked law slots license AC normalization.
 use omega_language_std::console;
 use omega::language::core::binding;
+use omega::language::core::numeric_conversion;
 
 domain<T, const I: u64> T::Indexed<I>;
 
@@ -103,5 +104,5 @@ machine Main::main(main: &mut Main) reaches Console {
     // `reorder_indexed` row above remains a licensed-AC judgment.
     _ = establish_three<Canonical>(1, 2);
     let sum: i64 in Indexed<3> = forward_indexed<2, 1, Canonical>(left, right);
-    main.console.exit_process((sum as i32 in Wrapping) as i32);
+    main.console.exit_process(narrow_i64_to_i32_wrapping(sum as i64));
 }

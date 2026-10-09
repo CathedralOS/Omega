@@ -23,25 +23,6 @@ pub(super) enum ScalarKind {
 }
 
 impl ScalarKind {
-    /// The u64 payload expression for encoding (`wire_scalar_varint_value`):
-    /// unsigned members load at their width; signed members zigzag at 64
-    /// bits. Bools emit 0/1 through a branch, not this expression.
-    pub(super) fn encode_bits_expression(self, member: &str) -> String {
-        match self {
-            Self::U32 => format!("{member} as u64"),
-            Self::U64 => member.to_string(),
-            Self::I32 => {
-                format!(
-                    "(((({member} as i64) << 1) ^ (({member} as i64) >> 63)) as u64 in Wrapping) as u64"
-                )
-            }
-            Self::I64 => {
-                format!("((({member} << 1) ^ ({member} >> 63)) as u64 in Wrapping) as u64")
-            }
-            Self::Bool => String::new(),
-        }
-    }
-
     /// `wire_scalar_in_range`'s declared range as a guard on the raw payload
     /// (unsigned kinds, bool) or on the unzigzagged wide value (i32). u64 and
     /// i64 span their carriers, so no check is emitted.

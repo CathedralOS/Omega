@@ -9,6 +9,7 @@
 
 use omega_language_std::posix_filesystem_host;
 use omega::language::core::binding;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: Binding<PosixFilesystemHost>;
@@ -52,7 +53,7 @@ machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     transition main.dfd >= 0 { true -> readit(main) _ -> fail(main) }
     state readit(main: &mut Main) {
         main.total = main.fs.read_dir(main.dfd, &mut main.buffer, main.cap, &mut main.position);
-        main.totalu = main.total as u64 in Wrapping;
+        main.totalu = narrow_i64_to_u64_wrapping(main.total) as u64 in Wrapping;
         transition main.total > 0 { true -> walk(main) _ -> fail(main) }
     }
     state walk(main: &mut Main) {

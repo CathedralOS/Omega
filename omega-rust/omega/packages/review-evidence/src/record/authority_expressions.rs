@@ -208,19 +208,6 @@ pub enum PackageReviewScalarExpression {
         operand: Box<PackageReviewScalarExpression>,
         range: PackageReviewIntegerRange,
     },
-    IntegerWrappingCast {
-        primitive_type: PackageReviewPrimitiveType,
-        operand: Box<PackageReviewScalarExpression>,
-    },
-    IntegerSaturatingCast {
-        primitive_type: PackageReviewPrimitiveType,
-        operand: Box<PackageReviewScalarExpression>,
-    },
-    /// Trapping policy is not an exactness or normal-return proof.
-    IntegerTrappingCast {
-        primitive_type: PackageReviewPrimitiveType,
-        operand: Box<PackageReviewScalarExpression>,
-    },
     /// Observe the operand's storage bits under the target carrier. This is
     /// distinct from numeric conversion; the operand retains its own type.
     RepresentationView {

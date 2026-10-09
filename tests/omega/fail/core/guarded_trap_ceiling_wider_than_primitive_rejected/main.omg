@@ -1,10 +1,15 @@
-// A guarded Trap ceiling must cover exactly its primitive's trap condition.
-// `u16 -> u8` in Trapping traps for every input above 255, but this ceiling
-// names only inputs above 256: input 256 would trap without a declared crash
-// route, so checking rejects the machine.
+// The named guard rejects every input above 255, but the declared Trap
+// ceiling only names inputs above 256. Input 256 reaches the explicit crash
+// without a declared route, so checking rejects the machine.
 machine narrow(input: u16) -> u8
 crashes Trap input > 256u16 {
-    (input as u8 in Trapping) as u8
+    transition input > 255u16 {
+        true -> invalid(input)
+        _ -> (input as u8)
+    }
+    state invalid(input: u16) -> u8
+    requires input > 255u16
+    { crash Trap; }
 }
 
 use omega_language_std::console;

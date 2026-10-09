@@ -5,19 +5,21 @@
 // `wiki/spec/language/counts_and_addresses.md`. It is not carrier-free, and it
 // does not silently take the destination's type: `main.padding = 16 -
 // main.message.len` into an `i32 in Saturating` is a cross-carrier store and
-// is refused, naming the `as` that spells it. Subtracting an unconverted
+// is refused without an explicit named conversion. Subtracting an unconverted
 // length from a literal would also be `u64` arithmetic, which underflows for
 // a message longer than the width, so the conversion is where the intent gets
 // stated rather than a formality.
 //
 // Converting at the read puts the subtraction in the destination's carrier,
-// where `Saturating` means an over-long message yields 0 padding instead of
-// underflowing. 16 - 10 = 6.
+// where `Saturating` governs the subtraction instead of unsigned underflow.
+// The named conversion caps an unrepresentable length at i32::MAX.
+// For this message, 16 - 10 = 6.
 // Expected exit: 6.
 // Expected output contains: ALERT temp
 
 use omega_language_std::console;
 use omega::language::core::binding;
+use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8(bytes)
 requires
@@ -36,7 +38,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     main.console.write_line("text_padding: computes right-padding to a 16-column width from carrier length");
     main.message = "ALERT temp";
-    main.padding = 16 - (main.message.len as i32 in Saturating);
+    main.padding = 16 - (narrow_u64_to_i32_saturating(main.message.len) as i32 in Saturating);
     main.console.write_line(main.message);
 
     transition { _ -> done(main) }

@@ -1,3 +1,5 @@
+use omega::language::core::numeric_conversion;
+
 // FAIL canary (mint arc rung 2b): the authored plan is LOAD-BEARING -- a
 // `CompactBinary::plan` that frames every field LengthPrefixed (the schema's
 // scalars must be Varint) is a COMPILE ERROR naming both sides, never a
@@ -40,7 +42,7 @@ terminates by fuel;
         }
     }
     state put_wrong(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64 [1..=96]) {
-        compact_binary.tag = schema.fields[compact_binary.index].number as u64 in Wrapping;
+        compact_binary.tag = narrow_i64_to_u64_wrapping(schema.fields[compact_binary.index].number);
         // WRONG on purpose: scalars must be Varint.
         compact_binary.plans[compact_binary.index] = FieldPlan::LengthPrefixed { tag: compact_binary.tag };
         compact_binary.index = compact_binary.index + 1;

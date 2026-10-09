@@ -56,9 +56,6 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
 
 fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
     match expression {
-        CheckedScalarExpression::IntegerWrappingCast { .. } => Err(LoweringError::Unsupported(
-            "wrapping conversion is not supported scalar contract arithmetic",
-        )),
         CheckedScalarExpression::RepresentationView { .. } => Err(LoweringError::Unsupported(
             "a representation re-view is not scalar contract arithmetic",
         )),
@@ -67,12 +64,6 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
                 "indexed structural scalar reads are not supported contract operands",
             ))
         }
-        CheckedScalarExpression::IntegerTrappingCast { .. } => Err(LoweringError::Unsupported(
-            "trapping conversion is not total scalar contract arithmetic",
-        )),
-        CheckedScalarExpression::IntegerSaturatingCast { .. } => Err(LoweringError::Unsupported(
-            "saturating conversion is not supported scalar contract arithmetic",
-        )),
         CheckedScalarExpression::Local { .. } | CheckedScalarExpression::StorageRead { .. } => {
             Err(LoweringError::Unsupported(
                 "scalar contract operand contains body-local or mutable storage",

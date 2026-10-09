@@ -53,11 +53,41 @@ pub fn parameter_expression_result_type_reference(
     if !owner_symbol.is_valid() {
         return None;
     }
+    declaration_expression_result_type_reference(
+        program,
+        owner_symbol,
+        &|expression| {
+            crate::reserved_result_place(program, expression)
+                .filter(|place| place.machine_symbol == owner_symbol)
+                .map(|place| place.type_reference)
+                .or_else(|| {
+                    crate::value_custody::places::parameter_scoped_type_reference(
+                        program, parameters, expression,
+                    )
+                })
+        },
+        expression,
+    )
+}
+
+/// A declaration supplies its exact place types; the shared result walk owns
+/// selected computation results. The explicit callback binds data/domain
+/// subjects, parameters and reserved results without creating another abstract
+/// expression recognizer or inferring a type from the cast destination.
+pub(crate) fn declaration_expression_result_type_reference(
+    program: &dyn crate::CheckingInput,
+    owner_symbol: symbols::SymbolHandle,
+    place_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    if !owner_symbol.is_valid() {
+        return None;
+    }
     result_type(
         program,
-        ExpressionOwner::Parameters {
+        ExpressionOwner::Declaration {
             owner_symbol,
-            parameters,
+            place_type,
         },
         expression,
         &mut Vec::new(),
@@ -87,9 +117,9 @@ enum ExpressionOwner<'program> {
         state: &'program State,
     },
     Domain(&'program typed_trees::domain::DomainDefinition),
-    Parameters {
+    Declaration {
         owner_symbol: symbols::SymbolHandle,
-        parameters: &'program [typed_trees::signature::StateParameter],
+        place_type: &'program dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
     },
 }
 
@@ -98,7 +128,7 @@ impl ExpressionOwner<'_> {
         match self {
             Self::State { machine, .. } => machine.symbol,
             Self::Domain(domain) => domain.symbol,
-            Self::Parameters { owner_symbol, .. } => owner_symbol,
+            Self::Declaration { owner_symbol, .. } => owner_symbol,
         }
     }
 }
@@ -114,6 +144,7 @@ fn result_type(
     }
     active.push(expression);
     let result = match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => result_type(program, owner, atomic.value, active),
         ExpressionNode::Match(dispatch) => {
             let arms = program.expression_table.match_arms(dispatch.arms);
             let references = arms
@@ -142,7 +173,7 @@ fn result_type(
             // signature. Keep this owner distinction instead of making the
             // context-free call query guess a generic instantiation.
             let scoped_requirement_result = match owner {
-                ExpressionOwner::Parameters { owner_symbol, .. }
+                ExpressionOwner::Declaration { owner_symbol, .. }
                     if call.target_symbol.is_valid() =>
                 {
                     let parent = program.symbols.get(owner_symbol).parent;
@@ -321,15 +352,95 @@ fn result_type(
                     })
             })()
         }
+        ExpressionNode::Member(member) => result_type(program, owner, member.receiver, active)
+            .and_then(|receiver| {
+                let data =
+                    crate::value_custody::places::data_definition_for_type(program, receiver)?;
+                if let Some(instance) = data.generic_instance {
+                    return program
+                        .closed_data_member_field(
+                            instance,
+                            member.member_symbol,
+                            member.member.as_str(),
+                        )
+                        .map(|field| field.type_reference);
+                }
+                crate::value_custody::places::exact_data_member_field(
+                    program,
+                    data,
+                    member.member_symbol,
+                    member.member.as_str(),
+                    member.case_variant.as_ref().map(|case| case.as_str()),
+                )
+                .map(|field| field.type_reference)
+            }),
+        ExpressionNode::Indexed(indexed) => (|| {
+            let operands = [indexed.collection, indexed.index]
+                .map(|operand| result_type(program, owner, operand, active));
+            let candidates = typed_trees::operator::resolve_indexed_spelling_for_operands(
+                program,
+                OperatorSpelling::Index,
+                &operands,
+                program.expression_table.source_span(expression),
+            );
+            if candidates.is_empty()
+                && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    owner.symbol(),
+                    expression,
+                    OperatorSpelling::Index,
+                    &operands,
+                )
+            {
+                operands[0].and_then(|collection| {
+                    crate::value_custody::places::collection_element_type(program, collection)
+                })
+            } else {
+                let [selected] = candidates.as_slice() else {
+                    return None;
+                };
+                if !typed_trees::operator::selected_trait_operator_meanings(
+                    program,
+                    owner.symbol(),
+                    OperatorSpelling::Index,
+                    &operands,
+                )
+                .is_empty()
+                {
+                    return None;
+                }
+                bound_result_type_parameter(program, selected.operator, &operands).or_else(|| {
+                    (!result_mentions_type_parameters(
+                        program,
+                        selected.operator,
+                        selected.operator.return_type,
+                    ))
+                    .then_some(selected.operator.return_type)
+                })
+            }
+        })(),
         ExpressionNode::ZeroValue(reference) => Some(*reference),
         // Place lookup strips a Borrow to its target. A value-type query must
         // not turn that view into a by-value operand and hide reference-typed
         // operator candidates, including through a nested Match result.
         ExpressionNode::Borrow(_) => None,
-        ExpressionNode::Integer(_) => {
-            crate::declarations::operators::landed_integer_literal_type_reference(
+        ExpressionNode::Integer(literal) => {
+            let reference = crate::declarations::operators::landed_integer_literal_type_reference(
                 program, expression,
-            )
+            );
+            reference.and_then(|reference| {
+                let domain = literal.landing()?.domain;
+                if domain == ArithmeticDomain::Exact {
+                    Some(reference)
+                } else {
+                    program
+                        .type_reference_table
+                        .find_arithmetic_result_type_reference(
+                            program.type_reference_table.type_symbol(reference),
+                            domain,
+                        )
+                }
+            })
         }
         ExpressionNode::Boolean(_) => {
             crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
@@ -377,17 +488,7 @@ fn result_type(
             }
         }
         _ => match owner {
-            ExpressionOwner::Parameters {
-                owner_symbol,
-                parameters,
-            } => crate::reserved_result_place(program, expression)
-                .filter(|place| place.machine_symbol == owner_symbol)
-                .map(|place| place.type_reference)
-                .or_else(|| {
-                    crate::value_custody::places::parameter_scoped_type_reference(
-                        program, parameters, expression,
-                    )
-                }),
+            ExpressionOwner::Declaration { place_type, .. } => place_type(expression),
             ExpressionOwner::State { machine, state } => {
                 crate::value_custody::places::declared_place_type_raw(
                     program,
@@ -404,43 +505,6 @@ fn result_type(
                         ) =>
                     {
                         Some(domain.target_type)
-                    }
-                    // Membership subjects project the declared carrier:
-                    // `self.num in NonZero` reads `num`'s declared field type,
-                    // `self[i] in Utf8` the declared element type. The shared
-                    // embedding resolver cannot see the domain telescope, so
-                    // the receiver recurses through `result_type` (which owns
-                    // the subject binding) and the projection lands on its result.
-                    ExpressionNode::Member(member) => {
-                        result_type(program, owner, member.receiver, active).and_then(|receiver| {
-                            if let Some(data) =
-                                crate::value_custody::places::data_definition_for_type(
-                                    program, receiver,
-                                )
-                            {
-                                program
-                                    .data_field_named(data, member.member.as_str())
-                                    .map(|field| field.type_reference)
-                            } else {
-                                crate::declarations::data_queries::data_field_type_by_symbol(
-                                    program,
-                                    member.member_symbol,
-                                )
-                            }
-                        })
-                    }
-                    ExpressionNode::Indexed(indexed) => {
-                        result_type(program, owner, indexed.collection, active).and_then(
-                            |collection| match program.type_reference_table.type_reference(
-                                crate::value_custody::places::unwrapped_type_reference(
-                                    program, collection,
-                                )?,
-                            ) {
-                                TypeReferenceNode::FixedArray { element_type, .. }
-                                | TypeReferenceNode::Slice { element_type } => Some(*element_type),
-                                _ => None,
-                            },
-                        )
                     }
                     _ => crate::proof_contracts::proof_embeddings::expression_type_reference(
                         program, expression,
@@ -641,7 +705,7 @@ fn binary_result(
                 ExpressionOwner::State { machine, .. } =>
                     crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
                         program, machine, None, expression, binary),
-                ExpressionOwner::Parameters { .. } | ExpressionOwner::Domain(_) => false,
+                ExpressionOwner::Declaration { .. } | ExpressionOwner::Domain(_) => false,
             };
             builtin
                 .then(|| {

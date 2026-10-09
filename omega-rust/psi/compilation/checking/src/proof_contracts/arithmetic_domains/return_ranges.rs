@@ -3,10 +3,7 @@
 use crate::proof_contracts::arithmetic_domains::assignments::{
     check_narrowing_assignment, stored_value_carrier,
 };
-use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
-use crate::proof_contracts::arithmetic_domains::integer_ranges::{
-    primitive_range, validate_anonymous_integer_range,
-};
+use crate::proof_contracts::arithmetic_domains::integer_ranges::validate_anonymous_integer_range;
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use crate::proof_contracts::arithmetic_domains::range_constraints::range_constraint_interval;
 use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
@@ -72,16 +69,10 @@ pub(crate) fn ensured_call_result_interval(
     (interval != Interval::UNBOUNDED).then_some(interval)
 }
 
-/// Infer a normal-return bound from a fully captured callee body. A declared
-/// return range remains in force; this query can only supply a tighter bound
-/// for the current invocation. Immutable scalar actuals carry copied values,
-/// while uncaptured parameters retain their declared carrier bounds.
-///
-/// Every return path must be captured; named state transitions decline here.
-/// Body effects supply no additional facts: storage other than the immutable
-/// scalar actuals above retains only its declared bounds.
-/// Unioning all captured outcomes remains sound without selecting a branch.
-/// Recursive body inference declines rather than trusting its own conclusion.
+/// Invocation-specific return bounds consume the complete ordinary arrival
+/// graph, including copied immutable locals and named state transfers. The
+/// arrival owner retains effects and branch facts; this facade contributes no
+/// separate expression evaluator or initial-state-only return recognizer.
 pub(crate) fn infer_return_interval(
     program: &dyn crate::CheckingInput,
     callee_machine: &Machine,
@@ -89,93 +80,13 @@ pub(crate) fn infer_return_interval(
     target_primitive: Option<PrimitiveType>,
     actuals: &[(symbols::SymbolHandle, Interval)],
 ) -> Option<Interval> {
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
-    let statements = program
-        .statement_table
-        .statements(callee_state.statement_nodes);
-
-    // Collect every return expression, bailing if any exit could escape to an
-    // uncaptured state. A terminal expression is the last statement; transition
-    // arms return via VALUE targets.
-    let mut return_expressions = Vec::new();
-    if let Some(StatementNode::Expression(expression)) = statements.last() {
-        return_expressions.push(*expression);
-    }
-    for statement in statements {
-        let Some(transition) = statement.as_transition() else {
-            continue;
-        };
-        for target in [transition.target, transition.continuation] {
-            if !target.is_valid() {
-                continue;
-            }
-            match program.statement_table.transition_target(target) {
-                TransitionTargetNode::Value(expression) => return_expressions.push(*expression),
-                TransitionTargetNode::Terminal => {}
-                // Named (another state / recursion): the
-                // return may come from somewhere we are not analyzing -> bail.
-                TransitionTargetNode::Named { .. } => {
-                    return None;
-                }
-            }
-        }
-    }
-    if return_expressions.is_empty() {
-        return None;
-    }
-
-    let mut environment = ValueEnvironment::new();
-    // primitive_type_reference rejects reference shells (including references
-    // beneath constraints). Only immutable scalar values can retain caller
-    // bounds across the body; borrowed or mutable storage is never seeded.
-    for parameter in program.state_parameters(callee_state) {
-        if parameter.is_mutable || parameter.is_const {
-            continue;
-        }
-        if let Some(carrier) = program
-            .primitive_type_reference(parameter.type_reference)
-            .and_then(primitive_range)
-            && let Some((_, actual)) = actuals
-                .iter()
-                .find(|(symbol, _)| *symbol == parameter.symbol)
-        {
-            environment.set(
-                parameter.name.as_str().to_owned(),
-                carrier.intersect(*actual),
-            );
-        }
-    }
-    let mut union: Option<Interval> = None;
-    let mut clean = true;
-    for expression in return_expressions {
-        let mut throwaway = Vec::new();
-        let analysis = analyze(
-            program,
-            callee_machine,
-            Some(callee_state),
-            expression,
-            &environment,
-            target_primitive,
-            ArithmeticDomain::Exact,
-            "inferred return",
-            false,
-            &mut throwaway,
-        )
-        .value;
-        if !throwaway.is_empty() {
-            clean = false;
-            break;
-        }
-        union = Some(match union {
-            Some(current) => current.union(analysis.interval),
-            None => analysis.interval,
-        });
-    }
-    if !clean {
-        return None;
-    }
-    let union = union?;
-    (union.low().is_some() && union.high().is_some()).then_some(union)
+    super::guard_narrowing::inferred_normal_return_interval(
+        program,
+        callee_machine,
+        callee_state,
+        target_primitive,
+        actuals,
+    )
 }
 
 /// S4 return-range ENFORCEMENT (companion to the call-site narrowing): when a

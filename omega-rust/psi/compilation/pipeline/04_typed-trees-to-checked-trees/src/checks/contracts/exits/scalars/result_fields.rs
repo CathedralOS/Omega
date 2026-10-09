@@ -375,10 +375,7 @@ impl ExitScalars<'_, '_> {
                 }
                 Scalar::IntegerBitwiseNot { operand, .. }
                 | Scalar::IntegerWiden { operand, .. }
-                | Scalar::IntegerExactCast { operand, .. }
-                | Scalar::IntegerWrappingCast { operand, .. }
-                | Scalar::IntegerSaturatingCast { operand, .. }
-                | Scalar::IntegerTrappingCast { operand, .. } => {
+                | Scalar::IntegerExactCast { operand, .. } => {
                     pending.push(operand.as_mut());
                     continue;
                 }

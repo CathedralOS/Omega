@@ -11,6 +11,7 @@
 // Process termination is kernel32's `ExitProcess`; nothing is buffered above
 // it, so no output is lost at exit.
 use omega::language::core::external_binding;
+use omega::language::core::numeric_conversion;
 
 data WindowsConsoleIo { }
 
@@ -51,8 +52,8 @@ windows_x86_64 machine WindowsConsoleImports::read(descriptor: i32, buffer: &mut
     via console_read_binding();
 
 // Descriptor 0 is stdin. One byte is a Byte, zero bytes is end of input, and
-// -1 is a failed host read, which traps: converting the negative status to u8
-// in Trapping is the trap site the published `crashes Trap` names.
+// -1 is a failed host read. The named trapping conversion rejects that
+// negative status under the published `crashes Trap` contract.
 windows_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
 reaches Console
@@ -68,14 +69,14 @@ crashes Trap
     }
 
     state byte(cell: i32) -> ByteRead {
-        let value: u8 = (cell as u8 in Wrapping) as u8;
+        let value: u8 = narrow_i32_to_u8_wrapping(cell);
         ByteRead::Byte { value: value as i32 }
     }
 
     state end() -> ByteRead { ByteRead::Eof }
 
     state failed(count: i32) -> ByteRead {
-        let trapped: u8 = (count as u8 in Trapping) as u8;
+        let trapped: u8 = narrow_i32_to_u8_trapping(count);
         ByteRead::Eof
     }
 }

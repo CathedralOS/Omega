@@ -22,10 +22,9 @@ use terminal_psi::{
 pub(crate) mod bindings;
 pub(crate) mod byte_literals;
 pub(crate) mod computation_graph;
+pub(crate) mod integer_bit_image;
+pub(crate) mod integer_coercion;
 pub(crate) mod prepare_expression;
 pub(crate) mod qualifications;
 pub(crate) mod representation_view;
-pub(crate) mod saturating_cast;
 pub(crate) mod saturating_shift;
-pub(crate) mod trapping_cast;
-pub(crate) mod wrapping_cast;

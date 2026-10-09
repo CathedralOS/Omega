@@ -6,7 +6,7 @@
 // (i8 -1 -> u64 18446744073709551615); Saturating maps every negative
 // source to 0 and caps at the target maximum. `literal_checks` passes
 // constants, `runtime_checks` reads the boundaries through a borrowed
-// record, and `direct_casts` covers the policy-cast intrinsic both folded
+// record, and `named_conversion_checks` checks conversions on typed literals
 // and on loaded operands.
 //
 // Exit 0 when every result holds; a wrong result executes `crash Trap;`.
@@ -139,12 +139,12 @@ machine runtime_checks(inputs: &Inputs) -> bool {
     held_r13
 }
 
-machine direct_casts(inputs: &Inputs) -> bool {
-    let d1: u8 = (200i16 as u8 in Trapping) as u8;
+machine named_conversion_checks(inputs: &Inputs) -> bool {
+    let d1: u8 = narrow_i16_to_u8_trapping(200i16);
     let held_d1: bool = d1 == 200;
-    let d2: u64 = (inputs.negative_one_i16 as u64 in Wrapping) as u64;
+    let d2: u64 = narrow_i16_to_u64_wrapping(inputs.negative_one_i16);
     let held_d2: bool = also(held_d1, d2 == 18446744073709551615);
-    let d3: u16 = (inputs.max_i16 as u16 in Trapping) as u16;
+    let d3: u16 = narrow_i16_to_u16_trapping(inputs.max_i16);
     let held_d3: bool = also(held_d2, d3 == 32767);
     held_d3
 }
@@ -160,8 +160,8 @@ machine main() crashes Trap {
     };
     let literal_checks_held: bool = literal_checks();
     let runtime_checks_held: bool = runtime_checks(&inputs);
-    let direct_casts_held: bool = direct_casts(&inputs);
-    transition literal_checks_held && runtime_checks_held && direct_casts_held {
+    let named_conversion_checks_held: bool = named_conversion_checks(&inputs);
+    transition literal_checks_held && runtime_checks_held && named_conversion_checks_held {
         true -> passed()
         _ -> failed()
     }

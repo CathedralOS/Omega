@@ -25,7 +25,6 @@ use crate::scalar_lowering::branch_states::prepared::{
 };
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
-use numerics::arithmetic::ArithmeticDomain;
 
 pub(crate) mod arrays;
 mod byte_comparisons;
@@ -513,22 +512,14 @@ impl<'a> Expansion<'a> {
             }
             CheckedScalarComputationKind::AuthoredCast {
                 operand,
-                domain,
                 formation_decided,
                 ..
             } => {
                 // The operand completes at its own carrier, then the authored
-                // conversion applies once: widening is total, the remaining
-                // exact form lands through the obligation-carrying cast, and
-                // the policy domains share the pure lane's composite casts.
+                // exact conversion applies once. Result qualifications remain
+                // on the receiving edge and cannot alter this payload.
                 let operand = Argument::Computation(operand);
                 let operand_type = self.argument_type(&operand, site, input_types)?;
-                let Some(source_type) = operand_type.scalar_type.as_integer() else {
-                    return unsupported("authored conversion requires fixed integer carriers");
-                };
-                let Some(target_type) = result_type.scalar_type.as_integer() else {
-                    return unsupported("authored conversion requires fixed integer carriers");
-                };
                 // Conversion bindings bind the operand's bare carrier: an
                 // operand that still carries domains erases them on a
                 // qualification edge before the conversion state.
@@ -536,58 +527,40 @@ impl<'a> Expansion<'a> {
                 let mut operand_types = input_types.to_vec();
                 operand_types.push(bound_operand_type);
                 let operand_expression = parameter(input_types.len(), bound_operand_type);
-                let conversion = match domain {
-                    ArithmeticDomain::Exact => {
-                        if source_type == target_type {
-                            if operand_type != result_type {
-                                return unsupported(
-                                    "same-carrier authored cast requires an explicit qualification edge",
-                                );
-                            }
-                            // Exact qualification into an interval changes no
-                            // payload bits. Custody has replayed the authored
-                            // cast; the bounded destination still owes its own
-                            // range proof. Narrowing vocabulary requires a
-                            // genuinely different carrier.
-                            operand_expression
-                        } else if source_type.can_widen_to(target_type) {
-                            LoweredDirectExpression::IntegerWiden {
-                                scalar_type: result_type.scalar_type,
-                                operand: Box::new(operand_expression),
-                            }
-                        } else {
-                            LoweredDirectExpression::IntegerExactCast {
-                                scalar_type: result_type.scalar_type,
-                                operand: Box::new(operand_expression),
-                                formation_decided,
-                            }
-                        }
-                    }
-                    ArithmeticDomain::Wrapping => {
-                        crate::expression_preparation::wrapping_cast::wrapping_cast(
-                            operand_expression,
-                            source_type,
-                            result_type.scalar_type,
-                        )?
-                    }
-                    ArithmeticDomain::Saturating => {
-                        crate::expression_preparation::saturating_cast::saturating_cast(
-                            operand_expression,
-                            source_type,
-                            result_type.scalar_type,
-                        )?
-                    }
-                    ArithmeticDomain::Trapping => {
-                        crate::expression_preparation::trapping_cast::trapping_cast(
-                            operand_expression,
-                            result_type.scalar_type,
-                        )?
-                    }
+                let conversion =
+                    crate::expression_preparation::integer_coercion::coerce_integer_carrier(
+                        operand_expression,
+                        result_type.scalar_type,
+                        formation_decided,
+                    )?;
+                let conversion_target = if result_type.qualifications.is_empty() {
+                    target
+                } else {
+                    let mut converted_types = input_types.to_vec();
+                    converted_types.push(result_type.scalar_type.into());
+                    // Carrier conversion binds the unchanged payload first.
+                    // The authored qualification has its own edge, just as
+                    // a representation-identical Qualification node does.
+                    self.push(LoweredScalarBranchState {
+                        structural_parameters: Vec::new(),
+                        parameter_types: converted_types.clone(),
+                        erased_formal_types: Vec::new(),
+                        erased_proof_formals: Vec::new(),
+                        bindings: Vec::new(),
+                        structural_effects: Vec::new(),
+                        terminator: LoweredScalarBranchTerminator::Qualify {
+                            target,
+                            arguments: parameters(&converted_types),
+                            erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
+                            structural_arguments: Vec::new(),
+                        },
+                    })
                 };
                 let bound = self.binding(
                     &operand_types,
                     input_types.len(),
-                    target,
+                    conversion_target,
                     LoweredScalarBinding::Expression(conversion),
                 );
                 let bound = if operand_type.qualifications.is_empty() {

@@ -371,12 +371,11 @@ fn structural_actual_root(
 /// contract namespace already accepts them: inserting one would keep the
 /// guarded route but turn its conservative widening into a downstream
 /// rejection, so the annotation stays empty instead. `Local`, `StorageRead`,
-/// `IeeeFloatLiteral` and `IntegerTrappingCast` leaves stay admissible — the
+/// `IeeeFloatLiteral` leaves stay admissible — the
 /// contract namespace refuses them, so they widen rather than pin an
-/// unlowering-able term. Wrapping and trapping cast leaves cannot ride this
-/// boundary into a retained annotation at all: a cast actual carries no entry
-/// identity, so its scalar can only discharge a closed-false guard in the
-/// missing-identity arm and is never kept where the route survives.
+/// unsupported term. A cast actual carries no entry identity, so its scalar
+/// can only discharge a closed-false guard in the missing-identity arm and is
+/// never kept where the route survives.
 fn scalar_evidence_is_crash_lane_lowerable(
     expression: &checked_trees::CheckedScalarExpression,
 ) -> bool {
@@ -392,10 +391,7 @@ fn scalar_evidence_is_crash_lane_lowerable(
         }
         CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
         | CheckedScalarExpression::IntegerWiden { operand, .. }
-        | CheckedScalarExpression::IntegerExactCast { operand, .. }
-        | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
-        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
-        | CheckedScalarExpression::IntegerTrappingCast { operand, .. } => {
+        | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
             scalar_evidence_is_crash_lane_lowerable(operand)
         }
         CheckedScalarExpression::Boolean(expression) => {
@@ -707,10 +703,7 @@ fn substitute_checked_scalar_expression(
         CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
-        | CheckedScalarExpression::IntegerTrappingCast { .. }
-        | CheckedScalarExpression::IntegerWrappingCast { .. }
         | CheckedScalarExpression::RepresentationView { .. }
-        | CheckedScalarExpression::IntegerSaturatingCast { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         // A standalone integer field leaf is the same frozen structural leaf
         // the Boolean channel carries: the callee position binds the actual's

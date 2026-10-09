@@ -6,16 +6,13 @@
 
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, SignatureContractKind, State, ValueEnvironment,
-    declared_place_type_raw, literal_i64, ordered_values, place_path, range_constraint_interval,
+    PrimitiveType, SignatureContractKind, State, ValueEnvironment, declared_place_type_raw,
+    literal_i64, ordered_values, place_path, range_constraint_interval,
 };
 use std::collections::BTreeMap;
 
 mod arrivals;
 mod boolean_values;
-use crate::proof_contracts::arithmetic_domains::float_arithmetic::{
-    float_bound_from, float_literal_value, float_range_constraint_interval,
-};
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     known_u64_value, literal_u64, primitive_range,
 };
@@ -25,7 +22,7 @@ pub(crate) use boolean_values::{record_boolean_assignment, record_boolean_local}
 mod case_facts;
 mod parameter_bounds;
 mod projected_facts;
-pub(crate) use arrivals::occurrence_value_environment;
+pub(crate) use arrivals::{inferred_normal_return_interval, occurrence_value_environment};
 pub use arrivals::{
     arrival_integer_expression_bounds, occurrence_integer_expression_bounds,
     occurrence_integer_expression_fits_range,
@@ -637,45 +634,12 @@ pub(super) fn narrow_environment_by_comparison(
                 }
             }
         }
-        if comparison.operator == BinaryOperator::Equal
-            && let (Some(left), Some(right)) = (
-                place_path(program, comparison.left),
-                place_path(program, comparison.right),
-            )
-            && left == right
-            && declared_place_type_raw(program, machine, state, comparison.left).is_some_and(
-                |handle| {
-                    matches!(
-                        program.primitive_type_reference(handle),
-                        Some(PrimitiveType::F32 | PrimitiveType::F64)
-                    )
-                },
-            )
-        {
-            environment.mark_non_nan(left);
-            return;
-        }
-        let float_sides = if let Some(literal) = float_literal_value(program, comparison.right) {
-            Some((comparison.left, literal, true))
-        } else {
-            float_literal_value(program, comparison.left)
-                .map(|literal| (comparison.right, literal, false))
-        };
-        if let Some((place_expr, literal, name_on_left)) = float_sides
-            && literal.is_finite()
-            && let Some(handle) = declared_place_type_raw(program, machine, state, place_expr)
-            && matches!(
-                program.primitive_type_reference(handle),
-                Some(PrimitiveType::F32 | PrimitiveType::F64)
-            )
-            && let Some(name) = place_path(program, place_expr)
-            && let Some(mut interval) = float_bound_from(comparison.operator, literal, name_on_left)
-        {
-            if let Some(declared) = float_range_constraint_interval(program, handle) {
-                interval = interval.intersect(declared);
-            }
-            environment.narrow_float(name.clone(), interval);
-            environment.mark_non_nan(name);
+        if super::float_arithmetic::record_float_comparison_bounds(
+            program,
+            environment,
+            &comparison,
+            &|place| declared_place_type_raw(program, machine, state, place),
+        ) {
             return;
         }
     }

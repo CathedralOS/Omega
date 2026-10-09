@@ -113,8 +113,9 @@ pub(crate) fn construct_integer_bitwise_not(
     ))
 }
 
-/// Retain cast meaning and any partial-conversion proof at the original source
-/// occurrence even when the operand is a completed computation-plan value.
+/// Retain the exact carrier conversion at its original source occurrence,
+/// independently of the policy qualifying later operations on the result.
+/// Completing the operand through a computation plan preserves that proof.
 pub(crate) fn construct_integer_cast(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
@@ -131,7 +132,6 @@ pub(crate) fn construct_integer_cast(
     }
     let source_type = scalar_expression_type(&operand);
     if source_type.is_none()
-        && cast.domain == ArithmeticDomain::Exact
         && target_type != PrimitiveType::Addr
         && let Some(literal) = retag_exact_integer_literal(&operand, target_type)
     {
@@ -147,8 +147,7 @@ pub(crate) fn construct_integer_cast(
     // carrier can retain that value directly at its new landing. Keep
     // address conversions out of this fixed-integer slice; addr is a
     // distinct carrier even when its current representation is u64.
-    if cast.domain == ArithmeticDomain::Exact
-        && source_type != PrimitiveType::Addr
+    if source_type != PrimitiveType::Addr
         && target_type != PrimitiveType::Addr
         && let Some(literal) = retag_exact_integer_literal(&operand, target_type)
     {
@@ -167,10 +166,9 @@ pub(crate) fn construct_integer_cast(
             cast.domain,
         ));
     }
-    if cast.domain == ArithmeticDomain::Exact
-        && let Some(fact) = exact_integer_casts
-            .iter()
-            .find(|fact| fact.expression == expression)
+    if let Some(fact) = exact_integer_casts
+        .iter()
+        .find(|fact| fact.expression == expression)
         && fact.source_type == source_type
         && fact.target_type == target_type
     {
@@ -183,49 +181,6 @@ pub(crate) fn construct_integer_cast(
                     maximum: fact.maximum.clone(),
                 },
                 formation_decided: true,
-            },
-            cast.domain,
-        ));
-    }
-    if cast.domain == ArithmeticDomain::Wrapping
-        && is_integer(source_type)
-        && source_type != PrimitiveType::Addr
-        && target_type != PrimitiveType::Addr
-    {
-        return Some((
-            CheckedScalarExpression::IntegerWrappingCast {
-                primitive_type: target_type,
-                operand: Box::new(operand),
-            },
-            cast.domain,
-        ));
-    }
-    if cast.domain == ArithmeticDomain::Trapping
-        && is_integer(source_type)
-        && target_type != PrimitiveType::Addr
-    {
-        return Some((
-            CheckedScalarExpression::IntegerTrappingCast {
-                primitive_type: target_type,
-                operand: Box::new(operand),
-            },
-            cast.domain,
-        ));
-    }
-    // A saturating conversion composes for every fixed-integer pair: the
-    // clamp is spelled with total arithmetic on the source carrier and the
-    // lowered stage routes the clamped value through the wrapping
-    // conversion's mask-and-halves crossing, whose exact casts carry their
-    // own bound evidence.
-    if cast.domain == ArithmeticDomain::Saturating
-        && is_integer(source_type)
-        && source_type != PrimitiveType::Addr
-        && target_type != PrimitiveType::Addr
-    {
-        return Some((
-            CheckedScalarExpression::IntegerSaturatingCast {
-                primitive_type: target_type,
-                operand: Box::new(operand),
             },
             cast.domain,
         ));

@@ -20,6 +20,7 @@
 module compose;
 
 use digest;
+use omega::language::core::numeric_conversion;
 
 pub data Compose {
     ok: bool;
@@ -221,7 +222,7 @@ machine Compose::ru32(compose: &mut Compose) {
     compose.acc = compose.acc + ((compose.b8 as u64 in Wrapping) << 16);
     Compose::rd(compose);
     compose.acc = compose.acc + ((compose.b8 as u64 in Wrapping) << 24);
-    compose.w32 = (compose.acc as u32 in Wrapping) as u32;
+    compose.w32 = narrow_u64_to_u32_wrapping(compose.acc as u64);
     transition { _ -> done() }
     state done() {
     }
@@ -472,13 +473,13 @@ machine Compose::emit_u8(compose: &mut Compose) {
 
 machine Compose::emit_u32(compose: &mut Compose) {
     compose.acc = (compose.w32 as u64 in Wrapping);
-    compose.w8 = (compose.acc as u8 in Wrapping) as u8;
+    compose.w8 = narrow_u64_to_u8_wrapping(compose.acc as u64);
     Compose::emit_u8(compose);
-    compose.w8 = ((compose.acc >> 8) as u8 in Wrapping) as u8;
+    compose.w8 = narrow_u64_to_u8_wrapping((compose.acc >> 8) as u64);
     Compose::emit_u8(compose);
-    compose.w8 = ((compose.acc >> 16) as u8 in Wrapping) as u8;
+    compose.w8 = narrow_u64_to_u8_wrapping((compose.acc >> 16) as u64);
     Compose::emit_u8(compose);
-    compose.w8 = ((compose.acc >> 24) as u8 in Wrapping) as u8;
+    compose.w8 = narrow_u64_to_u8_wrapping((compose.acc >> 24) as u64);
     Compose::emit_u8(compose);
     transition { _ -> done() }
     state done() {
@@ -2193,7 +2194,7 @@ machine Compose::decode_meta(compose: &mut Compose) {
         }
     }
     state did_len_w(compose: &mut Compose) {
-        compose.dig.msg[compose.h1] = (compose.acc as u8 in Wrapping) as u8;
+        compose.dig.msg[compose.h1] = narrow_u64_to_u8_wrapping(compose.acc as u64);
         compose.acc = compose.acc >> 8;
         compose.k = compose.k + 1;
         transition { _ -> did_len_l(compose) }
@@ -3428,7 +3429,7 @@ machine Compose::eval_all(compose: &mut Compose) {
         }
     }
     state rec_bp_w(compose: &mut Compose) {
-        compose.pol_wit[compose.h1] = (compose.path[compose.h2] as u8 in Wrapping) as u8;
+        compose.pol_wit[compose.h1] = narrow_u64_to_u8_wrapping(compose.path[compose.h2] as u64);
         compose.k = compose.k + 1;
         transition { _ -> rec_bp_loop(compose) }
     }
@@ -3482,7 +3483,7 @@ machine Compose::eval_all(compose: &mut Compose) {
         }
     }
     state nr_pw(compose: &mut Compose) {
-        compose.pol_reach[compose.h3] = (compose.h2 as u8 in Wrapping) as u8;
+        compose.pol_reach[compose.h3] = narrow_u64_to_u8_wrapping(compose.h2 as u64);
         compose.pol_reach_n[compose.h0] = compose.pol_reach_n[compose.h0] + 1;
         transition { _ -> nr_rn(compose) }
     }
@@ -3553,7 +3554,7 @@ machine Compose::eval_all(compose: &mut Compose) {
         }
     }
     state ov_cp_w(compose: &mut Compose) {
-        compose.pol_wit[compose.h1] = (compose.path[compose.h2] as u8 in Wrapping) as u8;
+        compose.pol_wit[compose.h1] = narrow_u64_to_u8_wrapping(compose.path[compose.h2] as u64);
         compose.k = compose.k + 1;
         transition { _ -> ov_cp(compose) }
     }
@@ -3654,7 +3655,7 @@ machine Compose::emit_name(compose: &mut Compose) {
         _ -> bad(compose)
     }
     state len(compose: &mut Compose) {
-        compose.w32 = (compose.name_len[compose.h0] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.name_len[compose.h0] as u64);
         Compose::emit_u32(compose);
         compose.k = 0;
         transition compose.h0 < 8 {
@@ -3778,7 +3779,7 @@ machine Compose::emit_inst(compose: &mut Compose) {
         }
     }
     state asm_n(compose: &mut Compose) {
-        compose.w32 = (compose.inst_asm_n[compose.h0] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.inst_asm_n[compose.h0] as u64);
         Compose::emit_u32(compose);
         compose.j = 0;
         transition { _ -> asm_loop(compose) }
@@ -3805,7 +3806,7 @@ machine Compose::emit_inst(compose: &mut Compose) {
         }
     }
     state ep_n(compose: &mut Compose) {
-        compose.w32 = (compose.ep_n[compose.h0] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.ep_n[compose.h0] as u64);
         Compose::emit_u32(compose);
         compose.j = 0;
         transition compose.h0 < 8 {
@@ -3827,7 +3828,7 @@ machine Compose::emit_inst(compose: &mut Compose) {
         }
     }
     state ep_sw(compose: &mut Compose) {
-        compose.w32 = (compose.ep_slot[compose.h1] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.ep_slot[compose.h1] as u64);
         Compose::emit_u32(compose);
         compose.w8 = compose.ep_dir[compose.h1];
         Compose::emit_u8(compose);
@@ -3863,22 +3864,22 @@ machine Compose::emit_bind(compose: &mut Compose) {
         _ -> bad(compose)
     }
     state e1(compose: &mut Compose) {
-        compose.w32 = (compose.b_ii[compose.h0] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.b_ii[compose.h0] as u64);
         Compose::emit_u32(compose);
         transition { _ -> e2(compose) }
     }
     state e2(compose: &mut Compose) {
-        compose.w32 = (compose.b_is[compose.h0] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.b_is[compose.h0] as u64);
         Compose::emit_u32(compose);
         transition { _ -> e3(compose) }
     }
     state e3(compose: &mut Compose) {
-        compose.w32 = (compose.b_ei[compose.h0] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.b_ei[compose.h0] as u64);
         Compose::emit_u32(compose);
         transition { _ -> e4(compose) }
     }
     state e4(compose: &mut Compose) {
-        compose.w32 = (compose.b_es[compose.h0] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.b_es[compose.h0] as u64);
         Compose::emit_u32(compose);
         transition { _ -> etr(compose) }
     }
@@ -3941,7 +3942,7 @@ machine Compose::emit_pol(compose: &mut Compose) {
         }
     }
     state nr_cert2(compose: &mut Compose) {
-        compose.w32 = (compose.pol_reach_n[compose.h0] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.pol_reach_n[compose.h0] as u64);
         Compose::emit_u32(compose);
         compose.k = 0;
         transition { _ -> nr_cl(compose) }
@@ -3967,7 +3968,7 @@ machine Compose::emit_pol(compose: &mut Compose) {
     }
     // only_via certificate: indices{path} + indices{reachable}
     state ov_cert(compose: &mut Compose) {
-        compose.w32 = (compose.pol_wit_n[compose.h0] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.pol_wit_n[compose.h0] as u64);
         Compose::emit_u32(compose);
         compose.k = 0;
         transition { _ -> ov_pl(compose) }
@@ -4009,7 +4010,7 @@ machine Compose::emit_pol(compose: &mut Compose) {
     state bp(compose: &mut Compose) {
         compose.w8 = 1;
         Compose::emit_u8(compose);
-        compose.w32 = (compose.pol_wit_n[compose.h0] as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.pol_wit_n[compose.h0] as u64);
         Compose::emit_u32(compose);
         compose.k = 0;
         transition { _ -> bp_l(compose) }
@@ -4170,7 +4171,7 @@ machine Compose::emit_all(compose: &mut Compose) {
     compose.src = 0;
     compose.h0 = 0;
     Compose::emit_ident(compose);
-    compose.w32 = (compose.n_inst as u32 in Wrapping) as u32;
+    compose.w32 = narrow_u64_to_u32_wrapping(compose.n_inst as u64);
     Compose::emit_u32(compose);
     compose.i = 0;
     transition { _ -> insts(compose) }
@@ -4187,7 +4188,7 @@ machine Compose::emit_all(compose: &mut Compose) {
         transition { _ -> insts(compose) }
     }
     state binds(compose: &mut Compose) {
-        compose.w32 = (compose.n_bind as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.n_bind as u64);
         Compose::emit_u32(compose);
         compose.i = 0;
         transition { _ -> binds_l(compose) }
@@ -4205,7 +4206,7 @@ machine Compose::emit_all(compose: &mut Compose) {
         transition { _ -> binds_l(compose) }
     }
     state pols(compose: &mut Compose) {
-        compose.w32 = (compose.n_pol as u32 in Wrapping) as u32;
+        compose.w32 = narrow_u64_to_u32_wrapping(compose.n_pol as u64);
         Compose::emit_u32(compose);
         compose.i = 0;
         transition { _ -> pols_l(compose) }
@@ -4255,7 +4256,7 @@ machine Compose::publish(compose: &mut Compose, source: &BuildSource, output: &m
         }
     }
     state store_req(compose: &mut Compose, count: i64, source: &BuildSource, output: &mut BuildOutput, log: &mut BuildLog, descriptor: i32) {
-        compose.req_n = count as u64 in Wrapping;
+        compose.req_n = narrow_i64_to_u64_wrapping(count) as u64 in Wrapping;
         let meta_path: BuildPath = source.resolve("inputs/components.bin");
         let meta_fd: i32 = source.open(meta_path, 0);
         transition meta_fd >= 0 {
@@ -4272,7 +4273,7 @@ machine Compose::publish(compose: &mut Compose, source: &BuildSource, output: &m
         }
     }
     state store_meta(compose: &mut Compose, count: i64, source: &BuildSource, output: &mut BuildOutput, log: &mut BuildLog, descriptor: i32) {
-        compose.meta_n = count as u64 in Wrapping;
+        compose.meta_n = narrow_i64_to_u64_wrapping(count) as u64 in Wrapping;
         let bind_path: BuildPath = source.resolve("inputs/bindings.bin");
         let bind_fd: i32 = source.open(bind_path, 0);
         transition bind_fd >= 0 {
@@ -4289,7 +4290,7 @@ machine Compose::publish(compose: &mut Compose, source: &BuildSource, output: &m
         }
     }
     state store_bind(compose: &mut Compose, count: i64, log: &mut BuildLog, output: &mut BuildOutput, descriptor: i32) {
-        compose.bind_n = count as u64 in Wrapping;
+        compose.bind_n = narrow_i64_to_u64_wrapping(count) as u64 in Wrapping;
         // request_commitment = sha256(request bytes)
         compose.dig.msg_n = compose.req_n;
         compose.i = 0;

@@ -5,8 +5,8 @@
 // the low bits as two's complement (128 -> -128, 255 -> -1); Saturating
 // caps at the signed maximum and never produces a negative result.
 // `literal_checks` passes constants, `runtime_checks` reads the
-// boundaries through a borrowed record, and `direct_casts` covers the
-// policy-cast intrinsic both folded and on loaded operands.
+// boundaries through a borrowed record, and `named_conversion_checks` checks conversions
+// on typed literals and on loaded operands.
 //
 // Exit 0 when every result holds; a wrong result executes `crash Trap;`.
 // `main` takes no arguments and reaches no service, so the Terminal
@@ -110,12 +110,12 @@ machine runtime_checks(inputs: &Inputs) -> bool {
     held_r10
 }
 
-machine direct_casts(inputs: &Inputs) -> bool {
-    let d1: i8 = (200u8 as i8 in Wrapping) as i8;
+machine named_conversion_checks(inputs: &Inputs) -> bool {
+    let d1: i8 = narrow_u8_to_i8_wrapping(200u8);
     let held_d1: bool = d1 == -56;
-    let d2: i16 = (32767u32 as i16 in Trapping) as i16;
+    let d2: i16 = narrow_u32_to_i16_trapping(32767u32);
     let held_d2: bool = also(held_d1, d2 == 32767);
-    let d3: i32 = (inputs.max_u32 as i32 in Wrapping) as i32;
+    let d3: i32 = narrow_u32_to_i32_wrapping(inputs.max_u32);
     let held_d3: bool = also(held_d2, d3 == -1);
     held_d3
 }
@@ -131,8 +131,8 @@ machine main() crashes Trap {
     };
     let literal_checks_held: bool = literal_checks();
     let runtime_checks_held: bool = runtime_checks(&inputs);
-    let direct_casts_held: bool = direct_casts(&inputs);
-    transition literal_checks_held && runtime_checks_held && direct_casts_held {
+    let named_conversion_checks_held: bool = named_conversion_checks(&inputs);
+    transition literal_checks_held && runtime_checks_held && named_conversion_checks_held {
         true -> passed()
         _ -> failed()
     }

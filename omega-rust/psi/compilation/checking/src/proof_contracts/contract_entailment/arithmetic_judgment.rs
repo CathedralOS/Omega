@@ -248,7 +248,6 @@ pub(super) struct Engine<'program> {
     /// Only the exact-meaning call adapter licenses widening while capturing
     /// actuals. Other strict readers (ranges and saved locals) have not checked
     /// operand arithmetic and must retain their existing cast refusal.
-    exact_argument_widening: bool,
     /// The synthetic guarantee `result` has no resolved symbol. A scoped
     /// roster may bind it to the exact term an exit returns; without a
     /// binding the name stays outside a strict engine's language.
@@ -320,7 +319,6 @@ impl<'program> Engine<'program> {
             parameter_atoms,
             strict_symbol_bindings: None,
             strict_symbol_bindings_valid: true,
-            exact_argument_widening: false,
             strict_result_binding: None,
             strict_projections: Vec::new(),
             proof_integer_formation: false,
@@ -519,7 +517,6 @@ impl<'program> Engine<'program> {
             parameter_atoms: Vec::new(),
             strict_symbol_bindings: Some(bindings),
             strict_symbol_bindings_valid: true,
-            exact_argument_widening: false,
             strict_result_binding: None,
             strict_projections: Vec::new(),
             proof_integer_formation: true,
@@ -1170,31 +1167,31 @@ impl<'program> Engine<'program> {
                 // conversion preserves the already-proven mathematical value.
                 self.normalize(cast.value)
             }
-            ExpressionNode::Cast(cast) if self.strict_integer_widen(&cast) => {
-                // A total fixed-integer widening has the same mathematical
-                // value. Keep operand normalization in its original namespace;
-                // the caller's meaning/capture checks still own admissibility.
+            ExpressionNode::Cast(cast) if self.value_preserving_integer_cast(&cast) => {
+                // Formation checks independently prove carrier fit before a
+                // proposition is admitted. Every authored integer coercion
+                // then denotes its operand, regardless of the result policy.
+                // Child normalization still owns captured value identity and
+                // the selected arithmetic semantics; this does not erase the
+                // wrapping or saturation of an operation beneath the cast.
                 self.normalize(cast.value)
             }
             _ => None,
         }
     }
 
-    fn strict_integer_widen(&self, cast: &typed_trees::expression::TableCastExpression) -> bool {
-        if self.strict_symbol_bindings.is_none()
-            || !self.exact_argument_widening
-            || self.proof_integer_formation
-            || !crate::proof_contracts::arithmetic_domains::unannotated_exact_cast(cast)
-        {
+    fn value_preserving_integer_cast(
+        &self,
+        cast: &typed_trees::expression::TableCastExpression,
+    ) -> bool {
+        if cast.form.is_recast() || self.proof_integer_formation {
             return false;
         }
-        let Some(target) =
-            crate::value_custody::recasts::exact_primitive_type(self.program, cast.target_type)
-        else {
-            return false;
-        };
-        crate::proof_contracts::proof_embeddings::integer_embedding(self.program, cast.value)
-            .is_some_and(|source| crate::integer_widen_is_total(source.primitive, target))
+        self.program
+            .primitive_type_reference(cast.target_type)
+            .is_some_and(|target| target.is_fixed_integer())
+            && crate::proof_contracts::proof_embeddings::integer_embedding(self.program, cast.value)
+                .is_some_and(|source| source.primitive.is_fixed_integer())
     }
 
     fn normalize_integer_embedding(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {

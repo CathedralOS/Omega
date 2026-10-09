@@ -75,11 +75,22 @@ pub fn visit_post_order(
     visited: &mut Vec<ExpressionHandle>,
     mut arm: impl FnMut(&ExpressionNode),
 ) {
+    visit_post_order_with_handles(program, root, visited, |_, node| arm(node));
+}
+
+/// Preserve occurrence identity for checks that consume selected declarations
+/// or result types. This is the same postorder as the node-only convenience API.
+pub fn visit_post_order_with_handles(
+    program: &dyn crate::CheckingInput,
+    root: ExpressionHandle,
+    visited: &mut Vec<ExpressionHandle>,
+    mut arm: impl FnMut(ExpressionHandle, &ExpressionNode),
+) {
     fn inner(
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         visited: &mut Vec<ExpressionHandle>,
-        arm: &mut dyn FnMut(&ExpressionNode),
+        arm: &mut dyn FnMut(ExpressionHandle, &ExpressionNode),
     ) {
         if !expression.is_valid() || visited.contains(&expression) {
             return;
@@ -87,7 +98,7 @@ pub fn visit_post_order(
         visited.push(expression);
         let node = program.expression_table.expression(expression);
         children(program, node, |child| inner(program, child, visited, arm));
-        arm(node);
+        arm(expression, node);
     }
     inner(program, root, visited, &mut arm);
 }

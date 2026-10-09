@@ -82,13 +82,27 @@ pub(crate) fn float_source_bounds(
     environment: &ValueEnvironment,
     value: ExpressionHandle,
 ) -> Option<FloatSourceBounds> {
-    let reference = state
-        .and_then(|state| {
-            crate::value_custody::expression_types::expression_result_type_reference(
-                program, machine, state, value,
-            )
-        })
-        .or_else(|| declared_place_type_raw(program, machine, state, value));
+    float_source_bounds_with_result_type(program, environment, value, &|value| {
+        state
+            .and_then(|state| {
+                crate::value_custody::expression_types::expression_result_type_reference(
+                    program, machine, state, value,
+                )
+            })
+            .or_else(|| declared_place_type_raw(program, machine, state, value))
+    })
+}
+
+/// The same source enclosure query for a declaration telescope without an
+/// executable state. The callback supplies selected result types only; live
+/// facts, literals and sealed format conversions keep their ordinary owner.
+pub(crate) fn float_source_bounds_with_result_type(
+    program: &dyn crate::CheckingInput,
+    environment: &ValueEnvironment,
+    value: ExpressionHandle,
+    result_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
+) -> Option<FloatSourceBounds> {
+    let reference = result_type(value);
     let primitive = reference
         .and_then(|reference| program.primitive_type_reference(reference))
         .filter(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))?;
@@ -97,7 +111,7 @@ pub(crate) fn float_source_bounds(
     let (flow, non_nan) = place_path(program, value)
         .map(|path| environment.float_fact(&path))
         .unwrap_or((FloatInterval::UNBOUNDED, false));
-    let converted = selected_format_conversion_bounds(program, machine, state, environment, value);
+    let converted = selected_format_conversion_bounds(program, environment, value, result_type);
     let range = if let Some(value) = float_literal_value(program, value) {
         if value.is_nan() {
             return None;
@@ -127,10 +141,9 @@ pub(crate) fn float_source_bounds(
 /// endpoint images enclose every result; no target predicate supplies a bound.
 fn selected_format_conversion_bounds(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
+    result_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> Option<FloatInterval> {
     let call = program.expression_table.call_node(expression)?;
     let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
@@ -138,7 +151,7 @@ fn selected_format_conversion_bounds(
     let [operand] = program.expression_table.expression_handles(call.arguments) else {
         return None;
     };
-    let bounds = float_source_bounds(program, machine, state, environment, *operand)?;
+    let bounds = float_source_bounds_with_result_type(program, environment, *operand, result_type)?;
     if bounds.primitive != source {
         return None;
     }
@@ -253,4 +266,56 @@ pub(crate) fn float_bound_from(
         },
         _ => return None,
     })
+}
+
+/// Record a positively established IEEE comparison. The caller owns selected
+/// builtin/sealed comparison meaning. Source place types and live facts remain
+/// independent from the cast target, and negated comparisons do not enter this
+/// operation because NaN prevents complementary ordered conclusions.
+pub(super) fn record_float_comparison_bounds(
+    program: &dyn crate::CheckingInput,
+    environment: &mut ValueEnvironment,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+    place_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
+) -> bool {
+    if comparison.operator == BinaryOperator::Equal
+        && let (Some(left), Some(right)) = (
+            place_path(program, comparison.left),
+            place_path(program, comparison.right),
+        )
+        && left == right
+        && place_type(comparison.left).is_some_and(|handle| {
+            matches!(
+                program.primitive_type_reference(handle),
+                Some(PrimitiveType::F32 | PrimitiveType::F64)
+            )
+        })
+    {
+        environment.mark_non_nan(left);
+        return true;
+    }
+    let float_sides = if let Some(literal) = float_literal_value(program, comparison.right) {
+        Some((comparison.left, literal, true))
+    } else {
+        float_literal_value(program, comparison.left)
+            .map(|literal| (comparison.right, literal, false))
+    };
+    if let Some((place_expression, literal, name_on_left)) = float_sides
+        && literal.is_finite()
+        && let Some(handle) = place_type(place_expression)
+        && matches!(
+            program.primitive_type_reference(handle),
+            Some(PrimitiveType::F32 | PrimitiveType::F64)
+        )
+        && let Some(name) = place_path(program, place_expression)
+        && let Some(mut interval) = float_bound_from(comparison.operator, literal, name_on_left)
+    {
+        if let Some(declared) = float_range_constraint_interval(program, handle) {
+            interval = interval.intersect(declared);
+        }
+        environment.narrow_float(name.clone(), interval);
+        environment.mark_non_nan(name);
+        return true;
+    }
+    false
 }

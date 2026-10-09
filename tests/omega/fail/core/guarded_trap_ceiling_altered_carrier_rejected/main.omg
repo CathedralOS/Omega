@@ -1,14 +1,18 @@
-// The ceiling `input > 255u16` is exact for a u8 target, but this conversion's
-// carrier is i8: inputs 128 through 255 trap without a declared route. The
-// crash predicate belongs to the conversion's actual target carrier. The
-// caller's argument disproves the route, so the conversion site inside
-// `narrow` is the only undischarged obligation.
+// The i8 conversion rejects inputs above 127, but the declared Trap ceiling
+// only names inputs above 255. The explicit invalid branch must remain
+// uncovered even though this caller supplies an in-range value.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 machine narrow(input: u16) -> i8
 crashes Trap input > 255u16 {
-    (input as i8 in Trapping) as i8
+    transition input > 127u16 {
+        true -> invalid(input)
+        _ -> (input as i8)
+    }
+    state invalid(input: u16) -> i8
+    requires input > 127u16
+    { crash Trap; }
 }
 
 data Main { console: Binding<Console>; }

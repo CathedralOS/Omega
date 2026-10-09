@@ -14,6 +14,8 @@
 
 module digest;
 
+use omega::language::core::numeric_conversion;
+
 pub data Sha256 {
     bad: bool;
     h: [u32 in Wrapping; 8];
@@ -364,7 +366,7 @@ machine Sha256::digest(sha256: &mut Sha256) {
         }
     }
     state apply_l(sha256: &mut Sha256) {
-        sha256.tail[sha256.q0] = ((sha256.bit_len >> sha256.q2) as u8 in Wrapping) as u8;
+        sha256.tail[sha256.q0] = narrow_u64_to_u8_wrapping((sha256.bit_len >> sha256.q2) as u64);
         sha256.i = sha256.i + 1;
         transition { _ -> write_len_loop(sha256) }
     }
@@ -448,10 +450,10 @@ machine Sha256::digest(sha256: &mut Sha256) {
     }
     state apply_o(sha256: &mut Sha256) {
         let word: u32 in Wrapping = sha256.h[sha256.w0];
-        sha256.out32[sha256.o0] = ((word >> 24) as u8 in Wrapping) as u8;
-        sha256.out32[sha256.o1] = ((word >> 16) as u8 in Wrapping) as u8;
-        sha256.out32[sha256.o2] = ((word >> 8) as u8 in Wrapping) as u8;
-        sha256.out32[sha256.o3] = (word as u8 in Wrapping) as u8;
+        sha256.out32[sha256.o0] = narrow_u32_to_u8_wrapping((word >> 24) as u32);
+        sha256.out32[sha256.o1] = narrow_u32_to_u8_wrapping((word >> 16) as u32);
+        sha256.out32[sha256.o2] = narrow_u32_to_u8_wrapping((word >> 8) as u32);
+        sha256.out32[sha256.o3] = narrow_u32_to_u8_wrapping(word as u32);
         sha256.i = sha256.i + 1;
         transition { _ -> write_loop(sha256) }
     }

@@ -1,16 +1,37 @@
-// Each Trapping conversion is its own site with its own operand. The ceiling
-// covers the conversion of `low` but not the conversion of `high`, so the
-// second site's trap is uncovered even though both predicates have the same
-// shape. The caller's arguments disprove the route, so the uncovered site
-// inside `pack` is the only undischarged obligation.
+// Independent input guards produce independent crash sites. The ceiling
+// covers invalid `low`, but cannot cover invalid `high`. Exact coercions on
+// the successful path do not introduce any implicit crash behavior.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 machine pack(low: u16, high: u16) -> u16
 crashes Trap low > 255u16 {
-    let low_byte: u8 = (low as u8 in Trapping) as u8;
-    let high_byte: u8 = (high as u8 in Trapping) as u8;
-    (low_byte as u16) + (high_byte as u16)
+    transition low > 255u16 {
+        true -> invalid_low(low, high)
+        _ -> check_high(low, high)
+    }
+
+    state check_high(low: u16, high: u16) -> u16
+    requires low <= 255u16
+    {
+        transition high > 255u16 {
+            true -> invalid_high(low, high)
+            _ -> exact(low, high)
+        }
+    }
+    state exact(low: u16, high: u16) -> u16
+    requires low <= 255u16, high <= 255u16
+    {
+        let low_byte: u8 = low as u8;
+        let high_byte: u8 = high as u8;
+        (low_byte as u16) + (high_byte as u16)
+    }
+    state invalid_low(low: u16, high: u16) -> u16
+    requires low > 255u16
+    { crash Trap; }
+    state invalid_high(low: u16, high: u16) -> u16
+    requires high > 255u16
+    { crash Trap; }
 }
 
 data Main { console: Binding<Console>; }

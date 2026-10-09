@@ -1,20 +1,12 @@
-// The Trapping conversion intrinsic is its own trap site. The library
-// surface stops earlier, in its guard shift, so this calls the intrinsic
-// directly: i16 -1 is below u8's range and must trap at the conversion. The
-// two published routes cover exactly the primitive's predicate.
-data Inputs { source: i16; }
+// The named conversion rejects a negative signed source before producing a
+// u8 result. Both engines must trap rather than wrap -1 to 255.
+use omega::language::core::numeric_conversion;
 
-machine narrow(input: i16) -> u8
-crashes Trap
-    input < 0i16
-    input > 255i16
-{
-    (input as u8 in Trapping) as u8
-}
+data Inputs { source: i16; }
 
 machine main() {
     let inputs: Inputs = Inputs { source: -1 };
-    let converted: u8 = narrow(inputs.source);
+    let converted: u8 = narrow_i16_to_u8_trapping(inputs.source);
     transition converted == 255 {
         true -> wrapped()
         _ -> other()

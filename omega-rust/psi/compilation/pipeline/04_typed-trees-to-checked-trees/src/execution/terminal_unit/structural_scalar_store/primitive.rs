@@ -565,9 +565,7 @@ fn scalar_expression_needs_no_bindings(
         CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
-        | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
-        | CheckedScalarExpression::RepresentationView { operand, .. }
-        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
+        | CheckedScalarExpression::RepresentationView { operand, .. } => {
             scalar_expression_needs_no_bindings(operand)
         }
         CheckedScalarExpression::Boolean(expression) => {
@@ -577,8 +575,7 @@ fn scalar_expression_needs_no_bindings(
         | CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
-        | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
-        | CheckedScalarExpression::IntegerTrappingCast { .. } => false,
+        | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
     }
 }
 

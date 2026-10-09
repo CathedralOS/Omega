@@ -25,7 +25,6 @@ mod snapshots;
 pub(crate) use evaluation::evaluate as evaluate_checked_scalar;
 pub(crate) use evaluation::{
     BoundScalarValues, ScalarValueSource, admitted_integer, integer_magnitude, integer_type,
-    wrapping_cast_value,
 };
 pub(crate) use snapshots::{
     AssignmentObservation, PlaceScalarValues, integer_bounds_at_place,

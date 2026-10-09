@@ -13,6 +13,7 @@
 // caller parameter (here `main: &mut Main`).
 use omega_language_std::console;
 use omega::language::core::binding;
+use omega::language::core::numeric_conversion;
 
 pub data CellSource {}
 
@@ -24,9 +25,9 @@ machine CellSourceProvider::read_impl<'a>(source: &'a [u8]) -> i32
 satisfies CellSource::read
 {
     // `source.len` is an arbitrary-slice u64 byte count, so the narrowing
-    // spells its policy: a modular image at u16 (an unsigned narrowing), then
-    // a total widening re-tag to the requirement's Exact i32.
-    transition { _ -> ((source.len as u16 in Wrapping) as i32) }
+    // uses the named modular conversion at u16, followed by exact widening
+    // to the requirement's i32 result.
+    transition { _ -> (narrow_u64_to_u16_wrapping(source.len) as i32) }
 }
 
 data Main {

@@ -129,9 +129,6 @@ fn scalar(
         }
         Expression::IntegerBitwiseNot { operand, .. }
         | Expression::IntegerWiden { operand, .. }
-        | Expression::IntegerWrappingCast { operand, .. }
-        | Expression::IntegerSaturatingCast { operand, .. }
-        | Expression::IntegerTrappingCast { operand, .. }
         | Expression::RepresentationView { operand, .. } => scalar(operand, parameters, depth + 1),
         Expression::IntegerExactCast { operand, range, .. } => {
             if range.minimum.is_empty() || range.maximum.is_empty() {

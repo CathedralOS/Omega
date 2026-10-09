@@ -46,6 +46,72 @@ pub(crate) fn validate_exact_float_coercion(
     let Some(target) = program.primitive_type_reference(target) else {
         return true;
     };
+    let proven = float_coercion_preserves_denotation(
+        source,
+        target,
+        || {
+            crate::proof_contracts::arithmetic_domains::float_source_bounds(
+                program,
+                machine,
+                Some(state),
+                environment,
+                operand,
+            )
+        },
+        || {
+            crate::proof_contracts::arithmetic_domains::integer_source_bounds(
+                program,
+                machine,
+                state,
+                operand,
+                source,
+                environment,
+                diagnostics,
+            )
+        },
+    );
+    let Some(proven) = proven else {
+        return true;
+    };
+    if !proven {
+        let message = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
+            format!(
+                "machine `{}` state `{}` cannot prove Exact float-to-`{}` cast operand `{}` \
+                 preserves its denotation; prove an integral representable value for an integer \
+                 target, or exact format representability; use a named conversion to round or truncate",
+                machine.name,
+                state.name,
+                target.name(),
+                program.expression_table.display_name(operand),
+            )
+        } else {
+            format!(
+                "machine `{}` state `{}` cannot prove integer-to-`{}` cast operand `{}` \
+                 preserves its denotation; prove exact format representability or use a named conversion to round",
+                machine.name,
+                state.name,
+                target.name(),
+                program.expression_table.display_name(operand),
+            )
+        };
+        diagnostics.push(
+            Diagnostic::error(message)
+                .with_source_span(program.expression_table.source_span(operand)),
+        );
+    }
+    proven
+}
+
+/// The exact numeric judgment is independent of the declaration that supplies
+/// source evidence. Concrete execution and abstract specification owners provide
+/// their existing bounds queries. `None` means neither side is a float coercion;
+/// it does not discharge another carrier's formation obligation.
+pub(crate) fn float_coercion_preserves_denotation(
+    source: PrimitiveType,
+    target: PrimitiveType,
+    float_bounds: impl FnOnce() -> Option<crate::proof_contracts::arithmetic_domains::FloatSourceBounds>,
+    integer_bounds: impl FnOnce() -> Option<(i128, i128)>,
+) -> Option<bool> {
     if numerics::float_semantics_catalog::IntegerCarrier::from_spelling(source.name()).is_some()
         && matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
     {
@@ -54,16 +120,7 @@ pub(crate) fn validate_exact_float_coercion(
         } else {
             FloatFormat::BINARY64
         };
-        let proven = crate::proof_contracts::arithmetic_domains::integer_source_bounds(
-            program,
-            machine,
-            state,
-            operand,
-            source,
-            environment,
-            diagnostics,
-        )
-        .is_some_and(|(minimum, maximum)| {
+        return Some(integer_bounds().is_some_and(|(minimum, maximum)| {
             let exact_limit = 1i128 << format.precision;
             if minimum >= -exact_limit && maximum <= exact_limit {
                 true
@@ -76,33 +133,18 @@ pub(crate) fn validate_exact_float_coercion(
             } else {
                 false
             }
-        });
-        if !proven {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` cannot prove integer-to-`{}` cast operand `{}` \
-                 preserves its denotation; prove exact format representability or use a named conversion to round",
-                machine.name, state.name, target.name(), program.expression_table.display_name(operand),
-            )).with_source_span(program.expression_table.source_span(operand)));
-        }
-        return proven;
+        }));
     }
     if !matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
-        return true;
+        return None;
     }
     if source == target || (source == PrimitiveType::F32 && target == PrimitiveType::F64) {
-        return true;
+        return Some(true);
     }
     if !target.accepts_integer_literal() && target != PrimitiveType::F32 {
-        return true;
+        return None;
     }
-    let bounds = crate::proof_contracts::arithmetic_domains::float_source_bounds(
-        program,
-        machine,
-        Some(state),
-        environment,
-        operand,
-    );
-    let proven = bounds.is_some_and(|bounds| {
+    Some(float_bounds().is_some_and(|bounds| {
         if target.accepts_integer_literal() {
             bounds.is_exact_integer(target)
         } else if bounds.minimum == bounds.maximum {
@@ -111,21 +153,5 @@ pub(crate) fn validate_exact_float_coercion(
         } else {
             false
         }
-    });
-    if proven {
-        return true;
-    }
-    diagnostics.push(
-        Diagnostic::error(format!(
-            "machine `{}` state `{}` cannot prove Exact float-to-`{}` cast operand `{}` \
-             preserves its denotation; prove an integral representable value for an integer \
-             target, or exact format representability; use a named conversion to round or truncate",
-            machine.name,
-            state.name,
-            target.name(),
-            program.expression_table.display_name(operand),
-        ))
-        .with_source_span(program.expression_table.source_span(operand)),
-    );
-    false
+    }))
 }

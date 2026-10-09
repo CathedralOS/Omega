@@ -407,6 +407,20 @@ pub(crate) fn guard_comparison(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<typed_trees::expression::TableBinaryExpression> {
+    guard_comparison_with_operand_types(program, machine.symbol, expression, &|operand| {
+        operand_type(program, machine, state, operand)
+    })
+}
+
+/// Read the same selected comparison inside a declaration telescope. The
+/// source result query replaces executable place context; sealed IEEE identity
+/// and bound-call restrictions remain owned by this operation.
+pub(crate) fn guard_comparison_with_operand_types(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    operand_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
+) -> Option<typed_trees::expression::TableBinaryExpression> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => Some(*binary),
         ExpressionNode::Call(call)
@@ -429,8 +443,17 @@ pub(crate) fn guard_comparison(
                 left: *left,
                 right: *right,
             };
-            sealed_float_comparison(program, machine, state, expression, &comparison)
-                .then_some(comparison)
+            sealed_float_comparison_for_operands(
+                program,
+                owner,
+                expression,
+                comparison.operator,
+                &[
+                    operand_type(comparison.left),
+                    operand_type(comparison.right),
+                ],
+            )
+            .then_some(comparison)
         }
         _ => None,
     }
@@ -914,6 +937,29 @@ fn builtin_arithmetic_node(
     expression: ExpressionHandle,
     binary: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
+    builtin_arithmetic_with_operand_types(
+        program,
+        machine.symbol,
+        expression,
+        &[
+            operand_type(program, machine, state, binary.left),
+            operand_type(program, machine, state, binary.right),
+        ],
+    )
+}
+
+/// Establish the actual builtin arithmetic identity with the selected source
+/// result types supplied by an executable or abstract declaration owner. A
+/// matching token and arithmetic qualification alone confer no builtin law.
+pub(crate) fn builtin_arithmetic_with_operand_types(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> bool {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
     // Anonymous operands have exact rational meaning, not unknown carriers
     // which visible primitive overloads may select. Establish that meaning
     // from both operand results and the root's retained authored selections;
@@ -931,13 +977,10 @@ fn builtin_arithmetic_node(
     };
     typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,
-        machine.symbol,
+        owner,
         expression,
         spelling,
-        &[
-            operand_type(program, machine, state, binary.left),
-            operand_type(program, machine, state, binary.right),
-        ],
+        operand_types,
     )
 }
 
@@ -950,15 +993,32 @@ pub(super) fn folded_constant_is_builtin(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    constant_subtree_meaning(program, machine, state, expression, 0).unwrap_or(true)
+    folded_constant_has_builtin_meaning(program, expression, &|expression| {
+        program
+            .expression_table
+            .binary_node(expression)
+            .is_some_and(|binary| {
+                builtin_arithmetic_node(program, machine, state, expression, binary)
+            })
+    })
+}
+
+/// Constant evaluation follows syntax; a selected declaration may assign a
+/// different meaning to that syntax. Both declaration owners use this existing
+/// subtree test before reading a folded integer as source evidence.
+pub(crate) fn folded_constant_has_builtin_meaning(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    builtin_arithmetic: &dyn Fn(ExpressionHandle) -> bool,
+) -> bool {
+    constant_subtree_meaning(program, expression, 0, builtin_arithmetic).unwrap_or(true)
 }
 
 fn constant_subtree_meaning(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
     expression: ExpressionHandle,
     depth: usize,
+    builtin_arithmetic: &dyn Fn(ExpressionHandle) -> bool,
 ) -> Option<bool> {
     if depth >= 128 {
         return Some(false);
@@ -966,15 +1026,14 @@ fn constant_subtree_meaning(
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => Some(true),
         ExpressionNode::Borrow(borrow) => {
-            constant_subtree_meaning(program, machine, state, borrow.target, depth + 1)
+            constant_subtree_meaning(program, borrow.target, depth + 1, builtin_arithmetic)
         }
         ExpressionNode::Binary(binary) => {
-            let left = constant_subtree_meaning(program, machine, state, binary.left, depth + 1)?;
-            let right = constant_subtree_meaning(program, machine, state, binary.right, depth + 1)?;
-            Some(
-                left && right
-                    && builtin_arithmetic_node(program, machine, state, expression, binary),
-            )
+            let left =
+                constant_subtree_meaning(program, binary.left, depth + 1, builtin_arithmetic)?;
+            let right =
+                constant_subtree_meaning(program, binary.right, depth + 1, builtin_arithmetic)?;
+            Some(left && right && builtin_arithmetic(expression))
         }
         _ => None,
     }

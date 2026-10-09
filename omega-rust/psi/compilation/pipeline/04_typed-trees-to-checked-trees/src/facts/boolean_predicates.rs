@@ -52,8 +52,7 @@ pub(crate) fn entry_expression(
 ) -> Option<Boolean> {
     let mut expression = predicate.expression.clone();
     map_observations(&mut expression, &mut |operand| {
-        let binding = predicate
-            .binding(&operand)?;
+        let binding = predicate.binding(&operand)?;
         let (position, path) = super::crash_entry_values::entry_parameter_place(
             program,
             machine,
@@ -491,8 +490,7 @@ fn normalize(predicates: &[BoundPredicate]) -> Option<(Vec<Boolean>, Vec<Observa
         .map(|predicate| {
             let mut expression = predicate.expression.clone();
             map_observations(&mut expression, &mut |operand| {
-                let binding = predicate
-                    .binding(&operand)?;
+                let binding = predicate.binding(&operand)?;
                 let primitive_type = operand.primitive_type()?;
                 let key = (binding.place.clone(), primitive_type);
                 let position = observations
@@ -644,8 +642,7 @@ pub(crate) fn fold(
 ) -> Option<BoundPredicate> {
     let mut result = predicate.clone();
     map_observations(&mut result.expression, &mut |operand| {
-        let binding = predicate
-            .binding(&operand)?;
+        let binding = predicate.binding(&operand)?;
         if let Some(ScalarValue::Boolean(value)) = resolve(&binding.place)
             && operand.primitive_type() == Some(PrimitiveType::Bool)
         {
@@ -839,9 +836,6 @@ pub(crate) fn map_scalar(
         Scalar::IntegerBitwiseNot { operand, .. }
         | Scalar::IntegerWiden { operand, .. }
         | Scalar::IntegerExactCast { operand, .. }
-        | Scalar::IntegerWrappingCast { operand, .. }
-        | Scalar::IntegerSaturatingCast { operand, .. }
-        | Scalar::IntegerTrappingCast { operand, .. }
         | Scalar::RepresentationView { operand, .. } => map_scalar(operand, map)?,
         Scalar::IntegerLiteral { .. }
         | Scalar::IeeeFloatLiteral { .. }

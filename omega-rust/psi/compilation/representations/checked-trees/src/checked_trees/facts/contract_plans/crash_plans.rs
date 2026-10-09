@@ -225,9 +225,7 @@ impl CrashPlan {
                 }
                 crate::CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
                 | crate::CheckedScalarExpression::IntegerWiden { operand, .. }
-                | crate::CheckedScalarExpression::IntegerExactCast { operand, .. }
-                | crate::CheckedScalarExpression::IntegerWrappingCast { operand, .. }
-                | crate::CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
+                | crate::CheckedScalarExpression::IntegerExactCast { operand, .. } => {
                     scalar_uses_proof_gated_arithmetic(operand)
                 }
                 crate::CheckedScalarExpression::Boolean(expression) => {

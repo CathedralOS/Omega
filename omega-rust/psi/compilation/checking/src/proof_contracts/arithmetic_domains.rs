@@ -32,6 +32,8 @@ mod cast_ranges;
 mod dispatch_environments;
 pub(crate) use dispatch_environments::dispatch_arm_environments;
 mod cited_element_bounds;
+mod copied_values;
+pub(crate) use copied_values::CopiedIntegerValue;
 mod dependent_products;
 mod dependent_relations;
 mod division_definedness;
@@ -60,15 +62,17 @@ pub(crate) use assignments::{
     check_narrowing_assignment, check_value_narrowing, enforced_declared_range, record_assignment,
     record_unsigned_literal_assignment, stored_value_carrier,
 };
-pub use cast_ranges::{plain_exact_widening_cast, unannotated_exact_cast};
 pub(crate) use cast_ranges::record_float_literal_assignment;
 pub(crate) use cast_ranges::validate_range_cast_at_use;
+pub use cast_ranges::{plain_exact_widening_cast, unannotated_exact_cast};
 pub(crate) use cited_element_bounds::{
     element_place_path, seed_cited_element_bounds, stable_element_place_path,
 };
 pub(crate) use expression_analysis::ArithmeticDecisions;
-pub(crate) use float_arithmetic::float_source_bounds;
 pub(crate) use float_arithmetic::float_source_proves_integer_conversion;
+pub(crate) use float_arithmetic::{
+    FloatSourceBounds, float_source_bounds, float_source_bounds_with_result_type,
+};
 pub use guard_narrowing::{
     arrival_integer_expression_bounds, occurrence_integer_expression_bounds,
     occurrence_integer_expression_fits_range,
@@ -129,9 +133,7 @@ use typed_trees::expression::{
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
-use typed_trees::types::{
-    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use crate::value_custody::places::declared_place_type_raw;
 
@@ -182,15 +184,20 @@ pub(super) fn visit_binary_operators(
     program: &dyn crate::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     operators: &[typed_trees::expression::BinaryOperator],
-    mut check: impl FnMut(&typed_trees::expression::TableBinaryExpression),
+    mut check: impl FnMut(ExpressionHandle, &typed_trees::expression::TableBinaryExpression),
 ) {
-    let mut visit = |node: &typed_trees::expression::ExpressionNode| {
+    let mut visit = |expression, node: &typed_trees::expression::ExpressionNode| {
         let typed_trees::expression::ExpressionNode::Binary(binary) = node else {
             return;
         };
         if operators.contains(&binary.operator) {
-            check(binary);
+            check(expression, binary);
         }
     };
-    crate::expression_traversal::visit_post_order(program, expression, &mut Vec::new(), &mut visit);
+    crate::expression_traversal::visit_post_order_with_handles(
+        program,
+        expression,
+        &mut Vec::new(),
+        &mut visit,
+    );
 }

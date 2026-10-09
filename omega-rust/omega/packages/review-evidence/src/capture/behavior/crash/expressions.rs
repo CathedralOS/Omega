@@ -317,27 +317,6 @@ fn project_scalar_expression(
                 maximum: range.maximum.to_string(),
             },
         },
-        CheckedScalarExpression::IntegerWrappingCast {
-            primitive_type,
-            operand,
-        } => PackageReviewScalarExpression::IntegerWrappingCast {
-            primitive_type: project_primitive_type(*primitive_type),
-            operand: Box::new(project_scalar_expression(operand)?),
-        },
-        CheckedScalarExpression::IntegerSaturatingCast {
-            primitive_type,
-            operand,
-        } => PackageReviewScalarExpression::IntegerSaturatingCast {
-            primitive_type: project_primitive_type(*primitive_type),
-            operand: Box::new(project_scalar_expression(operand)?),
-        },
-        CheckedScalarExpression::IntegerTrappingCast {
-            primitive_type,
-            operand,
-        } => PackageReviewScalarExpression::IntegerTrappingCast {
-            primitive_type: project_primitive_type(*primitive_type),
-            operand: Box::new(project_scalar_expression(operand)?),
-        },
         CheckedScalarExpression::RepresentationView {
             primitive_type,
             operand,

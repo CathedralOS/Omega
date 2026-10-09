@@ -150,45 +150,6 @@ fn encode_scalar_node(
             encoder.field("minimum", |encoder| encoder.string(&range.minimum))?;
             encoder.field("maximum", |encoder| encoder.string(&range.maximum))?;
         }
-        PackageReviewScalarExpression::IntegerWrappingCast {
-            primitive_type,
-            operand,
-        } => {
-            encoder.tag("integer_wrapping_cast", 11);
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
-            encoder.field("operand", |encoder| {
-                encode_scalar_expression(encoder, operand)
-            })?;
-        }
-        PackageReviewScalarExpression::IntegerSaturatingCast {
-            primitive_type,
-            operand,
-        } => {
-            encoder.tag("integer_saturating_cast", 12);
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
-            encoder.field("operand", |encoder| {
-                encode_scalar_expression(encoder, operand)
-            })?;
-        }
-        PackageReviewScalarExpression::IntegerTrappingCast {
-            primitive_type,
-            operand,
-        } => {
-            encoder.tag("integer_trapping_cast", 13);
-            encoder.field("primitive_type", |encoder| {
-                encode_primitive_type(encoder, *primitive_type);
-                Ok(())
-            })?;
-            encoder.field("operand", |encoder| {
-                encode_scalar_expression(encoder, operand)
-            })?;
-        }
         PackageReviewScalarExpression::RepresentationView {
             primitive_type,
             operand,

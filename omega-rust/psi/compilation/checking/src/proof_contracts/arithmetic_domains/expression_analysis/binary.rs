@@ -617,8 +617,8 @@ impl Operation<'_, '_> {
     /// `(a / K)` result feed exact arithmetic instead of poisoning the
     /// enclosing op with an unbounded operand. Neither is overflow-flagged; the
     /// tighter interval is purely a better (still sound) over-approximation for
-    /// any ENCLOSING op. Shifts stay unbounded except for left shift, whose
-    /// mathematical product bounds feed the Exact value-overflow obligation.
+    /// any ENCLOSING op. Right shifts retain their operand carrier's bounds;
+    /// left-shift product bounds feed the Exact value-overflow obligation.
     fn mathematical_interval(&self) -> Interval {
         let walk = self.walk;
         let (program, machine, state) = (walk.program, walk.machine, walk.state);
@@ -651,7 +651,17 @@ impl Operation<'_, '_> {
             BinaryOperator::Modulo => self.left.interval.modulo(self.right.interval),
             BinaryOperator::Divide => self.left.interval.divide(self.right.interval),
             BinaryOperator::ShiftLeft => self.left.interval.shift_left(self.right.interval),
-            BinaryOperator::ShiftRight => self.left.interval.shift_right(self.right.interval),
+            BinaryOperator::ShiftRight => self.left.primitive.map_or_else(
+                || self.left.interval.shift_right(self.right.interval),
+                |primitive| {
+                    bitwise::shift_right(
+                        primitive,
+                        self.left.interval,
+                        self.right.interval,
+                        bitwise_known_unsigned(program, walk.environment, primitive, left, 0),
+                    )
+                },
+            ),
             _ => Interval::UNBOUNDED,
         };
         if self.operator() == BinaryOperator::Subtract

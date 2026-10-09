@@ -74,9 +74,9 @@ pub(crate) struct ArithmeticDecisions {
 
 impl ArithmeticDecisions {
     pub(super) fn record_interval(&mut self, expression: ExpressionHandle, interval: Interval) {
-        if interval.low.is_some() || interval.high.is_some() {
-            self.expression_intervals.push((expression, interval));
-        }
+        // An unconstrained occurrence participates in the join too. Omitting
+        // it would let a bounded visit stand for every visit of the expression.
+        self.expression_intervals.push((expression, interval));
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
