@@ -2,6 +2,73 @@ use super::{
     ProgramEntryPhysicalContractPlan, physical_contract_matches, receiver_pointer_matches,
     zero_valid_field, zero_valid_record_storage,
 };
+use calling_conventions::{
+    IndirectPointerLocation, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
+};
+
+fn assert_corrupted_receiver_rejected(
+    shape: ValueShape,
+    placement: &ValuePlacement,
+    receiver: MachineRegister,
+    decoy: MachineRegister,
+) {
+    let indirect = |pointer, copy_stack_byte_offset, byte_size, alignment| ValuePlacement {
+        shape,
+        locations: vec![ValueLocation::Indirect {
+            pointer,
+            copy_stack_byte_offset,
+            byte_size,
+            alignment,
+        }],
+    };
+    let pointer = IndirectPointerLocation::Register(receiver);
+    for corrupted in [
+        // A substituted register is a receiver substitution, not an alias.
+        indirect(
+            IndirectPointerLocation::Register(decoy),
+            None,
+            shape.byte_size,
+            shape.alignment,
+        ),
+        indirect(
+            IndirectPointerLocation::Stack {
+                stack_byte_offset: 0,
+                alignment: 8,
+            },
+            None,
+            shape.byte_size,
+            shape.alignment,
+        ),
+        indirect(pointer, Some(0), shape.byte_size, shape.alignment),
+        indirect(pointer, None, shape.byte_size + 1, shape.alignment),
+        indirect(pointer, None, shape.byte_size, shape.alignment * 2),
+        ValuePlacement {
+            shape,
+            locations: Vec::new(),
+        },
+        ValuePlacement {
+            shape,
+            locations: vec![placement.locations[0]; 2],
+        },
+        ValuePlacement {
+            shape,
+            locations: vec![ValueLocation::Register {
+                register: receiver,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }],
+        },
+        ValuePlacement {
+            shape: ValueShape::integer(shape.byte_size, shape.alignment),
+            locations: placement.locations.clone(),
+        },
+    ] {
+        assert!(
+            !receiver_pointer_matches(shape, &corrupted, receiver),
+            "corrupted receiver: {corrupted:?}"
+        );
+    }
+}
 
 #[test]
 fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
@@ -623,8 +690,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
 #[test]
 fn hosted_receiver_accepts_only_canonical_borrowed_pointer_placement() {
     use calling_conventions::{
-        CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, ValueLocation,
-        ValuePlacement, ValueShape, evaluate_call_plan,
+        CallSignature, CallingPolicy, MachineRegister, ValueShape, evaluate_call_plan,
     };
     for shape in [
         ValueShape::borrowed_reference(0, 1),
@@ -650,61 +716,7 @@ fn hosted_receiver_accepts_only_canonical_borrowed_pointer_placement() {
             placement,
             MachineRegister::X86Rdi
         ));
-        let indirect = |pointer, copy_stack_byte_offset, byte_size, alignment| ValuePlacement {
-            shape,
-            locations: vec![ValueLocation::Indirect {
-                pointer,
-                copy_stack_byte_offset,
-                byte_size,
-                alignment,
-            }],
-        };
-        let pointer = IndirectPointerLocation::Register(MachineRegister::Aarch64X(0));
-        for corrupted in [
-            indirect(
-                IndirectPointerLocation::Register(MachineRegister::Aarch64X(1)),
-                None,
-                shape.byte_size,
-                shape.alignment,
-            ),
-            indirect(
-                IndirectPointerLocation::Stack {
-                    stack_byte_offset: 0,
-                    alignment: 8,
-                },
-                None,
-                shape.byte_size,
-                shape.alignment,
-            ),
-            indirect(pointer, Some(0), shape.byte_size, shape.alignment),
-            indirect(pointer, None, shape.byte_size + 1, shape.alignment),
-            indirect(pointer, None, shape.byte_size, shape.alignment * 2),
-            ValuePlacement {
-                shape,
-                locations: Vec::new(),
-            },
-            ValuePlacement {
-                shape,
-                locations: vec![placement.locations[0]; 2],
-            },
-            ValuePlacement {
-                shape,
-                locations: vec![ValueLocation::Register {
-                    register: MachineRegister::Aarch64X(0),
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                }],
-            },
-            ValuePlacement {
-                shape: ValueShape::integer(shape.byte_size, shape.alignment),
-                locations: placement.locations.clone(),
-            },
-        ] {
-            assert!(
-                !receiver_pointer_matches(shape, &corrupted, MachineRegister::Aarch64X(0)),
-                "corrupted receiver: {corrupted:?}"
-            );
-        }
+        assert_corrupted_receiver_rejected(shape, placement, MachineRegister::Aarch64X(0), MachineRegister::Aarch64X(1));
         let changed_shape = ValueShape::borrowed_reference(shape.byte_size + 1, shape.alignment);
         assert!(!receiver_pointer_matches(
             changed_shape,
@@ -722,8 +734,7 @@ fn hosted_receiver_accepts_only_canonical_borrowed_pointer_placement() {
 #[test]
 fn windows_receiver_accepts_only_canonical_borrowed_pointer_placement() {
     use calling_conventions::{
-        CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, ValueLocation,
-        ValuePlacement, ValueShape, evaluate_call_plan,
+        CallSignature, CallingPolicy, MachineRegister, ValueShape, evaluate_call_plan,
     };
     for shape in [
         ValueShape::borrowed_reference(0, 1),
@@ -757,70 +768,14 @@ fn windows_receiver_accepts_only_canonical_borrowed_pointer_placement() {
             placement,
             MachineRegister::Aarch64X(0)
         ));
-        let indirect = |pointer, copy_stack_byte_offset, byte_size, alignment| ValuePlacement {
-            shape,
-            locations: vec![ValueLocation::Indirect {
-                pointer,
-                copy_stack_byte_offset,
-                byte_size,
-                alignment,
-            }],
-        };
-        let pointer = IndirectPointerLocation::Register(MachineRegister::X86Rcx);
-        for corrupted in [
-            // A substituted register is a receiver substitution, not an alias.
-            indirect(
-                IndirectPointerLocation::Register(MachineRegister::X86Rdx),
-                None,
-                shape.byte_size,
-                shape.alignment,
-            ),
-            indirect(
-                IndirectPointerLocation::Stack {
-                    stack_byte_offset: 0,
-                    alignment: 8,
-                },
-                None,
-                shape.byte_size,
-                shape.alignment,
-            ),
-            indirect(pointer, Some(0), shape.byte_size, shape.alignment),
-            indirect(pointer, None, shape.byte_size + 1, shape.alignment),
-            indirect(pointer, None, shape.byte_size, shape.alignment * 2),
-            ValuePlacement {
-                shape,
-                locations: Vec::new(),
-            },
-            ValuePlacement {
-                shape,
-                locations: vec![placement.locations[0]; 2],
-            },
-            ValuePlacement {
-                shape,
-                locations: vec![ValueLocation::Register {
-                    register: MachineRegister::X86Rcx,
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                }],
-            },
-            ValuePlacement {
-                shape: ValueShape::integer(shape.byte_size, shape.alignment),
-                locations: placement.locations.clone(),
-            },
-        ] {
-            assert!(
-                !receiver_pointer_matches(shape, &corrupted, MachineRegister::X86Rcx),
-                "corrupted receiver: {corrupted:?}"
-            );
-        }
+        assert_corrupted_receiver_rejected(shape, placement, MachineRegister::X86Rcx, MachineRegister::X86Rdx);
     }
 }
 
 #[test]
 fn linux_receiver_accepts_only_canonical_borrowed_pointer_placement() {
     use calling_conventions::{
-        CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, ValueLocation,
-        ValuePlacement, ValueShape, evaluate_call_plan,
+        CallSignature, CallingPolicy, MachineRegister, ValueShape, evaluate_call_plan,
     };
     for shape in [
         ValueShape::borrowed_reference(0, 1),
@@ -846,62 +801,7 @@ fn linux_receiver_accepts_only_canonical_borrowed_pointer_placement() {
             placement,
             MachineRegister::Aarch64X(0)
         ));
-        let indirect = |pointer, copy_stack_byte_offset, byte_size, alignment| ValuePlacement {
-            shape,
-            locations: vec![ValueLocation::Indirect {
-                pointer,
-                copy_stack_byte_offset,
-                byte_size,
-                alignment,
-            }],
-        };
-        let pointer = IndirectPointerLocation::Register(MachineRegister::X86Rdi);
-        for corrupted in [
-            // A substituted register is a receiver substitution, not an alias.
-            indirect(
-                IndirectPointerLocation::Register(MachineRegister::X86Rsi),
-                None,
-                shape.byte_size,
-                shape.alignment,
-            ),
-            indirect(
-                IndirectPointerLocation::Stack {
-                    stack_byte_offset: 0,
-                    alignment: 8,
-                },
-                None,
-                shape.byte_size,
-                shape.alignment,
-            ),
-            indirect(pointer, Some(0), shape.byte_size, shape.alignment),
-            indirect(pointer, None, shape.byte_size + 1, shape.alignment),
-            indirect(pointer, None, shape.byte_size, shape.alignment * 2),
-            ValuePlacement {
-                shape,
-                locations: Vec::new(),
-            },
-            ValuePlacement {
-                shape,
-                locations: vec![placement.locations[0]; 2],
-            },
-            ValuePlacement {
-                shape,
-                locations: vec![ValueLocation::Register {
-                    register: MachineRegister::X86Rdi,
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                }],
-            },
-            ValuePlacement {
-                shape: ValueShape::integer(shape.byte_size, shape.alignment),
-                locations: placement.locations.clone(),
-            },
-        ] {
-            assert!(
-                !receiver_pointer_matches(shape, &corrupted, MachineRegister::X86Rdi),
-                "corrupted receiver: {corrupted:?}"
-            );
-        }
+        assert_corrupted_receiver_rejected(shape, placement, MachineRegister::X86Rdi, MachineRegister::X86Rsi);
     }
 }
 
