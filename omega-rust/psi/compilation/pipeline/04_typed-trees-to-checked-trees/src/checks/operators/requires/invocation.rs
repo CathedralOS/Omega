@@ -18,21 +18,26 @@
 
 use arena::Handle;
 use checked_trees::{
-    CheckFacts, CheckedNamedOperatorUseFact, CheckedOperatorUseFact, FlowFacts,
+    CheckFacts, CheckedNamedOperatorUseFact, CheckedOperatorUseFact, FlowCallFact, FlowFacts,
     FlowOperatorInvocationFact,
 };
 use facts::{FactContextHandle, FactPlan};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 
-pub(super) struct InvocationContexts<'facts> {
+pub(crate) struct InvocationContexts<'facts> {
     flow: &'facts FlowFacts,
     semantic: &'facts FactPlan,
-    invocation: Option<&'facts FlowOperatorInvocationFact>,
+    invocation: Option<CapturedInvocation<'facts>>,
+}
+
+enum CapturedInvocation<'facts> {
+    Operator(&'facts FlowOperatorInvocationFact),
+    Call(&'facts FlowCallFact),
 }
 
 impl<'facts> InvocationContexts<'facts> {
-    pub(super) fn new(
+    pub(crate) fn new(
         facts: &'facts CheckFacts,
         operator_use: Handle<CheckedOperatorUseFact>,
         operands: &[ExpressionHandle],
@@ -40,7 +45,7 @@ impl<'facts> InvocationContexts<'facts> {
         Self::from_flow(&facts.flow, &facts.semantic, operator_use, operands)
     }
 
-    pub(super) fn from_flow(
+    pub(crate) fn from_flow(
         flow: &'facts FlowFacts,
         semantic: &'facts FactPlan,
         operator_use: Handle<CheckedOperatorUseFact>,
@@ -55,7 +60,7 @@ impl<'facts> InvocationContexts<'facts> {
                 });
         let invocation = match (matching.next(), matching.next()) {
             (Some(invocation), None) if operand_expressions_match(flow, invocation, operands) => {
-                Some(invocation)
+                Some(CapturedInvocation::Operator(invocation))
             }
             // Missing, duplicate, or substituted operand custody cannot fall
             // back to statement-entry facts. Only context-free truths remain.
@@ -74,7 +79,7 @@ impl<'facts> InvocationContexts<'facts> {
     /// was emitted" (entry-context fallback may apply) from present-but-bad
     /// custody: a mismatched or duplicated row selects no contexts, leaving
     /// only context-free truths.
-    pub(super) fn from_named_use(
+    pub(crate) fn from_named_use(
         flow: &'facts FlowFacts,
         semantic: &'facts FactPlan,
         named_use: Handle<CheckedNamedOperatorUseFact>,
@@ -89,7 +94,7 @@ impl<'facts> InvocationContexts<'facts> {
                 });
         let invocation = match (matching.next(), matching.next()) {
             (Some(invocation), None) if operand_expressions_match(flow, invocation, operands) => {
-                Some(invocation)
+                Some(CapturedInvocation::Operator(invocation))
             }
             _ => None,
         };
@@ -100,13 +105,77 @@ impl<'facts> InvocationContexts<'facts> {
         }
     }
 
-    pub(super) fn for_expressions(
+    /// Select the exact capture of a resolved expression occurrence. Spelled,
+    /// named operator and ordinary requirement calls retain their own source
+    /// identities while sharing the same detached-value/live-view context law.
+    pub(crate) fn for_selected_expression(
+        facts: &'facts CheckFacts,
+        expression: ExpressionHandle,
+        selected: symbols::SymbolHandle,
+        operands: &[ExpressionHandle],
+    ) -> Self {
+        let spelled = facts
+            .operators
+            .uses
+            .iter()
+            .filter(|(_, fact)| {
+                fact.expression == expression
+                    && fact.selected_operator_symbol == selected
+                    && fact.status == checked_trees::CheckedOperatorResolutionStatus::Resolved
+                    && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
+            })
+            .collect::<Vec<_>>();
+        let named = facts
+            .operators
+            .named_uses
+            .iter()
+            .filter(|(_, fact)| {
+                fact.expression == expression && fact.selected_operator_symbol == selected
+            })
+            .collect::<Vec<_>>();
+        if let ([(handle, _)], []) = (spelled.as_slice(), named.as_slice()) {
+            return Self::new(facts, *handle, operands);
+        }
+        if let ([], [(handle, _)]) = (spelled.as_slice(), named.as_slice()) {
+            return Self::from_named_use(&facts.flow, &facts.semantic, *handle, operands);
+        }
+        let mut calls = facts.flow.control.calls.iter().filter_map(|(_, call)| {
+            (call.authored_expression == expression
+                && call.authored_target == selected
+                && call.authored_source_custody_valid
+                && facts
+                    .flow
+                    .control
+                    .operands
+                    .span_or_empty(call.operands)
+                    .iter()
+                    .map(|operand| operand.expression)
+                    .eq(operands.iter().copied()))
+            .then_some(call)
+        });
+        let invocation = match (
+            spelled.is_empty(),
+            named.is_empty(),
+            calls.next(),
+            calls.next(),
+        ) {
+            (true, true, Some(call), None) => Some(CapturedInvocation::Call(call)),
+            _ => None,
+        };
+        Self {
+            flow: &facts.flow,
+            semantic: &facts.semantic,
+            invocation,
+        }
+    }
+
+    pub(crate) fn for_expressions(
         &self,
         program: &dyn ::validation::CheckingInput,
         parameters: &[StateParameter],
         expressions: impl IntoIterator<Item = ExpressionHandle>,
     ) -> Vec<FactContextHandle> {
-        let Some(invocation) = self.invocation else {
+        let Some(invocation) = &self.invocation else {
             return Vec::new();
         };
         let mut occurrences = Vec::new();
@@ -117,11 +186,15 @@ impl<'facts> InvocationContexts<'facts> {
                 &mut occurrences,
             );
         }
-        let operands = self
-            .flow
-            .control
-            .operands
-            .span_or_empty(invocation.operands);
+        let (operands, requires_constraints) = match invocation {
+            CapturedInvocation::Operator(invocation) => {
+                (invocation.operands, invocation.requires_constraints)
+            }
+            CapturedInvocation::Call(invocation) => {
+                (invocation.operands, invocation.requires_constraints)
+            }
+        };
+        let operands = self.flow.control.operands.span_or_empty(operands);
         let mut selected = None::<Vec<FactContextHandle>>;
         for (ordinal, parameter) in parameters.iter().enumerate() {
             if !occurrences
@@ -139,7 +212,7 @@ impl<'facts> InvocationContexts<'facts> {
                 self.semantic,
                 operand,
                 parameter.type_reference,
-                invocation.requires_constraints,
+                requires_constraints,
             );
             if let Some(selected) = &mut selected {
                 selected.retain(|candidate| operand_contexts.contains(candidate));
@@ -149,7 +222,7 @@ impl<'facts> InvocationContexts<'facts> {
         }
         selected.unwrap_or_else(|| {
             self.flow
-                .semantic_constraint_contexts(invocation.requires_constraints)
+                .semantic_constraint_contexts(requires_constraints)
                 .collect()
         })
     }

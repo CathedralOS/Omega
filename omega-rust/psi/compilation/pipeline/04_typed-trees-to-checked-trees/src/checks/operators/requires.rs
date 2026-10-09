@@ -59,7 +59,7 @@ use crate::labels::{
 
 mod float_bounds;
 mod invocation;
-use invocation::InvocationContexts;
+pub(crate) use invocation::InvocationContexts;
 
 /// Crash refinement needs proof of falsity, not failure to prove a precondition.
 /// Only Boolean structure and exact evaluated predicate facts supply polarity;

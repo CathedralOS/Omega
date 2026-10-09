@@ -147,7 +147,11 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
     {
         diagnostics.append(&mut operator_crash_diagnostics);
     }
-    crashes::infer_path_conditioned_guard_coverage(program, facts, incoming_guards);
+    diagnostics.extend(crashes::infer_path_conditioned_guard_coverage(
+        program,
+        facts,
+        incoming_guards,
+    ));
     if let Err(mut crash_diagnostics) = crashes::check_published_ceiling_coverage(program, facts) {
         diagnostics.append(&mut crash_diagnostics);
     }

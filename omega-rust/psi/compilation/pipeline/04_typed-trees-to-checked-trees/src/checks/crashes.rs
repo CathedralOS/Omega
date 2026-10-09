@@ -12,6 +12,7 @@ use diagnostics::Diagnostic;
 
 mod entry_guards;
 mod entry_requirements;
+mod operation_sites;
 mod source_fallthrough;
 
 /// A crash transition is recorded unconditionally at its site: contract exits,
@@ -122,7 +123,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
-) {
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
     let content_conservation = validation::content_conservation_plans(program);
     let mut integer_types = None;
     for machine in program.machines() {
@@ -147,7 +149,11 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             continue;
         };
         let crash_plan = &facts.contract_plans.machines[contract_index].crash;
-        if crash_plan.checked_sites().is_empty() && crash_plan.checked_calls().is_empty() {
+        let operations = operation_sites::collect(facts, machine.symbol);
+        if crash_plan.checked_sites().is_empty()
+            && crash_plan.checked_calls().is_empty()
+            && operations.is_empty()
+        {
             continue;
         }
         // The declaration classification is a program roster and the mutable
@@ -190,6 +196,11 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                     .checked_calls()
                     .iter()
                     .map(|call| call.location().state()),
+            )
+            .chain(
+                operations
+                    .iter()
+                    .map(|operation| operation.location.state()),
             )
             .collect::<Vec<_>>();
         classified_states.sort_by_key(|state| (state.arena_index(), state.generation()));
@@ -282,6 +293,42 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                     .with_path_guard_consequences(path_guard_consequences)
             })
             .collect();
+        // The same path classification also covers operation-local policy
+        // failures. They are not source crash exits or callable crash buckets:
+        // each retains its exact selected expression and raw-result adapter.
+        if crash_plan.interface() == checked_trees::CrashInterface::PublishedCeiling {
+            for operation in &operations {
+                let classification = &state_classifications[&operation.location.state()];
+                let fallthrough = source_fallthrough
+                    .iter()
+                    .find(|fallthrough| fallthrough.location == operation.location);
+                let (_, consequences) = site_path_classification(
+                    program,
+                    classification,
+                    fallthrough,
+                    &entry_requirements,
+                    &parameter_names,
+                    &content_conservation,
+                    integer_types,
+                );
+                let covered = crash_plan.published().iter().any(|bucket| {
+                    bucket.cause() == checked_trees::CrashCause::Trap
+                        && bucket.alternative_guards().iter().any(|guard| {
+                            call_route_guard_covers(guard, &CrashRouteGuard::Truth, &consequences)
+                        })
+                });
+                if covered || operation_sites::raw_result_is_finite(program, facts, operation) {
+                    continue;
+                }
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}` in machine `{}` state `{}` has an uncovered Trap result-policy site ({:?}); publish a same-cause `crashes` route covering this operation or prove its raw result finite",
+                    program.expression_table.display_name(operation.expression),
+                    machine.name.as_str(),
+                    crate::labels::symbol_name(program, operation.location.state()),
+                    operation.adapter,
+                )).with_source_span(program.expression_table.source_span(operation.expression)));
+            }
+        }
         facts.contract_plans.machines[contract_index].crash = crash_plan
             .clone()
             .with_checked_sites(checked_sites)
@@ -289,6 +336,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             .with_checked_calls(checked_calls)
             .expect("path-conditioned coverage retains valid checked-call identity");
     }
+    diagnostics
 }
 
 /// Guard-derived path classification shared by every checked site and checked
@@ -465,10 +513,10 @@ fn site_path_classification(
 }
 
 /// Published-ceiling coverage of explicit `crash` transitions, calls and
-/// selected operators. Operation-level Trapping sites (conversions and integer
-/// arithmetic) are judged where their Exact formation is decided, over their
-/// own operands and carriers: `validation`'s arithmetic-domain walk rejects a
-/// site whose trap the route complement cannot exclude.
+/// selected operators. Float result-policy sites share the path-conditioned
+/// pass above and retain their raw-result obligation. Integer Trapping sites
+/// are judged where their Exact formation is decided, over their own operands
+/// and carriers, by `validation`'s arithmetic-domain walk.
 pub(crate) fn check_published_ceiling_coverage(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,

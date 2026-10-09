@@ -5,6 +5,8 @@
 //! semantics, and a drifted canonical declaration fails before facts are built.
 
 mod conversion_contracts;
+mod result_contracts;
+pub use result_contracts::float_result_semantic_contract;
 /// The sibling closed catalog: `FloatSemantics::<name>` semantic definitions,
 /// validated by the same custody rule. Its row/contract query
 /// (`semantic_operations::exact_toolchain_float_semantic_contract`) is shared

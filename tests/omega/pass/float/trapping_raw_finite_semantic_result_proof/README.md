@@ -1,0 +1,1 @@
+Trapping float result adapters are operation sites judged against the published same-cause ceiling. The exact sealed raw semantic term is proved finite from an operand-time precondition. The closed operand control executes and checks the raw IEEE result.

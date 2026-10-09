@@ -1,0 +1,163 @@
+//! The raw denotation supplied by one selected float-producing requirement.
+//!
+//! A result policy runs after the provider's result. Its failure cannot be
+//! excluded by the adapted result's normal-return finiteness. Instead retain
+//! the sealed semantic term equated to that requirement's result projection,
+//! with only its own formals and closed catalog values as inputs.
+
+use numerics::float_semantics_catalog::FloatSemanticValueKind;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::operator::{OperatorDefinition, resolve_named_expression_call};
+use typed_trees::types::PrimitiveType;
+
+/// Read the selected callable's result equation without granting semantics
+/// from its name, result qualification, or a post-adapter observation.
+pub fn float_result_semantic_contract(
+    program: &dyn crate::CheckingInput,
+    operator: &OperatorDefinition,
+) -> Option<ExpressionHandle> {
+    let target = program.primitive_type_reference(operator.return_type)?;
+    if !matches!(target, PrimitiveType::F32 | PrimitiveType::F64) {
+        return None;
+    }
+    for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
+        program,
+        program.operator_contracts(operator),
+    ) {
+        let Some(equality) = program.expression_table.binary_node(expression) else {
+            continue;
+        };
+        if equality.operator != BinaryOperator::Equal {
+            continue;
+        }
+        for (result, meaning) in [
+            (equality.left, equality.right),
+            (equality.right, equality.left),
+        ] {
+            let Some(result_call) = program.expression_table.call_node(result) else {
+                continue;
+            };
+            let Some((projection, primitive, _, _)) =
+                crate::proof_contracts::float_projection_invocations::exact_projection_operation(
+                    program,
+                    result_call,
+                )
+            else {
+                continue;
+            };
+            let [result_value] = program
+                .expression_table
+                .expression_handles(result_call.arguments)
+            else {
+                continue;
+            };
+            let Some(projection) = program.operator_definition_by_symbol(projection) else {
+                continue;
+            };
+            if primitive != target
+                || crate::reserved_result_owner(program, *result_value).map(|owner| owner.0)
+                    != Some(operator.symbol)
+                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    operator.symbol,
+                    expression,
+                    language_core::OperatorSpelling::Equal,
+                    &[Some(projection.return_type), Some(projection.return_type)],
+                )
+            {
+                continue;
+            }
+            let Some(call) = program.expression_table.call_node(meaning) else {
+                continue;
+            };
+            let Some(semantic) =
+                resolve_named_expression_call(program, call).and_then(|selected| {
+                    super::semantic_operations::exact_toolchain_float_semantic_contract(
+                        program, selected,
+                    )
+                    .map(|(row, _)| row)
+                })
+            else {
+                continue;
+            };
+            if semantic.result != FloatSemanticValueKind::Meaning {
+                continue;
+            }
+            // Every formatted raw operation must name the result carrier's
+            // actual format. A pair operation without a format preserves the
+            // selected requirement's existing float carrier.
+            let expected = match target {
+                PrimitiveType::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+                _ => unreachable!("float result checked above"),
+            };
+            let arguments = program.expression_table.expression_handles(call.arguments);
+            if arguments.len() != semantic.parameters.len()
+                || arguments
+                    .iter()
+                    .zip(semantic.parameters)
+                    .any(|(argument, kind)| {
+                        *kind == FloatSemanticValueKind::Format
+                            && super::semantic_values::exact_toolchain_float_format_const(
+                                program, *argument,
+                            ) != Some(expected)
+                    })
+            {
+                continue;
+            }
+            let mut remaining_work = 1024;
+            if semantic_term_uses_only_inputs(program, operator, meaning, &mut remaining_work) {
+                return Some(meaning);
+            }
+        }
+    }
+    None
+}
+
+fn semantic_term_uses_only_inputs(
+    program: &dyn crate::CheckingInput,
+    operator: &OperatorDefinition,
+    expression: ExpressionHandle,
+    remaining_work: &mut usize,
+) -> bool {
+    let Some(next) = remaining_work.checked_sub(1) else {
+        return false;
+    };
+    *remaining_work = next;
+    if super::semantic_values::exact_toolchain_float_format_const(program, expression).is_some() {
+        return true;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Float(_) | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
+        ExpressionNode::Name(path) => {
+            program
+                .operator_parameters(operator)
+                .iter()
+                .any(|parameter| parameter.symbol == path.symbol)
+                || super::semantic_values::exact_toolchain_float_format_const(program, expression)
+                    .is_some()
+        }
+        ExpressionNode::Call(call) => {
+            let admitted =
+                crate::proof_contracts::float_projection_invocations::exact_projection_operation(
+                    program, call,
+                )
+                .is_some()
+                    || resolve_named_expression_call(program, call).is_some_and(|selected| {
+                        super::semantic_operations::exact_toolchain_float_semantic_contract(
+                            program, selected,
+                        )
+                        .is_some()
+                    });
+            admitted
+                && program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .all(|argument| {
+                        semantic_term_uses_only_inputs(program, operator, *argument, remaining_work)
+                    })
+        }
+        _ => false,
+    }
+}

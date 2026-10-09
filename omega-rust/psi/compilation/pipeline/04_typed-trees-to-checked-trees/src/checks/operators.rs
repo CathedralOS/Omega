@@ -6,7 +6,9 @@ use crate::labels::symbol_name;
 mod destinations;
 mod requires;
 
-pub(crate) use requires::{named_operator_route_is_false, operator_route_is_false};
+pub(crate) use requires::{
+    InvocationContexts, named_operator_route_is_false, operator_route_is_false,
+};
 
 pub(crate) fn check_operator_resolution(
     program: &dyn ::validation::CheckingInput,

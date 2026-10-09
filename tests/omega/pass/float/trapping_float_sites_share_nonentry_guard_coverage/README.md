@@ -1,0 +1,1 @@
+Trapping float result adapters are operation sites judged against the published same-cause ceiling. Arithmetic and named format conversion in nonentry states reuse incoming guard coverage; execution checks both active and skipped paths.

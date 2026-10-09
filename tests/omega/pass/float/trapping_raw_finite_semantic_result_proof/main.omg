@@ -1,0 +1,24 @@
+use omega::language::core::float_operations;
+
+machine scale(value: f32 in Trapping) -> f32 in Trapping
+requires FloatSemantics::is_finite(FloatSemantics::multiply(
+    FloatFormat::BINARY32, Float::meaning32(value), Float::meaning32(2.0f32)
+))
+crashes Trap false {
+    value * 2.0f32
+}
+
+machine closed_scale() -> f32 in Trapping
+crashes Trap false {
+    (1.5f32 as f32 in Trapping) * 2.0f32
+}
+
+machine main() crashes Trap {
+    let result: f32 in Trapping = closed_scale();
+    transition result == 3.0f32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
