@@ -21,19 +21,20 @@ crashes Trap
     transition { _ -> next_machine(checker, syntax, resolution, 0) }
 
     state next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
-        transition index < syntax.machine_count && checker.output.accepted {
+        transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
             true -> machine(checker, syntax, resolution, index)
             _ -> done()
         }
     }
 
     state machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        Checks::open_machine(&mut checker.output);
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         transition { _ -> next_clause(checker, syntax, resolution, index, item, 0) }
     }
 
     state next_clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
-        transition offset < item.clause_count && checker.output.accepted {
+        transition offset < item.clause_count && checker.output.machine_accepted {
             true -> clause(checker, syntax, resolution, index, item, offset)
             _ -> next_machine(checker, syntax, resolution, index + 1)
         }
@@ -74,13 +75,14 @@ crashes Trap
         clause: Clause
     ) {
         transition item.has_body {
-            true -> unranked(checker, clause.source_span)
+            true -> unranked(checker, syntax, resolution, index, clause.source_span)
             _ -> next_clause(checker, syntax, resolution, index, item, offset + 1)
         }
     }
 
-    state unranked(checker: &mut Checker, source_span: SourceSpan) {
+    state unranked(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, source_span: SourceSpan) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, source_span);
+        transition { _ -> next_machine(checker, syntax, resolution, index + 1) }
     }
 
     state done() {}

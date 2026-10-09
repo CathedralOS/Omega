@@ -33,6 +33,9 @@ class Observation:
     diagnostic: str
     diagnostic_span: tuple[int, int, int]
     routes: tuple[Routes, ...]
+    # Every rejection in the order checking found it; `diagnostic` is the
+    # first, or None.
+    rejections: tuple[tuple[str, tuple[int, int, int]], ...] = ()
 
 
 class Reader:
@@ -61,16 +64,17 @@ class Reader:
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
     assert reader.bytes(8) == b"OMGCHK1\0"
-    assert reader.u64() == 1
+    assert reader.u64() == 2
     accepted = reader.byte() == 1
-    diagnostic = DIAGNOSTICS[reader.byte()]
-    diagnostic_span = reader.span()
+    rejections = tuple((DIAGNOSTICS[reader.byte()], reader.span()) for _ in range(reader.u64()))
+    diagnostic, diagnostic_span = rejections[0] if rejections else ("None", (0, 0, 0))
     routes = tuple(
         Routes(*(reader.byte() == 1 for _ in range(5)))
         for _ in range(reader.u64())
     )
     assert reader.cursor == len(payload), "trailing checking observation bytes"
-    return Observation(accepted, diagnostic, diagnostic_span, routes)
+    assert accepted == (not rejections), "acceptance disagrees with the rejections"
+    return Observation(accepted, diagnostic, diagnostic_span, routes, rejections)
 
 
 # Every distinct input the gate runs is one case; the determinism check runs
@@ -832,6 +836,27 @@ def main() -> None:
         b"Range { lo: 1 }",
     )
 
+    # Machines check independently: each pass (bodies, then crash routes)
+    # records the first rejection of every machine it rejects, in order.
+    every = (
+        b"machine first(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
+        b"machine fine(a: &[u8; 4]) -> u8 { a[0] }\n"
+        b"pub machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
+        b"machine second(x: u64, y: u64) -> u64 { x / y }\n"
+        b"machine twice(a: &[u8; 4], i: u64, x: u64) -> u64 { let b: u8 = a[i]; x / i }"
+    )
+    status, payload = run(program, every)
+    observation = decode(payload)
+    expected = (
+        ("IndexOutOfBounds", located(every, b"a[i]")),
+        ("DivisorMayBeZero", located(every, b"x / y")),
+        ("IndexOutOfBounds", located(every, b"a[i]!2")),
+        ("CrashNotDeclared", located(every, b"pub machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }")),
+    )
+    assert status == 247 and observation.rejections == expected, (
+        f"every-machine-first-rejection: status {status}, {observation.rejections}"
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"
@@ -843,7 +868,9 @@ def main() -> None:
     status, payload = run_units(program, psi_units, ((b"psi", False),))
     assert status in (0, 247) and payload, f"psi-package: status {status}, the package must reach checking"
     package = decode(payload)
-    print(f"psi-package: status {status}, {package.diagnostic} at {package.diagnostic_span}")
+    print(f"psi-package: status {status}, {len(package.rejections)} rejections")
+    for diagnostic, (unit, start, end) in package.rejections:
+        print(f"  {diagnostic} at {psi_units[unit][0].decode()} {start}..{end}: {psi_units[unit][1][start:end][:80]!r}")
 
     phase_rejected(program, "typing-rejection-has-no-observation", b"machine f() -> u8 { true }", 249)
     phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)

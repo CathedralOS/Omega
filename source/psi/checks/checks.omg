@@ -1,6 +1,6 @@
 use psi::source::source;
 
-// What checking concludes about a typed source set: its first rejection, the
+// What checking concludes about a typed source set: its rejections, the
 // number of definedness obligations it discharged, and each machine's crash
 // routes. Checking runs after typing and owns the source obligations of
 // wiki/spec/language/numeric_values.md and
@@ -52,30 +52,75 @@ pub data CrashRoutes [copy] {
     abort: bool;
 }
 
+// Machines check independently, so one rejection does not end checking: each
+// pass over the machines (their bodies, their crash routes, their supply
+// clauses) records the first rejection of every machine it rejects, in the
+// order found, until 64 are recorded.
 pub data Checks
 where
     machine_count <= 2048,
+    diagnostic_count <= 64,
 {
     routes: [CrashRoutes; 2048];
     machine_count: u64;
     obligation_count: u64 in Wrapping;
-    diagnostic: CheckDiagnostic;
+    diagnostics: [CheckDiagnostic; 64];
+    diagnostic_count: u64;
     accepted: bool;
+    // Whether the machine a pass is at has not rejected yet; its checking
+    // stops at its first rejection.
+    machine_accepted: bool;
+}
+
+// A pass moves on to another machine.
+pub machine Checks::open_machine(checks: &mut Checks) {
+    checks.machine_accepted = true;
 }
 
 pub machine Checks::reject(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
-    transition checks.accepted {
+    transition checks.machine_accepted {
         true -> first(checks, code, source_span)
         _ -> done()
     }
 
     state first(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
         checks.accepted = false;
-        checks.diagnostic.code = code;
-        checks.diagnostic.source_span = source_span;
+        checks.machine_accepted = false;
+        let index: u64 = checks.diagnostic_count;
+        transition index < 64 {
+            true -> recorded(checks, code, source_span, index)
+            _ -> done()
+        }
+    }
+
+    state recorded(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan, index: u64)
+    requires index < 64
+    {
+        checks.diagnostics[index] = CheckDiagnostic { code: code, source_span: source_span };
+        checks.diagnostic_count = index + 1;
     }
 
     state done() {}
+}
+
+// The rejection at `index`, in the order checking found them.
+pub machine Checks::diagnostic(checks: &Checks, index: u64 in Trapping) -> CheckDiagnostic
+crashes Trap
+{
+    transition index < checks.diagnostic_count && index < 64 {
+        true -> read(checks, index)
+        _ -> invalid()
+    }
+
+    state read(checks: &Checks, index: u64 in Trapping) -> CheckDiagnostic
+    requires index < 64
+    {
+        checks.diagnostics[index]
+    }
+
+    state invalid() -> CheckDiagnostic {
+        crash Trap;
+    }
 }
 
 pub machine Checks::routes(checks: &Checks, machine: u64 in Trapping) -> CrashRoutes

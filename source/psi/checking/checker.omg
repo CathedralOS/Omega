@@ -27,7 +27,9 @@ use psi::types::types;
 // causes must lie within the causes it declares
 // (wiki/spec/language/effects.md#guarded-crashes). Then each `satisfies`
 // clause must refine its requirement and each body's termination promise
-// must be proved (supply.omg). The first rejection is the diagnostic.
+// must be proved (supply.omg). A machine's checking stops at its first
+// rejection and the next machine's begins, so one run reports every rejected
+// machine (checks.omg).
 pub data Checker {
     output: Checks;
     // The body being walked: its places, its integer subjects and its zone.
@@ -119,7 +121,7 @@ crashes Trap
     transition { _ -> next_machine(checker, syntax, resolution, typing, 0) }
 
     state next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
-        transition index < syntax.machine_count && checker.output.accepted {
+        transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
             true -> machine(checker, syntax, resolution, typing, index)
             _ -> settle(checker, syntax, resolution)
         }
@@ -138,19 +140,13 @@ crashes Trap
         transition { _ -> next_machine(checker, syntax, resolution, typing, index + 1) }
     }
 
+    // A body that rejected may have stopped before some of its crash sites;
+    // its routes are then a subset of what it derives, so settling them
+    // finds no cause that a whole walk would not.
     state settle(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution) {
-        transition checker.output.accepted {
-            true -> routes(checker, syntax, resolution)
-            _ -> done()
-        }
-    }
-
-    state routes(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution) {
         Checker::settle_routes(checker, syntax);
         Checker::check_supply(checker, syntax, resolution);
     }
-
-    state done() {}
 }
 
 // An accepted, empty result, with every machine's declared crash causes.
@@ -158,19 +154,11 @@ machine Checker::clear(checker: &mut Checker, syntax: &SyntaxTrees)
 crashes Trap
 {
     checker.output.accepted = true;
-    checker.output.diagnostic.code = CheckDiagnosticCode::None;
+    checker.output.machine_accepted = true;
+    checker.output.diagnostic_count = 0;
     checker.output.obligation_count = 0;
     checker.output.machine_count = syntax.machine_count;
     checker.call_count = 0;
-    checker.saved_count = 0;
-    checker.frame_count = 0;
-    checker.context_count = 0;
-    checker.replay = false;
-    checker.substituting = false;
-    checker.returning = false;
-    checker.field_values = false;
-    checker.domains_pending = false;
-    checker.fields_parent = 0;
     transition { _ -> next(checker, syntax, 0) }
 
     state next(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
@@ -229,6 +217,18 @@ pub machine Checker::check_machine(checker: &mut Checker, syntax: &SyntaxTrees, 
 crashes Trap
 {
     let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+    Checks::open_machine(&mut checker.output);
+    // A previous machine's rejection may have stopped its walk inside a
+    // context, frame or substitution.
+    checker.saved_count = 0;
+    checker.frame_count = 0;
+    checker.context_count = 0;
+    checker.replay = false;
+    checker.substituting = false;
+    checker.returning = false;
+    checker.field_values = false;
+    checker.domains_pending = false;
+    checker.fields_parent = 0;
     checker.machine = index;
     checker.first_state = item.first_state;
     checker.state_count = item.state_count;
@@ -262,7 +262,7 @@ crashes Trap
     }
 
     state drain(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
-        transition checker.queue_count > 0 && checker.output.accepted {
+        transition checker.queue_count > 0 && checker.output.machine_accepted {
             true -> revisit(checker, syntax, resolution, typing, index, item)
             _ -> check_entry(checker, syntax, resolution, typing, index, item)
         }
@@ -285,7 +285,7 @@ crashes Trap
     }
 
     state check_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
-        transition offset < item.state_count && checker.output.accepted {
+        transition offset < item.state_count && checker.output.machine_accepted {
             true -> reached(checker, syntax, resolution, typing, index, item, offset)
             _ -> publish(checker, index, item)
         }
@@ -909,13 +909,14 @@ crashes Trap
     }
 
     state fit(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
-        transition index < syntax.machine_count && checker.output.accepted {
+        transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
             true -> machine(checker, syntax, index)
             _ -> done()
         }
     }
 
     state machine(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        Checks::open_machine(&mut checker.output);
         let routes: CrashRoutes = Checks::routes(&checker.output, index);
         let undeclared: bool = !routes.inferred
             && ((routes.trap && !routes.declares_trap) || (routes.abort && !routes.declares_abort));
@@ -928,6 +929,7 @@ crashes Trap
     state rejected(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
         Checks::reject(&mut checker.output, CheckDiagnosticCode::CrashNotDeclared, item.source_span);
+        transition { _ -> fit(checker, syntax, index + 1) }
     }
 
     state done() {}

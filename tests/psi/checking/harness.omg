@@ -456,11 +456,12 @@ blocks;
 
 
 // Versioned canonical checking observation. Every scalar coordinate and
-// count is little-endian u64. The stream begins with `OMGCHK1\0`, version 1,
-// the acceptance byte, the diagnostic tag and its source span, then the
-// machine count and each machine's crash routes as five bytes: declares
-// Trap, declares Abort, infers, derives Trap, derives Abort. Tags are
-// declaration ordinals. This is hosted development tooling, not an Omega ABI.
+// count is little-endian u64. The stream begins with `OMGCHK1\0`, version 2,
+// the acceptance byte, the rejection count and each rejection's diagnostic
+// tag and source span in the order checking found them, then the machine
+// count and each machine's crash routes as five bytes: declares Trap,
+// declares Abort, infers, derives Trap, derives Abort. Tags are declaration
+// ordinals. This is hosted development tooling, not an Omega ABI.
 machine CheckingHarness::write_checking_observation(checking_harness: &mut CheckingHarness, output: &Checks)
 reaches Console
 crashes Trap
@@ -473,14 +474,31 @@ crashes Trap
     CheckingHarness::write_byte(checking_harness, 75);
     CheckingHarness::write_byte(checking_harness, 49);
     CheckingHarness::write_byte(checking_harness, 0);
-    CheckingHarness::write_u64(checking_harness, 1);
+    CheckingHarness::write_u64(checking_harness, 2);
     let accepted: u8 = CheckingHarness::boolean_tag(output.accepted);
-    let diagnostic: u8 = CheckingHarness::diagnostic_tag(output.diagnostic.code);
     CheckingHarness::write_byte(checking_harness, accepted);
-    CheckingHarness::write_byte(checking_harness, diagnostic);
-    CheckingHarness::write_source_span(checking_harness, output.diagnostic.source_span);
-    CheckingHarness::write_u64(checking_harness, output.machine_count as u64 in Trapping);
-    transition { _ -> machine(checking_harness, output, 0) }
+    CheckingHarness::write_u64(checking_harness, output.diagnostic_count as u64 in Trapping);
+    transition { _ -> rejection(checking_harness, output, 0) }
+
+    state rejection(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+        transition index < output.diagnostic_count {
+            true -> diagnostic(checking_harness, output, index)
+            _ -> machines(checking_harness, output)
+        }
+    }
+
+    state diagnostic(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+        let rejected: CheckDiagnostic = Checks::diagnostic(output, index);
+        let tag: u8 = CheckingHarness::diagnostic_tag(rejected.code);
+        CheckingHarness::write_byte(checking_harness, tag);
+        CheckingHarness::write_source_span(checking_harness, rejected.source_span);
+        transition { _ -> rejection(checking_harness, output, index + 1) }
+    }
+
+    state machines(checking_harness: &mut CheckingHarness, output: &Checks) {
+        CheckingHarness::write_u64(checking_harness, output.machine_count as u64 in Trapping);
+        transition { _ -> machine(checking_harness, output, 0) }
+    }
 
     state machine(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
         transition index < output.machine_count {

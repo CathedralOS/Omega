@@ -599,7 +599,7 @@ crashes Trap
         end: u64 in Trapping,
         checking: bool
     ) {
-        transition index < end && checker.output.accepted {
+        transition index < end && checker.output.machine_accepted {
             true -> statement(checker, syntax, resolution, typing, first, index, end, checking)
             _ -> finished(checker, syntax, resolution, typing, first, end, checking)
         }
@@ -628,7 +628,7 @@ crashes Trap
         end: u64 in Trapping,
         checking: bool
     ) {
-        transition checking && checker.output.accepted && !checker.zone.infeasible {
+        transition checking && checker.output.machine_accepted && !checker.zone.infeasible {
             true -> returned(checker, syntax, resolution, typing, first, end)
             _ -> done()
         }
@@ -923,7 +923,7 @@ crashes Trap
         offset: u64 in Trapping,
         checking: bool
     ) {
-        transition offset < statement.arm_count && checker.output.accepted {
+        transition offset < statement.arm_count && checker.output.machine_accepted {
             true -> selected(checker, syntax, resolution, typing, statement, offset, checking)
             _ -> finished(checker)
         }
