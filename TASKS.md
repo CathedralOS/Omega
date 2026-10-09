@@ -2068,8 +2068,8 @@ crash and native exit behavior.
     providers, folds target layout, checks and prunes siblings before Terminal;
     `realization/provider-planning` depends on syntax/typed/checked trees,
     stage 04, validation and the checked interpreter; Omega stage 00 consumes
-    checked/lowered entry receipts and callback source-call occurrences beside
-    the canonical artifact; stage 05 selects shape-specific routes.
+    checked/lowered entry and callback-body receipts beside the canonical
+    artifact; stage 05 selects shape-specific routes.
   - Make topology enforce ownership. Remove forbidden production dependencies
     so Rust cannot name a representation or operation outside the consuming
     stage's declared inputs. Add one workspace architecture gate derived from
@@ -2102,9 +2102,11 @@ crash and native exit behavior.
     feature repair.
   - Remove the remaining source joins beside Terminal: publication now transfers
     its semantic module, and provider installation/runtime borrow it directly,
-    and exact boundary application demands are canonical producer output, but
-    selected realizations, source-call result policies and callback
-    settlement still consume `LoweredSourceCustody` and checked receipts.
+    and boundary demands/candidates plus callback registrar applications are
+    canonical producer output. Callback body/placement settlement and entry
+    admission still consume checked/lowered receipts; provider planning still
+    reads frontend declarations. `LoweredSourceCustody` is producer-private,
+    used only by explicit correspondence audits, not native settlement.
     Carry their required meaning in the canonical producer output and delete
     those source-dependent inputs. External package/artifact ingress decodes
     once; it is not an internal handoff API.

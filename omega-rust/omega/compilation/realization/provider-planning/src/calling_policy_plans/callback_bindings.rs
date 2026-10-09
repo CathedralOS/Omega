@@ -375,6 +375,7 @@ pub fn validate_nominal_callback_placement_bindings(
             }
         };
         bound.push(backend_plan::BoundNominalCallbackPlacement {
+            application_index: nominal_use.application_index,
             site: nominal_use.site,
             registration_operation: nominal_use.registration_operation,
             static_machine_ordinal: nominal_use.static_machine_ordinal,

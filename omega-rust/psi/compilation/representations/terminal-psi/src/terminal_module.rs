@@ -101,8 +101,8 @@ pub use types::{
     StructuralEstablishmentRoute, StructuralFieldDeclaration, StructuralFieldType,
     StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape, field_by_identity,
     find_structural_case, find_structural_type, live_field, live_field_by_id,
-    live_field_by_identity, live_field_entry, structural_case_by_identity, structural_case_position,
-    structural_children, structural_type_by_identity,
+    live_field_by_identity, live_field_entry, structural_case_by_identity,
+    structural_case_position, structural_children, structural_type_by_identity,
     unique_structural_declaration,
 };
 pub use values::{
@@ -151,6 +151,8 @@ pub struct TerminalModule {
     /// selection: installation policy remains outside terminal-Psi identity.
     pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub boundary_application_candidates: Vec<crate::BoundaryApplicationCandidate>,
+    /// Checked callback applications joined to their emitted registrar operations.
+    pub callback_applications: Vec<crate::TerminalCallbackApplication>,
     /// Interfaces and implementation tables runtime selectors name.
     pub dynamic_dispatch: TerminalDynamicDispatchCatalog,
     /// Source-handle-free proof-only float projections. These rows are
@@ -279,6 +281,7 @@ impl TerminalModule {
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             boundary_application_candidates: Vec::new(),
+            callback_applications: Vec::new(),
             dynamic_dispatch: TerminalDynamicDispatchCatalog::default(),
             float_meaning_projections: Vec::new(),
             float_meaning_equalities: Vec::new(),

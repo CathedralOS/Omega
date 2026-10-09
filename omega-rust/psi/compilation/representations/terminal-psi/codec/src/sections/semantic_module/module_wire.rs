@@ -14,6 +14,7 @@
 
 mod borrow_wire;
 mod boundary_application_wire;
+mod callback_application_wire;
 mod carry_and_suspension_wire;
 mod recursive_component_wire;
 
@@ -210,6 +211,10 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for demand in &module.boundary_application_demands {
         boundary_application_wire::encode_demand(&mut writer, demand)?;
     }
+    writer.len("callback applications", module.callback_applications.len())?;
+    for application in &module.callback_applications {
+        callback_application_wire::encode(&mut writer, application)?;
+    }
     writer.len(
         "boundary application candidates",
         module.boundary_application_candidates.len(),
@@ -288,6 +293,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let target_machine_families = decode_counted(reader, target_family_wire::decode_family)?;
     let boundary_application_demands =
         decode_counted(reader, boundary_application_wire::decode_demand)?;
+    let callback_applications = decode_counted(reader, callback_application_wire::decode)?;
     let boundary_application_candidates =
         decode_counted(reader, boundary_application_wire::decode_candidate)?;
     Ok(TerminalModule {
@@ -325,5 +331,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         target_machine_families,
         boundary_application_demands,
         boundary_application_candidates,
+        callback_applications,
     })
 }

@@ -1,0 +1,84 @@
+//! Close checked callback applications onto emitted operations before publication.
+
+use checked_trees::CheckedTrees;
+use checked_trees::NominalMachineUseSite;
+use lowered_psi::LoweredPsi;
+use symbols::SymbolHandle;
+use terminal_psi::TerminalCallbackApplication;
+
+pub(super) fn retain(checked: &CheckedTrees, lowered: &mut LoweredPsi) -> Result<(), &'static str> {
+    // Index the requested applications, not every emitted source call. Multiple
+    // static-machine parameters at one call share its registrar operation.
+    let mut requested = checked
+        .facts
+        .nominal_machine_uses
+        .uses
+        .iter()
+        .filter(|usage| usage.callback_placement.is_some())
+        .map(|usage| {
+            (
+                source_key(usage.site, usage.registration_operation),
+                usage,
+                None,
+            )
+        })
+        .collect::<Vec<_>>();
+    if requested.is_empty() {
+        lowered.semantic_module.callback_applications.clear();
+        return Ok(());
+    }
+    requested.sort_unstable_by_key(|(key, _, _)| *key);
+    for occurrence in &lowered.source_call_occurrences {
+        let (Some(site), Some(operation)) =
+            (occurrence.source_site, occurrence.terminal_site.operation())
+        else {
+            continue;
+        };
+        let key = source_key(site, occurrence.source_target);
+        let first = requested.partition_point(|(candidate, _, _)| *candidate < key);
+        for (_, _, registrar) in requested[first..]
+            .iter_mut()
+            .take_while(|(candidate, _, _)| *candidate == key)
+        {
+            if registrar.replace(operation).is_some() {
+                return Err("callback application names multiple emitted registrar operations");
+            }
+        }
+    }
+    let mut applications = Vec::with_capacity(requested.len());
+    for (_, usage, registrar) in requested {
+        // This module need not contain every checked machine's callbacks.
+        let Some(registrar) = registrar else { continue };
+        applications.push(TerminalCallbackApplication {
+            application_index: usage.application_index,
+            registrar,
+            static_machine_ordinal: usage.static_machine_ordinal,
+            requirement: usage.canonical_requirement_overload.clone(),
+            published_contract: usage
+                .published_requirement_envelope
+                .contract_commitment
+                .as_bytes(),
+            actual_contract: usage
+                .selected_actual_envelope
+                .contract_commitment
+                .as_bytes(),
+        });
+    }
+    applications.sort_unstable_by_key(|application| application.application_index);
+    lowered.semantic_module.callback_applications = applications;
+    Ok(())
+}
+
+fn source_key(site: NominalMachineUseSite, target: SymbolHandle) -> (u8, u32, u32, u32, u32) {
+    let (kind, arena_index, generation) = match site {
+        NominalMachineUseSite::Statement(handle) => (0, handle.arena_index(), handle.generation()),
+        NominalMachineUseSite::Expression(handle) => (1, handle.arena_index(), handle.generation()),
+    };
+    (
+        kind,
+        arena_index,
+        generation,
+        target.arena_index(),
+        target.generation(),
+    )
+}

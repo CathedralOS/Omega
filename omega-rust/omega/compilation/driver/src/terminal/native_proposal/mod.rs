@@ -11,7 +11,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
-    source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let callback_thunks = callback_placements
@@ -21,12 +20,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
     terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
         artifact,
         checked_program_entry,
-        checked.terminal_native_proposal_request(
-            callback_placements,
-            callback_thunks,
-            source_call_occurrences,
-            selections,
-        ),
+        checked.terminal_native_proposal_request(callback_placements, callback_thunks, selections),
     )
 }
 

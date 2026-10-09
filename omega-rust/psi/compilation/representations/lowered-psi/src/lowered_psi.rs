@@ -9,8 +9,8 @@ pub use source_custody::{
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 
-/// Source joins that still accompany publication for native settlement. These
-/// contain no semantic program storage and are not a portable product.
+/// Producer-private source joins used by explicit source-correspondence audits.
+/// Publication discards these; native settlement reads canonical Terminal rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredSourceCustody {
     pub source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
@@ -27,8 +27,9 @@ pub struct LoweredPsi {
     /// empty until that finalization step.
     pub debug_map: Option<TerminalDebugMap>,
     /// Ephemeral checked-source-to-Terminal call joins. These rows are not
-    /// encoded into Terminal Psi; the Omega product consumes them while both
-    /// representations are available and retains only target-owned evidence.
+    /// encoded into Terminal Psi. Psi projects portable callback applications
+    /// before publication and retains these joins only for optimization and
+    /// explicit source-correspondence audits.
     pub source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
     /// Ephemeral exact joins from selected checked integer comparison uses to
     /// the Terminal operations they produced, the integer counterpart of
@@ -42,8 +43,8 @@ pub struct LoweredPsi {
 }
 
 impl LoweredPsi {
-    /// Transfer the semantic program to publication, retaining only source
-    /// joins for consumers whose settlement still depends on checked input.
+    /// Separate the portable program from presentation and producer-private
+    /// source joins. Publication discards the latter; an explicit audit may use them.
     pub fn into_parts(
         self,
     ) -> (

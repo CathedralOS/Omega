@@ -2,15 +2,14 @@
 //!
 //! These are driver results beside the canonical artifact, not another Psi IR.
 
-use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
+use lowered_psi::LoweredPsi;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 use artifacts::compile_timings::CompileTimings;
 
 /// Canonical Terminal output beside the checked-source evidence the caller
-/// asked production to retain: source call
-/// occurrences, and the checked `ProgramEntry` receipt when an entry identity
-/// was supplied.
+/// asked production to retain: the unoptimized module and the checked
+/// `ProgramEntry` receipt when an entry identity was supplied.
 ///
 /// The retained native route rejoins the checked entry receipt after the
 /// checked frontend is gone, so the receipt leaves production beside the
@@ -39,10 +38,6 @@ impl ProducedTerminalArtifact {
         self.production.unoptimized()
     }
 
-    pub fn source_call_occurrences(&self) -> &[LoweredSourceCallOccurrence] {
-        self.production.source_call_occurrences()
-    }
-
     /// Keep only the canonical portable artifact.
     pub fn into_artifact(self) -> terminal_codec::CanonicalTerminalArtifact {
         self.production.into_artifact()
@@ -55,7 +50,6 @@ impl ProducedTerminalArtifact {
         terminal_codec::CanonicalTerminalArtifact,
         Option<CheckedProgramEntryTerminalReceipt>,
         Option<LoweredPsi>,
-        Vec<LoweredSourceCallOccurrence>,
     ) {
         self.production.into_parts()
     }
@@ -79,8 +73,7 @@ pub struct TerminalProductionCustody<'t> {
 }
 
 impl<'t> TerminalProductionCustody<'t> {
-    /// No entry receipt: only the artifact and its remaining source-call joins are
-    /// retained.
+    /// Retain only the artifact, without an entry receipt or unoptimized module.
     pub fn artifact_only(timings: &'t mut CompileTimings) -> Self {
         Self {
             entry_identity: None,

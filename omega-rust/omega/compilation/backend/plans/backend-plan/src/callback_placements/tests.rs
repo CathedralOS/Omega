@@ -189,6 +189,7 @@ pub(crate) fn placement() -> BoundNominalCallbackPlacement {
     let selected_machine = SymbolHandle::from_parts(4, 2);
     let selected_entry = SymbolHandle::from_parts(5, 3);
     BoundNominalCallbackPlacement {
+        application_index: 0,
         site: NominalMachineUseSite::Expression(
             checked_trees::expression::ExpressionHandle::from_parts(9, 1),
         ),

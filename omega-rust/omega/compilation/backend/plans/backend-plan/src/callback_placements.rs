@@ -20,6 +20,8 @@ use symbols::SymbolHandle;
 /// coordinate alone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundNominalCallbackPlacement {
+    /// Joins the portable callback application in this compilation's Terminal artifact.
+    pub application_index: u32,
     pub site: NominalMachineUseSite,
     pub registration_operation: SymbolHandle,
     pub static_machine_ordinal: u32,

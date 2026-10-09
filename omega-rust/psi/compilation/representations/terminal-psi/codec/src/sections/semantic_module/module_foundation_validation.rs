@@ -37,6 +37,7 @@ use terminal_psi::{
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
     validate_target_families(module)?;
     validate_boundary_application_operations(module)?;
+    validate_callback_registrars(module)?;
     require_unique_nonempty_identities(
         module
             .structural_types
@@ -117,6 +118,28 @@ fn validate_boundary_application_operations(module: &TerminalModule) -> Result<(
     }
     if found.iter().any(|found| !found) {
         return malformed("boundary application names an absent operation");
+    }
+    Ok(())
+}
+
+fn validate_callback_registrars(module: &TerminalModule) -> Result<(), CodecError> {
+    let mut registrars = module
+        .callback_applications
+        .iter()
+        .map(|application| application.registrar)
+        .collect::<BTreeSet<_>>();
+    if registrars.is_empty() {
+        return Ok(());
+    }
+    // Several callback binders may belong to the same boundary call. Check
+    // only the requested set while streaming the program's operations.
+    for operation in module.operations() {
+        if matches!(operation.kind, OperationKind::BoundaryCall { .. }) {
+            registrars.remove(&operation.id);
+        }
+    }
+    if !registrars.is_empty() {
+        return malformed("callback registrar is not a boundary call");
     }
     Ok(())
 }

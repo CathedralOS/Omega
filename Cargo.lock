@@ -2132,7 +2132,6 @@ dependencies = [
  "effects",
  "function-identity",
  "installation-evidence",
- "lowered-psi",
  "numerics",
  "optimization-core",
  "optimization-unit",

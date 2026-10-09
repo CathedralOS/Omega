@@ -480,6 +480,7 @@ pub(crate) fn lower_unit_closure(
 
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            callback_applications: Vec::new(),
             boundary_application_candidates: Vec::new(),
             boundary_application_demands: Vec::new(),
             scalar_qualifications,

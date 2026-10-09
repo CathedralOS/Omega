@@ -22,6 +22,9 @@ pub use artifacts::{
     ProofSystemMarker, TerminalDebugMap,
 };
 
+mod callback_application;
+pub use callback_application::TerminalCallbackApplication;
+
 pub use language_core::BindingRelevance;
 pub use semantic_vocabulary::{
     BoundaryCompletion, BoundaryRequirementKind, ExternalCompletionKind,
@@ -105,7 +108,8 @@ pub use terminal_module::{
     is_bounded_structural_scalar_store_path, is_static_structural_path,
     is_structural_scalar_store_path, live_field, live_field_by_id, live_field_by_identity,
     live_field_entry, observation, ownership,
-    program_local_root_introduction_compatibility_report_identity, proof, structural_case_by_identity, structural_case_position,
-    structural_children, structural_parameter_position, structural_type_by_identity, suspension_frontier_commitment, types,
-    unique_structural_declaration, values,
+    program_local_root_introduction_compatibility_report_identity, proof,
+    structural_case_by_identity, structural_case_position, structural_children,
+    structural_parameter_position, structural_type_by_identity, suspension_frontier_commitment,
+    types, unique_structural_declaration, values,
 };

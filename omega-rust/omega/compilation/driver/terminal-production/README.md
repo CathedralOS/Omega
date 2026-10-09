@@ -11,8 +11,8 @@ Enter [terminal_production.rs](src/terminal_production.rs). The sequence is
 Publication consumes the validated optimization-stage result, not an unoptimized
 producer-private shortcut.
 
-[custody.rs](src/custody.rs) owns retained products and the callback sidecar's
-success/rejection contract; [stage_timings.rs](src/stage_timings.rs) owns sequence
+[custody.rs](src/custody.rs) owns retained artifacts and entry receipts;
+[stage_timings.rs](src/stage_timings.rs) owns sequence
 observations. Neither implements Psi judgments.
 
 [Optimization ownership](../../../../psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/README.md)
@@ -23,13 +23,13 @@ separates canonical sealing from source-entry correspondence audits.
 `TerminalProductionRequest` carries the checked trees, the
 `TerminalMachineSelection` naming the machine, and the exact Psi optimization
 selection. Its one `produce` entry takes a `TerminalProductionCustody`: an
-optional ProgramEntry source-signature identity, the caller's opaque callback
-sidecar, and the stage-timing carrier. Every product runs the same
+optional ProgramEntry source-signature identity, an unoptimized-retention choice,
+and the stage-timing carrier. Every product runs the same
 lowering, optimization and publication legs; an entry identity
 adds the ProgramEntry receipt legs, which check the unique Unit entry before
 publication and rejoin the published semantic identity afterward. The
-`ProducedTerminalArtifact` returns the artifact beside that retained custody,
-and rejection returns the original opaque sidecar without cloning it.
+`ProducedTerminalArtifact` returns the artifact beside the requested entry
+receipt and unoptimized module.
 
 Permission-ledger validation belongs to the stage-05 lowering entrance, not
 this coordinator. Its work is included in the lowering timing row; there is
@@ -58,11 +58,11 @@ checked cleanup planning. This receipt is checked-source correspondence, not a
 source-free proof, a storage grant, or Fused service establishment; native entry
 must still supply those independent obligations.
 
-Boundary application demands, checked body candidates and selected comparison
-demands live in the canonical artifact. Callback source-call custody remains
-an owned sidecar: carrying it does not interpret placement or grant
-registration, invocation, address, or lifetime authority. Native realization
-must rejoin the exact source/build receipts under its own authority.
+Boundary application demands, checked body candidates, selected comparison
+demands and callback applications live in the canonical artifact. Source-call
+records do not cross publication. Callback applications identify their registrar,
+requirement and checked contracts; target-owned placement and body receipts
+still supply the distinct ABI and installation evidence.
 
 ## Lowering owners
 

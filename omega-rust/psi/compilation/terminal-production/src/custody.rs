@@ -2,13 +2,12 @@
 //!
 //! These are producer results beside the canonical artifact, not another Psi IR.
 
-use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
+use lowered_psi::LoweredPsi;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 /// Canonical Terminal output beside the checked-source evidence the caller
-/// asked production to retain: source call
-/// occurrences, and the checked `ProgramEntry` receipt when an entry identity
-/// was supplied.
+/// asked production to retain: the unoptimized module and the checked
+/// `ProgramEntry` receipt when an entry identity was supplied.
 ///
 /// The retained native route rejoins the checked entry receipt after the
 /// checked frontend is gone, so the receipt leaves production beside the
@@ -19,7 +18,6 @@ pub struct ProducedTerminalArtifact {
     pub(super) artifact: terminal_codec::CanonicalTerminalArtifact,
     pub(super) receipt: Option<CheckedProgramEntryTerminalReceipt>,
     pub(super) unoptimized: Option<LoweredPsi>,
-    pub(super) source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
 }
 
 impl ProducedTerminalArtifact {
@@ -40,10 +38,6 @@ impl ProducedTerminalArtifact {
         self.unoptimized.as_ref()
     }
 
-    pub fn source_call_occurrences(&self) -> &[LoweredSourceCallOccurrence] {
-        &self.source_call_occurrences
-    }
-
     /// Keep only the canonical portable artifact.
     pub fn into_artifact(self) -> terminal_codec::CanonicalTerminalArtifact {
         self.artifact
@@ -56,14 +50,8 @@ impl ProducedTerminalArtifact {
         terminal_codec::CanonicalTerminalArtifact,
         Option<CheckedProgramEntryTerminalReceipt>,
         Option<LoweredPsi>,
-        Vec<LoweredSourceCallOccurrence>,
     ) {
-        (
-            self.artifact,
-            self.receipt,
-            self.unoptimized,
-            self.source_call_occurrences,
-        )
+        (self.artifact, self.receipt, self.unoptimized)
     }
 }
 

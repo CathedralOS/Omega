@@ -144,6 +144,9 @@ impl CheckedCallbackResourceReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedNominalMachineUse {
+    /// Stable occurrence number assigned when the checked roster is frozen.
+    /// Pruning retains this number; it is not an index into the remaining vector.
+    pub application_index: u32,
     pub site: NominalMachineUseSite,
     pub registration_operation: SymbolHandle,
     pub static_machine_ordinal: u32,
@@ -249,6 +252,10 @@ impl NominalMachineUseFacts {
                 continue;
             }
             retained.push(nominal_use);
+        }
+        for (application_index, usage) in retained.iter_mut().enumerate() {
+            usage.application_index = u32::try_from(application_index)
+                .map_err(|_| "nominal machine application count exceeds u32".to_owned())?;
         }
         Ok(Self { uses: retained })
     }

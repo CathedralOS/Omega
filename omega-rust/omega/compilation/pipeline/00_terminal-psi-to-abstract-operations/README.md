@@ -22,8 +22,10 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   behavior exclusions remain independent inputs, never inferred from providers.
   Build exclusions carry their selected service identities; the proposal maps
   them to Terminal's local service IDs without a typed/checked program or a
-  source-resolution callback. This stage has no direct typed/checked-tree crate
-  dependency; the remaining Lowered Psi input is callback occurrence custody.
+  source-resolution callback. This stage has no direct typed-tree, checked-tree or Lowered Psi crate
+  dependency. Callback occurrences arrive in the canonical Terminal module;
+  callback body receipts and ABI placements still retain source-side identity
+  through backend planning, which remains a separate unfinished handoff.
   Its [proposal constructor](src/retained_terminal/proposal.rs) owns the full
   producing sequence: entry settlement, canonical decode, provider demands,
   callback and comparison joins, boundary coverage and registrar imports.

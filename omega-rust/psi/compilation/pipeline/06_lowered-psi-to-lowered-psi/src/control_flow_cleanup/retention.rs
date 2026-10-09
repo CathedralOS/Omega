@@ -57,6 +57,12 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
             .iter()
             .map(|demand| demand.terminal_operation()),
     );
+    evidence.operations.extend(
+        module
+            .callback_applications
+            .iter()
+            .map(|application| application.registrar),
+    );
     fn retain_proposition(
         proposition: &semantic_vocabulary::Proposition,
         evidence: &mut BlockLocalEvidence,

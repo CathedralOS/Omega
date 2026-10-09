@@ -95,7 +95,7 @@ impl<'a> TerminalProductionRequest<'a> {
             ),
             _ => None,
         };
-        let (artifact, source_custody) = observer
+        let artifact = observer
             .record_result(TerminalProductionStage::Publication, || {
                 lowered_psi_to_terminal_psi::finalize_terminal_artifact(optimized)
             })
@@ -112,7 +112,6 @@ impl<'a> TerminalProductionRequest<'a> {
             artifact,
             receipt,
             unoptimized,
-            source_call_occurrences: source_custody.source_call_occurrences,
         })
     }
 

@@ -18,6 +18,24 @@ use super::wire::Writer;
 use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALAR_TERM_DEPTH};
 
 pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
+    if !strictly_increasing(
+        module
+            .callback_applications
+            .iter()
+            .map(|row| row.application_index),
+    ) {
+        return Err(CodecError::NonCanonicalOrder("callback applications"));
+    }
+    for application in &module.callback_applications {
+        if application.requirement.is_empty()
+            || application.published_contract == [0; 32]
+            || application.actual_contract == [0; 32]
+        {
+            return Err(CodecError::MalformedStructuralFoundation(
+                "callback application lacks its requirement or contract",
+            ));
+        }
+    }
     if !strictly_increasing(module.boundary_application_candidates.iter()) {
         return Err(CodecError::NonCanonicalOrder(
             "boundary application candidates",

@@ -28,7 +28,6 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     pub callback_placements: &'input [backend_plan::BoundNominalCallbackPlacement],
     pub callback_thunks: Vec<crate::TerminalCallbackThunkArtifact>,
-    pub source_call_occurrences: &'input [lowered_psi::LoweredSourceCallOccurrence],
 }
 
 /// Reconstruct the entry, provider and occurrence joins required by native
@@ -39,7 +38,6 @@ pub fn project_terminal_native_realization_proposal(
     request: TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let callback_placements = request.callback_placements;
-    let source_call_occurrences = request.source_call_occurrences;
     let target_profile = request.target_profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Terminal native proposal requires one selected target profile",
@@ -107,7 +105,7 @@ pub fn project_terminal_native_realization_proposal(
         )?;
     let callback_occurrences = project_callback_occurrences(
         callback_placements,
-        source_call_occurrences,
+        terminal_module,
         request.callback_thunks,
     )?;
     let boundary_application_coverage = request.boundaries.settle(artifact)?;
@@ -156,7 +154,7 @@ pub fn project_terminal_native_realization_proposal(
 /// compile, so their native interfaces are not re-checked here.
 fn project_callback_occurrences(
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
-    source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
+    module: &terminal_psi::TerminalModule,
     thunks: Vec<crate::TerminalCallbackThunkArtifact>,
 ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
     if callback_placements.len() != thunks.len() {
@@ -164,22 +162,23 @@ fn project_callback_occurrences(
             "callback thunk roster differs from checked placement roster",
         )]);
     }
-    let callback_source_calls = backend_plan::CallbackRegistrarOccurrences::new(
-        callback_placements
-            .iter()
-            .map(|placement| (placement.site, placement.registration_operation)),
-        source_call_occurrences,
-    );
     let occurrences = callback_placements
         .iter()
         .zip(thunks)
         .enumerate()
         .map(|(placement_index, (placement, callback_thunk_artifact))| {
-            let occurrence = callback_source_calls
-                .find(placement.site, placement.registration_operation)
-                .map_err(|count| vec![Diagnostic::error(format!(
-                    "callback placement {placement_index} resolves to {count} Terminal registrar occurrences; exactly one is required",
+            let application = module.callback_applications.binary_search_by_key(
+                &placement.application_index, |row| row.application_index
+            ).ok().map(|ordinal| &module.callback_applications[ordinal])
+                .ok_or_else(|| vec![Diagnostic::error(format!(
+                    "callback placement {placement_index} has no Terminal application",
                 ))])?;
+            if application.static_machine_ordinal != placement.static_machine_ordinal
+                || application.requirement != placement.canonical_requirement_overload
+                || application.actual_contract != placement.resource_receipt.contract_commitment().as_bytes()
+            {
+                return Err(vec![Diagnostic::error("callback placement disagrees with its checked Terminal application")]);
+            }
             let callback_thunk_identity =
                 backend_plan::canonical_callback_thunk_identity(placement_index, placement)
                     .ok_or_else(|| {
@@ -189,7 +188,7 @@ fn project_callback_occurrences(
                     })?;
             Ok(crate::TerminalCallbackOccurrenceProposal::new(
                 placement_index,
-                occurrence.terminal_site.operation().ok_or_else(|| vec![Diagnostic::error("callback registrar requires a normally returning operation occurrence")])?,
+                application.registrar,
                 placement
                     .private_materialization
                     .as_ref()

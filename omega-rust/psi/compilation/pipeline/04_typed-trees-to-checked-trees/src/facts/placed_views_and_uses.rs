@@ -124,6 +124,7 @@ pub(crate) fn build_nominal_machine_use_facts(
             )]);
         }
         checked.push(checked_trees::CheckedNominalMachineUse {
+            application_index: 0, // Assigned when the complete roster is frozen.
             site: match nominal_use.site {
                 validation::ValidatedNominalMachineUseSite::Statement(handle) => {
                     checked_trees::NominalMachineUseSite::Statement(handle)

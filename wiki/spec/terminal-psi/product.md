@@ -46,6 +46,14 @@ target's Build row to that catalog; it does not reopen checked source or ask the
 publication stage for a source-index companion. Requirement package identity is
 explicit, so same-spelling requirements from different packages cannot collide.
 
+Checked callback applications retain their registrar operation, static-machine
+binder ordinal, requirement identity and published/actual contract commitments
+in Terminal Psi. A compilation-local occurrence number joins target placement
+to this row and survives pruning; it is not independently authoritative. Several
+callback binders may share one registrar. Native settlement consumes these
+rows, not a parallel source-call catalog. Callback body correspondence and
+target ABI/installation evidence remain separate obligations.
+
 The reference interpreter executes the portable semantics directly. Native
 code realizes the same semantics. Differential agreement is evidence about
 implementations, not a definition of the language.

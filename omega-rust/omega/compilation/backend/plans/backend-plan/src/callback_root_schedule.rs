@@ -317,6 +317,7 @@ mod tests {
         let selected_machine = symbol(4);
         let selected_entry = symbol(5);
         BoundNominalCallbackPlacement {
+            application_index: 0,
             site: NominalMachineUseSite::Expression(
                 checked_trees::expression::ExpressionHandle::from_arena_index(9),
             ),

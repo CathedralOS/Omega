@@ -8,7 +8,6 @@
 use super::CheckedCompilation;
 use crate::TerminalCallbackThunkArtifact;
 use diagnostics::Diagnostic;
-use lowered_psi::LoweredSourceCallOccurrence;
 use terminal_psi_to_abstract_operations::{
     BoundaryApplicationSettlement, TerminalNativeProposalRequest,
 };
@@ -44,7 +43,6 @@ impl CheckedCompilation {
         &'input self,
         callback_placements: &'input [backend_plan::BoundNominalCallbackPlacement],
         callback_thunks: Vec<TerminalCallbackThunkArtifact>,
-        source_call_occurrences: &'input [LoweredSourceCallOccurrence],
         selections: &optimization_core::OptimizationSelections,
     ) -> TerminalNativeProposalRequest<'input> {
         let execution = self.execution();
@@ -72,7 +70,6 @@ impl CheckedCompilation {
             package_terminal_authority_permissions: execution.terminal_authority_permissions(),
             callback_placements,
             callback_thunks,
-            source_call_occurrences,
         }
     }
 }

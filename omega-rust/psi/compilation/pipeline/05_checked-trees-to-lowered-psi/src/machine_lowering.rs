@@ -14,6 +14,7 @@
 
 mod boundary_applications;
 pub(crate) mod bounded_callbacks;
+mod callback_applications;
 pub(crate) mod debug_map;
 pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
@@ -54,6 +55,7 @@ pub fn lower_machine(
     let mut lowered = lower_terminal_selection(checked, selection)?;
     boundary_applications::retain(checked, exact_toolchain_sources, &mut lowered)
         .map_err(LoweringError::Unsupported)?;
+    callback_applications::retain(checked, &mut lowered).map_err(LoweringError::Unsupported)?;
     Ok(lowered)
 }
 
