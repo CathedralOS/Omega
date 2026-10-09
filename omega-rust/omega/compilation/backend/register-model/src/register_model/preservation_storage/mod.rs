@@ -7,7 +7,8 @@ mod identity;
 mod validation;
 
 use super::{PhysicalRegisterModelIdentity, RegisterUnitId, RegisterViewId};
-pub use identity::{PreservationStorageCatalogIdentity, preservation_storage_catalog_identity};
+pub use identity::{PreservationStorageCatalogIdentity};
+pub(crate) use identity::{ preservation_storage_catalog_identity};
 pub use validation::{
     PreservationStorageCatalogValidationError, validate_preservation_storage_catalog,
 };
@@ -77,7 +78,7 @@ impl ValidatedPreservationStorageCatalog {
         self.catalog.physical_register_model
     }
 
-    pub fn into_catalog(self) -> PreservationStorageCatalog {
+    pub(crate) fn into_catalog(self) -> PreservationStorageCatalog {
         self.catalog
     }
 
