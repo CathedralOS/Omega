@@ -14,7 +14,8 @@ DIAGNOSTICS = (
     "None", "CheckCapacityExceeded", "UnsupportedFact", "UnsupportedCheck",
     "IndexOutOfBounds", "ArithmeticOverflow", "DivisorMayBeZero",
     "ConversionOutOfRange", "ShiftCountOutOfRange", "RequirementUnproven",
-    "DomainUnproven", "CrashNotDeclared", "GuaranteeUnproven",
+    "DomainUnproven", "CrashNotDeclared", "GuaranteeUnproven", "RankUnproven",
+    "ProgressUnproven",
 )
 
 
@@ -1100,10 +1101,135 @@ def main() -> None:
         "UnsupportedFact",
         b"satisfies Positive::get",
     )
+    # Termination: a `terminates by` witness strictly descends on every
+    # cyclic transition (a state cycle or a self call), each subject read in
+    # the source as its state formal of that name and after the edge as the
+    # argument its target formal receives; a bare `terminates;` promise
+    # needs a witness for any cycle and terminating callees; a productive
+    # loop that promises nothing owes no rank.
+    countdown = (
+        b"machine count(n: u64) -> u64\nterminates by n;\n{\n"
+        b"    transition n > 0 {\n"
+        b"        true -> step(n - 1)\n"
+        b"        _ -> done()\n"
+        b"    }\n"
+        b"\n"
+        b"    state step(n: u64) -> u64 {\n"
+        b"        transition n > 0 {\n"
+        b"            true -> STEP\n"
+        b"            _ -> done()\n"
+        b"        }\n"
+        b"    }\n"
+        b"\n"
+        b"    state done() -> u64 { 0 }\n"
+        b"}"
+    )
+    accepted(program, "ranked-state-cycle-descends", countdown.replace(b"STEP", b"step(n - 1)"))
     rejected(
         program,
-        "termination-promise-is-unsupported",
-        b"machine f(n: u64) terminates by n; { }",
+        "ranked-state-cycle-must-descend",
+        countdown.replace(b"STEP", b"step(n)"),
+        "RankUnproven",
+        b"step(n)",
+    )
+    rejected(
+        program,
+        "promised-cycle-needs-a-witness",
+        countdown.replace(b"terminates by n;", b"terminates;").replace(b"STEP", b"step(n - 1)"),
+        "RankUnproven",
+        b"step(n - 1)!2",
+    )
+    accepted(
+        program,
+        "productive-loop-owes-no-rank",
+        countdown.replace(b"terminates by n;\n", b"").replace(b"STEP", b"step(n)"),
+    )
+    walk = (
+        b"machine walk(items: &[u8], i: u64) -> u64\n"
+        b"terminates by (i, items.len) -> Nat::BoundedDistance;\n{\n"
+        b"    transition i < items.len {\n"
+        b"        true -> NEXT\n"
+        b"        _ -> (i)\n"
+        b"    }\n"
+        b"}"
+    )
+    accepted(program, "self-call-climbs-its-bounded-distance", walk.replace(b"NEXT", b"walk(items, i + 1)"))
+    rejected(
+        program,
+        "self-call-must-climb",
+        walk.replace(b"NEXT", b"walk(items, i)"),
+        "RankUnproven",
+        b"walk(items, i)",
+    )
+    shrink = (
+        b"machine total(bytes: &[u8]) -> u64\n"
+        b"terminates by bytes -> Slice::Length;\n{\n"
+        b"    transition bytes.len > 0 {\n"
+        b"        true -> emit(bytes[1..])\n"
+        b"        _ -> done()\n"
+        b"    }\n"
+        b"\n"
+        b"    state emit(bytes: &[u8]) -> u64 {\n"
+        b"        transition bytes.len > 0 {\n"
+        b"            true -> TAIL\n"
+        b"            _ -> done()\n"
+        b"        }\n"
+        b"    }\n"
+        b"\n"
+        b"    state done() -> u64 { 0 }\n"
+        b"}"
+    )
+    accepted(program, "slice-length-shrinks", shrink.replace(b"TAIL", b"emit(bytes[1..])"))
+    rejected(
+        program,
+        "slice-length-must-shrink",
+        shrink.replace(b"TAIL", b"emit(bytes[0..])"),
+        "RankUnproven",
+        b"emit(bytes[0..])",
+    )
+    accepted(
+        program,
+        "promise-over-terminating-callees",
+        b"machine helper(x: u64) -> u64 { x }\n"
+        b"machine leaf(x: u64) -> u64 terminates;\n"
+        b"machine run(x: u64) -> u64\nterminates;\n{\n"
+        b"    let a: u64 = helper(x);\n"
+        b"    leaf(a)\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "promise-over-a-productive-loop",
+        b"machine spin(x: u64) -> u64 {\n"
+        b"    transition { _ -> again(x) }\n"
+        b"\n"
+        b"    state again(x: u64) -> u64 {\n"
+        b"        transition { _ -> again(x) }\n"
+        b"    }\n"
+        b"}\n"
+        b"machine run(x: u64) -> u64\nterminates;\n{ spin(x) }",
+        "ProgressUnproven",
+        b"terminates;",
+    )
+    rejected(
+        program,
+        "promise-over-an-unpromised-leaf",
+        b"machine leaf(x: u64) -> u64;\nmachine run(x: u64) -> u64\nterminates;\n{ leaf(x) }",
+        "ProgressUnproven",
+        b"terminates;",
+    )
+    rejected(
+        program,
+        "promise-over-mutual-recursion",
+        b"machine ping(x: u64) -> u64\nterminates;\n{ pong(x) }\n"
+        b"machine pong(x: u64) -> u64\nterminates;\n{ ping(x) }",
+        "ProgressUnproven",
+        b"terminates;",
+    )
+    rejected(
+        program,
+        "bodyless-witness-ranks-nothing",
+        b"machine leaf(n: u64) -> u64 terminates by n;",
         "UnsupportedCheck",
         b"terminates by n;",
     )

@@ -1,5 +1,6 @@
 use psi::checking::checker;
 use psi::checking::contracts;
+use psi::checking::termination;
 use psi::checks::checks;
 use psi::resolution::resolution;
 use psi::source::source;
@@ -19,9 +20,12 @@ use psi::types::types;
 // matched its signature, and checking proves its crash causes lie within
 // the contract's; an argument with premises of its own rejects as
 // unsupported, since the contract's premises cannot yet be related to
-// them. A body promising termination rejects as unsupported:
-// checking proves no ranking yet (wiki/spec/language/termination.md). A
-// bodyless declaration's promise is its callers' premise, not an obligation.
+// them. Termination (termination.omg) ranks a body's cycles as it is
+// walked; here a promising body must also have settled as terminating, its
+// callees' guarantees usable, and a ranking witness on a bodyless
+// declaration rejects, since it ranks no body
+// (wiki/spec/language/termination.md). A bodyless declaration's promise is
+// its callers' premise, not an obligation.
 pub machine Checker::check_supply(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution)
 crashes Trap
 {
@@ -49,6 +53,7 @@ crashes Trap
 
     state supplied(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         Checker::check_supplied_calls(checker, syntax, resolution, index);
+        Checker::check_progress(checker, syntax, resolution, index);
         transition { _ -> next_machine(checker, syntax, resolution, index + 1) }
     }
 
@@ -86,7 +91,7 @@ crashes Trap
         offset: u64 in Trapping,
         clause: Clause
     ) {
-        transition item.has_body {
+        transition !item.has_body && clause.argument_count > 0 {
             true -> unranked(checker, syntax, resolution, index, clause.source_span)
             _ -> next_clause(checker, syntax, resolution, index, item, offset + 1)
         }
@@ -95,6 +100,29 @@ crashes Trap
     state unranked(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, source_span: SourceSpan) {
         Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, source_span);
         transition { _ -> next_machine(checker, syntax, resolution, index + 1) }
+    }
+
+    state done() {}
+}
+
+// A body promising termination must have settled as terminating
+// (termination.omg); one whose own graph is unranked was rejected as its
+// cycle was walked.
+machine Checker::check_progress(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, machine: u64 in Trapping)
+crashes Trap
+{
+    let item: MachineItem = SyntaxTrees::machine_item(syntax, machine);
+    let termination: TerminationClause = Checker::termination_clause(syntax, resolution, item);
+    let ranked: bool = Checker::ranked_locally(checker, machine);
+    let terminating: bool = Checker::settled_termination(checker, machine);
+    transition item.has_body && termination.promised && ranked && !terminating && checker.output.machine_accepted {
+        true -> unproven(checker, syntax, termination.promise)
+        _ -> done()
+    }
+
+    state unproven(checker: &mut Checker, syntax: &SyntaxTrees, promise: u64 in Trapping) {
+        let clause: Clause = SyntaxTrees::clause(syntax, promise);
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::ProgressUnproven, clause.source_span);
     }
 
     state done() {}

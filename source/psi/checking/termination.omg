@@ -1,0 +1,1169 @@
+use psi::checking::checker;
+use psi::checking::contracts;
+use psi::checking::evaluation;
+use psi::checking::fact_values;
+use psi::checking::flow;
+use psi::checking::obligations;
+use psi::checking::places;
+use psi::checks::checks;
+use psi::integers::integers;
+use psi::resolution::resolution;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// Termination (wiki/spec/language/termination.md). A body's local control
+// graph has the entry body as node 0 and state `k` as node `k + 1`; a jump
+// is an edge to its target state's node and a self call an edge to the
+// entry's. The fact-gathering walks record each edge they take, and the
+// graph closes into reachability before the checking walk, so an edge is
+// cyclic when its target reaches its source.
+//
+// A bare `terminates;` promises termination, as does satisfying a
+// requirement that promises it; `terminates by` supplies a private ranking
+// witness and promises nothing by itself. A body with a witness strictly
+// descends it on every cyclic edge: each ranked subject before the edge is
+// its value in the source node (an entry parameter, or the state formal of
+// its spelling), and after it the argument its target node's carrier
+// receives. A cycle in a promising body without a witness is unranked. A
+// body that neither promises nor ranks owes nothing: a productive loop may
+// run forever.
+//
+// Once crash routes settle, termination settles over the call graph as a
+// least fixed point: a bodyless machine terminates as it promises, and a
+// body does once its local graph is acyclic or ranked, it calls no machine
+// binder (no `where machine` contract promises termination yet), and every
+// machine it calls other than itself terminates, so a call cycle through
+// other machines never does (one joint ranking per component is not
+// supported). A promising body that does not terminate reaches an
+// operation without a usable guarantee. Every body's derived summary
+// serves its callers, exported or not, as the reference compiler's does;
+// the spec's rule that only authored promises cross an export is not
+// enforced yet.
+
+// Clear the edges among `nodes` local nodes.
+pub machine Checker::clear_edges(checker: &mut Checker, nodes: u64 in Trapping)
+crashes Trap
+{
+    transition { _ -> row(checker, nodes, 0) }
+
+    state row(checker: &mut Checker, nodes: u64 in Trapping, from: u64 in Trapping) {
+        transition from < nodes && from < 129 {
+            true -> cell(checker, nodes, from, 0)
+            _ -> done()
+        }
+    }
+
+    state cell(checker: &mut Checker, nodes: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
+        let index: u64 in Trapping = from * 129 + to;
+        transition to < nodes && to < 129 && index < 16641 {
+            true -> clear(checker, nodes, from, to, index)
+            _ -> row(checker, nodes, from + 1)
+        }
+    }
+
+    state clear(checker: &mut Checker, nodes: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping, index: u64 in Trapping)
+    requires index < 16641
+    {
+        checker.edges[index] = false;
+        transition { _ -> cell(checker, nodes, from, to + 1) }
+    }
+
+    state done() {}
+}
+
+// Record an edge from the node being walked to node `to`.
+pub machine Checker::record_edge(checker: &mut Checker, to: u64 in Trapping)
+crashes Trap
+{
+    let from: u64 in Trapping = checker.walking as u64 in Trapping;
+    let index: u64 in Trapping = from * 129 + to;
+    transition from < 129 && to < 129 && index < 16641 {
+        true -> write(checker, index)
+        _ -> done()
+    }
+
+    state write(checker: &mut Checker, index: u64 in Trapping)
+    requires index < 16641
+    {
+        checker.edges[index] = true;
+    }
+
+    state done() {}
+}
+
+// Whether node `from` reaches node `to` once the edges are closed.
+pub machine Checker::reaches(checker: &Checker, from: u64 in Trapping, to: u64 in Trapping) -> bool
+crashes Trap
+{
+    let index: u64 in Trapping = from * 129 + to;
+    transition from < 129 && to < 129 && index < 16641 {
+        true -> read(checker, index)
+        _ -> absent()
+    }
+
+    state read(checker: &Checker, index: u64 in Trapping) -> bool
+    requires index < 16641
+    {
+        checker.edges[index]
+    }
+
+    state absent() -> bool {
+        false
+    }
+}
+
+// Close the edges among `nodes` local nodes into reachability (each node
+// `through` in turn joins what it reaches into every node reaching it), then
+// record whether machine `machine` has a local cycle: a node reaching
+// itself.
+pub machine Checker::close_edges(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping)
+crashes Trap
+{
+    transition { _ -> through(checker, machine, nodes, 0) }
+
+    state through(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping, middle: u64 in Trapping) {
+        transition middle < nodes && middle < 129 {
+            true -> source(checker, machine, nodes, middle, 0)
+            _ -> cycle(checker, machine, nodes, 0)
+        }
+    }
+
+    state source(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping, middle: u64 in Trapping, from: u64 in Trapping) {
+        let reaching: bool = Checker::reaches(checker, from, middle);
+        transition from < nodes && from < 129 {
+            true -> joined(checker, machine, nodes, middle, from, reaching)
+            _ -> through(checker, machine, nodes, middle + 1)
+        }
+    }
+
+    state joined(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping, middle: u64 in Trapping, from: u64 in Trapping, reaching: bool) {
+        transition reaching {
+            true -> target(checker, machine, nodes, middle, from, 0)
+            _ -> source(checker, machine, nodes, middle, from + 1)
+        }
+    }
+
+    state target(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping, middle: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
+        let onward: bool = Checker::reaches(checker, middle, to);
+        transition to < nodes && to < 129 {
+            true -> extended(checker, machine, nodes, middle, from, to, onward)
+            _ -> source(checker, machine, nodes, middle, from + 1)
+        }
+    }
+
+    state extended(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping, middle: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping, onward: bool) {
+        transition onward {
+            true -> join(checker, machine, nodes, middle, from, to)
+            _ -> target(checker, machine, nodes, middle, from, to + 1)
+        }
+    }
+
+    state join(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping, middle: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
+        let index: u64 in Trapping = from * 129 + to;
+        transition index < 16641 {
+            true -> write(checker, machine, nodes, middle, from, to, index)
+            _ -> target(checker, machine, nodes, middle, from, to + 1)
+        }
+    }
+
+    state write(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping, middle: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping, index: u64 in Trapping)
+    requires index < 16641
+    {
+        checker.edges[index] = true;
+        transition { _ -> target(checker, machine, nodes, middle, from, to + 1) }
+    }
+
+    state cycle(checker: &mut Checker, machine: u64 in Trapping, nodes: u64 in Trapping, node: u64 in Trapping) {
+        let looped: bool = Checker::reaches(checker, node, node);
+        transition node < nodes && !looped {
+            true -> cycle(checker, machine, nodes, node + 1)
+            _ -> mark(checker, machine, node < nodes)
+        }
+    }
+
+    state mark(checker: &mut Checker, machine: u64 in Trapping, cyclic: bool) {
+        transition machine < 2048 {
+            true -> marked(checker, machine, cyclic)
+            _ -> done()
+        }
+    }
+
+    state marked(checker: &mut Checker, machine: u64 in Trapping, cyclic: bool)
+    requires machine < 2048
+    {
+        checker.cyclic[machine] = cyclic;
+    }
+
+    state done() {}
+}
+
+// A call of the machine being checked is an edge to its entry's node.
+pub machine Checker::record_self_call(checker: &mut Checker, selection: Selection)
+crashes Trap
+{
+    transition selection {
+        Selection::Machine { handle } -> selected(checker, handle)
+        _ -> done()
+    }
+
+    state selected(checker: &mut Checker, handle: u64 in Trapping) {
+        transition handle == checker.machine {
+            true -> entry(checker)
+            _ -> done()
+        }
+    }
+
+    state entry(checker: &mut Checker) {
+        Checker::record_edge(checker, 0);
+    }
+
+    state done() {}
+}
+
+// A self call of a terminating body descends its ranking: the entry's
+// formals receive its arguments.
+pub machine Checker::require_self_descent(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, call: Expression)
+crashes Trap
+{
+    transition selection {
+        Selection::Machine { handle } -> selected(checker, syntax, resolution, typing, call, handle)
+        _ -> done()
+    }
+
+    state selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: Expression, handle: u64 in Trapping) {
+        transition handle == checker.machine {
+            true -> owed(checker, syntax, resolution, typing, call, handle)
+            _ -> done()
+        }
+    }
+
+    state owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: Expression, handle: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        Checker::require_descent(checker, syntax, resolution, typing, call, 0, item.first_parameter, item.parameter_count);
+    }
+
+    state done() {}
+}
+
+// Whether machine `machine`'s body has a local cycle; a machine beyond the
+// table is taken to have one.
+pub machine Checker::has_local_cycle(checker: &Checker, machine: u64 in Trapping) -> bool {
+    transition machine < 2048 {
+        true -> read(checker, machine)
+        _ -> unknown()
+    }
+
+    state read(checker: &Checker, machine: u64 in Trapping) -> bool
+    requires machine < 2048
+    {
+        checker.cyclic[machine]
+    }
+
+    state unknown() -> bool {
+        true
+    }
+}
+
+// A machine's termination clause: whether it promises termination, and
+// whether a `terminates by` witness ranks it, with that clause's handle.
+// `promise` is the clause that promises (a bare `terminates;`, or the
+// `satisfies` clause inheriting one), `handle` the witness clause.
+pub data TerminationClause [copy] {
+    promised: bool;
+    promise: u64 in Trapping;
+    ranked: bool;
+    handle: u64 in Trapping;
+}
+
+pub machine Checker::termination_clause(syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem) -> TerminationClause
+crashes Trap
+{
+    let none: TerminationClause = TerminationClause { promised: false, promise: 0, ranked: false, handle: 0 };
+    transition { _ -> next(syntax, resolution, item, 0, none) }
+
+    state next(syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem, offset: u64 in Trapping, found: TerminationClause) -> TerminationClause {
+        transition offset < item.clause_count {
+            true -> clause(syntax, resolution, item, offset, found)
+            _ -> finished(found)
+        }
+    }
+
+    state clause(syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem, offset: u64 in Trapping, found: TerminationClause) -> TerminationClause {
+        let handle: u64 in Trapping = item.first_clause + offset;
+        let written: Clause = SyntaxTrees::clause(syntax, handle);
+        transition written.kind {
+            ClauseKind::Terminates -> terminates(syntax, resolution, item, offset, found, handle, written.argument_count > 0)
+            ClauseKind::Satisfies -> satisfies(syntax, resolution, item, offset, found, handle)
+            _ -> next(syntax, resolution, item, offset + 1, found)
+        }
+    }
+
+    state terminates(syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem, offset: u64 in Trapping, found: TerminationClause, handle: u64 in Trapping, ranked: bool) -> TerminationClause {
+        let witnessed: TerminationClause = TerminationClause { promised: found.promised, promise: found.promise, ranked: true, handle: handle };
+        let promising: TerminationClause = TerminationClause { promised: true, promise: handle, ranked: found.ranked, handle: found.handle };
+        transition ranked {
+            true -> next(syntax, resolution, item, offset + 1, witnessed)
+            _ -> next(syntax, resolution, item, offset + 1, promising)
+        }
+    }
+
+    state satisfies(syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem, offset: u64 in Trapping, found: TerminationClause, handle: u64 in Trapping) -> TerminationClause {
+        let requirement: ValueBinding = NameResolution::requirement(resolution, handle);
+        let inherited: bool = Checker::requirement_promises(syntax, requirement);
+        let promising: TerminationClause = TerminationClause { promised: true, promise: handle, ranked: found.ranked, handle: found.handle };
+        transition inherited && !found.promised {
+            true -> next(syntax, resolution, item, offset + 1, promising)
+            _ -> next(syntax, resolution, item, offset + 1, found)
+        }
+    }
+
+    state finished(found: TerminationClause) -> TerminationClause {
+        found
+    }
+}
+
+// Whether a satisfied requirement promises termination with a bare
+// `terminates;`.
+machine Checker::requirement_promises(syntax: &SyntaxTrees, requirement: ValueBinding) -> bool
+crashes Trap
+{
+    transition requirement {
+        ValueBinding::Machine { handle } -> declared(syntax, handle)
+        _ -> no()
+    }
+
+    state declared(syntax: &SyntaxTrees, handle: u64 in Trapping) -> bool {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        transition { _ -> next(syntax, item, 0) }
+    }
+
+    state next(syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) -> bool {
+        transition offset < item.clause_count {
+            true -> clause(syntax, item, offset)
+            _ -> no()
+        }
+    }
+
+    state clause(syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) -> bool {
+        let written: Clause = SyntaxTrees::clause(syntax, item.first_clause + offset);
+        transition written.kind == ClauseKind::Terminates && written.argument_count == 0 {
+            true -> yes()
+            _ -> next(syntax, item, offset + 1)
+        }
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Forget a machine's local graph summary before checking starts.
+pub machine Checker::reset_termination(checker: &mut Checker, machine: u64 in Trapping) {
+    transition machine < 2048 {
+        true -> write(checker, machine)
+        _ -> done()
+    }
+
+    state write(checker: &mut Checker, machine: u64 in Trapping)
+    requires machine < 2048
+    {
+        checker.cyclic[machine] = false;
+        checker.binder_calls[machine] = false;
+        checker.terminating[machine] = false;
+    }
+
+    state done() {}
+}
+
+// The body being checked calls a machine binder.
+pub machine Checker::record_binder_call(checker: &mut Checker)
+crashes Trap
+{
+    let machine: u64 in Trapping = checker.machine;
+    transition machine < 2048 {
+        true -> write(checker, machine)
+        _ -> done()
+    }
+
+    state write(checker: &mut Checker, machine: u64 in Trapping)
+    requires machine < 2048
+    {
+        checker.binder_calls[machine] = true;
+    }
+
+    state done() {}
+}
+
+// Settle which machines terminate (see the header).
+pub machine Checker::settle_termination(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution)
+crashes Trap
+{
+    transition { _ -> seed(checker, syntax, resolution, 0) }
+
+    state seed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        transition index < syntax.machine_count && index < 2048 {
+            true -> seeded(checker, syntax, resolution, index)
+            _ -> round(checker, syntax)
+        }
+    }
+
+    state seeded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping)
+    requires index < 2048
+    {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        let termination: TerminationClause = Checker::termination_clause(syntax, resolution, item);
+        let cyclic: bool = checker.cyclic[index];
+        checker.locally_ranked[index] = item.has_body && (!cyclic || termination.ranked);
+        checker.terminating[index] = !item.has_body && termination.promised;
+        checker.blocked[index] = false;
+        transition { _ -> seed(checker, syntax, resolution, index + 1) }
+    }
+
+    state round(checker: &mut Checker, syntax: &SyntaxTrees) {
+        transition { _ -> calls(checker, syntax, 0) }
+    }
+
+    state calls(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < checker.call_count && index < 32768 {
+            true -> call(checker, syntax, index)
+            _ -> raise(checker, syntax, 0, false)
+        }
+    }
+
+    state call(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping)
+    requires index < 32768
+    {
+        let caller: u64 = checker.callers[index];
+        let callee: u64 = checker.callees[index];
+        transition caller != callee && caller < 2048 && callee < 2048 {
+            true -> callee_known(checker, syntax, index, caller, callee)
+            _ -> calls(checker, syntax, index + 1)
+        }
+    }
+
+    state callee_known(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, caller: u64, callee: u64)
+    requires caller < 2048 && callee < 2048
+    {
+        transition checker.terminating[callee] {
+            true -> calls(checker, syntax, index + 1)
+            _ -> stalled(checker, syntax, index, caller)
+        }
+    }
+
+    state stalled(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, caller: u64)
+    requires caller < 2048
+    {
+        checker.blocked[caller] = true;
+        transition { _ -> calls(checker, syntax, index + 1) }
+    }
+
+    state raise(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, changed: bool) {
+        transition index < syntax.machine_count && index < 2048 {
+            true -> raised(checker, syntax, index, changed)
+            _ -> settled(checker, syntax, changed)
+        }
+    }
+
+    state raised(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, changed: bool)
+    requires index < 2048
+    {
+        let rises: bool = checker.locally_ranked[index] && !checker.binder_calls[index] && !checker.blocked[index] && !checker.terminating[index];
+        checker.blocked[index] = false;
+        transition rises {
+            true -> rise(checker, syntax, index)
+            _ -> raise(checker, syntax, index + 1, changed)
+        }
+    }
+
+    state rise(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping)
+    requires index < 2048
+    {
+        checker.terminating[index] = true;
+        transition { _ -> raise(checker, syntax, index + 1, true) }
+    }
+
+    state settled(checker: &mut Checker, syntax: &SyntaxTrees, changed: bool) {
+        transition changed {
+            true -> round(checker, syntax)
+            _ -> done()
+        }
+    }
+
+    state done() {}
+}
+
+// Whether machine `machine` settled as terminating, and whether its own
+// graph is acyclic or ranked.
+pub machine Checker::settled_termination(checker: &Checker, machine: u64 in Trapping) -> bool {
+    transition machine < 2048 {
+        true -> read(checker, machine)
+        _ -> no()
+    }
+
+    state read(checker: &Checker, machine: u64 in Trapping) -> bool
+    requires machine < 2048
+    {
+        checker.terminating[machine]
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+pub machine Checker::ranked_locally(checker: &Checker, machine: u64 in Trapping) -> bool {
+    transition machine < 2048 {
+        true -> read(checker, machine)
+        _ -> no()
+    }
+
+    state read(checker: &Checker, machine: u64 in Trapping) -> bool
+    requires machine < 2048
+    {
+        checker.locally_ranked[machine]
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// The rank a witness gives one node: the subjects' values there, and for
+// `Nat::IncreasingTo` its limit's.
+data Rank [copy] {
+    first: Value;
+    second: Value;
+}
+
+// A cyclic edge from the node being walked to node `to` at `call` (a jump
+// or a self call) must strictly descend the machine's ranking: the
+// target's formals `target_first .. target_first + target_count` receive
+// the call's arguments in order.
+pub machine Checker::require_descent(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    call: Expression,
+    to: u64 in Trapping,
+    target_first: u64 in Trapping,
+    target_count: u64 in Trapping
+)
+crashes Trap
+{
+    let from: u64 in Trapping = checker.walking as u64 in Trapping;
+    let cyclic: bool = Checker::reaches(checker, to, from);
+    let item: MachineItem = SyntaxTrees::machine_item(syntax, checker.machine);
+    let termination: TerminationClause = Checker::termination_clause(syntax, resolution, item);
+    transition cyclic && (termination.promised || termination.ranked) {
+        true -> owed(checker, syntax, resolution, typing, call, to, target_first, target_count, item, termination)
+        _ -> done()
+    }
+
+    state owed(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        call: Expression,
+        to: u64 in Trapping,
+        target_first: u64 in Trapping,
+        target_count: u64 in Trapping,
+        item: MachineItem,
+        termination: TerminationClause
+    ) {
+        transition termination.ranked {
+            true -> ranked(checker, syntax, resolution, typing, call, to, target_first, target_count, item, termination)
+            _ -> unranked(checker, call)
+        }
+    }
+
+    state ranked(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        call: Expression,
+        to: u64 in Trapping,
+        target_first: u64 in Trapping,
+        target_count: u64 in Trapping,
+        item: MachineItem,
+        termination: TerminationClause
+    ) {
+        let view: RankingView = Checker::elaborated_view(syntax, resolution, typing, termination);
+        let descends: bool = Checker::descends(checker, syntax, resolution, typing, call, target_first, target_count, item, termination, view);
+        transition descends {
+            true -> done()
+            _ -> unranked(checker, call)
+        }
+    }
+
+    state unranked(checker: &mut Checker, call: Expression) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::RankUnproven, call.source_span);
+    }
+
+    state done() {}
+}
+
+// A witness's view with its default elaborated by its subjects' carriers:
+// one unsigned integer descends, one slice ranks by its length, and two
+// subjects rank by their bounded distance. `Default` stays for a witness
+// none of these fit.
+pub machine Checker::elaborated_view(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, termination: TerminationClause) -> RankingView
+crashes Trap
+{
+    let view: RankingView = NameResolution::ranking_view(resolution, termination.handle);
+    transition view {
+        RankingView::Default -> defaulted(syntax, typing, termination)
+        _ -> chosen(view)
+    }
+
+    state defaulted(syntax: &SyntaxTrees, typing: &Typing, termination: TerminationClause) -> RankingView {
+        let written: Clause = SyntaxTrees::clause(syntax, termination.handle);
+        let root: u64 in Trapping = SyntaxTrees::argument(syntax, written.first_argument);
+        let row: TypeRow = Checker::collection_row(typing, root);
+        let natural: bool = Checker::natural_row(row);
+        transition written.argument_count {
+            1 -> single(natural, row.kind == TypeKind::Slice)
+            2 -> chosen(RankingView::BoundedDistance)
+            _ -> chosen(RankingView::Default)
+        }
+    }
+
+    state single(natural: bool, sliced: bool) -> RankingView {
+        transition natural {
+            true -> chosen(RankingView::Descending)
+            _ -> slice(sliced)
+        }
+    }
+
+    state slice(sliced: bool) -> RankingView {
+        transition sliced {
+            true -> chosen(RankingView::SliceLength)
+            _ -> chosen(RankingView::Default)
+        }
+    }
+
+    state chosen(view: RankingView) -> RankingView {
+        view
+    }
+}
+
+// Whether a type row is an unsigned fixed-width integer, whose values are
+// naturals.
+pub machine Checker::natural_row(row: TypeRow) -> bool {
+    transition row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin) {
+        true -> carrier(row.builtin)
+        _ -> no()
+    }
+
+    state carrier(builtin: BuiltinType) -> bool {
+        let least: ExactInteger = ExactInteger::minimum(builtin);
+        !least.negative
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Whether the ranking strictly descends across the edge at `call`.
+machine Checker::descends(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    call: Expression,
+    target_first: u64 in Trapping,
+    target_count: u64 in Trapping,
+    item: MachineItem,
+    termination: TerminationClause,
+    view: RankingView
+) -> bool
+crashes Trap
+{
+    transition view {
+        RankingView::SliceLength -> sliced(checker, syntax, resolution, typing, call, target_first, target_count, item, termination)
+        RankingView::Default -> unsupported()
+        _ -> valued(checker, syntax, resolution, typing, call, target_first, target_count, item, termination, view)
+    }
+
+    state valued(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        call: Expression,
+        target_first: u64 in Trapping,
+        target_count: u64 in Trapping,
+        item: MachineItem,
+        termination: TerminationClause,
+        view: RankingView
+    ) -> bool {
+        Checker::capture_source(checker, syntax, resolution, item);
+        let before: Rank = Checker::rank(checker, syntax, resolution, typing, item, termination, view);
+        Checker::capture_target(checker, syntax, resolution, call, item, target_first, target_count);
+        let after: Rank = Checker::rank(checker, syntax, resolution, typing, item, termination, view);
+        let descended: bool = Checker::rank_descends(checker, before, after, view);
+        descended
+    }
+
+    // `Slice::Length` ranks a slice parameter by its length; the argument
+    // may be a range slice of it, whose length its endpoints give.
+    state sliced(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        call: Expression,
+        target_first: u64 in Trapping,
+        target_count: u64 in Trapping,
+        item: MachineItem,
+        termination: TerminationClause
+    ) -> bool {
+        let written: Clause = SyntaxTrees::clause(syntax, termination.handle);
+        let root: u64 in Trapping = SyntaxTrees::argument(syntax, written.first_argument);
+        let binding: ValueBinding = NameResolution::value_binding(resolution, root);
+        transition binding {
+            ValueBinding::Parameter { parameter } -> entry_subject(checker, syntax, resolution, typing, call, target_first, target_count, item, parameter)
+            _ -> unsupported()
+        }
+    }
+
+    state entry_subject(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        call: Expression,
+        target_first: u64 in Trapping,
+        target_count: u64 in Trapping,
+        item: MachineItem,
+        parameter: u64 in Trapping
+    ) -> bool {
+        transition parameter >= item.first_parameter && parameter - item.first_parameter < item.parameter_count {
+            true -> subject(checker, syntax, resolution, typing, call, target_first, target_count, item, parameter)
+            _ -> unsupported()
+        }
+    }
+
+    state subject(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        call: Expression,
+        target_first: u64 in Trapping,
+        target_count: u64 in Trapping,
+        item: MachineItem,
+        parameter: u64 in Trapping
+    ) -> bool {
+        let entry: u64 in Trapping = parameter - item.first_parameter;
+        let before: Value = Checker::source_length(checker, syntax, resolution, typing, item, entry);
+        let argument: u64 in Trapping = Checker::carried_argument(syntax, resolution, call, item, target_first, target_count, entry);
+        let after: Value = Checker::slice_length(checker, syntax, typing, argument);
+        let shorter: bool = Checker::proves_less(checker, after, before);
+        shorter
+    }
+
+    state unsupported() -> bool {
+        false
+    }
+}
+
+// Fill the argument slots with each entry parameter's value in the node
+// being walked: its own place in the entry, else the place of the state
+// formal carrying it, unknown when none does.
+machine Checker::capture_source(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem)
+crashes Trap
+{
+    let from: u64 in Trapping = checker.walking as u64 in Trapping;
+    transition { _ -> clear(checker, syntax, resolution, item, from, 0) }
+
+    state clear(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem, from: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < item.parameter_count && offset < 64 {
+            true -> unknown(checker, syntax, resolution, item, from, offset)
+            _ -> sourced(checker, syntax, resolution, item, from)
+        }
+    }
+
+    state unknown(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem, from: u64 in Trapping, offset: u64 in Trapping) {
+        let value: Value = Value::unknown();
+        Checker::set_argument(checker, offset, value);
+        transition { _ -> clear(checker, syntax, resolution, item, from, offset + 1) }
+    }
+
+    state sourced(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, item: MachineItem, from: u64 in Trapping) {
+        transition from == 0 {
+            true -> entry(checker, item, 0)
+            _ -> member(checker, syntax, resolution, from - 1)
+        }
+    }
+
+    state entry(checker: &mut Checker, item: MachineItem, offset: u64 in Trapping) {
+        transition offset < item.parameter_count && offset < 64 {
+            true -> own(checker, item, offset)
+            _ -> done()
+        }
+    }
+
+    state own(checker: &mut Checker, item: MachineItem, offset: u64 in Trapping) {
+        let place: u64 in Trapping = Checker::find_place(checker, PlaceKind::Parameter, item.first_parameter + offset, 0);
+        let value: Value = Checker::place_value(checker, place);
+        Checker::set_argument(checker, offset, value);
+        transition { _ -> entry(checker, item, offset + 1) }
+    }
+
+    state member(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, offset: u64 in Trapping) {
+        let body: StateItem = SyntaxTrees::state_item(syntax, checker.first_state + offset);
+        transition { _ -> formal(checker, resolution, body, 0) }
+    }
+
+    state formal(checker: &mut Checker, resolution: &NameResolution, body: StateItem, index: u64 in Trapping) {
+        transition index < body.parameter_count {
+            true -> carried(checker, resolution, body, index)
+            _ -> done()
+        }
+    }
+
+    state carried(checker: &mut Checker, resolution: &NameResolution, body: StateItem, index: u64 in Trapping) {
+        let parameter: u64 in Trapping = body.first_parameter + index;
+        let carrier: u64 in Trapping = NameResolution::rank_carrier(resolution, parameter);
+        transition carrier > 0 {
+            true -> held(checker, resolution, body, index, parameter, carrier - 1)
+            _ -> formal(checker, resolution, body, index + 1)
+        }
+    }
+
+    state held(checker: &mut Checker, resolution: &NameResolution, body: StateItem, index: u64 in Trapping, parameter: u64 in Trapping, entry: u64 in Trapping) {
+        let place: u64 in Trapping = Checker::find_place(checker, PlaceKind::Parameter, parameter, 0);
+        let value: Value = Checker::place_value(checker, place);
+        Checker::set_argument(checker, entry, value);
+        transition { _ -> formal(checker, resolution, body, index + 1) }
+    }
+
+    state done() {}
+}
+
+// Fill the argument slots with each entry parameter's value after the edge
+// at `call`: the argument its target formal receives.
+machine Checker::capture_target(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    call: Expression,
+    item: MachineItem,
+    target_first: u64 in Trapping,
+    target_count: u64 in Trapping
+)
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, resolution, call, item, target_first, target_count, 0) }
+
+    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, call: Expression, item: MachineItem, target_first: u64 in Trapping, target_count: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < item.parameter_count && offset < 64 {
+            true -> entry(checker, syntax, resolution, call, item, target_first, target_count, offset)
+            _ -> done()
+        }
+    }
+
+    state entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, call: Expression, item: MachineItem, target_first: u64 in Trapping, target_count: u64 in Trapping, offset: u64 in Trapping) {
+        let argument: u64 in Trapping = Checker::carried_argument(syntax, resolution, call, item, target_first, target_count, offset);
+        let value: Value = Checker::argument_at(checker, argument);
+        Checker::set_argument(checker, offset, value);
+        transition { _ -> next(checker, syntax, resolution, call, item, target_first, target_count, offset + 1) }
+    }
+
+    state done() {}
+}
+
+// The argument expression at `call` that carries entry parameter `entry`
+// into the target formals `target_first .. target_first + target_count`,
+// plus one; zero when no formal carries it. The entry's own formals carry
+// themselves.
+pub machine Checker::carried_argument(
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    call: Expression,
+    item: MachineItem,
+    target_first: u64 in Trapping,
+    target_count: u64 in Trapping,
+    entry: u64 in Trapping
+) -> u64 in Trapping
+crashes Trap
+{
+    transition target_first == item.first_parameter {
+        true -> position(syntax, call, entry)
+        _ -> next(syntax, resolution, call, target_first, target_count, entry, 0)
+    }
+
+    state next(syntax: &SyntaxTrees, resolution: &NameResolution, call: Expression, target_first: u64 in Trapping, target_count: u64 in Trapping, entry: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+        transition index < target_count {
+            true -> formal(syntax, resolution, call, target_first, target_count, entry, index)
+            _ -> none()
+        }
+    }
+
+    state formal(syntax: &SyntaxTrees, resolution: &NameResolution, call: Expression, target_first: u64 in Trapping, target_count: u64 in Trapping, entry: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+        let carrier: u64 in Trapping = NameResolution::rank_carrier(resolution, target_first + index);
+        transition carrier == entry + 1 {
+            true -> position(syntax, call, index)
+            _ -> next(syntax, resolution, call, target_first, target_count, entry, index + 1)
+        }
+    }
+
+    state position(syntax: &SyntaxTrees, call: Expression, index: u64 in Trapping) -> u64 in Trapping {
+        let count: u64 in Trapping = Checker::operand_count(call);
+        transition index < count {
+            true -> operand(syntax, call, index)
+            _ -> none()
+        }
+    }
+
+    state operand(syntax: &SyntaxTrees, call: Expression, index: u64 in Trapping) -> u64 in Trapping {
+        let handle: u64 in Trapping = Checker::operand(syntax, call, index);
+        handle + 1
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
+}
+
+// The value of argument `argument` (an expression handle plus one), unknown
+// for none.
+machine Checker::argument_at(checker: &Checker, argument: u64 in Trapping) -> Value
+crashes Trap
+{
+    transition argument > 0 {
+        true -> read(checker, argument - 1)
+        _ -> unknown()
+    }
+
+    state read(checker: &Checker, handle: u64 in Trapping) -> Value {
+        let value: Value = Checker::value_at(checker, handle);
+        value
+    }
+
+    state unknown() -> Value {
+        let value: Value = Value::unknown();
+        value
+    }
+}
+
+// The rank the witness gives under the captured slots: its subjects' values
+// with each entry parameter standing for its slot, and `Nat::IncreasingTo`'s
+// limit as its second.
+machine Checker::rank(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    item: MachineItem,
+    termination: TerminationClause,
+    view: RankingView
+) -> Rank
+crashes Trap
+{
+    let written: Clause = SyntaxTrees::clause(syntax, termination.handle);
+    let first_root: u64 in Trapping = SyntaxTrees::argument(syntax, written.first_argument);
+    let first: Value = Checker::substituted_value(checker, syntax, resolution, typing, item, first_root);
+    transition view {
+        RankingView::BoundedDistance -> paired(checker, syntax, resolution, typing, item, written, first)
+        RankingView::IncreasingTo -> limited(checker, syntax, resolution, typing, item, written, first)
+        _ -> single(first)
+    }
+
+    state paired(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, written: Clause, first: Value) -> Rank {
+        let second_root: u64 in Trapping = SyntaxTrees::argument(syntax, written.first_argument + 1);
+        let second: Value = Checker::substituted_value(checker, syntax, resolution, typing, item, second_root);
+        Rank { first: first, second: second }
+    }
+
+    state limited(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, written: Clause, first: Value) -> Rank {
+        let view: Expression = SyntaxTrees::expression(syntax, written.expression);
+        let limit_root: u64 in Trapping = SyntaxTrees::argument(syntax, view.first);
+        let limit: Value = Checker::substituted_value(checker, syntax, resolution, typing, item, limit_root);
+        Rank { first: first, second: limit }
+    }
+
+    state single(first: Value) -> Rank {
+        let second: Value = Value::unknown();
+        Rank { first: first, second: second }
+    }
+}
+
+// The value of witness tree `root` with each of the machine's entry
+// parameters standing for its argument slot, evaluated in its own frame as
+// a fact is; unknown when too deep to evaluate.
+machine Checker::substituted_value(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, root: u64 in Trapping) -> Value
+crashes Trap
+{
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    let low: u64 in Trapping = tree.first_row;
+    let size: u64 in Trapping = root - low + 1;
+    let base: u64 in Trapping = Checker::next_base(checker);
+    transition base + size <= 4096 && checker.frame_count < 8 {
+        true -> framed(checker, syntax, resolution, typing, item, root, low, size, base)
+        _ -> unknown()
+    }
+
+    state framed(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        item: MachineItem,
+        root: u64 in Trapping,
+        low: u64 in Trapping,
+        size: u64 in Trapping,
+        base: u64 in Trapping
+    ) -> Value {
+        let substituting: bool = checker.substituting;
+        let first: u64 in Trapping = checker.argument_first;
+        let count: u64 in Trapping = checker.argument_count;
+        Checker::push_frame(checker);
+        checker.tree_base = base;
+        checker.tree_low = low;
+        checker.tree_size = size;
+        checker.context_first = checker.context_count;
+        checker.substituting = true;
+        checker.argument_first = item.first_parameter;
+        checker.argument_count = item.parameter_count;
+        Checker::evaluate_fact_run(checker, syntax, resolution, typing, root, low);
+        let value: Value = Checker::value_at(checker, root);
+        checker.substituting = substituting;
+        checker.argument_first = first;
+        checker.argument_count = count;
+        Checker::pop_frame(checker);
+        value
+    }
+
+    state unknown() -> Value {
+        let value: Value = Value::unknown();
+        value
+    }
+}
+
+// Whether `after` ranks strictly below `before`. Naturals descend; a
+// bounded distance from `first` up to `second` shrinks when the bound does
+// not grow and the lower subject climbs, or the bound falls and the lower
+// subject does not, from a positive distance.
+machine Checker::rank_descends(checker: &Checker, before: Rank, after: Rank, view: RankingView) -> bool
+crashes Trap
+{
+    transition view {
+        RankingView::Descending -> descending(checker, before, after)
+        RankingView::BoundedDistance -> distance(checker, before, after)
+        RankingView::IncreasingTo -> distance(checker, before, after)
+        _ -> no()
+    }
+
+    state descending(checker: &Checker, before: Rank, after: Rank) -> bool {
+        let below: bool = Checker::proves_less(checker, after.first, before.first);
+        below
+    }
+
+    state distance(checker: &Checker, before: Rank, after: Rank) -> bool {
+        let positive: bool = Checker::proves_less(checker, before.first, before.second);
+        let bound_kept: bool = Checker::proves_at_most(checker, after.second, before.second);
+        let bound_fell: bool = Checker::proves_less(checker, after.second, before.second);
+        let climbed: bool = Checker::proves_less(checker, before.first, after.first);
+        let kept: bool = Checker::proves_at_most(checker, before.first, after.first);
+        positive && ((bound_kept && climbed) || (bound_fell && kept))
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// The length of entry parameter `entry`'s slice in the node being walked.
+machine Checker::source_length(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, entry: u64 in Trapping) -> Value
+crashes Trap
+{
+    let first: u64 in Trapping = checker.argument_first;
+    let count: u64 in Trapping = checker.argument_count;
+    Checker::capture_source(checker, syntax, resolution, item);
+    checker.argument_first = item.first_parameter;
+    checker.argument_count = item.parameter_count;
+    let base: Value = Checker::argument_value(checker, entry);
+    checker.argument_first = first;
+    checker.argument_count = count;
+    let parameter: Parameter = SyntaxTrees::parameter(syntax, item.first_parameter + entry);
+    let declared: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
+    let row: TypeRow = Checker::referent_row(typing, declared);
+    let length: Value = Checker::collection_length(checker, typing, row, base);
+    length
+}
+
+// The length of the slice argument `argument` (an expression handle plus
+// one) evaluates to: a range slice's from its endpoints, a borrow's from its
+// operand, else its place's length; unknown otherwise.
+pub machine Checker::slice_length(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, argument: u64 in Trapping) -> Value
+crashes Trap
+{
+    transition argument > 0 {
+        true -> expression(checker, syntax, typing, argument - 1)
+        _ -> unknown()
+    }
+
+    state expression(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> Value {
+        let written: Expression = SyntaxTrees::expression(syntax, handle);
+        let operand: Expression = SyntaxTrees::expression(syntax, written.right);
+        transition written.kind == ExpressionKind::Index && operand.kind == ExpressionKind::Range {
+            true -> ranged(checker, typing, written, operand)
+            _ -> borrowed(checker, syntax, typing, handle, written)
+        }
+    }
+
+    state borrowed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, written: Expression) -> Value {
+        let borrow: bool = written.kind == ExpressionKind::Unary
+            && (written.operator == OperatorKind::Borrow || written.operator == OperatorKind::BorrowMutable);
+        transition borrow {
+            true -> expression(checker, syntax, typing, written.left)
+            _ -> placed(checker, typing, handle)
+        }
+    }
+
+    state placed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping) -> Value {
+        let base: Value = Checker::value_at(checker, handle);
+        let row: TypeRow = Checker::collection_row(typing, handle);
+        let length: Value = Checker::collection_length(checker, typing, row, base);
+        length
+    }
+
+    state ranged(checker: &mut Checker, typing: &Typing, written: Expression, operand: Expression) -> Value {
+        let base: Value = Checker::value_at(checker, written.left);
+        let row: TypeRow = Checker::collection_row(typing, written.left);
+        let length: Value = Checker::collection_length(checker, typing, row, base);
+        let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
+        let one: Value = Value::constant(ExactInteger { negative: false, magnitude: 1 });
+        let start: Value = Checker::range_endpoint(checker, operand.first == 1, operand.left, zero);
+        let written_end: Value = Checker::range_endpoint(checker, operand.count == 1, operand.right, length);
+        let interval: Value = Value::sum(written_end, one);
+        let successor: Value = Value::offset_sum(written_end, one, interval);
+        let inclusive: bool = operand.flag && operand.count == 1;
+        transition inclusive {
+            true -> counted(start, successor)
+            _ -> counted(start, written_end)
+        }
+    }
+
+    // Kept as a linear term when the start is a constant, so `items[1..]`
+    // is one shorter than `items` in the zone.
+    state counted(start: Value, end: Value) -> Value {
+        let interval: Value = Value::difference(end, start);
+        let length: Value = Value::offset_difference(end, start, interval);
+        length
+    }
+
+    state unknown() -> Value {
+        let value: Value = Value::unknown();
+        value
+    }
+}

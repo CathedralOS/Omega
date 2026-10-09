@@ -163,8 +163,14 @@ its trait (a trait position), the trait's static arguments in the machine's
 generic scope and the trait's member it names, recorded per clause in
 `NameResolution::requirements`, and its `via` payload in the machine's
 static scope, without its parameters; a trait reached through a module path
-rejects as unsupported. A `terminates by` witness's subjects and view bind
-in the body's parameter scope ([`resolve/clauses.omg`](resolve/clauses.omg)).
+rejects as unsupported. A `terminates by` witness's subjects bind in the
+body's parameter scope, and its view names the compiler's ranking vocabulary
+by spelling, not a declaration (`Nat::Descending`, `Nat::BoundedDistance`,
+`Slice::Length`, and `Nat::IncreasingTo(limit)`, whose limit binds as a
+subject does), recorded per clause; each state parameter of a ranked machine
+records the entry parameter of its spelling it carries
+([`resolve/clauses.omg`](resolve/clauses.omg)). Another view rejects as
+unsupported.
 Data
 declarations, traits and named conformances share one type namespace per
 module, constants (by owner and name) and propositions their own; a later root
@@ -323,8 +329,9 @@ field records the member it denotes, a common or a payload field, found by
 one search ([`typing/calls.omg`](typing/calls.omg)); an assignment to a name
 holding an exclusive loan writes its referent. A machine that `satisfies` a
 requirement must have the requirement's signature with the trait's type
-parameters replaced by the clause's arguments, and its `via` payload and a
-`terminates by` witness type like expressions
+parameters replaced by the clause's arguments, and its `via` payload, a
+`terminates by` witness's subjects and `Nat::IncreasingTo`'s limit type like
+expressions
 ([`typing/clauses.omg`](typing/clauses.omg)); a requirement with generic
 parameters of its own rejects as unsupported. A machine binder's call is
 typed through its contract, and a generic call's static machine arguments
@@ -398,8 +405,23 @@ requirement declares, and a requirement with `requires` or `ensures` facts,
 or a satisfier with `requires` facts, rejects as unsupported rather than
 passing unrefined; each static machine argument must publish only crash
 causes its binder's contract declares, and one with `requires` facts of its
-own rejects as unsupported; a body promising termination rejects as unsupported
-([`checking/supply.omg`](checking/supply.omg)). Facts evaluate without effects or
+own rejects as unsupported ([`checking/supply.omg`](checking/supply.omg)).
+Termination ([`checking/termination.omg`](checking/termination.omg)): the
+fact-gathering walks record each body's local control graph (the entry and
+its states, a jump or self call an edge), closed into reachability before
+the checking walk. A `terminates by` witness strictly descends on every
+cyclic edge: one unsigned integer subject as a natural, one slice by its
+length (a range slice's from its endpoints), two subjects by their bounded
+distance and `Nat::IncreasingTo` up to its limit, each subject read in the
+source as the state formal of its name and after the edge as the argument
+its target formal receives. A bare `terminates;`, or a satisfied
+requirement's, promises termination: its body's cycles need a witness, and
+once crash routes settle termination settles over the call graph as a
+least fixed point (a bodyless machine as it promises, a body once acyclic
+or ranked, calling no machine binder and only terminating machines besides
+itself), so a promising body reaching a non-terminating callee or a call
+cycle rejects; a witness on a bodyless declaration ranks nothing and
+rejects. Facts evaluate without effects or
 obligations ([`checking/fact_values.omg`](checking/fact_values.omg)). Crash
 routes settle over the call graph: a private machine without crash clauses
 publishes what it derives, and any other machine must declare every cause it

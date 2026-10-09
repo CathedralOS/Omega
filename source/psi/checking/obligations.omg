@@ -4,6 +4,7 @@ use psi::checking::contracts;
 use psi::checking::domains;
 use psi::checking::evaluation;
 use psi::checking::places;
+use psi::checking::termination;
 use psi::checks::checks;
 use psi::integers::integers;
 use psi::resolution::resolution;
@@ -217,6 +218,8 @@ crashes Trap
     }
 
     state entered(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
+        let selection: Selection = Typing::selection(typing, handle);
+        Checker::record_self_call(checker, selection);
         transition checking {
             true -> recorded(checker, syntax, resolution, typing, handle, expression, row)
             _ -> effects(checker, syntax, resolution, typing, handle, expression, row)
@@ -227,6 +230,7 @@ crashes Trap
         let selection: Selection = Typing::selection(typing, node);
         Checker::record_call(checker, syntax, resolution, selection);
         Checker::record_supply(checker, syntax, selection, node);
+        Checker::require_self_descent(checker, syntax, resolution, typing, selection, expression);
         Checker::require_callee_facts(checker, syntax, resolution, typing, selection, expression);
         transition { _ -> effects(checker, syntax, resolution, typing, node, expression, row) }
     }

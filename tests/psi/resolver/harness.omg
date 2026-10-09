@@ -486,6 +486,7 @@ crashes Trap
             ResolveDiagnosticCode::ProofOnlyApplication -> diagnostic_tag(resolver_harness, output, 30)
             ResolveDiagnosticCode::ContractNamesNoBinder -> diagnostic_tag(resolver_harness, output, 31)
             ResolveDiagnosticCode::DuplicateContract -> diagnostic_tag(resolver_harness, output, 32)
+            ResolveDiagnosticCode::UnsupportedRankingView -> diagnostic_tag(resolver_harness, output, 33)
         }
     }
 

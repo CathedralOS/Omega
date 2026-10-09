@@ -219,6 +219,8 @@ pub data ResolveDiagnosticCode [copy] {
     case ContractNamesNoBinder;
     // A second `where machine` contract for one binder.
     case DuplicateContract;
+    // A `terminates by` view outside the compiler's ranking vocabulary.
+    case UnsupportedRankingView;
 }
 
 pub data ResolveDiagnostic [copy] {
@@ -256,6 +258,12 @@ where
     // Each generic parameter's callable contract, by generic parameter
     // handle.
     binder_contracts: [BinderContract; 256];
+    // Each `terminates by` clause's ranking view, by clause handle.
+    ranking_views: [RankingView; 1024];
+    // For each state parameter of a ranked machine, by parameter handle, the
+    // offset among its machine's entry parameters of the one of the same
+    // spelling, plus one; zero for none.
+    rank_carriers: [u64; 16384];
     diagnostic: ResolveDiagnostic;
     accepted: bool;
 }
@@ -498,6 +506,98 @@ crashes Trap
     }
 
     state invalid() -> PathBinding {
+        crash Trap;
+    }
+}
+
+// The well-founded order a `terminates by` witness ranks its subjects in
+// (wiki/spec/language/termination.md#ranking): a closed vocabulary the
+// compiler owns. `Default` is a witness without `-> View`, which the
+// subjects' carriers elaborate: a single unsigned integer descends as a
+// natural and a two-subject tuple ranks by its bounded distance.
+// `Descending` is `Nat::Descending`; `BoundedDistance` is
+// `Nat::BoundedDistance` over `(lower, upper)`, the distance from the lower
+// subject up to the upper; `SliceLength` is `Slice::Length`, a slice's
+// length; `IncreasingTo` is `Nat::IncreasingTo(limit)`, one climbing subject's
+// distance up to the view's argument.
+pub data RankingView [copy] {
+    case Default;
+    case Descending;
+    case BoundedDistance;
+    case SliceLength;
+    case IncreasingTo;
+}
+
+pub machine NameResolution::ranking_view(resolution: &NameResolution, clause: u64 in Trapping) -> RankingView {
+    transition clause < 1024 {
+        true -> read(resolution, clause)
+        _ -> none()
+    }
+
+    state read(resolution: &NameResolution, clause: u64 in Trapping) -> RankingView
+    requires clause < 1024
+    {
+        resolution.ranking_views[clause]
+    }
+
+    state none() -> RankingView {
+        RankingView::Default
+    }
+}
+
+pub machine NameResolution::set_ranking_view(resolution: &mut NameResolution, clause: u64 in Trapping, view: RankingView)
+crashes Trap
+{
+    transition clause < 1024 {
+        true -> write(resolution, clause, view)
+        _ -> invalid()
+    }
+
+    state write(resolution: &mut NameResolution, clause: u64 in Trapping, view: RankingView)
+    requires clause < 1024
+    {
+        resolution.ranking_views[clause] = view;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}
+
+// The offset of the entry parameter state parameter `parameter` carries,
+// plus one; zero for none or a parameter beyond the table.
+pub machine NameResolution::rank_carrier(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping {
+    transition parameter < 16384 {
+        true -> read(resolution, parameter)
+        _ -> none()
+    }
+
+    state read(resolution: &NameResolution, parameter: u64 in Trapping) -> u64 in Trapping
+    requires parameter < 16384
+    {
+        resolution.rank_carriers[parameter] as u64 in Trapping
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
+}
+
+pub machine NameResolution::set_rank_carrier(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
+crashes Trap
+{
+    transition parameter < 16384 {
+        true -> write(resolution, parameter, carried)
+        _ -> invalid()
+    }
+
+    state write(resolution: &mut NameResolution, parameter: u64 in Trapping, carried: u64 in Trapping)
+    requires parameter < 16384
+    {
+        resolution.rank_carriers[parameter] = carried as u64;
+    }
+
+    state invalid() {
         crash Trap;
     }
 }

@@ -59,7 +59,7 @@ crashes Trap
         let clause: Clause = SyntaxTrees::clause(syntax, handle);
         transition clause.kind {
             ClauseKind::Satisfies -> satisfies(typer, sources, syntax, resolution, index, item, offset, handle, clause)
-            ClauseKind::Terminates -> terminates(typer, sources, syntax, resolution, index, item, offset, clause)
+            ClauseKind::Terminates -> terminates(typer, sources, syntax, resolution, index, item, offset, handle, clause)
             _ -> next_clause(typer, sources, syntax, resolution, index, item, offset + 1)
         }
     }
@@ -88,9 +88,10 @@ crashes Trap
         index: u64 in Trapping,
         item: MachineItem,
         offset: u64 in Trapping,
+        handle: u64 in Trapping,
         clause: Clause
     ) {
-        Typer::type_ranking(typer, sources, syntax, resolution, clause);
+        Typer::type_ranking(typer, sources, syntax, resolution, handle, clause);
         transition { _ -> next_clause(typer, sources, syntax, resolution, index, item, offset + 1) }
     }
 
@@ -355,33 +356,38 @@ crashes Trap
 }
 
 // A `terminates by` witness: its subjects, then its view.
-machine Typer::type_ranking(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, clause: Clause)
+machine Typer::type_ranking(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, clause: Clause)
 crashes Trap
 {
-    transition { _ -> subject(typer, sources, syntax, resolution, clause, 0) }
+    transition { _ -> subject(typer, sources, syntax, resolution, handle, clause, 0) }
 
-    state subject(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, clause: Clause, offset: u64 in Trapping) {
+    state subject(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
         transition offset < clause.argument_count && typer.output.accepted {
-            true -> typed_subject(typer, sources, syntax, resolution, clause, offset)
-            _ -> view(typer, sources, syntax, resolution, clause)
+            true -> typed_subject(typer, sources, syntax, resolution, handle, clause, offset)
+            _ -> view(typer, sources, syntax, resolution, handle, clause)
         }
     }
 
-    state typed_subject(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, clause: Clause, offset: u64 in Trapping) {
+    state typed_subject(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, clause: Clause, offset: u64 in Trapping) {
         let root: u64 in Trapping = SyntaxTrees::argument(syntax, clause.first_argument + offset);
         Typer::type_tree(typer, sources, syntax, resolution, root);
-        transition { _ -> subject(typer, sources, syntax, resolution, clause, offset + 1) }
+        transition { _ -> subject(typer, sources, syntax, resolution, handle, clause, offset + 1) }
     }
 
-    state view(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, clause: Clause) {
-        transition clause.has_expression && typer.output.accepted {
-            true -> typed_view(typer, sources, syntax, resolution, clause)
+    // The view names the ranking vocabulary, not a value; only
+    // `Nat::IncreasingTo`'s limit is an expression.
+    state view(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, clause: Clause) {
+        let view: RankingView = NameResolution::ranking_view(resolution, handle);
+        transition view {
+            RankingView::IncreasingTo -> limit(typer, sources, syntax, resolution, clause)
             _ -> done()
         }
     }
 
-    state typed_view(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, clause: Clause) {
-        Typer::type_tree(typer, sources, syntax, resolution, clause.expression);
+    state limit(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, clause: Clause) {
+        let written: Expression = SyntaxTrees::expression(syntax, clause.expression);
+        let root: u64 in Trapping = SyntaxTrees::argument(syntax, written.first);
+        Typer::type_tree(typer, sources, syntax, resolution, root);
     }
 
     state done() {}

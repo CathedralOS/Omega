@@ -6003,8 +6003,16 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   publishes only causes its contract declares (one with premises of its own
   rejects as unsupported). A proposition application
   owed at a call, return or construction (assumed, one establishes nothing),
-  a store into a field a case's own fact names, contract refinement beyond
-  crash causes and termination promises reject as unsupported; checking
+  a store into a field a case's own fact names and contract refinement
+  beyond crash causes reject as unsupported. A `terminates by` witness (view
+  names bind by spelling to the compiler's ranking vocabulary) strictly
+  descends on every cyclic jump or self call (one unsigned subject, a
+  slice's length, a bounded distance or `Nat::IncreasingTo`), a bare
+  `terminates;` promise, its own or a satisfied requirement's, needs every
+  cycle ranked and every callee terminating (termination settles over the
+  call graph as a least fixed point, so call cycles through other machines
+  never terminate), and a witness on a bodyless machine rejects; every
+  body's derived summary serves its callers, exported or not. Checking
   reports each rejected machine's first rejection.
   `tests/psi/checking/test-checking.sh` passes 93 checking cases and accepts
   the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 73
@@ -6039,8 +6047,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `std/build.omg` names the build context's `Build`. The product entry's
   closure (its 3 units, std's `console` with its 5 target implementations,
   core's `binding` and `external_binding`) parses whole except the Windows
-  console's retired `boundary requirement`; `console.omg`'s writer promises
-  `terminates by bytes -> Slice::Length`, which checking does not rank yet.
+  console's retired `boundary requirement`; `console.omg`'s writer ranks
+  its loop by `terminates by bytes -> Slice::Length`.
   The resolver gate resolves the whole psi package, its 58
   units, as one package `psi`; the shared syntax tables hold
   4,096 roots, 1,024 uses, 32,000 path members (under a third used by psi; a

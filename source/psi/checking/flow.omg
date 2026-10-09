@@ -6,6 +6,7 @@ use psi::checking::fact_values;
 use psi::checking::facts;
 use psi::checking::obligations;
 use psi::checking::places;
+use psi::checking::termination;
 use psi::checking::zone;
 use psi::checks::checks;
 use psi::integers::integers;
@@ -1152,17 +1153,23 @@ crashes Trap
         }
     }
 
+    // A jump is an edge of the body's local control graph
+    // (termination.omg), to its target state's node.
     state jump(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping, checking: bool) {
+        let node: u64 in Trapping = state - checker.first_state + 1;
+        Checker::record_edge(checker, node);
         transition checking {
-            true -> required(checker, syntax, resolution, typing, call, state)
+            true -> required(checker, syntax, resolution, typing, call, state, node)
             _ -> contributed(checker, syntax, typing, call, state)
         }
     }
 
-    // A target state's `requires` facts must hold at the jump.
-    state required(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping) {
+    // A target state's `requires` facts must hold at the jump, and a cyclic
+    // jump of a terminating body descends its ranking.
+    state required(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, call: u64 in Trapping, state: u64 in Trapping, node: u64 in Trapping) {
         let item: StateItem = SyntaxTrees::state_item(syntax, state);
         let expression: Expression = SyntaxTrees::expression(syntax, call);
+        Checker::require_descent(checker, syntax, resolution, typing, expression, node, item.first_parameter, item.parameter_count);
         let held: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, item.first_parameter, expression, ClauseKind::Requires, true);
         transition held {
             true -> done()

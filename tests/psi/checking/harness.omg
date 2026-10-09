@@ -551,6 +551,8 @@ machine CheckingHarness::diagnostic_tag(value: CheckDiagnosticCode) -> u8 {
         CheckDiagnosticCode::DomainUnproven -> tag(10)
         CheckDiagnosticCode::CrashNotDeclared -> tag(11)
         CheckDiagnosticCode::GuaranteeUnproven -> tag(12)
+        CheckDiagnosticCode::RankUnproven -> tag(13)
+        CheckDiagnosticCode::ProgressUnproven -> tag(14)
     }
 
     state tag(number: u8) -> u8 {

@@ -679,6 +679,14 @@ def main() -> None:
         "NoMatchingMachine",
         b"id<u8, u8>(5)",
     )
+    # A ranking view is vocabulary, not a value; `Nat::IncreasingTo`'s limit
+    # is typed as an expression.
+    accepted(
+        program,
+        "increasing-to-limit-is-typed",
+        b"machine g(index: u64, limit: u64) terminates by index -> Nat::IncreasingTo(limit); {}",
+        ((b"index!2", "u64"), (b"limit!2", "u64")),
+    )
     rejected(
         program,
         "machine-binders-need-a-contract",

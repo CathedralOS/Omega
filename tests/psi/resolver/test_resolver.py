@@ -42,6 +42,7 @@ FOREIGN_OPERATOR_HOME = 29
 PROOF_ONLY_APPLICATION = 30
 CONTRACT_NAMES_NO_BINDER = 31
 DUPLICATE_CONTRACT = 32
+UNSUPPORTED_RANKING_VIEW = 33
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -1340,6 +1341,23 @@ def main() -> None:
         (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
     )
     rejected(program, "terminates-unknown-subject", b"machine f(n: u64) terminates by m; {}", UNKNOWN_NAME, b"m;", length=1)
+    # A view names the compiler's ranking vocabulary by spelling, not a
+    # declaration; only `Nat::IncreasingTo`'s limit binds a name.
+    accepted(
+        program,
+        "ranking-views-name-the-vocabulary",
+        b"machine f(i: u64, n: u64) terminates by (i, n) -> Nat::BoundedDistance; {}\n"
+        b"machine g(i: u64, n: u64) terminates by i -> Nat::IncreasingTo(n); {}",
+        (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
+        (parameter(0), parameter(1), NOT_A_NAME, parameter(2), NOT_A_NAME, parameter(3), NOT_A_NAME),
+    )
+    rejected(
+        program,
+        "ranking-view-outside-the-vocabulary",
+        b"machine f(n: u64) terminates by n -> Nat::Sideways; {}",
+        UNSUPPORTED_RANKING_VIEW,
+        b"Nat::Sideways",
+    )
 
     # A membership in `Type::Case` binds the case whose implied domain it
     # names; a `Carrier::Name` path or a bare name binds a declared domain;

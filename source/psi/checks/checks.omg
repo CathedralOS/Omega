@@ -33,6 +33,12 @@ pub data CheckDiagnosticCode [copy] {
     case CrashNotDeclared;
     // A normal return whose machine's `ensures` facts are not proved.
     case GuaranteeUnproven;
+    // A cyclic transition of a terminating body whose ranking descent is
+    // not proved, or that no `terminates by` witness ranks.
+    case RankUnproven;
+    // A terminating body that reaches an operation without a usable
+    // termination guarantee.
+    case ProgressUnproven;
 }
 
 pub data CheckDiagnostic [copy] {
