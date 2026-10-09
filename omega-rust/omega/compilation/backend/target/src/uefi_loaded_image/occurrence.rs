@@ -13,11 +13,11 @@ use crate::{
 };
 use diagnostics::Diagnostic;
 
-pub const UEFI_LOADED_IMAGE_PROTOCOL_REVISION: u32 = 0x1000;
+pub(crate) const UEFI_LOADED_IMAGE_PROTOCOL_REVISION: u32 = 0x1000;
 
 #[derive(Debug)]
 #[must_use = "validated UEFI Loaded Image geometry retains exact target layout evidence"]
-pub struct ValidatedUefiLoadedImageGeometry {
+pub(crate) struct ValidatedUefiLoadedImageGeometry {
     layout: ValidatedUefiLoadedImageNativeLayout,
     revision: u32,
     image_base: NonZeroU64,
@@ -44,7 +44,7 @@ impl ValidatedUefiLoadedImageGeometry {
 
 #[derive(Debug)]
 #[must_use = "UEFI Loaded Image decoding rejection retains layout and borrowed bytes"]
-pub struct UefiLoadedImageOccurrenceValidationError<'occurrence> {
+pub(crate) struct UefiLoadedImageOccurrenceValidationError<'occurrence> {
     layout: ValidatedUefiLoadedImageNativeLayout,
     supplied_bytes: &'occurrence [u8],
     diagnostic: Diagnostic,
@@ -79,7 +79,7 @@ impl std::fmt::Display for UefiLoadedImageOccurrenceValidationError<'_> {
 
 impl std::error::Error for UefiLoadedImageOccurrenceValidationError<'_> {}
 
-pub fn validate_uefi_loaded_image_occurrence<'occurrence>(
+pub(crate) fn validate_uefi_loaded_image_occurrence<'occurrence>(
     layout: ValidatedUefiLoadedImageNativeLayout,
     supplied_bytes: &'occurrence [u8],
 ) -> Result<

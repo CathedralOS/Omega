@@ -17,11 +17,11 @@ const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 mod sealed {
-    pub trait EntryStackSubject {}
+    pub(crate) trait EntryStackSubject {}
 }
 
 /// Closed subject vocabulary accepted by `guaranteed_entry_stack`.
-pub trait TargetEntryStackSubject: sealed::EntryStackSubject {
+pub(crate) trait TargetEntryStackSubject: sealed::EntryStackSubject {
     const SUBJECT_IDENTITY: &'static str;
     const REQUIRED_PROFILE: TargetProfile;
     const GUARANTEED_AVAILABLE_BYTES: u64;
@@ -83,7 +83,7 @@ impl SymbolicTargetObservationApplication {
         &self.compatibility_commitment
     }
 
-    pub fn matches_exact_uefi_x64_entry_stack_application(&self) -> bool {
+    pub(crate) fn matches_exact_uefi_x64_entry_stack_application(&self) -> bool {
         TargetSemantics::guaranteed_entry_stack::<UefiX86_64>(TargetProfile::UefiX64)
             .is_ok_and(|expected| self == &expected)
     }
@@ -128,14 +128,14 @@ impl TargetEntryStackGuarantee {
         &self.compatibility_commitment
     }
 
-    pub fn matches_exact_uefi_x64_entry_stack_guarantee(&self) -> bool {
+    pub(crate) fn matches_exact_uefi_x64_entry_stack_guarantee(&self) -> bool {
         TargetSemantics::close_guaranteed_entry_stack::<UefiX86_64>(TargetProfile::UefiX64)
             .is_ok_and(|expected| self == &expected)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetSemanticObservationError {
+pub(crate) struct TargetSemanticObservationError {
     projection: &'static str,
     subject: &'static str,
     selected_profile: TargetProfile,

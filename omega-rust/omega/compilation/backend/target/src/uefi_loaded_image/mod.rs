@@ -37,20 +37,20 @@ const PROTOCOL_ALIGNMENT: u32 = 8;
 /// materializes from `std/targets/uefi_x86_64/tables.omg`, recorded from the
 /// evaluated plan. This is evidence: a live evaluation whose schema drifts
 /// from this coordinate fails replay instead of silently rebinding.
-pub const UEFI_X64_LOADED_IMAGE_SCHEMA_REPORT_FINGERPRINT: u64 = 0x4ae5_84e2_dcce_000b;
+pub(crate) const UEFI_X64_LOADED_IMAGE_SCHEMA_REPORT_FINGERPRINT: u64 = 0x4ae5_84e2_dcce_000b;
 
 /// Compact commitment to the validated `LayoutPlanReport` the authored
 /// `EfiLoadedImageLayout::plan` policy produces for the bundled UEFI x86-64
 /// target package. Recorded from source evaluation and kept honest by the
 /// compiler replay test in `canary_suite/entry_and_abi/uefi_loaded_image_layout.rs`;
 /// a report carrying any other schema, member, or placement rejects here.
-pub const UEFI_X64_LOADED_IMAGE_LAYOUT_PLAN_COMMITMENT: u64 = 0x59b7_7325_968e_1604;
+pub(crate) const UEFI_X64_LOADED_IMAGE_LAYOUT_PLAN_COMMITMENT: u64 = 0x59b7_7325_968e_1604;
 
 /// Compact commitment to the validated native field layout the evaluated plan
 /// derives (`layout_report_fingerprint` over the complete row catalog). The
 /// replayed rows must hash to this identity, so the retained field vocabulary
 /// cannot drift silently from the authored plan.
-pub const UEFI_X64_LOADED_IMAGE_NATIVE_LAYOUT_COMMITMENT: u64 = 0xc665_f34f_1cec_bf43;
+pub(crate) const UEFI_X64_LOADED_IMAGE_NATIVE_LAYOUT_COMMITMENT: u64 = 0xc665_f34f_1cec_bf43;
 
 /// Byte offsets the authored policy assigns to each `EfiLoadedImage` member in
 /// declaration order. This residual literal recipe exists only for fixture
@@ -102,7 +102,7 @@ const SEMANTIC_FIELDS: [(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub enum UefiLoadedImageNativeField {
+pub(crate) enum UefiLoadedImageNativeField {
     Revision = 1,
     RevisionPadding,
     ParentHandle,
@@ -122,7 +122,7 @@ pub enum UefiLoadedImageNativeField {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum UefiLoadedImageNativeFieldKind {
+pub(crate) enum UefiLoadedImageNativeFieldKind {
     UnsignedInteger = 1,
     Pointer = 2,
     FunctionPointer = 3,
@@ -130,7 +130,7 @@ pub enum UefiLoadedImageNativeFieldKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UefiLoadedImageNativeFieldLayout {
+pub(crate) struct UefiLoadedImageNativeFieldLayout {
     field: UefiLoadedImageNativeField,
     ordinal: u8,
     byte_offset: u32,
@@ -162,7 +162,7 @@ impl UefiLoadedImageNativeFieldLayout {
 
 #[derive(Debug)]
 #[must_use = "validated UEFI Loaded Image layout retains target-owned entry identity"]
-pub struct ValidatedUefiLoadedImageNativeLayout {
+pub(crate) struct ValidatedUefiLoadedImageNativeLayout {
     profile: TargetProfile,
     entry_slot: ProgramEntrySlotDeclaration,
     fields: Vec<UefiLoadedImageNativeFieldLayout>,
@@ -207,7 +207,7 @@ impl ValidatedUefiLoadedImageNativeLayout {
 /// cover the 96-byte aggregate reject. The two ABI padding rows are the
 /// evaluated plan's implicit gaps under their physical names -- any other gap
 /// is foreign geometry and rejects.
-pub fn replayed_uefi_x64_loaded_image_native_layout(
+pub(crate) fn replayed_uefi_x64_loaded_image_native_layout(
     report: &LayoutPlanReport,
 ) -> Option<ValidatedUefiLoadedImageNativeLayout> {
     let profile = TargetProfile::UefiX64;
@@ -246,7 +246,7 @@ pub fn replayed_uefi_x64_loaded_image_native_layout(
 /// `EfiLoadedImageLayout::plan` produces for `EfiLoadedImage` and is replayed
 /// through the same commitments, so it cannot drift silently from the authored
 /// policy.
-pub fn exact_uefi_x64_loaded_image_native_layout() -> ValidatedUefiLoadedImageNativeLayout {
+pub(crate) fn exact_uefi_x64_loaded_image_native_layout() -> ValidatedUefiLoadedImageNativeLayout {
     replayed_uefi_x64_loaded_image_native_layout(&exact_uefi_x64_loaded_image_layout_plan_report())
         .expect(
             "the authored UEFI x64 Loaded Image layout must replay its source-minted commitments",
@@ -256,7 +256,7 @@ pub fn exact_uefi_x64_loaded_image_native_layout() -> ValidatedUefiLoadedImageNa
 /// The report the authored policy produces, in `LayoutPlanReport` form. This
 /// is the one residual literal recipe; consumers must route it through
 /// `replayed_uefi_x64_loaded_image_native_layout`, never read it directly.
-pub fn exact_uefi_x64_loaded_image_layout_plan_report() -> LayoutPlanReport {
+pub(crate) fn exact_uefi_x64_loaded_image_layout_plan_report() -> LayoutPlanReport {
     LayoutPlanReport {
         schema_report_fingerprint: UEFI_X64_LOADED_IMAGE_SCHEMA_REPORT_FINGERPRINT,
         entries: SEMANTIC_FIELDS

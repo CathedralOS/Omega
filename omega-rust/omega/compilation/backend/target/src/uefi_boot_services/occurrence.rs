@@ -10,12 +10,12 @@ use crate::{
 };
 use diagnostics::Diagnostic;
 
-pub const UEFI_BOOT_SERVICES_SIGNATURE: u64 = 0x5652_4553_544f_4f42;
+pub(crate) const UEFI_BOOT_SERVICES_SIGNATURE: u64 = 0x5652_4553_544f_4f42;
 const CRC32_POLYNOMIAL_REFLECTED: u32 = 0xedb8_8320;
 
 #[derive(Debug)]
 #[must_use = "validated UEFI Boot Services occurrence retains borrowed integrity evidence"]
-pub struct ValidatedUefiBootServicesHeaderIntegrity<'occurrence> {
+pub(crate) struct ValidatedUefiBootServicesHeaderIntegrity<'occurrence> {
     layout: ValidatedUefiBootServicesNativeLayout,
     table_bytes: &'occurrence [u8],
     revision: u32,
@@ -48,7 +48,7 @@ impl<'occurrence> ValidatedUefiBootServicesHeaderIntegrity<'occurrence> {
 
 #[derive(Debug)]
 #[must_use = "UEFI Boot Services occurrence rejection retains layout and borrowed input"]
-pub struct UefiBootServicesOccurrenceValidationError<'occurrence> {
+pub(crate) struct UefiBootServicesOccurrenceValidationError<'occurrence> {
     layout: ValidatedUefiBootServicesNativeLayout,
     supplied_bytes: &'occurrence [u8],
     diagnostic: Diagnostic,
@@ -81,7 +81,7 @@ impl std::fmt::Display for UefiBootServicesOccurrenceValidationError<'_> {
 }
 impl std::error::Error for UefiBootServicesOccurrenceValidationError<'_> {}
 
-pub fn validate_uefi_boot_services_occurrence<'occurrence>(
+pub(crate) fn validate_uefi_boot_services_occurrence<'occurrence>(
     layout: ValidatedUefiBootServicesNativeLayout,
     supplied_bytes: &'occurrence [u8],
 ) -> Result<
