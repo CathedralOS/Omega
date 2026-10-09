@@ -11,7 +11,8 @@ use domains::Domain;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     CopyAffinity, FunctionLiveRanges, LiveRangePoint, SelectedBlockId, VirtualLiveRange,
-    VirtualRegisterId};
+    VirtualRegisterId,
+};
 use std::collections::BTreeMap;
 use work::Work;
 mod replay;
@@ -25,11 +26,13 @@ use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
     FixedPrecoloredSegmentHomePlan, FixedPrecoloredSegmentHomePlanIdentity,
-    FixedPrecoloredSplitRequirementPlanIdentity};
+    FixedPrecoloredSplitRequirementPlanIdentity,
+};
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile};
+    ValidatedRegisterReservationProfile,
+};
 use selected_instructions::LiveRangeIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;
 use target::NativeTarget;
@@ -80,7 +83,8 @@ pub struct FixedPrecoloredSegmentHomeValidationReceipt {
     pub(crate) usage: OptimizationWorkUsage,
     pub(crate) function_count: usize,
     pub(crate) domain_count: usize,
-    pub(crate) assignment_count: usize}
+    pub(crate) assignment_count: usize,
+}
 
 impl FixedPrecoloredSegmentHomeValidationReceipt {
     pub const fn identity(self) -> FixedPrecoloredSegmentHomePlanIdentity {
@@ -133,7 +137,8 @@ impl FixedPrecoloredSegmentHomeValidationReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedFixedPrecoloredSegmentHomes {
     pub(crate) plan: FixedPrecoloredSegmentHomePlan,
-    pub(crate) receipt: FixedPrecoloredSegmentHomeValidationReceipt}
+    pub(crate) receipt: FixedPrecoloredSegmentHomeValidationReceipt,
+}
 
 impl ValidatedFixedPrecoloredSegmentHomes {
     pub const fn plan(&self) -> &FixedPrecoloredSegmentHomePlan {

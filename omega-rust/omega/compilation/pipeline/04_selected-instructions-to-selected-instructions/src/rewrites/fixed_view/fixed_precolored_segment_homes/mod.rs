@@ -7,7 +7,6 @@
 mod compute;
 mod custody;
 
-
 use optimization_core::OptimizationWorkBudget;
 
 use crate::StagedOptimizedAllocationLegality;

@@ -1,12 +1,10 @@
 use std::collections::BTreeSet;
 
-
 use crate::{
     FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
-    ValidatedFixedPrecoloredSegmentHomes};
-use register_homes::{
-    FixedPrecoloredSegmentHomePlan,
-    fixed_precolored_segment_home_plan_identity};
+    ValidatedFixedPrecoloredSegmentHomes,
+};
+use register_homes::{FixedPrecoloredSegmentHomePlan, fixed_precolored_segment_home_plan_identity};
 /// Admit a freshly produced plan with its receipt; the producer calls this
 /// instead of replaying its own output.
 pub(crate) fn seal_fixed_precolored_segment_homes(
@@ -44,8 +42,10 @@ pub(crate) fn seal_fixed_precolored_segment_homes(
         usage: candidate.usage,
         function_count: candidate.functions.len(),
         domain_count,
-        assignment_count};
+        assignment_count,
+    };
     Ok(ValidatedFixedPrecoloredSegmentHomes {
         plan: candidate,
-        receipt})
+        receipt,
+    })
 }

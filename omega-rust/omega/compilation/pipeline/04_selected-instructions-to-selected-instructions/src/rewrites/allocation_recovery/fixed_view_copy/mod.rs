@@ -28,7 +28,6 @@ pub use register_homes::{
 use selected_instructions::{
     FixedViewCopyIdentity, LiveRangeIdentity, SelectedInstructionPlanIdentity,
 };
-pub(crate) use validate::validate_fixed_view_copies;
 
 /// Apply one explicitly selected fixed-view copy policy and independently
 /// reconstruct its complete selected CFG.

@@ -101,7 +101,6 @@ pub(crate) use boundary_boolean::ValidatedBoundaryBoolean;
 pub(crate) use boundary_branch::ValidatedBoundaryBranch;
 pub(crate) use commuting_relocation::ValidatedCommutingRelocation;
 pub(crate) use confluence_relocation::ValidatedConfluenceRelocation;
-pub(crate) use dead_store::ValidatedDeadStoreElimination;
 pub(crate) use inflow_relocation::ValidatedInflowRelocation;
 pub(crate) use interchange::ValidatedInterchange;
 pub(crate) use relocation::ValidatedMemberRunRelocation;

@@ -22,7 +22,8 @@ mod selected_optimization;
 // The stage entry and the output it publishes.
 pub use selected_optimization::optimization_output::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
-    SelectedInstructionOptimizationOutput};
+    SelectedInstructionOptimizationOutput,
+};
 
 pub use selected_optimization::optimize_selected_instructions;
 
@@ -42,14 +43,16 @@ pub use analyses::{
     classify_pressure_recovery, materialize_allocator_availability,
     stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    stage_optimized_selected_reanalysis};
+    stage_optimized_selected_reanalysis,
+};
 pub(crate) use analyses::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityError,
     AllocatorAvailabilityValidationReceipt, FixedPrecoloredIntervalValidationReceipt,
     FixedPrecoloredSegmentHomeValidationReceipt, FixedPrecoloredSplitRequirementValidationReceipt,
     LiveRangeValidationReceipt, LivenessValidationReceipt, RecoveryClassificationValidationReceipt,
     SpillChoiceValidationReceipt, StagedOptimizedLiveRangeCustodyReceipt,
-    StagedOptimizedLivenessCustodyReceipt};
+    StagedOptimizedLivenessCustodyReceipt,
+};
 pub(crate) use analyses::{
     FixedPrecoloredIntervalError, FixedPrecoloredSegmentHomeError,
     FixedPrecoloredSplitRequirementError, MachineEffectError, OptimizedLiveRangeCustodyError,
@@ -57,7 +60,8 @@ pub(crate) use analyses::{
     ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
     analyze_fixed_precolored_intervals, analyze_fixed_precolored_split_requirements,
     assign_fixed_precolored_segment_homes, stage_optimized_live_ranges, stage_optimized_liveness,
-validate_fixed_precolored_split_requirements};
+    validate_fixed_precolored_split_requirements,
+};
 // Selected-CFG rewrites: the executed catalog slices, the recovery rewrites
 // register assignment replays, and the unexecuted families.
 pub use rewrites::unexecuted;
@@ -71,8 +75,8 @@ pub(crate) use rewrites::{
     StagedOptimizedFixedPrecoloredSegmentHomes, StagedOptimizedFixedViewCopies,
     resolve_pre_allocation_rules, resolve_selected_lowering_rules,
     run_pre_allocation_optimizations, run_selected_lowering_optimizations,
-
-    validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody};
+    validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
+};
 pub use rewrites::{
     AllocationRecoveryRuleCatalogError, FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy,
     FixedViewCopySourceEvidence, LiteralFoldIdentity,
@@ -87,7 +91,8 @@ pub use rewrites::{
     probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
     rematerialize_selected_runtime_value, selected_allocation_recovery_rule,
     spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
-    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies};
+    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
+};
 pub(crate) use rewrites::{
     FixedViewCopyDestination, FixedViewCopyValidationReceipt, FunctionLiteralFold,
     FunctionPressureRematerialization, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan,
@@ -101,7 +106,8 @@ pub(crate) use rewrites::{
     StagedOptimizedPreAllocationStep, ValidatedAddressFold, ValidatedConstantBoolean,
     ValidatedConstantBranch, ValidatedCopiedCallOperand, ValidatedCopyRemoval,
     ValidatedDeadCompare, ValidatedEquivalentCompare, ValidatedPreAllocationTransformation,
-    ValidatedRedundantCompare, ValidatedRedundantExtension, fixed_view_copy_identity};
+    ValidatedRedundantCompare, ValidatedRedundantExtension, fixed_view_copy_identity,
+};
 pub use rewrites::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected_runtime_value};
 
 // Durable transform-output identities live with the selected-instruction
@@ -110,11 +116,13 @@ pub use rewrites::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected_runt
 pub use selected_instructions::{
     AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,
     CopiedCallOperandIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
-    FixedViewCopyIdentity, PressureRematerializationIdentity, RedundantCompareIdentity};
+    FixedViewCopyIdentity, PressureRematerializationIdentity, RedundantCompareIdentity,
+};
 
 // The unit tests allocate heavily across nextest's parallel processes;
 // mimalloc avoids the system allocator's zone locks and free lists.
 // Test-only: the product keeps the system allocator.
 
 pub(crate) use rewrites::{
-    StoredLoadForwardingError, ValidatedStoredLoadForwarding, forward_selected_stored_load};
+    StoredLoadForwardingError, ValidatedStoredLoadForwarding, forward_selected_stored_load,
+};

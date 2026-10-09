@@ -7,9 +7,9 @@ use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 use crate::rewrites::unexecuted::peepholes::ValidatedProjectedAccess;
 use crate::rewrites::unexecuted::{
     ValidatedArmRelocation, ValidatedBoundaryBoolean, ValidatedBoundaryBranch,
-    ValidatedCommutingRelocation, ValidatedConfluenceRelocation, ValidatedDeadStoreElimination,
-    ValidatedInflowRelocation, ValidatedInterchange, ValidatedMemberRunRelocation,
-    ValidatedScheduledRelocation, ValidatedStoreMutationMotion,
+    ValidatedCommutingRelocation, ValidatedConfluenceRelocation, ValidatedInflowRelocation,
+    ValidatedInterchange, ValidatedMemberRunRelocation, ValidatedScheduledRelocation,
+    ValidatedStoreMutationMotion,
 };
 use crate::{
     ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch,
@@ -103,8 +103,6 @@ validated_selected_analysis!(ValidatedStoredLoadForwarding);
 validated_selected_analysis!(ValidatedStoreMutationMotion);
 
 validated_selected_analysis!(ValidatedDeadCompare);
-
-validated_selected_analysis!(ValidatedDeadStoreElimination);
 
 validated_selected_analysis!(ValidatedEquivalentCompare);
 
