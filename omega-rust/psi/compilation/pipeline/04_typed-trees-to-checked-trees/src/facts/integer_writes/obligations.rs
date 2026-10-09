@@ -5,7 +5,7 @@ use checked_trees::{
     CheckedScalarExpression as Scalar, PerformedIntegerWrite,
 };
 use numerics::bignum::BigInt;
-use semantic_vocabulary::{IntegerType, IntegerValue};
+use semantic_vocabulary::IntegerType;
 use typed_trees::types::PrimitiveType;
 
 /// Return the condition sufficient for this occurrence to fit its destination.
@@ -33,10 +33,10 @@ pub(crate) fn integer_write_obligation(
     {
         return None;
     }
-    let semantic_low = integer(semantic.minimum_value());
-    let semantic_high = integer(semantic.maximum_value());
-    let stored_low = integer(stored.minimum_value());
-    let stored_high = integer(stored.maximum_value());
+    let semantic_low = crate::values::integer_magnitude(semantic.minimum_value());
+    let semantic_high = crate::values::integer_magnitude(semantic.maximum_value());
+    let stored_low = crate::values::integer_magnitude(stored.minimum_value());
+    let stored_high = crate::values::integer_magnitude(stored.maximum_value());
     let (low, high) = if let Some(range) = &write.integer_range {
         if range.minimum > range.maximum {
             return None;
@@ -92,13 +92,6 @@ pub(crate) fn integer_write_obligation(
             right: Box::new(fits),
         },
     })
-}
-
-fn integer(value: IntegerValue) -> BigInt {
-    match value {
-        IntegerValue::Signed(value) => BigInt::from_i128(value),
-        IntegerValue::Unsigned(value) => BigInt::from_u128(value),
-    }
 }
 
 fn literal(value: &BigInt, primitive: PrimitiveType) -> Option<Scalar> {
