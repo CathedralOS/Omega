@@ -617,10 +617,7 @@ pub(crate) fn formal_transfers_reference(
 /// Unit results carry no loans.
 fn operation_structural_result(operation: &O) -> Option<&terminal_psi::StructuralOperationResult> {
     match operation {
-        O::EstablishPrimitiveLocal { result, .. }
-        | O::ByteSequenceSubslice { result, .. }
-        | O::EstablishByteSequenceConcatenation { result, .. }
-                | O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
+        abstract_operations::establish_set_quint_pattern!(result, ..)
         | abstract_operations::establish_case_or_record_result_pattern!(result)
         | O::EstablishZeroedStructural { result, .. }
         | O::EstablishReference { result, .. }

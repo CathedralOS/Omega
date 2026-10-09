@@ -1418,3 +1418,14 @@ macro_rules! constant_value_triple_pattern {
             | $crate::AbstractOperation::IntegerConstant { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! establish_set_quint_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::ByteSequenceSubslice { $($fields)* }
+            | $crate::AbstractOperation::EstablishByteSequenceConcatenation { $($fields)* }
+            | $crate::AbstractOperation::EstablishPrimitiveLocal { $($fields)* }
+            | $crate::AbstractOperation::EstablishScalarArray { $($fields)* }
+            | $crate::AbstractOperation::EstablishStructuralArray { $($fields)* }
+    };
+}

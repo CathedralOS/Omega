@@ -238,11 +238,7 @@ pub(crate) fn validate_function_structural_catalog(
     }
     for node in function.block_nodes() {
         let structural_result = match &node.operation {
-            O::EstablishByteSequenceConcatenation { result, .. }
-            | O::EstablishPrimitiveLocal { result, .. }
-            | O::ByteSequenceSubslice { result, .. }
-            | O::EstablishScalarArray { result, .. }
-            | O::EstablishStructuralArray { result, .. }
+            abstract_operations::establish_set_quint_pattern!(result, ..)
             | abstract_operations::establish_case_or_record_result_pattern!(result)
             | O::EstablishZeroedStructural { result, .. }
             | O::MoveStructuralField { result, .. }
@@ -278,31 +274,7 @@ pub(crate) fn validate_function_structural_catalog(
             // tuple compressed into ReturnStructural. Their one-to-one
             // recognition is validated together below.
             O::EstablishTrivialAffineLocal { .. } => None,
-            O::EstablishByteSequenceConcatenation {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::EstablishPrimitiveLocal {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::ByteSequenceSubslice {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::EstablishScalarArray {
-                psi_operation,
-                result,
-                ..
-            }
-            | O::EstablishStructuralArray {
-                psi_operation,
-                result,
-                ..
-            }
+            abstract_operations::establish_set_quint_pattern!(psi_operation,result, ..)
             | abstract_operations::establish_record_or_case_pattern!(psi_operation,
                 result, ..)
             | O::EstablishZeroedStructural {
