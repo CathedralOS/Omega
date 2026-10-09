@@ -74,14 +74,9 @@ use std::sync::Arc;
 
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    CrossingDirection, RelocationCrossing, block_instructions, crossed_window, edge_surface,
-    member_position, terminator_successors,
+    block_instructions, edge_surface, member_position, terminator_successors,
 };
 use crate::rewrites::unexecuted::dead_path;
-use crate::rewrites::window_hazards::{
-    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,
-    surface,
-};
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use register_environment::ValidatedTargetRegisterEnvironment;

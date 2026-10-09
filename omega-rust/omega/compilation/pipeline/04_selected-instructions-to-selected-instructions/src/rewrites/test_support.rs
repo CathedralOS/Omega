@@ -6,14 +6,6 @@
 //! file holds only the identifiers and shapes that distinguish its subject.
 
 pub use optimization_core::OptimizationWorkBudget;
-
-/// The generous fixture budget shared by the rewrite corpus: wide enough that
-/// no exercised plan reaches it, so budget assertions stay about the measured
-/// axes rather than incidental totals.
-pub fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
 /// A budget carrying `steps` measured steps on a one-everything-else profile,
 /// for the measured validation-step boundary legs: the exact count admits,
 /// `measured_step_budget(steps - 1)` starves.

@@ -6,32 +6,6 @@ use crate::{
 };
 use register_homes::{FixedPrecoloredIntervalPlan, fixed_precolored_interval_plan_identity};
 use selected_instructions::VirtualFixedConstraintSite;
-
-pub(crate) fn validate_fixed_precolored_intervals(
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    candidate: FixedPrecoloredIntervalPlan,
-) -> Result<ValidatedFixedPrecoloredIntervals, FixedPrecoloredIntervalError> {
-    if candidate.ranges != ranges.receipt().identity()
-        || candidate.legality != legality.receipt().identity()
-        || candidate.register_environment != legality.receipt().register_environment()
-        || candidate.allocator_availability != legality.receipt().allocator_availability()
-        || candidate.optimization_unit != ranges.receipt().optimization_unit()
-        || candidate.fuel_schedule != ranges.receipt().fuel_schedule()
-        || legality.receipt().ranges() != ranges.receipt().identity()
-    {
-        return Err(FixedPrecoloredIntervalError::RootMismatch);
-    }
-    let expected = super::replay::replay(ranges, legality, candidate.policy, candidate.budget)?;
-    if candidate.usage != expected.usage {
-        return Err(FixedPrecoloredIntervalError::UsageMismatch);
-    }
-    if candidate.functions != expected.functions {
-        return Err(FixedPrecoloredIntervalError::NonCanonicalFunctions);
-    }
-    seal_fixed_precolored_intervals(ranges, candidate)
-}
-
 /// Admit a freshly produced plan with its receipt; the producer calls this
 /// instead of replaying its own output.
 pub(crate) fn seal_fixed_precolored_intervals(

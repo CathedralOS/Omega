@@ -10,10 +10,6 @@ pub(crate) struct PreAllocationRuleCatalogPayload {
 }
 
 impl PreAllocationRuleCatalogPayload {
-    pub const fn target(self) -> RegisterAllocationRuleTargetApplicability {
-        self.target
-    }
-
     /// The pre-allocation rules this exact selection admits.
     pub const fn policy(self) -> PreAllocationPolicy {
         self.policy

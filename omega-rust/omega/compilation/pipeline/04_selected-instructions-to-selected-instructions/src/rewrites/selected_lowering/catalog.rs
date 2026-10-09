@@ -11,10 +11,6 @@ pub(crate) struct SelectedLoweringRuleCatalogPayload {
 }
 
 impl SelectedLoweringRuleCatalogPayload {
-    pub const fn target(self) -> RegisterAllocationRuleTargetApplicability {
-        self.target
-    }
-
     pub const fn policy(self) -> LiteralFoldPolicy {
         self.policy
     }

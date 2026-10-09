@@ -56,11 +56,7 @@ use selected_instructions::{
 };
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
-    CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, edge_surface, member_position,
-    terminator_successors,
-};
-use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
+use crate::rewrites::block_edges::{edge_surface, member_position, terminator_successors};
 
 use std::sync::Arc;
 

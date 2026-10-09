@@ -84,4 +84,3 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::unexecuted::commuting_accesses as accesses;
 use crate::rewrites::unexecuted::place_storage::structural_place_declarations;
-use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};

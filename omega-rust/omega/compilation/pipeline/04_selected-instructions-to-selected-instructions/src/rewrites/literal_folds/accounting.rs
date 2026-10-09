@@ -17,28 +17,6 @@ use crate::StagedSelectedLoweringOptimizationCustodyReceipt;
 use crate::ValidatedLiteralFold;
 use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSpillChoices;
-
-pub(super) fn custody_receipt(
-    source: StagedOptimizedAllocationLegalityCustodyReceipt,
-    steps: &[StagedOptimizedLiteralFoldStep],
-) -> StagedOptimizedLiteralFoldCustodyReceipt {
-    let final_step = steps.last().expect("literal-fold custody is nonempty");
-    StagedOptimizedLiteralFoldCustodyReceipt {
-        source,
-        iterations: steps.iter().map(iteration_receipt).collect(),
-        transformations: steps
-            .iter()
-            .map(|step| step.fold.receipt().identity())
-            .collect(),
-        final_selected: final_step.fold.receipt().transformed_selected(),
-        final_liveness: final_step.liveness.receipt().identity(),
-        final_ranges: final_step.ranges.receipt().identity(),
-        final_legality: final_step.legality.receipt().identity(),
-        final_virtual_register_count: final_step.legality.receipt().virtual_register_count(),
-        final_entry_transition_count: final_step.legality.receipt().entry_transition_count(),
-    }
-}
-
 pub(super) fn iteration_receipt(
     step: &StagedOptimizedLiteralFoldStep,
 ) -> StagedOptimizedLiteralFoldIterationReceipt {

@@ -253,53 +253,6 @@ pub(crate) fn resolved_unit_surface(
             .iter()
             .all(|unit| consumer.implicit_uses.contains(unit))
 }
-
-/// The `(left, right)` operand resolution the boundary folds use — each
-/// side the bit pattern the compare provably reads there, or `None` when no
-/// guarantee pins it. Where `constant_operands` refuses any side that is
-/// not a compile-time constant, this audit keeps the unknown side open: the
-/// consumer's predicate decision then rests on the known pole alone. A
-/// `CompareI64` reading the same register twice reports no poles at all —
-/// its `register - register` state is the identity case `constant_operands`
-/// already decides, not a boundary one.
-pub(crate) fn boundary_operands(
-    function: &SelectedFunction,
-    compare: &SelectedInstruction,
-) -> Result<(Option<u64>, Option<u64>), ConditionStateError> {
-    match compare.kind {
-        SelectedInstructionKind::CompareI64 => {
-            if compare.operands.len() != 2 {
-                return Err(ConditionStateError::Use);
-            }
-            let left = plain_use(compare, 0)?;
-            let right = plain_use(compare, 1)?;
-            if left == right {
-                return Ok((None, None));
-            }
-            Ok((
-                materialized_bits(function, left).ok(),
-                materialized_bits(function, right).ok(),
-            ))
-        }
-        SelectedInstructionKind::CompareI64Immediate { immediate } => {
-            if compare.operands.len() != 1 {
-                return Err(ConditionStateError::Use);
-            }
-            let left = plain_use(compare, 0)?;
-            let immediate = immediate_bits(immediate).ok_or(ConditionStateError::Literal)?;
-            Ok((materialized_bits(function, left).ok(), Some(immediate)))
-        }
-        SelectedInstructionKind::CompareI64Zero => {
-            if compare.operands.len() != 1 {
-                return Err(ConditionStateError::Use);
-            }
-            let left = plain_use(compare, 0)?;
-            Ok((materialized_bits(function, left).ok(), Some(0)))
-        }
-        _ => Err(ConditionStateError::Use),
-    }
-}
-
 /// A condition-state event located by block and instruction-stream
 /// position — `position == block.instructions.len()` names the
 /// terminator's carried instruction — so identity never relies on

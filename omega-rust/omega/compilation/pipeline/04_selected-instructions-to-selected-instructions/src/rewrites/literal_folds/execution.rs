@@ -23,64 +23,9 @@ use crate::resolve_selected_lowering_rules;
 use crate::rewrites::fold_selected_incoming_literal;
 
 use super::accounting::{
-    add_usage, applied_action_count, attempt_usage, custody_receipt,
-    ensure_selected_lowering_budget, selected_lowering_custody_receipt, step_usage,
-    validate_selected_lowering_policies,
+    add_usage, applied_action_count, attempt_usage, ensure_selected_lowering_budget,
+    selected_lowering_custody_receipt, step_usage, validate_selected_lowering_policies,
 };
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn stage_first_optimized_literal_fold(
-    source: StagedOptimizedAllocationLegality,
-    choice_policy: SpillChoicePolicy,
-    recovery_policy: RecoveryClassificationPolicy,
-    fold_policy: LiteralFoldPolicy,
-    budget: OptimizationWorkBudget,
-) -> Result<StagedOptimizedLiteralFolds, OptimizedLiteralFoldCustodyError> {
-    let upstream = source.custody();
-    let selected = source.selected();
-    let step = build_step(
-        selected,
-        source.ranges(),
-        source.legality(),
-        &source,
-        choice_policy,
-        recovery_policy,
-        fold_policy,
-        budget,
-    )?;
-    let custody = custody_receipt(upstream, std::slice::from_ref(&step));
-    Ok(StagedOptimizedLiteralFolds {
-        source,
-        steps: vec![step],
-        custody,
-    })
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn stage_next_optimized_literal_fold(
-    mut sequence: StagedOptimizedLiteralFolds,
-    choice_policy: SpillChoicePolicy,
-    recovery_policy: RecoveryClassificationPolicy,
-    fold_policy: LiteralFoldPolicy,
-    budget: OptimizationWorkBudget,
-) -> Result<StagedOptimizedLiteralFolds, OptimizedLiteralFoldCustodyError> {
-    let previous = sequence.final_step();
-    let step = build_step(
-        previous.fold(),
-        previous.ranges(),
-        previous.legality(),
-        &sequence.source,
-        choice_policy,
-        recovery_policy,
-        fold_policy,
-        budget,
-    )?;
-    sequence.steps.push(step);
-    let upstream = sequence.source.custody();
-    sequence.custody = custody_receipt(upstream, &sequence.steps);
-    Ok(sequence)
-}
-
 pub(super) fn execute_selected_lowering_optimizations(
     source: StagedOptimizedAllocationLegality,
     selections: OptimizationSelections,

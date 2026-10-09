@@ -43,18 +43,6 @@ impl SelectedStageRuleRows {
                 .any(|entry| entry.optimization() == optimization),
         }
     }
-
-    /// The slice's admitted rules in catalog order.
-    pub fn optimizations(&self) -> Vec<Optimization> {
-        match self {
-            Self::SelectedLowering(rows) => rows.iter().map(|entry| entry.optimization()).collect(),
-            Self::PreAllocation(rows) => rows.iter().map(|entry| entry.optimization()).collect(),
-            Self::AllocationRecovery(rows) => {
-                rows.iter().map(|entry| entry.optimization()).collect()
-            }
-        }
-    }
-
     /// The slice's rule count.
     pub fn len(&self) -> usize {
         match self {
@@ -89,11 +77,6 @@ impl SelectedStageRuleCatalogSlice {
 
     pub const fn rows(&self) -> SelectedStageRuleRows {
         self.rows
-    }
-
-    /// Whether `optimization` is admitted under this slice's phase.
-    pub fn contains(&self, optimization: Optimization) -> bool {
-        self.rows.contains(optimization)
     }
 }
 

@@ -10,9 +10,7 @@
 //! even when the proposal is exactly what that producer emitted.
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::transport_conflict;
 use crate::rewrites::sealed;
-use crate::rewrites::window_hazards::{coupled, has_call_contract, schedulable, surface};
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};

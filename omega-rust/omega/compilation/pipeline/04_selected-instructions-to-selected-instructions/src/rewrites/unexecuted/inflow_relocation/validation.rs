@@ -9,11 +9,8 @@
 //! included.
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{terminator_successors, transport_conflict};
+use crate::rewrites::block_edges::terminator_successors;
 use crate::rewrites::sealed;
-use crate::rewrites::window_hazards::{
-    block_scan_surface, coupled, has_call_contract, register_writes, schedulable, surface,
-};
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{

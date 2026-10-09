@@ -10,7 +10,6 @@
 //! whose observed executed prefix changes) and every member-written
 //! location dead on every path the member's new position adds it to.
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::window_hazards::relocation_scan_steps;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedInstructionId;

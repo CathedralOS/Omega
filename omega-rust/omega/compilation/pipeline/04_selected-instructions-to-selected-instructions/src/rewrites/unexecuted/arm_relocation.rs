@@ -99,11 +99,5 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
-    CrossingDirection, RelocationCrossing, all_edges, crossed_window, member_position,
-    predecessor_source_index,
-};
+use crate::rewrites::block_edges::member_position;
 use crate::rewrites::unexecuted::dead_path;
-use crate::rewrites::window_hazards::{
-    RunRelocationRejection, admit_run_relocation, schedulable, speculatable,
-};

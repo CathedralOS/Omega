@@ -16,10 +16,7 @@
 //! member's vacated index publishes them on arrivals that no longer run
 //! it.
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
-    CrossingDirection, all_edges, crossed_window, terminator_successors,
-};
-use crate::rewrites::window_hazards::{admit_run_relocation, relocation_scan_steps};
+use crate::rewrites::block_edges::terminator_successors;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedInstructionId;

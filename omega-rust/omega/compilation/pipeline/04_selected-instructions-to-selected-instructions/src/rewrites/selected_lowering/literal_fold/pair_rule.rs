@@ -1192,13 +1192,6 @@ impl SelectedInstructionPairRule {
             PairLiteralPosition::LeftOperand | PairLiteralPosition::SoleOperand => 0,
         }
     }
-
-    /// The declared immediate admission: an encoding limit any literal up
-    /// to, or one exact literal value the fold's semantics require.
-    pub const fn immediate_bound(self) -> PairImmediateBound {
-        self.immediate_bound
-    }
-
     pub const fn admits_immediate(self, value: u64) -> bool {
         match self.immediate_bound {
             PairImmediateBound::Encoding(limit) => value <= limit,

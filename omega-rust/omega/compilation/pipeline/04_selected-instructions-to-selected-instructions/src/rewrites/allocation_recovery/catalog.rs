@@ -7,11 +7,7 @@ pub(crate) struct AllocationRecoveryRuleCatalogPayload {
     target: RegisterAllocationRuleTargetApplicability,
 }
 
-impl AllocationRecoveryRuleCatalogPayload {
-    pub const fn target(self) -> RegisterAllocationRuleTargetApplicability {
-        self.target
-    }
-}
+impl AllocationRecoveryRuleCatalogPayload {}
 
 pub(crate) type AllocationRecoveryRuleCatalogEntry =
     OptimizationCatalogDescriptor<AllocationRecoveryRuleCatalogPayload>;

@@ -16,10 +16,7 @@
 //! location dead from the landing index forward, where the run's new
 //! execution publishes them on arrivals that never ran it.
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
-    CrossingDirection, crossed_window, edge_surface, terminator_successors,
-};
-use crate::rewrites::window_hazards::{admit_run_relocation, surface};
+use crate::rewrites::block_edges::{edge_surface, terminator_successors};
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{SelectedInstruction, SelectedInstructionId};
