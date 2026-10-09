@@ -16,6 +16,27 @@ use crate::interpreter::evaluator::{
     MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES, PreparedFilesystemCall, Value,
 };
 
+/// Dispatch rows of a `PreparedFilesystemCall` match: every dispatch row runs
+/// the variant's method on the receiver with the whole call. Arms that bind
+/// fields or take their own tails ride in `literal` ahead of the rows.
+#[macro_export]
+macro_rules! prepared_filesystem_call_dispatch {
+    (
+        $receiver:ident, $call:ident;
+        literal { $( $pat:pat => $body:block $(,)? )* }
+        dispatch { $( $($variant:ident)|+ => $method:ident ),* $(,)? }
+    ) => {
+        match $call {
+            $( $pat => $body, )*
+            $(
+                $( PreparedFilesystemCall::$variant { .. } )|+ => {
+                    $receiver.$method($call)?
+                }
+            )*
+        }
+    };
+}
+
 pub(crate) fn checked_observation_evidence_total(
     current: usize,
     additional: usize,
@@ -181,86 +202,75 @@ impl<'program> Evaluator<'program> {
         // Value-returning raw `FilesystemHost` ops, matching the native seam:
         // each returns its "syscall" result (fd / byte count / rc; negative on
         // error) against the deterministic in-memory filesystem.
-        let result: i64 = match call {
-            PreparedFilesystemCall::Create { path, mode: _ } => {
-                // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
-                self.virtual_open(path.into_native()?, true, true) as i64
+        let result: i64 = prepared_filesystem_call_dispatch!(
+            self, call;
+            literal {
+                PreparedFilesystemCall::Create { path, mode: _ } => {
+                    // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
+                    self.virtual_open(path.into_native()?, true, true) as i64
+                }
+                PreparedFilesystemCall::Open { path, flags } => {
+                    self.virtual_open_flags(path.into_native()?, flags) as i64
+                }
+                PreparedFilesystemCall::GetLastError => { i64::from(self.virtual_errno) }
+                PreparedFilesystemCall::Errno => {
+                    // `read_errno()` (darwin `___error()` deref): the thread-local
+                    // errno set by the most recent failing op. Not cleared on
+                    // success (POSIX), so it is only meaningful right after a -1.
+                    i64::from(self.virtual_errno)
+                }
             }
-            PreparedFilesystemCall::Open { path, flags } => {
-                self.virtual_open_flags(path.into_native()?, flags) as i64
+            dispatch {
+                OpenPathHandle => serve_open_path_handle,
+                OpenCreate => serve_open_create,
+                Read => serve_read,
+                Write => serve_write,
+                ReadAt => serve_read_at,
+                WriteAt => serve_write_at,
+                Close => serve_close,
+                CloseHandle => serve_close_handle,
+                Duplicate => serve_duplicate,
+                LockFile => serve_lock_file,
+                LockFileEx => serve_lock_file_ex,
+                UnlockFile => serve_unlock_file,
+                // `remove_name` is the TRUSTED plain-path twin (D-at trust
+                // class, the create_dir_name precedent): the arg bytes ARE
+                // the path, so both spellings share one model.
+                Remove | RemoveName => serve_remove,
+                Seek => serve_seek,
+                SetLen => serve_set_len,
+                SetFilePermissions => serve_set_file_permissions,
+                SetFileTimes => serve_set_file_times,
+                Sync | SyncData => serve_sync,
+                // The trusted plain-name variant shares create_dir's
+                // semantics (the arg bytes ARE the path -- the scratch
+                // subslice excludes the native NUL, so both engines see
+                // identical bytes).
+                CreateDir | CreateDirName => serve_create_dir,
+                RemoveDir | RemoveDirName => serve_remove_dir,
+                OpenAt => serve_open_at,
+                UnlinkAt => serve_unlink_at,
+                SetPermissions => serve_set_permissions,
+                ChangeOwner | ChangeOwnerNoFollow => serve_change_owner,
+                ChangeFileOwner => serve_change_file_owner,
+                Rename => serve_rename,
+                HardLink => serve_hard_link,
+                CreateHardLink => serve_create_hard_link,
+                GetOsfHandle => serve_get_osf_handle,
+                FinalPathNameByHandle => serve_final_path_name_by_handle,
+                SetFileTime => serve_set_file_time,
+                Symlink => serve_symlink,
+                ReadLink => serve_read_link,
+                Canonicalize => serve_canonicalize,
+                ReadDir => serve_read_dir,
+                FindFirst => serve_find_first,
+                FindNext => serve_find_next,
+                FindClose => serve_find_close,
+                ReadMetadata => serve_read_metadata,
+                ReadFileMetadata => serve_read_file_metadata,
+                ReadSymlinkMetadata => serve_read_symlink_metadata
             }
-            PreparedFilesystemCall::OpenPathHandle { .. } => self.serve_open_path_handle(call)?,
-            PreparedFilesystemCall::OpenCreate { .. } => self.serve_open_create(call)?,
-            PreparedFilesystemCall::Read { .. } => self.serve_read(call)?,
-            PreparedFilesystemCall::Write { .. } => self.serve_write(call)?,
-            PreparedFilesystemCall::ReadAt { .. } => self.serve_read_at(call)?,
-            PreparedFilesystemCall::WriteAt { .. } => self.serve_write_at(call)?,
-            PreparedFilesystemCall::Close { .. } => self.serve_close(call)?,
-            PreparedFilesystemCall::CloseHandle { .. } => self.serve_close_handle(call)?,
-            PreparedFilesystemCall::Duplicate { .. } => self.serve_duplicate(call)?,
-            PreparedFilesystemCall::LockFile { .. } => self.serve_lock_file(call)?,
-            PreparedFilesystemCall::LockFileEx { .. } => self.serve_lock_file_ex(call)?,
-            PreparedFilesystemCall::UnlockFile { .. } => self.serve_unlock_file(call)?,
-            PreparedFilesystemCall::GetLastError => i64::from(self.virtual_errno),
-            // `remove_name` is the TRUSTED plain-path twin (D-at trust class,
-            // the create_dir_name precedent): the arg bytes ARE the path, so
-            // both spellings share one model.
-            PreparedFilesystemCall::Remove { .. } | PreparedFilesystemCall::RemoveName { .. } => {
-                self.serve_remove(call)?
-            }
-            PreparedFilesystemCall::Seek { .. } => self.serve_seek(call)?,
-            PreparedFilesystemCall::SetLen { .. } => self.serve_set_len(call)?,
-            PreparedFilesystemCall::SetFilePermissions { .. } => {
-                self.serve_set_file_permissions(call)?
-            }
-            PreparedFilesystemCall::SetFileTimes { .. } => self.serve_set_file_times(call)?,
-            PreparedFilesystemCall::Sync { .. } | PreparedFilesystemCall::SyncData { .. } => {
-                self.serve_sync(call)?
-            }
-            PreparedFilesystemCall::Errno => {
-                // `read_errno()` (darwin `___error()` deref): the thread-local
-                // errno set by the most recent failing op. Not cleared on
-                // success (POSIX), so it is only meaningful right after a -1.
-                i64::from(self.virtual_errno)
-            }
-            // The trusted plain-name variant shares create_dir's semantics
-            // (the arg bytes ARE the path -- the scratch subslice excludes
-            // the native NUL, so both engines see identical bytes).
-            PreparedFilesystemCall::CreateDir { .. }
-            | PreparedFilesystemCall::CreateDirName { .. } => self.serve_create_dir(call)?,
-            PreparedFilesystemCall::RemoveDir { .. }
-            | PreparedFilesystemCall::RemoveDirName { .. } => self.serve_remove_dir(call)?,
-            PreparedFilesystemCall::OpenAt { .. } => self.serve_open_at(call)?,
-            PreparedFilesystemCall::UnlinkAt { .. } => self.serve_unlink_at(call)?,
-            PreparedFilesystemCall::SetPermissions { .. } => self.serve_set_permissions(call)?,
-            PreparedFilesystemCall::ChangeOwner { .. }
-            | PreparedFilesystemCall::ChangeOwnerNoFollow { .. } => {
-                self.serve_change_owner(call)?
-            }
-            PreparedFilesystemCall::ChangeFileOwner { .. } => self.serve_change_file_owner(call)?,
-            PreparedFilesystemCall::Rename { .. } => self.serve_rename(call)?,
-            PreparedFilesystemCall::HardLink { .. } => self.serve_hard_link(call)?,
-            PreparedFilesystemCall::CreateHardLink { .. } => self.serve_create_hard_link(call)?,
-            PreparedFilesystemCall::GetOsfHandle { .. } => self.serve_get_osf_handle(call)?,
-            PreparedFilesystemCall::FinalPathNameByHandle { .. } => {
-                self.serve_final_path_name_by_handle(call)?
-            }
-            PreparedFilesystemCall::SetFileTime { .. } => self.serve_set_file_time(call)?,
-            PreparedFilesystemCall::Symlink { .. } => self.serve_symlink(call)?,
-            PreparedFilesystemCall::ReadLink { .. } => self.serve_read_link(call)?,
-            PreparedFilesystemCall::Canonicalize { .. } => self.serve_canonicalize(call)?,
-            PreparedFilesystemCall::ReadDir { .. } => self.serve_read_dir(call)?,
-            PreparedFilesystemCall::FindFirst { .. } => self.serve_find_first(call)?,
-            PreparedFilesystemCall::FindNext { .. } => self.serve_find_next(call)?,
-            PreparedFilesystemCall::FindClose { .. } => self.serve_find_close(call)?,
-            PreparedFilesystemCall::ReadMetadata { .. } => self.serve_read_metadata(call)?,
-            PreparedFilesystemCall::ReadFileMetadata { .. } => {
-                self.serve_read_file_metadata(call)?
-            }
-            PreparedFilesystemCall::ReadSymlinkMetadata { .. } => {
-                self.serve_read_symlink_metadata(call)?
-            }
-        };
+        );
         Ok(Value::Int(result))
     }
 }

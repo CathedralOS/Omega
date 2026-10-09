@@ -356,100 +356,100 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<Value> {
-        let result: i64 = match call {
-            PreparedFilesystemCall::Create { .. } => self.real_create(call)?,
-            PreparedFilesystemCall::Open { path, flags } => {
-                self.real_open_prepared(path.into_native()?, flags, 0, false)?
-            }
-            PreparedFilesystemCall::OpenCreate { .. } => self.real_open_create(call)?,
-            PreparedFilesystemCall::OpenPathHandle { .. } => self.real_open_path_handle(call)?,
-            PreparedFilesystemCall::Read { .. } => self.real_read(call)?,
-            PreparedFilesystemCall::Write { .. } => self.real_write(call)?,
-            PreparedFilesystemCall::Seek { .. } => self.real_seek(call)?,
-            PreparedFilesystemCall::Close { .. } => self.real_close(call)?,
-            PreparedFilesystemCall::CloseHandle { .. } => self.real_close_handle(call)?,
-            PreparedFilesystemCall::Duplicate { .. } => self.real_duplicate(call)?,
-            PreparedFilesystemCall::SetLen { .. } => self.real_set_len(call)?,
-            PreparedFilesystemCall::Sync { .. } | PreparedFilesystemCall::SyncData { .. } => {
-                self.real_sync(call)?
-            }
-            // `remove_name` is the TRUSTED plain-path twin (D-at trust class):
-            // the arg bytes ARE the path, so both spellings share one arm.
-            PreparedFilesystemCall::Remove { .. } | PreparedFilesystemCall::RemoveName { .. } => {
-                self.real_remove(call)?
-            }
-            PreparedFilesystemCall::CreateDir { path, mode: _ }
-            | PreparedFilesystemCall::CreateDirName {
-                name: path,
-                mode: _,
-            } => match self.authorized_namespace_leaf(&path, true, 0) {
-                Some(path) => {
-                    if let Some(sponsor) = self.real_fs_mut().sponsor.clone() {
-                        let bound = sponsor::sponsor_value(sponsor.bind_path(&path))?;
-                        if matches!(
-                            sponsor::sponsor_value(sponsor.entry(&bound))?,
-                            Some(crate::FilesystemSponsorEntry::Directory)
-                        ) {
-                            return Ok(Value::Int(0));
-                        }
+        let result: i64 = crate::prepared_filesystem_call_dispatch!(
+                    self, call;
+                    literal {
+        PreparedFilesystemCall::Open { path, flags } => {
+                        self.real_open_prepared(path.into_native()?, flags, 0, false)?
                     }
-                    let prepared = self.prepare_sponsored_create_directory(&path)?;
-                    let outcome = std::fs::create_dir(path);
-                    self.finish_real_mutation(outcome, prepared, false)?
-                }
-                None => -1,
-            },
-            PreparedFilesystemCall::RemoveDir { .. }
-            | PreparedFilesystemCall::RemoveDirName { .. } => self.real_remove_dir(call)?,
-            PreparedFilesystemCall::Rename { .. } => self.real_rename(call)?,
-            PreparedFilesystemCall::ReadAt { .. } => self.real_read_at(call)?,
-            PreparedFilesystemCall::WriteAt { .. } => self.real_write_at(call)?,
-            PreparedFilesystemCall::ReadDir { .. } => self.real_read_dir(call)?,
-            PreparedFilesystemCall::FindFirst { .. } => self.real_find_first(call)?,
-            PreparedFilesystemCall::FindNext { .. } => self.real_find_next(call)?,
-            PreparedFilesystemCall::FindClose { .. } => self.real_find_close(call)?,
-            PreparedFilesystemCall::ReadMetadata { path, buffer } => self.real_read_metadata(
-                path.into_native()?,
-                &buffer,
-                FilesystemMetadataObservationKind::FollowedPath,
-            )?,
-            PreparedFilesystemCall::ReadSymlinkMetadata { path, buffer } => self
-                .real_read_metadata(
-                    path.into_native()?,
-                    &buffer,
-                    FilesystemMetadataObservationKind::UnfollowedFinalPath,
-                )?,
-            PreparedFilesystemCall::ReadFileMetadata { .. } => {
-                self.real_read_file_metadata(call)?
-            }
-            PreparedFilesystemCall::Errno => i64::from(self.real_fs_mut().errno),
-            PreparedFilesystemCall::Canonicalize { .. } => self.real_canonicalize(call)?,
-            PreparedFilesystemCall::HardLink { .. } => self.real_hard_link(call)?,
-            PreparedFilesystemCall::CreateHardLink { .. } => self.real_create_hard_link(call)?,
-            PreparedFilesystemCall::GetOsfHandle { .. } => self.real_get_osf_handle(call)?,
-            PreparedFilesystemCall::FinalPathNameByHandle { .. } => {
-                self.real_final_path_name_by_handle(call)?
-            }
-            PreparedFilesystemCall::SetFileTime { .. } => self.real_set_file_time(call)?,
-            PreparedFilesystemCall::Symlink { .. } => self.real_symlink(call)?,
-            PreparedFilesystemCall::ReadLink { .. } => self.real_read_link(call)?,
-            PreparedFilesystemCall::SetPermissions { .. } => self.real_set_permissions(call)?,
-            PreparedFilesystemCall::SetFilePermissions { .. } => {
-                self.real_set_file_permissions(call)?
-            }
-            PreparedFilesystemCall::SetFileTimes { .. } => self.real_set_file_times(call)?,
-            PreparedFilesystemCall::LockFile { .. } => self.real_lock_file(call)?,
-            PreparedFilesystemCall::LockFileEx { .. } => self.real_lock_file_ex(call)?,
-            PreparedFilesystemCall::UnlockFile { .. } => self.real_unlock_file(call)?,
-            PreparedFilesystemCall::GetLastError => i64::from(self.real_fs_mut().errno),
-            PreparedFilesystemCall::ChangeOwner { .. } => self.real_change_owner(call)?,
-            PreparedFilesystemCall::ChangeOwnerNoFollow { path, uid, gid } => {
-                self.real_change_owner_no_follow(path.into_native()?, uid, gid)
-            }
-            PreparedFilesystemCall::ChangeFileOwner { .. } => self.real_change_file_owner(call)?,
-            PreparedFilesystemCall::UnlinkAt { .. } => self.real_unlink_at(call)?,
-            PreparedFilesystemCall::OpenAt { .. } => self.real_open_at(call)?,
-        };
+        PreparedFilesystemCall::CreateDir { path, mode: _ }
+                    | PreparedFilesystemCall::CreateDirName {
+                        name: path,
+                        mode: _,
+                    } => {
+                        match self.authorized_namespace_leaf(&path, true, 0) {
+                        Some(path) => {
+                            if let Some(sponsor) = self.real_fs_mut().sponsor.clone() {
+                                let bound = sponsor::sponsor_value(sponsor.bind_path(&path))?;
+                                if matches!(
+                                    sponsor::sponsor_value(sponsor.entry(&bound))?,
+                                    Some(crate::FilesystemSponsorEntry::Directory)
+                                ) {
+                                    return Ok(Value::Int(0));
+                                }
+                            }
+                            let prepared = self.prepare_sponsored_create_directory(&path)?;
+                            let outcome = std::fs::create_dir(path);
+                            self.finish_real_mutation(outcome, prepared, false)?
+                        }
+                        None => -1,
+                        }
+                    },
+        PreparedFilesystemCall::ReadMetadata { path, buffer } => {
+                        self.real_read_metadata(
+                        path.into_native()?,
+                        &buffer,
+                        FilesystemMetadataObservationKind::FollowedPath,
+                    )?
+                    }
+                    PreparedFilesystemCall::ReadSymlinkMetadata { path, buffer } => {
+                        self.real_read_metadata(
+                            path.into_native()?,
+                            &buffer,
+                            FilesystemMetadataObservationKind::UnfollowedFinalPath,
+                        )?
+                    }
+                    PreparedFilesystemCall::Errno => { i64::from(self.real_fs_mut().errno) }
+                    PreparedFilesystemCall::GetLastError => { i64::from(self.real_fs_mut().errno) }
+                    PreparedFilesystemCall::ChangeOwnerNoFollow { path, uid, gid } => {
+                        self.real_change_owner_no_follow(path.into_native()?, uid, gid)
+                    }
+                    }
+                    dispatch {
+                        Create => real_create,
+                        OpenCreate => real_open_create,
+                        OpenPathHandle => real_open_path_handle,
+                        Read => real_read,
+                        Write => real_write,
+                        Seek => real_seek,
+                        Close => real_close,
+                        CloseHandle => real_close_handle,
+                        Duplicate => real_duplicate,
+                        SetLen => real_set_len,
+                        Sync | SyncData => real_sync,
+                        // `remove_name` is the TRUSTED plain-path twin (D-at trust
+                        // class): the arg bytes ARE the path, so both spellings
+                        // share one arm.
+                        Remove | RemoveName => real_remove,
+                        RemoveDir | RemoveDirName => real_remove_dir,
+                        Rename => real_rename,
+                        ReadAt => real_read_at,
+                        WriteAt => real_write_at,
+                        ReadDir => real_read_dir,
+                        FindFirst => real_find_first,
+                        FindNext => real_find_next,
+                        FindClose => real_find_close,
+                        ReadFileMetadata => real_read_file_metadata,
+                        Canonicalize => real_canonicalize,
+                        HardLink => real_hard_link,
+                        CreateHardLink => real_create_hard_link,
+                        GetOsfHandle => real_get_osf_handle,
+                        FinalPathNameByHandle => real_final_path_name_by_handle,
+                        SetFileTime => real_set_file_time,
+                        Symlink => real_symlink,
+                        ReadLink => real_read_link,
+                        SetPermissions => real_set_permissions,
+                        SetFilePermissions => real_set_file_permissions,
+                        SetFileTimes => real_set_file_times,
+                        LockFile => real_lock_file,
+                        LockFileEx => real_lock_file_ex,
+                        UnlockFile => real_unlock_file,
+                        ChangeOwner => real_change_owner,
+                        ChangeFileOwner => real_change_file_owner,
+                        UnlinkAt => real_unlink_at,
+                        OpenAt => real_open_at
+                    }
+                );
         Ok(Value::Int(result))
     }
 
