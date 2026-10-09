@@ -108,7 +108,7 @@ pub(super) fn lower(
         let layout = types
             .get(&result.structural_type)
             .and_then(|declaration| target_operations::conventional_float_class_layout(declaration))
-            .ok_or_else(|| LoweringError::BoundaryRealizationMismatch(*boundary))?;
+            .ok_or(LoweringError::BoundaryRealizationMismatch(*boundary))?;
         let layout = target_operations::TargetStructuralHomeLayout::Sum(layout);
         let home = target_operations::TargetStructuralHomeRequirement {
             origin: target_operations::TargetStructuralHomeOrigin::OperationResult {

@@ -99,37 +99,6 @@ impl IeeeFloatArithmeticForm {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::IeeeFloatArithmeticForm;
-
-    #[test]
-    fn forms_are_dense_distinct_and_round_trip_their_tags() {
-        for (ordinal, form) in IeeeFloatArithmeticForm::ALL.into_iter().enumerate() {
-            assert_eq!(usize::from(form.ordinal()), ordinal);
-            assert_eq!(form.machine_tag(), IeeeFloatArithmeticForm::FAMILY_TAG);
-            assert_eq!(
-                IeeeFloatArithmeticForm::from_machine_payload(form.machine_payload()),
-                Some(form)
-            );
-        }
-        assert_eq!(
-            IeeeFloatArithmeticForm::from_machine_payload(IeeeFloatArithmeticForm::COUNT as u8),
-            None
-        );
-        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 122);
-        for payload in 0_u8..88 {
-            let form = IeeeFloatArithmeticForm::from_machine_payload(payload)
-                .expect("every pre-extension machine payload remains decodable");
-            assert_eq!(form.machine_payload(), payload);
-            assert_eq!(form.operation.ordinal(), payload / 2);
-            assert_eq!(form.is_binary32(), payload % 2 == 0);
-        }
-        // Catalog declarations follow this order, so it must be sorted.
-        assert!(IeeeFloatArithmeticForm::ALL.is_sorted());
-    }
-}
-
 /// Whether `kind` is a raw IEEE register transport between float and
 /// integer bits (neither evaluates floats nor touches control state).
 pub fn is_float_bit_transfer(kind: SelectedInstructionKind) -> bool {
@@ -173,4 +142,35 @@ pub fn ieee_float_arithmetic_is_trapping(form: IeeeFloatArithmeticForm) -> bool 
             ..
         }
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IeeeFloatArithmeticForm;
+
+    #[test]
+    fn forms_are_dense_distinct_and_round_trip_their_tags() {
+        for (ordinal, form) in IeeeFloatArithmeticForm::ALL.into_iter().enumerate() {
+            assert_eq!(usize::from(form.ordinal()), ordinal);
+            assert_eq!(form.machine_tag(), IeeeFloatArithmeticForm::FAMILY_TAG);
+            assert_eq!(
+                IeeeFloatArithmeticForm::from_machine_payload(form.machine_payload()),
+                Some(form)
+            );
+        }
+        assert_eq!(
+            IeeeFloatArithmeticForm::from_machine_payload(IeeeFloatArithmeticForm::COUNT as u8),
+            None
+        );
+        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 122);
+        for payload in 0_u8..88 {
+            let form = IeeeFloatArithmeticForm::from_machine_payload(payload)
+                .expect("every pre-extension machine payload remains decodable");
+            assert_eq!(form.machine_payload(), payload);
+            assert_eq!(form.operation.ordinal(), payload / 2);
+            assert_eq!(form.is_binary32(), payload % 2 == 0);
+        }
+        // Catalog declarations follow this order, so it must be sorted.
+        assert!(IeeeFloatArithmeticForm::ALL.is_sorted());
+    }
 }
