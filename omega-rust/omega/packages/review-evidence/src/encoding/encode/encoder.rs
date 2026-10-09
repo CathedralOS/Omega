@@ -48,6 +48,21 @@ impl<'text> Encoder<'text> {
         }
     }
 
+    /// Canonical wire bytes for one policy row: the four-megabyte policy
+    /// ceiling, magic + version header, the module's payload writer, finish.
+    pub(crate) fn policy_bytes<T>(
+        magic: &[u8],
+        version: u16,
+        row: &T,
+        policy: impl Fn(&mut Self, &T) -> Result<(), PackageReviewEncodingError>,
+    ) -> Result<Vec<u8>, PackageReviewEncodingError> {
+        let mut encoder = Self::policy_bounded(4 * 1024 * 1024);
+        encoder.fixed_bytes(magic);
+        encoder.u16(version);
+        policy(&mut encoder, row)?;
+        encoder.finish()
+    }
+
     /// Recovery has already charged this exact verification buffer. Reserve it
     /// once, and cap every later append at that length so no growth can occur.
     pub(super) fn policy_preallocated(

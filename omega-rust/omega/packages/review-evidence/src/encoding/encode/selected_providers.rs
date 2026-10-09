@@ -22,11 +22,12 @@ use crate::encoding::{
 
 impl PackagePolicySelectedProviders {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
-        encoder.fixed_bytes(SELECTED_PROVIDER_POLICY_MAGIC);
-        encoder.u16(PACKAGE_SELECTED_PROVIDER_POLICY_VERSION);
-        policy(&mut encoder, self)?;
-        encoder.finish()
+        Encoder::policy_bytes(
+            SELECTED_PROVIDER_POLICY_MAGIC,
+            PACKAGE_SELECTED_PROVIDER_POLICY_VERSION,
+            self,
+            policy,
+        )
     }
 }
 

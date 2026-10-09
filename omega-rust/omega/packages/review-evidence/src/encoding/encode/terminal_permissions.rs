@@ -13,11 +13,12 @@ use effects::TerminalAuthorityClass;
 
 impl PackagePolicyTerminalPermissions {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
-        encoder.fixed_bytes(TERMINAL_PERMISSION_POLICY_MAGIC);
-        encoder.u16(PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION);
-        policy(&mut encoder, self)?;
-        encoder.finish()
+        Encoder::policy_bytes(
+            TERMINAL_PERMISSION_POLICY_MAGIC,
+            PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
+            self,
+            policy,
+        )
     }
 }
 

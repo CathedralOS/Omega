@@ -16,11 +16,12 @@ use crate::record::{PackagePolicyCallableConformance, PackagePolicyCallables};
 
 impl PackagePolicyCallables {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
-        encoder.fixed_bytes(CALLABLE_POLICY_MAGIC);
-        encoder.u16(PACKAGE_CALLABLE_POLICY_VERSION);
-        policy(&mut encoder, self)?;
-        encoder.finish()
+        Encoder::policy_bytes(
+            CALLABLE_POLICY_MAGIC,
+            PACKAGE_CALLABLE_POLICY_VERSION,
+            self,
+            policy,
+        )
     }
 }
 

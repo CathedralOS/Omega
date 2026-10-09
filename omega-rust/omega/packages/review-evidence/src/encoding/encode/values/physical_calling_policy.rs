@@ -18,11 +18,12 @@ impl PackagePolicyPhysicalCallingContract {
     /// Versioned bytes for this physical facet only. No callback identities,
     /// evidence receipts, or acceptance authority are encoded.
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
-        encoder.fixed_bytes(PHYSICAL_CALLING_POLICY_MAGIC);
-        encoder.u16(PACKAGE_PHYSICAL_CALLING_POLICY_VERSION);
-        encode_physical(&mut encoder, self)?;
-        encoder.finish()
+        Encoder::policy_bytes(
+            PHYSICAL_CALLING_POLICY_MAGIC,
+            PACKAGE_PHYSICAL_CALLING_POLICY_VERSION,
+            self,
+            encode_physical,
+        )
     }
 }
 
