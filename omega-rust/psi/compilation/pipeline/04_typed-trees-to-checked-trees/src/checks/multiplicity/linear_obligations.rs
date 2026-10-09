@@ -10,7 +10,6 @@ use crate::checks::multiplicity::linear_validation::{
 use crate::checks::multiplicity::permission_events::record_crash_frontier_lower_bounds;
 use crate::checks::multiplicity::projected_affine;
 use crate::checks::multiplicity::temporary_results;
-use crate::checks::multiplicity::type_multiplicity::find_data_definition;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -699,14 +698,15 @@ fn nominal_drop_type_name(
         | TypeReferenceNode::Reference {
             referee: base_type, ..
         } => return nominal_drop_type_name(program, *base_type),
-        TypeReferenceNode::Named { symbol, name } => (*symbol, name.as_str()),
+        TypeReferenceNode::Named { symbol, name } => (*symbol, name),
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
             ..
-        } => (*base_symbol, base_name.as_str()),
+        } => (*base_symbol, base_name),
         _ => return None,
     };
-    let definition = find_data_definition(program, symbol, name)?;
+    let definition =
+        ::validation::field_domains::data_definition_by_symbol_or_name(program, symbol, name)?;
     data_name_with_nominal_drop(program, definition.name.as_str())
 }

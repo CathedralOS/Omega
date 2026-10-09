@@ -270,6 +270,20 @@ pub fn data_field_type_by_symbol_or_name(
         })
 }
 
+/// The data definition whose retained `symbol` matches when live, else whose
+/// `name` matches — the definition spelling retained references carry. Same
+/// symbol-preferred, name-fallback contract as
+/// [`data_field_type_by_symbol_or_name`].
+pub fn data_definition_by_symbol_or_name<'program>(
+    program: &'program dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+    name: &typed_trees::name::Identifier,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    program.data_definitions().iter().find(|data_definition| {
+        (symbol.is_valid() && data_definition.symbol == symbol) || data_definition.name == *name
+    })
+}
+
 /// The declared type of `member_symbol`/`member_name` reached through
 /// `type_reference`: reference and constraint shells peel, Named and Generic
 /// resolve to their data definition through `data_definition` (call sites

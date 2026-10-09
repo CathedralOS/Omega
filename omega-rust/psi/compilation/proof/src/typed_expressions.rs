@@ -214,18 +214,8 @@ fn data_field_type_reference(
         type_reference,
         member_symbol,
         member_name,
-        data_definition_by_symbol_or_name,
+        ::validation::field_domains::data_definition_by_symbol_or_name,
     )
-}
-
-fn data_definition_by_symbol_or_name<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    symbol: SymbolHandle,
-    name: &Identifier,
-) -> Option<&'program typed_trees::data::DataDefinition> {
-    program.data_definitions().iter().find(|data_definition| {
-        (symbol.is_valid() && data_definition.symbol == symbol) || data_definition.name == *name
-    })
 }
 
 pub(crate) fn call_expression_return_type(

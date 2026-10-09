@@ -1,5 +1,6 @@
 //! Fact-free record graph eligibility for recasts.
 
+use crate::value_custody::places::unique_data_definition_by_symbol;
 use crate::value_custody::recasts::raw_byte_region::record_view_type_is_fact_free;
 use crate::value_custody::recasts::representation_types::exact_primitive_type;
 use std::collections::HashSet;
@@ -295,21 +296,6 @@ pub(crate) fn direct_record_view_type_is_fact_free(
 ) -> bool {
     direct_phantom_lifetime_record_symbol(program, type_reference).is_some()
         || record_view_type_is_fact_free(program, type_reference, &mut HashSet::new())
-}
-
-fn unique_data_definition_by_symbol(
-    program: &dyn crate::CheckingInput,
-    symbol: symbols::SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
-    if !symbol.is_valid() {
-        return None;
-    }
-    let mut matches = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == symbol);
-    let definition = matches.next()?;
-    matches.next().is_none().then_some(definition)
 }
 
 fn closed_record_generic_origin_is_eligible(

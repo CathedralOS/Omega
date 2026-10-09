@@ -128,16 +128,6 @@ pub(crate) fn type_multiplicity(
     program.type_multiplicity(type_reference)
 }
 
-pub(crate) fn find_data_definition<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    symbol: SymbolHandle,
-    name: &str,
-) -> Option<&'program typed_trees::data::DataDefinition> {
-    program.data_definitions().iter().find(|definition| {
-        (symbol.is_valid() && definition.symbol == symbol) || definition.name.as_str() == name
-    })
-}
-
 pub(crate) fn literal_variant<'program>(
     program: &'program dyn ::validation::CheckingInput,
     literal: &typed_trees::expression::TableStructLiteral,
