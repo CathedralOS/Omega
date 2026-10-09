@@ -8,7 +8,7 @@ use super::{
 };
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::ReviewOnlyRootPolicyDisposition;
-use std::fmt::{self, Write};
+use std::fmt::Write;
 
 pub(in super::super) const HEADER: &str = "omega-policy-decisions 2\n";
 
