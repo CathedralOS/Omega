@@ -31,8 +31,19 @@ impl<'program> StructuralJudge<'program> {
             TypeReferenceHandle,
         ),
     ) -> Option<StructuralTerm> {
-        self.capture_normal_returns(expression, environment, scope, 0);
-        self.callee_term_in_scope(Some(scope), expression, environment, 0)
+        // Structural child edges do not establish execution: match arms and
+        // short-circuit operands belong to separately selected paths. Decline
+        // that whole formation until its execution schedule is represented.
+        if !unconditional_expression(self.program, expression, 0) {
+            return None;
+        }
+        // Admission is transactional. An unsupported outer value cannot leak
+        // guarantees from an inner call into a later local or return path.
+        let mut candidate = self.clone();
+        candidate.capture_normal_returns(expression, environment, scope, 0);
+        let value = candidate.callee_term_in_scope(Some(scope), expression, environment, 0)?;
+        *self = candidate;
+        Some(value)
     }
 
     fn capture_normal_returns(
@@ -47,6 +58,7 @@ impl<'program> StructuralJudge<'program> {
         depth: usize,
     ) {
         if depth >= 64
+            || !program_expression_is_live(self.program, expression)
             || self
                 .normal_results
                 .iter()
@@ -198,6 +210,41 @@ impl<'program> StructuralJudge<'program> {
             self.intake_equation(left, right, 0);
         }
     }
+}
+
+/// Only total eager value edges are a schedule in this structural owner.
+/// Selective or unsupported evaluation stays with the ordinary flow owner;
+/// walking all structural descendants would invent normal-return authority.
+fn unconditional_expression(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> bool {
+    if depth >= 64 || !program_expression_is_live(program, expression) {
+        return false;
+    }
+    let node = program.expression_table.expression(expression);
+    if matches!(node, ExpressionNode::Match(_) | ExpressionNode::Atomic(_))
+        || matches!(node, ExpressionNode::Binary(binary)
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or))
+    {
+        return false;
+    }
+    let mut admitted = true;
+    children(program, node, |child| {
+        // An absent receiver is a structural edge, not an executed operand.
+        if child.is_valid() {
+            admitted &= unconditional_expression(program, child, depth + 1);
+        }
+    });
+    admitted
+}
+
+fn program_expression_is_live(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    expression.is_valid() && program.expression_table.expression_is_valid(expression)
 }
 
 /// Contract dependency cycles need the independent induction owner. These
