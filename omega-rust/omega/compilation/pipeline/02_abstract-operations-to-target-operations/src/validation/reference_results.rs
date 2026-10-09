@@ -18,17 +18,4 @@
 //! source verification's concern, so this replay only tracks which leaf lives
 //! at which carrier path and which root it suspends.
 
-use crate::lowering::dominator_schedule;
-use abstract_operations::call_source;
-use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::{
-    AbstractBoundaryResult, AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
-};
-use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, StructuralTypeId};
-use target_operations::TargetReferenceResult;
-use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction, find_structural_case, find_structural_type,
-};

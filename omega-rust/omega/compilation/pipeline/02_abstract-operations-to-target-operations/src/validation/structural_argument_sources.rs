@@ -10,17 +10,9 @@
 //! rejects any argument whose `source` names different storage or a different
 //! producer. Independent replay then owns the same identities downstream.
 
-use std::collections::BTreeMap;
 
-use abstract_operations::{
-    AbstractBoundaryResult, AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
-};
 use calling_conventions::ValuePlacement;
-use semantic_vocabulary::{BlockId, OperationId, PlaceId};
-use target_operations::{
-    TargetFunction, TargetStructuralArgument, TargetStructuralArgumentSource,
-    TargetStructuralHomeRequirement, TargetUnitOperation,
-};
+use target_operations::TargetStructuralHomeRequirement;
 use terminal_psi::StructuralOperationResult;
 
 
