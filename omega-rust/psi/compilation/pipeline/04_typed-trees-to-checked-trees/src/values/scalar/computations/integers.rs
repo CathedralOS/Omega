@@ -139,7 +139,11 @@ impl Builder<'_, '_> {
                 computation,
             });
         }
-        if !semantic_casts::requires_custody(self.program, self.state, expression)
+        // Pure lowering binds only its declared scalar telescope. An
+        // explicit declaration substitution must reach the graph operands
+        // before any whole-expression shortcut can choose a scalar lane.
+        if !self.has_declaration_binding(expression)
+            && !semantic_casts::requires_custody(self.program, self.state, expression)
             && let Some((value, domain)) = lower_scalar_expression(
                 self.program,
                 self.operators,

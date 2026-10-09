@@ -39,6 +39,7 @@ mod dynamic_calls;
 mod enum_equality;
 mod integers;
 mod normal_return;
+mod rank_observations;
 mod slice_view;
 mod structural_fields;
 mod structural_values;
@@ -54,6 +55,7 @@ pub(crate) fn build_checked_value_computation_plans(
     proof: &ProofFacts,
     pure: &CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> (
     CheckedScalarComputationPlans,
     checked_trees::CheckedStructuralValuePlans,
@@ -105,6 +107,8 @@ pub(crate) fn build_checked_value_computation_plans(
                     state: state.symbol,
                     statement_index,
                     parameters,
+                    declaration_parameters: &[],
+                    declaration_bindings: &[],
                     authored_parameters: program.state_parameters(state),
                     parameter_types: &parameter_types,
                     locals: &locals,
@@ -788,5 +792,16 @@ pub(crate) fn build_checked_value_computation_plans(
             }
         }
     }
+    rank_observations::record(
+        program,
+        operators,
+        flow,
+        borrow,
+        pure,
+        exact_integer_casts,
+        call_frames,
+        &mut plans,
+        &mut structural_values,
+    );
     (plans, structural_values)
 }

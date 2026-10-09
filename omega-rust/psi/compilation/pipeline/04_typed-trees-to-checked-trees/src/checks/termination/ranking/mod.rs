@@ -460,6 +460,7 @@ pub(crate) fn proven_fused_state_natural_ranks_with_call_frames(
                 .state_parameters(state)
                 .get(edge.source_rank_parameter_position as usize)?;
             let rank = checked_trees::CheckedStateNaturalRank {
+                observation: Default::default(),
                 state: state.symbol,
                 parameter: parameter.symbol,
                 parameter_position: edge.source_rank_parameter_position,
@@ -536,6 +537,7 @@ pub(crate) fn proven_slice_length_ranks_with_call_frames(
                 .iter()
                 .position(|candidate| candidate.symbol == parameter.symbol)?;
             ranks.push(checked_trees::CheckedStateNaturalRank {
+                observation: Default::default(),
                 state: state.symbol,
                 parameter: parameter.symbol,
                 parameter_position: u32::try_from(parameter_position).ok()?,
@@ -580,6 +582,14 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
     else {
         return None;
     };
+    if matches!(
+        order,
+        RankingOrder::CustomNatDescending { .. }
+            | RankingOrder::CustomScalarView { .. }
+            | RankingOrder::CustomStructView { .. }
+    ) {
+        return declared_view_ranks(program, machine, &order, &subjects);
+    }
     // The same measures the edge prover reads: the countdown subject, or the
     // `(lower, upper)` distance `Nat::IncreasingTo(limit)` shares with
     // `Nat::BoundedDistance`.
@@ -674,6 +684,105 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
                     }
                 }
             }
+        }
+    }
+    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
+    (!ranks.is_empty()).then_some(ranks)
+}
+
+/// The selected declaration's already-proven rank travels through the same
+/// state telescope as its range judgment. The runtime observation is filled by
+/// the shared value producer; this row grants no new arithmetic formation.
+fn declared_view_ranks(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    order: &RankingOrder,
+    subjects: &[ExpressionHandle],
+) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
+    let [subject] = subjects else {
+        return None;
+    };
+    let root = program.machine_states(machine).first()?;
+    let place =
+        validation::canonical_place_from_expression_in_state(program, root.symbol, 0, *subject)?;
+    let facts::PlaceRoot::Symbol(entry) = place.root else {
+        return None;
+    };
+    let measure_symbol = match order {
+        RankingOrder::CustomNatDescending { measure }
+        | RankingOrder::CustomScalarView { measure, .. }
+        | RankingOrder::CustomStructView { measure, .. } => *measure,
+        _ => return None,
+    };
+    let measure = program
+        .measures()
+        .iter()
+        .find(|measure| measure.symbol == measure_symbol)?;
+    let primitive_type = program.primitive_type_reference(measure.return_type)?;
+    let range_measure = match order {
+        RankingOrder::CustomScalarView {
+            parameter,
+            body,
+            carrier,
+            ..
+        } => validation::RankingRangeMeasure::Computed {
+            subject: *subject,
+            parameter: *parameter,
+            body: *body,
+            carrier: *carrier,
+        },
+        RankingOrder::CustomStructView { measure, .. } => validation::RankingRangeMeasure::Field {
+            subject: *subject,
+            measure: *measure,
+        },
+        RankingOrder::CustomNatDescending { .. } => {
+            validation::RankingRangeMeasure::Single(*subject)
+        }
+        _ => return None,
+    };
+    let required = match program
+        .ranking_expression_custody_for(machine.symbol)
+        .and_then(|custody| custody.rank_range)
+    {
+        Some(range) => validation::ranking_range_required_symbols(
+            program,
+            machine,
+            range,
+            range_measure,
+            validation::RankingRangePremises::RankInvariant,
+        )?,
+        None => vec![entry],
+    };
+    let mappings = validation::discover_state_entry_mappings(program, machine, entry, &required)?;
+    let states = program.machine_states(machine);
+    let adjacency = graph::machine_adjacency(program, machine);
+    let mut ranks = Vec::new();
+    for component in graph::strongly_connected_components(&adjacency)
+        .into_iter()
+        .filter(|component| graph::component_is_cyclic(&adjacency, component))
+    {
+        for position in component {
+            let state = states.get(position)?;
+            let entries = mappings.get(position)?;
+            let mut positions = entries
+                .iter()
+                .enumerate()
+                .filter(|(_, symbol)| **symbol == entry);
+            let (parameter_position, _) = positions.next()?;
+            if positions.next().is_some() {
+                return None;
+            }
+            let parameter = program.state_parameters(state).get(parameter_position)?;
+            ranks.push(checked_trees::CheckedStateNaturalRank {
+                state: state.symbol,
+                parameter: parameter.symbol,
+                parameter_position: u32::try_from(parameter_position).ok()?,
+                measure: checked_trees::CheckedNaturalRankMeasure::DeclaredMeasure {
+                    measure: measure.symbol,
+                    primitive_type,
+                },
+                observation: Default::default(),
+            });
         }
     }
     ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
@@ -879,7 +988,7 @@ fn canonical_order_path(order: &RankingOrder) -> Option<&'static str> {
         RankingOrder::BoundedDistance => Some("Nat::BoundedDistance"),
         RankingOrder::SliceLength => Some("Slice::Length"),
         RankingOrder::IncreasingTo(_) => Some("Nat::IncreasingTo"),
-        RankingOrder::CustomNatDescending
+        RankingOrder::CustomNatDescending { .. }
         | RankingOrder::CustomScalarView { .. }
         | RankingOrder::CustomStructView { .. }
         | RankingOrder::Lexicographic(_) => None,
@@ -988,7 +1097,7 @@ fn cycle_edge_strictly_decreases(
         RankingOrder::NatDescending
             | RankingOrder::BoundedDistance
             | RankingOrder::IncreasingTo(_)
-            | RankingOrder::CustomNatDescending
+            | RankingOrder::CustomNatDescending { .. }
             | RankingOrder::CustomScalarView { .. }
     ) {
         // Slice-length, struct-view and lexicographic orders stay
@@ -1031,7 +1140,7 @@ fn state_has_proven_supported_self_loop<'p>(
             RankingOrder::NatDescending
             | RankingOrder::BoundedDistance
             | RankingOrder::IncreasingTo(_)
-            | RankingOrder::CustomNatDescending
+            | RankingOrder::CustomNatDescending { .. }
             | RankingOrder::CustomScalarView { .. },
             _,
         ) => nat::state_has_proven_self_loop(program, state, measure),

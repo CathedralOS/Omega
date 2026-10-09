@@ -259,6 +259,7 @@ pub(crate) fn build_check_facts(
         &prepared.proof,
         &prepared.values.scalar_expressions,
         &validation_facts.exact_integer_casts,
+        call_frames.as_ref(),
     );
     let index_compatibility = index_compatibility::build_index_compatibility_facts(
         program,

@@ -198,6 +198,8 @@ pub fn u64_integer_literal(
 ) -> Option<CheckedScalarExpression> {
     let landed_type = match primitive_type {
         typed_trees::types::PrimitiveType::U8 => numerics::literals::LandedIntegerType::U8,
+        typed_trees::types::PrimitiveType::U16 => numerics::literals::LandedIntegerType::U16,
+        typed_trees::types::PrimitiveType::U32 => numerics::literals::LandedIntegerType::U32,
         typed_trees::types::PrimitiveType::U64 => numerics::literals::LandedIntegerType::U64,
         _ => return None,
     };

@@ -21,6 +21,16 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
+        if !self.declaration_parameters.is_empty() {
+            return validation::structural_scalar_field_in_parameters(
+                self.program,
+                self.machine,
+                self.state,
+                self.declaration_parameters,
+                self.declaration_bindings,
+                expression,
+            );
+        }
         validation::structural_scalar_field(
             self.program,
             self.machine,

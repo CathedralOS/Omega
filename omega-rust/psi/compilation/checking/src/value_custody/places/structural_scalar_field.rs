@@ -69,13 +69,104 @@ pub fn structural_scalar_field(
     statement_ordinal: u32,
     expression: ExpressionHandle,
 ) -> Option<StructuralScalarField> {
+    structural_scalar_field_with_source(program, machine, state, expression, &[], |receiver| {
+        structural_source(
+            program,
+            machine,
+            state,
+            statement_ordinal,
+            expression,
+            receiver,
+        )
+    })
+}
+
+/// Resolve declaration-scoped observations under an explicit input telescope.
+/// This is the same field geometry query as an executable use-site read, but
+/// the caller owns the binder substitution and arrival availability. It grants
+/// neither an additional read permission nor a fresh runtime formal.
+pub fn structural_scalar_field_in_parameters(
+    program: &dyn crate::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    bindings: &[(SymbolHandle, ExpressionHandle)],
+    expression: ExpressionHandle,
+) -> Option<StructuralScalarField> {
+    structural_scalar_field_with_source(program, machine, state, expression, bindings, |receiver| {
+        let name = program.expression_table.name_path_node(receiver)?;
+        if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+            return None;
+        }
+        let mut matches = parameters.iter().filter(|parameter| {
+            parameter.symbol == name.symbol
+                && !parameter.is_const
+                && !parameter.relevance.is_erased()
+        });
+        let parameter = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        let carrier = match program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        {
+            TypeReferenceNode::Reference {
+                referee,
+                access:
+                    language_semantics::ReferenceAccess::Shared
+                    | language_semantics::ReferenceAccess::Mutable,
+                ..
+            } => *referee,
+            TypeReferenceNode::Reference { .. } => return None,
+            _ => parameter.type_reference,
+        };
+        program.closed_data_definition(carrier)?;
+        Some(StructuralSource {
+            root: facts::PlaceRoot::Symbol(parameter.symbol),
+            receiver_value: ExpressionHandle::invalid(),
+            statement_ordinal: 0,
+            type_reference: carrier,
+        })
+    })
+}
+
+fn structural_scalar_field_with_source(
+    program: &dyn crate::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+    bindings: &[(SymbolHandle, ExpressionHandle)],
+    mut source: impl FnMut(ExpressionHandle) -> Option<StructuralSource>,
+) -> Option<StructuralScalarField> {
     let mut steps = Vec::new();
     let mut receiver = expression;
+    let mut visits = 0;
     loop {
-        if steps.len() >= program.expression_table.expression_count() {
+        visits += 1;
+        if visits > program.expression_table.expression_count() {
             return None;
         }
         match program.expression_table.expression(receiver) {
+            ExpressionNode::Name(name)
+                if name.head_symbol == name.symbol
+                    && program
+                        .expression_table
+                        .name_path_members(name.members)
+                        .len()
+                        == 1
+                    && bindings.iter().any(|(symbol, _)| *symbol == name.symbol) =>
+            {
+                let mut selected = bindings.iter().filter(|(symbol, _)| *symbol == name.symbol);
+                let (_, actual) = selected.next()?;
+                if selected.next().is_some() || *actual == receiver {
+                    return None;
+                }
+                receiver = *actual;
+                if steps.len() + 1 >= program.expression_table.expression_count() {
+                    return None;
+                }
+            }
             ExpressionNode::Member(member) => {
                 steps.push(Step::Member(member));
                 receiver = member.receiver;
@@ -90,14 +181,7 @@ pub fn structural_scalar_field(
     let Some(Step::Member(leaf)) = steps.first().copied() else {
         return None;
     };
-    let local = structural_source(
-        program,
-        machine,
-        state,
-        statement_ordinal,
-        expression,
-        receiver,
-    )?;
+    let local = source(receiver)?;
     // A literal element selection is a coordinate only when `[]` keeps its
     // builtin meaning along the whole place spine.
     if steps.iter().any(|step| matches!(step, Step::Element(_)))

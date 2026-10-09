@@ -142,6 +142,7 @@ fn runtime_component_ranks(
                     | typed_trees::types::PrimitiveType::U64
             )
             .then_some(checked_trees::CheckedStateNaturalRank {
+                observation: Default::default(),
                 state: rank.state,
                 parameter: rank.parameter,
                 parameter_position: rank.parameter_position,
@@ -173,6 +174,67 @@ fn runtime_component_ranks(
     });
     weak.dedup();
     Some((ranks, weak))
+}
+
+/// One source rank roster shared by value observation production and graph
+/// planning. Fusion and source proof authority share this selection owner;
+/// observing an arrival introduces neither another ranking tier nor a new SCC.
+pub(crate) fn natural_rank_plans(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<(
+    Vec<checked_trees::CheckedStateNaturalRank>,
+    Vec<checked_trees::CheckedRankEdgeCoordinate>,
+)> {
+    let fused = fused_states(program, machine);
+    let states = program.machine_states(machine);
+    // Keep `fused_countdown_ranks` in step with this choice: terminal machine
+    // selection asks it before any plan exists.
+    let mut preserving_rank_edges = Vec::new();
+    let natural_ranks = if fused.len() != states.len()
+        && fused
+            .iter()
+            .any(|(owner, _)| owner.termination_plan.implementation_witness.is_some())
+    {
+        // Fusion must retain the whole component's judgment, including when
+        // an unranked dispatch machine reaches ranked callees. Acyclic exits
+        // carry no rank; the existing fused checker proves every cyclic edge.
+        // Its countdown cannot spell a cycle whose hops into a sibling keep
+        // the measured value (`remaining in 0..=9` through `step`); the shared
+        // runtime judgment proves those, and the graph keeps its weak edges.
+        let members = fused
+            .iter()
+            .map(|(_, state)| state.symbol)
+            .collect::<Vec<_>>();
+        match crate::checks::termination::proven_fused_state_natural_ranks_with_call_frames(
+            program,
+            &members,
+            call_frames,
+        ) {
+            Some(ranks) => ranks,
+            None => {
+                let (ranks, weak) = runtime_component_ranks(program, &members)?;
+                preserving_rank_edges = weak;
+                ranks
+            }
+        }
+    } else if machine.termination_plan.implementation_witness.is_some() {
+        // Other retained witnesses belong to their existing producer until this
+        // path can preserve them. Never publish an unranked replacement.
+        let ranks = crate::checks::termination::proven_state_natural_ranks_with_call_frames(
+            program,
+            machine,
+            call_frames,
+        )?;
+        if ranks.is_empty() {
+            return None;
+        }
+        ranks
+    } else {
+        Vec::new()
+    };
+    Some((natural_ranks, preserving_rank_edges))
 }
 
 /// Plans explicit state signatures and transitions, tracing the first declined operation.
@@ -235,51 +297,20 @@ pub(super) fn build_traced(
         }
     }
     trace.phase("state graph: natural ranks");
-    // Keep `fused_countdown_ranks` in step with this choice: terminal machine
-    // selection asks it before any plan exists.
-    let mut preserving_rank_edges = Vec::new();
-    let natural_ranks = if fused.len() != states.len()
-        && fused
-            .iter()
-            .any(|(owner, _)| owner.termination_plan.implementation_witness.is_some())
-    {
-        // Fusion must retain the whole component's judgment, including when
-        // an unranked dispatch machine reaches ranked callees. Acyclic exits
-        // carry no rank; the existing fused checker proves every cyclic edge.
-        // Its countdown cannot spell a cycle whose hops into a sibling keep
-        // the measured value (`remaining in 0..=9` through `step`); the shared
-        // runtime judgment proves those, and the graph keeps its weak edges.
-        let members = fused
-            .iter()
-            .map(|(_, state)| state.symbol)
-            .collect::<Vec<_>>();
-        match crate::checks::termination::proven_fused_state_natural_ranks_with_call_frames(
-            program,
-            &members,
-            call_frames,
-        ) {
-            Some(ranks) => ranks,
-            None => {
-                let (ranks, weak) = runtime_component_ranks(program, &members)?;
-                preserving_rank_edges = weak;
-                ranks
-            }
-        }
-    } else if machine.termination_plan.implementation_witness.is_some() {
-        // Other retained witnesses belong to their existing producer until this
-        // path can preserve them. Never publish an unranked replacement.
-        let ranks = crate::checks::termination::proven_state_natural_ranks_with_call_frames(
-            program,
-            machine,
-            call_frames,
+    let (mut natural_ranks, preserving_rank_edges) =
+        natural_rank_plans(program, machine, call_frames)?;
+    for rank in &mut natural_ranks {
+        let (owner, _) = validation::find_state_with_machine(program, rank.state)?;
+        let root = facts.values.scalar_computations.root_at(
+            rank.state,
+            0,
+            checked_trees::CheckedScalarExpressionRole::RankObservation,
         )?;
-        if ranks.is_empty() {
+        if root.machine != owner.symbol {
             return None;
         }
-        ranks
-    } else {
-        Vec::new()
-    };
+        rank.observation = root.root;
+    }
     let mut attachment = None;
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();

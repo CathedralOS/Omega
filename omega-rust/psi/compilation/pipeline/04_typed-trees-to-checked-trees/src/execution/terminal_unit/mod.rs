@@ -160,7 +160,7 @@ use validation::reference_result_custody as reference_results;
 mod scalar_locals;
 pub(crate) mod scalar_return_expressions;
 mod scalar_targets;
-mod state_graph;
+pub(crate) mod state_graph;
 mod structural_scalar_store;
 mod structural_value_calls;
 pub(crate) use structural_value_calls::retain as retain_structural_value_calls;

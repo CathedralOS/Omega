@@ -97,7 +97,7 @@ fn proves_range(
     }
     let (rank, pinned_bound) = match (order, measure) {
         (
-            RankingOrder::NatDescending | RankingOrder::CustomNatDescending,
+            RankingOrder::NatDescending | RankingOrder::CustomNatDescending { .. },
             DecreaseMeasure::Single(subject),
         ) => (bounds(program, machine, subject)?, None),
         // A computed scalar view's rank is not the subject's interval; only

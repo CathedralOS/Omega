@@ -37,7 +37,7 @@ pub(super) fn prove_with_entry_requirements(
     if !matches!(
         order,
         RankingOrder::NatDescending
-            | RankingOrder::CustomNatDescending
+            | RankingOrder::CustomNatDescending { .. }
             | RankingOrder::CustomScalarView { .. }
             | RankingOrder::BoundedDistance
             | RankingOrder::IncreasingTo(_)
@@ -58,7 +58,7 @@ pub(super) fn prove_with_entry_requirements(
             }
         }
         (
-            RankingOrder::NatDescending | RankingOrder::CustomNatDescending,
+            RankingOrder::NatDescending | RankingOrder::CustomNatDescending { .. },
             DecreaseMeasure::Single(subject),
         ) => validation::RankingRangeMeasure::Single(subject),
         (
@@ -66,6 +66,7 @@ pub(super) fn prove_with_entry_requirements(
                 parameter,
                 body,
                 carrier,
+                ..
             },
             DecreaseMeasure::Single(subject),
         ) => validation::RankingRangeMeasure::Computed {

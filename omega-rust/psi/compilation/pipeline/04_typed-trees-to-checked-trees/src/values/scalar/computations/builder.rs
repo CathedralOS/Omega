@@ -41,6 +41,9 @@ pub(super) struct Builder<'program, 'plans> {
     pub(super) state: SymbolHandle,
     pub(super) statement_index: usize,
     pub(super) parameters: &'program [StateParameter],
+    /// Explicit declaration inputs for an observation outside statement execution.
+    pub(super) declaration_bindings: &'program [(SymbolHandle, ExpressionHandle)],
+    pub(super) declaration_parameters: &'program [StateParameter],
     pub(super) authored_parameters: &'program [StateParameter],
     pub(super) parameter_types: &'program [PrimitiveType],
     pub(super) locals: &'program [ScalarLocal],
@@ -57,6 +60,47 @@ pub(super) struct Builder<'program, 'plans> {
 }
 
 impl Builder<'_, '_> {
+    /// Pure lowering owns a scalar telescope, so a subtree that refers to
+    /// an explicitly rebound declaration input must first pass through the
+    /// computation graph. The shared typed-reference walk owns all expression
+    /// forms; independent literals and ordinary formals retain their fast path.
+    pub(super) fn has_declaration_binding(&self, expression: ExpressionHandle) -> bool {
+        if self.declaration_bindings.is_empty() {
+            return false;
+        }
+        struct Bindings<'bindings> {
+            bindings: &'bindings [(SymbolHandle, ExpressionHandle)],
+            found: bool,
+            visited: Vec<ExpressionHandle>,
+        }
+        impl Extend<SymbolHandle> for Bindings<'_> {
+            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+                self.found |= symbols
+                    .into_iter()
+                    .any(|symbol| self.bindings.iter().any(|(formal, _)| *formal == symbol));
+            }
+        }
+        impl typed_trees::references::TypedReferences for Bindings<'_> {
+            fn expression(&mut self, expression: ExpressionHandle) -> bool {
+                if self.visited.contains(&expression) {
+                    return false;
+                }
+                self.visited.push(expression);
+                true
+            }
+            fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
+                false
+            }
+        }
+        let mut bindings = Bindings {
+            bindings: self.declaration_bindings,
+            found: false,
+            visited: Vec::new(),
+        };
+        typed_trees::references::visit_expression(self.program, &mut bindings, expression);
+        bindings.found
+    }
+
     pub(super) fn record_root(
         &mut self,
         pure: &CheckedScalarExpressionPlans,
@@ -388,7 +432,11 @@ impl Builder<'_, '_> {
         {
             return Some(predicate);
         }
-        if !semantic_casts::requires_custody(self.program, self.state, expression)
+        // Pure lowering binds only its declared scalar telescope. An
+        // explicit declaration substitution must reach the graph operands
+        // before any whole-expression shortcut can choose a scalar lane.
+        if !self.has_declaration_binding(expression)
+            && !semantic_casts::requires_custody(self.program, self.state, expression)
             && let Some(value) = lower_return_expression(
                 self.program,
                 self.operators,

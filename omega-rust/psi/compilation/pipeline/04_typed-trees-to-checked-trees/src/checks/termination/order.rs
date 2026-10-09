@@ -39,7 +39,7 @@ pub(super) enum RankingOrder {
     /// upper)`.
     IncreasingTo(ExpressionHandle),
     /// A declared `measure` whose body forwards the (already numeric) parameter.
-    CustomNatDescending,
+    CustomNatDescending { measure: symbols::SymbolHandle },
     /// A declared `measure` whose body computes over its parameter with `+`
     /// and `*` (`{ value * 2 }`), admitted by validation's
     /// `declared_scalar_view` as strictly increasing on the naturals with
@@ -48,6 +48,7 @@ pub(super) enum RankingOrder {
     /// subject's descent stands for that rank's descent, and the range
     /// judgment still proves membership and formation inside `carrier`.
     CustomScalarView {
+        measure: symbols::SymbolHandle,
         parameter: symbols::SymbolHandle,
         body: ExpressionHandle,
         carrier: symbols::BuiltinTypeAtom,
@@ -264,6 +265,7 @@ impl RankingOrder {
             let view = declared_scalar_view(program, state, decreases, &order.join("::"))?;
             let computation = view.computation?;
             return Some(Self::CustomScalarView {
+                measure: measure.symbol,
                 parameter: computation.parameter,
                 body: computation.body,
                 carrier: view.carrier,
@@ -277,7 +279,9 @@ impl RankingOrder {
                 if identity_subject_matches(program, state, decreases, carrier)
                     && measure_constraints_cover_subject(program, state, decreases, &constraints)
                 {
-                    Some(Self::CustomNatDescending)
+                    Some(Self::CustomNatDescending {
+                        measure: measure.symbol,
+                    })
                 } else {
                     None
                 }

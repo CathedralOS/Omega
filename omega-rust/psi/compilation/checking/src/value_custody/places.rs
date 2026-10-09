@@ -417,6 +417,7 @@ mod exact_self_field;
 mod structural_scalar_field;
 pub use structural_scalar_field::{
     StructuralScalarField, saved_dispatch_call, saved_dispatch_subject, structural_scalar_field,
+    structural_scalar_field_in_parameters,
 };
 mod member_paths;
 mod parameter_scoped;

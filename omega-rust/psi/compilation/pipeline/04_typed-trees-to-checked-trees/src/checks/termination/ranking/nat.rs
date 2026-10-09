@@ -70,6 +70,7 @@ pub(super) fn state_rank(
                 return None;
             }
             Some(checked_trees::CheckedStateNaturalRank {
+                observation: Default::default(),
                 state: state.symbol,
                 parameter: parameter.symbol,
                 parameter_position: position,
@@ -95,6 +96,7 @@ pub(super) fn state_rank(
                     collection.symbol,
                 )?;
                 return Some(checked_trees::CheckedStateNaturalRank {
+                    observation: Default::default(),
                     state: state.symbol,
                     parameter: lower.symbol,
                     parameter_position: lower_position,
@@ -112,6 +114,7 @@ pub(super) fn state_rank(
                 let maximum = super::unsigned_maximum(primitive_type)?;
                 return (u128::from(upper) <= maximum).then_some(
                     checked_trees::CheckedStateNaturalRank {
+                        observation: Default::default(),
                         state: state.symbol,
                         parameter: lower.symbol,
                         parameter_position: lower_position,
@@ -136,6 +139,7 @@ pub(super) fn state_rank(
                 return None;
             }
             Some(checked_trees::CheckedStateNaturalRank {
+                observation: Default::default(),
                 state: state.symbol,
                 parameter: lower.symbol,
                 parameter_position: lower_position,
@@ -198,6 +202,7 @@ pub(super) fn carried_state_rank(
         return None;
     }
     Some(checked_trees::CheckedStateNaturalRank {
+        observation: Default::default(),
         state: state.symbol,
         parameter: parameter.symbol,
         parameter_position: u32::try_from(position).ok()?,
