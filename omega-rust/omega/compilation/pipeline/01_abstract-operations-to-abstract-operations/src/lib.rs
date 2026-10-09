@@ -17,6 +17,7 @@
 //! the loop analyses it consumes stay available to scheduled steps and to
 //! harnesses through `test_support`, which names what the
 //! `psi_optimization_allocations` example drives directly.
+mod codec_bytes;
 mod abstract_optimization;
 mod analyses;
 mod field_value_specialization;

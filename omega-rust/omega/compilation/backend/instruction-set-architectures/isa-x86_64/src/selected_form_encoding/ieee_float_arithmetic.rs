@@ -377,7 +377,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
         }
         Instruction::StoreControlMode { value } => {
             bytes.extend_from_slice(&[0xc7, 0x44, 0x24, 4]);
-            bytes.extend_from_slice(&value.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
         }
         Instruction::Transfer {
             to_float,

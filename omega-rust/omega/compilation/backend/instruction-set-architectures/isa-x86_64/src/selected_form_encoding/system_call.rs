@@ -30,7 +30,7 @@ pub fn encode_x86_64_selected_system_call_form(
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     let mut bytes = Vec::with_capacity(12);
     bytes.extend_from_slice(&[0x48, 0xb8]);
-    bytes.extend_from_slice(&number.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, number.to_le_bytes());
     bytes.extend_from_slice(&[0x0f, 0x05]);
     validate_x86_64_selected_system_call_form(
         target,

@@ -14,6 +14,7 @@
 //! (fingerprints of validated declarations) and `preservation_storage`
 //! (preserved-register storage).
 
+mod codec_bytes;
 mod digest_encoder;
 mod register_model;
 #[cfg(test)]

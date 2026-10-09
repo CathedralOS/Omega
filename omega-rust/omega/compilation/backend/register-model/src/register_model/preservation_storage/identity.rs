@@ -25,15 +25,15 @@ pub(crate) fn preservation_storage_catalog_identity(
     string(&mut canonical, &catalog.convention);
     length(&mut canonical, catalog.groups.len());
     for group in &catalog.groups {
-        canonical.extend_from_slice(&group.id.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, group.id.0.to_le_bytes());
         string(&mut canonical, &group.name);
-        canonical.extend_from_slice(&group.storage_view.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, group.storage_view.0.to_le_bytes());
         length(&mut canonical, group.preserved_units.len());
         for unit in &group.preserved_units {
-            canonical.extend_from_slice(&unit.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut canonical, unit.0.to_le_bytes());
         }
-        canonical.extend_from_slice(&group.size_bytes.to_le_bytes());
-        canonical.extend_from_slice(&group.alignment_bytes.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, group.size_bytes.to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut canonical, group.alignment_bytes.to_le_bytes());
     }
 
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(IDENTITY_DOMAIN);

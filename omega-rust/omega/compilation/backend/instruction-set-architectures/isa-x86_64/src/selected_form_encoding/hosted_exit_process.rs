@@ -111,7 +111,7 @@ pub fn encode_x86_64_selected_hosted_exit_process_form(
         0xc7 | ((register & 7) << 3),
         0xb8,
     ];
-    bytes.extend_from_slice(&syscall.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, syscall.to_le_bytes());
     bytes.extend_from_slice(&[0x0f, 0x05, 0x0f, 0x0b]);
     validate_x86_64_selected_hosted_exit_process_form(
         target,

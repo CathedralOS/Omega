@@ -331,7 +331,7 @@ fn instruction_constraint(bytes: &mut Vec<u8>, constraint: &RegisterInstructionC
 
 fn constraint_key(bytes: &mut Vec<u8>, family: RegisterConstraintFamily, variant: u32) {
     byte(bytes, family.tag());
-    bytes.extend_from_slice(&variant.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, variant.to_le_bytes());
 }
 
 fn optional_constraint_key(bytes: &mut Vec<u8>, key: Option<crate::RegisterConstraintKey>) {
@@ -374,11 +374,11 @@ fn length(bytes: &mut Vec<u8>, value: usize) {
 }
 
 fn u64_value(bytes: &mut Vec<u8>, value: u64) {
-    bytes.extend_from_slice(&value.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
 }
 
 fn u16_value(bytes: &mut Vec<u8>, value: u16) {
-    bytes.extend_from_slice(&value.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
 }
 
 fn boolean(bytes: &mut Vec<u8>, value: bool) {

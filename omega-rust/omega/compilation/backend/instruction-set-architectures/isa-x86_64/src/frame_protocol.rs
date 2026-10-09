@@ -194,7 +194,7 @@ fn append_stack_adjust(
         let amount =
             i32::try_from(amount).map_err(|_| X86_64FrameProtocolError::InvalidFrameSize)?;
         bytes.extend_from_slice(&[0x48, 0x81, operation]);
-        bytes.extend_from_slice(&amount.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, amount.to_le_bytes());
     }
     Ok(())
 }
@@ -224,7 +224,7 @@ fn append_register_memory(
         }
         bytes.push(0x80 | (low << 3) | 0x04);
         bytes.push(0x24);
-        bytes.extend_from_slice(&offset.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, offset.to_le_bytes());
     }
     Ok(())
 }

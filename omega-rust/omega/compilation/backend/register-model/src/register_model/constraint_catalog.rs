@@ -65,7 +65,7 @@ pub fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
         RegisterConstraintFamily::InlineAssembly => 3,
         RegisterConstraintFamily::Instruction => 4,
     });
-    bytes.extend_from_slice(&key.variant.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, key.variant.to_le_bytes());
 }
 
 /// Exact ordinary instruction keys selected by one target register

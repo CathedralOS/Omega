@@ -15,7 +15,7 @@ pub fn encode_x86_64_selected_jump_form(
     let displacement = i32::try_from(displacement)
         .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
     let mut bytes = vec![0xe9];
-    bytes.extend_from_slice(&displacement.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, displacement.to_le_bytes());
     validate_x86_64_selected_jump_form(physical, alternative, i64::from(displacement), &bytes)
 }
 
