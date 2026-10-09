@@ -1037,6 +1037,7 @@ pass/generics/runtime_grouped_decimal_const_argument_exit built 3964ms exit:0 @9
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit built 3570ms exit:0 @9beb2be72f2d+wt
 pass/generics/runtime_mixed_generic_erased_sum_exit built 2260ms exit:70 @fb2178def922
 pass/generics/runtime_nested_generic_instantiations_exit built 628ms exit:30
+pass/generics/runtime_selected_operator_body_exit built 10636ms exit:3 @b7c2d2975497
 pass/generics/runtime_value_generic_subject_exit built 636ms exit:17
 pass/host/console_exit_process_exit built 2697ms exit:70 stdout:match @5c302dd6d305
 pass/host/process_exit_after_zero_payload_construction built 1427ms exit:70 @5d657ba9bd55+wt
