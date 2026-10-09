@@ -4,7 +4,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::statement::StatementNode;
 
 /// Select a call whose normal result is determined by its runtime inputs.
 ///
@@ -134,38 +134,17 @@ fn primitive_value_closure(
                     closed_expression(program, machine, state, expression, &available, 0)
                 };
                 let allowed = match statement {
-                    StatementNode::Expression(expression) => expression_is_closed(*expression),
+                    StatementNode::Expression(_) | StatementNode::Transition(_) => program
+                        .statement_table
+                        .expression_roots(statement)
+                        .iter()
+                        .all(|(_, expression)| expression_is_closed(*expression)),
                     StatementNode::LocalData(local) => {
                         let allowed = local.symbol.is_valid()
                             && !local.is_mutable
                             && expression_is_closed(local.initial_value);
                         available.push(local.symbol);
                         allowed
-                    }
-                    StatementNode::Transition(transition) => {
-                        let guard = match transition.guard {
-                            TransitionGuardNode::Always => true,
-                            TransitionGuardNode::When(expression) => {
-                                expression_is_closed(expression)
-                            }
-                        };
-                        let target = |handle: typed_trees::statement::TransitionTargetHandle| {
-                            if !handle.is_valid() {
-                                return true;
-                            }
-                            match program.statement_table.transition_target(handle) {
-                                TransitionTargetNode::Named { arguments, .. } => program
-                                    .expression_table
-                                    .expression_handles(*arguments)
-                                    .iter()
-                                    .all(|argument| expression_is_closed(*argument)),
-                                TransitionTargetNode::Value(expression) => {
-                                    expression_is_closed(*expression)
-                                }
-                                TransitionTargetNode::Terminal => true,
-                            }
-                        };
-                        guard && target(transition.target) && target(transition.continuation)
                     }
                     // Resultless work and mutable storage are not part of this
                     // value-only rung, even if a broader effect proof exists.

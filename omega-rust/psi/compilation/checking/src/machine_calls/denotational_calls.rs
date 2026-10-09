@@ -174,31 +174,23 @@ pub(crate) fn has_observation_free_checked_closure(
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
                 use typed_trees::statement::StatementNode;
+                // Statement calls and transition arguments retain their spans
+                // in the statement table, independently of expression calls.
+                // Its root query also owns optional continuation traversal.
                 let allowed = match statement {
                     StatementNode::RootBinding(_)
                     | StatementNode::AssemblyFact(_)
                     | StatementNode::Assignment(_) => false,
-                    StatementNode::Expression(expression) => {
+                    StatementNode::LocalData(local) => !local.is_mutable,
+                    StatementNode::Call(call) => !call.receiver_symbol.is_valid(),
+                    StatementNode::Expression(_) | StatementNode::Transition(_) => true,
+                } && program
+                    .statement_table
+                    .expression_roots(statement)
+                    .iter()
+                    .all(|(_, expression)| {
                         expression_is_fact_observation_free(program, *expression)
-                    }
-                    StatementNode::LocalData(local) => {
-                        !local.is_mutable
-                            && expression_is_fact_observation_free(program, local.initial_value)
-                    }
-                    StatementNode::Call(call) => {
-                        !call.receiver_symbol.is_valid()
-                            && program
-                                .expression_table
-                                .expression_handles(call.arguments)
-                                .iter()
-                                .all(|argument| {
-                                    expression_is_fact_observation_free(program, *argument)
-                                })
-                    }
-                    StatementNode::Transition(transition) => {
-                        transition_is_fact_observation_free(program, transition)
-                    }
-                };
+                    });
                 if !allowed {
                     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                         eprintln!(
@@ -212,31 +204,6 @@ pub(crate) fn has_observation_free_checked_closure(
         }
         true
     })
-}
-
-fn transition_is_fact_observation_free(
-    program: &dyn crate::CheckingInput,
-    transition: &typed_trees::statement::TableTransition,
-) -> bool {
-    use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
-    let guard = match transition.guard {
-        TransitionGuardNode::Always => true,
-        TransitionGuardNode::When(expression) => {
-            expression_is_fact_observation_free(program, expression)
-        }
-    };
-    let target = |handle| match program.statement_table.transition_target(handle) {
-        TransitionTargetNode::Named { arguments, .. } => program
-            .expression_table
-            .expression_handles(*arguments)
-            .iter()
-            .all(|argument| expression_is_fact_observation_free(program, *argument)),
-        TransitionTargetNode::Value(expression) => {
-            expression_is_fact_observation_free(program, *expression)
-        }
-        TransitionTargetNode::Terminal => true,
-    };
-    guard && target(transition.target) && target(transition.continuation)
 }
 
 fn expression_is_fact_observation_free(
