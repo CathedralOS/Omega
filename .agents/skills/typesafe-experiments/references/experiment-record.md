@@ -2178,3 +2178,63 @@ the 2026-09-24 dedup deferral still holds. The measurable defect is item
 size (mean 35 lines, max 163 for `STATE-LOCAL-VALUE-FRONTIER`), which is
 run history the board rules forbid, not duplication; a line-count report
 beats a semantic judgment there.
+
+## 2026-09-29/30 — state-graph campaign, condensed (branch `codex/jev-state-graph`)
+
+Twenty-four experiments ran on a separate worktree and never landed; the full
+2,122-line record is at commit `8fde49801ab` (deleted branch tip, recoverable
+by hash) and its receipts under that worktree's ignored `build/experiments/`
+(`state-graph-hillclimb`, `state-pattern-probe`, `dungeon-graph-probe`,
+`optimizer-policy`, `search-output-trial`). Pinned `jev-1.13.0`; cases and
+labels were frozen before calls throughout. No compiler source changed, no
+production hook shipped, no program became runnable. The conclusions:
+
+**Rejected, do not retry on this evidence.**
+- An explicit state-indexed graph as Jev input: raw source matched it on every
+  accuracy measure; a compact view saved ~12% input tokens and nothing else.
+- A Jev optimizer hook: on homogeneous (Game of Life) and heterogeneous
+  (`account_ledger`) graphs a one-line exact-body/guard matcher scored the same
+  12/12; the broad "shared pattern" question made two caller-vs-implementer
+  false inclusions. A later closed-set rewrite prototype executed but was a
+  compiler-shape workaround, not an optimization.
+- Blind pass-list policy selection for the native optimizer: the chosen policy
+  matched the default; larger source exposed no size win. `StateSpecialization`
+  admits only a narrow scalar-argument family the source-level packet never
+  described.
+- Hint-only handoffs to a coding worker: the worker given Jev's answers was
+  slower (timed out at 300 s vs 272 s unassisted). Location hints do not shorten
+  an unrestricted audit.
+- A standalone literal-refactor review tool and a generic "inbox next-action"
+  controller: both lexically easy or too ambiguous to beat a cheap baseline.
+- Subject-only (commit-message) attribution as a bisect shortcut.
+
+**Retained as the shape that works.**
+- One Noul per explicit behavior obligation over the same source, instead of a
+  global violation Noul plus culprit Choice. The latter false-flagged clean
+  programs; the former cleared cleans and named the affected obligation on all
+  nine one-edit defects across three authored programs.
+- Replacing a *finite* semantic scouting decision, not augmenting an open
+  audit. Given a contract plus a mechanically prepared graph, ask separately
+  (a) does a mismatch exist (presence Noul, gate at 0.5), (b) where
+  (location Choice), (c) does a proposed existing owner satisfy the contract.
+  On a 253-node dungeon graph and a fresh 158-node filesystem graph this
+  scored 12/12 and 6/6 with no-match controls; Jev answered in ~0.4 s where a
+  no-tools CLI model took 13–17 s for the same three fields. The presence gate
+  suppressed the Choice's confident wrong pick on repaired controls — the same
+  lesson as `corpus_gate --jev`'s solo causal re-ask.
+- Code-context attribution for red bisects: on one historical failure it
+  avoided a measured 157 s false lead and removed six bisect checkpoints. This
+  is the evidence class `tools/jev_attribute.py` ships; the 2026-10-08 dogfood
+  above shows its remaining limit (behavioral causes without diff text).
+
+**Side findings, unverified by execution.** Static review found the dungeon
+crawler's enemy-depth gate (`evaluate_travel_block`) has no call site because
+`dispatch_command` routes directions straight to `move_rXX`; and
+`file_journal`'s `read_back` counts bytes without comparing them, so a
+modified file still "verifies". Both are sample-level, neither reproduced
+natively nor repaired.
+
+Three research notes on public Jev harnesses (`community-*-2026-09-30.md`)
+are on the same commit; their one transferable point is that every working
+deployment has code own the action vocabulary and execution while Jev only
+selects, which is already this skill's contract.
