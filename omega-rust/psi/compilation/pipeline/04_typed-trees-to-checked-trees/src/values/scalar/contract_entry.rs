@@ -219,9 +219,7 @@ impl EntryOperands<'_> {
                 self.scalar(left)?;
                 self.scalar(right)?;
             }
-            CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
-            | CheckedScalarExpression::IntegerWiden { operand, .. }
-            | CheckedScalarExpression::IntegerExactCast { operand, .. } => self.scalar(operand)?,
+            checked_trees::integer_widen_triple_pattern!(operand, ..) => self.scalar(operand)?,
             CheckedScalarExpression::Boolean(expression) => self.boolean(expression)?,
             CheckedScalarExpression::Parameter { .. }
             | CheckedScalarExpression::ErasedParameter { .. }

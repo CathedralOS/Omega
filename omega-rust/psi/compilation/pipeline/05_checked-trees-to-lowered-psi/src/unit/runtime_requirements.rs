@@ -155,20 +155,7 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
             validate_integer_namespace(left)?;
             validate_integer_namespace(right)
         }
-        CheckedScalarExpression::IntegerBitwiseNot {
-            primitive_type,
-            operand,
-        }
-        | CheckedScalarExpression::IntegerWiden {
-            primitive_type,
-            operand,
-            ..
-        }
-        | CheckedScalarExpression::IntegerExactCast {
-            primitive_type,
-            operand,
-            ..
-        } if *primitive_type != PrimitiveType::Addr => {
+        checked_trees::integer_widen_triple_pattern!(primitive_type,operand, ..) if *primitive_type != PrimitiveType::Addr => {
             integer_scalar_type(*primitive_type)?;
             validate_integer_namespace(operand)
         }

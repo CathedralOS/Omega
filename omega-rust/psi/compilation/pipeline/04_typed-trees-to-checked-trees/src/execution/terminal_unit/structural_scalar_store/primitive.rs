@@ -562,9 +562,7 @@ fn scalar_expression_needs_no_bindings(
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             scalar_expression_needs_no_bindings(left) && scalar_expression_needs_no_bindings(right)
         }
-        CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
-        | CheckedScalarExpression::IntegerWiden { operand, .. }
-        | CheckedScalarExpression::IntegerExactCast { operand, .. }
+        checked_trees::integer_widen_triple_pattern!(operand, ..)
         | CheckedScalarExpression::RepresentationView { operand, .. } => {
             scalar_expression_needs_no_bindings(operand)
         }

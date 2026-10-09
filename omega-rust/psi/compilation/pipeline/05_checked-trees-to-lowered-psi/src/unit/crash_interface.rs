@@ -186,9 +186,7 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             contract_scoped_scalar(left) && contract_scoped_scalar(right)
         }
-        CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
-        | CheckedScalarExpression::IntegerWiden { operand, .. }
-        | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
+        checked_trees::integer_widen_triple_pattern!(operand, ..) => {
             contract_scoped_scalar(operand)
         }
         CheckedScalarExpression::Boolean(expression) => contract_scoped(expression),

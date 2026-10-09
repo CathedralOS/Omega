@@ -72,9 +72,7 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
             scalar(left)?;
             scalar(right)
         }
-        CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
-        | CheckedScalarExpression::IntegerWiden { operand, .. }
-        | CheckedScalarExpression::IntegerExactCast { operand, .. } => scalar(operand),
+        checked_trees::integer_widen_triple_pattern!(operand, ..) => scalar(operand),
         CheckedScalarExpression::Boolean(predicate) => validate(predicate),
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }

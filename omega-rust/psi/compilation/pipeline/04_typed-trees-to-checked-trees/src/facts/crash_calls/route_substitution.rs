@@ -389,9 +389,7 @@ fn scalar_evidence_is_crash_lane_lowerable(
             scalar_evidence_is_crash_lane_lowerable(left)
                 && scalar_evidence_is_crash_lane_lowerable(right)
         }
-        CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
-        | CheckedScalarExpression::IntegerWiden { operand, .. }
-        | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
+        checked_trees::integer_widen_triple_pattern!(operand, ..) => {
             scalar_evidence_is_crash_lane_lowerable(operand)
         }
         CheckedScalarExpression::Boolean(expression) => {
