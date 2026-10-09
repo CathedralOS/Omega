@@ -112,7 +112,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
     let authored_state = program.state_by_symbol(state)?;
-    let transported_loans = super::reference_retirement::transported_loans(
+    let transported_loans = super::reference_retirement::transport::collect(
         program,
         facts,
         machine,
