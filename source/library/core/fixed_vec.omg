@@ -13,7 +13,7 @@
 //
 // GENERIC INSTANTIATION FRONTIER (re-measured 2026-09-21): the generic `data`
 // declaration below compiles structurally (chapter 12 const value
-// parameters), and so do the boundary-operator contracts. Attaching a machine
+// parameters), and so do the boundary-trait contracts. Attaching a machine
 // to generic data is no longer the blocker it was in the 2026-06-12 reading:
 // a machine attached to a template with no type parameters of its own now
 // lays out through its concrete clones, which the layout builder names for
@@ -58,38 +58,43 @@ pub data FixedVec<T, const N: u64> {
     length: u64;
 }
 
-// Operation contracts, vec.omg-style boundary-operator surface. These carry
-// the proof-facing requires/ensures; the machine-shaped implementations are
+// Operation contracts, vec.omg-style boundary-trait surface. These carry the
+// proof-facing requires/ensures; the machine-shaped implementations are
 // blocked on the generic-machine frontier above and live concretely in the
-// runtime canary until instantiation lands.
+// runtime canary until instantiation lands. The vector is an ordinary explicit
+// argument of every row.
+boundary trait FixedVecAccess {
+    // Length in LIVE elements (`length`, not the static capacity `N`).
+    // Cheap O(1) measure for `requires`/`ensures`.
+    machine Length<T, const N: u64>(items: &FixedVec<T, N>) -> u64;
 
-// Length in LIVE elements (`length`, not the static capacity `N`). Cheap
-// O(1) measure for `requires`/`ensures`.
-boundary operator FixedVec::Length<T, const N: u64>(items: &FixedVec<T, N>) -> u64;
+    // Append a value. Requires provable spare room — there is no growth
+    // path and no trap; a call without a discharged capacity fact is a
+    // compile error.
+    machine push<T, const N: u64>(items: &mut FixedVec<T, N>, value: T)
+    requires
+        items.length < items.items.len;
 
-// Append a value. Requires provable spare room — there is no growth path and
-// no trap; a call without a discharged capacity fact is a compile error.
-boundary operator FixedVec::push<T, const N: u64>(items: &mut FixedVec<T, N>, value: T) -> ()
-requires
-    items.length < items.items.len;
+    // Remove and return the last element of a provably non-empty vector. The
+    // zero-case is a proof failure at the call site, not a runtime Option:
+    // stage 1 is an obligation, not a fallback — a
+    // `try_pop -> Optional<T>` belongs to the dynamic-failure stage-2
+    // vocabulary.
+    machine pop<T, const N: u64>(items: &mut FixedVec<T, N>) -> T
+    requires
+        items.length > 0;
 
-// Remove and return the last element of a provably non-empty vector. The
-// zero-case is a proof failure at the call site, not a runtime Option: stage
-// 1 is an obligation, not a fallback — a
-// `try_pop -> Optional<T>` belongs to the dynamic-failure stage-2 vocabulary.
-boundary operator FixedVec::pop<T, const N: u64>(items: &mut FixedVec<T, N>) -> T
-requires
-    items.length > 0;
+    // Read the element at `index`, which must be provably within the live
+    // length.
+    machine get<T, const N: u64>(items: &FixedVec<T, N>, index: u64) -> T
+    requires
+        index < items.length;
 
-// Read the element at `index`, which must be provably within the live length.
-boundary operator FixedVec::get<T, const N: u64>(items: &FixedVec<T, N>, index: u64) -> T
-requires
-    index < items.length;
-
-// Borrow the LIVE elements as a slice view; the view length matches the
-// vector length, not the capacity.
-boundary operator FixedVec::as_slice<T, const N: u64>(items: &FixedVec<T, N>) -> &[T]
-requires
-    items.length <= items.items.len
-ensures
-    result.len == items.length;
+    // Borrow the LIVE elements as a slice view; the view length matches the
+    // vector length, not the capacity.
+    machine as_slice<T, const N: u64>(items: &FixedVec<T, N>) -> &[T]
+    requires
+        items.length <= items.items.len
+    ensures
+        result.len == items.length;
+}

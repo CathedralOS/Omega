@@ -188,7 +188,7 @@ existing byte carrier rather than introducing a separate text owner hierarchy:
 
 ```omega
 let fixed: [Item; 4];
-let view: &[Item] = Array::as_slice(&fixed);
+let view: &[Item] = ArrayAccess::as_slice(&fixed);
 let text: [u8; 5] in Utf8 = "hello";
 let text_view: &[u8] in Utf8 = text;
 ```

@@ -338,12 +338,12 @@ settled source spelling is `Slice::index<T [copy]>` — chapter 19 declares the
 bound; the core `boundary machine [] Slice::index<T>` declaration is
 under-constrained, but identical in accepted programs because the ownership
 law supplies the same cut. Non-copy elements are reached through borrowed
-spellings instead: `Slice::from`, `Slice::tail` and `Slice::range` return
-element views, and `Slice::index_mut` yields a `&mut T` projection rather
-than an element value. Element writes move the supplied value in and the
-displaced element out of its slot under the ordinary disposal law for its
-type; the write supplies no escape for a value whose cleanup is not legal
-there.
+spellings instead: `SliceAccess::from`, `SliceAccess::tail` and `Slice::range`
+return element views, and `SliceAccess::index_mut` yields a `&mut T`
+projection rather than an element value. Element writes move the supplied
+value in and the displaced element out of its slot under the ordinary
+disposal law for its type; the write supplies no escape for a value whose
+cleanup is not legal there.
 
 An element-view subslice uses a structural operation-result place with the
 same element type and no claims or qualifications. A shared descriptor has

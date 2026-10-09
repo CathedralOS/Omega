@@ -5960,21 +5960,24 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   crash causes and termination promises reject as unsupported; checking
   reports each rejected machine's first rejection.
   `tests/psi/checking/test-checking.sh` passes 93 checking cases and accepts
-  the whole psi package, 60 units, in 26 seconds. The parser harness reads all 42 product source files whole and 65
-  of the 100 `source/library/std` and `core` files; the other 35 stop first at
-  12 retired `boundary requirement` and 6 retired `boundary operator`
-  declarations awaiting library migration, 9 retired range suffixes awaiting
-  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** migration, 5 return types written
+  the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 73
+  of the 102 `source/library/std` and `core` files; the other 29 stop first at
+  13 retired `boundary requirement` declarations (12 std target files and
+  `core/task.omg`) and `core/float_operations.omg`'s retired `boundary
+  operator` rows, which **TOP-LEVEL-BOUNDARY-REQUIREMENTS** has not migrated,
+  6 retired range suffixes awaiting
+  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** migration, 6 return types written
   after the clauses (`terminates by fuel;` then `-> i32`, which no spec form
   admits), and one each at an applied type-position domain (`in
   Quantity<Units::METER>`), an installation reach row `reaches <= Bound`, and
   requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
   in 0..=n`) and indexed membership domains (`in AtMost<8>`) do not parse
   yet; range slices (`a[s..e]`, `a[s..=e]` and the open forms) parse, type as
-  their collection's slice place and check within its length. Of the 51 std and core files outside target
-  and test directories, 35 parse whole; with the transitive closure of their
-  imports (std as package `omega_language_std`, core as the toolchain
-  package), 20 resolve. The others stop first at 7 imports that do not parse,
+  their collection's slice place and check within its length. Of the 52 std
+  and core files outside target and test directories, 42 parse whole; with
+  the transitive closure of their imports (std as package
+  `omega_language_std`, core as the toolchain package), 20 of the 35 measured
+  before `core/{array,fixed_vec,ptr,slice,vec}.omg` parsed resolve. The others stop first at 7 imports that do not parse,
   2 at `where machine` contracts, `std/process_exit.omg` at a provider type
   its target implementations name without importing `process_exit` (imports
   are not transitive), `core/numeric_conversion.omg` and the 3 device-group
@@ -5983,9 +5986,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `core/option.omg` at
   `zero_value<Optional<T>>()`, a proof-only observation the Rust parser
   recognizes contextually and no spec page defines (the product parser reads
-  it as a call to an unknown machine). The 65 std and core files that parse
+  it as a call to an unknown machine). The 73 std and core files that parse
   whole, targets included,
-  overflow the 1,024-row clause table together with 1,285 clauses, and
+  overflow the 1,024-row clause table together with 1,425 clauses, and
   `std/build.omg` names the build context's `Build`. The product entry's
   closure (its 3 units, std's `console` with its 5 target implementations,
   core's `binding` and `external_binding`) parses whole except the Windows

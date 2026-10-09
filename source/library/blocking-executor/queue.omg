@@ -22,33 +22,38 @@ pub data BoundedQueue<T, const N: u64> [linear] {
     length: u64;
 }
 
-// Live element count. O(1) measure for `requires`/`ensures`.
-boundary operator BoundedQueue::Length<T, const N: u64>(
-    queue: &BoundedQueue<T, N>
-) -> u64;
+// The queue's boundary operations. One realization supplies every row, so
+// they share one boundary trait; the queue is an ordinary explicit argument.
+boundary trait BoundedQueueAccess {
+    // Live element count. O(1) measure for `requires`/`ensures`.
+    machine Length<T, const N: u64>(
+        queue: &BoundedQueue<T, N>
+    ) -> u64;
 
-// Append `value` at the tail. Custody of `value` moves into the queue;
-// requires provable spare room.
-boundary operator BoundedQueue::push<T, const N: u64>(
-    queue: &mut BoundedQueue<T, N>,
-    value: T
-) -> ()
-requires
-    queue.length < queue.items.len;
+    // Append `value` at the tail. Custody of `value` moves into the queue;
+    // requires provable spare room.
+    machine push<T, const N: u64>(
+        queue: &mut BoundedQueue<T, N>,
+        value: T
+    )
+    requires
+        queue.length < queue.items.len;
 
-// Remove and return the head element of a provably non-empty queue. Custody
-// moves to the caller — the moved-custody edge on the consume side.
-boundary operator BoundedQueue::pop<T, const N: u64>(
-    queue: &mut BoundedQueue<T, N>
-) -> T
-requires
-    queue.length > 0;
+    // Remove and return the head element of a provably non-empty queue.
+    // Custody moves to the caller — the moved-custody edge on the consume
+    // side.
+    machine pop<T, const N: u64>(
+        queue: &mut BoundedQueue<T, N>
+    ) -> T
+    requires
+        queue.length > 0;
 
-// Terminally consume a provably empty queue — `queue` moves in by value,
-// the consume-side custody edge. The emptiness obligation is what keeps a
-// dying queue from orphaning undelivered linear payloads.
-boundary operator BoundedQueue::close<T, const N: u64>(
-    queue: BoundedQueue<T, N>
-) -> ()
-requires
-    queue.length == 0;
+    // Terminally consume a provably empty queue — `queue` moves in by value,
+    // the consume-side custody edge. The emptiness obligation is what keeps
+    // a dying queue from orphaning undelivered linear payloads.
+    machine close<T, const N: u64>(
+        queue: BoundedQueue<T, N>
+    )
+    requires
+        queue.length == 0;
+}

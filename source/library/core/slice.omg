@@ -14,42 +14,12 @@
 // Fixed operator tokens are written directly after `boundary machine`: the
 // token identifies the required operator slot of that signature.
 
-boundary operator Slice::Length<T>(items: &[T]) -> u64;
-
 // index returns the element by value: copying it out of a shared borrow
-// requires a copyable element type. The view-returning operators below carry
-// no such bound.
+// requires a copyable element type. The view-returning requirements below
+// carry no such bound.
 boundary machine [] Slice::index<T [copy]>(items: &[T], index: u64) -> T
 requires
     index < items.len;
-
-boundary operator Slice::index_mut<T>(items: &mut [T], index: u64) -> &mut T
-requires
-    index < items.len;
-
-boundary operator Slice::tail<T>(items: &[T]) -> &[T]
-requires
-    items.len > 0;
-
-boundary operator Slice::tail_mut<T>(items: &mut [T]) -> &mut [T]
-requires
-    items.len > 0;
-
-boundary operator Slice::from<T>(items: &[T], start: u64) -> &[T]
-requires
-    start <= items.len;
-
-boundary operator Slice::from_mut<T>(items: &mut [T], start: u64) -> &mut [T]
-requires
-    start <= items.len;
-
-boundary operator Slice::to<T>(items: &[T], end: u64) -> &[T]
-requires
-    end <= items.len;
-
-boundary operator Slice::to_mut<T>(items: &mut [T], end: u64) -> &mut [T]
-requires
-    end <= items.len;
 
 boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
 requires
@@ -57,6 +27,40 @@ requires
 ensures
     result.len == end - start;
 
-boundary operator Slice::range_mut<T>(items: &mut [T], start: u64, end: u64) -> &mut [T]
-requires
-    start <= end && end <= items.len;
+// The named slice views. One runtime realization supplies every view, so the
+// rows share one boundary trait; the slice is an ordinary explicit argument.
+boundary trait SliceAccess {
+    machine Length<T>(items: &[T]) -> u64;
+
+    machine index_mut<T>(items: &mut [T], index: u64) -> &mut T
+    requires
+        index < items.len;
+
+    machine tail<T>(items: &[T]) -> &[T]
+    requires
+        items.len > 0;
+
+    machine tail_mut<T>(items: &mut [T]) -> &mut [T]
+    requires
+        items.len > 0;
+
+    machine from<T>(items: &[T], start: u64) -> &[T]
+    requires
+        start <= items.len;
+
+    machine from_mut<T>(items: &mut [T], start: u64) -> &mut [T]
+    requires
+        start <= items.len;
+
+    machine to<T>(items: &[T], end: u64) -> &[T]
+    requires
+        end <= items.len;
+
+    machine to_mut<T>(items: &mut [T], end: u64) -> &mut [T]
+    requires
+        end <= items.len;
+
+    machine range_mut<T>(items: &mut [T], start: u64, end: u64) -> &mut [T]
+    requires
+        start <= end && end <= items.len;
+}
