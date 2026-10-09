@@ -10,5 +10,5 @@ pub struct TerminalCallbackApplication {
     pub static_machine_ordinal: u32,
     pub requirement: String,
     pub published_contract: [u8; 32],
-    pub actual_contract: [u8; 32],
+    pub body: crate::CheckedMachineDeclaration,
 }

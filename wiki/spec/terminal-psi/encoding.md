@@ -592,8 +592,8 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 127 + `u16` vocabulary
-marker 121 + the entry machine id, followed by the module's counted tables in
+Module bytes are `PSITERM\0` + `u16` format marker 128 + `u16` vocabulary
+marker 122 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
 <!-- module-table-order -->
@@ -642,12 +642,19 @@ The roster is semantic input, not a provider-selection or realization receipt.
 
 A callback application carries a `u32` checked occurrence number, nonzero
 registrar operation id, `u32` static-machine binder ordinal, counted UTF-8
-canonical requirement identity, then the published and actual 32-byte contract
-commitments. Rows are strictly ordered by occurrence number. Requirements and
+canonical requirement identity, then the published 32-byte contract commitment
+and selected checked-machine declaration. Rows are strictly ordered by occurrence number. Requirements and
 commitments are nonempty and the registrar names an existing boundary call.
 Several callback applications may share a registrar operation. Occurrence numbers
 are local to the producing compilation and remain stable under pruning; they
 are not source arena handles and alone authorize nothing.
+
+A checked-machine declaration encodes exact-owner machine and initial-state
+identity strings, a 32-byte contract commitment, then an optional specialization
+(presence Boolean, template identity string, 32-byte commitment). Identities and
+commitments are nonempty. Each machine envelope encodes an optional declaration
+immediately after its machine id; synthetic bodies may omit it. A callback body
+must retain it, and native admission compares it to the caller's selected body.
 
 A candidate carries the same requirement and application encoding without an
 operation id, followed by its selecting callable identity, optional selecting
@@ -1684,7 +1691,7 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module, sealed proof section, obligation ledger, and
-debug map envelopes then carry the shared `u16` vocabulary marker (121). A
+debug map envelopes then carry the shared `u16` vocabulary marker (122). A
 receiver rejects an unknown magic or stale marker before reading any counted
 table. The installation record `PSIINST\0` is emitted outside this codec.
 

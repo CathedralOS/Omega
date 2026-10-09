@@ -10,7 +10,6 @@ mod services;
 
 pub use applications::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCandidate,
-    BoundaryBodySpecialization, BoundaryCheckedBody, BoundaryNominalIdentity,
     BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
 };
 pub use conformances::{

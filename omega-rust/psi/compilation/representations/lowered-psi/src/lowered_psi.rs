@@ -2,10 +2,9 @@
 
 mod source_custody;
 pub use source_custody::{
-    CallbackTerminalLoweringReceipt, LoweredSelectedIeeeFloatComparisonOccurrence,
-    LoweredSelectedIntegerComparisonOccurrence, LoweredSelectedIntegerComparisonOperandOrder,
-    LoweredSelectedIntegerComparisonOperation, LoweredSourceCallOccurrence, LoweredSourceCallSite,
-    LoweredStateBlock,
+    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
+    LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
+    LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredStateBlock,
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 

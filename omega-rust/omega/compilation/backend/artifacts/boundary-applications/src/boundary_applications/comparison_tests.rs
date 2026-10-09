@@ -7,8 +7,8 @@ use semantic_vocabulary::{
     ValueId,
 };
 use terminal_psi::{
-    Block, Operation, OperationKind, OperationResult, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    Block, Operation, OperationKind, OperationResult, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration,
 };
 
 fn comparison_module(operand_type: ScalarType, kind: OperationKind) -> TerminalModule {
@@ -18,6 +18,7 @@ fn comparison_module(operand_type: ScalarType, kind: OperationKind) -> TerminalM
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
+            declaration: None,
             nominal_cleanup_subject: None,
             parameters: vec![value(1, operand_type), value(2, operand_type)],
             structural_parameters: Vec::new(),

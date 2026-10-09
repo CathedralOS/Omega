@@ -111,6 +111,7 @@ mod tests {
             declared_service_reach: Vec::new(),
             id: MachineId::new(1).expect("machine"),
             attachment: None,
+            declaration: None,
             nominal_cleanup_subject: None,
             parameters: vec![ValueDeclaration {
                 qualifications: Default::default(),

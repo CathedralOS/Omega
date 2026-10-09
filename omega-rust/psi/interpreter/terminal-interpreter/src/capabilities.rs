@@ -254,6 +254,7 @@ mod tests {
         TerminalMachine {
             id: MachineId::new(1).unwrap(),
             attachment: None,
+            declaration: None,
             nominal_cleanup_subject: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),

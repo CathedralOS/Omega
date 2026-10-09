@@ -4,8 +4,8 @@
 
 use checked_trees::{CheckedBoundaryOperatorApplicationDemand, CheckedTrees};
 use terminal_psi::{
-    BoundaryApplication, BoundaryApplicationCandidate, BoundaryBodySpecialization,
-    BoundaryCheckedBody, BoundaryNominalIdentity, BoundaryOperatorRequirement,
+    BoundaryApplication, BoundaryApplicationCandidate, BoundaryOperatorRequirement,
+    CheckedMachineDeclaration, CheckedMachineSpecialization, NominalDeclarationIdentity,
 };
 
 pub(super) fn retain(
@@ -20,7 +20,7 @@ pub(super) fn retain(
         checked
             .exact_owner_nominal_identity(symbol, sources)
             .ok_or("boundary candidate has no exact declaration owner")
-            .and_then(|identity| BoundaryNominalIdentity::new(identity.into_string()))
+            .and_then(|identity| NominalDeclarationIdentity::new(identity.into_string()))
     };
     for candidate in checked
         .facts
@@ -32,7 +32,7 @@ pub(super) fn retain(
         let specialization = candidate
             .specialization
             .map(|(template, commitment)| {
-                Ok::<_, &'static str>(BoundaryBodySpecialization {
+                Ok::<_, &'static str>(CheckedMachineSpecialization {
                     template: nominal(template)?,
                     commitment,
                 })
@@ -44,7 +44,7 @@ pub(super) fn retain(
             selection_identity: candidate.selection_identity.clone(),
             selection_package: checked.symbols.symbol_package_identity(candidate.selection),
             target: candidate.target.clone(),
-            body: BoundaryCheckedBody {
+            body: CheckedMachineDeclaration {
                 machine: nominal(candidate.machine)?,
                 state: nominal(candidate.entry)?,
                 contract: candidate.contract,

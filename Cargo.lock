@@ -107,7 +107,6 @@ dependencies = [
  "checked-trees",
  "function-identity",
  "layout-plans",
- "lowered-psi",
  "semantic-vocabulary",
  "symbols",
  "target",

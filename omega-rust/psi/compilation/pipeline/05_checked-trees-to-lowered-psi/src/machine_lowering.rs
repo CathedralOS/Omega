@@ -8,20 +8,18 @@
 //! recursion, proof-only quotient correspondence rows, operand proof
 //! completion or module validation, and the debug companion.
 //! A callback body is not a second entrance: it lowers through this same
-//! route rooted at the callback entry, and [`callback_lowering_receipt`] then
-//! joins the checked callback coordinate onto the module's entry machine.
+//! route rooted at the callback entry. Each mapped body retains its portable
+//! checked declaration, so consumers need no source-to-Terminal receipt.
 //! Unsupported source constructs fail closed.
 
 mod boundary_applications;
-pub(crate) mod bounded_callbacks;
 mod callback_applications;
 pub(crate) mod debug_map;
+mod declarations;
 pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
 pub(crate) mod machine_dispatch;
 pub(crate) mod reborrow_handoffs;
-
-pub use bounded_callbacks::callback_lowering_receipt;
 
 use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
 use lowered_psi::LoweredPsi;
@@ -52,10 +50,11 @@ pub fn lower_machine(
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<LoweredPsi, LoweringError> {
     let selection = select_terminal_machine(checked, machine)?;
-    let mut lowered = lower_terminal_selection(checked, selection)?;
+    let mut lowered = lower_terminal_selection(checked, selection, exact_toolchain_sources)?;
     boundary_applications::retain(checked, exact_toolchain_sources, &mut lowered)
         .map_err(LoweringError::Unsupported)?;
-    callback_applications::retain(checked, &mut lowered).map_err(LoweringError::Unsupported)?;
+    callback_applications::retain(checked, exact_toolchain_sources, &mut lowered)
+        .map_err(LoweringError::Unsupported)?;
     Ok(lowered)
 }
 
@@ -145,12 +144,12 @@ fn retain_nominal_cleanup_roles(
 fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<LoweredPsi, LoweringError> {
     let LoweredSelectedMachine {
         terminal: mut lowered,
         completion,
-        source_machines,
-        source_mapping,
+        source_machine_ids,
     } = lower_selected_machine(checked, selection)?;
     if lowered.semantic_module.target_machine_families.len()
         != checked
@@ -162,22 +161,27 @@ fn lower_terminal_selection(
     {
         return unsupported("entry lowering did not retain the complete target-family catalog");
     }
-    let entry_source = [(selection.machine, lowered.semantic_module.entry)];
-    retain_nominal_cleanup_roles(
+    let source_machines = source_machine_ids
+        .iter()
+        .map(|(source, _)| *source)
+        .collect::<Vec<_>>();
+    declarations::retain(
         checked,
-        source_mapping.exact_owners().unwrap_or(&entry_source),
+        exact_toolchain_sources,
+        &source_machine_ids,
         &mut lowered.semantic_module,
-    )?;
+    )
+    .map_err(LoweringError::Unsupported)?;
+    retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)?;
     retain_admitted_reborrow_root_handoffs(
         checked,
         &source_machines,
-        source_mapping.exact_owners().unwrap_or(&entry_source),
+        &source_machine_ids,
         &mut lowered.semantic_module,
     )?;
-    let projection_sources = source_mapping.projection_sources(&lowered, selection.machine)?;
     closed_reach_applications::retain_closed_reach_applications(
         checked,
-        &projection_sources,
+        &source_machine_ids,
         &lowered.source_call_occurrences,
         &mut lowered.semantic_module,
     )?;
@@ -213,7 +217,7 @@ fn lower_terminal_selection(
     operation_crash_contracts::retain_operation_crash_contracts(
         checked,
         &source_machines,
-        &projection_sources,
+        &source_machine_ids,
         &mut lowered,
     )?;
     // Guarded guarantees are admitted from the finished closure: whether the
@@ -235,7 +239,7 @@ fn lower_terminal_selection(
         &source_machines,
         &mut lowered.semantic_module,
     )?;
-    retain_float_meanings(checked, &projection_sources, &mut lowered)?;
+    retain_float_meanings(checked, &source_machine_ids, &mut lowered)?;
     lower_and_install_evidence_artifacts(checked, selection.machine, &mut lowered)?;
     // Proof-only quotient correspondence rows join module identity before
     // validation; a nonempty table is then refused by the execution gate below

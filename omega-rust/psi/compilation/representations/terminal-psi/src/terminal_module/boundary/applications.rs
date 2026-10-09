@@ -6,28 +6,8 @@
 //! declaration path. Constructing this data carrier grants no coverage or
 //! execution authority.
 
+use crate::{CheckedMachineDeclaration, NominalDeclarationIdentity};
 use semantic_vocabulary::OperationId;
-
-/// Exact-owner canonical identity of one nominal declaration.
-///
-/// The authoritative compiler projection derives these bytes from the managed
-/// package identity or exact toolchain source digest plus declaration path.
-/// Constructing this data carrier grants no coverage or execution authority.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BoundaryNominalIdentity(String);
-
-impl BoundaryNominalIdentity {
-    pub fn new(canonical: String) -> Result<Self, &'static str> {
-        if canonical.is_empty() {
-            return Err("boundary nominal identity is empty");
-        }
-        Ok(Self(canonical))
-    }
-
-    pub fn canonical(&self) -> &str {
-        &self.0
-    }
-}
 
 /// Exact-owner canonical identity of one structural type.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -53,14 +33,14 @@ impl BoundaryTypeIdentity {
 /// coordinate for the exact operator declaration, not source spelling.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryOperatorRequirement {
-    declaration: BoundaryNominalIdentity,
+    declaration: NominalDeclarationIdentity,
     overload: String,
     package: Option<semantic_vocabulary::PackageKeyIdentity>,
 }
 
 impl BoundaryOperatorRequirement {
     pub fn new(
-        declaration: BoundaryNominalIdentity,
+        declaration: NominalDeclarationIdentity,
         overload: String,
         package: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> Result<Self, &'static str> {
@@ -74,7 +54,7 @@ impl BoundaryOperatorRequirement {
         })
     }
 
-    pub const fn declaration(&self) -> &BoundaryNominalIdentity {
+    pub const fn declaration(&self) -> &NominalDeclarationIdentity {
         &self.declaration
     }
 
@@ -97,21 +77,7 @@ pub struct BoundaryApplicationCandidate {
     pub selection_identity: String,
     pub selection_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub target: Option<String>,
-    pub body: BoundaryCheckedBody,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BoundaryCheckedBody {
-    pub machine: BoundaryNominalIdentity,
-    pub state: BoundaryNominalIdentity,
-    pub contract: [u8; 32],
-    pub specialization: Option<BoundaryBodySpecialization>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BoundaryBodySpecialization {
-    pub template: BoundaryNominalIdentity,
-    pub commitment: [u8; 32],
+    pub body: CheckedMachineDeclaration,
 }
 
 /// Canonical D29 application shape. Empty means a real zero-length operator

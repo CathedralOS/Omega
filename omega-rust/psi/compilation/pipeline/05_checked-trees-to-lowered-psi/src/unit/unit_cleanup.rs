@@ -12,10 +12,9 @@
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
     CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, MachineId, NominalAffineCleanup,
-    PlaceId, PrimitiveType, Proposition, ScalarTerm, StructuralTypeId, StructuralTypeShape,
-    TerminalMachine, Terminator, lookup_machine_id, lookup_type_id, lower_unit_closure,
-    obligation_id, unsupported,
+    CheckedUnitStructuralTypeShape, LoweringError, MachineId, NominalAffineCleanup, PlaceId,
+    PrimitiveType, Proposition, ScalarTerm, StructuralTypeId, StructuralTypeShape, TerminalMachine,
+    Terminator, lookup_machine_id, lookup_type_id, lower_unit_closure, obligation_id, unsupported,
 };
 use checked_trees::CheckedUnitNominalAffineCleanupPlan;
 use symbols::SymbolHandle;
@@ -31,7 +30,7 @@ use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
 pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_ordered_nominal_affine_unit_cleanup_machine(checked, nominal)
 }
 

@@ -39,6 +39,10 @@ pub(crate) fn encode_machine(
     machine: &TerminalMachine,
 ) -> Result<(), CodecError> {
     writer.id(machine.id);
+    writer.boolean(machine.declaration.is_some());
+    if let Some(declaration) = &machine.declaration {
+        super::machine_declaration_wire::encode(writer, declaration)?;
+    }
     encode_optional_id(writer, machine.attachment);
     encode_optional_id(writer, machine.nominal_cleanup_subject);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
@@ -115,6 +119,11 @@ pub(crate) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclarat
 
 pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
     let id = reader.id("MachineId")?;
+    let declaration = if reader.boolean()? {
+        Some(super::machine_declaration_wire::decode(reader)?)
+    } else {
+        None
+    };
     let attachment = decode_optional_id(reader, "StructuralTypeId")?;
     let nominal_cleanup_subject = decode_optional_id(reader, "StructuralTypeId")?;
     let parameters = decode_declarations(reader)?;
@@ -167,6 +176,7 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
     let contract = decode_contract(reader)?;
     Ok(TerminalMachine {
         id,
+        declaration,
         attachment,
         nominal_cleanup_subject,
         parameters,

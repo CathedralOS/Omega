@@ -1,4 +1,4 @@
-use super::demands::{BoundaryNominalIdentity, TerminalBoundaryApplicationDemands};
+use super::demands::{NominalDeclarationIdentity, TerminalBoundaryApplicationDemands};
 use semantic_vocabulary::OperationId;
 
 /// Closed semantic role selected for one exact D29 application.
@@ -18,14 +18,14 @@ pub enum BoundaryApplicationRealizationRole {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundaryApplicationRealization {
     NongenericCheckedBody {
-        realization_machine: BoundaryNominalIdentity,
-        realization_state: BoundaryNominalIdentity,
+        realization_machine: NominalDeclarationIdentity,
+        realization_state: NominalDeclarationIdentity,
         realization_contract_commitment: [u8; 32],
     },
     SpecializedCheckedBody {
-        realization_template: BoundaryNominalIdentity,
-        realization_machine: BoundaryNominalIdentity,
-        realization_state: BoundaryNominalIdentity,
+        realization_template: NominalDeclarationIdentity,
+        realization_machine: NominalDeclarationIdentity,
+        realization_state: NominalDeclarationIdentity,
         specialization_commitment: [u8; 32],
         realization_contract_commitment: [u8; 32],
     },
@@ -166,12 +166,12 @@ impl TerminalBoundaryApplicationRealizations {
 #[cfg(test)]
 mod tests {
     use super::{BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion};
-    use crate::BoundaryNominalIdentity;
+    use crate::NominalDeclarationIdentity;
     use semantic_vocabulary::OperationId;
 
     #[test]
     fn checked_roles_require_strong_plan_and_contract_commitments() {
-        let identity = || BoundaryNominalIdentity::new("nominal".to_owned()).unwrap();
+        let identity = || NominalDeclarationIdentity::new("nominal".to_owned()).unwrap();
         let operation = OperationId::new(1).unwrap();
         assert!(
             BoundaryApplicationRealizationCompanion::new(

@@ -17,6 +17,13 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
     module.machines.push(TerminalMachine {
         id: machine,
         attachment: None,
+        declaration: Some(terminal_psi::CheckedMachineDeclaration {
+            machine: terminal_psi::NominalDeclarationIdentity::new("owner::entry".into()).unwrap(),
+            state: terminal_psi::NominalDeclarationIdentity::new("owner::entry::start".into())
+                .unwrap(),
+            contract: [7; 32],
+            specialization: None,
+        }),
         nominal_cleanup_subject: None,
         parameters: Vec::new(),
         structural_parameters: Vec::new(),

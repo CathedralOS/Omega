@@ -9,6 +9,9 @@ use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, ServiceId, S
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMachine {
     pub id: MachineId,
+    /// Exact checked declaration when this is a source-produced body. Compiler
+    /// synthetic machines have no authored declaration.
+    pub declaration: Option<crate::CheckedMachineDeclaration>,
     /// Nominal type to which this machine is attached. An attached static
     /// machine need not have a runtime `self` parameter.
     pub attachment: Option<StructuralTypeId>,

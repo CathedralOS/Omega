@@ -14,6 +14,7 @@ pub(crate) mod canonical_order;
 pub(crate) mod content_wire;
 pub(crate) mod contract_wire;
 pub(crate) mod integer_math_term_wire;
+mod machine_declaration_wire;
 pub(crate) mod machine_wire;
 pub(crate) mod mathematical_certificate_wire;
 pub(crate) mod module_foundation_validation;
@@ -54,7 +55,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
 // Closed boundary application demands follow the target-family roster. Returns
 // and call transfers additionally preserve typed paths and their Case guards.
-pub(crate) const FORMAT_MARKER: u16 = 127;
+// Machine and callback bodies retain their checked declaration identities.
+pub(crate) const FORMAT_MARKER: u16 = 128;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

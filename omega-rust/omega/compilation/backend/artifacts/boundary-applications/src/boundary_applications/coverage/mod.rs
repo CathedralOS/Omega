@@ -180,8 +180,8 @@ fn canonical_usize(value: usize) -> [u8; 8] {
 mod tests {
     use crate::{
         BoundaryApplication, BoundaryApplicationRealization,
-        BoundaryApplicationRealizationCompanion, BoundaryNominalIdentity,
-        BoundaryOperatorRequirement, TerminalBoundaryApplicationCoverage,
+        BoundaryApplicationRealizationCompanion, BoundaryOperatorRequirement,
+        NominalDeclarationIdentity, TerminalBoundaryApplicationCoverage,
         TerminalBoundaryApplicationDemand, TerminalBoundaryApplicationDemands,
         TerminalBoundaryApplicationRealizations,
     };
@@ -200,7 +200,7 @@ mod tests {
         let demand = TerminalBoundaryApplicationDemand::new(
             operation,
             BoundaryOperatorRequirement::new(
-                BoundaryNominalIdentity::new("package:operator".to_owned()).unwrap(),
+                NominalDeclarationIdentity::new("package:operator".to_owned()).unwrap(),
                 "operator::call()->unit".to_owned(),
                 None,
             )
@@ -213,9 +213,9 @@ mod tests {
                 operation,
                 plan,
                 BoundaryApplicationRealization::NongenericCheckedBody {
-                    realization_machine: BoundaryNominalIdentity::new("machine".to_owned())
+                    realization_machine: NominalDeclarationIdentity::new("machine".to_owned())
                         .unwrap(),
-                    realization_state: BoundaryNominalIdentity::new("machine::entry".to_owned())
+                    realization_state: NominalDeclarationIdentity::new("machine::entry".to_owned())
                         .unwrap(),
                     realization_contract_commitment: [3; 32],
                 },

@@ -1,7 +1,7 @@
-//! Retained callback bodies, exact placement replay, and native thunk inputs.
+//! Produced callback bodies and their portable declaration joins.
 //!
 //! The compiler supplies produced Terminal bodies and checked placements. This
-//! owner checks their artifact, registrar-operation and source-selection joins;
+//! owner checks their artifact, registrar-operation and declaration joins;
 //! native admission then borrows only executable and ABI evidence. These checks
 //! do not replace callback interface admission or final object/image replay.
 
@@ -10,43 +10,33 @@ use crate::{
     canonical_callback_thunk_identity,
 };
 
-/// Canonical executable body and source-to-Terminal receipt retained beside one
-/// checked callback placement. This is producer-side evidence, not a source-free
-/// native input: admission checks the selected source machine and entry before
-/// projecting a [`NativeCallbackThunkSettlement`].
+/// Canonical callback body. Its entry retains the declaration chosen by Psi;
+/// native preparation joins that identity to the caller's portable demand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCallbackThunkArtifact {
     private_symbol: std::sync::Arc<str>,
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    lowering_receipt: lowered_psi::CallbackTerminalLoweringReceipt,
 }
 
 impl TerminalCallbackThunkArtifact {
     pub fn new(
         private_symbol: std::sync::Arc<str>,
         artifact: terminal_codec::CanonicalTerminalArtifact,
-        lowering_receipt: lowered_psi::CallbackTerminalLoweringReceipt,
     ) -> Result<Self, &'static str> {
         if private_symbol.is_empty() {
             return Err("Terminal callback thunk has an empty private symbol");
         }
         let module = artifact.semantic_module();
-        // The artifact is the isolated module of the placement's selected
-        // machine; its call closure may lower additional callee machines. The
-        // binding custody is the entry join, not a machine-count silhouette.
-        let Some(machine) = module.machine(module.entry)
-        else {
+        // Callees may be present too; the artifact's entry is the callback.
+        let Some(machine) = module.machine(module.entry) else {
             return Err("Terminal callback thunk artifact does not contain its entry machine");
         };
-        if module.entry != lowering_receipt.terminal_machine
-            || machine.entry != lowering_receipt.terminal_entry
-        {
-            return Err("Terminal callback thunk lowering receipt drifted from its artifact");
+        if machine.declaration.is_none() {
+            return Err("Terminal callback thunk has no checked declaration identity");
         }
         Ok(Self {
             private_symbol,
             artifact: std::sync::Arc::new(artifact),
-            lowering_receipt,
         })
     }
 
@@ -57,17 +47,13 @@ impl TerminalCallbackThunkArtifact {
     pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.artifact
     }
-
-    pub const fn lowering_receipt(&self) -> lowered_psi::CallbackTerminalLoweringReceipt {
-        self.lowering_receipt
-    }
 }
 
 /// Exact join from one retained callback placement to the canonical Terminal
 /// boundary-call operation produced from its authored registrar occurrence.
-/// The thunk retains source-to-Terminal evidence for placement replay. Native
+/// The thunk retains its portable declaration identity. Native
 /// admission projects the executable, ABI inputs and private function identity,
-/// without the lowering receipt.
+/// without a source-side receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCallbackOccurrenceProposal {
     placement_index: usize,
@@ -125,7 +111,7 @@ impl TerminalCallbackOccurrenceProposal {
 /// target lowering cannot confuse executable body custody with a semantic
 /// registrar argument.
 ///
-/// The producer's source-to-Terminal receipt is not a lowering input. The
+/// Source-to-Terminal reconstruction is not a lowering input. The
 /// existing private function identity still retains its source continuation
 /// key; removing that cross-stage identity is a separate representation change.
 #[derive(Debug, Clone, Copy)]
@@ -138,13 +124,14 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
     pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
 }
 
-/// Recheck the retained source, symbol and function joins, then borrow native
-/// inputs in occurrence order without carrying the source-to-Terminal receipt.
+/// Join the caller's portable demand to the callback entry, then borrow native
+/// inputs in occurrence order. No source arena or lowering stage is consulted.
 ///
 /// This is the body/placement projection, not complete callback admission.
 /// Callers separately validate occurrence coverage, registrar destinations,
 /// the thunk's native interface, and the canonical program and proof.
 pub fn admitted_native_callback_thunks<'artifact>(
+    module: &terminal_psi::TerminalModule,
     placements: &'artifact [BoundNominalCallbackPlacement],
     occurrences: &'artifact [TerminalCallbackOccurrenceProposal],
 ) -> Result<Vec<NativeCallbackThunkSettlement<'artifact>>, &'static str> {
@@ -154,12 +141,26 @@ pub fn admitted_native_callback_thunks<'artifact>(
             .get(occurrence.placement_index())
             .ok_or("callback thunk occurrence names an absent retained placement")?;
         let thunk = occurrence.callback_thunk_artifact();
-        let receipt = thunk.lowering_receipt();
+        let application = module
+            .callback_applications
+            .binary_search_by_key(&placement.application_index, |row| row.application_index)
+            .ok()
+            .map(|ordinal| &module.callback_applications[ordinal])
+            .ok_or("callback thunk has no portable application")?;
+        let body = thunk.artifact().semantic_module();
+        let declaration = body
+            .machine(body.entry)
+            .and_then(|machine| machine.declaration.as_ref())
+            .ok_or("callback thunk has no entry declaration")?;
         let expected_symbol = canonical_callback_private_symbol(placement);
         let expected_function =
             canonical_callback_thunk_identity(occurrence.placement_index(), placement);
-        if receipt.source_machine != placement.selected_machine
-            || receipt.source_entry != placement.selected_entry
+        if declaration != &application.body
+            || application.registrar != occurrence.terminal_operation()
+            || application.static_machine_ordinal != placement.static_machine_ordinal
+            || application.requirement != placement.canonical_requirement_overload
+            || application.body.contract
+                != placement.resource_receipt.contract_commitment().as_bytes()
             || thunk.private_symbol() != &expected_symbol
             || expected_function != Some(occurrence.callback_thunk_identity())
         {
@@ -178,6 +179,3 @@ pub fn admitted_native_callback_thunks<'artifact>(
     }
     Ok(admitted)
 }
-
-#[cfg(test)]
-mod tests;

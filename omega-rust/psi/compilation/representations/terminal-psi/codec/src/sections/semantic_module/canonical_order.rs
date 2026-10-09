@@ -29,7 +29,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     for application in &module.callback_applications {
         if application.requirement.is_empty()
             || application.published_contract == [0; 32]
-            || application.actual_contract == [0; 32]
+            || application.body.contract == [0; 32]
         {
             return Err(CodecError::MalformedStructuralFoundation(
                 "callback application lacks its requirement or contract",

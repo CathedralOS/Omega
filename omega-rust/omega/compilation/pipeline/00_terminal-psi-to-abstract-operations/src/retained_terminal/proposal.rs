@@ -175,7 +175,7 @@ fn project_callback_occurrences(
                 ))])?;
             if application.static_machine_ordinal != placement.static_machine_ordinal
                 || application.requirement != placement.canonical_requirement_overload
-                || application.actual_contract != placement.resource_receipt.contract_commitment().as_bytes()
+                || application.body.contract != placement.resource_receipt.contract_commitment().as_bytes()
             {
                 return Err(vec![Diagnostic::error("callback placement disagrees with its checked Terminal application")]);
             }

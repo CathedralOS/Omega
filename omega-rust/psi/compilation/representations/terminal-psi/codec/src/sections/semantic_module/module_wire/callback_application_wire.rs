@@ -11,8 +11,7 @@ pub(super) fn encode(
     writer.u32(application.static_machine_ordinal);
     writer.string("callback requirement", &application.requirement)?;
     writer.bytes(&application.published_contract);
-    writer.bytes(&application.actual_contract);
-    Ok(())
+    super::super::machine_declaration_wire::encode(writer, &application.body)
 }
 
 pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalCallbackApplication, CodecError> {
@@ -22,7 +21,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalCallbackApplicat
         static_machine_ordinal: reader.u32()?,
         requirement: reader.string("callback requirement")?,
         published_contract: reader.array()?,
-        actual_contract: reader.array()?,
+        body: super::super::machine_declaration_wire::decode(reader)?,
     })
 }
 
@@ -39,7 +38,14 @@ mod tests {
             static_machine_ordinal: 2,
             requirement: "Hooks::call(u64)".to_owned(),
             published_contract: [3; 32],
-            actual_contract: [5; 32],
+            body: terminal_psi::CheckedMachineDeclaration {
+                machine: terminal_psi::NominalDeclarationIdentity::new("package:hook".into())
+                    .expect("machine"),
+                state: terminal_psi::NominalDeclarationIdentity::new("package:hook:entry".into())
+                    .expect("state"),
+                contract: [5; 32],
+                specialization: None,
+            },
         };
         let mut writer = Writer::default();
         encode(&mut writer, &application).expect("encode callback");

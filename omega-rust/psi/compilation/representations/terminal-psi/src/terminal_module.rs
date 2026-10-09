@@ -17,8 +17,7 @@ pub mod values;
 
 pub use boundary::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCandidate,
-    BoundaryBodySpecialization, BoundaryCheckedBody, BoundaryContentGuarantee,
-    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryNominalIdentity,
+    BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineResult,
     BoundaryOperatorRequirement, BoundaryParameterKind, BoundaryStructuralResultDeclaration,
     BoundaryTypeIdentity, ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
@@ -45,7 +44,10 @@ pub use control_flow::{
     TerminalRankedScc, Terminator, TrappingIntegerOperation, TrappingIntegerPrimitive,
     structural_parameter_position,
 };
-pub use identity::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+pub use identity::{
+    CheckedMachineDeclaration, CheckedMachineSpecialization, NominalDeclarationIdentity,
+    SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
+};
 pub use observation::{
     TerminalObservationSchema, TerminalOperationCrashDenotation, TerminalTraceBoundaryCrashSiteRow,
     TerminalTraceCrashSiteRow, TerminalTraceExternalCompletionSiteRow,

@@ -1,8 +1,8 @@
 //! Artifact-bound view of Terminal's canonical boundary application demands.
 
 pub use terminal_psi::{
-    BoundaryApplication, BoundaryApplicationArgument, BoundaryNominalIdentity,
-    BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryOperatorRequirement,
+    BoundaryTypeIdentity, NominalDeclarationIdentity, TerminalBoundaryApplicationDemand,
 };
 
 /// Complete source-free D29 demand projection for one Terminal artifact.

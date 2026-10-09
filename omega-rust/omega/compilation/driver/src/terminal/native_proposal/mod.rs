@@ -32,8 +32,8 @@ fn produce_callback_thunk_artifact(
     // The thunk body leaves through the same production body as the program
     // entry: one lowering, the selected Psi optimization, canonical
     // publication. It carries no entry identity, so no `ProgramEntry`
-    // receipt is minted; the callback placement binds its own evidence to
-    // the lowering receipt instead.
+    // receipt is minted. Psi retains the selected machine's declaration in
+    // the artifact itself, and native preparation joins the callback demand.
     let psi_optimizations = selections.project_psi();
     let mut production_timings = artifacts::compile_timings::CompileTimings::default();
     let produced = terminal_production::TerminalProductionRequest {
@@ -44,8 +44,7 @@ fn produce_callback_thunk_artifact(
     }
     .produce(TerminalProductionCustody {
         entry_identity: None,
-        // The authored exclusions and the lowering receipt are judged on the
-        // unoptimized composition the thunk was published from.
+        // Authored exclusions are judged on the unoptimized composition.
         retain_unoptimized: true,
         timings: &mut production_timings,
     })
@@ -64,26 +63,9 @@ fn produce_callback_thunk_artifact(
         produced.unoptimized(),
         placement.selected_machine,
     )?;
-    let unoptimized = produced.unoptimized().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "callback thunk production retained no unoptimized Terminal lowering to join the checked coordinate onto",
-        )]
-    })?;
-    let receipt = checked_trees_to_lowered_psi::callback_lowering_receipt(
-        checked,
-        unoptimized,
-        placement.selected_machine,
-        placement.selected_entry,
-    )
-    .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "callback thunk Terminal lowering failed: {error}",
-        ))]
-    })?;
     compilation_products::TerminalCallbackThunkArtifact::new(
         backend_plan::canonical_callback_private_symbol(placement),
         produced.into_artifact(),
-        receipt,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }

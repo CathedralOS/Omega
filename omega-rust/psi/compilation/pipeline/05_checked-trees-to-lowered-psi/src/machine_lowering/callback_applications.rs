@@ -6,7 +6,11 @@ use lowered_psi::LoweredPsi;
 use symbols::SymbolHandle;
 use terminal_psi::TerminalCallbackApplication;
 
-pub(super) fn retain(checked: &CheckedTrees, lowered: &mut LoweredPsi) -> Result<(), &'static str> {
+pub(super) fn retain(
+    checked: &CheckedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    lowered: &mut LoweredPsi,
+) -> Result<(), &'static str> {
     // Index the requested applications, not every emitted source call. Multiple
     // static-machine parameters at one call share its registrar operation.
     let mut requested = checked
@@ -58,10 +62,7 @@ pub(super) fn retain(checked: &CheckedTrees, lowered: &mut LoweredPsi) -> Result
                 .published_requirement_envelope
                 .contract_commitment
                 .as_bytes(),
-            actual_contract: usage
-                .selected_actual_envelope
-                .contract_commitment
-                .as_bytes(),
+            body: super::declarations::identity(checked, sources, usage.selected_machine)?,
         });
     }
     applications.sort_unstable_by_key(|application| application.application_index);

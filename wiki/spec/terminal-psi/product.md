@@ -46,12 +46,20 @@ target's Build row to that catalog; it does not reopen checked source or ask the
 publication stage for a source-index companion. Requirement package identity is
 explicit, so same-spelling requirements from different packages cannot collide.
 
+Source-produced machine bodies retain a portable checked declaration identity:
+exact-owner callable and initial state, contract commitment, and optional
+specialization template/commitment. Optimization preserves this identity on the
+surviving machine. It identifies the checked input; it is not a substitute for
+the body's semantic proof or native ABI/resource admission.
+
 Checked callback applications retain their registrar operation, static-machine
-binder ordinal, requirement identity and published/actual contract commitments
+binder ordinal, requirement identity, published contract and selected body identity
 in Terminal Psi. A compilation-local occurrence number joins target placement
 to this row and survives pruning; it is not independently authoritative. Several
 callback binders may share one registrar. Native settlement consumes these
-rows, not a parallel source-call catalog. Callback body correspondence and
+rows, not a parallel source-call catalog. A callback artifact's entry declaration
+must match the selected body in the caller's demand; no source-side lowering
+receipt is required. Callback body correspondence and
 target ABI/installation evidence remain separate obligations.
 
 The reference interpreter executes the portable semantics directly. Native

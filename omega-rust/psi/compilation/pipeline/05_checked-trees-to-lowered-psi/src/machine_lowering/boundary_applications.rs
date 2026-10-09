@@ -6,8 +6,8 @@ use checked_trees::{CheckedBoundaryOperatorApplicationUseSite, CheckedTrees};
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::OperationId;
 use terminal_psi::{
-    BoundaryApplication, BoundaryApplicationArgument, BoundaryNominalIdentity,
-    BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryOperatorRequirement,
+    BoundaryTypeIdentity, NominalDeclarationIdentity, TerminalBoundaryApplicationDemand,
 };
 use typed_trees::type_identity::ExactOwnerTypeIdentityRequest;
 
@@ -58,7 +58,8 @@ pub(super) fn retain(
             continue;
         };
         let declaration = lowered
-            .semantic_module.boundary_machine(boundary)
+            .semantic_module
+            .boundary_machine(boundary)
             .ok_or("boundary application has no Terminal declaration")?;
         if declaration.kind != terminal_psi::BoundaryRequirementKind::Operator {
             continue;
@@ -119,7 +120,7 @@ pub(super) fn retain(
             .exact_owner_nominal_identity(application.requirement_symbol, exact_toolchain_sources)
             .ok_or("boundary requirement has no exact package or toolchain owner")?;
         let requirement = BoundaryOperatorRequirement::new(
-            BoundaryNominalIdentity::new(declaration.into_string())?,
+            NominalDeclarationIdentity::new(declaration.into_string())?,
             requirement_identity(checked, application.requirement_symbol)?,
             checked
                 .symbols

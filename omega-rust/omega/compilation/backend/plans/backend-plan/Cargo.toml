@@ -14,7 +14,6 @@ function-identity = { path = "../../../../foundation/function-identity" }
 arena = { path = "../../../../../psi/foundation/arena" }
 checked-trees = { path = "../../../../../psi/compilation/representations/checked-trees" }
 layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
-lowered-psi = { path = "../../../../../psi/compilation/representations/lowered-psi" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 symbols = { path = "../../../../../psi/foundation/symbols" }
 target = { path = "../../target" }

@@ -2,7 +2,7 @@
 //!
 //! `LoweredSelectedMachine` carries the unsealed module beside the choices the
 //! plan family already made about it: which source machines it closed over
-//! (`SourceMapping`) and whether a debug companion is published
+//! (the exact machine-owner catalog) and whether a debug companion is published
 //! (`DebugPublication`). The entrance reads those modes to decide what
 //! remains to run.
 
@@ -16,33 +16,6 @@ pub(crate) enum DebugPublication {
     Omit,
 }
 
-pub(crate) enum SourceMapping {
-    EntryOnly,
-    ExactCatalog(Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>),
-}
-
-impl SourceMapping {
-    pub(crate) fn exact_owners(
-        &self,
-    ) -> Option<&[(symbols::SymbolHandle, semantic_vocabulary::MachineId)]> {
-        match self {
-            Self::ExactCatalog(owners) => Some(owners),
-            Self::EntryOnly => None,
-        }
-    }
-
-    pub(crate) fn projection_sources(
-        self,
-        lowered: &LoweredPsi,
-        entry: symbols::SymbolHandle,
-    ) -> Result<Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>, LoweringError> {
-        match self {
-            Self::ExactCatalog(owners) => Ok(owners),
-            Self::EntryOnly => Ok(vec![(entry, lowered.semantic_module.entry)]),
-        }
-    }
-}
-
 /// Work remaining after a producer has assembled its machines.
 #[derive(Default)]
 pub(crate) struct LoweringCompletion {
@@ -52,26 +25,11 @@ pub(crate) struct LoweringCompletion {
 pub(crate) struct LoweredSelectedMachine {
     pub(crate) terminal: LoweredPsi,
     /// Checked source closure selected by the producer; not inferred from emitted ordinals.
-    pub(crate) source_machines: Vec<symbols::SymbolHandle>,
+    pub(crate) source_machine_ids: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
     pub(crate) completion: LoweringCompletion,
-    pub(crate) source_mapping: SourceMapping,
 }
 
 impl LoweredSelectedMachine {
-    /// A lowering whose source mapping is its entry machine alone.
-    pub(crate) fn entry_only(
-        terminal: LoweredPsi,
-        completion: LoweringCompletion,
-        source_machines: Vec<symbols::SymbolHandle>,
-    ) -> Self {
-        Self {
-            terminal,
-            source_machines,
-            completion,
-            source_mapping: SourceMapping::EntryOnly,
-        }
-    }
-
     /// A lowering that published an exact catalog of its machine owners.
     pub(crate) fn source_mapped(
         lowered: SourceMappedLowered,
@@ -79,13 +37,8 @@ impl LoweredSelectedMachine {
     ) -> Self {
         Self {
             terminal: lowered.terminal,
-            source_machines: lowered
-                .source_machine_ids
-                .iter()
-                .map(|(source, _)| *source)
-                .collect(),
+            source_machine_ids: lowered.source_machine_ids,
             completion,
-            source_mapping: SourceMapping::ExactCatalog(lowered.source_machine_ids),
         }
     }
 }

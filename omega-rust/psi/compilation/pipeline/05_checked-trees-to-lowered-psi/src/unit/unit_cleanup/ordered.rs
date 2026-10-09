@@ -3,8 +3,9 @@
 
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitStructuralTypeShape,
-    LoweredPsi, LoweringError, lower_unit_closure, unsupported,
+    LoweringError, lower_unit_closure, unsupported,
 };
+use crate::producer_result::SourceMappedLowered;
 use crate::unit::attached_unit::UnitClosureRequest;
 use crate::unit::attached_unit::bodies::UnitPlans;
 use checked_trees::is_bounded_nominal_cleanup_record;
@@ -12,7 +13,7 @@ use checked_trees::is_bounded_nominal_cleanup_record;
 pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
     let plan = &nominal.machine;
     let parameter_count = plan.structural_parameters.len();
     if parameter_count == 0 || nominal.cleanups.len() != parameter_count {
@@ -76,7 +77,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     let mut unit_roots = Vec::with_capacity(roots.len() + 1);
     unit_roots.push(plan.machine);
     unit_roots.extend_from_slice(&roots);
-    let lowered = lower_unit_closure(
+    lower_unit_closure(
         checked,
         &UnitClosureRequest {
             plans,
@@ -84,7 +85,5 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
             unit_roots: &unit_roots,
             scalar_entry: false,
         },
-    )?
-    .terminal;
-    Ok(lowered)
+    )
 }

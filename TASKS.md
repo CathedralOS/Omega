@@ -2058,8 +2058,9 @@ crash and native exit behavior.
     providers, folds target layout, checks and prunes siblings before Terminal;
     `realization/provider-planning` depends on syntax/typed/checked trees,
     stage 04, validation and the checked interpreter; Omega stage 00 consumes
-    checked/lowered entry and callback-body receipts beside the canonical
-    artifact; stage 05 selects shape-specific routes.
+    checked entry and source-shaped callback ABI/resource placements beside the
+    canonical artifact; stage 05 selects shape-specific routes. Callback body
+    identity now lives in Terminal machines and demands, not a lowering receipt.
   - Make topology enforce ownership. Remove forbidden production dependencies
     so Rust cannot name a representation or operation outside the consuming
     stage's declared inputs. Add one workspace architecture gate derived from

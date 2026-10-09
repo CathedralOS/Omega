@@ -144,17 +144,6 @@ pub struct LoweredSelectedIntegerComparisonOccurrence {
     pub integer_type: semantic_vocabulary::IntegerType,
 }
 
-/// Exact checked-to-Terminal join for the first bounded callback body cohort.
-/// Source handles remain target-owned sidecar evidence; they are never encoded
-/// into the canonical Terminal artifact.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CallbackTerminalLoweringReceipt {
-    pub source_machine: symbols::SymbolHandle,
-    pub source_entry: symbols::SymbolHandle,
-    pub terminal_machine: MachineId,
-    pub terminal_entry: BlockId,
-}
-
 /// One exact checked source call joined to its emitted Terminal control site.
 /// Source handles are deliberately confined to the producer result and never
 /// enter the canonical Terminal artifact.

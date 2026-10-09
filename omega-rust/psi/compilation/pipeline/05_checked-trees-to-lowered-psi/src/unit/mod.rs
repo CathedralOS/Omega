@@ -101,13 +101,12 @@ pub(crate) fn lower_unit_plan_machine(
     plan: CheckedUnitPlan<'_>,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
     Ok(match plan {
-        CheckedUnitPlan::NominalAffineCleanup(plan) => LoweredSelectedMachine::entry_only(
+        CheckedUnitPlan::NominalAffineCleanup(plan) => LoweredSelectedMachine::source_mapped(
             lower_nominal_affine_unit_cleanup_machine(checked, plan)?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
                 ..Default::default()
             },
-            vec![plan.machine.machine],
         ),
         CheckedUnitPlan::PartialAffineCleanup(plan) => LoweredSelectedMachine::source_mapped(
             lower_partial_affine_unit_cleanup_machine(checked, plan)?,

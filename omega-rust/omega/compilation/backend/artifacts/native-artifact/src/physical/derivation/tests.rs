@@ -1213,8 +1213,8 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
 fn physical_child_identity_binds_every_retained_field() {
     use boundary_applications::{
         BoundaryApplication, BoundaryApplicationRealization,
-        BoundaryApplicationRealizationCompanion, BoundaryNominalIdentity,
-        BoundaryOperatorRequirement, TerminalBoundaryApplicationDemand,
+        BoundaryApplicationRealizationCompanion, BoundaryOperatorRequirement,
+        NominalDeclarationIdentity, TerminalBoundaryApplicationDemand,
         TerminalBoundaryApplicationDemands, TerminalBoundaryApplicationRealizations,
     };
     use semantic_vocabulary::{IntegerValue, OperationId, ValueId};
@@ -1241,7 +1241,7 @@ fn physical_child_identity_binds_every_retained_field() {
         vec![TerminalBoundaryApplicationDemand::new(
             operation,
             BoundaryOperatorRequirement::new(
-                BoundaryNominalIdentity::new("package:operator".to_owned()).unwrap(),
+                NominalDeclarationIdentity::new("package:operator".to_owned()).unwrap(),
                 "operator::call()->u64".to_owned(),
                 None,
             )
@@ -1258,9 +1258,9 @@ fn physical_child_identity_binds_every_retained_field() {
                     operation,
                     selected_plan_digest,
                     BoundaryApplicationRealization::NongenericCheckedBody {
-                        realization_machine: BoundaryNominalIdentity::new("machine".to_owned())
+                        realization_machine: NominalDeclarationIdentity::new("machine".to_owned())
                             .unwrap(),
-                        realization_state: BoundaryNominalIdentity::new(
+                        realization_state: NominalDeclarationIdentity::new(
                             "machine::entry".to_owned(),
                         )
                         .unwrap(),

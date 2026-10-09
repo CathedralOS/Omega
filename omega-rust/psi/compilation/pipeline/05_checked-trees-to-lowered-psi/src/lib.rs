@@ -11,8 +11,7 @@
 //! `lower_terminal_selection` there to read this stage — the module order
 //! below is the order it runs them in. A callback body is not a second
 //! entrance: it lowers through the same route rooted at the callback entry,
-//! and [`callback_lowering_receipt`] joins the checked callback coordinate
-//! onto the module's entry machine afterward.
+//! and retains its checked declaration directly in the produced machine.
 //!
 //! 1. `machine_lowering` validates the checked permission ledger before any
 //!    consumer uses its evidence, then selects the checked machine named by a
@@ -78,8 +77,8 @@ mod source_guards;
 
 // The entrance, and the failure vocabulary its callers match on.
 pub use lowering_error::LoweringError;
+pub use machine_lowering::lower_machine;
 pub use machine_lowering::machine_dispatch::{TerminalMachineSelection, select_terminal_machine};
-pub use machine_lowering::{callback_lowering_receipt, lower_machine};
 
 // Diagnostic-only source attribution for the unoptimized lowering.
 pub use lowered_machine_provenance::LoweredMachineProvenance;

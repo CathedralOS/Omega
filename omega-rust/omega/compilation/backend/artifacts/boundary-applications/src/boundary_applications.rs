@@ -23,8 +23,8 @@ mod comparison_tests;
 
 pub use coverage::{BoundaryApplicationCoverageIdentity, OperatorApplicationCoverageRef};
 pub use demands::{
-    BoundaryApplication, BoundaryApplicationArgument, BoundaryNominalIdentity,
-    BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryOperatorRequirement,
+    BoundaryTypeIdentity, NominalDeclarationIdentity, TerminalBoundaryApplicationDemand,
     TerminalBoundaryApplicationDemands,
 };
 pub use ieee_float_comparisons::TerminalIeeeFloatComparisonOccurrenceProposal;
