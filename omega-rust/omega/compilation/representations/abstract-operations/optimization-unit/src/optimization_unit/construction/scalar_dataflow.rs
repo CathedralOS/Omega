@@ -59,16 +59,8 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
             scalar_type,
             ..
         }
-        | O::IntegerBitwiseOr {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::IntegerBitwiseXor {
-            result,
-            scalar_type,
-            ..
-        }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(result,
+            scalar_type, ..)
         | O::IntegerArithmetic {
             result,
             scalar_type,
@@ -197,8 +189,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::IntegerLessThan { left, right, .. }
         | O::IntegerLessOrEqual { left, right, .. }
         | O::IntegerBitwiseAnd { left, right, .. }
-        | O::IntegerBitwiseOr { left, right, .. }
-        | O::IntegerBitwiseXor { left, right, .. }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(left, right, ..)
         | O::IntegerArithmetic { left, right, .. } => vec![*left, *right],
         O::TrappingInteger { operation, .. } => operation.operands(),
         O::FloatResultPolicy { policy, .. } => policy.operands(),

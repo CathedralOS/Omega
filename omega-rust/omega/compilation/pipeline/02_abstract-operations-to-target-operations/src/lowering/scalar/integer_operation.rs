@@ -151,20 +151,11 @@ pub(in crate::lowering) fn try_lower_integer_operation(
             left,
             right,
         }
-        | AbstractOperation::IntegerBitwiseOr {
-            psi_operation,
+        | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
             result,
             scalar_type,
             left,
-            right,
-        }
-        | AbstractOperation::IntegerBitwiseXor {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
+            right, ..) => {
             let kind = match operation {
                 AbstractOperation::IntegerBitwiseAnd { .. } => IntegerBinaryKind::BitwiseAnd,
                 AbstractOperation::IntegerBitwiseOr { .. } => IntegerBinaryKind::BitwiseOr,

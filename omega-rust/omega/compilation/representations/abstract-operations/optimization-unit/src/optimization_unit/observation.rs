@@ -388,8 +388,7 @@ fn operation_observations(
         | O::IntegerExactCast { .. }
         | O::ScalarRepresentationView { .. }
         | O::IntegerBitwiseAnd { .. }
-        | O::IntegerBitwiseOr { .. }
-        | O::IntegerBitwiseXor { .. }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | O::IntegerShift { .. }
         | O::IntegerArithmetic { .. } => (Vec::new(), No, No),
         O::EstablishPrimitiveLocal { .. }

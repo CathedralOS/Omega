@@ -78,8 +78,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::IntegerExactCast { .. }
         | O::ScalarRepresentationView { .. }
         | O::IntegerBitwiseAnd { .. }
-        | O::IntegerBitwiseOr { .. }
-        | O::IntegerBitwiseXor { .. }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | O::IntegerShift { .. }
         | O::IntegerArithmetic { .. }
         | O::TrappingInteger { .. } => scalar::encode(bytes, operation),

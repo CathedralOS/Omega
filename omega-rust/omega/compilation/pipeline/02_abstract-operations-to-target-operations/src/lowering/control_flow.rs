@@ -273,8 +273,7 @@ pub(super) fn lower(
             AbstractOperation::IntegerArithmetic { result, .. }
             | AbstractOperation::TrappingInteger { result, .. }
             | AbstractOperation::IntegerBitwiseAnd { result, .. }
-            | AbstractOperation::IntegerBitwiseOr { result, .. }
-            | AbstractOperation::IntegerBitwiseXor { result, .. }
+            | abstract_operations::bitwise_or_xor_pair_pattern!(result, ..)
             | AbstractOperation::IntegerBitwiseNot { result, .. }
             | AbstractOperation::IntegerShift { result, .. }
             | AbstractOperation::Call { result, .. } => Some(*result),

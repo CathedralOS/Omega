@@ -19,8 +19,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::IntegerBitwiseNot { .. }
         | O::IntegerWiden { .. }
         | O::IntegerBitwiseAnd { .. }
-        | O::IntegerBitwiseOr { .. }
-        | O::IntegerBitwiseXor { .. } => Some(DeadScalarFamily::UnconditionallyTotal),
+        | abstract_operations::bitwise_or_xor_pair_pattern!(..) => Some(DeadScalarFamily::UnconditionallyTotal),
         O::IntegerExactCast { .. } => Some(DeadScalarFamily::ProofCertified),
         // An integer policy pair is total exactly when it carries no
         // obligation: wrapping and saturating add, subtract and multiply, and
@@ -170,18 +169,9 @@ pub(crate) fn independently_validated_dead_scalar_shape(
                 scalar_type,
                 ..
             }
-            | O::IntegerBitwiseOr {
-                psi_operation,
+            | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
                 result,
-                scalar_type,
-                ..
-            }
-            | O::IntegerBitwiseXor {
-                psi_operation,
-                result,
-                scalar_type,
-                ..
-            },
+                scalar_type, ..),
         ) => Some((
             *psi_operation,
             *result,

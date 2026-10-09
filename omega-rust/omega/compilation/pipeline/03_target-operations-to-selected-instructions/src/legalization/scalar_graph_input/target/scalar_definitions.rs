@@ -144,8 +144,7 @@ pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
             | AbstractOperation::IntegerArithmetic { .. }
             | AbstractOperation::IntegerShift { .. }
             | AbstractOperation::IntegerBitwiseAnd { .. }
-            | AbstractOperation::IntegerBitwiseOr { .. }
-            | AbstractOperation::IntegerBitwiseXor { .. }
+            | abstract_operations::bitwise_or_xor_pair_pattern!(..)
             | AbstractOperation::IntegerBitwiseNot { .. }
             | AbstractOperation::IntegerExactCast { .. }
     )
@@ -296,20 +295,11 @@ pub(super) fn observation(
             left,
             right,
         }
-        | AbstractOperation::IntegerBitwiseOr {
-            psi_operation,
+        | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
             result,
             scalar_type,
             left,
-            right,
-        }
-        | AbstractOperation::IntegerBitwiseXor {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
+            right, ..) => {
             if checker.available.is_none_or(|sources| {
                 [left, right].iter().any(|operand| {
                     !sources.iter().any(|(value, source)| {

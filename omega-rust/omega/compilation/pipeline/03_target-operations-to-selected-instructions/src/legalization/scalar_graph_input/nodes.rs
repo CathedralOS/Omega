@@ -224,18 +224,9 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             scalar_type,
             ..
         }
-        | AbstractOperation::IntegerBitwiseOr {
-            psi_operation,
+        | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
             result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::IntegerBitwiseXor {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
+            scalar_type, ..) if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
             Ok((*psi_operation, *result))
         }
         AbstractOperation::IntegerBitwiseNot {
@@ -887,18 +878,9 @@ pub(super) fn validate(
                 right,
                 ..
             }
-            | AbstractOperation::IntegerBitwiseOr {
-                scalar_type,
+            | abstract_operations::bitwise_or_xor_pair_pattern!(scalar_type,
                 left,
-                right,
-                ..
-            }
-            | AbstractOperation::IntegerBitwiseXor {
-                scalar_type,
-                left,
-                right,
-                ..
-            } => {
+                right, ..) => {
                 if value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {

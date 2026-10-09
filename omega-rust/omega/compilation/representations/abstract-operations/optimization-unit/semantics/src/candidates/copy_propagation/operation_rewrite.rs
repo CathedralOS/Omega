@@ -74,8 +74,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::IntegerLessThan { left, right, .. }
         | O::IntegerLessOrEqual { left, right, .. }
         | O::IntegerBitwiseAnd { left, right, .. }
-        | O::IntegerBitwiseOr { left, right, .. }
-        | O::IntegerBitwiseXor { left, right, .. }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(left, right, ..)
         | O::IntegerArithmetic { left, right, .. } => {
             replace(left);
             replace(right);

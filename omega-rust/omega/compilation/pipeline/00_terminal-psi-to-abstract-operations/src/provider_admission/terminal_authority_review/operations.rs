@@ -85,8 +85,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::IntegerExactCast { .. }
         | AbstractOperation::ScalarRepresentationView { .. }
         | AbstractOperation::IntegerBitwiseAnd { .. }
-        | AbstractOperation::IntegerBitwiseOr { .. }
-        | AbstractOperation::IntegerBitwiseXor { .. }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | AbstractOperation::IntegerShift { .. }
         | AbstractOperation::IntegerArithmetic { .. }
         // A Trapping primitive stops through an inline architectural trap,

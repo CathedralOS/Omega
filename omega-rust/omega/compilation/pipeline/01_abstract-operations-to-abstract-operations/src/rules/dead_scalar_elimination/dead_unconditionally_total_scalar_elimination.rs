@@ -81,18 +81,9 @@ pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
             scalar_type,
             ..
         }
-        | O::IntegerBitwiseOr {
-            psi_operation,
+        | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
             result,
-            scalar_type,
-            ..
-        }
-        | O::IntegerBitwiseXor {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        } => (*psi_operation, *result, ScalarType::Integer(*scalar_type)),
+            scalar_type, ..) => (*psi_operation, *result, ScalarType::Integer(*scalar_type)),
         O::IntegerWiden {
             psi_operation,
             result,

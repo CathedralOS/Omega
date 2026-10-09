@@ -287,8 +287,7 @@ fn operation_effect(
         | O::IntegerExactCast { .. }
         | O::ScalarRepresentationView { .. }
         | O::IntegerBitwiseAnd { .. }
-        | O::IntegerBitwiseOr { .. }
-        | O::IntegerBitwiseXor { .. }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | O::IntegerShift { .. }
         | O::IntegerArithmetic { .. } => (EffectClass::PureScalar, No, No, No, No),
         O::EstablishPrimitiveLocal { .. }

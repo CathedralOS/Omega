@@ -241,18 +241,9 @@ pub(crate) fn operation_scalar_types_match(
             right,
             ..
         }
-        | O::IntegerBitwiseOr {
-            scalar_type,
+        | abstract_operations::bitwise_or_xor_pair_pattern!(scalar_type,
             left,
-            right,
-            ..
-        }
-        | O::IntegerBitwiseXor {
-            scalar_type,
-            left,
-            right,
-            ..
-        } => binary(*left, *right, *scalar_type),
+            right, ..) => binary(*left, *right, *scalar_type),
         // Exact subtraction alone admits address/count roles. Other
         // proof-bearing pairs still require same-type fixed operands.
         O::IntegerArithmetic {

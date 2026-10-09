@@ -1205,3 +1205,11 @@ macro_rules! element_view_or_byte_subslice_pattern {
             | $crate::AbstractOperation::ByteSequenceSubslice { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! bitwise_or_xor_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::IntegerBitwiseOr { $($fields)* }
+            | $crate::AbstractOperation::IntegerBitwiseXor { $($fields)* }
+    };
+}

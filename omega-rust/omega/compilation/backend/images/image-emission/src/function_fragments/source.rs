@@ -476,8 +476,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::IntegerExactCast { .. }
                 | AbstractOperation::ScalarRepresentationView { .. }
                 | AbstractOperation::IntegerBitwiseAnd { .. }
-                | AbstractOperation::IntegerBitwiseOr { .. }
-                | AbstractOperation::IntegerBitwiseXor { .. }
+                | abstract_operations::bitwise_or_xor_pair_pattern!(..)
                 // The i64 complement re-normalizes narrow unsigned results;
                 // replay binds that normalization to the declared carrier.
                 | AbstractOperation::IntegerBitwiseNot { .. }

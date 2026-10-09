@@ -214,16 +214,8 @@ pub(super) fn lower(
             result,
             ..
         }
-        | AbstractOperation::IntegerBitwiseOr {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::IntegerBitwiseXor {
-            psi_operation,
-            result,
-            ..
-        }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
+            result, ..)
         | AbstractOperation::IntegerBitwiseNot {
             psi_operation,
             result,

@@ -76,8 +76,7 @@ pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -
         | O::IntegerLessOrEqual { psi_operation, .. }
         | O::IntegerBitwiseNot { psi_operation, .. }
         | O::IntegerBitwiseAnd { psi_operation, .. }
-        | O::IntegerBitwiseOr { psi_operation, .. }
-        | O::IntegerBitwiseXor { psi_operation, .. }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation, ..)
         | O::IntegerWiden { psi_operation, .. }
         | O::IntegerExactCast { psi_operation, .. }
         | O::ScalarRepresentationView { psi_operation, .. }

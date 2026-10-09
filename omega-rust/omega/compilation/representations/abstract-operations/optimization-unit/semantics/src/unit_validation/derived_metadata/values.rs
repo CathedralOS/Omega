@@ -81,8 +81,7 @@ pub(crate) fn expected_uses(
         | O::IntegerLessThan { left, right, .. }
         | O::IntegerLessOrEqual { left, right, .. }
         | O::IntegerBitwiseAnd { left, right, .. }
-        | O::IntegerBitwiseOr { left, right, .. }
-        | O::IntegerBitwiseXor { left, right, .. }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(left, right, ..)
         | O::IntegerArithmetic { left, right, .. } => vec![*left, *right],
         O::TrappingInteger { operation, .. } => operation.operands(),
         O::FloatResultPolicy { policy, .. } => policy.operands(),

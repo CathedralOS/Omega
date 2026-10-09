@@ -157,8 +157,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::IntegerLessThan { left, right, .. }
         | O::IntegerLessOrEqual { left, right, .. }
         | O::IntegerBitwiseAnd { left, right, .. }
-        | O::IntegerBitwiseOr { left, right, .. }
-        | O::IntegerBitwiseXor { left, right, .. }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(left, right, ..)
         | O::IntegerArithmetic { left, right, .. } => {
             replace(left);
             replace(right);

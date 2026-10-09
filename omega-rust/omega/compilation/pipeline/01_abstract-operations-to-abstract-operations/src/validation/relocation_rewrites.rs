@@ -570,8 +570,7 @@ pub(crate) fn substitute_invariant_scalar_operands(
         | O::IntegerLessThan { left, right, .. }
         | O::IntegerLessOrEqual { left, right, .. }
         | O::IntegerBitwiseAnd { left, right, .. }
-        | O::IntegerBitwiseOr { left, right, .. }
-        | O::IntegerBitwiseXor { left, right, .. }
+        | abstract_operations::bitwise_or_xor_pair_pattern!(left, right, ..)
         | O::IntegerArithmetic { left, right, .. }
         | O::IeeeFloatCompare { left, right, .. } => {
             substitute(left, substitution);
