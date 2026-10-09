@@ -103,17 +103,17 @@ enum MergedBound {
 
 impl MergedBound {
     fn merge_lower(&mut self, value: Option<i64>) {
-        *self = match (*self, value) {
-            (Self::Unseen, Some(bound)) => Self::Known(bound),
-            (Self::Known(existing), Some(bound)) => Self::Known(existing.min(bound)),
-            (_, None) | (Self::Unbounded, _) => Self::Unbounded,
-        };
+        self.merge_with(value, i64::min)
     }
 
     fn merge(&mut self, value: Option<i64>) {
+        self.merge_with(value, i64::max)
+    }
+
+    fn merge_with(&mut self, value: Option<i64>, combine: impl Fn(i64, i64) -> i64) {
         *self = match (*self, value) {
             (Self::Unseen, Some(bound)) => Self::Known(bound),
-            (Self::Known(existing), Some(bound)) => Self::Known(existing.max(bound)),
+            (Self::Known(existing), Some(bound)) => Self::Known(combine(existing, bound)),
             (_, None) | (Self::Unbounded, _) => Self::Unbounded,
         };
     }
@@ -257,7 +257,8 @@ pub(super) fn collect_state_argument_facts<'program>(
                 seed_state_argument_facts(&mut facts, state, &collected);
             }
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 facts.statement_index = statement_index;
                 collect_state_argument_facts_from_statement(

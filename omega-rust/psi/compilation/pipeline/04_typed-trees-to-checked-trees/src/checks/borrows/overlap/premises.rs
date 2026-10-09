@@ -811,36 +811,31 @@ struct ChainLeg {
 
 /// Orientations of `premise` usable as the left leg of a chain: the shared
 /// middle is its right endpoint. `==` contributes both orientations.
-fn first_legs(premise: &StatedOrderingPremise) -> [Option<ChainLeg>; 2] {
+fn legs(
+    premise: &StatedOrderingPremise,
+    outer: &NormalizedBound,
+    middle: &NormalizedBound,
+) -> [Option<ChainLeg>; 2] {
     let stored = Some(ChainLeg {
-        outer: premise.left.clone(),
+        outer: outer.clone(),
         relation: premise.relation,
-        middle: premise.right.clone(),
+        middle: middle.clone(),
     });
     let flipped =
         matches!(premise.relation, BorrowCompatibilityPremiseRelation::Equal).then_some(ChainLeg {
-            outer: premise.right.clone(),
+            outer: middle.clone(),
             relation: premise.relation,
-            middle: premise.left.clone(),
+            middle: outer.clone(),
         });
     [stored, flipped]
 }
 
-/// Orientations of `premise` usable as the right leg of a chain: the shared
-/// middle is its left endpoint. `==` contributes both orientations.
+fn first_legs(premise: &StatedOrderingPremise) -> [Option<ChainLeg>; 2] {
+    legs(premise, &premise.left, &premise.right)
+}
+
 fn second_legs(premise: &StatedOrderingPremise) -> [Option<ChainLeg>; 2] {
-    let stored = Some(ChainLeg {
-        outer: premise.right.clone(),
-        relation: premise.relation,
-        middle: premise.left.clone(),
-    });
-    let flipped =
-        matches!(premise.relation, BorrowCompatibilityPremiseRelation::Equal).then_some(ChainLeg {
-            outer: premise.left.clone(),
-            relation: premise.relation,
-            middle: premise.right.clone(),
-        });
-    [stored, flipped]
+    legs(premise, &premise.right, &premise.left)
 }
 
 fn chained_legs_prove(
