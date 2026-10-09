@@ -8,8 +8,6 @@ mod service_establishment;
 pub use model::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError, ValidatedNativeProgramEntrySettlement,
 };
-pub(crate) use model::{
-    };
 
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
