@@ -19,6 +19,8 @@ pub(crate) fn push_bytes(buffer: &mut Vec<u8>, bytes: &[u8]) {
 }
 
 /// Write a fixed-width little-endian encoding at `offset` inside `bytes`.
+
+/// Write a fixed-width little-endian encoding at `offset` inside `bytes`.
 pub(crate) fn patch_encoded<const N: usize>(bytes: &mut [u8], offset: usize, encoded: [u8; N]) {
     bytes[offset..offset + N].copy_from_slice(&encoded);
 }

@@ -22,27 +22,11 @@ impl DomainDigestEncoder {
         self.0.update([value]);
     }
 
-    pub(crate) fn bool(&mut self, value: bool) {
-        self.byte(u8::from(value));
-    }
-
     pub(crate) fn len(&mut self, value: usize) {
         self.0.update((value as u64).to_le_bytes());
     }
 
-    pub(crate) fn u16(&mut self, value: u16) {
-        self.0.update(value.to_le_bytes());
-    }
-
-    pub(crate) fn u32(&mut self, value: u32) {
-        self.0.update(value.to_le_bytes());
-    }
-
     pub(crate) fn u64(&mut self, value: u64) {
-        self.0.update(value.to_le_bytes());
-    }
-
-    pub(crate) fn i64(&mut self, value: i64) {
         self.0.update(value.to_le_bytes());
     }
 

@@ -8,9 +8,6 @@ pub(crate) fn push_encoded<const N: usize>(buffer: &mut Vec<u8>, encoded: [u8; N
 }
 
 /// Write a fixed-width little-endian encoding at `offset` inside `bytes`.
-pub(crate) fn patch_encoded<const N: usize>(bytes: &mut [u8], offset: usize, encoded: [u8; N]) {
-    bytes[offset..offset + N].copy_from_slice(&encoded);
-}
 
 /// Read a u16 little-endian value at `offset`, or None when out of range.
 pub(crate) fn u16_at(bytes: &[u8], offset: usize) -> Option<u16> {
@@ -28,4 +25,9 @@ pub(crate) fn u32_at(bytes: &[u8], offset: usize) -> Option<u32> {
 pub(crate) fn u64_at(bytes: &[u8], offset: usize) -> Option<u64> {
     let end = offset.checked_add(8)?;
     Some(u64::from_le_bytes(bytes.get(offset..end)?.try_into().ok()?))
+}
+
+/// Write a fixed-width little-endian encoding at `offset` inside `bytes`.
+pub(crate) fn patch_encoded<const N: usize>(bytes: &mut [u8], offset: usize, encoded: [u8; N]) {
+    bytes[offset..offset + N].copy_from_slice(&encoded);
 }
