@@ -23,7 +23,7 @@ const CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN: &[u8] =
 /// Receiving consumers may use this key to supply an independent classification.
 /// Derivation grants neither a classification nor service permission, provider
 /// admission, or executable authority.
-pub fn conservative_syscall_terminal_mechanism(
+pub(crate) fn conservative_syscall_terminal_mechanism(
     target: target::TargetProfile,
     number: i64,
     plan: &abstract_operations::AbstractOperationPlan,

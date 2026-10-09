@@ -35,7 +35,7 @@ pub enum UnsettledTimeHostRequirement {
 /// Whether the named requirement belongs to the canonical `TimeHost` cohort.
 /// Every member shares the explicit empty disposition: no closed authority
 /// class covers a clock read, a clock constant, or a sleep.
-pub fn settled_time_host_cohort(name: &str) -> bool {
+pub(crate) fn settled_time_host_cohort(name: &str) -> bool {
     matches!(
         name,
         "monotonic_ticks"
@@ -51,7 +51,7 @@ pub fn settled_time_host_cohort(name: &str) -> bool {
 /// `method.name` locates the settled cohort; the emitted row is keyed by the
 /// supplied schema commitment and the method's complete normalized
 /// requirement identity, and grants the explicit empty disposition.
-pub fn time_host_permission_row(
+pub(crate) fn time_host_permission_row(
     service_schema: ServiceSchemaDigest,
     method: &ServiceMethod,
 ) -> Result<ServiceTerminalAuthorityPermission, UnsettledTimeHostRequirement> {
@@ -83,7 +83,7 @@ pub fn time_host_permission_rows(
 /// admitted for the named `TimeHost` requirement. The row is keyed by the
 /// exact mechanism identity; `method.name` only selects the settled cohort's
 /// explicit empty disposition.
-pub fn time_host_mechanism_row(
+pub(crate) fn time_host_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     method: &ServiceMethod,
 ) -> Result<TerminalAuthorityPolicyRow, UnsettledTimeHostRequirement> {

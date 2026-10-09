@@ -14,7 +14,7 @@ use terminal_psi::TerminalModule;
 /// Several placements may share a registrar operation; each still settles in
 /// supplied order against its own exact target-closed materialization.
 #[derive(Clone, Copy)]
-pub struct CallbackRegistrarOccurrence {
+pub(crate) struct CallbackRegistrarOccurrence {
     pub placement_index: usize,
     pub terminal_operation: OperationId,
 }
@@ -28,7 +28,7 @@ pub struct CallbackRegistrarOccurrence {
 /// the original order determines diagnostics and row updates. An absent import
 /// remains valid for a check-only product, but an ambiguous import rejects.
 /// This closure does not grant native publication or registration authority.
-pub fn settle_callback_registrar_imports(
+pub(crate) fn settle_callback_registrar_imports(
     terminal_module: &TerminalModule,
     callback_placements: &[NativeCallbackPlacement],
     callback_occurrences: impl Iterator<Item = CallbackRegistrarOccurrence> + Clone,

@@ -43,7 +43,7 @@ const LIBSYSTEM_INSTALL_NAME: &[u8] = b"/usr/lib/libSystem.B.dylib";
 
 /// The named requirement has no settled canonical `DarwinClock` disposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UnsettledDarwinClockRequirement {
+pub(crate) enum UnsettledDarwinClockRequirement {
     /// The schema is not the `DarwinClock` boundary, or the method is not one
     /// of its canonical requirements. No disposition is inferred from a
     /// readable name alone.
@@ -93,7 +93,7 @@ fn is_reviewed_import(mechanism: TerminalMechanismIdentity, symbol: &[u8]) -> bo
 
 /// Emit one exact receiving-policy row classifying the mechanism admitted for
 /// a canonical `DarwinClock` requirement with the explicit empty disposition.
-pub fn darwin_clock_mechanism_row(
+pub(crate) fn darwin_clock_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     schema: &ServiceSchema,
     method: &ServiceMethod,

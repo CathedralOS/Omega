@@ -27,41 +27,38 @@ mod terminal_authority_review;
 
 pub(crate) use callback_arguments::project_native_callback_arguments;
 pub use compiler_builtins::{
-    CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal, demanded_boundary_identities,
-    derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
+    CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal,
 };
+pub(crate) use compiler_builtins::{ demanded_boundary_identities,
+    derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins};
 pub use diagnostics::realization_error;
 
-pub use source_evaluated_bindings::{
-    PreparedSourceEvaluatedBindings, SourceEvaluatedImportSettlement,
-    prepare_source_evaluated_bindings,
+pub use source_evaluated_bindings::{ SourceEvaluatedImportSettlement,
 };
+pub(crate) use source_evaluated_bindings::{
+    prepare_source_evaluated_bindings};
+pub use source_evaluated_bindings::{
+    PreparedSourceEvaluatedBindings};
 
 pub use request::{
-    NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
-    ProviderAdmissionRequest,
 };
+pub(crate) use request::{
+    NativeBoundaryRealization, NativeCompilerBuiltinSettlement};
+pub use request::{ NativeProviderSettlement,
+    ProviderAdmissionRequest};
 pub use terminal_authority_permission_policy::{
-    MissingTerminalAuthorityPermission, TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
-    TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
-    TerminalAuthorityPermissionPolicyRow, current_terminal_authority_permission_policy,
+    TerminalAuthorityPermissionPolicy,
+    TerminalAuthorityPermissionPolicyRow,
     terminal_authority_permission_policy_with_rows,
 };
-pub use terminal_authority_policy::{
-    COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CompilerIntrinsicTerminalAuthorityPolicy,
-    FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract,
-    TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
-    TerminalAuthorityPolicyRow, UnclassifiedCompilerIntrinsicTerminalMechanism,
-    UnclassifiedTerminalMechanism, UnsettledFilesystemRequirement, UnsettledTimeHostRequirement,
-    conservative_syscall_terminal_mechanism, current_compiler_intrinsic_terminal_authority_policy,
-    current_terminal_authority_policy, filesystem_host_permission_row,
-    filesystem_host_permission_rows, filesystem_mechanism_row,
-    filesystem_ordinary_release_contract, filesystem_release_bound_mechanism,
-    filesystem_release_mechanism_row, normalized_foreign_terminal_mechanism,
-    normalized_foreign_terminal_mechanism_with_callback_materializations,
-    settled_filesystem_cohort, settled_time_host_cohort, terminal_authority_policy_with_rows,
-    time_host_mechanism_row, time_host_permission_row, time_host_permission_rows,
+pub use terminal_authority_permission_policy::{ TerminalAuthorityPermissionPolicyBuildError};
+pub use terminal_authority_policy::{ TerminalAuthorityPolicy,
+    current_terminal_authority_policy,
+    filesystem_host_permission_rows, terminal_authority_policy_with_rows, time_host_permission_rows,
 };
+pub(crate) use terminal_authority_policy::{ normalized_foreign_terminal_mechanism,
+    normalized_foreign_terminal_mechanism_with_callback_materializations};
+pub use terminal_authority_policy::{ UnsettledFilesystemRequirement, UnsettledTimeHostRequirement};
 
 mod model;
 use crate::AdmittedProviderInstallation;
@@ -88,12 +85,12 @@ pub struct AdmittedNativeProviders<'execution> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AdmittedTerminalMechanism {
+pub(crate) struct AdmittedTerminalMechanism {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub mechanism: effects::TerminalMechanismIdentity,
 }
 
-pub fn admit_native_providers<'request>(
+pub(crate) fn admit_native_providers<'request>(
     input: &NativeRealizationInput,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, 'request>,

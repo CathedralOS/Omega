@@ -19,7 +19,7 @@ use reviewer::Reviewer;
 /// exact supplied row and binds that policy identity into the receipt; `None`
 /// retains exact mechanisms and any available classifications, without claiming
 /// receiver admission. Unknown classifications are not empty dispositions.
-pub fn review_terminal_authority_closure(
+pub(crate) fn review_terminal_authority_closure(
     terminal_artifact_identity: [u8; 32],
     target_profile: target::TargetProfile,
     plan: &AbstractOperationPlan,

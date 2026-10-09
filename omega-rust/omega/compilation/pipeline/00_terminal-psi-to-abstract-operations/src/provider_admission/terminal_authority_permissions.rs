@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 /// Unlike the receiving policy, this set admits no unrelated extra rows:
 /// every retained rule must rejoin one exact accepted row and every accepted
 /// rule must be retained, with each divergence named on its own row.
-pub fn validate_retained_package_terminal_authority_permissions(
+pub(crate) fn validate_retained_package_terminal_authority_permissions(
     retained: &[ServiceTerminalAuthorityPermission],
     accepted: &crate::provider_admission::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {

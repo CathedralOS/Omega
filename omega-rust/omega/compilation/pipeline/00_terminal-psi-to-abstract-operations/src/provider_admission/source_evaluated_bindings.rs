@@ -75,7 +75,7 @@ enum SourceImportEvidence<'input> {
 /// roster must cover every demanded import exactly once and never falls back
 /// to derived evidence for missing rows. Syscalls are always derived from
 /// selected plans: they neither consume nor substitute supplied import custody.
-pub fn prepare_source_evaluated_bindings<'input>(
+pub(crate) fn prepare_source_evaluated_bindings<'input>(
     plans: &'input [ProviderPlan],
     demanded: &BTreeSet<String>,
     supplied: &[SourceEvaluatedImportSettlement<'input>],
