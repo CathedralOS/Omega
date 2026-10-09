@@ -135,10 +135,6 @@ impl OptimizedProgramStorageSemanticRoot {
         &self.carrier_identity
     }
 
-    pub(crate) fn parameter_type_identity(&self) -> &str {
-        &self.parameter_type_identity
-    }
-
     pub fn domain(&self) -> &str {
         &self.domain
     }

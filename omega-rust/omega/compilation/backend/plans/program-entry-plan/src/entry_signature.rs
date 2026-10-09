@@ -64,7 +64,7 @@ pub enum ProgramEntryResultSignature {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ProgramEntryExtentFieldRole {
+pub enum ProgramEntryExtentFieldRole {
     Base,
     Length,
 }
