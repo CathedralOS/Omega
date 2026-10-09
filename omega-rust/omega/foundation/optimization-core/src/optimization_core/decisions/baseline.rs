@@ -1,3 +1,4 @@
+use crate::cursor::{Cursor, Truncated};
 use crate::{
     OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationReasonCode, OptimizationUnitIdentity,
@@ -118,7 +119,7 @@ impl BaselineDecisionLog {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, BaselineDecisionLogDecodeError> {
-        let mut cursor = Cursor { encoded, offset: 0 };
+        let mut cursor = Cursor::new(encoded);
         if cursor.take(8)? != b"OMGBDL\0\0" {
             return Err(BaselineDecisionLogDecodeError::WrongMagic);
         }
@@ -167,36 +168,6 @@ impl BaselineDecisionLog {
             return Err(BaselineDecisionLogDecodeError::TrailingBytes);
         }
         Ok(finish_log(records))
-    }
-}
-
-struct Cursor<'a> {
-    encoded: &'a [u8],
-    offset: usize,
-}
-
-impl<'a> Cursor<'a> {
-    fn take(&mut self, len: usize) -> Result<&'a [u8], BaselineDecisionLogDecodeError> {
-        let end = self
-            .offset
-            .checked_add(len)
-            .ok_or(BaselineDecisionLogDecodeError::Truncated)?;
-        let bytes = self
-            .encoded
-            .get(self.offset..end)
-            .ok_or(BaselineDecisionLogDecodeError::Truncated)?;
-        self.offset = end;
-        Ok(bytes)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], BaselineDecisionLogDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| BaselineDecisionLogDecodeError::Truncated)
-    }
-
-    fn byte(&mut self) -> Result<u8, BaselineDecisionLogDecodeError> {
-        Ok(self.array::<1>()?[0])
     }
 }
 
@@ -428,5 +399,11 @@ mod tests {
 
         let reversed = BaselineDecisionLog::concatenate([&second, &empty, &first]).unwrap();
         assert_ne!(reversed.identity, combined.identity);
+    }
+}
+
+impl From<Truncated> for BaselineDecisionLogDecodeError {
+    fn from(_: Truncated) -> Self {
+        Self::Truncated
     }
 }

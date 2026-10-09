@@ -3,6 +3,7 @@ use super::{
     OptimizationWorkloadProfileIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
 };
 use crate::OptimizationSelectionIdentity;
+use crate::cursor::{Cursor, Truncated};
 use std::fmt;
 
 const BUNDLE_MAGIC: &[u8; 8] = b"OMGIDB\0\0";
@@ -95,7 +96,7 @@ impl OptimizationIdentityBundle {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, IdentityBundleDecodeError> {
-        let mut cursor = BundleCursor::new(encoded);
+        let mut cursor = Cursor::new(encoded);
         if cursor.take(8)? != BUNDLE_MAGIC {
             return Err(IdentityBundleDecodeError::WrongMagic);
         }
@@ -106,12 +107,10 @@ impl OptimizationIdentityBundle {
         let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let rule_set = OptimizationRuleSetIdentity::from_bytes(cursor.array()?);
         let target_cost_model = TargetCostModelIdentity::from_bytes(cursor.array()?);
-        let decision_log = cursor
-            .optional()?
-            .map(OptimizationDecisionLogIdentity::from_bytes);
-        let workload_profile = cursor
-            .optional()?
-            .map(OptimizationWorkloadProfileIdentity::from_bytes);
+        let decision_log =
+            optional_identity(&mut cursor)?.map(OptimizationDecisionLogIdentity::from_bytes);
+        let workload_profile =
+            optional_identity(&mut cursor)?.map(OptimizationWorkloadProfileIdentity::from_bytes);
         let transformation_ledger = TransformationLedgerIdentity::from_bytes(cursor.array()?);
         if cursor.remaining() != 0 {
             return Err(IdentityBundleDecodeError::TrailingBytes);
@@ -141,50 +140,6 @@ fn encode_optional(encoded: &mut Vec<u8>, identity: Option<[u8; IDENTITY_WIDTH]>
     }
 }
 
-struct BundleCursor<'a> {
-    encoded: &'a [u8],
-    position: usize,
-}
-
-impl<'a> BundleCursor<'a> {
-    const fn new(encoded: &'a [u8]) -> Self {
-        Self {
-            encoded,
-            position: 0,
-        }
-    }
-
-    fn take(&mut self, length: usize) -> Result<&'a [u8], IdentityBundleDecodeError> {
-        let end = self
-            .position
-            .checked_add(length)
-            .ok_or(IdentityBundleDecodeError::Truncated)?;
-        let bytes = self
-            .encoded
-            .get(self.position..end)
-            .ok_or(IdentityBundleDecodeError::Truncated)?;
-        self.position = end;
-        Ok(bytes)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], IdentityBundleDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| IdentityBundleDecodeError::Truncated)
-    }
-
-    fn optional(&mut self) -> Result<Option<[u8; IDENTITY_WIDTH]>, IdentityBundleDecodeError> {
-        match self.array::<1>()?[0] {
-            0 => Ok(None),
-            1 => Ok(Some(self.array()?)),
-            tag => Err(IdentityBundleDecodeError::InvalidOptionalTag(tag)),
-        }
-    }
-
-    fn remaining(&self) -> usize {
-        self.encoded.len() - self.position
-    }
-}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdentityBundleDecodeError {
     Truncated,
@@ -215,3 +170,19 @@ impl fmt::Display for IdentityBundleDecodeError {
 }
 
 impl std::error::Error for IdentityBundleDecodeError {}
+
+impl From<Truncated> for IdentityBundleDecodeError {
+    fn from(_: Truncated) -> Self {
+        Self::Truncated
+    }
+}
+
+fn optional_identity(
+    cursor: &mut Cursor,
+) -> Result<Option<[u8; IDENTITY_WIDTH]>, IdentityBundleDecodeError> {
+    match cursor.array::<1>()?[0] {
+        0 => Ok(None),
+        1 => Ok(Some(cursor.array()?)),
+        tag => Err(IdentityBundleDecodeError::InvalidOptionalTag(tag)),
+    }
+}

@@ -1,5 +1,6 @@
 //! Decision-v5 construction, canonical identity, and wire codec.
 
+use crate::cursor::Cursor;
 use crate::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
     OptimizationDecisionIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
@@ -9,7 +10,7 @@ use crate::{
 use super::{
     DECISION_FIXED_WIDTH, DECISION_WIRE_FORMAT, InvalidOptimizationManifestRecord,
     OptimizationFactReference, OptimizationFactReferenceDecodeError,
-    OptimizationManifestDecodeError, codec::ManifestCursor,
+    OptimizationManifestDecodeError,
 };
 
 /// Canonical machine record for one policy/validation decision.
@@ -127,7 +128,7 @@ impl OptimizationDecisionRecord {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, OptimizationManifestDecodeError> {
-        let mut cursor = ManifestCursor::new(encoded);
+        let mut cursor = Cursor::new(encoded);
         if cursor.take(8)? != DECISION_WIRE_FORMAT.magic {
             return Err(OptimizationManifestDecodeError::WrongMagic);
         }

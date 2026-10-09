@@ -1,5 +1,6 @@
 //! Pass-v1 construction, ordered-rule validation, and wire codec.
 
+use crate::cursor::Cursor;
 use std::collections::BTreeSet;
 
 use crate::{
@@ -10,7 +11,6 @@ use crate::{
 use super::{
     DECISION_FIXED_WIDTH, InvalidOptimizationManifestRecord, OptimizationDecisionRecord,
     OptimizationManifestDecodeError, OptimizationWorkUsage, PASS_WIRE_FORMAT,
-    codec::ManifestCursor,
 };
 
 /// Canonical pass-level manifest row. Rule and decision order is execution
@@ -140,7 +140,7 @@ impl OptimizationPassManifestRecord {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, OptimizationManifestDecodeError> {
-        let mut cursor = ManifestCursor::new(encoded);
+        let mut cursor = Cursor::new(encoded);
         if cursor.take(8)? != PASS_WIRE_FORMAT.magic {
             return Err(OptimizationManifestDecodeError::WrongMagic);
         }

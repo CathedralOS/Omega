@@ -1,4 +1,5 @@
 use super::identity::{encode_action, encode_context};
+use crate::cursor::{Cursor, Truncated};
 
 use crate::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationDecisionIdentity,
@@ -208,40 +209,8 @@ fn decode_action(
     }
 }
 
-struct Cursor<'encoded> {
-    encoded: &'encoded [u8],
-    offset: usize,
-}
-
-impl<'encoded> Cursor<'encoded> {
-    const fn new(encoded: &'encoded [u8]) -> Self {
-        Self { encoded, offset: 0 }
-    }
-
-    fn take(&mut self, length: usize) -> Result<&'encoded [u8], ExternalDecisionSchemaError> {
-        let end = self
-            .offset
-            .checked_add(length)
-            .ok_or(ExternalDecisionSchemaError::Truncated)?;
-        let bytes = self
-            .encoded
-            .get(self.offset..end)
-            .ok_or(ExternalDecisionSchemaError::Truncated)?;
-        self.offset = end;
-        Ok(bytes)
-    }
-
-    fn array<const N: usize>(&mut self) -> Result<[u8; N], ExternalDecisionSchemaError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| ExternalDecisionSchemaError::Truncated)
-    }
-
-    fn byte(&mut self) -> Result<u8, ExternalDecisionSchemaError> {
-        Ok(self.array::<1>()?[0])
-    }
-
-    fn remaining(&self) -> usize {
-        self.encoded.len() - self.offset
+impl From<Truncated> for ExternalDecisionSchemaError {
+    fn from(_: Truncated) -> Self {
+        Self::Truncated
     }
 }
