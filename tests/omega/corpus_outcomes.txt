@@ -124,6 +124,10 @@ fail/arithmetic/numeric_operand_abs_unrepresentable rejected 587ms expected @8c1
 fail/arithmetic/qualified_cast_decision_wrong_arm rejected 181ms expected @3031abcffbe7
 	Exact integer cast in machine `narrow` state `entry` cast expression from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `narrow` state `entry` return value from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/arithmetic/qualified_float_cast_specification_fraction_rejected rejected 543ms expected @677f9e11ef44
+	Exact numeric cast in proposition `fractional` to `u8` is not provably denotation preserving; prove source integrality and exact representability independently or use a named numeric conversion
+fail/arithmetic/qualified_float_cast_specification_rounding_rejected rejected 542ms expected @677f9e11ef44
+	Exact numeric cast in proposition `rounded` to `f32` is not provably denotation preserving; prove source integrality and exact representability independently or use a named numeric conversion
 fail/arithmetic/saturating_shift_count_unproven rejected 267ms expected @2d8ed253669f
 	shift count in machine `Main::main` state `main` local `shifted` is not provably below the operand width for `u32` (`Saturating` governs value overflow, not count validity -- its count obligation is Exact's): exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
 fail/arithmetic/short_circuit_cast_fact_escapes rejected 426ms expected @fa71a470ad1
@@ -911,8 +915,36 @@ fail/core/numeric_widened_result_narrow_carrier_rejected rejected 394ms expected
 	store in machine `Main::main` state `main` local `widened` implicitly converts `u16` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
 fail/core/placed_construction_rejected rejected 16ms expected @2d8ed253669f
 	`Placed<Native, Packet>` must select one exact `Native::plan` machine
+fail/core/qualified_integer_cast_argument_requires_representability rejected 219ms expected @677f9e11ef44
+	Exact integer cast in machine `caller` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/core/qualified_integer_cast_call_all_returns_require_fit rejected 216ms expected @677f9e11ef44
+	Exact integer cast in machine `reject` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/core/qualified_integer_cast_ensures_requires_representability rejected 216ms expected @677f9e11ef44
+	Exact integer cast in machine `promise` state `entry` from `i16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/core/qualified_integer_cast_requires_representability rejected 218ms expected @677f9e11ef44
+	Exact integer cast in machine `wrapping` state `entry` from `i16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `saturating` state `entry` from `i16` to `i8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `trapping` state `entry` from `u16` to `i8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `constant_saturating` state `entry` from `i16` to `i8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `negative_wrapping` state `entry` from `i16` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/core/qualified_integer_cast_specification_requires_representability rejected 220ms expected @677f9e11ef44
+	Exact integer cast in proposition `invalid` to `u8` is not provably representable; constrain the source with an independently accepted prior fact or use a named numeric conversion
+	Exact integer cast in domain `i16::Invalid` predicate to `u8` is not provably representable; constrain the source with an independently accepted prior fact or use a named numeric conversion
+	Exact integer cast in domain `u16::SelfBound` predicate to `u8` is not provably representable; constrain the source with an independently accepted prior fact or use a named numeric conversion
+	Exact integer cast in machine `premise` state `entry` from `i16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/core/resident_index_identity_mismatch_rejected rejected 800ms expected @2d8ed253669f
 	index compatibility condition `index-equality:Resident:mismatch::entry:exit-0:Resident<Native, Packet>==Resident<Network, Packet>` is not established: actual `Resident<Native, Packet>` and expected `Resident<Network, Packet>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/core/scoped_integer_call_actual_requires_selected_meaning rejected 400ms expected @677f9e11ef44
+	cannot prove ensures contract for exit from caller at statement 0: identity(left + right) as i16  == result
+fail/core/scoped_integer_call_guarantee_requires_formation rejected 217ms expected @677f9e11ef44
+	cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact
+fail/core/scoped_integer_call_guarantee_requires_published_equality rejected 401ms expected @677f9e11ef44
+	cannot prove ensures contract for exit from caller at statement 0: lower(value) as i16  == result
+fail/core/scoped_integer_call_guarantee_retains_actual rejected 400ms expected @677f9e11ef44
+	cannot prove ensures contract for exit from caller at statement 0: identity(value + 1) as i16  == result
+fail/core/scoped_integer_call_guarantees_cannot_form_cycle rejected 406ms expected @677f9e11ef44
+	cannot prove ensures contract for exit from first at statement 0: second(value) as i16  == result
+	cannot prove ensures contract for exit from second at statement 0: first(value) as i16  == result
 fail/core/translation_unmap_before_activation rejected 594ms expected @2d8ed253669f
 	cannot prove requires contract for call unmap from unmap_early: pending in Mapping::Installed
 	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
@@ -1266,18 +1298,18 @@ fail/float/local_initializer_range_unproven rejected 666ms expected @9ef088fc5f8
 	cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`; expected 0..=0.5
 fail/float/named_argument_format_rejected rejected 244ms expected @2d8ed253669f
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
-fail/float/named_call_computed_policy_erasure rejected 625ms expected @fa2336e35cbc
-	store in machine `invalid` state `multiply_then_add` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `multiply_then_add` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `invalid` state `multiply_then_add` argument `addend` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `addend` for state `multiply_then_add` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/float/named_call_implicit_policy_erasure rejected 2020ms expected @fa2336e35cbc
-	store in machine `invalid` state `multiply_then_add` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `multiply_then_add` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `invalid` state `multiply_then_add` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `multiply_then_add` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `invalid` state `multiply_then_add` argument `addend` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `addend` for state `multiply_then_add` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/float/named_call_computed_policy_erasure rejected 518ms expected @677f9e11ef44
+	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	implicit domain weakening in argument `right` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in machine `invalid` state `combine` argument `addend` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	implicit domain weakening in argument `addend` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/float/named_call_implicit_policy_erasure rejected 2022ms expected @677f9e11ef44
+	store in machine `invalid` state `combine` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	implicit domain weakening in argument `left` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	implicit domain weakening in argument `right` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in machine `invalid` state `combine` argument `addend` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	implicit domain weakening in argument `addend` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/float/named_float_to_integer_no_context_unproven rejected 431ms expected @c08960bee2b1+wt
 	machine `Main::main` state `main` cannot prove unqualified `I32::from_f64` operand `main.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/named_nan_runtime_materialization rejected 4324ms expected @2d8ed253669f
@@ -1317,6 +1349,19 @@ fail/float/suffix_format_disagrees_rejected rejected 260ms expected @2d8ed253669
 fail/float/total_order_wrong_carrier rejected 412ms expected @d83ae44b78cd
 	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `left`: expected `f64`, got `f32`
 	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `right`: expected `f64`, got `f32`
+fail/float/trapping_arithmetic_requires_same_cause_ceiling rejected 1274ms expected @677f9e11ef44
+	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+fail/float/trapping_named_conversion_requires_site_coverage rejected 1289ms expected @677f9e11ef44
+	`F32.from_f64(value)` in machine `narrow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+fail/float/trapping_nonentry_site_requires_matching_path rejected 1292ms expected @677f9e11ef44
+	`multiply(value, 2.0)` in machine `scale` state `risky` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+fail/float/trapping_raw_finite_predicate_invalidated_by_write rejected 1274ms expected @677f9e11ef44
+	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 1259ms expected @677f9e11ef44
+	`multiply(value, 3.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 1221ms expected @677f9e11ef44
+	`divide(value, 0.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+	`F32.from_f64(value)` in machine `wrong_format` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/generics/attached_machine_undeclared_data_extent_rejected rejected 300ms expected @ada91cf0bd16+wt
 	machine `Buffer::scratch` state `scratch` parameter `copy` uses unresolved fixed-array length `N`; a symbolic array length must name an in-scope `const` parameter
 fail/generics/closed_indexed_domain_mismatch rejected 537ms expected @2d8ed253669f
@@ -1740,6 +1785,9 @@ fail/proofs/runtime_case_guarantee_wrong_borrow_subject rejected 3884ms expected
 	cannot prove requires contract for call observe from main: other == constructor:6:Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/runtime_case_guarantee_wrong_return rejected 3897ms expected @0919e048c9f8+wt
 	cannot prove ensures contract for exit from make at statement 0: result == Choice::Cell
+fail/proofs/scalar_state_return_outside_byte_class rejected 397ms expected @677f9e11ef44
+	cannot prove requires contract for call consume from Main::write_byte: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8)
+	cannot prove default-domain field requirement for return from Main::write_byte at statement 3: main.bytes requires [u8; N]::Utf8
 fail/proofs/structural_ensures_unjudged_rejected rejected 337ms expected @2d8ed253669f
 	machine `bogus` ensures contract proof fact `result == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 fail/proofs/value_call_refuted_inequality_rejected rejected 280ms expected @2d8ed253669f
@@ -2199,6 +2247,8 @@ pass/arithmetic/constant_trapping_shift_value_overflow_traps checked 1526ms chec
 pass/arithmetic/exact_integer_cast_proven checked 306ms @2d8ed253669f
 pass/arithmetic/narrowing_flow_and_widen_permitted checked 1602ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/qualified_cast_in_entry_body_exit checked 1185ms check-target:macos_arm64 @2e29bd5fedcf
+pass/arithmetic/qualified_float_cast_abstract_prior_fact checked 1426ms @677f9e11ef44
+pass/arithmetic/qualified_float_cast_specification_declared_sources checked 1461ms @677f9e11ef44
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 5261ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 1514ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_boolean_alias_shift_count_exit checked 1789ms check-target:macos_arm64 @50b7e26fea31+wt
@@ -2909,9 +2959,11 @@ pass/core/numeric_unsigned_narrowing_policies checked 9671ms check-target:macos_
 pass/core/numeric_unsigned_to_signed_policies checked 10728ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_widening_preserves_values checked 6823ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_widening_published_ranges checked 8095ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/qualified_integer_cast_preserves_value_exit checked 1602ms check-target:macos_arm64 @677f9e11ef44
 pass/core/runtime_guarded_trapping_addition_exit checked 4838ms check-target:macos_arm64 @f53544b209b2+wt
 pass/core/runtime_guarded_trapping_conversion_exit checked 1359ms check-target:macos_arm64 @2d8ed253669f
 pass/core/runtime_natural_termination_exit checked 417ms check-target:macos_arm64 @2d8ed253669f
+pass/core/scoped_integer_call_guarantees_composed_exit checked 1599ms check-target:macos_arm64 @677f9e11ef44
 pass/core/self_read_only_receiver_compile checked 293ms @2d8ed253669f
 pass/core/task_lifecycle_operations rejected 2541ms check-target:macos_arm64 @c4e692442075+wt
 	terminal-artifact production failed: Lowering(Unsupported("suspension frontier has live claims without an exact Terminal ClaimId join"))
@@ -3541,6 +3593,7 @@ pass/proofs/runtime_ranked_intermediary_accumulator_exit checked 769ms check-tar
 pass/proofs/runtime_sequential_ranked_components_exit checked 1029ms check-target:macos_arm64 @3ed38434a87f+wt
 pass/proofs/runtime_sequential_relational_accumulator_exit checked 754ms check-target:macos_arm64 @abeaf0e29f04+wt
 pass/proofs/runtime_two_state_accumulator_exit checked 1028ms check-target:macos_arm64 @ccbf3802c51a
+pass/proofs/scalar_state_return_keeps_byte_class checked 431ms @677f9e11ef44
 pass/providers/bare_byte_array_boundary_argument checked 1466ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/borrowed_service_field_forward_exit checked 944ms check-target:macos_arm64 @5745c7562b65
 pass/providers/boundary_declaration_structural_result_return_exit checked 1396ms check-target:macos_arm64 @6b4fa65d3f94+wt
