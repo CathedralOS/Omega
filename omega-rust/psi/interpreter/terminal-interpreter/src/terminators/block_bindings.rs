@@ -10,6 +10,9 @@
 //! It never runs hooks or writes backing. This keeps rejection before fuel and
 //! mutation without treating an already-disposed parent's claim as child overlap;
 //! the subsequent commit applies the same transitions to the live frame.
+//! Projected ownership transfers the affine complement and authenticated linear
+//! claims separately. Outgoing claims leave the source before hooks execute,
+//! remain captured across suspension, and arrive only after residual cleanup.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -117,11 +120,12 @@ impl BlockBindings {
         for argument in structural_arguments.iter().filter(|argument| {
             argument.access == StructuralAccess::Owned && !argument.path.is_empty()
         }) {
-            crate::custody::consume_affine_projection(
+            crate::custody::consume_projected_ownership(
                 &execution.program.structural_types(),
                 &values,
                 &execution.structural_cases,
                 &mut frontier,
+                &mut claims,
                 argument,
             )?;
         }
@@ -447,13 +451,6 @@ impl TerminalExecution<'_> {
                             return Err(malformed());
                         }
                     } else {
-                        if self
-                            .live_claims
-                            .values()
-                            .any(|claim| claim.place == Some(argument.place))
-                        {
-                            return Err(malformed());
-                        }
                         let root = value;
                         let view = resolve_structural_arguments(
                             &self.program.structural_types(),
@@ -482,21 +479,34 @@ impl TerminalExecution<'_> {
                                     StructuralMultiplicity::Affine,
                                 );
                         if !source_matches
-                            || parameter.multiplicity != StructuralMultiplicity::Affine
+                            || !matches!(
+                                parameter.multiplicity,
+                                StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
+                            )
                         {
                             return Err(malformed());
                         }
-                        let Some(containing) = self.live_affine_frontier.iter().find(|entry| {
-                            entry.place == argument.place
-                                && argument.path.starts_with(entry.path.as_slice())
-                        }) else {
-                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        let selected_claims = crate::custody::projected_ownership_claims(
+                            &self.live_claims,
+                            argument,
+                        )?;
+                        let claims_match = match parameter.multiplicity {
+                            StructuralMultiplicity::Linear => matches!(selected_claims.as_slice(),
+                                [(_, claim)] if claim.path.is_empty()
+                                    && claim.multiplicity == Some(StructuralMultiplicity::Linear)),
+                            StructuralMultiplicity::Affine => selected_claims
+                                .iter()
+                                .all(|(_, claim)| !claim.path.is_empty()),
+                            StructuralMultiplicity::Unrestricted => false,
                         };
-                        if owned_sources.contains(&argument.place)
-                            || (containing.path.is_empty()
-                                && containing.structural_type != root.structural_type)
-                        {
+                        if !claims_match || owned_sources.contains(&argument.place) {
                             return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                        for (identity, mut claim) in selected_claims {
+                            claim.place = Some(parameter.place);
+                            if claims.insert(identity, claim).is_some() {
+                                return Err(TerminalInterpretError::ClaimTransferMismatch);
+                            }
                         }
                         projected_sources.insert(argument.place);
                         projected_value = Some(view);
@@ -689,7 +699,14 @@ impl TerminalExecution<'_> {
             }
         }
         let mut structural = bind_structural_arguments(descriptor_parameters, &resolved_arguments)?;
-        let affine_destinations = bind_affine_frontier(descriptor_parameters, &structural)?;
+        let mut affine_destinations = bind_affine_frontier(descriptor_parameters, &structural)?;
+        crate::custody::exclude_linear_regions(
+            &self.program.structural_types(),
+            &mut affine_destinations,
+            claims
+                .values()
+                .filter_map(|claim| claim.place.map(|place| (place, claim.path.as_slice()))),
+        )?;
         let mut element_views = self.bind_element_view_arguments(
             descriptor_parameters,
             descriptor_arguments,

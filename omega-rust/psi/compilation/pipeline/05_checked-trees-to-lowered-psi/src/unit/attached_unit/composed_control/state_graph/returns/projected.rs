@@ -9,8 +9,8 @@ use crate::lowering_error::LoweringError;
 use crate::terminal_identities::{allocate_dense, block_id, edge_id, place_id};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
-    Block, StructuralAccess, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, Terminator,
+    Block, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, Terminator,
 };
 
 /// Materialize the exact returned subtree into one whole arrival place. The
@@ -26,11 +26,6 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
 ) -> Result<(Terminator, Option<Block>), LoweringError> {
     if binding.path().is_empty() {
         return Ok((completion, None));
-    }
-    if binding.multiplicity() == StructuralMultiplicity::Linear {
-        return Err(LoweringError::Unsupported(
-            "projected linear return requires direct claim transport",
-        ));
     }
     let Terminator::ReturnStructural {
         source: returned_source,

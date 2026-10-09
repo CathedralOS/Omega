@@ -353,13 +353,29 @@ pub(crate) fn emit(
                 return unsupported("projected alias claim is not published by its root");
             }
         }
+        // A projection establishes no new owner, but still carries every
+        // existing claim below its selected path. Return-only occurrences
+        // have no lexical Establish event: using that event's empty roster
+        // here would erase custody rather than continue the root's identities.
+        let selected_claims = published_claims
+            .into_iter()
+            .filter_map(|claim| {
+                claim
+                    .path
+                    .strip_prefix(alias_path.as_slice())
+                    .map(|suffix| terminal_psi::StructuralResultClaimBinding {
+                        claim: claim.claim,
+                        path: suffix.to_vec(),
+                    })
+            })
+            .collect();
         let alias =
             crate::emission::operation_emission::buffer::StructuralBinding::ProjectedAlias {
                 place: projected.root,
                 path: alias_path,
                 structural_type,
                 multiplicity,
-                claims: result_claims,
+                claims: selected_claims,
             };
         emission.evaluation.establish_structural_binding(
             result,

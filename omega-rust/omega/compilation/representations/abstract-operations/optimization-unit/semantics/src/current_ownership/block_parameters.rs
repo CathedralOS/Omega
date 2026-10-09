@@ -4,12 +4,12 @@
 //! defines: every owned source leaves the frontier (`consume_edge_sources`),
 //! the edge's residual and trivial cleanup runs against what remains, and only
 //! then are the target's roots installed (`establish_edge_parameters`). A
-//! projected owned argument moves one affine child out of a live root, so the
-//! root keeps partial custody that the same edge's residual cleanup may retire.
+//! projected owned argument moves one subtree out of an affine root, including
+//! its linear descendant claims. Claims retain their identities and rebase onto
+//! the arrival's path; sibling claims and residual custody stay on the source
+//! until the same edge's cleanup retires them. A containing claim is indivisible.
 use crate::OptimizationUnitValidationError;
-use crate::current_ownership::structural::{
-    partial_affine_root_type, projected_root_is_fully_consumed,
-};
+use crate::current_ownership::structural::projected_root_is_fully_consumed;
 use crate::current_ownership::{CurrentOwnership, LiveClaim};
 use abstract_operations::AbstractStructuralBinding;
 use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
@@ -49,7 +49,9 @@ pub(super) fn consume_edge_sources(
         }
         let source = binding.argument.place;
         if !binding.argument.path.is_empty() {
-            consume_projected_source(function, types, block, frontier, binding, parameter)?;
+            transferred.extend(consume_projected_source(
+                function, types, block, frontier, binding, parameter,
+            )?);
             continue;
         }
         if parameter.multiplicity != StructuralMultiplicity::Unrestricted
@@ -121,10 +123,11 @@ pub(super) fn consume_edge_sources(
     })
 }
 
-/// A projected move keeps its claim-free affine root live until the remaining
+/// A projected move keeps its affine root live until the remaining
 /// complement is transferred or disposed: the root records the exact moved
 /// path as partial custody instead of leaving `owned_places`. The selected
-/// carriers relocate with the child; no other live loan may suspend it.
+/// claims and carriers relocate with the child; siblings stay at the source.
+/// No other live loan may suspend the selected region.
 fn consume_projected_source(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -132,27 +135,62 @@ fn consume_projected_source(
     frontier: &mut CurrentOwnership,
     binding: &AbstractStructuralBinding,
     parameter: &StructuralParameterDeclaration,
-) -> Result<(), OptimizationUnitValidationError> {
+) -> Result<Vec<(ClaimId, LiveClaim)>, OptimizationUnitValidationError> {
     let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
         machine: function.machine,
         block,
     };
     let argument = &binding.argument;
     if argument.access != StructuralAccess::Owned
-        || parameter.multiplicity != StructuralMultiplicity::Affine
+        || !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
+        )
         || frontier.owned_places.get(&argument.place) != Some(&StructuralMultiplicity::Affine)
-        || frontier
-            .claims
-            .values()
-            .any(|claim| claim.input == Some(argument.place))
-        || !partial_affine_root_type(function, argument.place).is_some_and(|root_type| {
-            crate::unit_validation::structural_catalog::resolve_structural_path(
-                types,
-                root_type,
-                &argument.path,
-            ) == Some(parameter.structural_type)
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == argument.place)
+        || !crate::unit_validation::operation_contracts::structural_source_contract(
+            function,
+            argument.place,
+        )
+        .is_some_and(|source| {
+            source.access == StructuralAccess::Owned
+                && source.multiplicity == StructuralMultiplicity::Affine
+                && crate::unit_validation::structural_catalog::resolve_structural_path(
+                    types,
+                    source.structural_type,
+                    &argument.path,
+                ) == Some(parameter.structural_type)
         })
     {
+        return Err(invalid());
+    }
+    let mut transferred = Vec::new();
+    for (identity, claim) in &frontier.claims {
+        if claim.input != Some(argument.place) {
+            continue;
+        }
+        if let Some(suffix) = claim.path.strip_prefix(argument.path.as_slice()) {
+            let mut moved = claim.clone();
+            moved.input = Some(parameter.place);
+            moved.path = suffix.to_vec();
+            transferred.push((*identity, moved));
+        } else if argument.path.starts_with(&claim.path) {
+            // A containing nominal claim cannot be divided by moving a child.
+            return Err(invalid());
+        }
+    }
+    if match parameter.multiplicity {
+        StructuralMultiplicity::Linear => {
+            !matches!(transferred.as_slice(), [(_, claim)] if claim.path.is_empty() && claim.multiplicity == Some(StructuralMultiplicity::Linear))
+        }
+        StructuralMultiplicity::Affine => {
+            transferred.iter().any(|(_, claim)| claim.path.is_empty())
+        }
+        StructuralMultiplicity::Unrestricted => true,
+    } {
         return Err(invalid());
     }
     if !frontier.live_references.is_empty() {
@@ -165,7 +203,8 @@ fn consume_projected_source(
             argument.place,
             &argument.path,
         )?;
-        let terminator = function.block(block)
+        let terminator = function
+            .block(block)
             .and_then(|candidate| u32::try_from(candidate.nodes.len().checked_sub(1)?).ok())
             .ok_or_else(invalid)?;
         super::references::check_region_access(
@@ -188,12 +227,15 @@ fn consume_projected_source(
     {
         return Err(invalid());
     }
+    for (identity, _) in &transferred {
+        frontier.claims.remove(identity);
+    }
     // A fully transferred root has no residual complement left to discard;
     // it leaves the owned map at this edge, as at a projected call.
     if projected_root_is_fully_consumed(function, types, frontier, argument.place) {
         frontier.owned_places.remove(&argument.place);
     }
-    Ok(())
+    Ok(transferred)
 }
 
 /// Phase two: install the target roots and transferred claims after cleanup.

@@ -10,8 +10,8 @@ mod completion;
 mod structural_return;
 
 use crate::custody::{
-    commit_cleanup_action, consume_affine_projection, rebind_structural_result_claims,
-    remove_affine_root, resolve_structural_path_type,
+    commit_cleanup_action, consume_affine_projection, consume_projected_ownership,
+    rebind_structural_result_claims, remove_affine_root, resolve_structural_path_type,
 };
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{
@@ -113,11 +113,12 @@ impl TerminalExecution<'_> {
         for argument in structural_arguments.iter().filter(|argument| {
             argument.access == StructuralAccess::Owned && !argument.path.is_empty()
         }) {
-            consume_affine_projection(
+            consume_projected_ownership(
                 &self.program.structural_types(),
                 &self.structural_values,
                 &self.structural_cases,
                 &mut self.live_affine_frontier,
+                &mut self.live_claims,
                 argument,
             )?;
         }

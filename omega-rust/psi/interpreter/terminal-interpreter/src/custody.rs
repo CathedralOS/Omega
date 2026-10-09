@@ -707,6 +707,82 @@ pub(crate) fn exclude_linear_regions<'a>(
     Ok(())
 }
 
+/// Capture only the claims contained in a selected owned subtree. A containing
+/// nominal claim is indivisible; moving one of its fields cannot split it.
+pub(crate) fn projected_ownership_claims(
+    claims: &BTreeMap<ClaimId, LiveClaim>,
+    argument: &StructuralArgument,
+) -> Result<Vec<(ClaimId, LiveClaim)>, TerminalInterpretError> {
+    let mut selected = Vec::new();
+    for (identity, claim) in claims {
+        if claim.place != Some(argument.place) {
+            continue;
+        }
+        if let Some(suffix) = claim.path.strip_prefix(argument.path.as_slice()) {
+            let mut moved = claim.clone();
+            moved.path = suffix.to_vec();
+            selected.push((*identity, moved));
+        } else if argument.path.starts_with(&claim.path) {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+    }
+    Ok(selected)
+}
+
+/// Relocate an owned projection before its source's residual cleanup. Linear
+/// regions were already excluded from the affine frontier: they move by claim
+/// identity, not by pretending to be an affine discard. An affine aggregate can
+/// carry both kinds of custody, so all contained complement regions move too.
+/// Missing affine custody is legal only when an authenticated claim moves.
+pub(crate) fn consume_projected_ownership(
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    structural_cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    claims: &mut BTreeMap<ClaimId, LiveClaim>,
+    argument: &StructuralArgument,
+) -> Result<(), TerminalInterpretError> {
+    if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
+        return Err(malformed());
+    }
+    crate::structural_inputs::case_membership::validate_case_projection(
+        structural_types,
+        values,
+        structural_cases,
+        argument.place,
+        &argument.path,
+    )?;
+    let selected_claims = projected_ownership_claims(claims, argument)?;
+    let containing = frontier
+        .iter()
+        .any(|entry| entry.place == argument.place && argument.path.starts_with(&entry.path));
+    let contained = frontier
+        .iter()
+        .any(|entry| entry.place == argument.place && entry.path.starts_with(&argument.path));
+    if containing {
+        consume_affine_projection(
+            structural_types,
+            values,
+            structural_cases,
+            frontier,
+            argument,
+        )?;
+    } else if contained {
+        frontier.retain(|entry| {
+            entry.place != argument.place || !entry.path.starts_with(&argument.path)
+        });
+    } else if selected_claims.is_empty() {
+        return Err(TerminalInterpretError::AffineFrontierMismatch);
+    }
+    for (identity, _) in selected_claims {
+        claims.remove(&identity);
+    }
+    Ok(())
+}
+
 pub(crate) fn consume_affine_projection(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
@@ -1120,13 +1196,27 @@ pub(crate) fn transfer_claims(
     }
     let mut actual_by_argument = BTreeMap::<u32, Vec<&ClaimTransfer>>::new();
     for transfer in transfers {
-        if transfer.argument_index as usize >= caller_arguments.len() {
+        if transfer.argument_index as usize >= caller_arguments.len()
+            || !caller_claims.contains_key(&transfer.claim)
+        {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
         actual_by_argument
             .entry(transfer.argument_index)
             .or_default()
             .push(transfer);
+    }
+    // Wire rows are ordered by machine-local claim identities. Those identities
+    // can differ from the callee's declaration order (for example, construction
+    // establishes a sibling before a nested field). Bind by the complete typed
+    // path set, never by coincidentally matching the two identity rosters.
+    for actual in actual_by_argument.values_mut() {
+        actual.sort_by(|left, right| {
+            caller_claims
+                .get(&left.claim)
+                .map(|claim| &claim.path)
+                .cmp(&caller_claims.get(&right.claim).map(|claim| &claim.path))
+        });
     }
     if expected_by_argument.keys().collect::<Vec<_>>()
         != actual_by_argument.keys().collect::<Vec<_>>()
@@ -1136,7 +1226,8 @@ pub(crate) fn transfer_claims(
 
     let mut remaining = caller_claims.clone();
     let mut callee_claims = BTreeMap::new();
-    for (argument_index, expected) in expected_by_argument {
+    for (argument_index, mut expected) in expected_by_argument {
+        expected.sort_by(|left, right| left.path.cmp(&right.path));
         let actual = &actual_by_argument[&argument_index];
         if actual.len() != expected.len() {
             return Err(TerminalInterpretError::ClaimTransferMismatch);

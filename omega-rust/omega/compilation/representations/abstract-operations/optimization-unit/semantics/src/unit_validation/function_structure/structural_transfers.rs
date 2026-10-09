@@ -8,6 +8,9 @@
 //! it: the argument keeps its edge access and names exactly the parameter's
 //! referent type, and the root keeps its own owner. The current-ownership
 //! replay separately pins every such root while the joined view can observe it.
+//! An owned projection instead carries exactly its typed subtree into an affine
+//! or linear arrival. Geometry supplies no claim: current-ownership replay must
+//! relocate the selected claims before cleanup and leave sibling custody intact.
 use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
@@ -224,18 +227,20 @@ pub(super) fn validate(
                                 && multiplicity != StructuralMultiplicity::Linear
                         })
                 } else if !binding.argument.path.is_empty() {
-                    // A projected owned argument moves one affine child out of
-                    // an owned affine root into the target's plain affine
-                    // parameter. The path resolves exactly to the declared
-                    // child type; the root keeps its remaining siblings, whose
-                    // availability and residual cleanup the ownership replay
-                    // checks on this edge.
-                    parameter.is_unqualified_owned_affine()
-                        && crate::current_ownership::partial_affine_root_type(
-                            function,
-                            binding.argument.place,
+                    // Geometry names the exact moved child; current ownership
+                    // independently transfers its complete claim frontier and
+                    // retains the source's siblings until edge cleanup.
+                    parameter.access == StructuralAccess::Owned
+                        && matches!(
+                            parameter.multiplicity,
+                            StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
                         )
-                        .is_some_and(|root_type| {
+                        && parameter.qualifications.is_empty()
+                        && parameter.projected_qualifications.is_empty()
+                        && source.is_some_and(|(root_type, access, multiplicity)| {
+                            access == StructuralAccess::Owned
+                                && multiplicity == StructuralMultiplicity::Affine
+                                &&
                             crate::unit_validation::structural_catalog::resolve_structural_path(
                                 types,
                                 root_type,
