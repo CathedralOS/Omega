@@ -162,26 +162,26 @@ impl<'a> Elaborator<'a> {
             .iter()
             .find(|(_, carrier_position)| **carrier_position == position)
             .map(|(symbol, _)| *symbol)?;
-        let field_type = self.program.data_definitions().iter().find_map(|data| {
-            if data.symbol != symbol {
-                return None;
-            }
-            self.program
-                .data_members(data)
-                .iter()
-                .find_map(|member_decl| match member_decl {
-                    DataMember::Field(field) if field.name == member.member => {
-                        Some(field.type_reference)
-                    }
-                    DataMember::Variant(variant) => self
-                        .program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .find(|field| field.name == member.member)
-                        .map(|field| field.type_reference),
-                    _ => None,
-                })
-        })?;
+        let field_type = self
+            .program
+            .data_definition_by_symbol(symbol)
+            .and_then(|data| {
+                self.program
+                    .data_members(data)
+                    .iter()
+                    .find_map(|member_decl| match member_decl {
+                        DataMember::Field(field) if field.name == member.member => {
+                            Some(field.type_reference)
+                        }
+                        DataMember::Variant(variant) => self
+                            .program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .find(|field| field.name == member.member)
+                            .map(|field| field.type_reference),
+                        _ => None,
+                    })
+            })?;
         self.scalar_carrier_of_type_reference(field_type)
     }
 
