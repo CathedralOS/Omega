@@ -558,3 +558,11 @@ macro_rules! domain_membership_fields_pattern {
         }
     };
 }
+
+#[macro_export]
+macro_rules! carry_permission_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::FactPayload::CarryPermission { $($fields)* }
+            | $crate::FactPayload::ContractCarryPermission { $($fields)* }
+    };
+}

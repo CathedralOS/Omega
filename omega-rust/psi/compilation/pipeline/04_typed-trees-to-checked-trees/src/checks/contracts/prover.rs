@@ -236,8 +236,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                 domain_symbol,
             )
         }
-        FactPayload::CarryPermission { permission, .. }
-        | FactPayload::ContractCarryPermission { permission, .. } => {
+        facts::carry_permission_pair_pattern!(permission, ..) => {
             let Some(place) = fact.place.as_place() else {
                 return false;
             };

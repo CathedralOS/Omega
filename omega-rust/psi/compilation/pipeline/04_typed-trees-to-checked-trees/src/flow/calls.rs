@@ -318,8 +318,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
                 continue;
             }
             let payload = match fact.payload {
-                FactPayload::CarryPermission { permission, .. }
-                | FactPayload::ContractCarryPermission { permission, .. } => {
+                facts::carry_permission_pair_pattern!(permission, ..) => {
                     FactPayload::CarryPermission {
                         value: ExpressionHandle::invalid(),
                         permission,

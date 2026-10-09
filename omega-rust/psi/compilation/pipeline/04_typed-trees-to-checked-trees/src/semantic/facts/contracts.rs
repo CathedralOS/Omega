@@ -909,12 +909,7 @@ fn append_parameter_domain_requirements(
                         },
                     ) => left == right && left_instance == right_instance,
                     (
-                        FactPayload::CarryPermission {
-                            permission: left, ..
-                        }
-                        | FactPayload::ContractCarryPermission {
-                            permission: left, ..
-                        },
+                        facts::carry_permission_pair_pattern!(permission:left, ..),
                         FactPayload::CarryPermission {
                             permission: right, ..
                         },

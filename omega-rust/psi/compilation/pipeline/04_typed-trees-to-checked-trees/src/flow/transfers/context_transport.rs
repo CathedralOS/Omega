@@ -66,8 +66,7 @@ pub(super) fn transport(
                                 Some((reference.fact, fact_place)),
                             ))
                     }
-                    FactPayload::CarryPermission { permission, .. }
-                    | FactPayload::ContractCarryPermission { permission, .. } => {
+                    facts::carry_permission_pair_pattern!(permission, ..) => {
                         let fact_place = fact.place.as_place()?;
                         let fact_label = semantic.place_label(program, fact_place);
                         (source_place.is_some_and(|source_place| {

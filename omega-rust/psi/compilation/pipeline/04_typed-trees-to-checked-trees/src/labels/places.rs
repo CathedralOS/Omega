@@ -48,8 +48,7 @@ pub(crate) fn semantic_fact_requirement_label(
             };
             format!("{} in {}", semantic.place_label(program, place), domain)
         }
-        FactPayload::ContractCarryPermission { permission, .. }
-        | FactPayload::CarryPermission { permission, .. } => {
+        facts::carry_permission_pair_pattern!(permission, ..) => {
             let place = match fact.place {
                 facts::FactPlace::Place(place) => place,
                 _ => return "unknown carry permission".to_owned(),
