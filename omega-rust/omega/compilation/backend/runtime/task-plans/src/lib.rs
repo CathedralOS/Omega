@@ -35,7 +35,6 @@ pub use task_plans::identities::{
     TaskStackCompositionId, TaskStackFrameId, TaskStackFrameValidationId, ValueLayoutId,
 };
 pub use task_plans::runtime_invocation;
-pub(crate) use task_plans::runtime_invocation::{  TaskRuntimeInvocationReceiptCandidate};
 pub use task_plans::stack_composition::{
     AdmittedSameStackContribution, CallTargetBinding,
     SameStackContributionAdmissionCandidate, SameStackContributionCommitment,

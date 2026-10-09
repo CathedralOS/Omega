@@ -1,21 +1,10 @@
 use calling_conventions::PlanDiagnostic;
 use semantic_vocabulary::{
-    BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
-};
+    BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId};
 use target::NativeTarget;
 
-/// Exact sealed placement plan selected for one retained Terminal placed-view
-/// input. Construction grants no backing or access authority; lowering rejoins
-/// the complete plan identity and content commitment to the retained row.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct SelectedPlacedViewInputPlan<'plan> {
-    pub terminal_input: &'plan terminal_psi::TerminalPlacedViewInput,
-    pub placement_plan: &'plan access_plans::ValidatedPlacementPlan,
-}
-
 pub use terminal_psi_to_abstract_operations::{
-    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
-};
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
@@ -28,34 +17,28 @@ pub enum LoweringError {
     DuplicateInstalledProviderCall {
         machine: MachineId,
         operation: OperationId,
-        boundary: BoundaryMachineId,
-    },
+        boundary: BoundaryMachineId},
     UnknownInstalledProviderCall {
         machine: MachineId,
         operation: OperationId,
-        boundary: BoundaryMachineId,
-    },
+        boundary: BoundaryMachineId},
     InstalledProviderCallEvidenceMismatch {
         machine: MachineId,
         operation: OperationId,
-        boundary: BoundaryMachineId,
-    },
+        boundary: BoundaryMachineId},
     InstalledProviderCallShapeMismatch {
         machine: MachineId,
         operation: OperationId,
-        boundary: BoundaryMachineId,
-    },
+        boundary: BoundaryMachineId},
     InstalledProviderClaimTransferMismatch {
         machine: MachineId,
         operation: OperationId,
-        boundary: BoundaryMachineId,
-    },
+        boundary: BoundaryMachineId},
     BoundarySettlementOverlapsInstalledProvider(BoundaryMachineId),
     PartialInstalledProviderBoundary {
         machine: MachineId,
         invocation_site: semantic_vocabulary::BoundaryInvocationSite,
-        boundary: BoundaryMachineId,
-    },
+        boundary: BoundaryMachineId},
     DuplicateBoundarySettlement(BoundaryMachineId),
     UnknownBoundarySettlement(BoundaryMachineId),
     MissingBoundarySettlement(BoundaryMachineId),
@@ -64,14 +47,12 @@ pub enum LoweringError {
     InvalidClaimCompletionOnlyShape {
         machine: MachineId,
         operation: OperationId,
-        boundary: BoundaryMachineId,
-    },
+        boundary: BoundaryMachineId},
     ProviderExecutionBinding(String),
     ProviderExecutionRequirementMismatch {
         boundary: BoundaryMachineId,
         expected: String,
-        actual: String,
-    },
+        actual: String},
     OperationAfterReturn(MachineId),
     FunctionHasNoReturn(MachineId),
     FunctionResultMismatch(MachineId),
@@ -81,27 +62,22 @@ pub enum LoweringError {
     UnitFunctionNotStraightLine(MachineId),
     UnitOperationInScalarFunction {
         machine: MachineId,
-        operation: OperationId,
-    },
+        operation: OperationId},
     ResultBearingBoundarySettlementRequiresNativeRealization {
         machine: MachineId,
         operation: OperationId,
-        boundary: BoundaryMachineId,
-    },
+        boundary: BoundaryMachineId},
     ScalarBoundaryArgumentsRequireNativeRealization {
         machine: MachineId,
         operation: OperationId,
-        boundary: BoundaryMachineId,
-    },
+        boundary: BoundaryMachineId},
     HostedExitProcessUnsupportedTarget {
         machine: MachineId,
-        target: NativeTarget,
-    },
+        target: NativeTarget},
     LinuxWriteLineUnsupportedOrInvalid {
         machine: MachineId,
         boundary: BoundaryMachineId,
-        target: NativeTarget,
-    },
+        target: NativeTarget},
     InvalidHostedExitProcessShape(MachineId),
     UnsupportedOperationInScalarFunction(MachineId),
     /// No lowering admits this control shape. `machine` is the authored
@@ -111,8 +87,7 @@ pub enum LoweringError {
     /// because only a developer can act on which one fired.
     UnsupportedControlFlow {
         machine: MachineId,
-        site: optimization_core::CompilerCheckSite,
-    },
+        site: optimization_core::CompilerCheckSite},
     UnsupportedOperationInUnitFunction(MachineId),
     DuplicateNativeCallbackArgument(OperationId),
     MultipleNativeCallbackArguments,
@@ -125,39 +100,32 @@ pub enum LoweringError {
     /// and non-observing store authority are selected and replayable.
     UnsupportedWriteOnlyPrimitiveStore {
         machine: MachineId,
-        operation: OperationId,
-    },
+        operation: OperationId},
     UnsupportedStructuralReturn(MachineId),
     UnsupportedStructuralReturnShape {
         machine: MachineId,
-        byte_size: u16,
-    },
+        byte_size: u16},
     UnsupportedStructuralReturnPlacement(MachineId),
     UnitCallTargetKindMismatch(MachineId),
     UnitScalarCallTargetShapeUnsupported(MachineId),
     UnitScalarCallIntegerTypeUnsupported(ValueId),
     UnitScalarCallResultTypeMismatch {
         callee: MachineId,
-        result: ValueId,
-    },
+        result: ValueId},
     UnitScalarCallResultPlacementUnsupported {
         callee: MachineId,
-        result: ValueId,
-    },
+        result: ValueId},
     UnitScalarCallTargetAbiMismatch(MachineId),
     StructuralCallArgumentCountMismatch {
         callee: MachineId,
         expected: usize,
-        actual: usize,
-    },
+        actual: usize},
     UnknownStructuralArgumentPlace {
         machine: MachineId,
-        place: PlaceId,
-    },
+        place: PlaceId},
     StructuralCallArgumentTypeMismatch {
         callee: MachineId,
-        place: PlaceId,
-    },
+        place: PlaceId},
     UnknownStructuralType(StructuralTypeId),
     RecursiveStructuralType(StructuralTypeId),
     EmptyStructuralType(StructuralTypeId),
@@ -175,12 +143,10 @@ pub enum LoweringError {
     CallArgumentCountMismatch {
         callee: MachineId,
         expected: usize,
-        actual: usize,
-    },
+        actual: usize},
     CallArgumentTypeMismatch {
         callee: MachineId,
-        argument: ValueId,
-    },
+        argument: ValueId},
     UnknownValue(ValueId),
     ValueTypeMismatch(ValueId),
     UnsupportedRuntimeBooleanCondition(ValueId),
@@ -205,15 +171,12 @@ pub enum LoweringError {
     SaturatingRemainderOperandTypeMismatch(ValueId),
     ParameterWidthNotNativelySupported {
         value: ValueId,
-        bits: u16,
-    },
+        bits: u16},
     UnsupportedScalarParameterPlacement(ValueId),
     AbiPlan(PlanDiagnostic),
     AbiParameterCountMismatch {
         expected: usize,
-        actual: usize,
-    },
-}
+        actual: usize}}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlacedViewInputTranslationError {
@@ -228,8 +191,7 @@ pub enum PlacedViewInputTranslationError {
     AbiPlan(PlanDiagnostic),
     CandidatePlanMismatch,
     CandidateEntryCallPlanMismatch,
-    CandidateInputRosterMismatch,
-}
+    CandidateInputRosterMismatch}
 
 impl From<PlacedViewInputTranslationError> for LoweringError {
     fn from(error: PlacedViewInputTranslationError) -> Self {
@@ -258,7 +220,6 @@ impl LoweringError {
     pub(crate) fn unsupported_control_flow(machine: MachineId) -> Self {
         Self::UnsupportedControlFlow {
             machine,
-            site: optimization_core::CompilerCheckSite::caller(),
-        }
+            site: optimization_core::CompilerCheckSite::caller()}
     }
 }

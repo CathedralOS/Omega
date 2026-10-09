@@ -8,28 +8,8 @@ use crate::{
     TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptId, TaskSpecializationCommitment,
     TaskStartOperation, ValidatedExecutorSelection, validate_executor_selection};
 
-/// Provider-authored evidence for one dynamic invocation of an already
-/// selected `TaskRuntime::{start,try_start}<M>` specialization.
-///
-/// This is deliberately a candidate rather than authority by construction.
-/// Validation binds every copied field back to the Omega-owned static
-/// activation fact before lifecycle accounting may consume the receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TaskRuntimeInvocationReceiptCandidate {
-    pub receipt: TaskRuntimeInvocationReceiptId,
-    pub invocation: TaskRuntimeInvocationId,
-    pub runtime: TaskRuntimeId,
-    pub runtime_instance: TaskRuntimeInstanceId,
-    pub operation: TaskStartOperation,
-    pub provider_plan_name: String,
-    pub requirement_identity: String,
-    pub activation_plan: ActivationPlanId,
-    pub preservation: Vec<ExecutorPreservationEvidence>,
-}
-
 pub(crate) const fn axis_label(axis: ExecutorPreservationAxis) -> &'static str {
     match axis {
         ExecutorPreservationAxis::Cpu => "CPU",
-        ExecutorPreservationAxis::HostThread => "host-thread",
-    }
+        ExecutorPreservationAxis::HostThread => "host-thread"}
 }

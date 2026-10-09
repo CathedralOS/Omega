@@ -7,8 +7,7 @@ pub use exit_contract::{
     WholeFunctionExitPolicy, WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
     WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
     WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence, whole_function_exit_contract_identity,
-};
+    WholeFunctionReturnValueEvidence, whole_function_exit_contract_identity};
 pub(crate) use exit_contract::{ exit_policy_tag};
 
 use semantic_vocabulary::PlaceId;
@@ -23,8 +22,7 @@ use crate::{
     UnitIntegerConstantRecord, UnitParameterHomeRecord, UnitParameterRecord, UnitScalarHomeRecord,
     UnitStackEvidence, UnitStructuralScalarFieldStoreRecord, UnitWriteOnlyPrimitiveStoreRecord,
     X86FloatingControlRecord, X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord,
-    unit_call_arguments,
-};
+    unit_call_arguments};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target_operations::TerminalPsiProvenance;
 use terminal_psi::TerminalPsiIdentity;
@@ -36,17 +34,8 @@ pub struct CompilerPrivateMachineCodeFunction {
     pub identity: function_identity::MachineFunctionIdentity,
     pub private_symbol: std::sync::Arc<str>,
     pub source_psi: TerminalPsiIdentity,
-    pub function: MachineCodeFunction,
-}
+    pub function: MachineCodeFunction}
 
-/// Compatibility wrapper for plans that also own compiler-private functions.
-/// Keeping these rows separate prevents an artifact-local `MachineId` from
-/// impersonating a semantic program function with the same numeric identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct MachineCodePlanWithPrivateFunctions {
-    pub plan: MachineCodePlan,
-    pub private_functions: Vec<CompilerPrivateMachineCodeFunction>,
-}
 impl MachineCodeFunction {
     /// The scalar structural parameter arriving at `place`, when declared.
     pub fn scalar_structural_parameter(&self, place: PlaceId) -> Option<&UnitParameterRecord> {
@@ -182,5 +171,4 @@ pub struct MachineCodeFunction {
     /// Exact ownership-bearing structural return bound to the emitted byte
     /// interval. Claim identities are semantic metadata, never hidden ABI
     /// words.
-    pub structural_return: Option<StructuralReturnRecord>,
-}
+    pub structural_return: Option<StructuralReturnRecord>}

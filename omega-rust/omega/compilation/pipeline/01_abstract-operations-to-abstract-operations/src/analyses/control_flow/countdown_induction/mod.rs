@@ -3,13 +3,11 @@
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{
-    PsiOptimizationFunction, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
-};
+    PsiOptimizationFunction, PsiOptimizationUnit, recompute_psi_optimization_unit_identity};
 
 use crate::validation::ValidatedOptimizerCycleComponents;
 use optimization_unit::{
-    CycleComponentEdge, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
-};
+    CycleComponentEdge, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate};
 use semantic_vocabulary::{IntegerType, MachineId, ScalarType, ValueId};
 
 use super::LoopRegion;
@@ -27,21 +25,11 @@ pub(crate) fn analyze_counted_loops(
     validate::accept(unit, custody, &candidate)
 }
 
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn validate_counted_loop_analysis(
-    unit: &PsiOptimizationUnit,
-    custody: &ValidatedOptimizerCycleComponents,
-    candidate: &CountedLoopAnalysisSnapshot,
-) -> Result<ValidatedCountedLoopAnalysis, CountedLoopAnalysisError> {
-    validate::accept(unit, custody, candidate)
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ExactUnsignedTripCount {
     /// The value entering the header before the first guard evaluation.
     pub initial_value: ValueId,
-    pub scalar_type: IntegerType,
-}
+    pub scalar_type: IntegerType}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct UnsignedCountdownLoopSummary {
@@ -54,21 +42,18 @@ pub(crate) struct UnsignedCountdownLoopSummary {
     pub exit_edge: CycleComponentEdge,
     /// For the exact `rank > 0; rank - 1` relation, the entering unsigned
     /// value is also the symbolic exact trip count.
-    pub trip_count: ExactUnsignedTripCount,
-}
+    pub trip_count: ExactUnsignedTripCount}
 
 /// Replayable counted-loop facts without authority to transform or execute.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CountedLoopAnalysisSnapshot {
     pub revision: OptimizationUnitIdentity,
     pub terminal_psi: terminal_psi::TerminalPsiIdentity,
-    pub loops: Vec<UnsignedCountdownLoopSummary>,
-}
+    pub loops: Vec<UnsignedCountdownLoopSummary>}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ValidatedCountedLoopAnalysis {
-    snapshot: CountedLoopAnalysisSnapshot,
-}
+    snapshot: CountedLoopAnalysisSnapshot}
 
 impl ValidatedCountedLoopAnalysis {
     const fn new(snapshot: CountedLoopAnalysisSnapshot) -> Self {
@@ -88,15 +73,12 @@ impl ValidatedCountedLoopAnalysis {
 pub enum CountedLoopAnalysisError {
     StaleUnitIdentity {
         stored: OptimizationUnitIdentity,
-        recomputed: OptimizationUnitIdentity,
-    },
+        recomputed: OptimizationUnitIdentity},
     TerminalIdentityMismatch,
     CertificateComponentRosterMismatch,
     UnsupportedCountdownShape {
-        machine: MachineId,
-    },
-    SnapshotMismatch,
-}
+        machine: MachineId},
+    SnapshotMismatch}
 
 impl std::fmt::Display for CountedLoopAnalysisError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -104,4 +86,4 @@ impl std::fmt::Display for CountedLoopAnalysisError {
     }
 }
 
-impl std::error::Error for CountedLoopAnalysisError {}
+impl std::error::Error for CountedLoopAnalysisError  {}
