@@ -142,14 +142,4 @@ pub(crate) fn borrowed_view_result_identity(
     .then(|| validation::structural_type_identity(program, type_reference, &[], &[]))
 }
 
-/// A named record whose fields are each either plain owned contents or a
-/// shared borrowed view — the record owns its scalars while each `&` field
-/// keeps its own statically named loan.
-pub(crate) fn record_with_owned_or_shared_view_fields(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    validation::has_owned_or_shared_view_fields(program, type_reference)
-}
-
 pub(crate) use validation::byte_sequence_carrier;
