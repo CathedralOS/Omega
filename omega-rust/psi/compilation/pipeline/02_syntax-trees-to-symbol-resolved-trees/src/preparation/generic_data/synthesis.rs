@@ -582,9 +582,7 @@ fn synthesize_instance(
     // operands and receive the same const substitution as members.
     let snapshot = syntax.clone();
     let type_watermark = syntax.type_references.node_count();
-    let fact_expression_watermark = (syntax.expressions.expression_count() as u32)
-        .checked_add(1)
-        .expect("expression arena index overflow");
+    let fact_expression_watermark = syntax.expressions.frontier();
     let mut first_fact = Handle::invalid();
     let mut fact_count = 0u32;
     for (offset, fact) in snapshot
@@ -766,9 +764,7 @@ fn synthesize_instance(
             continue;
         };
         let type_watermark = syntax.tables.type_references.node_count();
-        let expression_watermark = (syntax.expressions.expression_count() as u32)
-            .checked_add(1)
-            .expect("expression arena index overflow");
+        let expression_watermark = syntax.expressions.frontier();
         let Item::Machine(mut clone) =
             syntax.copy_item_from(&snapshot, &Item::Machine(machine.clone()))
         else {

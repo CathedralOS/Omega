@@ -23,7 +23,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
-use tokens_to_syntax_trees::parse_sources;
+use tokens_to_syntax_trees::{parse_source_pages_from, parse_source_units, parse_sources};
 
 #[derive(Clone)]
 pub struct AssembledSyntax {
@@ -313,25 +313,26 @@ impl GeneratedSourceExtension {
         timings: &mut CompileTimings,
     ) -> Result<(Arc<source::SourceMap>, Vec<SyntaxTrees>), Vec<Diagnostic>> {
         let (sources, custody) = self.into_source_inputs(base_sources)?;
-        let mut units = Vec::with_capacity(custody.len());
+        let mut loaded = source::LoadedSources::default();
+        let mut generated_sources = Vec::with_capacity(custody.len());
         for (source_id, _) in &custody {
             let source = sources.get(*source_id).ok_or_else(|| {
                 vec![Diagnostic::error(
                     "admitted generated source has no retained source instance",
                 )]
             })?;
-            let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
-                lex_sources(load_package_generated_source(
-                    source.path.clone(),
-                    &source.source,
-                    source_id.0,
-                    source::DependencyScope::Product,
-                ))
-            })?;
-            let mut syntax = SyntaxTrees::new(*source_id);
-            timings.record(TOKENS_TO_SYNTAX_TREES, || parse_sources(lexed, &mut syntax))?;
-            units.push(syntax);
+            generated_sources.push(source::LoadedSource {
+                source_id: *source_id,
+                path: source.path.clone(),
+                source: source.source.clone(),
+                origin: Some(source.origin),
+                scope: source.dependency_scope,
+            });
         }
+        loaded.batch = loaded.sources.insert_many(generated_sources);
+        let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || lex_sources(loaded))?;
+        let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || parse_source_units(lexed))?;
+        let units = parsed.into_syntax_trees();
         Ok((sources, units))
     }
 }
@@ -407,9 +408,17 @@ fn load_imports(
             let sources = load_sources(frontier, first_source_id, &source_storage.filesystem)?;
             lex_sources(sources)
         })?;
+        let first_page_identity = u32::try_from(source_storage.syntax_trees.page_count())
+            .ok()
+            .and_then(|identity| identity.checked_add(1))
+            .ok_or_else(|| vec![Diagnostic::error("syntax page identity overflow")])?;
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
-            parse_sources(lexed, &mut source_storage.syntax_trees)
+            parse_source_pages_from(lexed, first_page_identity)
         })?;
+        let (syntax_pages, parsed) = parsed.into_parts();
+        for syntax_page in syntax_pages {
+            source_storage.syntax_trees.adopt_page(syntax_page);
+        }
         let contract_custody = source_storage.toolchain_contract_custody();
         let discovered = match package_inputs {
             Some(package_inputs) => {

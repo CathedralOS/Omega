@@ -26,7 +26,6 @@ use crate::item::{
 };
 use crate::statement::StatementTable;
 use crate::types::TypeReferenceTable;
-use arena::Arena;
 use source::SourceId;
 use std::ops::{Deref, DerefMut};
 
@@ -47,26 +46,33 @@ pub struct SyntaxTreeTables {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SyntaxTreeRoots {
-    pub items: Arena<ItemHandle>,
+    pub items: Vec<ItemHandle>,
     /// Parsed top-level `let`/`boundary let` mathematical declarations in
     /// source order. They sit beside `items`, not inside it: the
     /// symbol-resolution lowering that admits declarations is a separately
     /// owned leg, and resolution refuses these explicitly until it lands.
-    pub mathematical_definitions: Arena<MathematicalDefinitionHandle>,
+    pub mathematical_definitions: Vec<MathematicalDefinitionHandle>,
 }
 
 impl SyntaxTrees {
     pub fn new(source_id: SourceId) -> Self {
+        Self::new_with_generation(source_id, 1)
+    }
+
+    /// Create one independently owned syntax page. Every handle minted by its
+    /// tables carries `generation`, allowing several pages to coexist without
+    /// remapping their local arena indices.
+    pub fn new_with_generation(source_id: SourceId, generation: u32) -> Self {
         Self {
             source_id,
-            roots: SyntaxTreeRoots::default(),
-            tables: SyntaxTreeTables::new(),
+            roots: SyntaxTreeRoots::new_with_generation(generation),
+            tables: SyntaxTreeTables::new_with_generation(generation),
         }
     }
 
     pub fn push_root_item(&mut self, item: Item) -> ItemHandle {
         let handle = self.insert_item(item);
-        self.roots.items.append(handle);
+        self.roots.items.push(handle);
         handle
     }
 
@@ -78,12 +84,12 @@ impl SyntaxTrees {
         definition: MathematicalDefinition,
     ) -> MathematicalDefinitionHandle {
         let handle = self.items.append_mathematical_definition(definition);
-        self.roots.mathematical_definitions.append(handle);
+        self.roots.mathematical_definitions.push(handle);
         handle
     }
 
     pub fn root_mathematical_definition_handles(&self) -> &[MathematicalDefinitionHandle] {
-        self.roots.mathematical_definitions.storage_slice()
+        &self.roots.mathematical_definitions
     }
 
     pub fn root_mathematical_definition(
@@ -94,7 +100,7 @@ impl SyntaxTrees {
     }
 
     pub fn root_item_handles(&self) -> &[ItemHandle] {
-        self.roots.items.storage_slice()
+        &self.roots.items
     }
 
     #[inline]
@@ -151,6 +157,25 @@ impl SyntaxTrees {
         }
     }
 
+    /// Adopt one independently produced syntax page without copying nodes or
+    /// remapping handles. Root handles remain in authored page order.
+    pub fn adopt_page(&mut self, other: SyntaxTrees) {
+        self.roots.items.extend(other.roots.items);
+        self.roots
+            .mathematical_definitions
+            .extend(other.roots.mathematical_definitions);
+        self.tables.adopt(other.tables);
+    }
+
+    /// Start a fresh page for syntax synthesized after page adoption.
+    pub fn begin_page(&mut self, generation: u32) {
+        self.tables.begin_page(generation);
+    }
+
+    pub fn page_count(&self) -> usize {
+        self.tables.page_count()
+    }
+
     fn insert_item(&mut self, item: Item) -> ItemHandle {
         match &item {
             Item::Machine(machine) => self.insert_machine(machine),
@@ -187,11 +212,42 @@ impl SyntaxTrees {
 
 impl SyntaxTreeTables {
     pub fn new() -> Self {
+        Self::new_with_generation(1)
+    }
+
+    pub fn new_with_generation(generation: u32) -> Self {
         Self {
-            items: ItemTable::new(),
-            expressions: ExpressionTable::new(),
-            statements: StatementTable::new(),
-            type_references: TypeReferenceTable::new(),
+            items: ItemTable::new_with_generation(generation),
+            expressions: ExpressionTable::new_with_generation(generation),
+            statements: StatementTable::new_with_generation(generation),
+            type_references: TypeReferenceTable::new_with_generation(generation),
+        }
+    }
+
+    fn adopt(&mut self, other: Self) {
+        self.items.adopt(other.items);
+        self.expressions.adopt(other.expressions);
+        self.statements.adopt(other.statements);
+        self.type_references.adopt(other.type_references);
+    }
+
+    fn begin_page(&mut self, generation: u32) {
+        self.items.begin_page(generation);
+        self.expressions.begin_page(generation);
+        self.statements.begin_page(generation);
+        self.type_references.begin_page(generation);
+    }
+
+    fn page_count(&self) -> usize {
+        self.items.page_count()
+    }
+}
+
+impl SyntaxTreeRoots {
+    fn new_with_generation(_generation: u32) -> Self {
+        Self {
+            items: Vec::new(),
+            mathematical_definitions: Vec::new(),
         }
     }
 }

@@ -28,7 +28,7 @@ pub(crate) fn lower_expression_into_table(
     // Parser-created payload receivers share the dispatch subject's exact
     // syntax handle. Once that occurrence has a capture, every later use reads
     // the capture, never a new evaluation of its collection or selector.
-    let lowered = if let Some(name) = lowerer.match_subject_temp(expression.arena_index()) {
+    let lowered = if let Some(name) = lowerer.match_subject_temp(expression) {
         crate::lowering::statement::hoist_temps::reference_temp(
             lowerer,
             symbol_resolved_trees::name::DiagnosticName::generated(name),

@@ -84,7 +84,7 @@ pub(crate) fn generated_wire_codec_source(
     // A file carrying a package or module item owns a scope the injected
     // default-package source cannot name; its data is not a candidate.
     let mut scoped_sources: HashSet<usize> = HashSet::new();
-    for handle in syntax_trees.roots.items.storage_slice() {
+    for handle in syntax_trees.root_item_handles() {
         let path = match syntax_trees.tables.items.item(*handle) {
             Item::Package(package) => package.path,
             Item::Module(module) => module.path,
@@ -105,7 +105,7 @@ pub(crate) fn generated_wire_codec_source(
     // field map completes before member resolution so a nested-message
     // member can name a declaration declared after it.
     let mut data_fields: HashMap<String, HashMap<String, TypeReferenceHandle>> = HashMap::new();
-    for handle in syntax_trees.roots.items.storage_slice() {
+    for handle in syntax_trees.root_item_handles() {
         let Some(data) = syntax_trees.tables.items.item(*handle).as_data() else {
             continue;
         };
@@ -117,7 +117,7 @@ pub(crate) fn generated_wire_codec_source(
         }
     }
     let mut schemas: Vec<(String, Vec<WireMemberShape>)> = Vec::new();
-    for handle in syntax_trees.roots.items.storage_slice() {
+    for handle in syntax_trees.root_item_handles() {
         let Some(data) = syntax_trees.tables.items.item(*handle).as_data() else {
             continue;
         };
@@ -137,7 +137,7 @@ pub(crate) fn generated_wire_codec_source(
     let domains = collect_domains(syntax_trees, sources, &product_sources);
 
     let mut sites: HashMap<(String, &'static str), Vec<Vec<String>>> = HashMap::new();
-    for handle in syntax_trees.roots.items.storage_slice() {
+    for handle in syntax_trees.root_item_handles() {
         let Some(machine) = syntax_trees.tables.items.item(*handle).as_machine() else {
             continue;
         };

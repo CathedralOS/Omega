@@ -2178,6 +2178,7 @@ dependencies = [
  "diagnostics",
  "language-core",
  "numerics",
+ "rayon",
  "source",
  "source-files-to-tokens",
  "syntax-trees",

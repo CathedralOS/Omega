@@ -14,8 +14,12 @@ pub struct Arena<T> {
     occupied: Vec<bool>,
     free_indices: Vec<u32>,
     active_count: usize,
+    /// Generation assigned to every newly appended row. Ordinary arenas use
+    /// one; worker-owned syntax pages use their page identity so handles remain
+    /// globally distinct when the dense item vector publishes unchanged.
+    fresh_generation: u32,
     /// No slot has been freed or cleared since the arena was last empty, so
-    /// every slot is occupied at generation 1. A span whose start handle
+    /// every slot is occupied at `fresh_generation`. A span whose start handle
     /// resolves then resolves whole within bounds, without revisiting each
     /// row's occupancy and generation. Derived from the metadata above, so it
     /// takes no part in equality.
@@ -37,6 +41,7 @@ impl<T: PartialEq> PartialEq for Arena<T> {
             && self.occupied == other.occupied
             && self.free_indices == other.free_indices
             && self.active_count == other.active_count
+            && self.fresh_generation == other.fresh_generation
     }
 }
 
@@ -51,6 +56,7 @@ impl<T: Clone> Clone for Arena<T> {
             occupied: self.occupied.clone(),
             free_indices: self.free_indices.clone(),
             active_count: self.active_count,
+            fresh_generation: self.fresh_generation,
             fresh: self.fresh,
             revision: self.revision,
         }
@@ -63,6 +69,7 @@ impl<T: Clone> Clone for Arena<T> {
         self.occupied.clone_from(&source.occupied);
         self.free_indices.clone_from(&source.free_indices);
         self.active_count = source.active_count;
+        self.fresh_generation = source.fresh_generation;
         self.fresh = source.fresh;
 
         // Vec clones may unwind after truncating or partially extending the
@@ -128,19 +135,19 @@ impl<T> Arena<T> {
 
 impl<T: Default> Arena<T> {
     pub fn new() -> Self {
-        Self {
-            dummy: T::default(),
-            items: Vec::new(),
-            generations: Vec::new(),
-            occupied: Vec::new(),
-            free_indices: Vec::new(),
-            active_count: 0,
-            fresh: true,
-            revision: 0,
-        }
+        Self::with_capacity_and_generation(0, 1)
+    }
+
+    pub fn with_generation(generation: u32) -> Self {
+        Self::with_capacity_and_generation(0, generation)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
+        Self::with_capacity_and_generation(capacity, 1)
+    }
+
+    pub fn with_capacity_and_generation(capacity: usize, generation: u32) -> Self {
+        assert!(generation != 0, "arena fresh generation must be nonzero");
         Self {
             dummy: T::default(),
             items: Vec::with_capacity(capacity),
@@ -148,6 +155,7 @@ impl<T: Default> Arena<T> {
             occupied: Vec::with_capacity(capacity),
             free_indices: Vec::new(),
             active_count: 0,
+            fresh_generation: generation,
             fresh: true,
             revision: 0,
         }
@@ -177,14 +185,14 @@ impl<T: Default> Arena<T> {
         let arena_index = next_arena_index(self.items.len());
 
         self.items.push(item);
-        self.generations.push(1);
+        self.generations.push(self.fresh_generation);
         self.occupied.push(true);
         self.active_count = self
             .active_count
             .checked_add(1)
             .expect("arena active count overflow");
 
-        Handle::from_arena_index(arena_index)
+        Handle::from_parts(arena_index, self.fresh_generation)
     }
 
     pub fn append(&mut self, item: T) -> Handle<T> {
@@ -192,18 +200,18 @@ impl<T: Default> Arena<T> {
         let arena_index = next_arena_index(self.items.len());
 
         self.items.push(item);
-        self.generations.push(1);
+        self.generations.push(self.fresh_generation);
         self.occupied.push(true);
         self.active_count = self
             .active_count
             .checked_add(1)
             .expect("arena active count overflow");
 
-        Handle::from_arena_index(arena_index)
+        Handle::from_parts(arena_index, self.fresh_generation)
     }
 
     /// A span grows in place only while its rows still end at the arena tail
-    /// carrying generation 1, the generation every fresh append receives. A
+    /// carrying the arena's fresh generation. A
     /// span that went stale — other rows landed on this arena's tail between
     /// appends, or the span was built on recycled-generation slots — is first
     /// relocated to the tail, the same snapshot move `copy_span_pair` performs
@@ -216,7 +224,7 @@ impl<T: Default> Arena<T> {
     {
         self.bump_revision();
         if !span.is_empty()
-            && (span.start().generation() != 1
+            && (span.start().generation() != self.fresh_generation
                 || span
                     .start()
                     .arena_index()
@@ -245,7 +253,6 @@ impl<T: Default> Arena<T> {
         handle
     }
 
-
     pub fn insert_many(&mut self, items: impl IntoIterator<Item = T>) -> HandleSpan<T> {
         // Spans promise contiguous storage, so bulk insert appends instead of
         // consuming arbitrary free-list slots.
@@ -255,7 +262,7 @@ impl<T: Default> Arena<T> {
 
         for item in items {
             self.items.push(item);
-            self.generations.push(1);
+            self.generations.push(self.fresh_generation);
             self.occupied.push(true);
             count = count.checked_add(1).expect("arena span count overflow");
         }
@@ -268,10 +275,12 @@ impl<T: Default> Arena<T> {
                 .checked_add(usize::try_from(count).expect("arena span count overflow"))
                 .expect("arena active count overflow");
 
-            HandleSpan::from_parts(Handle::from_arena_index(start_index), count)
+            HandleSpan::from_parts(
+                Handle::from_parts(start_index, self.fresh_generation),
+                count,
+            )
         }
     }
-
 
     pub fn try_insert_many_with<E>(
         &mut self,
@@ -300,7 +309,7 @@ impl<T: Default> Arena<T> {
             Ok(HandleSpan::empty())
         } else {
             Ok(HandleSpan::from_parts(
-                Handle::from_arena_index(start_index),
+                Handle::from_parts(start_index, inserter.arena.fresh_generation),
                 inserter.count,
             ))
         }
@@ -322,7 +331,7 @@ impl<T: Default> Arena<T> {
             match item {
                 Ok(item) => {
                     self.items.push(item);
-                    self.generations.push(1);
+                    self.generations.push(self.fresh_generation);
                     self.occupied.push(true);
                     count = count.checked_add(1).expect("arena span count overflow");
                 }
@@ -344,7 +353,7 @@ impl<T: Default> Arena<T> {
                 .expect("arena active count overflow");
 
             Ok(HandleSpan::from_parts(
-                Handle::from_arena_index(start_index),
+                Handle::from_parts(start_index, self.fresh_generation),
                 count,
             ))
         }
@@ -373,7 +382,7 @@ impl<T: Default> Arena<T> {
         if let Some(first_range) = first_range {
             for index in first_range {
                 self.items.push(self.items[index].clone());
-                self.generations.push(1);
+                self.generations.push(self.fresh_generation);
                 self.occupied.push(true);
             }
         }
@@ -381,7 +390,7 @@ impl<T: Default> Arena<T> {
         if let Some(second_range) = second_range {
             for index in second_range {
                 self.items.push(self.items[index].clone());
-                self.generations.push(1);
+                self.generations.push(self.fresh_generation);
                 self.occupied.push(true);
             }
         }
@@ -392,7 +401,7 @@ impl<T: Default> Arena<T> {
             .expect("arena active count overflow");
 
         HandleSpan::from_parts(
-            Handle::from_arena_index(start_index),
+            Handle::from_parts(start_index, self.fresh_generation),
             count.try_into().expect("arena span count overflow"),
         )
     }
@@ -478,13 +487,13 @@ impl<T: Default> Arena<T> {
 
     #[inline]
     fn valid_span_range(&self, span: HandleSpan<T>) -> Option<Range<usize>> {
-        // A fresh arena has every slot occupied at generation 1, so the
+        // A fresh arena has every slot occupied at its assigned generation, so the
         // start handle resolves to its index by arithmetic alone — no
         // per-slot metadata reads, and the whole-span check reduces to a
         // single bounds test.
         if self.fresh {
             let start_handle = span.start();
-            if !start_handle.is_valid() || start_handle.generation() != 1 {
+            if !start_handle.is_valid() || start_handle.generation() != self.fresh_generation {
                 return None;
             }
             let start = storage_index_from_arena_index(start_handle.arena_index());
@@ -563,6 +572,7 @@ impl<T: Default> Arena<T> {
             occupied: self.occupied,
             free_indices: self.free_indices,
             active_count: self.active_count,
+            fresh_generation: self.fresh_generation,
             fresh: self.fresh,
             revision: self.revision,
         }
@@ -592,7 +602,6 @@ impl<T: Default> Arena<T> {
             .filter_map(|(item, occupied)| occupied.then_some(item))
     }
 
-
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
         self.bump_revision();
         for index in 0..self.items.len() {
@@ -615,11 +624,11 @@ impl<T: Default> Arena<T> {
 
         let index = storage_index_from_arena_index(handle.arena_index());
 
-        // A fresh arena has every slot occupied at generation 1, so a handle
+        // A fresh arena has every slot occupied at its assigned generation, so a handle
         // resolves by its generation and a bounds test alone, without reading
         // the per-slot metadata — the single-handle twin of the span check.
         if self.fresh {
-            return if handle.generation() == 1 && index < self.items.len() {
+            return if handle.generation() == self.fresh_generation && index < self.items.len() {
                 index
             } else {
                 invalid_index()
@@ -644,7 +653,7 @@ impl<T: Default> ArenaSpanInserter<'_, T> {
         let arena_index = next_arena_index(self.arena.items.len());
 
         self.arena.items.push(item);
-        self.arena.generations.push(1);
+        self.arena.generations.push(self.arena.fresh_generation);
         self.arena.occupied.push(true);
         self.arena.active_count = self
             .arena
@@ -656,7 +665,7 @@ impl<T: Default> ArenaSpanInserter<'_, T> {
             .checked_add(1)
             .expect("arena span count overflow");
 
-        Handle::from_arena_index(arena_index)
+        Handle::from_parts(arena_index, self.arena.fresh_generation)
     }
 }
 
@@ -678,11 +687,12 @@ impl<'arena, T: Default> Iterator for ArenaIter<'arena, T> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         // The borrowed arena cannot change under the iterator. A fresh one
-        // has every slot occupied at generation 1, so each row is yielded
+        // has every slot occupied at its assigned generation, so each row is yielded
         // without reading the per-slot occupancy and generation metadata.
         if self.arena.fresh {
             let item = self.arena.items.get(self.index)?;
-            let handle = Handle::from_parts(next_arena_index(self.index), 1);
+            let handle =
+                Handle::from_parts(next_arena_index(self.index), self.arena.fresh_generation);
             self.index += 1;
             return Some((handle, item));
         }

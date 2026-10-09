@@ -77,7 +77,7 @@ pub(crate) fn hoist_membership_match_subject(
     else {
         return;
     };
-    let subject_key = syntax_membership.value.arena_index();
+    let subject_key = syntax_membership.value;
 
     // Reuse the sibling arm's temp if the first arm already minted one; otherwise mint it here and
     // emit the single `let __hoist_N = &<subject>;` (reusing this arm's lowered indexed read as the
@@ -186,7 +186,7 @@ pub(crate) fn hoist_comparison_match_subject(
     else {
         return false;
     };
-    let subject_key = syntax_outer.left.arena_index();
+    let subject_key = syntax_outer.left;
 
     // Reuse the sibling arm's temp, or mint `let __hoist_N: bool = <subject>`.
     // The subject is a comparison, so the temp is `bool` -- known here (unlike the

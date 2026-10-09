@@ -30,8 +30,8 @@ pub(crate) fn hoist_into_temp(
 /// `let __hoist_N: <declared> = <initial>;` unless `shared_subject` already
 /// has a temp.
 ///
-/// `shared_subject` is the arena index of a match subject's syntax handle,
-/// which the parser shares across every arm of one match. The first arm mints
+/// `shared_subject` is the match subject's exact syntax handle, which the parser
+/// shares across every arm of one match. The first arm mints
 /// the temp and records it; sibling arms reference that same temp, so
 /// exhaustiveness still groups them, and their own lowered subjects are left
 /// orphaned. `initial` runs only when minting and before the temp's name is
@@ -41,7 +41,7 @@ pub(crate) fn mint_hoist_temp(
     lowerer: &mut Lowerer,
     hoisted: &mut Vec<Statement>,
     declared: TypeReference,
-    shared_subject: Option<u32>,
+    shared_subject: Option<syntax_trees::expression::ExpressionHandle>,
     initial: impl FnOnce(&mut Lowerer, &mut Vec<Statement>) -> ExpressionHandle,
 ) -> ExpressionHandle {
     let shared_temp = shared_subject.and_then(|subject| lowerer.match_subject_temp(subject));

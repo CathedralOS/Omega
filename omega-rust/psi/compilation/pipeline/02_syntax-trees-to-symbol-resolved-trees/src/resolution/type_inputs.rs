@@ -35,7 +35,7 @@ impl TypeInputScope {
     pub(crate) fn finish(self, lowerer: &mut super::lowerer::Lowerer, owner: SymbolHandle) {
         let mut arguments =
             lowerer.encountered_pending_type_arguments[self.argument_frontier..].to_vec();
-        arguments.sort_unstable_by_key(|argument| (argument.arena_index(), argument.generation()));
+        arguments.sort_unstable_by_key(|argument| (argument.generation(), argument.arena_index()));
         arguments.dedup();
         if !arguments.is_empty() {
             lowerer.pending_type_inputs.push(LoweredTypeInputs {

@@ -1,5 +1,5 @@
 use crate::identifier::Identifier;
-use arena::{Arena, Handle, HandleSpan};
+use arena::{Handle, HandleSpan, PagedArenaFrontier, PagedArenaSet as Arena};
 use numerics::literals::IntegerLiteral;
 use source::{SourceSpan, SourceText};
 use std::sync::Arc;
@@ -9,11 +9,12 @@ mod display;
 mod tests;
 
 pub type ExpressionHandle = Handle<ExpressionNode>;
+pub type ExpressionFrontier = PagedArenaFrontier<ExpressionNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
-    source_spans: Vec<SourceSpan>,
+    source_spans: Arena<SourceSpan>,
     expression_handles: Arena<ExpressionHandle>,
     identifier_path_members: Arena<Identifier>,
     struct_fields: Arena<TableStructLiteralField>,
@@ -33,29 +34,53 @@ impl ExpressionTable {
     }
 
     pub fn new() -> Self {
+        Self::new_with_generation(1)
+    }
+
+    pub fn new_with_generation(generation: u32) -> Self {
         Self {
-            expressions: Arena::new(),
-            source_spans: Vec::new(),
-            expression_handles: Arena::new(),
-            identifier_path_members: Arena::new(),
-            struct_fields: Arena::new(),
-            match_arms: Arena::new(),
+            expressions: Arena::with_generation(generation),
+            source_spans: Arena::with_generation(generation),
+            expression_handles: Arena::with_generation(generation),
+            identifier_path_members: Arena::with_generation(generation),
+            struct_fields: Arena::with_generation(generation),
+            match_arms: Arena::with_generation(generation),
         }
     }
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
         let handle = self.expressions.insert(expression);
-        self.source_spans.push(SourceSpan::default());
-        debug_assert_eq!(source_span_index(handle), self.source_spans.len() - 1);
+        let source_span = self.source_spans.append(SourceSpan::default());
+        debug_assert_eq!(source_span.arena_index(), handle.arena_index());
+        debug_assert_eq!(source_span.generation(), handle.generation());
         handle
     }
 
     pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
-        self.source_spans[source_span_index(handle)]
+        *self.source_spans.get(source_span_handle(handle))
     }
 
     pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
-        self.source_spans[source_span_index(handle)] = source_span;
+        *self.source_spans.get_mut(source_span_handle(handle)) = source_span;
+    }
+
+    pub(crate) fn adopt(&mut self, other: Self) {
+        self.expressions.adopt(other.expressions);
+        self.source_spans.adopt(other.source_spans);
+        self.expression_handles.adopt(other.expression_handles);
+        self.identifier_path_members
+            .adopt(other.identifier_path_members);
+        self.struct_fields.adopt(other.struct_fields);
+        self.match_arms.adopt(other.match_arms);
+    }
+
+    pub(crate) fn begin_page(&mut self, generation: u32) {
+        self.expressions.begin_page(generation);
+        self.source_spans.begin_page(generation);
+        self.expression_handles.begin_page(generation);
+        self.identifier_path_members.begin_page(generation);
+        self.struct_fields.begin_page(generation);
+        self.match_arms.begin_page(generation);
     }
 
     pub fn append_expression_handle(
@@ -148,16 +173,17 @@ impl ExpressionTable {
         self.expressions.len()
     }
 
+    pub fn frontier(&self) -> ExpressionFrontier {
+        self.expressions.frontier()
+    }
+
     pub fn display_name(&self, handle: ExpressionHandle) -> String {
         self.expression(handle).display_name(self)
     }
 }
 
-fn source_span_index(handle: ExpressionHandle) -> usize {
-    usize::try_from(handle.arena_index())
-        .expect("expression index overflow")
-        .checked_sub(1)
-        .expect("invalid expression handle has no source span")
+fn source_span_handle(handle: ExpressionHandle) -> Handle<SourceSpan> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
 impl Default for ExpressionTable {

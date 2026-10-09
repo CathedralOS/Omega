@@ -227,7 +227,7 @@ pub(super) fn collect_domains(
     names.sort_unstable_by_key(|(_, span)| (span.source_id.0, span.span.start, span.span.end));
     names.dedup();
     let mut domains: HashMap<String, Vec<DomainPredicate>> = HashMap::new();
-    for handle in syntax_trees.roots.items.storage_slice() {
+    for handle in syntax_trees.root_item_handles() {
         let Some(domain) = syntax_trees.tables.items.item(*handle).as_domain() else {
             continue;
         };

@@ -3,8 +3,9 @@ pub use crate::diagnostics::parse_error;
 use crate::ParseError;
 use crate::declarations::parse_declaration::{ParsedDeclaration, parse_item};
 use crate::input::token_cursor::Input;
-use arena::Arena;
+use arena::{Arena, ConcurrentPagedArena, Handle, SealedPagedArena};
 use diagnostics::Diagnostic;
+use rayon::prelude::*;
 use source::{SourceId, SourcePosition};
 use syntax_trees::{ParsedSource, ParsedSources, SyntaxTrees, item::ItemHandle};
 use tokens::{LexedSources, Token};
@@ -51,6 +52,181 @@ pub fn parse_sources(
         sources: parsed_sources,
         batch,
     })
+}
+
+/// One parsed source and the worker-owned syntax page containing its roots.
+pub struct ParsedSyntaxSource {
+    source: ParsedSource,
+    syntax: Handle<SyntaxTrees>,
+}
+
+impl ParsedSyntaxSource {
+    pub const fn source(&self) -> &ParsedSource {
+        &self.source
+    }
+
+    pub const fn syntax_handle(&self) -> Handle<SyntaxTrees> {
+        self.syntax
+    }
+}
+
+/// Ordered source metadata over independently published parser pages.
+pub struct ParsedSyntaxPages {
+    pages: SealedPagedArena<SyntaxTrees>,
+    sources: Vec<ParsedSyntaxSource>,
+}
+
+impl ParsedSyntaxPages {
+    pub fn sources(&self) -> &[ParsedSyntaxSource] {
+        &self.sources
+    }
+
+    pub fn syntax(&self, handle: Handle<SyntaxTrees>) -> Option<&SyntaxTrees> {
+        self.pages.try_get(handle)
+    }
+
+    /// Resolve any syntax handle through the page identity carried in its
+    /// generation coordinate. Every parser page stores its `SyntaxTrees` at
+    /// slot one.
+    pub fn syntax_for<T>(&self, handle: Handle<T>) -> Option<&SyntaxTrees> {
+        self.syntax(Handle::from_parts(1, handle.generation()))
+    }
+
+    pub fn page_count(&self) -> usize {
+        self.pages.page_count()
+    }
+
+    /// Consume worker pages into their source-chunk order without copying any
+    /// syntax tree or its arena allocations.
+    pub fn into_syntax_trees(self) -> Vec<SyntaxTrees> {
+        self.pages.into_pages().into_iter().flatten().collect()
+    }
+
+    pub fn into_parts(self) -> (Vec<SyntaxTrees>, ParsedSources) {
+        let trees = self.pages.into_pages().into_iter().flatten().collect();
+        let mut sources = Arena::with_capacity(self.sources.len());
+        let batch = sources.insert_many(self.sources.into_iter().map(|source| source.source));
+        (trees, ParsedSources { sources, batch })
+    }
+}
+
+/// Parse one ordered lexical frontier into bounded worker-owned pages. Tasks
+/// receive contiguous source chunks, so Rayon collection restores authored
+/// source order without sorting by completion or allocation identity.
+pub fn parse_source_pages(lexed: LexedSources) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
+    parse_source_pages_from(lexed, 1)
+}
+
+pub fn parse_source_pages_from(
+    lexed: LexedSources,
+    first_page_identity: u32,
+) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
+    let lexed_sources = lexed.sources.span_or_empty(lexed.batch);
+    let source_count = lexed_sources.len();
+    let desired_pages = source_count
+        .min(rayon::current_num_threads().max(1).saturating_mul(4))
+        .max(1);
+    parse_source_pages_with_count(lexed_sources, desired_pages, first_page_identity)
+}
+
+/// Parse each source into its own published syntax unit. Generated-source
+/// extension custody uses this route because normalization must not synthesize
+/// across generated-unit boundaries.
+pub fn parse_source_units(lexed: LexedSources) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
+    let lexed_sources = lexed.sources.span_or_empty(lexed.batch);
+    parse_source_pages_with_count(lexed_sources, lexed_sources.len().max(1), 1)
+}
+
+fn parse_source_pages_with_count(
+    lexed_sources: &[tokens::LexedSource],
+    desired_pages: usize,
+    first_page_identity: u32,
+) -> Result<ParsedSyntaxPages, Vec<Diagnostic>> {
+    let source_count = lexed_sources.len();
+    let chunk_size = source_count.max(1).div_ceil(desired_pages);
+    let page_count = source_count.div_ceil(chunk_size);
+    let arena = ConcurrentPagedArena::<SyntaxTrees>::new_with_first_page(
+        desired_pages,
+        1,
+        first_page_identity,
+    );
+    let page_reservations = (0..page_count)
+        .map(|_| {
+            arena.reserve_page().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "parser exhausted its source-page directory",
+                )]
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let parsed_pages = page_reservations
+        .into_par_iter()
+        .zip(lexed_sources.par_chunks(chunk_size))
+        .map(|(page, sources)| parse_source_page(page, sources))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+
+    let mut parsed_sources = Vec::with_capacity(source_count);
+    for (syntax, sources) in parsed_pages {
+        parsed_sources.extend(
+            sources
+                .into_iter()
+                .map(|source| ParsedSyntaxSource { source, syntax }),
+        );
+    }
+
+    let pages = arena.seal().map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "parser page publication incomplete: {} of {} pages published",
+            error.published_pages, error.reserved_pages
+        ))]
+    })?;
+    Ok(ParsedSyntaxPages {
+        pages,
+        sources: parsed_sources,
+    })
+}
+
+fn parse_source_page(
+    mut page: arena::ConcurrentArenaPage<'_, SyntaxTrees>,
+    sources: &[tokens::LexedSource],
+) -> Result<(Handle<SyntaxTrees>, Vec<ParsedSource>), Vec<Diagnostic>> {
+    let page_identity = page.page_identity();
+    let first_source = sources
+        .first()
+        .map(|source| source.source_id)
+        .unwrap_or_default();
+    let mut syntax = SyntaxTrees::new_with_generation(first_source, page_identity);
+    let mut parsed = Vec::with_capacity(sources.len());
+
+    for lexed_source in sources {
+        let root_items =
+            parse(&mut syntax, lexed_source.source_id, &lexed_source.tokens).map_err(|error| {
+                let position =
+                    SourcePosition::of(lexed_source.source.as_ref(), error.source_span.span.start);
+                vec![Diagnostic::error(format!(
+                    "{}:{}:{}: {}",
+                    lexed_source.path.display(),
+                    position.line,
+                    position.column,
+                    error.message
+                ))]
+            })?;
+        parsed.push(ParsedSource {
+            source_id: lexed_source.source_id,
+            path: lexed_source.path.clone(),
+            source: lexed_source.source.clone(),
+            origin: lexed_source.origin,
+            root_items,
+            scope: lexed_source.scope,
+        });
+    }
+
+    let syntax = page.push(syntax);
+    page.publish();
+    Ok((syntax, parsed))
 }
 
 /// Parses one source into the caller's arena and returns that source's root

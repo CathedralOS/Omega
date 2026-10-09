@@ -141,7 +141,7 @@ pub(crate) fn hoist_scalar_value_call_comparison(
         // arm value is synthesized): the subject itself is the call.
         _ => syntax_cmp,
     };
-    let subject_key = syntax_call.arena_index();
+    let subject_key = syntax_call;
 
     // The inferred temp takes the callee's DECLARED return
     // (`infer_hoist_temp_type`'s Call branch).

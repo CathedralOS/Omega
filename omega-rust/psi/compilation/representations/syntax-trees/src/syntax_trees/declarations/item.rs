@@ -1,5 +1,5 @@
 use crate::identifier::Identifier;
-use arena::{Arena, Handle, HandleSpan};
+use arena::{Handle, HandleSpan, PagedArenaSet as Arena};
 use language_core::operator_spelling::OperatorSpelling;
 
 pub type ItemHandle = Handle<Item>;
@@ -193,7 +193,7 @@ struct DeclarationStorage {
     operators: Arena<OperatorDefinition>,
     measures: Arena<MeasureDefinition>,
     proof_facts: Arena<ProofFact>,
-    proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
+    proof_fact_source_spans: Arena<Option<source::SourceSpan>>,
     mathematical_types: Arena<MathematicalTypeNode>,
     mathematical_parameters: Arena<MathematicalParameterNode>,
     mathematical_parameter_handles: Arena<MathematicalParameterHandle>,
@@ -201,12 +201,35 @@ struct DeclarationStorage {
 
 impl ItemTable {
     pub fn new() -> Self {
+        Self::new_with_generation(1)
+    }
+
+    pub fn new_with_generation(generation: u32) -> Self {
         Self {
-            items: Arena::new(),
-            mathematical_definitions: Arena::new(),
-            state_storage: StateStorage::new(),
-            declaration_storage: DeclarationStorage::new(),
+            items: Arena::with_generation(generation),
+            mathematical_definitions: Arena::with_generation(generation),
+            state_storage: StateStorage::new_with_generation(generation),
+            declaration_storage: DeclarationStorage::new_with_generation(generation),
         }
+    }
+
+    pub(crate) fn adopt(&mut self, other: Self) {
+        self.items.adopt(other.items);
+        self.mathematical_definitions
+            .adopt(other.mathematical_definitions);
+        self.state_storage.adopt(other.state_storage);
+        self.declaration_storage.adopt(other.declaration_storage);
+    }
+
+    pub(crate) fn begin_page(&mut self, generation: u32) {
+        self.items.begin_page(generation);
+        self.mathematical_definitions.begin_page(generation);
+        self.state_storage.begin_page(generation);
+        self.declaration_storage.begin_page(generation);
+    }
+
+    pub(crate) fn page_count(&self) -> usize {
+        self.items.page_count()
     }
 
     pub fn state_parameter(&self, handle: StateParameterHandle) -> &StateParameterNode {
@@ -374,11 +397,10 @@ impl ItemTable {
     }
 
     pub fn proof_fact_source_span(&self, handle: Handle<ProofFact>) -> Option<source::SourceSpan> {
-        self.declaration_storage
+        *self
+            .declaration_storage
             .proof_fact_source_spans
-            .get(proof_fact_source_span_index(handle))
-            .copied()
-            .flatten()
+            .get(proof_fact_source_span_handle(handle))
     }
 
     pub fn set_proof_fact_source_span(
@@ -386,11 +408,10 @@ impl ItemTable {
         handle: Handle<ProofFact>,
         source_span: source::SourceSpan,
     ) {
-        let index = proof_fact_source_span_index(handle);
-        self.declaration_storage
+        *self
+            .declaration_storage
             .proof_fact_source_spans
-            .resize(index + 1, None);
-        self.declaration_storage.proof_fact_source_spans[index] = Some(source_span);
+            .get_mut(proof_fact_source_span_handle(handle)) = Some(source_span);
     }
 
     pub fn state_parameters(
@@ -519,10 +540,12 @@ impl ItemTable {
 
     pub fn append_proof_fact(&mut self, fact: ProofFact) -> Handle<ProofFact> {
         let handle = self.declaration_storage.proof_facts.append(fact);
-        let index = proof_fact_source_span_index(handle);
-        self.declaration_storage
+        let source_span = self
+            .declaration_storage
             .proof_fact_source_spans
-            .resize(index + 1, None);
+            .append(None);
+        debug_assert_eq!(source_span.arena_index(), handle.arena_index());
+        debug_assert_eq!(source_span.generation(), handle.generation());
         handle
     }
 
@@ -605,48 +628,109 @@ impl Default for ItemTable {
 }
 
 impl StateStorage {
-    fn new() -> Self {
+    fn new_with_generation(generation: u32) -> Self {
         Self {
-            parameters: Arena::new(),
-            signatures: Arena::new(),
-            states: Arena::new(),
-            parameter_handles: Arena::new(),
-            state_handles: Arena::new(),
-            signature_handles: Arena::new(),
-            statement_handles: Arena::new(),
-            machines: Arena::new(),
-            traits: Arena::new(),
+            parameters: Arena::with_generation(generation),
+            signatures: Arena::with_generation(generation),
+            states: Arena::with_generation(generation),
+            parameter_handles: Arena::with_generation(generation),
+            state_handles: Arena::with_generation(generation),
+            signature_handles: Arena::with_generation(generation),
+            statement_handles: Arena::with_generation(generation),
+            machines: Arena::with_generation(generation),
+            traits: Arena::with_generation(generation),
         }
+    }
+
+    fn adopt(&mut self, other: Self) {
+        self.parameters.adopt(other.parameters);
+        self.signatures.adopt(other.signatures);
+        self.states.adopt(other.states);
+        self.parameter_handles.adopt(other.parameter_handles);
+        self.state_handles.adopt(other.state_handles);
+        self.signature_handles.adopt(other.signature_handles);
+        self.statement_handles.adopt(other.statement_handles);
+        self.machines.adopt(other.machines);
+        self.traits.adopt(other.traits);
+    }
+
+    fn begin_page(&mut self, generation: u32) {
+        self.parameters.begin_page(generation);
+        self.signatures.begin_page(generation);
+        self.states.begin_page(generation);
+        self.parameter_handles.begin_page(generation);
+        self.state_handles.begin_page(generation);
+        self.signature_handles.begin_page(generation);
+        self.statement_handles.begin_page(generation);
+        self.machines.begin_page(generation);
+        self.traits.begin_page(generation);
     }
 }
 
 impl DeclarationStorage {
-    fn new() -> Self {
+    fn new_with_generation(generation: u32) -> Self {
         Self {
-            identifier_path_members: Arena::new(),
-            conformance_members: Arena::new(),
-            satisfies_clauses: Arena::new(),
-            type_parameters: Arena::new(),
-            capability_members: Arena::new(),
-            capability_contracts: Arena::new(),
-            data_members: Arena::new(),
-            data_payload_fields: Arena::new(),
-            operators: Arena::new(),
-            measures: Arena::new(),
-            proof_facts: Arena::new(),
-            proof_fact_source_spans: Vec::new(),
-            mathematical_types: Arena::new(),
-            mathematical_parameters: Arena::new(),
-            mathematical_parameter_handles: Arena::new(),
+            identifier_path_members: Arena::with_generation(generation),
+            conformance_members: Arena::with_generation(generation),
+            satisfies_clauses: Arena::with_generation(generation),
+            type_parameters: Arena::with_generation(generation),
+            capability_members: Arena::with_generation(generation),
+            capability_contracts: Arena::with_generation(generation),
+            data_members: Arena::with_generation(generation),
+            data_payload_fields: Arena::with_generation(generation),
+            operators: Arena::with_generation(generation),
+            measures: Arena::with_generation(generation),
+            proof_facts: Arena::with_generation(generation),
+            proof_fact_source_spans: Arena::with_generation(generation),
+            mathematical_types: Arena::with_generation(generation),
+            mathematical_parameters: Arena::with_generation(generation),
+            mathematical_parameter_handles: Arena::with_generation(generation),
         }
+    }
+
+    fn adopt(&mut self, other: Self) {
+        self.identifier_path_members
+            .adopt(other.identifier_path_members);
+        self.conformance_members.adopt(other.conformance_members);
+        self.satisfies_clauses.adopt(other.satisfies_clauses);
+        self.type_parameters.adopt(other.type_parameters);
+        self.capability_members.adopt(other.capability_members);
+        self.capability_contracts.adopt(other.capability_contracts);
+        self.data_members.adopt(other.data_members);
+        self.data_payload_fields.adopt(other.data_payload_fields);
+        self.operators.adopt(other.operators);
+        self.measures.adopt(other.measures);
+        self.proof_facts.adopt(other.proof_facts);
+        self.proof_fact_source_spans
+            .adopt(other.proof_fact_source_spans);
+        self.mathematical_types.adopt(other.mathematical_types);
+        self.mathematical_parameters
+            .adopt(other.mathematical_parameters);
+        self.mathematical_parameter_handles
+            .adopt(other.mathematical_parameter_handles);
+    }
+
+    fn begin_page(&mut self, generation: u32) {
+        self.identifier_path_members.begin_page(generation);
+        self.conformance_members.begin_page(generation);
+        self.satisfies_clauses.begin_page(generation);
+        self.type_parameters.begin_page(generation);
+        self.capability_members.begin_page(generation);
+        self.capability_contracts.begin_page(generation);
+        self.data_members.begin_page(generation);
+        self.data_payload_fields.begin_page(generation);
+        self.operators.begin_page(generation);
+        self.measures.begin_page(generation);
+        self.proof_facts.begin_page(generation);
+        self.proof_fact_source_spans.begin_page(generation);
+        self.mathematical_types.begin_page(generation);
+        self.mathematical_parameters.begin_page(generation);
+        self.mathematical_parameter_handles.begin_page(generation);
     }
 }
 
-fn proof_fact_source_span_index(handle: Handle<ProofFact>) -> usize {
-    usize::try_from(handle.arena_index())
-        .expect("proof fact source-span index exceeds usize")
-        .checked_sub(1)
-        .expect("proof fact source-span handle must be valid")
+fn proof_fact_source_span_handle(handle: Handle<ProofFact>) -> Handle<Option<source::SourceSpan>> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
 /// One authored signature parameter. `relevance` is the binding

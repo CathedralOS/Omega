@@ -34,7 +34,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
         // expression arena again makes each unrelated state multiply preparation
         // cost. Retain arena order so synthesized paths stay deterministic.
         let mut reachable = reachable.into_iter().collect::<Vec<_>>();
-        reachable.sort_unstable_by_key(|handle| handle.arena_index());
+        reachable.sort_unstable_by_key(|handle| (handle.generation(), handle.arena_index()));
         let replacements = reachable
             .into_iter()
             .filter_map(|handle| {
@@ -152,7 +152,7 @@ pub(in crate::preparation::generic_data) fn relabel_unique_closed_sum_paths(
             let mut expressions = HashSet::new();
             collect_statement_expression_handles(syntax, *statement, &mut expressions);
             let mut expressions = expressions.into_iter().collect::<Vec<_>>();
-            expressions.sort_unstable_by_key(|handle| handle.arena_index());
+            expressions.sort_unstable_by_key(|handle| (handle.generation(), handle.arena_index()));
             let replacements = expressions
                 .into_iter()
                 .filter_map(|handle| {

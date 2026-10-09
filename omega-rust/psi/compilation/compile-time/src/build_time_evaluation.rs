@@ -264,7 +264,7 @@ impl PreResolutionEvaluation {
         context: BuildTimeSourceContext<'_>,
     ) -> Result<(syntax_trees::SyntaxTrees, Vec<PreCheckEvaluation>), Vec<diagnostics::Diagnostic>>
     {
-        let mut syntax = syntax_trees::SyntaxTrees::new(first_source);
+        let mut syntax: Option<syntax_trees::SyntaxTrees> = None;
         let mut pre_checks = Vec::with_capacity(units.len());
         for unit in units {
             let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
@@ -277,9 +277,18 @@ impl PreResolutionEvaluation {
                 }),
             })?;
             let (unit, pre_check) = evaluated.into_syntax_and_pre_check();
-            syntax.extend_from(&unit);
+            match &mut syntax {
+                Some(syntax) => syntax.adopt_page(unit),
+                None => syntax = Some(unit),
+            }
             pre_checks.push(pre_check);
         }
+        let mut syntax = syntax.unwrap_or_else(|| syntax_trees::SyntaxTrees::new(first_source));
+        let extension_generation = u32::try_from(syntax.page_count())
+            .ok()
+            .and_then(|generation| generation.checked_add(1))
+            .expect("generated syntax page identity overflow");
+        syntax.begin_page(extension_generation);
         Ok((syntax, pre_checks))
     }
 

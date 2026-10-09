@@ -95,32 +95,23 @@ pub(in crate::preparation::generic_data) fn visit_static_argument_type_inputs(
     }
 }
 
-/// Every expression reachable from a concrete machine body, by arena
-/// position. The walk covers most of the expression arena and every caller
-/// then tests each arena entry, so positions index a dense table instead of
-/// a hash set.
 #[derive(Default)]
-pub(in crate::preparation::generic_data) struct ConcreteExpressions(Vec<bool>);
+pub(in crate::preparation::generic_data) struct ConcreteExpressions(
+    std::collections::HashSet<ExpressionHandle>,
+);
 
 impl ConcreteExpressions {
     pub(in crate::preparation::generic_data) fn contains(
         &self,
         expression: ExpressionHandle,
     ) -> bool {
-        self.0
-            .get(expression.arena_index() as usize)
-            .copied()
-            .unwrap_or(false)
+        self.0.contains(&expression)
     }
 }
 
 impl ExpressionMarks for ConcreteExpressions {
     fn mark(&mut self, expression: ExpressionHandle) -> bool {
-        let position = expression.arena_index() as usize;
-        if position >= self.0.len() {
-            self.0.resize(position + 1, false);
-        }
-        !std::mem::replace(&mut self.0[position], true)
+        self.0.insert(expression)
     }
 }
 

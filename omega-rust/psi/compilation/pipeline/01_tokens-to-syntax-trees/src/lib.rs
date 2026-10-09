@@ -48,7 +48,10 @@ mod diagnostics;
 mod input;
 
 // The entrance, and the two forms that create the arena for the caller.
-pub use parser::{parse, parse_sources, parse_syntax_trees, parse_syntax_trees_with_id};
+pub use parser::{
+    ParsedSyntaxPages, ParsedSyntaxSource, parse, parse_source_pages, parse_source_pages_from,
+    parse_source_units, parse_sources, parse_syntax_trees, parse_syntax_trees_with_id,
+};
 
 // Per-source grammar failure; batch parsing adds source locations as diagnostics.
 pub use diagnostics::parse_error::ParseError;

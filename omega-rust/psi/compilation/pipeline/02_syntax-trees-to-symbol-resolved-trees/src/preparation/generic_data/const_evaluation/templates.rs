@@ -22,7 +22,7 @@ use syntax_trees::item::ProofFact;
 
 pub(in crate::preparation::generic_data) fn replace_const_expression_names_from(
     syntax: &mut SyntaxTrees,
-    expression_watermark: u32,
+    expression_watermark: syntax_trees::expression::ExpressionFrontier,
     const_expressions: &HashMap<String, ExpressionNode>,
 ) {
     replace_uncaptured_const_names(
@@ -50,8 +50,8 @@ impl RuntimeTemplateCaptures {
 pub(in crate::preparation::generic_data) fn capture_machine_runtime_template_names(
     syntax: &SyntaxTrees,
     machine: &Machine,
-    type_watermark: u32,
-    expression_watermark: u32,
+    type_watermark: syntax_trees::types::TypeReferenceFrontier,
+    expression_watermark: syntax_trees::expression::ExpressionFrontier,
 ) -> RuntimeTemplateCaptures {
     let states = syntax.items.state_handles(machine.states);
     let parameters = states
@@ -64,7 +64,7 @@ pub(in crate::preparation::generic_data) fn capture_machine_runtime_template_nam
         prior_statements: &[],
     };
     for (handle, expression) in syntax.expressions.iter_expressions() {
-        if handle.arena_index() >= expression_watermark
+        if expression_watermark.contains(handle)
             && let ExpressionNode::Name(path) = expression
             && header_frontier.captures(syntax, *path)
         {
@@ -153,7 +153,7 @@ pub(in crate::preparation::generic_data) fn capture_machine_runtime_template_nam
 
 pub(in crate::preparation::generic_data) fn replace_machine_const_expression_names_from(
     syntax: &mut SyntaxTrees,
-    expression_watermark: u32,
+    expression_watermark: syntax_trees::expression::ExpressionFrontier,
     const_expressions: &HashMap<String, ExpressionNode>,
     captured: &RuntimeTemplateCaptures,
 ) {
@@ -317,14 +317,14 @@ fn collect_type_expression_handles(
 
 fn replace_uncaptured_const_names(
     syntax: &mut SyntaxTrees,
-    expression_watermark: u32,
+    expression_watermark: syntax_trees::expression::ExpressionFrontier,
     const_expressions: &HashMap<String, ExpressionNode>,
     captured: &HashSet<ExpressionHandle>,
 ) {
     let replacements = syntax
         .expressions
         .iter_expressions()
-        .filter(|(handle, _)| handle.arena_index() >= expression_watermark)
+        .filter(|(handle, _)| expression_watermark.contains(*handle))
         .filter(|(handle, _)| !captured.contains(handle))
         .filter_map(|(handle, expression)| {
             let ExpressionNode::Name(path) = expression else {

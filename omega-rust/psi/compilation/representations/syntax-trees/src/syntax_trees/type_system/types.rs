@@ -1,8 +1,9 @@
 use crate::identifier::Identifier;
-use arena::{Arena, Handle, HandleSpan};
+use arena::{Handle, HandleSpan, PagedArenaFrontier, PagedArenaSet as Arena};
 use std::fmt;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
+pub type TypeReferenceFrontier = PagedArenaFrontier<TypeReferenceNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeReferenceTable {
@@ -81,17 +82,52 @@ struct GenericApplicationOrigin {
 
 impl TypeReferenceTable {
     pub fn new() -> Self {
+        Self::new_with_generation(1)
+    }
+
+    pub fn new_with_generation(generation: u32) -> Self {
         Self {
-            type_references: Arena::new(),
-            type_reference_handles: Arena::new(),
-            constraints: Arena::new(),
-            generic_application_origins: Arena::new(),
-            const_argument_normalizations: Arena::new(),
-            const_argument_origins: Arena::new(),
-            const_argument_builtin_operators: Arena::new(),
-            integer_range_normalizations: Arena::new(),
-            pending_const_arguments: Arena::new(),
+            type_references: Arena::with_generation(generation),
+            type_reference_handles: Arena::with_generation(generation),
+            constraints: Arena::with_generation(generation),
+            generic_application_origins: Arena::with_generation(generation),
+            const_argument_normalizations: Arena::with_generation(generation),
+            const_argument_origins: Arena::with_generation(generation),
+            const_argument_builtin_operators: Arena::with_generation(generation),
+            integer_range_normalizations: Arena::with_generation(generation),
+            pending_const_arguments: Arena::with_generation(generation),
         }
+    }
+
+    pub(crate) fn adopt(&mut self, other: Self) {
+        self.type_references.adopt(other.type_references);
+        self.type_reference_handles
+            .adopt(other.type_reference_handles);
+        self.constraints.adopt(other.constraints);
+        self.generic_application_origins
+            .adopt(other.generic_application_origins);
+        self.const_argument_normalizations
+            .adopt(other.const_argument_normalizations);
+        self.const_argument_origins
+            .adopt(other.const_argument_origins);
+        self.const_argument_builtin_operators
+            .adopt(other.const_argument_builtin_operators);
+        self.integer_range_normalizations
+            .adopt(other.integer_range_normalizations);
+        self.pending_const_arguments
+            .adopt(other.pending_const_arguments);
+    }
+
+    pub(crate) fn begin_page(&mut self, generation: u32) {
+        self.type_references.begin_page(generation);
+        self.type_reference_handles.begin_page(generation);
+        self.constraints.begin_page(generation);
+        self.generic_application_origins.begin_page(generation);
+        self.const_argument_normalizations.begin_page(generation);
+        self.const_argument_origins.begin_page(generation);
+        self.const_argument_builtin_operators.begin_page(generation);
+        self.integer_range_normalizations.begin_page(generation);
+        self.pending_const_arguments.begin_page(generation);
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
@@ -287,25 +323,22 @@ impl TypeReferenceTable {
             });
     }
 
-    /// Arena index of the next node inserted into the table. Handles created
-    /// at or after this watermark belong to a copy in progress -- generic
+    /// Position of the next node inserted into the table. Handles created at
+    /// or after this frontier belong to a copy in progress -- generic
     /// specialization rewrites `Named(T)` nodes only inside that fresh
     /// subtree.
-    pub fn node_count(&self) -> u32 {
-        self.type_references
-            .iter()
-            .map(|(handle, _)| handle.arena_index())
-            .max()
-            .unwrap_or(0)
-            .checked_add(1)
-            .expect("type-reference arena index overflow")
+    pub fn node_count(&self) -> TypeReferenceFrontier {
+        self.type_references.frontier()
     }
 
     /// The `Named` nodes created at or after `watermark`, as (handle, name).
-    pub fn named_nodes_from(&self, watermark: u32) -> Vec<(TypeReferenceHandle, String)> {
+    pub fn named_nodes_from(
+        &self,
+        watermark: TypeReferenceFrontier,
+    ) -> Vec<(TypeReferenceHandle, String)> {
         self.type_references
             .iter()
-            .filter(|(handle, _)| handle.arena_index() >= watermark)
+            .filter(|(handle, _)| watermark.contains(*handle))
             .filter_map(|(handle, node)| match node {
                 TypeReferenceNode::Named(name) => Some((handle, name.as_str().to_string())),
                 _ => None,
@@ -317,10 +350,13 @@ impl TypeReferenceTable {
     /// (handle, base name). Accessor specialization rewrites a template's
     /// `PlacedField<T>` self type only inside the fresh copy, never in the
     /// authored template signature.
-    pub fn generic_nodes_from(&self, watermark: u32) -> Vec<(TypeReferenceHandle, String)> {
+    pub fn generic_nodes_from(
+        &self,
+        watermark: TypeReferenceFrontier,
+    ) -> Vec<(TypeReferenceHandle, String)> {
         self.type_references
             .iter()
-            .filter(|(handle, _)| handle.arena_index() >= watermark)
+            .filter(|(handle, _)| watermark.contains(*handle))
             .filter_map(|(handle, node)| match node {
                 TypeReferenceNode::Generic { base_name, .. } => {
                     Some((handle, base_name.as_str().to_string()))
@@ -369,11 +405,11 @@ impl TypeReferenceTable {
     /// after the copy, alongside `Named(T)` type nodes.
     pub fn const_parameter_array_nodes_from(
         &self,
-        watermark: u32,
+        watermark: TypeReferenceFrontier,
     ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, String)> {
         self.type_references
             .iter()
-            .filter(|(handle, _)| handle.arena_index() >= watermark)
+            .filter(|(handle, _)| watermark.contains(*handle))
             .filter_map(|(handle, node)| match node {
                 TypeReferenceNode::FixedArray {
                     element_type,

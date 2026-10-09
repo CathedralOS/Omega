@@ -57,6 +57,95 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
 }
 
 #[test]
+fn parser_retains_one_worker_page_identity_through_nested_handles() {
+    const PAGE_IDENTITY: u32 = 7;
+    let source_id = SourceId(44);
+    let tokens =
+        Lexer::new("machine read(value: u64) -> u64 { let selected: u64 = value; selected }")
+            .tokenize()
+            .unwrap();
+    let mut trees = SyntaxTrees::new_with_generation(source_id, PAGE_IDENTITY);
+    let roots = parse(&mut trees, source_id, &tokens).unwrap();
+
+    assert_eq!(roots.len(), 1);
+    assert_eq!(roots[0].generation(), PAGE_IDENTITY);
+    assert!(
+        trees
+            .expressions
+            .iter_expressions()
+            .all(|(handle, _)| handle.generation() == PAGE_IDENTITY)
+    );
+
+    let Item::Machine(machine) = trees.root_item(roots[0]) else {
+        panic!("machine root")
+    };
+    assert_eq!(machine.states.start().generation(), PAGE_IDENTITY);
+    for state in trees.items.state_handles(machine.states) {
+        assert_eq!(state.generation(), PAGE_IDENTITY);
+        let state = trees.items.state(*state);
+        assert_eq!(state.parameters.start().generation(), PAGE_IDENTITY);
+        assert_eq!(state.statements.start().generation(), PAGE_IDENTITY);
+        for parameter in trees.items.state_parameters(state.parameters) {
+            assert_eq!(parameter.generation(), PAGE_IDENTITY);
+            assert_eq!(
+                trees
+                    .items
+                    .state_parameter(*parameter)
+                    .type_reference
+                    .generation(),
+                PAGE_IDENTITY
+            );
+        }
+        assert!(
+            trees
+                .items
+                .statements(state.statements)
+                .iter()
+                .all(|statement| statement.generation() == PAGE_IDENTITY)
+        );
+    }
+}
+
+#[test]
+fn parallel_parser_pages_preserve_source_order_and_direct_handle_lookup() {
+    let mut loaded = LoadedSources::default();
+    loaded.batch = loaded.sources.insert_many((0..16).map(|position| {
+        let padding = if position == 0 {
+            "/* padding */".repeat(50_000)
+        } else {
+            String::new()
+        };
+        LoadedSource {
+            source_id: SourceId(100 + position),
+            path: format!("source-{position}.omg").into(),
+            source: Arc::from(format!("{padding} data Item{position} {{}}")),
+            origin: Some(SourceOrigin::User),
+            scope: DependencyScope::Product,
+        }
+    }));
+    let lexed = lex_sources(loaded).unwrap();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(4)
+        .build()
+        .unwrap();
+    let parsed = pool.install(|| crate::parse_source_units(lexed)).unwrap();
+
+    assert_eq!(parsed.page_count(), 16);
+    assert_eq!(parsed.sources().len(), 16);
+    for (position, source) in parsed.sources().iter().enumerate() {
+        assert_eq!(source.source().source_id, SourceId(100 + position));
+        assert_eq!(source.source().root_items.len(), 1);
+        let root = source.source().root_items[0];
+        assert_eq!(root.generation(), source.syntax_handle().generation());
+        let syntax = parsed.syntax_for(root).expect("root syntax page");
+        let Item::Data(data) = syntax.root_item(root) else {
+            panic!("data root")
+        };
+        assert_eq!(data.name.as_str(), format!("Item{position}"));
+    }
+}
+
+#[test]
 fn rejection_preserves_the_parsed_prefix_and_reports_the_current_source() {
     let mut trees = SyntaxTrees::new(SourceId(11));
     let tokens = Lexer::new("data Retained {} ;").tokenize().unwrap();

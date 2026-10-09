@@ -13,6 +13,7 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 arena = { path = "../../../foundation/arena" }
 language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../foundation/numerics" }
+rayon = "1.10"
 source = { path = "../../../foundation/source" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 tokens = { path = "../../representations/tokens" }

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use access_plans::{AccessExposure, FieldAccess, ValidatedPlacementPlan};
-use arena::{Arena, Handle, HandleSpan};
+use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::{DataSupplyMode, Multiplicity};
 use syntax_trees::SyntaxTrees;
@@ -231,13 +231,13 @@ pub(super) fn retire_accessor_templates(syntax: &mut SyntaxTrees) {
     // a synthetic target tag would keep them in all-target source checking and
     // package disclosure. Item handles for all surviving declarations stay
     // unchanged, including the generated accessors and authored target members.
-    let mut retained_roots = Arena::with_capacity(syntax.root_item_count());
+    let mut retained_roots = Vec::with_capacity(syntax.root_item_count());
     for handle in syntax.root_item_handles() {
         let is_template = matches!(syntax.root_item(*handle), Item::Machine(machine)
             if machine.attached_data.as_ref()
                 .is_some_and(|attached| attached.as_str() == "PlacedField"));
         if !is_template {
-            retained_roots.append(*handle);
+            retained_roots.push(*handle);
         }
     }
     syntax.roots.items = retained_roots;

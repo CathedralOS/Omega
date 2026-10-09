@@ -1,5 +1,5 @@
 use crate::identifier::Identifier;
-use arena::{Arena, Handle, HandleSpan};
+use arena::{Handle, HandleSpan, PagedArenaSet as Arena};
 use source::SourceSpan;
 
 pub type StatementHandle = Handle<StatementNode>;
@@ -30,13 +30,35 @@ pub struct StatementTable {
 
 impl StatementTable {
     pub fn new() -> Self {
+        Self::new_with_generation(1)
+    }
+
+    pub fn new_with_generation(generation: u32) -> Self {
         Self {
-            statements: Arena::new(),
-            expression_handles: Arena::new(),
-            identifier_path_members: Arena::new(),
-            transition_targets: Arena::new(),
-            outcome_proof_selectors: Arena::new(),
+            statements: Arena::with_generation(generation),
+            expression_handles: Arena::with_generation(generation),
+            identifier_path_members: Arena::with_generation(generation),
+            transition_targets: Arena::with_generation(generation),
+            outcome_proof_selectors: Arena::with_generation(generation),
         }
+    }
+
+    pub(crate) fn adopt(&mut self, other: Self) {
+        self.statements.adopt(other.statements);
+        self.expression_handles.adopt(other.expression_handles);
+        self.identifier_path_members
+            .adopt(other.identifier_path_members);
+        self.transition_targets.adopt(other.transition_targets);
+        self.outcome_proof_selectors
+            .adopt(other.outcome_proof_selectors);
+    }
+
+    pub(crate) fn begin_page(&mut self, generation: u32) {
+        self.statements.begin_page(generation);
+        self.expression_handles.begin_page(generation);
+        self.identifier_path_members.begin_page(generation);
+        self.transition_targets.begin_page(generation);
+        self.outcome_proof_selectors.begin_page(generation);
     }
 
     pub fn insert(&mut self, statement: StatementNode) -> StatementHandle {

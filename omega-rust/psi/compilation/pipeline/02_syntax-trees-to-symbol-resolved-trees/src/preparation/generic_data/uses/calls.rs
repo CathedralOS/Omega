@@ -115,7 +115,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
             let mut reachable = HashSet::new();
             collect_statement_expression_handles(syntax, *statement, &mut reachable);
             let mut reachable = reachable.into_iter().collect::<Vec<_>>();
-            reachable.sort_unstable_by_key(|handle| handle.arena_index());
+            reachable.sort_unstable_by_key(|handle| (handle.generation(), handle.arena_index()));
             let calls = reachable
                 .into_iter()
                 .filter_map(|handle| match syntax.expressions.expression(handle) {

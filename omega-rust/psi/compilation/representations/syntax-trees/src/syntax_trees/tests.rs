@@ -4,7 +4,8 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    DataDefinition, Item, Machine, State, StateHandle, StateSignature, TraitDefinition,
+    DataDefinition, Item, Machine, ModuleDeclaration, State, StateHandle, StateSignature,
+    TraitDefinition,
 };
 use crate::snapshot::ItemSnapshot;
 use crate::statement::{StatementNode, TableAssignment, TableCall};
@@ -150,6 +151,25 @@ fn item_copy_preserves_shared_body_subject_and_isolates_instances() {
         copied_case_subject(&destination, assignment.value, assignment.target)
     };
     assert_ne!(subject(&first), subject(&second));
+}
+
+#[test]
+fn adopts_parser_pages_without_remapping_roots() {
+    let mut first = SyntaxTrees::new_with_generation(source::SourceId(10), 1);
+    let first_root = first.push_root_item(Item::Module(ModuleDeclaration::default()));
+    let mut second = SyntaxTrees::new_with_generation(source::SourceId(20), 2);
+    let second_root = second.push_root_item(Item::Module(ModuleDeclaration::default()));
+
+    first.adopt_page(second);
+    assert_eq!(first.root_item_handles(), [first_root, second_root]);
+    assert!(matches!(first.root_item(first_root), Item::Module(_)));
+    assert!(matches!(first.root_item(second_root), Item::Module(_)));
+    assert_eq!(first.page_count(), 2);
+
+    first.begin_page(3);
+    let generated = first.push_root_item(Item::Module(ModuleDeclaration::default()));
+    assert_eq!(generated.generation(), 3);
+    assert_eq!(first.page_count(), 3);
 }
 
 /// A bodyless `main` machine whose only state is `state` — the shared

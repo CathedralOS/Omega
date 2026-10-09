@@ -243,12 +243,12 @@ fn retarget_expression(
     program: &mut SymbolResolvedTrees,
     expression: symbol_resolved_trees::expression::ExpressionHandle,
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
-    visited: &mut Vec<u32>,
+    visited: &mut Vec<symbol_resolved_trees::expression::ExpressionHandle>,
 ) {
-    if !expression.is_valid() || visited.contains(&expression.arena_index()) {
+    if !expression.is_valid() || visited.contains(&expression) {
         return;
     }
-    visited.push(expression.arena_index());
+    visited.push(expression);
     let node = program
         .tables
         .bodies

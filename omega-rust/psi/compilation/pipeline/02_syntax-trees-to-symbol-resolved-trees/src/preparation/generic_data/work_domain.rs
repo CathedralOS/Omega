@@ -22,7 +22,7 @@ pub(crate) enum GenericDataWorkDomain<'input> {
 pub(super) struct SynthesisWork<'input> {
     domain: GenericDataWorkDomain<'input>,
     declaration_frontier: usize,
-    expression_frontier: usize,
+    expression_frontier: syntax_trees::expression::ExpressionFrontier,
 }
 
 impl<'input> SynthesisWork<'input> {
@@ -30,7 +30,7 @@ impl<'input> SynthesisWork<'input> {
         Self {
             domain,
             declaration_frontier: syntax.root_item_handles().len(),
-            expression_frontier: syntax.expressions.expression_count(),
+            expression_frontier: syntax.expressions.frontier(),
         }
     }
 
@@ -45,7 +45,7 @@ impl<'input> SynthesisWork<'input> {
         &self,
         expression: syntax_trees::expression::ExpressionHandle,
     ) -> bool {
-        expression.is_valid() && expression.arena_index() as usize > self.expression_frontier
+        expression.is_valid() && self.expression_frontier.contains(expression)
     }
 
     pub(super) fn declarations(&self, syntax: &SyntaxTrees) -> Vec<ItemHandle> {
