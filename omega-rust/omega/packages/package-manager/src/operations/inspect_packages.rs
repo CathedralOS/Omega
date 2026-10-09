@@ -40,13 +40,7 @@ pub struct PackageInspectionOutcome {
 #[derive(Debug)]
 pub struct PackageInspectionError(String);
 
-impl fmt::Display for PackageInspectionError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl std::error::Error for PackageInspectionError {}
+diagnostics::string_diagnostic!(PackageInspectionError);
 
 fn failure(error: impl fmt::Display) -> PackageInspectionError {
     PackageInspectionError(error.to_string())
