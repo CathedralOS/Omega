@@ -75,7 +75,10 @@ fn edge_effects(block: &Block, managed: &[PlaceId]) -> Result<Vec<EdgeEffects>, 
             let disposed = discards
                 .iter()
                 .filter_map(|action| match action {
-                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                    | terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => {
+                        // Region disposal does not end a home. A checked
+                        // retirement does, after its ordered regional actions.
                         managed.iter().position(|candidate| candidate == place)
                     }
                     _ => None,

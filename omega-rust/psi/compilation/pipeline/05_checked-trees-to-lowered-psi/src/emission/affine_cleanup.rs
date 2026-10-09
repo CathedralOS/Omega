@@ -7,6 +7,8 @@
 //! authority and die before their backing owners.
 //! Carrier disposal grants no ownership of borrowed backing storage. Borrowing
 //! a carrier across an edge retains its original disposal debt until exit.
+//! Region disposal retains its exact checked action stream independently of
+//! whole-home liveness; explicit retirement ends that home's current epoch.
 //! Cycles preserve the same finite carrier frontier; nominal cleanup remains
 //! outside this pass.
 use crate::lowering_error::{LoweringError, unsupported};
@@ -228,10 +230,9 @@ fn complete_carriers(
                 if (structural_arguments.iter().any(|argument| {
                     affine.contains(&argument.place) && argument.access == StructuralAccess::Owned
                 }) && !(reentered && *target == entry))
-                    || cleanup_actions.iter().any(|action| match action {
-                        TerminalAffineCleanupAction::DiscardRoot(place) => affine.contains(place),
-                        _ => managed.contains(&action.place()),
-                    })
+                    || cleanup_actions
+                        .iter()
+                        .any(|action| competing_cleanup(action, &affine, &managed))
                 {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing edge custody",
@@ -253,10 +254,11 @@ fn complete_carriers(
                     edge.structural_arguments.iter().any(|argument| {
                         affine.contains(&argument.place)
                             && argument.access == StructuralAccess::Owned
-                    }) || edge.cleanup_actions.iter().any(|action| match action {
-                        TerminalAffineCleanupAction::DiscardRoot(place) => affine.contains(place),
-                        _ => managed.contains(&action.place()),
-                    }) || (reentered && edge.target == entry)
+                    }) || edge
+                        .cleanup_actions
+                        .iter()
+                        .any(|action| competing_cleanup(action, &affine, &managed))
+                        || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing branch custody",
@@ -266,10 +268,10 @@ fn complete_carriers(
             }
             Terminator::StructuralCase { cases, .. } => {
                 if cases.iter().any(|edge| {
-                    edge.cleanup_actions.iter().any(|action| match action {
-                        TerminalAffineCleanupAction::DiscardRoot(place) => affine.contains(place),
-                        _ => managed.contains(&action.place()),
-                    }) || (reentered && edge.target == entry)
+                    edge.cleanup_actions
+                        .iter()
+                        .any(|action| competing_cleanup(action, &affine, &managed))
+                        || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing branch custody",
@@ -285,10 +287,9 @@ fn complete_carriers(
             }
             | Terminator::ReturnUnit {
                 cleanup_actions, ..
-            } if cleanup_actions.iter().all(|action| match action {
-                TerminalAffineCleanupAction::DiscardRoot(place) => !affine.contains(place),
-                _ => !managed.contains(&action.place()),
-            }) =>
+            } if cleanup_actions
+                .iter()
+                .all(|action| !competing_cleanup(action, &affine, &managed)) =>
             {
                 Vec::new()
             }
@@ -451,19 +452,13 @@ fn complete_carriers(
             | Terminator::ReturnUnit {
                 cleanup_actions, ..
             } => {
-                cleanup_actions.retain(|action| !managed.contains(&action.place()));
-                for place in &exits[position] {
-                    let insertion = disposal_position(
-                        cleanup_actions
-                            .iter()
-                            .map(TerminalAffineCleanupAction::place),
-                        *place,
-                        &producers,
-                        &parameter_order,
-                    );
-                    cleanup_actions
-                        .insert(insertion, TerminalAffineCleanupAction::DiscardRoot(*place));
-                }
+                replace_managed_discards(
+                    cleanup_actions,
+                    exits[position].clone(),
+                    &managed,
+                    &producers,
+                    &parameter_order,
+                );
             }
             _ => {}
         }
@@ -483,8 +478,38 @@ fn replace_managed_discards(
     )],
     parameter_order: &[semantic_vocabulary::PlaceId],
 ) {
-    existing.retain(|action| !managed.contains(&action.place()));
+    // A region disposal retains its home, and explicit retirement already
+    // ends that home's current epoch. Neither belongs to root-discard rewriting.
+    // In particular replacement can dispose a field before a later selected
+    // whole transfer of the same home; preserve both ownership operations.
+    let additions = additions
+        .into_iter()
+        .filter(|place| {
+            !existing.iter().any(|action| {
+                matches!(action, TerminalAffineCleanupAction::RetireHome(retired) if retired == place)
+            })
+        })
+        .collect();
+    existing.retain(|action| {
+        !matches!(action, TerminalAffineCleanupAction::DiscardRoot(place) if managed.contains(place))
+    });
     merge_discards(existing, additions, producers, parameter_order);
+}
+
+/// Regional cleanup may coexist with a whole-home lifetime equation. Nominal
+/// cleanup retains its independent ordered owner; delegated entry root disposal
+/// must still be supplied exactly once by this invocation.
+fn competing_cleanup(
+    action: &TerminalAffineCleanupAction,
+    affine: &[semantic_vocabulary::PlaceId],
+    managed: &[semantic_vocabulary::PlaceId],
+) -> bool {
+    match action {
+        TerminalAffineCleanupAction::DiscardRoot(place) => affine.contains(place),
+        TerminalAffineCleanupAction::InvokeNominal(cleanup) => managed.contains(&cleanup.place),
+        TerminalAffineCleanupAction::DiscardResidual(_)
+        | TerminalAffineCleanupAction::RetireHome(_) => false,
+    }
 }
 
 /// Runtime establishment identity, independent of whether the operation
