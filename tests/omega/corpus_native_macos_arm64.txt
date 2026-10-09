@@ -112,6 +112,7 @@ pass/borrows/local_record_nested_sequence_extent_exit built 1737ms exit:70 @fef7
 pass/borrows/local_reference_record_transfer_exit built 1613ms exit:70 @82ec69a91ceb+wt
 pass/borrows/local_reference_scalar_completion_exit built 1760ms exit:70 @81c668e34445+wt
 pass/borrows/local_shared_record_sequence_observations_exit built 1760ms exit:70 @81c668e34445+wt
+pass/borrows/local_subslice_parent_lent_after_last_use_exit built 1653ms exit:0 @b4e4462a31fc+wt
 pass/borrows/loop_descriptor_reformation_exit built 1933ms exit:70 @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit built 11207ms exit:9 @51b2cebdd24f
 pass/borrows/mutable_record_loan_read_in_state_arms_exit built 1383ms exit:70 @a9f373809a48+wt

@@ -7,8 +7,10 @@
 //! slot or relabels derived loans as direct reborrows.
 
 use super::aliases::{self, ResolvedAlias};
+use arena::HandleSpan;
 use checked_trees::{
-    BorrowLoanLineage, CapturedPlace, CheckFacts, FlowStateFact, FlowStatementFact,
+    BorrowLoanLineage, CapturedPlace, CheckFacts, FlowConstraintRef, FlowStateFact,
+    FlowStatementFact,
 };
 use language_semantics::ReferenceAccess;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -69,24 +71,40 @@ pub(in crate::checks::borrows) fn resolve_all(
         statement.statement_index,
         expression,
     )?;
-    let root_symbol = source.root.as_symbol()?;
     let place = CapturedPlace {
         incoming_reference: Default::default(),
-        root_symbol,
+        root_symbol: source.root.as_symbol()?,
         segments: source.segments,
     };
+    resolve_captured_all(
+        program,
+        facts,
+        state,
+        statement.statement_index,
+        statement.entry_constraints,
+        place,
+    )
+}
+
+/// Resolve a place already captured at `statement_index`, such as a call
+/// operand's recorded access, against the loans live at `entry_constraints`.
+/// A root that is not a local reference resolves to itself without lineage.
+pub(in crate::checks::borrows) fn resolve_captured_all(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    entry_constraints: HandleSpan<FlowConstraintRef>,
+    place: CapturedPlace,
+) -> Option<Vec<ResolvedAlias>> {
+    let root_symbol = place.root_symbol;
     let borrow_state = facts.borrow.states.iter().find_map(|(_, candidate)| {
         (candidate.machine_symbol == state.machine_symbol
             && candidate.state_symbol == state.state_symbol)
             .then_some(candidate)
     })?;
-    let candidates = aliases::resolve_places(
-        program,
-        facts,
-        state,
-        statement.entry_constraints,
-        place.clone(),
-    )?;
+    let candidates =
+        aliases::resolve_places(program, facts, state, entry_constraints, place.clone())?;
     let mut resolved = Vec::with_capacity(candidates.len());
     for candidate in candidates {
         if !candidate.local_loan.is_valid() {
@@ -107,7 +125,7 @@ pub(in crate::checks::borrows) fn resolve_all(
         }
         let loan = facts.borrow.loans.get(candidate.local_loan);
         if loan.lineage != BorrowLoanLineage::UnretainedDerived
-            || loan.statement_index >= statement.statement_index
+            || loan.statement_index >= statement_index
         {
             return None;
         }

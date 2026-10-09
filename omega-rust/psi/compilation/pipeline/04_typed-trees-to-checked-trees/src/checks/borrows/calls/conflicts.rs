@@ -3,6 +3,8 @@ use diagnostics::Diagnostic;
 
 use crate::labels::{borrow_access_label, symbol_name};
 
+use super::super::access_sources;
+use super::super::aliases::ResolvedAlias;
 use super::super::details::active_loan_detail;
 use super::super::overlap::StatedOrderingPremise;
 use super::super::overlap::{canonical_place_loan_compatibility, captured_place_compatibility};
@@ -79,6 +81,46 @@ pub(super) fn check_call_access_conflicts<'p>(
                     .unwrap_or_default(),
             )));
         }
+    }
+
+    // A local reference operand lends the storage its own loans captured, not
+    // the local's name. Rejoin each operand whose root holds a live loan to
+    // every backing it may denote, with the retained lineage that grants its
+    // authority, as a write through the same alias resolves its destination.
+    // A root that holds no live loan names its own storage.
+    let mut operand_backings = Vec::with_capacity(accesses.len());
+    for access in &accesses {
+        let place = CapturedPlace {
+            incoming_reference: Default::default(),
+            root_symbol: access.root_symbol,
+            segments: facts.borrow.access_segments(access).to_vec(),
+        };
+        if !active_loans
+            .iter()
+            .any(|(_, loan)| loan.owner_symbol == access.root_symbol)
+        {
+            operand_backings.push(vec![ResolvedAlias {
+                place,
+                lineage: Vec::new(),
+            }]);
+            continue;
+        }
+        let Some(backings) = access_sources::resolve_captured_all(
+            program,
+            facts,
+            state_flow,
+            borrow_call.statement_index,
+            entry_constraints,
+            place,
+        ) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "state `{target_name}` receives `{}` without an exact retained backing for its loan",
+                borrow_access_label(program, &facts.borrow, access),
+            )));
+            operand_backings.push(Vec::new());
+            continue;
+        };
+        operand_backings.push(backings);
     }
 
     for (index, access) in accesses.iter().enumerate() {
@@ -203,25 +245,28 @@ pub(super) fn check_call_access_conflicts<'p>(
             if data_access == Some(index) {
                 continue;
             }
-            if captured_place_compatibility(
-                program,
-                &CapturedPlace {
-                    incoming_reference: Default::default(),
-                    root_symbol: access.root_symbol,
-                    segments: facts.borrow.access_segments(access).to_vec(),
-                },
-                &access.kind,
-                &CapturedPlace {
-                    incoming_reference: loan.incoming_reference,
-                    root_symbol: loan.root_symbol,
-                    segments: facts.borrow.loan_segments(loan).to_vec(),
-                },
-                &loan.kind,
-                stated_premises,
-                bound_lookup,
-            )
-            .non_interfering
-            {
+            // Exactly as for a write through the same alias, only the
+            // operand's own retained lineage is exempt; every other live loan
+            // over a backing it may denote, such as a child view formed through
+            // it, suspends that backing for the invocation.
+            let loan_place = CapturedPlace {
+                incoming_reference: loan.incoming_reference,
+                root_symbol: loan.root_symbol,
+                segments: facts.borrow.loan_segments(loan).to_vec(),
+            };
+            if operand_backings[index].iter().all(|backing| {
+                backing.lineage.contains(loan_handle)
+                    || captured_place_compatibility(
+                        program,
+                        &backing.place,
+                        &access.kind,
+                        &loan_place,
+                        &loan.kind,
+                        stated_premises,
+                        bound_lookup,
+                    )
+                    .non_interfering
+            }) {
                 continue;
             }
             let detail =

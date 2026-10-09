@@ -357,6 +357,15 @@ fail/borrows/local_record_result_call_mut_and_shared_argument rejected 686ms exp
 	state `absorb` receives `tally` as both mutable and read-only
 fail/borrows/local_record_view_result_holds_loan rejected 663ms expected @2d8ed253669f
 	statement 2 mutates `tally.hits` while local borrow `cell` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/local_subslice_live_parent_mutable_argument rejected 560ms expected @b4e4462a31fc+wt
+	state `zero` receives `view` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	state `swap_out` receives `view` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
+	state `both` receives `view` while local borrow `middle` is still active
+	state `zero` receives `outer` while local borrow `inner` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/local_subslice_live_parent_read_operand rejected 539ms expected @b4e4462a31fc+wt
+	state `ident` receives `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/borrows/local_subslice_live_parent_shared_argument rejected 558ms expected @b4e4462a31fc+wt
+	state `peek` receives `view` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/borrows/loop_descriptor_reformation_with_live_alias rejected 257ms expected @6197860b335c+wt
 	state `cycle` receives `buffer` while local borrow `current` is still active (borrowed at statement 1; its last use is at statement 2)
 	statement 2 mutates `buffer` while local borrow `current` is still active (borrowed at statement 1; its last use is at statement 2)
@@ -2449,6 +2458,7 @@ pass/borrows/local_record_nested_sequence_extent_exit checked 1789ms check-targe
 pass/borrows/local_reference_record_transfer_exit checked 1259ms check-target:macos_arm64 @82ec69a91ceb+wt
 pass/borrows/local_reference_scalar_completion_exit checked 4019ms check-target:macos_arm64 @81c668e34445+wt
 pass/borrows/local_shared_record_sequence_observations_exit checked 3943ms check-target:macos_arm64 @81c668e34445+wt
+pass/borrows/local_subslice_parent_lent_after_last_use_exit checked 1848ms check-target:macos_arm64 @b4e4462a31fc+wt
 pass/borrows/loop_descriptor_reformation_exit checked 1879ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2616ms check-target:macos_arm64 @944fb1232f17
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms check-target:macos_arm64 @a9f373809a48+wt

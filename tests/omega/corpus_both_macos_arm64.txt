@@ -56,6 +56,7 @@ pass/borrows/local_record_byte_field_snapshot_exit built 1895ms exit:70 interpre
 pass/borrows/local_record_nested_sequence_extent_exit built 1877ms exit:70 interpreter-exit:70 interpreter:agrees @fef76bc46fc7+wt
 pass/borrows/local_reference_scalar_completion_exit built 4654ms exit:70 interpreter-exit:70 interpreter:agrees @81c668e34445+wt
 pass/borrows/local_shared_record_sequence_observations_exit built 4163ms exit:70 interpreter-exit:70 interpreter:agrees @81c668e34445+wt
+pass/borrows/local_subslice_parent_lent_after_last_use_exit built 1633ms exit:0 interpreter-exit:0 interpreter:agrees @b4e4462a31fc+wt
 pass/borrows/loop_descriptor_reformation_exit built 6344ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/nested_reference_byte_observations_exit built 4335ms exit:70 interpreter-exit:70 interpreter:agrees @81c668e34445+wt
 pass/borrows/nested_reference_crossings_exit built 7261ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
