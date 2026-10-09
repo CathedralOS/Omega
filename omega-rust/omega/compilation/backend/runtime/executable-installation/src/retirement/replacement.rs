@@ -35,7 +35,7 @@ use layout_plans::EntryStubId;
 /// compact identity, so a substituted redirect cannot borrow another
 /// fragment's admission.
 #[derive(Debug)]
-pub struct ReplacementAuthority {
+pub(crate) struct ReplacementAuthority {
     pub(crate) superseded: InstalledCodeEvidence,
     pub(crate) successor: InstalledCodeEvidence,
     pub(crate) sites: BTreeMap<EntryStubId, AdmittedArtifact>,
@@ -68,7 +68,7 @@ impl ReplacementAuthority {
 /// visible to instruction fetch, and the temporary write authority needed to
 /// patch live code is re-suspended.
 #[derive(Debug, PartialEq, Eq)]
-pub struct ReplacementReceipt {
+pub(crate) struct ReplacementReceipt {
     superseded: InstalledCodeEvidence,
     successor: InstalledCodeEvidence,
     patched: BTreeMap<EntryStubId, ArtifactContentDigest>,
@@ -104,7 +104,7 @@ impl ReplacementReceipt {
 /// range held reserved and trapping under quarantine. The accepted patch
 /// receipt stays attached to either ending.
 #[derive(Debug)]
-pub enum ReplacementOutcome {
+pub(crate) enum ReplacementOutcome {
     Retired {
         retired: RetiredInstallation,
         patch: ReplacementReceipt,
@@ -119,7 +119,7 @@ pub enum ReplacementOutcome {
 /// produced no ending. `patch_diagnostic` is present when the patch leg
 /// refused; the drain diagnostics record the legs that ran afterward.
 #[derive(Debug)]
-pub struct ReplacementError {
+pub(crate) struct ReplacementError {
     installed: InstalledCode,
     authority: ReplacementAuthority,
     patch: ReplacementReceipt,
@@ -178,7 +178,7 @@ impl ReplacementError {
 /// drains toward retirement or quarantine exactly as `uninstall_installed`.
 /// A refused patch leaves the realization live; a refused drain returns every
 /// input unless the supplied quarantine evidence parks it.
-pub fn replace_installed(
+pub(crate) fn replace_installed(
     installed: InstalledCode,
     successor: &InstalledCode,
     authority: ReplacementAuthority,

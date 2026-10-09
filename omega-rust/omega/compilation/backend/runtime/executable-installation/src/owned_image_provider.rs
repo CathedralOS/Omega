@@ -67,64 +67,64 @@ use target::Architecture;
 
 /// Canonical fact bytes: the provider stored the validated final bytes into
 /// the realization's resident image before reporting anything else.
-pub const OWNED_IMAGE_BYTES_STORED: &[u8] = b"omega.owned-image-provider.install.bytes-stored.v1";
+pub(crate) const OWNED_IMAGE_BYTES_STORED: &[u8] = b"omega.owned-image-provider.install.bytes-stored.v1";
 /// Canonical fact bytes: the provider suspended write authority over the
 /// resident image as the write-to-execute transition it performed.
-pub const OWNED_IMAGE_WRITE_TO_EXECUTE: &[u8] =
+pub(crate) const OWNED_IMAGE_WRITE_TO_EXECUTE: &[u8] =
     b"omega.owned-image-provider.install.write-to-execute.v1";
 /// Canonical fact bytes: stored bytes were ordered by a `SeqCst` fence before
 /// any read-back or visibility claim.
-pub const OWNED_IMAGE_STORE_ORDER_FENCE: &[u8] =
+pub(crate) const OWNED_IMAGE_STORE_ORDER_FENCE: &[u8] =
     b"omega.owned-image-provider.store-order.seq-cst-fence.v1";
 /// Canonical fact bytes: the stored image was read back and compared equal
 /// after ordering, the provider's instruction-fetch visibility step.
-pub const OWNED_IMAGE_FETCH_VISIBILITY_READBACK: &[u8] =
+pub(crate) const OWNED_IMAGE_FETCH_VISIBILITY_READBACK: &[u8] =
     b"omega.owned-image-provider.fetch-visibility.readback.v1";
 
 /// Canonical fact bytes: the provider resumed write authority over the live
 /// image for the patch window only.
-pub const OWNED_IMAGE_PATCH_WRITE_RESUMPTION: &[u8] =
+pub(crate) const OWNED_IMAGE_PATCH_WRITE_RESUMPTION: &[u8] =
     b"omega.owned-image-provider.patch.write-resumption.v1";
 /// Canonical fact bytes: every demanded site carries its fragment's exact
 /// bytes, verified by read-back after the ordering fence.
-pub const OWNED_IMAGE_PATCH_SITES_WRITTEN: &[u8] =
+pub(crate) const OWNED_IMAGE_PATCH_SITES_WRITTEN: &[u8] =
     b"omega.owned-image-provider.patch.sites-written.v1";
 /// Canonical fact bytes: write authority over the patched image was
 /// re-suspended before the receipt reported it.
-pub const OWNED_IMAGE_PATCH_WRITE_RESUSPENDED: &[u8] =
+pub(crate) const OWNED_IMAGE_PATCH_WRITE_RESUSPENDED: &[u8] =
     b"omega.owned-image-provider.patch.write-resuspended.v1";
 /// Canonical fact bytes: the patched image's read-back is the provider's
 /// instruction-fetch visibility step over the patched sites.
-pub const OWNED_IMAGE_PATCH_FETCH_VISIBILITY: &[u8] =
+pub(crate) const OWNED_IMAGE_PATCH_FETCH_VISIBILITY: &[u8] =
     b"omega.owned-image-provider.patch.fetch-visibility.readback.v1";
 
 /// Canonical fact bytes: the demanded entry is a declared entry of the
 /// installed artifact whose resident image this provider holds.
-pub const OWNED_IMAGE_SEAL_DECLARED_ENTRY: &[u8] =
+pub(crate) const OWNED_IMAGE_SEAL_DECLARED_ENTRY: &[u8] =
     b"omega.owned-image-provider.seal-entry.declared-entry.v1";
 /// Canonical fact bytes: the resident entry extent read back equal to the
 /// exact committed content — the installed bytes, or the fragment committed
 /// at a patched site — the provider's requirement-compatibility step.
-pub const OWNED_IMAGE_SEAL_COMMITTED_CONTENT: &[u8] =
+pub(crate) const OWNED_IMAGE_SEAL_COMMITTED_CONTENT: &[u8] =
     b"omega.owned-image-provider.seal-entry.committed-content-readback.v1";
 /// Canonical fact bytes: the provider's `SeqCst` fence and read-back over the
 /// entry extent are its instruction-fetch visibility step for the seal.
-pub const OWNED_IMAGE_SEAL_FETCH_VISIBILITY: &[u8] =
+pub(crate) const OWNED_IMAGE_SEAL_FETCH_VISIBILITY: &[u8] =
     b"omega.owned-image-provider.seal-entry.fetch-visibility-readback.v1";
 
 /// Canonical fact bytes: no call is in flight at retirement — the `&mut self`
 /// receiver is the quiescence evidence, since a live `ResidentEntryCall`
 /// borrows the provider and would make this invocation impossible.
-pub const OWNED_IMAGE_RETIRE_EXECUTORS_QUIESCED: &[u8] =
+pub(crate) const OWNED_IMAGE_RETIRE_EXECUTORS_QUIESCED: &[u8] =
     b"omega.owned-image-provider.retire.executors-quiesced.v1";
 /// Canonical fact bytes: the provider cleared the image's execute-enabled
 /// convention flag, so `call` and `seal_entry` refuse the realization — an
 /// owned buffer's execute authority is the flag, never a hardware mapping.
-pub const OWNED_IMAGE_RETIRE_EXECUTE_DISABLED: &[u8] =
+pub(crate) const OWNED_IMAGE_RETIRE_EXECUTE_DISABLED: &[u8] =
     b"omega.owned-image-provider.retire.execute-disabled.v1";
 /// Canonical fact bytes: the provider's custody write flag was restored,
 /// returning the realization's convention to writeable-not-executable.
-pub const OWNED_IMAGE_RETIRE_WRITE_AUTHORITY_RESTORED: &[u8] =
+pub(crate) const OWNED_IMAGE_RETIRE_WRITE_AUTHORITY_RESTORED: &[u8] =
     b"omega.owned-image-provider.retire.write-authority-restored.v1";
 
 /// One installed realization's resident image under this provider's custody.
@@ -178,7 +178,7 @@ fn declared_entry_extent(
 /// hardware execute authority, so the physical control transfer remains the
 /// consuming executor's obligation.
 #[derive(Debug)]
-pub struct ResidentEntryCall<'provider> {
+pub(crate) struct ResidentEntryCall<'provider> {
     installed_code: InstalledCodeId,
     entry: EntryStubId,
     contract: EntryContractDigest,
@@ -215,7 +215,7 @@ impl ResidentEntryCall<'_> {
 /// a realization this provider installed. The provider serves one target
 /// architecture and refuses artifacts for any other.
 #[derive(Debug)]
-pub struct OwnedImageProvider {
+pub(crate) struct OwnedImageProvider {
     architecture: Architecture,
     images: BTreeMap<InstalledCodeId, OwnedImage>,
     next_installed_identity: u64,
@@ -238,7 +238,7 @@ impl OwnedImageProvider {
     /// The installation facts this provider can truthfully establish — the
     /// exact canonical bytes behind each digest, so a receiver can demand them
     /// by identity rather than trusting a reported superset.
-    pub fn install_facts() -> BTreeSet<InstallationFactDigest> {
+    pub(crate) fn install_facts() -> BTreeSet<InstallationFactDigest> {
         [
             OWNED_IMAGE_BYTES_STORED,
             OWNED_IMAGE_WRITE_TO_EXECUTE,
@@ -251,7 +251,7 @@ impl OwnedImageProvider {
     }
 
     /// The replacement facts this provider can truthfully establish.
-    pub fn patch_facts() -> BTreeSet<ReplacementFactDigest> {
+    pub(crate) fn patch_facts() -> BTreeSet<ReplacementFactDigest> {
         [
             OWNED_IMAGE_PATCH_WRITE_RESUMPTION,
             OWNED_IMAGE_PATCH_SITES_WRITTEN,
@@ -264,7 +264,7 @@ impl OwnedImageProvider {
     }
 
     /// The entry-sealing facts this provider can truthfully establish.
-    pub fn seal_facts() -> BTreeSet<EntryReferenceFactDigest> {
+    pub(crate) fn seal_facts() -> BTreeSet<EntryReferenceFactDigest> {
         [
             OWNED_IMAGE_SEAL_DECLARED_ENTRY,
             OWNED_IMAGE_SEAL_COMMITTED_CONTENT,
@@ -276,7 +276,7 @@ impl OwnedImageProvider {
     }
 
     /// The retirement facts this provider can truthfully establish.
-    pub fn retire_facts() -> BTreeSet<RetirementFactDigest> {
+    pub(crate) fn retire_facts() -> BTreeSet<RetirementFactDigest> {
         [
             OWNED_IMAGE_RETIRE_EXECUTORS_QUIESCED,
             OWNED_IMAGE_RETIRE_EXECUTE_DISABLED,
@@ -290,14 +290,14 @@ impl OwnedImageProvider {
     /// The resident bytes of one realization installed through this provider,
     /// including every committed patch. A read-only verification view: the
     /// provider's custody flag, not this accessor, is the write authority.
-    pub fn installed_image(&self, installed: InstalledCodeId) -> Option<&[u8]> {
+    pub(crate) fn installed_image(&self, installed: InstalledCodeId) -> Option<&[u8]> {
         self.images
             .get(&installed)
             .map(|image| image.bytes.as_slice())
     }
 
     /// Whether write authority over one resident image is currently suspended.
-    pub fn write_suspended(&self, installed: InstalledCodeId) -> Option<bool> {
+    pub(crate) fn write_suspended(&self, installed: InstalledCodeId) -> Option<bool> {
         self.images
             .get(&installed)
             .map(|image| image.write_suspended)
@@ -306,7 +306,7 @@ impl OwnedImageProvider {
     /// Whether execute authority over one resident image is currently held.
     /// Cleared by `retire` and `quarantine`; `call` and `seal_entry` refuse
     /// without it.
-    pub fn execute_enabled(&self, installed: InstalledCodeId) -> Option<bool> {
+    pub(crate) fn execute_enabled(&self, installed: InstalledCodeId) -> Option<bool> {
         self.images
             .get(&installed)
             .map(|image| image.execute_enabled)
@@ -586,7 +586,7 @@ impl OwnedImageProvider {
     /// comparison succeeds; a drifted or substituted extent refuses before
     /// any receipt leaves the provider. A demand for facts outside this
     /// provider's performed set refuses first.
-    pub fn seal_entry(
+    pub(crate) fn seal_entry(
         &self,
         installed: &InstalledCode,
         authority: &EntryReferenceAuthority,

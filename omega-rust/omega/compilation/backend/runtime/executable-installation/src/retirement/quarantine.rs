@@ -6,7 +6,7 @@ use crate::installation::{InstallationDiagnostic, InstalledCode, InstalledCodeCo
 /// Attributed reason an installed mapping cannot be reclaimed for ordinary
 /// reuse after replacement routing has moved elsewhere.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MappingQuarantineCause {
+pub(crate) enum MappingQuarantineCause {
     IncompleteDrain { residual_authority_count: usize },
     PossibleOpaqueHolder { provider_identity: String },
 }
@@ -15,7 +15,7 @@ impl MappingQuarantineCause {
     /// Whether the cause names a concrete residual holder — an unattributed
     /// quarantine refuses at the provider and at the crossing, since the
     /// receipt must answer who still holds authority over the mapping.
-    pub fn is_attributed(&self) -> bool {
+    pub(crate) fn is_attributed(&self) -> bool {
         match self {
             Self::IncompleteDrain {
                 residual_authority_count,
@@ -33,7 +33,7 @@ impl MappingQuarantineCause {
 /// evidence. This receipt does not assert quiescence or discharge any lifecycle
 /// obligation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MappingQuarantineReceipt {
+pub(crate) struct MappingQuarantineReceipt {
     installed: InstalledCodeEvidence,
     quarantine: MappingQuarantineId,
     execute_disabled: bool,
@@ -67,7 +67,7 @@ impl MappingQuarantineReceipt {
 /// provider receipt remains sealed here rather than being reduced to its
 /// compact installed/quarantine report identities.
 #[derive(Debug)]
-pub struct QuarantinedInstallation {
+pub(crate) struct QuarantinedInstallation {
     receipt: MappingQuarantineReceipt,
     previous_artifact: AdmittedArtifact,
     attributed_capacity_loss: u64,
@@ -96,7 +96,7 @@ impl QuarantinedInstallation {
 
     /// A call naming the retired realization faults at the trapping mapping.
     /// The returned evidence deliberately has no completion/discharge token.
-    pub fn stale_entry_fault(
+    pub(crate) fn stale_entry_fault(
         &self,
         attempted: &InstalledCodeContext,
     ) -> Result<StaleEntryFault, InstallationDiagnostic> {
@@ -115,7 +115,7 @@ impl QuarantinedInstallation {
 /// it is not an acknowledgement that any claim, lock, callback, or protocol
 /// obligation completed.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StaleEntryFault {
+pub(crate) struct StaleEntryFault {
     receipt: MappingQuarantineReceipt,
 }
 
@@ -136,7 +136,7 @@ impl StaleEntryFault {
 /// Consume installed code into a reserved trapping quarantine. Unlike normal
 /// retirement, this function never returns `CodePlacement`, so its address
 /// range cannot be reused merely because routing moved to a new era.
-pub fn quarantine_installed(
+pub(crate) fn quarantine_installed(
     installed: InstalledCode,
     receipt: MappingQuarantineReceipt,
 ) -> Result<QuarantinedInstallation, Box<MappingQuarantineError>> {
@@ -173,7 +173,7 @@ pub fn quarantine_installed(
 }
 
 #[derive(Debug)]
-pub struct MappingQuarantineError {
+pub(crate) struct MappingQuarantineError {
     installed: InstalledCode,
     receipt: MappingQuarantineReceipt,
     diagnostic: InstallationDiagnostic,

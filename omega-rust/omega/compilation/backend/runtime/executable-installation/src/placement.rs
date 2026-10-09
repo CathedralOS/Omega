@@ -43,7 +43,7 @@ impl CodePlacementExtentEvidence {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct CodePlacementAuthority {
+pub(crate) struct CodePlacementAuthority {
     placement: CodePlacementId,
     scope: InstallationScopeId,
     audience: InstallationAudience,
@@ -121,7 +121,7 @@ impl CodePlacementAuthority {
 }
 
 #[derive(Debug)]
-pub struct PlacementClaimError {
+pub(crate) struct PlacementClaimError {
     authority: CodePlacementAuthority,
     extent: Extent,
     diagnostic: InstallationDiagnostic,
@@ -139,7 +139,7 @@ impl PlacementClaimError {
 
 /// Linear W+NX placement state. It carries no executable permission.
 #[derive(Debug)]
-pub struct CodePlacement {
+pub(crate) struct CodePlacement {
     pub(crate) placement: CodePlacementId,
     pub(crate) scope: InstallationScopeId,
     audience: InstallationAudience,
@@ -185,7 +185,7 @@ impl CodePlacement {
 /// Provider result after declared sections/relocations were written and all
 /// write authority over the final bytes was frozen.
 #[derive(Debug, PartialEq, Eq)]
-pub struct MaterializationReceipt {
+pub(crate) struct MaterializationReceipt {
     pub(crate) materialized: MaterializedArtifactBytes,
     pub(crate) realized_footprint: MachineFootprintId,
     pub(crate) writes_frozen: bool,
@@ -195,7 +195,7 @@ impl MaterializationReceipt {
     /// Bind a provider's write/freeze receipt to the exact output of the
     /// canonical materializer instead of restating its artifact/placement
     /// identities independently.
-    pub fn from_materialized(
+    pub(crate) fn from_materialized(
         materialized: &MaterializedArtifactBytes,
         realized_footprint: MachineFootprintId,
         writes_frozen: bool,
@@ -209,7 +209,7 @@ impl MaterializationReceipt {
 }
 
 #[derive(Debug)]
-pub struct MaterializationError {
+pub(crate) struct MaterializationError {
     pub(crate) placement: CodePlacement,
     pub(crate) materialized: MaterializedArtifactBytes,
     pub(crate) receipt: MaterializationReceipt,
@@ -234,7 +234,7 @@ impl MaterializationError {
 
 /// Linear R+NX placement whose exact bytes can no longer change.
 #[derive(Debug)]
-pub struct FrozenPlacement {
+pub(crate) struct FrozenPlacement {
     pub(crate) artifact: AdmittedArtifact,
     pub(crate) placement: CodePlacement,
     pub(crate) materialized: MaterializedArtifactBytes,

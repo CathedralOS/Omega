@@ -127,7 +127,7 @@ pub struct InstalledCode {
 /// and artifact IDs are report keys only; equality retains the complete
 /// installed-code evidence, including the exact placement scope and bytes.
 #[derive(Debug, PartialEq, Eq)]
-pub struct InstallationRegistryAuthority {
+pub(crate) struct InstallationRegistryAuthority {
     installed: InstalledCodeEvidence,
 }
 
@@ -148,7 +148,7 @@ impl InstalledCode {
     /// Issue the sole registry authority for this installed-code occurrence.
     /// Dropping the authority does not reopen issuance: the burned claim is
     /// retained by `InstalledCode` until that occurrence is retired.
-    pub fn claim_installation_registry(
+    pub(crate) fn claim_installation_registry(
         &mut self,
     ) -> Result<InstallationRegistryAuthority, InstallationDiagnostic> {
         if self.installation_registry_claimed {

@@ -11,7 +11,6 @@ mod record_layouts;
 #[cfg(test)]
 mod tests;
 
-pub use decoding::decode_executable_container;
 
 use crate::artifacts::Artifact;
 use crate::artifacts::container::ContainerLimits;
@@ -20,11 +19,11 @@ use crate::installation::InstallationDiagnostic;
 
 use crate::artifacts::container_bytes::encoding::encode_executable_container_version;
 
-pub const OMEGA_EXECUTABLE_CONTAINER_MAGIC: [u8; 8] = *b"OMEGAXE!";
+pub(crate) const OMEGA_EXECUTABLE_CONTAINER_MAGIC: [u8; 8] = *b"OMEGAXE!";
 
-pub const OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES: u64 = 64;
+pub(crate) const OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES: u64 = 64;
 
-pub const OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES: u64 = 32;
+pub(crate) const OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES: u64 = 32;
 
 const RELOCATION_COUNT_BYTES: u64 = 8;
 
@@ -52,7 +51,7 @@ const SECTION_AUTHORITY_COMMITMENTS: u16 = 9;
 
 const AUTHORITY_COMMITMENT_BYTES: u64 = 128;
 
-pub fn non_authoritative_informational_section_fingerprint(
+pub(crate) fn non_authoritative_informational_section_fingerprint(
     kind: u16,
     payload: &[u8],
 ) -> NonAuthoritativeInformationalFingerprint64 {
@@ -92,7 +91,7 @@ struct WireSection {
 /// and semantic validator. An encoder
 /// bug therefore fails closed instead of producing a container that a later
 /// loader interprets differently.
-pub fn encode_executable_container(
+pub(crate) fn encode_executable_container(
     artifact: &Artifact,
     limits: ContainerLimits,
 ) -> Result<Vec<u8>, InstallationDiagnostic> {
@@ -101,7 +100,7 @@ pub fn encode_executable_container(
 
 /// Re-encodes a decoded version-1 compatibility candidate byte-for-byte.
 /// Version 1 has no strong imported-authority section and cannot be admitted.
-pub fn encode_executable_container_v1_compatibility(
+pub(crate) fn encode_executable_container_v1_compatibility(
     artifact: &Artifact,
     limits: ContainerLimits,
 ) -> Result<Vec<u8>, InstallationDiagnostic> {

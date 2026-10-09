@@ -34,7 +34,7 @@ optimization_core::custody_field_inventory! {
     /// Several fields carry more than one lane when distinct substituted
     /// values reach distinct rejections (a zero section count and one above
     /// the bound, an absent flag and a non-boolean flag).
-    pub enum ContainerWireByteFieldForTest {
+    pub(crate) enum ContainerWireByteFieldForTest {
         // Header fields.
         HeaderMagic,
         HeaderFormatMarker,
@@ -133,7 +133,7 @@ const AUTHORITY: usize = 6;
 /// canonically encoded `bytes`. Wire lanes take fixed non-canonical values;
 /// the foreign `_donor` encoding only proves the driver's custody view
 /// distinguishes authentic containers.
-pub fn substitute_container_wire_byte_for_test(
+pub(crate) fn substitute_container_wire_byte_for_test(
     bytes: &mut Vec<u8>,
     field: ContainerWireByteFieldForTest,
     _donor: &Vec<u8>,
@@ -228,7 +228,7 @@ pub fn substitute_container_wire_byte_for_test(
 }
 
 /// The exact decode rejection each declared lane must produce.
-pub fn container_wire_byte_custody_outcome(
+pub(crate) fn container_wire_byte_custody_outcome(
     field: ContainerWireByteFieldForTest,
 ) -> MutationOutcome<ContainerWireRejection> {
     use ContainerWireByteFieldForTest as Lane;
@@ -291,7 +291,7 @@ pub fn container_wire_byte_custody_outcome(
 
 /// Every verdict the wire-byte family declares, for the checker's
 /// classification.
-pub fn container_wire_byte_vocabulary() -> impl Iterator<Item = ContainerWireRejection> {
+pub(crate) fn container_wire_byte_vocabulary() -> impl Iterator<Item = ContainerWireRejection> {
     ContainerWireByteFieldForTest::INVENTORY
         .iter()
         .map(|&field| match container_wire_byte_custody_outcome(field) {

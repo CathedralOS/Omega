@@ -72,7 +72,7 @@ impl ArtifactEntry {
 pub struct Artifact(pub(crate) Arc<ArtifactRecord>);
 
 impl Artifact {
-    pub fn from_canonical_decode(
+    pub(crate) fn from_canonical_decode(
         identity: ArtifactId,
         architecture: Architecture,
         code: Vec<u8>,
@@ -240,7 +240,7 @@ impl Artifact {
 
     /// Legacy container-v1 checksum retained only for wire compatibility. It
     /// is never sufficient for admission, replay, or installation authority.
-    pub fn non_authoritative_container_fingerprint(
+    pub(crate) fn non_authoritative_container_fingerprint(
         &self,
     ) -> NonAuthoritativeContainerFingerprint64 {
         self.0.container_fingerprint
@@ -261,11 +261,11 @@ impl Artifact {
         &self.0.code
     }
 
-    pub fn placement_constraints(&self) -> PlacementConstraints {
+    pub(crate) fn placement_constraints(&self) -> PlacementConstraints {
         self.0.placement_constraints
     }
 
-    pub fn entry_set(&self) -> EntrySetId {
+    pub(crate) fn entry_set(&self) -> EntrySetId {
         self.0.entry_set
     }
 
@@ -284,7 +284,7 @@ impl Artifact {
         &self.0.relocations
     }
 
-    pub fn authority_commitments(&self) -> Option<&ArtifactAuthorityCommitments> {
+    pub(crate) fn authority_commitments(&self) -> Option<&ArtifactAuthorityCommitments> {
         self.0.authority_commitments.as_ref()
     }
 
@@ -301,7 +301,7 @@ impl Artifact {
 /// This is the normalized receipt carried by provider admission, not something
 /// an Omega package can construct.
 #[derive(Debug, PartialEq, Eq)]
-pub struct ArtifactAdmissionEvidence {
+pub(crate) struct ArtifactAdmissionEvidence {
     pub(crate) receipt: AdmissionReceiptId,
     pub(crate) artifact: Artifact,
     pub(crate) accepted: bool,
@@ -323,7 +323,7 @@ impl ArtifactAdmissionEvidence {
 
 /// Reusable immutable artifact carrying the sealed `AdmittedExecutable` fact.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedArtifact {
+pub(crate) struct AdmittedArtifact {
     pub(crate) artifact: Artifact,
     pub(crate) admission: AdmissionReceiptId,
 }
@@ -362,7 +362,7 @@ impl AdmittedArtifact {
 /// The audience binds into placement evidence, so a receipt minted for one
 /// audience cannot satisfy a validated placement scoped to another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InstallationAudience {
+pub(crate) enum InstallationAudience {
     /// Local installation completion only: the realization has no remote
     /// fetcher and no current executor.
     DormantLocal,

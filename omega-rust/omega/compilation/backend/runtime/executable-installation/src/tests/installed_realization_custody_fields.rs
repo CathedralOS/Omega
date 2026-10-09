@@ -26,7 +26,7 @@ optimization_core::custody_field_inventory! {
     /// One substitutable lane of the `RealizationSpec` record; checked by the
     /// registry replay plus lifecycle joins in
     /// `installed_realization_rejects_every_one_field_substitution`.
-    pub enum InstalledRealizationCustodyFieldForTest {
+    pub(crate) enum InstalledRealizationCustodyFieldForTest {
         ArtifactCodeBytes,
         ArtifactArchitecture,
         ArtifactIdentity,
@@ -65,7 +65,7 @@ optimization_core::custody_field_inventory! {
 /// substitution fails the same first seam; the driver's `joined_replay`
 /// then asserts the remaining lifecycle seams reject in both directions.
 #[derive(Debug, PartialEq)]
-pub enum InstalledRealizationCustodyCheck {
+pub(crate) enum InstalledRealizationCustodyCheck {
     /// `registry.matches` refuses to bind the substituted realization to the
     /// authentic occurrence.
     RegistryMismatch,
@@ -75,7 +75,7 @@ pub enum InstalledRealizationCustodyCheck {
 /// different installed occurrence, so its retained custody differs from the
 /// honest record the matrix builds. It supplies the donor placement the
 /// `PlacementIdentity` leg substitutes.
-pub fn foreign_realization_spec_donor() -> RealizationSpec {
+pub(crate) fn foreign_realization_spec_donor() -> RealizationSpec {
     let mut spec = authentic_spec();
     spec.placement = 108;
     spec
@@ -86,7 +86,7 @@ pub fn foreign_realization_spec_donor() -> RealizationSpec {
 /// re-realized occurrence digest recomputes over the substitution.
 /// `donor` supplies the foreign placement identity the `PlacementIdentity`
 /// leg borrows; the remaining legs take fixed non-identity alternates.
-pub fn substitute_installed_realization_for_test(
+pub(crate) fn substitute_installed_realization_for_test(
     spec: &mut RealizationSpec,
     field: InstalledRealizationCustodyFieldForTest,
     donor: &RealizationSpec,
@@ -200,7 +200,7 @@ pub fn substitute_installed_realization_for_test(
 /// The exact checker verdict each declared leg must produce: every
 /// representable substitution diverges the complete installed evidence, so
 /// the registry authority's replay refuses to bind it.
-pub fn installed_realization_custody_outcome(
+pub(crate) fn installed_realization_custody_outcome(
     _field: InstalledRealizationCustodyFieldForTest,
 ) -> optimization_core::MutationOutcome<InstalledRealizationCustodyCheck> {
     optimization_core::MutationOutcome::ExactError(

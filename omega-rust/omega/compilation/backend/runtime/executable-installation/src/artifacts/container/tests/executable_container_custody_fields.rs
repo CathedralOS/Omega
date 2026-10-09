@@ -56,7 +56,7 @@ optimization_core::custody_field_inventory! {
     /// code honest, and each report coordinate carries its section-record
     /// join — the `*WithoutRecommit` lanes name exactly the same
     /// coordinate with the strong commitments left stale.
-    pub enum ExecutableContainerFieldForTest {
+    pub(crate) enum ExecutableContainerFieldForTest {
         // Representable lanes: canonical validation passes and the
         // admission replay refuses to bind the substitution.
         ClaimedArtifactIdentity,
@@ -128,7 +128,7 @@ optimization_core::custody_field_inventory! {
 /// substituted record; `EnvelopeInformational` names a substitution the
 /// whole chain admits because the axis carries no custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutableContainerCustodyCheck {
+pub(crate) enum ExecutableContainerCustodyCheck {
     // Canonical-validation verdicts.
     /// The format marker is not a supported container version.
     UnsupportedFormatMarker,
@@ -265,7 +265,7 @@ const VALIDATION_NEEDLES: &[(ExecutableContainerCustodyCheck, &str)] = &[
 
 /// Classify a canonical-validation rejection into the family's named
 /// vocabulary.
-pub fn classify_container_validation(
+pub(crate) fn classify_container_validation(
     error: &crate::installation::InstallationDiagnostic,
 ) -> ExecutableContainerCustodyCheck {
     for (verdict, needle) in VALIDATION_NEEDLES {
@@ -278,7 +278,7 @@ pub fn classify_container_validation(
 
 /// Classify an admission-replay rejection into the family's named
 /// vocabulary.
-pub fn classify_container_replay(
+pub(crate) fn classify_container_replay(
     error: &crate::installation::InstallationDiagnostic,
 ) -> ExecutableContainerCustodyCheck {
     if error.0.contains("different validated container") {
@@ -293,7 +293,7 @@ pub fn classify_container_replay(
 /// content digest — so its retained custody differs from the honest
 /// record the matrix builds and the `ClaimedArtifactIdentity` leg borrows
 /// it.
-pub fn foreign_container_donor() -> DecodedArtifactContainer {
+pub(crate) fn foreign_container_donor() -> DecodedArtifactContainer {
     let mut donor = decoded();
     donor.artifact = id(2, ArtifactId::from_normalized_identity);
     donor
@@ -341,7 +341,7 @@ fn recommit(container: &mut DecodedArtifactContainer) {
 /// the substitution. `donor` supplies the foreign artifact identity the
 /// `ClaimedArtifactIdentity` leg borrows; the remaining legs take fixed
 /// non-identity alternates.
-pub fn substitute_executable_container_for_test(
+pub(crate) fn substitute_executable_container_for_test(
     container: &mut DecodedArtifactContainer,
     field: ExecutableContainerFieldForTest,
     donor: &DecodedArtifactContainer,
@@ -594,7 +594,7 @@ pub fn substitute_executable_container_for_test(
 }
 
 /// The exact checker verdict each declared leg must produce.
-pub fn executable_container_custody_outcome(
+pub(crate) fn executable_container_custody_outcome(
     field: ExecutableContainerFieldForTest,
 ) -> optimization_core::MutationOutcome<ExecutableContainerCustodyCheck> {
     use ExecutableContainerFieldForTest as Leg;

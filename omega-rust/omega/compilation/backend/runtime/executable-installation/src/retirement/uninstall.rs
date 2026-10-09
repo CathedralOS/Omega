@@ -28,7 +28,7 @@ use crate::retirement::{
 /// complete retirement, or the same range held reserved and trapping under
 /// quarantine.
 #[derive(Debug)]
-pub enum UninstallOutcome {
+pub(crate) enum UninstallOutcome {
     Retired(RetiredInstallation),
     Quarantined(QuarantinedInstallation),
 }
@@ -37,7 +37,7 @@ pub enum UninstallOutcome {
 /// diagnostics record both legs when a quarantine receipt was attempted:
 /// `retirement` is the drain refusal and `quarantine` the parking refusal.
 #[derive(Debug)]
-pub struct UninstallError {
+pub(crate) struct UninstallError {
     installed: InstalledCode,
     authority: RetirementAuthority,
     retirement: RetirementReceipt,
@@ -82,7 +82,7 @@ impl UninstallError {
 /// when the drain cannot complete, park it in the trapping quarantine if the
 /// provider supplied that evidence. `quarantine == None` means a
 /// retirement-only request whose failure returns every input.
-pub fn uninstall_installed(
+pub(crate) fn uninstall_installed(
     installed: InstalledCode,
     authority: RetirementAuthority,
     retirement: RetirementReceipt,
