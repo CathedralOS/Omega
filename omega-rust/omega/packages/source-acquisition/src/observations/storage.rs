@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 /// cache traversal. This is a measurement and its enforced limits, not a
 /// process receipt or canonical identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GitRetainedStorageCustody {
+pub(crate) struct GitRetainedStorageCustody {
     pub(crate) root: PathBuf,
     pub(crate) entry_limit: usize,
     pub(crate) byte_limit: u64,

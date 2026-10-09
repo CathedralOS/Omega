@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 /// Callers should provide every package-controlled workspace, source, build,
 /// quarantine, and cache root already known at operation start.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PrimaryGitSelection {
+pub(crate) struct PrimaryGitSelection {
     pub(crate) path: PathBuf,
 }
 

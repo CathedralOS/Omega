@@ -146,7 +146,7 @@ impl ExternalLocalLineage {
         &self.source_context
     }
 
-    pub fn is_portable(&self) -> bool {
+    pub(crate) fn is_portable(&self) -> bool {
         false
     }
 }
