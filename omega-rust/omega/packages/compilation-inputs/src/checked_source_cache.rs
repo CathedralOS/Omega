@@ -45,7 +45,7 @@
 //! the store, fingerprint, and capture protocol; that choice of lane and
 //! the caller opt-in live with the resolving consumers.
 
-use crate::canonical_fs::os_str_bytes;
+use crate::canonical_fs::{canonical_file_executable, os_str_bytes};
 #[cfg(unix)]
 use crate::canonical_fs::require_canonical_mode;
 use filesystem_authority::{
@@ -67,10 +67,6 @@ const DEFAULT_MAX_RECORD_BYTES: u64 = 256 * 1024 * 1024;
 
 #[cfg(unix)]
 const CANONICAL_DIRECTORY_MODE: u32 = 0o555;
-#[cfg(unix)]
-const CANONICAL_FILE_MODE: u32 = 0o444;
-#[cfg(unix)]
-const CANONICAL_EXECUTABLE_FILE_MODE: u32 = 0o555;
 
 /// Capacity contract for one cache directory. A record beyond the byte
 /// ceiling, or a directory already holding `max_records` records, declines
@@ -437,23 +433,7 @@ fn stat_row(
         require_canonical_mode(path, physical, CANONICAL_DIRECTORY_MODE)?;
         (StatRowKind::Directory, 0, None)
     } else if physical.is_file() {
-        #[cfg(unix)]
-        let executable = {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = physical.permissions().mode() & 0o777;
-            match mode {
-                mode if mode == CANONICAL_FILE_MODE => false,
-                mode if mode == CANONICAL_EXECUTABLE_FILE_MODE => true,
-                _ => {
-                    return Err(format!(
-                        "physical Source file {} has noncanonical mode {mode:#o}",
-                        path.display()
-                    ));
-                }
-            }
-        };
-        #[cfg(not(unix))]
-        let executable = false;
+        let executable = canonical_file_executable(path, physical)?;
         charge_content(aggregate_content_bytes, physical.len())?;
         (StatRowKind::File { executable }, physical.len(), None)
     } else if physical.file_type().is_symlink() {

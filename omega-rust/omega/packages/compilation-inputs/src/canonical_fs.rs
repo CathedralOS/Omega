@@ -26,6 +26,37 @@ pub(crate) fn require_canonical_mode(
     }
 }
 
+/// The two authored Source file modes: plain files are read-only, executables
+/// are read-execute. A widened physical mode impersonates neither.
+pub(crate) const CANONICAL_FILE_MODE: u32 = 0o444;
+pub(crate) const CANONICAL_EXECUTABLE_FILE_MODE: u32 = 0o555;
+
+/// The executable bit of a canonical Source file: only the two authored modes
+/// are legal, so the flag is the mode itself. Non-unix hosts carry no mode
+/// surface and always report false.
+pub(crate) fn canonical_file_executable(
+    path: &std::path::Path,
+    metadata: &std::fs::Metadata,
+) -> Result<bool, String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        match metadata.permissions().mode() & 0o777 {
+            CANONICAL_FILE_MODE => Ok(false),
+            CANONICAL_EXECUTABLE_FILE_MODE => Ok(true),
+            mode => Err(format!(
+                "physical Source file {} has noncanonical mode {mode:#o}",
+                path.display()
+            )),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (path, metadata);
+        Ok(false)
+    }
+}
+
 #[cfg(unix)]
 pub(crate) fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
     use std::os::unix::ffi::OsStrExt;

@@ -46,7 +46,7 @@ impl source::SourceSnapshotStorage for BuildSourceSnapshotStorage {
     }
 }
 
-use crate::canonical_fs::os_str_bytes;
+use crate::canonical_fs::{canonical_file_executable, os_str_bytes};
 #[cfg(unix)]
 use crate::canonical_fs::require_canonical_mode;
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
@@ -758,23 +758,7 @@ fn capture_physical_metadata_row(
         });
     }
     if metadata.is_file() {
-        #[cfg(unix)]
-        let executable = {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = metadata.permissions().mode() & 0o777;
-            match mode {
-                0o444 => false,
-                0o555 => true,
-                _ => {
-                    return Err(format!(
-                        "physical Source file {} has noncanonical mode {mode:#o}",
-                        path.display()
-                    ));
-                }
-            }
-        };
-        #[cfg(not(unix))]
-        let executable = false;
+        let executable = canonical_file_executable(path, metadata)?;
         charge_canonical_source_content(aggregate_content_bytes, metadata.len())?;
         let content_digest = hash_canonical_source_file(path, metadata)?;
         return Ok(CapturedSourceMetadataRow {
@@ -826,23 +810,7 @@ fn capture_physical_source_row(
         ));
     }
     if metadata.is_file() {
-        #[cfg(unix)]
-        let executable = {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = metadata.permissions().mode() & 0o777;
-            match mode {
-                0o444 => false,
-                0o555 => true,
-                _ => {
-                    return Err(format!(
-                        "physical Source file {} has noncanonical mode {mode:#o}",
-                        path.display()
-                    ));
-                }
-            }
-        };
-        #[cfg(not(unix))]
-        let executable = false;
+        let executable = canonical_file_executable(path, metadata)?;
         charge_canonical_source_content(aggregate_content_bytes, metadata.len())?;
         let bytes = read_canonical_source_file(path, metadata)?;
         let entry = CapturedSourceEntry::file(bytes, executable);
