@@ -97,7 +97,7 @@ pub fn evaluate_ordinary_boundary_entry_plan(
 /// instruction, stack, and control state in addition to the ordinary ABI
 /// volatile banks. An explicit source-selected boundary plan remains
 /// authoritative and must not be widened through this compatibility path.
-pub fn evaluate_freestanding_program_entry_plan(
+pub(crate) fn evaluate_freestanding_program_entry_plan(
     policy: CallingPolicy,
     signature: &CallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
@@ -114,7 +114,7 @@ pub fn evaluate_freestanding_program_entry_plan(
     validate_boundary_entry_plan(plan, signature)
 }
 
-pub fn evaluate_darwin_aapcs64_variadic_boundary_entry_plan(
+pub(crate) fn evaluate_darwin_aapcs64_variadic_boundary_entry_plan(
     signature: &ConcreteVariadicCallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, PlanDiagnostic> {
     let call = evaluate_darwin_aapcs64_variadic_call_plan(signature)?;

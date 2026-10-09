@@ -4,7 +4,7 @@
 pub(crate) mod external_bindings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct HostOperationKey {
+pub(crate) struct HostOperationKey {
     pub capability: HostCapability,
     pub operation: HostOperation,
 }
@@ -59,7 +59,7 @@ impl HostOperationKey {
     /// relocation offset (`data_addresses.rs`) both add 4 when this is set. The
     /// `BL` relocation is unaffected (it precedes the load; `read_errno` has no
     /// args). MUST stay in lockstep across those three sites + the encoder.
-    pub fn dereferences_result(self) -> bool {
+    pub(crate) fn dereferences_result(self) -> bool {
         matches!(self.capability, HostCapability::Filesystem)
             && matches!(self.operation, HostOperation::ReadErrno)
     }
@@ -73,7 +73,7 @@ impl HostOperationKey {
     /// relocation is unaffected. MUST stay in lockstep across those three sites +
     /// the encoder. (`round_nearest` returns an `i64`, NOT a float, so it is
     /// excluded.)
-    pub fn returns_float(self) -> bool {
+    pub(crate) fn returns_float(self) -> bool {
         (matches!(self.capability, HostCapability::Math)
             && matches!(
                 self.operation,

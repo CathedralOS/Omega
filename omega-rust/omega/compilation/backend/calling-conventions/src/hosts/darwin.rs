@@ -1,12 +1,12 @@
 /// The canonical libc/libm umbrella every ordinary darwin import resolves through.
-pub const DARWIN_LIBSYSTEM_PATH: &str = "/usr/lib/libSystem.B.dylib";
+pub(crate) const DARWIN_LIBSYSTEM_PATH: &str = "/usr/lib/libSystem.B.dylib";
 /// The Objective-C runtime dylib (`objc_msgSend`, `objc_getClass`,
 /// `sel_registerName`, …) — a SEPARATE `LC_LOAD_DYLIB` from libSystem.
 pub const DARWIN_LIBOBJC_PATH: &str = "/usr/lib/libobjc.A.dylib";
 /// CoreGraphics — the `CG*` C API (`CGRectGetMaxX`, `CGImageCreate`,
 /// `CGColorSpaceCreateDeviceRGB`, …). A directly-CALLED framework (unlike
 /// Foundation/AppKit which load only for objc class registration).
-pub const DARWIN_COREGRAPHICS_PATH: &str =
+pub(crate) const DARWIN_COREGRAPHICS_PATH: &str =
     "/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics";
 
 /// The absolute dylib path a darwin import symbol binds against (its

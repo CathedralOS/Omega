@@ -78,7 +78,7 @@ pub fn callback_requirement_id(canonical_requirement: &str) -> CallbackRequireme
 /// Compiler-issued identity of one runtime parameter in an exact boundary
 /// requirement. The source parameter ordinal is an input to this constructor,
 /// never itself a native-place identity.
-pub fn callback_native_parameter_id(
+pub(crate) fn callback_native_parameter_id(
     canonical_requirement: &str,
     parameter_ordinal: u32,
 ) -> NativeParameterId {

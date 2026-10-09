@@ -104,7 +104,7 @@ impl X86_64DeriverStub {
     /// call's 8-byte pushed return address. This is the deriver-owned term a
     /// dedicated critical stack must carry in addition to the architectural
     /// arrival frame and the member's own terminal demand.
-    pub fn peak_entry_overhead_bytes(&self) -> u64 {
+    pub(crate) fn peak_entry_overhead_bytes(&self) -> u64 {
         let context_peak = self
             .contexts
             .iter()

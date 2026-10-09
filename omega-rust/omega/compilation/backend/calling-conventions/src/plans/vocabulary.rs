@@ -273,7 +273,7 @@ impl CallSignature {
 /// promotion. The fixed/anonymous boundary is ABI-significant even though all
 /// parameters have already acquired exact machine shapes.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ConcreteVariadicCallSignature {
+pub(crate) struct ConcreteVariadicCallSignature {
     pub fixed_parameters: Vec<ValueShape>,
     pub variadic_parameters: Vec<ValueShape>,
     pub result: Option<ValueShape>,
