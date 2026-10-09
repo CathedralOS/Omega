@@ -3577,6 +3577,7 @@ pass/generics/nominal_machine_parameter_satisfaction_compile checked 293ms @2d8e
 pass/generics/omitted_data_binder_range_equation checked 1106ms check-target:macos_arm64 @f64782b89114+wt
 pass/generics/open_computed_quantity_result checked 1938ms check-target:macos_arm64 @cba4ef8c9ab1
 pass/generics/ranged_const_parameter_attached_shape checked 1334ms check-target:macos_arm64 @2d8ed253669f
+pass/generics/runtime_closed_case_array_payload_exit checked 2368ms check-target:macos_arm64 @baa32bc3a441+wt
 pass/generics/runtime_const_container_methods_exit checked 678ms check-target:macos_arm64 @ca8c127c90c5
 pass/generics/runtime_const_data_array_length_exit checked 1237ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_const_data_machine_call_exit checked 1992ms check-target:macos_arm64 @2d8ed253669f

@@ -3058,10 +3058,13 @@ of a check the same flow already performed, not the check itself.
   lexical owners through folding and substitution against the full check
   corpus and focused native cohort. Stored references now retain finite closed
   identity edges through Terminal and native catalogs; regular and growing
-  recursive applications no longer demand transitive pointee storage. The
+  recursive applications no longer demand transitive pointee storage. Closed
+  case operands consume prepared member types without checking-side substitution;
+  borrowed array payload observations retain their indexed scalar endpoints. The
   remaining reference-bearing sum witness constructs `Chain::End { value: 17 }`
   and passes its loan to a helper matching `End` and `More`, where `More` stores
-  `&Chain<[Element; 2]>`. It checks but reaches native `UnsupportedControlFlow` at stage 02
+  `&Chain<[Element; 2]>`. Both that witness and its active `More` variation now
+  produce Terminal input but reach native `UnsupportedControlFlow` at stage 02
   `lowering/control_flow/references.rs:2138`: generalize case-conditional loan
   ingress and custody without assigning permissions to inactive payloads.
   Include prepared lifetime-bearing field

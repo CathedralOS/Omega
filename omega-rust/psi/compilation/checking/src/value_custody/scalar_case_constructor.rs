@@ -6,9 +6,9 @@
 //! operands share the same exact case declaration and operand ordering.
 
 use symbols::SymbolHandle;
-use typed_trees::data::{DataDefinition, DataMember};
+use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 pub struct ScalarCaseConstructor {
     pub type_reference: TypeReferenceHandle,
@@ -116,64 +116,11 @@ pub fn scalar_case_value_source(
     Some(source)
 }
 
-/// One named case of a closed non-generic sum with every declared payload
-/// field authored exactly once. The resolver reports each field's declared
-/// type; the payload route — scalar operands or structural field values —
-/// decides what each caller may do with it.
-/// The `(formal parameter symbol, argument reference)` pairs an instantiated
-/// `reference` supplies for `owner`'s type parameters — `None` when the
-/// reference does not name `owner` or its argument count disagrees.
-pub fn member_type_substitutions(
-    program: &dyn crate::CheckingInput,
-    owner: &DataDefinition,
-    reference: TypeReferenceHandle,
-) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
-    let arguments = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } if *symbol == owner.symbol => Vec::new(),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } if *base_symbol == owner.symbol => program
-            .type_reference_table
-            .type_reference_handles(*arguments)
-            .to_vec(),
-        _ => return None,
-    };
-    let parameters = program.data_type_parameters(owner);
-    (parameters.len() == arguments.len()).then(|| {
-        parameters
-            .iter()
-            .map(|parameter| parameter.symbol)
-            .zip(arguments)
-            .collect()
-    })
-}
-
-/// `declared` with the owner's instantiated parameters answered by their
-/// argument references. A bare parameter name swaps to its argument handle;
-/// arguments nested deeper in the declared type stay in declared form, which
-/// the checked route declines downstream.
-pub fn substituted_member_reference(
-    program: &dyn crate::CheckingInput,
-    declared: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> TypeReferenceHandle {
-    if let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(declared)
-        && let Some((_, actual)) = substitutions.iter().find(|(formal, _)| formal == symbol)
-    {
-        return *actual;
-    }
-    declared
-}
-
 /// The constructor parts a case literal carries, in authored order. `expected`
-/// is the construction's destination type: when it instantiates the owner's
-/// type parameters the returned `type_reference` is that instantiation and
-/// every returned `declared` type is answered under its substitutions. Without
-/// it the owner must be a closed data definition, matching the previous
-/// bare-named lookup.
+/// selects the already prepared closed declaration, including nested type
+/// applications and regions. Authored selectors may still belong to its
+/// template; declaration positions and identities translate those selectors,
+/// never their types. Checking does not instantiate or substitute members.
 fn case_constructor_parts(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -187,7 +134,7 @@ fn case_constructor_parts(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    let (owner, selected, fields) = match program.expression_table.expression(expression) {
+    let (authored_owner, selected, fields) = match program.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(literal) => (
             crate::declarations::data_queries::data_definition_by_symbol(
                 program,
@@ -203,24 +150,32 @@ fn case_constructor_parts(
         ),
         _ => return None,
     };
-    let (reference, substitutions) = match expected {
-        Some(expected) => {
-            let reference = crate::unwrapped_type_reference(program, expected)?;
-            let substitutions = member_type_substitutions(program, owner, reference)?;
-            (reference, substitutions)
-        }
+    let reference = match expected {
+        Some(expected) => crate::unwrapped_type_reference(program, expected)?,
         None => {
-            if !owner.type_parameters.is_empty() {
+            if !authored_owner.type_parameters.is_empty() {
                 return None;
             }
-            (
-                program
-                    .type_reference_table
-                    .find_named_type_reference(owner.symbol)?,
-                Vec::new(),
-            )
+            program
+                .type_reference_table
+                .find_named_type_reference(authored_owner.symbol)?
         }
     };
+    let owner = program.closed_data_constructor_definition(reference, authored_owner.symbol)?;
+    let (case_ordinal, authored_case) = program
+        .data_members(authored_owner)
+        .iter()
+        .enumerate()
+        .find_map(|(ordinal, member)| match member {
+            DataMember::Variant(case) if case.symbol == selected => Some((ordinal, case)),
+            _ => None,
+        })?;
+    let DataMember::Variant(case) = program.data_members(owner).get(case_ordinal)? else {
+        return None;
+    };
+    if case.name != authored_case.name || case.identity != authored_case.identity {
+        return None;
+    }
     // A scalar construction needs numeric-owned contents throughout; the
     // structural route may stand a union whose only non-variant members are
     // `[erased]` -- cleanup-owned contents admit them because they never
@@ -258,83 +213,68 @@ fn case_constructor_parts(
                 DataMember::Field(field) => !common_scalar(field),
                 DataMember::Variant(_) => false,
             })
-        || program.symbols.get(selected).parent != owner.symbol
+        || program.symbols.get(selected).parent != authored_owner.symbol
     {
         return None;
     }
-    let case = program
-        .data_members(owner)
-        .iter()
-        .find_map(|member| match member {
-            DataMember::Variant(case) if case.symbol == selected => Some(case),
-            _ => None,
-        })?;
     let declarations = program.data_payload_fields(case);
     let mut operands: Vec<(SymbolHandle, ExpressionHandle, TypeReferenceHandle, bool)> =
         Vec::with_capacity(fields.len());
     for field in fields {
-        // An erased owner member authored beside the case is declared-level
-        // content: it never produces runtime storage, so it is consumed
-        // rather than matched against the case's payload declarations.
-        let erased_owner_member = erased_member_owner
-            && program.data_members(owner).iter().any(|member| {
-                matches!(member, DataMember::Field(owner_field)
-                    if owner_field.symbol == field.field_symbol
-                        && owner_field.relevance.is_erased())
-            });
-        // An erased payload member likewise holds no runtime slot: an authored
-        // operand is proof material the construction consumes, never a
-        // runtime field (proofs/contracts.md, explicit erased bindings).
-        let erased_payload_member = erased_member_owner
-            && declarations.iter().any(|declaration| {
-                declaration.symbol == field.field_symbol && declaration.relevance.is_erased()
-            });
-        if erased_owner_member || erased_payload_member {
+        let declaration = program
+            .data_members(authored_owner)
+            .iter()
+            .enumerate()
+            .find_map(|(ordinal, member)| match member {
+                DataMember::Field(original) if original.symbol == field.field_symbol => {
+                    let DataMember::Field(closed) = program.data_members(owner).get(ordinal)?
+                    else {
+                        return None;
+                    };
+                    Some((original, closed))
+                }
+                _ => None,
+            })
+            .or_else(|| {
+                program
+                    .data_payload_fields(authored_case)
+                    .iter()
+                    .enumerate()
+                    .find_map(|(ordinal, original)| {
+                        (original.symbol == field.field_symbol)
+                            .then(|| declarations.get(ordinal).map(|closed| (original, closed)))
+                            .flatten()
+                    })
+            })?;
+        let (original, declared) = declaration;
+        if original.name != declared.name
+            || original.identity != declared.identity
+            || original.relevance != declared.relevance
+        {
+            return None;
+        }
+        // Both common and payload erased members carry proof material, not
+        // runtime storage. The prepared declaration owns that distinction.
+        if erased_member_owner && declared.relevance.is_erased() {
             if !program.expression_table.expression_is_valid(field.value) {
                 return None;
             }
             continue;
         }
-        // A runtime common field of a mixed owner is named at most once and
-        // stays out of the payload count; admission above limited it to the
-        // structural route and scalar carriers.
-        let common = program
-            .data_members(owner)
-            .iter()
-            .find_map(|member| match member {
-                DataMember::Field(owner_field) if owner_field.symbol == field.field_symbol => {
-                    Some(owner_field)
-                }
-                _ => None,
-            });
-        let declared = substituted_member_reference(
-            program,
-            match common {
-                Some(common) => common.type_reference,
-                None => {
-                    declarations
-                        .iter()
-                        .find(|declaration| declaration.symbol == field.field_symbol)?
-                        .type_reference
-                }
-            },
-            &substitutions,
-        );
         if !field.field_symbol.is_valid()
             || operands
                 .iter()
-                .any(|(symbol, ..)| *symbol == field.field_symbol)
+                .any(|(symbol, ..)| *symbol == declared.symbol)
             || !program.expression_table.expression_is_valid(field.value)
         {
             return None;
         }
-        let erased = match common {
-            Some(common) => common.relevance.is_erased(),
-            None => declarations.iter().any(|declaration| {
-                declaration.symbol == field.field_symbol && declaration.relevance.is_erased()
-            }),
-        };
-        operands.push((field.field_symbol, field.value, declared, erased));
+        operands.push((
+            declared.symbol,
+            field.value,
+            declared.type_reference,
+            declared.relevance.is_erased(),
+        ));
     }
     // The runtime payload declarations keep their authored-exactly-once shape:
     // every one answered one operand. Erased owner and payload members and
@@ -352,7 +292,7 @@ fn case_constructor_parts(
         .iter()
         .filter(|declaration| !(erased_member_owner && declaration.relevance.is_erased()))
         .count();
-    (payload_operands == runtime_payload).then_some((reference, selected, operands))
+    (payload_operands == runtime_payload).then_some((reference, case.symbol, operands))
 }
 
 pub fn scalar_case_constructor(

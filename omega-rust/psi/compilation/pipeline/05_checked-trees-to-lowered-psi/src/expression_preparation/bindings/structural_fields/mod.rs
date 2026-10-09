@@ -318,6 +318,19 @@ pub(crate) fn resolve_typed(
                 semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(*element_index),
             );
             structural_type = *element;
+            if ordinal + 1 == path.len() {
+                let (element, _) =
+                    observation_paths::readable_carrier(structural_type, &binding.declarations)?;
+                let StructuralTypeShape::PrimitiveScalar(scalar_type) = element.shape else {
+                    return unsupported("indexed observation requires a primitive endpoint");
+                };
+                let (source, path) = resolve_primitive(fields, position, path, scalar_type)?;
+                return Ok(LoweredDirectExpression::PrimitiveRead {
+                    source,
+                    path,
+                    scalar_type,
+                });
+            }
             continue;
         }
         if let checked_trees::CheckedStructuralPredicatePathSegment::Case(case_identity) = segment {

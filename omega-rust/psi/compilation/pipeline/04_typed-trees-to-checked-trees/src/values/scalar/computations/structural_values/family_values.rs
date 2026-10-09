@@ -372,6 +372,10 @@ impl Builder<'_, '_> {
     ) -> Option<CheckedStructuralValueKind> {
         let constructor =
             validation::structural_case_constructor(self.program, expression, expected)?;
+        let data_symbol = self
+            .program
+            .closed_data_definition(constructor.type_reference)?
+            .symbol;
         if self
             .program
             .normalized_type_identity(constructor.type_reference)
@@ -408,12 +412,8 @@ impl Builder<'_, '_> {
                 value,
             });
         }
-        let literal = self
-            .program
-            .expression_table
-            .struct_literal_node(expression)?;
         Some(CheckedStructuralValueKind::StructuralCase {
-            data_symbol: literal.type_symbol,
+            data_symbol,
             case: constructor.case,
             fields: self.structural_values.record_fields.insert_many(fields),
         })
