@@ -693,17 +693,15 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
                 return false;
             }
             let Some(held) = mention else {
-                // Pure, total fact-call projections are validated separately.
-                // Their denotational field terms belong to the structural
-                // judge, not to the polynomial engine. Reuse only its actual
-                // positive judgment; an unread projection still stands down.
-                if crate::machine_calls::fact_call_projections::expression_contains_call_projection(
-                    program, *fact,
-                ) && matches!(judge_structural(*fact), StructuralJudgment::Proven)
-                {
+                // Selected normal-return guarantees and ordinary value
+                // equations use the same prepared path judgment as proof-only
+                // carriers. A projection shape does not decide which facts
+                // may consume that evidence. Only a proved fact is discharged;
+                // other judgments retain the general engine's existing route.
+                if matches!(judge_structural(*fact), StructuralJudgment::Proven) {
                     proven.push(*fact);
+                    return false;
                 }
-                // Not structural: stays with the polynomial engine below.
                 return true;
             };
             any_structural = true;
