@@ -81,8 +81,7 @@ pub use register_model::{
     aarch64_preservation_convention_for_target, aarch64_register_constraint_catalog,
     validate_aarch64_register_constraint_catalog, validated_aarch64_physical_register_model,
 };
-pub(crate) use register_model::{ AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
-    AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_LINUX_SYSTEM_CALL, AARCH64_REQUIRED_REGISTER_CONSTRAINTS, aarch64_physical_register_model_ref,
+pub(crate) use register_model::{ AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_REQUIRED_REGISTER_CONSTRAINTS, aarch64_physical_register_model_ref,
     aarch64_register_constraint_catalog_for, canonical_aarch64_physical_register_model_identity};
 pub use register_model::{
     AARCH64_ADDRESS_OFFSET, AARCH64_BYTE_LITERAL_IMAGE_ADDRESS,
@@ -141,15 +140,7 @@ pub use selected_form_encoding::{
     validate_aarch64_selected_u64_less_than_widened_branch_form,
 };
 pub(crate) use selected_form_encoding::{
-    AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
-    AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
-    AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, AARCH64_SCALAR_CALL_OPCODE_OFFSET,
-    AARCH64_SCALAR_CALL_PATCH_OFFSET, AARCH64_SCALAR_CALL_PATCH_WIDTH,
-    AARCH64_SCALAR_CALL_REFERENCE_OFFSET, AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT,
-    Aarch64MovkPatch, Aarch64MovnSeed,
-    Aarch64SelectedFormFootprint, Aarch64ShortestMovnMaterializationRecipe, ValidatedAarch64SelectedNormalizedForeignCallTemplate,
-    ValidatedAarch64SelectedScalarCallTemplate, aarch64_shortest_movn_materialization_recipe,
-    encode_aarch64_shortest_movn_materialization,
+    AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET,
     validate_aarch64_shortest_movn_materialization};
 pub use selected_form_encoding::{
     encode_aarch64_selected_floating_control_form,
