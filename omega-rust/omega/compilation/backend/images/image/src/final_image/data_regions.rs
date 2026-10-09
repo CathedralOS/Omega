@@ -439,7 +439,7 @@ fn data_inventory_report_fingerprint(
     regions: &[PlacedDataRegion],
     gaps: &[PlacedDataGap],
 ) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    let mut hash = super::FNV_OFFSET;
     fingerprint_bytes(&mut hash, &data_address.to_le_bytes());
     fingerprint_bytes(&mut hash, &(data_byte_count as u64).to_le_bytes());
     fingerprint_bytes(&mut hash, &data_report_fingerprint.to_le_bytes());
