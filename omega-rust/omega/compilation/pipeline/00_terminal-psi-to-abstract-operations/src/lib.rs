@@ -47,14 +47,15 @@ mod retained_terminal;
 #[cfg(test)]
 mod terminal_decode_once;
 
-pub use retained_terminal::{
-    PreparedRetainedNativeProviders, RetainedNativeProviderInputs, RetainedTerminalArtifact,
+pub use retained_terminal::{ RetainedNativeProviderInputs, RetainedTerminalArtifact,
     TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
     TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
     TerminalNativeOccurrences, TerminalNativeProposalRequest, TerminalNativeProviders,
     TerminalNativeRealizationProposal, project_terminal_native_realization_proposal,
 };
+pub use retained_terminal::{
+    PreparedRetainedNativeProviders};
 
 pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
@@ -65,23 +66,25 @@ pub use provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
 };
 
-pub use artifact_admission::{
-    AdmittedNativeArtifact, AdmittedOptimizationArtifact, ArtifactLoweringError, ArtifactSections,
+pub use artifact_admission::{ ArtifactSections,
     TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
+pub use artifact_admission::{ ArtifactLoweringError};
 pub use boundary_application_settlement::BoundaryApplicationSettlement;
-pub use callback_settlement::{CallbackRegistrarOccurrence, settle_callback_registrar_imports};
+pub(crate) use callback_settlement::{CallbackRegistrarOccurrence, settle_callback_registrar_imports};
 pub use entry_settlement::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    ValidatedNativeProgramEntryCallingPlans, ValidatedNativeProgramEntrySettlement,
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError, ValidatedNativeProgramEntrySettlement,
     validate_native_program_entry_settlement,
 };
 pub use lowering::LoweringError;
-pub use optimization::{
-    VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
+pub use optimization::{ VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
     VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
 };
-pub use provider_installation::{
-    AdmittedInstalledProviderCall, AdmittedProviderInstallation, ProviderInstallationError,
-    SelectedProviderAdapter,
+pub use optimization::{
+    VerifiedPsiOptimizationContext};
+pub use provider_installation::{ AdmittedProviderInstallation, ProviderInstallationError,
 };
+pub use provider_installation::{
+    SelectedProviderAdapter};
+pub use provider_installation::{
+    AdmittedInstalledProviderCall};

@@ -19,7 +19,7 @@ pub struct CompilerIntrinsicPlanProvenance<'a> {
     pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
 }
 
-pub fn demanded_boundary_identities(
+pub(crate) fn demanded_boundary_identities(
     module: &terminal_psi::TerminalModule,
 ) -> Result<BTreeSet<String>, Vec<Diagnostic>> {
     let declarations = module
@@ -91,7 +91,7 @@ struct SelectedIntrinsicRow<'a> {
 /// once to its selected plan and the one Terminal boundary it settles.
 /// Provenance stays borrowed and source-free; every plan is checked even
 /// without demand. The receiving target catalog admits these proposals later.
-pub fn derive_selected_intrinsic_settlement_proposals<'a>(
+pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     selected: &effects::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,

@@ -4,7 +4,7 @@ use effects::TerminalMechanismIdentity;
 
 /// Reconstruct the exact normalized-foreign role from the retained locator and
 /// canonical admitted boundary plan. Its strong contract digest enters identity.
-pub fn normalized_foreign_terminal_mechanism(
+pub(crate) fn normalized_foreign_terminal_mechanism(
     locator: &target::NormalizedForeignLocator,
     boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
 ) -> Result<TerminalMechanismIdentity, String> {
@@ -31,7 +31,7 @@ pub fn normalized_foreign_terminal_mechanism(
 /// Reconstruct one normalized-foreign role whose exact outbound contract
 /// includes compiler-private callback materialization. The context is required
 /// because the plan alone cannot authenticate nominal binders or destinations.
-pub fn normalized_foreign_terminal_mechanism_with_callback_materializations(
+pub(crate) fn normalized_foreign_terminal_mechanism_with_callback_materializations(
     locator: &target::NormalizedForeignLocator,
     boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
     context: &calling_conventions::CallbackMaterializationContext,

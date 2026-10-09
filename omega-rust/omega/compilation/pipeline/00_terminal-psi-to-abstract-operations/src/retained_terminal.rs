@@ -8,7 +8,8 @@ mod proposal;
 pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realization_proposal};
 
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
-pub use native_providers::{PreparedRetainedNativeProviders, RetainedNativeProviderInputs};
+pub use native_providers::{ RetainedNativeProviderInputs};
+pub use native_providers::{PreparedRetainedNativeProviders};
 
 pub use crate::provider_admission::TerminalCompilerBuiltinProposal;
 

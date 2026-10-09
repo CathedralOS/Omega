@@ -127,7 +127,7 @@ impl VerifiedNativeArtifactInput {
 /// One canonical native-admitted plan with its exact retained verifier context.
 /// Placed-view rows are semantic custody, not backing or access-event authority.
 #[derive(Debug, Clone)]
-pub struct AdmittedNativeArtifact {
+pub(crate) struct AdmittedNativeArtifact {
     optimization_input: VerifiedPsiOptimizationInput,
 }
 
@@ -170,7 +170,7 @@ impl AdmittedNativeArtifact {
     /// authority that lends the referent. Native execution of the derived
     /// placed-entry ABI with a lent host referent is exercised by the
     /// compiler control `direct_placed_view_input_survives_codec_and_native_replay`.
-    pub fn try_into_native_input(
+    pub(crate) fn try_into_native_input(
         self,
         establishments: &[TerminalPlacedViewEstablishment],
     ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {

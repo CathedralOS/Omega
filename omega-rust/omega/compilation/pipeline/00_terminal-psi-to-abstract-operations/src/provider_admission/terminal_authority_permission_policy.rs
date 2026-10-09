@@ -8,7 +8,7 @@ use effects::{
 use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
 
-pub const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;
+pub(crate) const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;
 
 /// Exact receiving policy accepted for one native realization.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,7 +26,7 @@ impl TerminalAuthorityPermissionPolicy {
         &self.rows
     }
 
-    pub fn permission_for(
+    pub(crate) fn permission_for(
         &self,
         service_schema: ServiceSchemaDigest,
         requirement_identity: &str,
@@ -46,7 +46,7 @@ impl TerminalAuthorityPermissionPolicy {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MissingTerminalAuthorityPermission {
+pub(crate) struct MissingTerminalAuthorityPermission {
     service_schema: ServiceSchemaDigest,
     requirement_identity: String,
 }
@@ -109,7 +109,7 @@ pub fn terminal_authority_permission_policy_with_rows(
 
 /// Empty, exact deny-by-absence policy. Authority-bearing and authority-free
 /// terminal leaves both require explicit schema/requirement permission rows.
-pub fn current_terminal_authority_permission_policy() -> TerminalAuthorityPermissionPolicy {
+pub(crate) fn current_terminal_authority_permission_policy() -> TerminalAuthorityPermissionPolicy {
     static IDENTITY: OnceLock<TerminalAuthorityPermissionPolicyIdentity> = OnceLock::new();
     TerminalAuthorityPermissionPolicy {
         identity: *IDENTITY.get_or_init(|| permission_policy_identity(&[])),

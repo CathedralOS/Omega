@@ -17,7 +17,7 @@ use calling_conventions::{
 use effects::provider_plan::ServiceMethod;
 use program_entry_plan::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
 
-pub fn validate_paired_calling_plans(
+pub(crate) fn validate_paired_calling_plans(
     source: &SelectedProgramEntrySignature,
     semantic: &BoundaryCallingApplication,
     physical: &BoundaryCallingApplication,

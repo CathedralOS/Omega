@@ -5,7 +5,7 @@ use diagnostics::Diagnostic;
 
 use super::adapters::project_selected_provider_adapters;
 
-pub fn admit_checked_provider_installation(
+pub(crate) fn admit_checked_provider_installation(
     input: &NativeRealizationInput,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,

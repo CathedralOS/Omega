@@ -6,9 +6,10 @@ mod model;
 mod service_establishment;
 
 pub use model::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    ValidatedNativeProgramEntryCallingPlans, ValidatedNativeProgramEntrySettlement,
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError, ValidatedNativeProgramEntrySettlement,
 };
+pub(crate) use model::{
+    ValidatedNativeProgramEntryCallingPlans};
 
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 

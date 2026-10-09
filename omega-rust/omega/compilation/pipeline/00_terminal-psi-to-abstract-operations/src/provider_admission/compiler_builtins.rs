@@ -20,10 +20,12 @@ mod proposals;
 mod retained;
 
 pub use proposals::{
-    CompilerIntrinsicPlanProvenance, demanded_boundary_identities,
-    derive_selected_intrinsic_settlement_proposals,
+    CompilerIntrinsicPlanProvenance,
 };
-pub use retained::{TerminalCompilerBuiltinProposal, prepare_retained_compiler_builtins};
+pub(crate) use proposals::{ demanded_boundary_identities,
+    derive_selected_intrinsic_settlement_proposals};
+pub use retained::{TerminalCompilerBuiltinProposal};
+pub(crate) use retained::{ prepare_retained_compiler_builtins};
 
 use crate::provider_admission::AdmittedTerminalMechanism;
 use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};

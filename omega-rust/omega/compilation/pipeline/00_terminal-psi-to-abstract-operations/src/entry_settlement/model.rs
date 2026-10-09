@@ -93,7 +93,7 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
     /// This validates declarations only; Terminal replay, storage provisioning,
     /// and installation authority remain independent requirements.
     /// Retain both admitted plans when the entry declares two surfaces.
-    pub fn validate_for_target(
+    pub(crate) fn validate_for_target(
         self,
         target: target::NativeTarget,
     ) -> Result<Option<ValidatedNativeProgramEntryCallingPlans>, String> {
@@ -127,7 +127,7 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
         }
     }
 
-    pub fn validate_fused_service_establishments_for_target(self) -> Result<(), String> {
+    pub(crate) fn validate_fused_service_establishments_for_target(self) -> Result<(), String> {
         let source_identity = self.source.identity();
         let slot = self.source.target_slot();
         let receiver_identity = self.source.receiver().normalized_type_identity();
@@ -158,7 +158,7 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
 /// Keeping the pair prevents downstream wrappers from reconstructing either
 /// contract from raw ABI placements.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedNativeProgramEntryCallingPlans {
+pub(crate) struct ValidatedNativeProgramEntryCallingPlans {
     pub(crate) semantic: calling_conventions::ValidatedBoundaryEntryPlan,
     pub(crate) physical: calling_conventions::ValidatedBoundaryEntryPlan,
 }
@@ -193,7 +193,7 @@ impl ValidatedNativeProgramEntrySettlement {
     /// Borrow the exact replayed declaration and calling contracts for native
     /// realization. Invocation-owned placed-view loans do not cross this view;
     /// executable receiver admission must bind its own supplied input.
-    pub fn as_settlement(&self) -> NativeProgramEntrySettlement<'_> {
+    pub(crate) fn as_settlement(&self) -> NativeProgramEntrySettlement<'_> {
         NativeProgramEntrySettlement {
             checked_entry: Some(&self.checked_entry),
             source: &self.source,

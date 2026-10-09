@@ -35,7 +35,7 @@ const ORDINARY_RELEASE_CONTRACT_DOMAIN: &[u8] =
 
 /// One canonical `FilesystemHost` requirement's settled cohort disposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilesystemCohortDisposition {
+pub(crate) enum FilesystemCohortDisposition {
     /// The requirement's selected mechanism exercises exactly this portable
     /// facet set under the settled policy. An empty set is an explicit empty
     /// classification: service reach and exact review identity are retained
@@ -77,7 +77,7 @@ pub enum UnsettledFilesystemRequirement {
 /// derivation, so a constrained mechanism and an unconstrained one never
 /// share a key or a classification row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FilesystemOrdinaryReleaseContract(CheckedSyscallArgumentContractIdentity);
+pub(crate) struct FilesystemOrdinaryReleaseContract(CheckedSyscallArgumentContractIdentity);
 
 impl FilesystemOrdinaryReleaseContract {
     /// The checked argument-contract coordinate carried in the bound
@@ -95,7 +95,7 @@ impl FilesystemOrdinaryReleaseContract {
 /// Minting this coordinate does not itself establish the
 /// occurrence and grants no classification, permission, or admission: the
 /// mechanism row still emits only through `filesystem_release_mechanism_row`.
-pub fn filesystem_ordinary_release_contract(
+pub(crate) fn filesystem_ordinary_release_contract(
     occurrence_commitment: [u8; 32],
 ) -> FilesystemOrdinaryReleaseContract {
     let mut digest = Sha256::new();
@@ -116,7 +116,7 @@ pub fn filesystem_ordinary_release_contract(
 /// coordinate and can never be occurrence-bound. The result is a distinct key
 /// that no row for the unconstrained mechanism can classify; minting it
 /// establishes nothing by itself.
-pub fn filesystem_release_bound_mechanism(
+pub(crate) fn filesystem_release_bound_mechanism(
     mechanism: TerminalMechanismIdentity,
     contract: FilesystemOrdinaryReleaseContract,
 ) -> Option<TerminalMechanismIdentity> {
@@ -142,7 +142,7 @@ pub fn filesystem_release_bound_mechanism(
 /// Look up the settled cohort for one canonical `FilesystemHost` requirement
 /// name. The name locates the human-reviewed row; it is never a key in the
 /// emitted artifacts.
-pub fn settled_filesystem_cohort(name: &str) -> Option<FilesystemCohortDisposition> {
+pub(crate) fn settled_filesystem_cohort(name: &str) -> Option<FilesystemCohortDisposition> {
     use FilesystemCohortDisposition::Facets;
     use PortableFilesystemAuthorityFacet as Facet;
     const ALL: &[Facet] = &Facet::ALL;
@@ -198,7 +198,7 @@ pub fn settled_filesystem_cohort(name: &str) -> Option<FilesystemCohortDispositi
 /// grants reach while permitting no closed class. That empty row is what the
 /// proved constrained release occurrence later fits inside; it is not a claim
 /// that a generic release mechanism classifies empty.
-pub fn filesystem_host_permission_row(
+pub(crate) fn filesystem_host_permission_row(
     service_schema: ServiceSchemaDigest,
     method: &ServiceMethod,
 ) -> Result<ServiceTerminalAuthorityPermission, UnsettledFilesystemRequirement> {
@@ -236,7 +236,7 @@ pub fn filesystem_host_permission_rows(
 /// Ordinary-release cohorts refuse: an unconstrained generic mechanism cannot
 /// inherit the occurrence-specific release proof, and no broad union is
 /// fabricated to complete the table.
-pub fn filesystem_mechanism_row(
+pub(crate) fn filesystem_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     method: &ServiceMethod,
 ) -> Result<TerminalAuthorityPolicyRow, UnsettledFilesystemRequirement> {
@@ -263,7 +263,7 @@ pub fn filesystem_mechanism_row(
 /// A mechanism carrying the admitted plan alone, a different contract, or a
 /// role without an argument-contract coordinate is an unconstrained key and
 /// earns no row; no union is fabricated for it.
-pub fn filesystem_release_mechanism_row(
+pub(crate) fn filesystem_release_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     method: &ServiceMethod,
     contract: FilesystemOrdinaryReleaseContract,

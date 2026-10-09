@@ -18,7 +18,7 @@ mod system_call;
 use boundary::settle_boundary;
 use source_imports::derive_source_evaluated_mechanisms;
 
-pub fn settle_provider_executions<'request>(
+pub(crate) fn settle_provider_executions<'request>(
     input: &NativeRealizationInput,
     request: &ProviderAdmissionRequest<'_, 'request>,
 ) -> Result<

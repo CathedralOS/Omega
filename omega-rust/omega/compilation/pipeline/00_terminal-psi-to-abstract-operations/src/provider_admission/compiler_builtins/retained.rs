@@ -54,7 +54,7 @@ impl TerminalCompilerBuiltinProposal {
 
 /// Borrow the exact selected plans for retained re-entry, preserving proposal
 /// order, boundary binding and execution identity.
-pub fn prepare_retained_compiler_builtins<'request>(
+pub(crate) fn prepare_retained_compiler_builtins<'request>(
     builtins: &'request [TerminalCompilerBuiltinProposal],
     selected_plans: &'request [ProviderPlan],
 ) -> Result<Vec<NativeCompilerBuiltinSettlement<'request>>, Vec<Diagnostic>> {

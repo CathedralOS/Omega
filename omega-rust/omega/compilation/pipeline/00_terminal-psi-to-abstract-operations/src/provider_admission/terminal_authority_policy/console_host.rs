@@ -26,7 +26,7 @@ use super::TerminalAuthorityPolicyRow;
 /// The named requirement has no settled canonical console disposition usable
 /// for the requested row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UnsettledConsoleRequirement {
+pub(crate) enum UnsettledConsoleRequirement {
     /// The name is not a canonical `Console` or `ProcessExit` cohort member.
     /// No disposition is inferred from a readable name.
     UnknownRequirement,
@@ -34,7 +34,7 @@ pub enum UnsettledConsoleRequirement {
 
 /// The single terminal authority class one canonical console requirement
 /// exercises, or `None` for a name outside the cohort.
-pub fn settled_console_cohort(name: &str) -> Option<TerminalAuthorityClass> {
+pub(crate) fn settled_console_cohort(name: &str) -> Option<TerminalAuthorityClass> {
     match name {
         "exit_process" => Some(TerminalAuthorityClass::ProcessTermination),
         "write" | "write_byte" | "write_line" => Some(TerminalAuthorityClass::ProcessOutput),
@@ -47,7 +47,7 @@ pub fn settled_console_cohort(name: &str) -> Option<TerminalAuthorityClass> {
 /// admitted for the named `Console` or `ProcessExit` requirement. The row is
 /// keyed by the exact mechanism identity; `method.name` only selects the
 /// settled cohort's class.
-pub fn console_mechanism_row(
+pub(crate) fn console_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     method: &ServiceMethod,
 ) -> Result<TerminalAuthorityPolicyRow, UnsettledConsoleRequirement> {
