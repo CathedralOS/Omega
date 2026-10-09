@@ -9,6 +9,7 @@ use typed_trees::types::TypeReferenceHandle;
 mod licenses;
 mod normal_returns;
 mod selected_contracts;
+mod value_predicates;
 
 pub(crate) use licenses::{EntryMachines, LicenseCandidates, declared_index_algebra_laws};
 use licenses::{
@@ -296,6 +297,20 @@ impl<'program> StructuralJudge<'program> {
         judge
     }
 
+    fn declaration_expression_type(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let machine = self.program.machine(self.machine_symbol)?;
+        let state = self.program.machine_states(machine).first()?;
+        crate::parameter_expression_result_type_reference(
+            self.program,
+            self.machine_symbol,
+            self.program.state_parameters(state),
+            expression,
+        )
+    }
+
     fn declaration_term(&self, expression: ExpressionHandle) -> Option<StructuralTerm> {
         let machine = self.program.machine(self.machine_symbol)?;
         let state = self.program.machine_states(machine).first()?;
@@ -361,7 +376,7 @@ impl<'program> StructuralJudge<'program> {
             return;
         }
         match binary.operator {
-            BinaryOperator::And => {
+            BinaryOperator::And if self.has_boolean_connective_meaning(fact) => {
                 self.intake(program, binary.left);
                 self.intake(program, binary.right);
             }
@@ -1416,7 +1431,7 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         match binary.operator {
-            BinaryOperator::And => {
+            BinaryOperator::And if self.has_boolean_connective_meaning(fact) => {
                 match (
                     self.judge(program, binary.left),
                     self.judge(program, binary.right),
@@ -1430,7 +1445,13 @@ impl<'program> StructuralJudge<'program> {
                     _ => StructuralJudgment::Unknown,
                 }
             }
+            BinaryOperator::Or if self.has_boolean_connective_meaning(fact) => {
+                self.judge_disjunction(binary.left, binary.right)
+            }
             BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                if let Some(judgment) = self.judge_ieee_equality(fact) {
+                    return judgment;
+                }
                 if let Some(holds) = crate::proof_contracts::float_projection_bindings::semantic_values::closed_float_meaning_equality(
                     program, self.machine_symbol, fact,
                 ) {
