@@ -1297,3 +1297,11 @@ macro_rules! structural_array_or_case_pattern {
             | $crate::AbstractOperation::EstablishCase { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! call_or_call_structural_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::Call { $($fields)* }
+            | $crate::AbstractOperation::CallStructural { $($fields)* }
+    };
+}

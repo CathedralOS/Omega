@@ -164,7 +164,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
         || callee.block_nodes().any(|node| {
             matches!(
                 node.operation,
-                O::Call { .. } | O::CallStructural { .. } | O::BoundaryCall { .. }
+                abstract_operations::call_or_call_structural_pattern!(..) | O::BoundaryCall { .. }
             )
         })
     {

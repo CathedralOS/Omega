@@ -61,8 +61,7 @@ pub(crate) fn expected_uses(
             region: terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. },
             ..
         } => vec![*start, *end],
-        O::Call { arguments, .. }
-        | O::CallStructural { arguments, .. }
+        abstract_operations::call_or_call_structural_pattern!(arguments, ..)
         | O::BoundaryCall { arguments, .. } => arguments.clone(),
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }

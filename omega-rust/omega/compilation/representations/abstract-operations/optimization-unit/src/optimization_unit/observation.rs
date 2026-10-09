@@ -431,8 +431,7 @@ fn operation_observations(
         | O::ElementViewSubslice { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldRead { .. } => (vec![event(C::StructuralState)], No, No),
-        O::CallStructural { .. }
-        | O::Call { .. } => (vec![event(C::InternalCall)], May, May),
+        abstract_operations::call_or_call_structural_pattern!(..) => (vec![event(C::InternalCall)], May, May),
         O::BoundaryCall { .. } => (vec![event(C::BoundaryCall)], May, May),
         O::PortWrite { .. } => (vec![event(C::Service)], No, No),
         abstract_operations::jump_or_conditional_pattern!() => (vec![event(C::ControlTransfer)], No, No),

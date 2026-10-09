@@ -614,7 +614,7 @@ pub(crate) fn substitute_invariant_scalar_operands(
         // substituted in place either: an admitted crash-custody call
         // re-derives them from the callee's published routes through
         // [`call_crash_continuations`].
-        O::Call { arguments, .. } | O::CallStructural { arguments, .. } => {
+        abstract_operations::call_or_call_structural_pattern!(arguments, ..) => {
             for argument in arguments {
                 substitute(argument, substitution);
             }

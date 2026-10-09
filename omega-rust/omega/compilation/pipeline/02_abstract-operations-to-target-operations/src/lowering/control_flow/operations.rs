@@ -330,7 +330,7 @@ pub(super) fn lower_operation(
         }
         // Direct and selected calls share argument transport and result homes;
         // the call target alone determines how invocation finds executable code.
-        AbstractOperation::CallStructural { .. } | AbstractOperation::Call { .. } => {
+        abstract_operations::call_or_call_structural_pattern!(..) => {
             super::calls::lower_call(
                 operation,
                 function,
