@@ -118,8 +118,7 @@ impl TerminalFuelSchedule {
             Terminator::Jump { .. }
             | Terminator::Conditional { .. }
             | Terminator::StructuralCase { .. }
-            | Terminator::Return { .. }
-            | Terminator::ReturnUnit { .. }
+            | terminal_psi::terminator_return_pair_pattern!(..)
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. }
             | Terminator::ExternalCompletion { .. } => 1,
@@ -255,8 +254,7 @@ impl TerminalFuelMeter {
     pub fn charge_terminator(&mut self, terminator: &Terminator) -> Result<(), FuelMeterError> {
         let edge = match terminator {
             Terminator::Jump { edge, .. }
-            | Terminator::Return { edge, .. }
-            | Terminator::ReturnUnit { edge, .. }
+            | terminal_psi::terminator_return_pair_pattern!(edge, ..)
             | Terminator::ReturnStructural { edge, .. }
             | Terminator::Crash { edge, .. }
             | Terminator::ExternalCompletion { edge, .. } => *edge,

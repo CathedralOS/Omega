@@ -241,7 +241,7 @@ impl StateGraphEmission<'_, '_> {
         // a sibling arm's consumption changes the current edge's remainder.
         if matches!(
             terminator,
-            Terminator::Return { .. } | Terminator::ReturnUnit { .. }
+            terminal_psi::terminator_return_pair_pattern!(..)
         ) {
             let statement_ordinal =
                 return_arm
@@ -269,12 +269,7 @@ impl StateGraphEmission<'_, '_> {
                 regions, &mut arm_values, next_value, next_block, next_edge, operations,
             )?;
             match &mut terminator {
-                Terminator::Return {
-                    cleanup_actions, ..
-                }
-                | Terminator::ReturnUnit {
-                    cleanup_actions, ..
-                } => {
+                terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
                     *cleanup_actions = selected_cleanup;
                 }
                 _ => {}
@@ -311,7 +306,7 @@ impl StateGraphEmission<'_, '_> {
             // runs no return cleanup, so the dispatch's temporary dispositions
             // do not become normal-exit cleanup here.
             Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
-            Terminator::Return { .. } | Terminator::ReturnUnit { .. } => {}
+            terminal_psi::terminator_return_pair_pattern!(..) => {}
             _ => return unsupported("return arm did not produce a completion terminator"),
         }
         arm_evaluation.remap_transported_call_operands(operations);

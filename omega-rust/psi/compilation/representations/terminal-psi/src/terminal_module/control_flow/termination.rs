@@ -380,3 +380,11 @@ impl StructuralCaseSuccessorEdge {
         })
     }
 }
+
+#[macro_export]
+macro_rules! terminator_return_pair_pattern {
+    ($($fields:tt)*) => {
+        $crate::Terminator::Return { $($fields)* }
+            | $crate::Terminator::ReturnUnit { $($fields)* }
+    };
+}

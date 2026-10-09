@@ -880,12 +880,7 @@ impl ChainExit<'_> {
                 }
                 self.insert_actions(cleanup_actions)
             }
-            Terminator::Return {
-                cleanup_actions, ..
-            }
-            | Terminator::ReturnUnit {
-                cleanup_actions, ..
-            } => self.insert_actions(cleanup_actions),
+            terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => self.insert_actions(cleanup_actions),
             Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => Ok(()),
         }
     }

@@ -256,12 +256,7 @@ pub(crate) fn forward_private_state_borrows(
                 *source = mapped(names, *source);
                 remap_cleanup_actions(cleanup_actions, names);
             }
-            Terminator::Return {
-                cleanup_actions, ..
-            }
-            | Terminator::ReturnUnit {
-                cleanup_actions, ..
-            } => {
+            terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
                 remap_cleanup_actions(cleanup_actions, names);
             }
             Terminator::StructuralCase { source, cases, .. } => {

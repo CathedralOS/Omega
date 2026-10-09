@@ -111,8 +111,7 @@ pub(super) fn validate_structural_block_bindings(
                     })
                     .map(|successor| successor.edge),
                 Terminator::StructuralCase { .. }
-                | Terminator::Return { .. }
-                | Terminator::ReturnUnit { .. }
+                | terminal_psi::terminator_return_pair_pattern!(..)
                 | Terminator::ReturnStructural { .. }
                 | Terminator::ExternalCompletion { .. }
                 | Terminator::Crash { .. } => None,

@@ -74,12 +74,7 @@ pub(super) fn finish(
                 }
                 merge_home_actions(cleanup_actions, &retained, &parents, &producers)?;
             }
-            Terminator::Return {
-                cleanup_actions, ..
-            }
-            | Terminator::ReturnUnit {
-                cleanup_actions, ..
-            } => {
+            terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
                 merge_home_actions(cleanup_actions, &retained, &parents, &producers)?;
             }
             _ => {}
@@ -231,8 +226,7 @@ impl HomeAvailability {
                 (reachable[position]
                     && matches!(
                         block.terminator,
-                        Terminator::Return { .. }
-                            | Terminator::ReturnUnit { .. }
+                        terminal_psi::terminator_return_pair_pattern!(..)
                             | Terminator::ReturnStructural { .. }
                     ))
                 .then_some(position)
@@ -319,8 +313,7 @@ fn preserve_parent_home(
             }
             Terminator::ReturnStructural { source, .. } => *source == parent,
             Terminator::StructuralCase { .. }
-            | Terminator::Return { .. }
-            | Terminator::ReturnUnit { .. }
+            | terminal_psi::terminator_return_pair_pattern!(..)
             | Terminator::Crash { .. } => false,
         };
         changes_carrier |= block.terminator.cleanup_rosters().any(|(_, actions)| {

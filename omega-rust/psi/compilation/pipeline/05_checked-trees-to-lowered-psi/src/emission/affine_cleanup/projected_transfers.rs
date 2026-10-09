@@ -152,12 +152,7 @@ pub(super) fn complete(
                     successors.push((edge.target, branch));
                 }
             }
-            Terminator::Return {
-                cleanup_actions, ..
-            }
-            | Terminator::ReturnUnit {
-                cleanup_actions, ..
-            } => {
+            terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
                 complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
             }
             Terminator::ReturnStructural {
