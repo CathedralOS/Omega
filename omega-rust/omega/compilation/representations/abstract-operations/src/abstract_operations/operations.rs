@@ -995,13 +995,9 @@ impl AbstractOperation {
     }
 
     /// One `IntegerArithmetic` row's operand wiring — its authored operation,
-    /// result, scalar type, arithmetic payload and operand pair — when the
-    /// row's operator is `operator`. Every other shape admits no such
-    /// operands.
-    pub fn integer_arithmetic_operands(
-        &self,
-        operator: IntegerArithmeticOperator,
-    ) -> Option<IntegerArithmeticOperands> {
+    /// result, scalar type, arithmetic payload and operand pair — whatever
+    /// operator the row carries. Every other shape admits no such operands.
+    pub fn integer_arithmetic(&self) -> Option<IntegerArithmeticOperands> {
         let Self::IntegerArithmetic {
             psi_operation,
             result,
@@ -1013,7 +1009,7 @@ impl AbstractOperation {
         else {
             return None;
         };
-        (arithmetic.operator() == operator).then_some(IntegerArithmeticOperands {
+        Some(IntegerArithmeticOperands {
             psi_operation: *psi_operation,
             result: *result,
             scalar_type: *scalar_type,
@@ -1021,6 +1017,15 @@ impl AbstractOperation {
             left: *left,
             right: *right,
         })
+    }
+
+    /// The same operand wiring when the row's operator is `operator`.
+    pub fn integer_arithmetic_operands(
+        &self,
+        operator: IntegerArithmeticOperator,
+    ) -> Option<IntegerArithmeticOperands> {
+        let operands = self.integer_arithmetic()?;
+        (operands.arithmetic.operator() == operator).then_some(operands)
     }
 
     /// Whether the operation reads or writes an existing byte sequence —

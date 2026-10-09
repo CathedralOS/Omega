@@ -13,23 +13,20 @@ pub(super) fn classify(
 ) -> Option<IndependentTotalScalarIdentity> {
     use IntegerArithmeticOperator as Operator;
     use TotalScalarIdentityKind as Kind;
-    let O::IntegerArithmetic {
-        psi_operation,
-        result,
-        scalar_type,
-        arithmetic,
-        left,
-        right,
-    } = operation
-    else {
+    let Some(operands) = operation.integer_arithmetic() else {
         return None;
     };
-    if arithmetic.policy() != IntegerOverflowPolicy::Saturating {
+    if operands.arithmetic.policy() != IntegerOverflowPolicy::Saturating {
         return None;
     }
-    let (psi_operation, result, scalar_type, left, right) =
-        (*psi_operation, *result, *scalar_type, *left, *right);
-    match (arithmetic.operator(), identity) {
+    let (psi_operation, result, scalar_type, left, right) = (
+        operands.psi_operation,
+        operands.result,
+        operands.scalar_type,
+        operands.left,
+        operands.right,
+    );
+    match (operands.arithmetic.operator(), identity) {
         (Operator::Add, Kind::SaturatingIntegerAddZeroLeft) => Some(left_law_row(
             psi_operation,
             result,

@@ -21,7 +21,8 @@ pub(super) fn derive(
 ) -> Result<Vec<OptimizerUnsignedCountdownRankingCertificate>, OptimizationUnitValidationError> {
     let mut certificates = Vec::new();
     for component in &snapshot.components {
-        let function = unit.function(component.id.machine)
+        let function = unit
+            .function(component.id.machine)
             .ok_or_else(|| mismatch(component))?;
         certificates.push(derive_one(function, component)?);
     }
@@ -125,29 +126,24 @@ fn derive_from_header(
         return Err(());
     }
     let subtract = scalar_node(decrement, binding.argument).ok_or(())?;
-    let O::IntegerArithmetic {
-        psi_operation: subtract_operation,
-        result: argument,
-        scalar_type: subtract_type,
-        arithmetic,
-        left: source_parameter,
-        right: one,
-    } = subtract.operation
-    else {
-        return Err(());
-    };
+    let operands = subtract.operation.integer_arithmetic().ok_or(())?;
     let (
         IntegerOverflowPolicy::Exact,
         IntegerArithmeticOperator::Subtract,
         Some(subtract_obligation),
     ) = (
-        arithmetic.policy(),
-        arithmetic.operator(),
-        arithmetic.obligation(),
+        operands.arithmetic.policy(),
+        operands.arithmetic.operator(),
+        operands.arithmetic.obligation(),
     )
     else {
         return Err(());
     };
+    let subtract_operation = operands.psi_operation;
+    let argument = operands.result;
+    let subtract_type = operands.scalar_type;
+    let source_parameter = operands.left;
+    let one = operands.right;
     // The decrement reads the counter either as the header's own parameter
     // or as its own block parameter, which the positive guard edge binds
     // from that header parameter.

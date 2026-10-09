@@ -21,46 +21,35 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 fn proof_certified_exact_integer_multiply_by_zero_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
-    let O::IntegerArithmetic {
-        psi_operation,
-        result,
-        scalar_type,
-        left,
-        right,
-        arithmetic,
-        ..
-    } = operation
+    let Some(operands) = operation.integer_arithmetic_operands(IntegerArithmeticOperator::Multiply)
     else {
         return Vec::new();
     };
-    if !arithmetic.is(
-        IntegerOverflowPolicy::Exact,
-        IntegerArithmeticOperator::Multiply,
-    ) {
+    if operands.arithmetic.policy() != IntegerOverflowPolicy::Exact {
         return Vec::new();
     }
     vec![
         (
             ProofCertifiedScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *left,
-                identity_operand: *left,
-                scalar_type: *scalar_type,
+                source_operation: operands.psi_operation,
+                result: operands.result,
+                replacement: operands.left,
+                identity_operand: operands.left,
+                scalar_type: operands.scalar_type,
                 identity: ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft,
             },
-            scalar_type.zero(),
+            operands.scalar_type.zero(),
         ),
         (
             ProofCertifiedScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *right,
-                identity_operand: *right,
-                scalar_type: *scalar_type,
+                source_operation: operands.psi_operation,
+                result: operands.result,
+                replacement: operands.right,
+                identity_operand: operands.right,
+                scalar_type: operands.scalar_type,
                 identity: ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight,
             },
-            scalar_type.zero(),
+            operands.scalar_type.zero(),
         ),
     ]
 }

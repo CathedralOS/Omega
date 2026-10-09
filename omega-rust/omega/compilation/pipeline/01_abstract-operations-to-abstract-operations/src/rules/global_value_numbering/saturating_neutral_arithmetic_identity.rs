@@ -37,51 +37,63 @@ psi_optimization_rule_delegate!(
 /// fact lookup naturally declines both multiplication rows for that type.
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     use TotalScalarIdentityKind as Kind;
-    let O::IntegerArithmetic {
-        psi_operation,
-        result,
-        scalar_type,
-        arithmetic,
-        left,
-        right,
-    } = operation
-    else {
+    let Some(operands) = operation.integer_arithmetic() else {
         return Vec::new();
     };
-    if arithmetic.policy() != IntegerOverflowPolicy::Saturating {
+    if operands.arithmetic.policy() != IntegerOverflowPolicy::Saturating {
         return Vec::new();
     }
-    let zero = scalar_type.zero();
-    let one = scalar_type.one();
+    let zero = operands.scalar_type.zero();
+    let one = operands.scalar_type.one();
     // (replacement, law operand, identity, expected law value)
-    let laws = match arithmetic.operator() {
+    let laws = match operands.arithmetic.operator() {
         IntegerArithmeticOperator::Add => vec![
-            (*right, *left, Kind::SaturatingIntegerAddZeroLeft, zero),
-            (*left, *right, Kind::SaturatingIntegerAddZeroRight, zero),
+            (
+                operands.right,
+                operands.left,
+                Kind::SaturatingIntegerAddZeroLeft,
+                zero,
+            ),
+            (
+                operands.left,
+                operands.right,
+                Kind::SaturatingIntegerAddZeroRight,
+                zero,
+            ),
         ],
         IntegerArithmeticOperator::Subtract => {
             vec![(
-                *left,
-                *right,
+                operands.left,
+                operands.right,
                 Kind::SaturatingIntegerSubtractZeroRight,
                 zero,
             )]
         }
         IntegerArithmeticOperator::Multiply => vec![
-            (*right, *left, Kind::SaturatingIntegerMultiplyOneLeft, one),
-            (*left, *right, Kind::SaturatingIntegerMultiplyOneRight, one),
+            (
+                operands.right,
+                operands.left,
+                Kind::SaturatingIntegerMultiplyOneLeft,
+                one,
+            ),
+            (
+                operands.left,
+                operands.right,
+                Kind::SaturatingIntegerMultiplyOneRight,
+                one,
+            ),
         ],
         IntegerArithmeticOperator::Divide | IntegerArithmeticOperator::Remainder => Vec::new(),
     };
     laws.into_iter()
         .map(
             |(replacement, law_operand, identity, expected_law_value)| TotalScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
+                source_operation: operands.psi_operation,
+                result: operands.result,
                 replacement,
                 law_operand,
-                scalar_type: *scalar_type,
-                law_operand_type: *scalar_type,
+                scalar_type: operands.scalar_type,
+                law_operand_type: operands.scalar_type,
                 identity,
                 expected_law_value,
             },

@@ -42,20 +42,14 @@ psi_optimization_rule_delegate!(
     IntegerType::zero
 );
 
-fn classify(operation: &O) -> Option<(&OperationId, &ValueId, &IntegerType)> {
-    let O::IntegerArithmetic {
-        psi_operation,
-        result,
-        scalar_type,
-        arithmetic,
-        left,
-        right,
-    } = operation
-    else {
-        return None;
-    };
-    if arithmetic.operator() != IntegerArithmeticOperator::Remainder || left != right {
+fn classify(operation: &O) -> Option<(OperationId, ValueId, IntegerType)> {
+    let operands = operation.integer_arithmetic_operands(IntegerArithmeticOperator::Remainder)?;
+    if operands.left != operands.right {
         return None;
     }
-    Some((psi_operation, result, scalar_type))
+    Some((
+        operands.psi_operation,
+        operands.result,
+        operands.scalar_type,
+    ))
 }

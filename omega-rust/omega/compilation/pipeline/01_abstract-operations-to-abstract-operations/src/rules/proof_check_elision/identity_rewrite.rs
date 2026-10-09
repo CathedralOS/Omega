@@ -23,7 +23,7 @@ pub(super) fn propose_proof_certified_integer_constants(
     unit: &PsiOptimizationUnit,
     analyses: RuleAnalysisView<'_>,
     contract: fn() -> OptimizationRuleContract,
-    classify: fn(&AbstractOperation) -> Option<(&OperationId, &ValueId, &IntegerType)>,
+    classify: fn(&AbstractOperation) -> Option<(OperationId, ValueId, IntegerType)>,
     constant: fn(IntegerType) -> IntegerValue,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
     let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
@@ -35,7 +35,7 @@ pub(super) fn propose_proof_certified_integer_constants(
                     continue;
                 };
                 if !use_definitions.uses.iter().any(|(machine, use_site)| {
-                    *machine == function.machine && use_site.value == *result
+                    *machine == function.machine && use_site.value == result
                 }) {
                     continue;
                 }
@@ -46,7 +46,7 @@ pub(super) fn propose_proof_certified_integer_constants(
                     continue;
                 }
                 let Ok(obligation_fact) =
-                    accepted_obligation_fact(unit, function.machine, *psi_operation)
+                    accepted_obligation_fact(unit, function.machine, psi_operation)
                 else {
                     continue;
                 };
@@ -71,10 +71,10 @@ pub(super) fn propose_proof_certified_integer_constants(
                         -1,
                         IntegerConstantRewrite {
                             location,
-                            source_operation: *psi_operation,
-                            result: *result,
-                            scalar_type: *scalar_type,
-                            constant: constant(*scalar_type),
+                            source_operation: psi_operation,
+                            result,
+                            scalar_type,
+                            constant: constant(scalar_type),
                         },
                     )
                     .map_err(RuleProposalError::InvalidCandidate)?,
