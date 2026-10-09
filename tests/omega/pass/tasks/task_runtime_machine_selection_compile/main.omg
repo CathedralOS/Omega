@@ -54,15 +54,25 @@ data Main {
 
 machine Main::probe(main: &mut Main) reaches TokenIssuer + TaskRuntime {
     let token: Token = main.issuer.issue(7);
-    let task: Task<Token> = main.runtime.start<Worker::run>(token);
+    let first: Task<Token> = main.runtime.start<Worker::run>(token);
 
     let retry: Token = main.issuer.issue(9);
     let outcome: StartOutcome<Token, Token> =
         main.runtime.try_start<Worker::run>(retry);
-    let retry_task: Task<Token> = outcome.task;
 
-    _ = suspend block Task::settle(task);
-    _ = suspend block Task::settle(retry_task);
+    _ = suspend block Task::settle(first);
+    // `try_start` may decline. Only the selected `Started` case carries a
+    // task claim; a rejection returns the unconsumed arguments instead.
+    transition outcome {
+        StartOutcome::Started { task } -> settle_retry(task)
+        StartOutcome::Rejected { arguments, reason } -> rejected(arguments, reason)
+    }
+
+    state settle_retry(retry_task: Task<Token>) {
+        _ = suspend block Task::settle(retry_task);
+    }
+
+    state rejected(arguments: Token, reason: StartRejection) { }
 }
 
 machine Main::main() { }

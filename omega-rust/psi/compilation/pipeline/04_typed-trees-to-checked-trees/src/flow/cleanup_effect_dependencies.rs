@@ -2,7 +2,8 @@
 //!
 //! Custody, not a type mention, selects each root. Its transferred or absent
 //! subtrees are excluded before nominal hooks are visited. This is a may-effect
-//! set: an unknown active case contributes its possible remaining variants;
+//! set: an unknown active case contributes its possible remaining variants,
+//! while a case the occurrence's source facts rule out holds no payload;
 //! repeated array elements contribute one target edge, not invented call sites.
 use super::carried_semantic_dependencies::{event_statement_index, event_type_reference};
 use arena::Arena;
@@ -16,6 +17,9 @@ use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 type Substitutions = Vec<(SymbolHandle, TypeReferenceHandle)>;
+
+/// Whether the occurrence's facts rule out the case a residual path selects.
+type InactiveCase<'a> = dyn Fn(&[PlaceSegment]) -> bool + 'a;
 
 /// Effect discovery retains array windows once; proof sequencing and executable
 /// cleanup share their exact selected receivers. Reserve before writing them.
@@ -88,6 +92,42 @@ pub(crate) fn selected_cleanup_leaves(
             event_type_reference(program, disposition.state, statement, disposition.root, &[])?;
         select_type(program, reference, &[], path)?
     };
+    let contexts = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find(|(_, state)| {
+            state.machine_symbol == disposition.machine && state.state_symbol == disposition.state
+        })
+        .and_then(|(_, state)| {
+            crate::facts::contextual_cleanup::occurrence_contexts(
+                program,
+                facts,
+                state,
+                disposition,
+            )
+        });
+    // The occurrence's source facts decide which alternatives can hold a
+    // payload here. Without contexts every alternative remains possible.
+    let inactive_case = |segments: &[PlaceSegment]| {
+        contexts.as_ref().is_some_and(|contexts| {
+            contexts.iter().all(|(statement, contexts)| {
+                crate::flow::place_case_path_is_inactive(
+                    program,
+                    &facts.semantic,
+                    contexts,
+                    disposition.machine,
+                    disposition.state,
+                    *statement,
+                    &validation::CanonicalPlace {
+                        root: disposition.root,
+                        segments: segments.to_vec(),
+                    },
+                )
+            })
+        })
+    };
     let mut leaves = Vec::new();
     visit(
         program,
@@ -98,6 +138,7 @@ pub(crate) fn selected_cleanup_leaves(
         &mut path.to_vec(),
         &mut leaves,
         &mut false,
+        &inactive_case,
     )?;
     Some(leaves)
 }
@@ -121,6 +162,7 @@ pub(crate) fn whole_cleanup_is_eligible(
         &mut Vec::new(),
         &mut Vec::new(),
         &mut has_erased_members,
+        &|_| false,
     )
     .is_some();
     // Runtime cleanup leaves deliberately omit erased fields. They cannot
@@ -223,6 +265,7 @@ fn visit_field_child(
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
     has_erased_members: &mut bool,
+    inactive_case: &InactiveCase<'_>,
     field: &typed_trees::data::DataField,
 ) -> Option<()> {
     path.push(PlaceSegment::Field {
@@ -237,6 +280,7 @@ fn visit_field_child(
         path,
         leaves,
         has_erased_members,
+        inactive_case,
     )?;
     path.pop();
     Some(())
@@ -251,6 +295,7 @@ fn visit(
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
     has_erased_members: &mut bool,
+    inactive_case: &InactiveCase<'_>,
 ) -> Option<()> {
     if removed.iter().any(|path| path.is_empty()) {
         return Some(());
@@ -284,6 +329,7 @@ fn visit(
                 path,
                 leaves,
                 has_erased_members,
+                inactive_case,
             )
         }
         TypeReferenceNode::Named { symbol, .. } => visit_owner(
@@ -295,6 +341,7 @@ fn visit(
             path,
             leaves,
             has_erased_members,
+            inactive_case,
         ),
         TypeReferenceNode::Generic {
             base_symbol,
@@ -325,6 +372,7 @@ fn visit(
                 path,
                 leaves,
                 has_erased_members,
+                inactive_case,
             )
         }
         // A selector names an implementation table and owns no data, so it
@@ -378,6 +426,7 @@ fn visit_owner(
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
     has_erased_members: &mut bool,
+    inactive_case: &InactiveCase<'_>,
 ) -> Option<()> {
     let symbol = program
         .machine_by_symbol(symbol)
@@ -429,6 +478,7 @@ fn visit_owner(
                     path,
                     leaves,
                     has_erased_members,
+                    inactive_case,
                     field,
                 )?;
             }
@@ -446,6 +496,12 @@ fn visit_owner(
                 path.push(PlaceSegment::Case {
                     variant: variant.symbol,
                 });
+                // A case the occurrence's facts rule out holds no payload to
+                // dispose. Any custody named inside it was counted above.
+                if inactive_case(path) {
+                    path.pop();
+                    continue;
+                }
                 let mut case_matched = 0;
                 *has_erased_members |= program
                     .data_payload_fields(variant)
@@ -471,6 +527,7 @@ fn visit_owner(
                         path,
                         leaves,
                         has_erased_members,
+                        inactive_case,
                         field,
                     )?;
                 }
@@ -502,6 +559,7 @@ fn visit_array(
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
     has_erased_members: &mut bool,
+    inactive_case: &InactiveCase<'_>,
 ) -> Option<()> {
     // Only endpoints named by custody participate. This is an effect set, so
     // all untouched elements share one traversal, even for enormous arrays.
@@ -550,6 +608,7 @@ fn visit_array(
             path,
             leaves,
             has_erased_members,
+            inactive_case,
         )?;
         path.pop();
     }
@@ -627,8 +686,7 @@ fn select_type(
             let PlaceSegment::Field { symbol } = *path.get(1)? else {
                 return None;
             };
-            let field = program
-                .data_payload_field_by_symbol(variant, symbol)?;
+            let field = program.data_payload_field_by_symbol(variant, symbol)?;
             (field, &path[2..])
         }
         _ => return None,

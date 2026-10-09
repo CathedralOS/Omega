@@ -3516,7 +3516,23 @@ pass/locals/runtime_local_view_member_element_read_exit checked 4020ms check-tar
 pass/locals/static_local_field_names_exit checked 1406ms check-target:macos_arm64 @cfe60a3a242
 pass/machines/static_namespace_constant_exit checked 3435ms check-target:macos_arm64 @0bb2f2c02dae+wt
 pass/memory/address_translation_canary checked 435ms @9a54cbcf1d68+wt
-pass/memory/bump_allocator_canary checked 1011ms check-target:linux_x86_64 @2d8ed253669f
+pass/memory/bump_allocator_canary rejected 1814ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @e95f2c8d09cf+wt
+	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
+	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
+	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
 pass/memory/interrupt_table_canary rejected 952ms @693920652f41
 	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/runtime_large_entry_record_field_exit checked 1175ms check-target:macos_arm64 @3ce19b649c88+wt
@@ -3939,7 +3955,7 @@ pass/targets/sysv_mixed_aggregate_entry checked 1308ms @2d8ed253669f
 pass/targets/target_body_call_contracts_exit checked 708ms check-target:macos_arm64 @2d8ed253669f
 pass/targets/target_machine_gating_exit checked 675ms check-target:macos_arm64 @63377f7122bb+wt
 pass/targets/unreached_foreign_body_caller_exit checked 4122ms check-target:macos_arm64 @23c026832955+wt
-pass/tasks/task_runtime_machine_selection_compile checked 309ms @2d8ed253669f
+pass/tasks/task_runtime_machine_selection_compile checked 309ms @e95f2c8d09cf+wt
 pass/terminal_psi/content_custody_exit checked 301ms @2d8ed253669f
 pass/terminal_psi/integer_control_contract checked 735ms @2d8ed253669f
 pass/terminal_psi/member_crash_contract_boundary checked 323ms @2d8ed253669f

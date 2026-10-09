@@ -2602,14 +2602,11 @@ crash and native exit behavior.
   - `fail/ports/asm_port_in_unsettled` pins the port-read lowering gap at
     "call operation: target state"; since 8c8a83fc8e5 the gap is reported
     earlier, at "outer calls: argument calls".
-  - `pass/memory/bump_allocator_canary`: "cleanup effect dependency in
-    `exercise_fallible` has no exact structural residual disposition". Any
-    transition that moves the payloads of a sum with a linear payload case
-    into states reproduces it.
-  - `pass/tasks/task_runtime_machine_selection_compile` reads a `StartOutcome`
-    payload without case knowledge, which checking now refuses
-    ([data and literals](wiki/spec/language/data_and_literals.md)); the lawful
-    case transition hits the linear-payload cleanup refusal above.
+  - `pass/memory/bump_allocator_canary` (checked/built until 68cadd5a83a,
+    **BORROWED-STORAGE-RESTORATION**'s claim transport): linear validation
+    of `source/library/alloc/bump.omg` reports
+    `retained_buffer::Held.storage` already transferred and three
+    `Extent::Granted` call-result qualifications unproved.
   - `fail/build/build_effects_undeclared` reports "target-tagged machine has no
     authored family member" instead of its effect refusal.
   - `interrupt_table_canary` and `secondary_processor_canary` select providers

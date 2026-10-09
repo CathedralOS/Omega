@@ -1126,7 +1126,23 @@ pass/locals/runtime_local_view_member_element_read_exit built 2189ms exit:70 @9b
 pass/locals/static_local_field_names_exit built 3382ms exit:0 @9beb2be72f2d+wt
 pass/machines/static_namespace_constant_exit built 3677ms exit:0 @9beb2be72f2d+wt
 pass/memory/address_translation_canary checked 602ms @3e42cf204024+wt
-pass/memory/bump_allocator_canary built 732ms
+pass/memory/bump_allocator_canary rejected 2864ms regressed-from:built @e95f2c8d09cf+wt
+	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
+	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
+	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
 pass/memory/interrupt_table_canary rejected 1746ms regressed-from:checked @693920652f41
 	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/runtime_large_entry_record_field_exit built 1425ms exit:70 @3ce19b649c88+wt
@@ -1536,7 +1552,7 @@ pass/targets/sysv_mixed_aggregate_entry checked 885ms
 pass/targets/target_body_call_contracts_exit built 915ms exit:0 @48008365d839
 pass/targets/target_machine_gating_exit built 686ms exit:70 @63377f7122bb+wt
 pass/targets/unreached_foreign_body_caller_exit built 4128ms exit:70 @23c026832955+wt
-pass/tasks/task_runtime_machine_selection_compile checked 214ms
+pass/tasks/task_runtime_machine_selection_compile checked 214ms @e95f2c8d09cf+wt
 pass/terminal_psi/content_custody_exit checked 225ms
 pass/terminal_psi/integer_control_contract checked 361ms
 pass/terminal_psi/member_crash_contract_boundary checked 193ms
