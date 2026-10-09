@@ -9,6 +9,12 @@
 //! plus a composed state's binding namespace), and a structural result
 //! through `publish_result` (the dense roster with its local binding, or the
 //! composed catalog and operation-buffer registry).
+//!
+//! Suspension retention joins checked source positions to those same emitted
+//! bindings. A scalar whose address was taken, or which permits replacement,
+//! lives in its established home rather than its initializer SSA value. Retain
+//! that current home before considering unaddressed scalar bindings; creating
+//! another home here would split storage identity from later reads and writes.
 
 use super::super::parameters::{self, lower_structural_arguments};
 use super::super::{argument_evaluation, ordinary_calls, signatures, structural_values};
@@ -360,69 +366,104 @@ impl OperationFrame<'_, '_> {
             ..Default::default()
         };
         for live in &crossing.live_values {
-            if self
+            let (symbol, source_position) = match live.origin {
+                checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => {
+                    if !parameters
+                        .get(position)
+                        .is_some_and(|parameter| parameter.symbol == symbol)
+                    {
+                        return unsupported(
+                            "suspension parameter changes its checked source position",
+                        );
+                    }
+                    (symbol, position)
+                }
+                checked_trees::SuspensionCrossingValueOrigin::Local {
+                    symbol,
+                    statement_index,
+                    environment_position,
+                } => {
+                    if !locals.iter().enumerate().any(|(position, local)| {
+                        local.symbol == symbol
+                            && local.statement_index as usize == statement_index
+                            && local.statement_index < coordinate.statement_index
+                            && parameters.len() + position == environment_position
+                    }) {
+                        return unsupported("suspension local changes its checked source position");
+                    }
+                    (symbol, environment_position)
+                }
+                checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => continue,
+            };
+            // Storage identity comes before carrier classification. An ordinary
+            // scalar binding may now occupy an addressable home; retaining its
+            // initializer SSA value would lose intervening writes and its address.
+            let local = crate::expression_preparation::bindings::structural_local_by_root(
+                &self.evaluation.structural_locals,
+                facts::PlaceRoot::Symbol(symbol),
+            );
+            let home = if let Some(local) = local {
+                Some((local.argument.clone(), local.structural_type))
+            } else if let Some((_, place, scalar_type)) = self
+                .evaluation
+                .primitive_storage
+                .iter()
+                .find(|(candidate, _, _)| *candidate == symbol)
+            {
+                let declaration = self
+                    .primitive_locals
+                    .iter()
+                    .chain(&self.evaluation.parameter_storage)
+                    .find(|local| local.declaration.id == *place)
+                    .ok_or(LoweringError::Unsupported(
+                        "suspension scalar home has no established declaration",
+                    ))?;
+                let (_, structural_type) =
+                    declaration.declaration.kind.as_operation_result().ok_or(
+                        LoweringError::Unsupported(
+                            "suspension scalar home has no establishing operation",
+                        ),
+                    )?;
+                let primitive = self
+                    .checked
+                    .primitive_type_reference(live.type_reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "suspension scalar home has no checked carrier",
+                    ))?;
+                if terminal_scalar_type(primitive)? != *scalar_type {
+                    return unsupported("suspension scalar home changes its checked carrier");
+                }
+                Some((
+                    terminal_psi::StructuralArgument {
+                        place: *place,
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
+                    structural_type,
+                ))
+            } else if self
                 .checked
                 .primitive_type_reference(live.type_reference)
                 .is_none()
             {
-                let (symbol, source_position) = match live.origin {
-                    checked_trees::SuspensionCrossingValueOrigin::Parameter {
-                        symbol,
-                        position,
-                    } => {
-                        if !parameters
-                            .get(position)
-                            .is_some_and(|parameter| parameter.symbol == symbol)
-                        {
-                            return unsupported(
-                                "suspension parameter changes its checked source position",
-                            );
-                        }
-                        (symbol, position)
-                    }
-                    checked_trees::SuspensionCrossingValueOrigin::Local {
-                        symbol,
-                        statement_index,
-                        environment_position,
-                    } => {
-                        if !locals.iter().enumerate().any(|(position, local)| {
-                            local.symbol == symbol
-                                && local.statement_index as usize == statement_index
-                                && local.statement_index < coordinate.statement_index
-                                && parameters.len() + position == environment_position
-                        }) {
-                            return unsupported(
-                                "suspension local changes its checked source position",
-                            );
-                        }
-                        (symbol, environment_position)
-                    }
-                    checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => continue,
-                };
-                let local = crate::expression_preparation::bindings::structural_local_by_root(
-                    &self.evaluation.structural_locals,
-                    facts::PlaceRoot::Symbol(symbol),
-                );
-                let (mut argument, structural_type) = if let Some(local) = local {
-                    (local.argument.clone(), local.structural_type)
-                } else {
-                    let Some((_, parameter)) = self
-                        .evaluation
-                        .structural_parameters
-                        .iter()
-                        .find(|(position, _)| *position as usize == source_position)
-                    else {
-                        continue;
-                    };
-                    (
-                        terminal_psi::StructuralArgument {
-                            place: parameter.place,
-                            path: Vec::new(),
-                            access: parameter.access,
-                        },
-                        parameter.structural_type,
-                    )
-                };
+                self.evaluation
+                    .structural_parameters
+                    .iter()
+                    .find(|(position, _)| *position as usize == source_position)
+                    .map(|(_, parameter)| {
+                        (
+                            terminal_psi::StructuralArgument {
+                                place: parameter.place,
+                                path: Vec::new(),
+                                access: parameter.access,
+                            },
+                            parameter.structural_type,
+                        )
+                    })
+            } else {
+                None
+            };
+            if let Some((mut argument, structural_type)) = home {
                 argument.place = self.evaluation.current_structural_place(argument.place);
                 bindings
                     .structural
@@ -433,20 +474,19 @@ impl OperationFrame<'_, '_> {
                     });
                 continue;
             }
-            let (source_position, authored_position) = match live.origin {
-                checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => {
-                    if !parameters.get(position).is_some_and(|parameter| {
-                        parameter.symbol == symbol
-                            && !parameter.is_mutable
-                            && !parameter.relevance.is_erased()
-                            && self
-                                .checked
-                                .primitive_type_reference(parameter.type_reference)
-                                .is_some()
-                    }) {
+            let authored_position = match live.origin {
+                checked_trees::SuspensionCrossingValueOrigin::Parameter { position, .. } => {
+                    let parameter = &parameters[position];
+                    if parameter.is_mutable
+                        || parameter.relevance.is_erased()
+                        || self
+                            .checked
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_none()
+                    {
                         continue;
                     }
-                    let authored_position = parameters[..position]
+                    parameters[..position]
                         .iter()
                         .filter(|parameter| {
                             !parameter.relevance.is_erased()
@@ -455,35 +495,23 @@ impl OperationFrame<'_, '_> {
                                     .primitive_type_reference(parameter.type_reference)
                                     .is_some()
                         })
-                        .count();
-                    (position, authored_position)
+                        .count()
                 }
                 checked_trees::SuspensionCrossingValueOrigin::Local {
-                    symbol,
-                    statement_index,
                     environment_position,
+                    ..
                 } => {
-                    let Some((local_position, local)) =
-                        locals.iter().enumerate().find(|(_, local)| {
-                            local.symbol == symbol
-                                && local.statement_index as usize == statement_index
-                                && local.statement_index < coordinate.statement_index
-                                && local.is_scalar_value
-                        })
-                    else {
+                    let local = &locals[environment_position - parameters.len()];
+                    if !local.is_scalar_value {
                         continue;
-                    };
-                    if parameters.len() + local_position != environment_position {
-                        return unsupported("suspension local changes its checked source position");
                     }
-                    let authored_position = self.scalar_parameter_count
+                    self.scalar_parameter_count
                         + self
                             .checked
                             .facts
                             .state_locals
                             .scalar_locals_before(self.state, local.statement_index)
-                            as usize;
-                    (environment_position, authored_position)
+                            as usize
                 }
                 checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => continue,
             };

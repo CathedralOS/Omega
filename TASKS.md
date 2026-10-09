@@ -400,8 +400,7 @@ helper that passes does not close an item.
     activation storage comes from explicit parameters, locals and call arguments.
     Carry no longer derives storage or reachability from namespace fields;
     activation planning combines direct envelopes over its checked call graph.
-    Suspension production still needs addressed scalar homes and checked
-    per-value loan carry evidence.
+    Suspension production still needs checked per-value loan carry evidence.
     Preserve independent rejection of malformed evidence while removing the
     obsolete representation; do not restore hidden argument insertion. Keep
     unrelated receiver-side artifact admission and mathematical subject
@@ -5153,8 +5152,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   `omega-rust/omega/compilation/realization/provider-planning/src/task_plans/` and
   [task-plans](omega-rust/omega/compilation/backend/runtime/task-plans/README.md):
   sealed call graphs, argument layouts, suspension frontiers, stack-demand
-  composition and selected-runtime invocation evidence exist. The deleted
-  compiler-side lifecycle ledger never executed a task; implement start,
+  composition and selected-provider bindings exist; execution consumes none
+  of the activation sidecar yet, and invocation receipts are not produced.
+  The deleted compiler-side lifecycle ledger never executed a task; implement start,
   park/resume, cancellation and settlement in the selected runtime/provider.
   `tests/omega/pass/tasks/task_runtime_machine_selection_compile`
   checks a probe beside an empty, unbound `Main::main`.
@@ -5169,8 +5169,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     Keep unresolved-call refusal and same-stack/separately provisioned demand.
   - Suspension production in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`:
-    addressed scalar homes and retained reference/slice loans still need
-    exact storage and per-value carry evidence. Keep
+    retained reference/slice loans still need exact backing, lifetime and
+    per-value carry evidence. Keep
     `pass/concurrency/boundary_suspension_inline_completion_exit` (0) as the
     inline boundary-completion control, not a park/resume witness.
     Keep storage lifetime, pinning, aliasing,

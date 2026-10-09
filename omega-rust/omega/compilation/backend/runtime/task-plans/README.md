@@ -2,7 +2,8 @@
 
 Contract: [task activation and lifecycle](../../../../../../wiki/spec/build/task_runtime.md).
 [lib.rs](src/lib.rs) owns activation plans, selected-runtime facts, exact
-preservation/invocation joins, and provider-instance lifecycle accounting.
+preservation obligations and stack composition. Runtime invocation and
+provider-instance lifecycle accounting are not implemented here.
 [stack_composition](src/task_plans/stack_composition/mod.rs) owns provider-independent same-stack composition.
 
 Activation planning is Omega-owned post-check state. The compiler reports
@@ -28,9 +29,10 @@ partial bound rather than minting authority for the covered subgraph alone.
 Static runtime binding and instance invocation are different evidence. The
 specialization SHA-256 commitment is authoritative; historical compact values
 are report fingerprints. Each demanded CPU/thread axis has exact evidence.
-`runtime_invocation` validates the exact selected provider, activation plan,
-runtime instance and preservation evidence one invocation receipt names. This
-crate stops there: it does not execute a task, allocate a stack, retain a live
+An invocation receipt still needs to join the exact selected provider,
+activation plan, runtime instance and preservation evidence; `runtime_invocation`
+currently contains only diagnostic axis labels. This crate does not execute a
+task, allocate a stack, retain a live
 claim or implement park, resume, cancellation and settlement. Those are
 ordinary selected-runtime responsibilities.
 
@@ -55,7 +57,8 @@ The selected runtime consumes the validated plan and invocation receipt, owns
 capacity and backing, and returns ordinary source-visible task outcomes. The
 producer joins scalar values, structural homes and paths, and established
 machine-local claim identities through the ordinary call's exact argument
-lanes. Addressed scalar homes and retained reference/slice loans still need
-their own checked storage and carry evidence. None of those joins supplies
-runtime backing or licenses parking; see the
+lanes, retaining address-backed scalar locals and mutable formals in their
+existing homes rather than their initializer values. Retained reference/slice
+loans still need their own checked backing and carry evidence. None of those
+joins supplies runtime backing or licenses parking; see the
 [Terminal producer](../../../driver/terminal-production/README.md#structural-results-and-suspension).

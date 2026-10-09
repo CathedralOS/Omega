@@ -18,21 +18,28 @@ satisfies Scheduler::advance
 pub data Inventory [linear] { value: i32; }
 machine Inventory::drop(inventory: &mut Inventory) {}
 machine Inventory::forward(inventory: Inventory) -> Inventory { inventory }
+machine observe(value: &i32) -> bool { value == 40 }
+machine replace(value: &mut i32) { value = 47; }
 data Marker { value: i32; }
 data Main { scheduler: Binding<Scheduler>; }
 machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
-    transition { _ -> work(main, 40) }
-    state work(main: &mut Main, input: i32) {
+    transition { _ -> work(main, 39) }
+    state work(main: &mut Main, mut input: i32) {
+        input = 40;
         let marker: Marker = Marker { value: 19 };
         let alias: i32 = input;
         let preserved: i32 = marker.value;
+        let addressed: i32 = input;
+        let observed: bool = observe(&addressed);
+        let mut mutable: i32 = 31;
+        replace(&mut mutable);
         let inventory: Inventory = Inventory { value: 19 };
         let transferred: Inventory = Inventory::forward(inventory);
         let retained: Inventory = Inventory { value: 23 };
         let result: i32 = suspend main.scheduler.advance(input + 2, transferred);
         let retained_value: i32 = retained.value;
         drop(retained);
-        transition result == 42 && input == 40 && alias == 40 && preserved == 19 && marker.value == 19 && retained_value == 23 {
+        transition result == 42 && input == 40 && alias == 40 && preserved == 19 && marker.value == 19 && retained_value == 23 && observed && addressed == 40 && mutable == 47 {
             true -> done()
             _ -> bad()
         }
