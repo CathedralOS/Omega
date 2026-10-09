@@ -1,0 +1,2 @@
+use omega::language::core::float_operations;
+proposition fractional(value: f64[3.75..=3.75]) = (value as u8 in Saturating) == 3u8;

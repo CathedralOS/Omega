@@ -217,16 +217,18 @@ pub(super) fn validate_target_range_membership(
                 *end_inclusive,
             );
             if !integer_proven && !float_proven {
-                let span = Some(program.expression_table.source_span(operand));
-                if diagnostics.iter().any(|existing| {
-                    existing.source_span == span
-                        && existing.message.starts_with("cast target range in ")
-                }) {
+                let span = program.expression_table.source_span(operand);
+                if span.span.start < span.span.end
+                    && diagnostics.iter().any(|existing| {
+                        existing.source_span == Some(span)
+                            && existing.message.starts_with("cast target range in ")
+                    })
+                {
                     continue;
                 }
                 diagnostics.push(Diagnostic::error(format!(
                     "cast target range in {owner} is not proven from the source value; all target predicates must hold before policy qualification (unknown numeric bounds or unsupported non-integer membership require an explicit proof)"
-                )).with_source_span(program.expression_table.source_span(operand)));
+                )).with_source_span(span));
             }
         }
     });

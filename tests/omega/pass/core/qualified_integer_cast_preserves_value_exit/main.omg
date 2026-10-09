@@ -24,6 +24,12 @@ requires value >= -128 && value <= 127 {
     value as i8 in Trapping
 }
 machine bounded() -> u16 ensures result <= 255 { 200u16 }
+// Invocation bounds retain copied locals and complete named state transfers.
+machine forwarded(value: u16) -> u16 {
+    let copied: u16 = value;
+    transition { _ -> finish(copied) }
+    state finish(value: u16) -> u16 { value & 255u16 }
+}
 machine accept(value: u8 in Wrapping) -> u8 { (value + 100) as u8 }
 machine main() crashes Trap {
     let identity_result: i16 = same_call(-100i16);
@@ -32,7 +38,8 @@ machine main() crashes Trap {
     let exact: i8 = trapping(-100i16) as i8;
     // The call result and the nested argument retain their own carriers.
     let nested: u8 = accept(bounded() as u8 in Wrapping);
-    transition identity_result == -100i16 && wrapped == 44u8 && saturated == 127i8 && exact == -100i8 && nested == 44u8 {
+    let forwarded_result: u8 = accept(forwarded(456u16) as u8 in Wrapping);
+    transition identity_result == -100i16 && wrapped == 44u8 && saturated == 127i8 && exact == -100i8 && nested == 44u8 && forwarded_result == 44u8 {
         true -> good()
         _ -> bad()
     }

@@ -1,0 +1,2 @@
+use omega::language::core::float_operations;
+proposition rounded(value: f64[0.1..=0.1]) = (value as f32) == 0.1f32;

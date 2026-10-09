@@ -1,0 +1,2 @@
+machine promise(value: i16) -> i16
+ensures (result as u8 in Saturating) == 0u8 { value }

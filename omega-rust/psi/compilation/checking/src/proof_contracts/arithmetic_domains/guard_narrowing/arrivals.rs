@@ -564,6 +564,9 @@ pub(crate) fn inferred_normal_return_interval(
     target_primitive: Option<typed_trees::types::PrimitiveType>,
     actuals: &[(SymbolHandle, Interval)],
 ) -> Option<Interval> {
+    // This judgment publishes integer intervals. Other result carriers have
+    // their own evidence owners and cannot benefit from this body traversal.
+    target_primitive.and_then(super::super::primitive_range)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
             program, machine,

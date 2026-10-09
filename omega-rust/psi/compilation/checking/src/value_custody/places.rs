@@ -279,6 +279,16 @@ pub fn declared_place_type_raw(
         handle = inner.target;
     }
 
+    // A contract result is a declaration-backed value rather than runtime
+    // storage. Keep its exact owning occurrence and full result type, just as
+    // selected calls retain their declared result below. This query supplies
+    // no writable place or proof of a result predicate.
+    if let Some(result) = crate::reserved_result_place(program, handle)
+        && result.machine_symbol == current_machine.symbol
+    {
+        return Some(result.type_reference);
+    }
+
     if let Some(path) = program.expression_table.name_path_node(handle)
         && program.expression_table.name_path_is_single_member(path)
         && let Some(parameter) = program
