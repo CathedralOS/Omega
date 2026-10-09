@@ -34,12 +34,13 @@ pub(super) enum StructuralTerm {
     /// A completed call's exact local result. Its contract may classify this
     /// value, but neither its spelling nor its callee's body defines it here.
     BoundValue(SymbolHandle),
-    /// One completed value call in this normal-return proof path. The
-    /// selected public callable and exact result type are retained; another
-    /// invocation with identical operands remains a different observation.
-    CapturedCallResult {
+    /// One completed value observation on this normal-return proof path.
+    /// Calls retain the exact public callable and result type; other selected
+    /// observations have no callable. Equal operands never identify two events.
+    CapturedValue {
         expression: ExpressionHandle,
         callable: SymbolHandle,
+        occurrence: usize,
         result_type: TypeReferenceHandle,
     },
     /// A field path on the same completed value, never a callee-local spelling.
@@ -155,6 +156,7 @@ pub(super) struct StructuralJudge<'program> {
     entry_machines: std::sync::Arc<EntryMachines>,
     machine_symbol: SymbolHandle,
     normal_results: Vec<(ExpressionHandle, StructuralTerm)>,
+    capture_sequence: usize,
     pub(super) normal_guarantees: Vec<(StructuralTerm, StructuralTerm)>,
     resolve_applications: bool,
     runtime_body_values: bool,
@@ -186,6 +188,7 @@ impl Clone for StructuralJudge<'_> {
             entry_machines: std::sync::Arc::clone(&self.entry_machines),
             machine_symbol: self.machine_symbol,
             normal_results: self.normal_results.clone(),
+            capture_sequence: self.capture_sequence,
             normal_guarantees: self.normal_guarantees.clone(),
             resolve_applications: self.resolve_applications,
             runtime_body_values: self.runtime_body_values,
@@ -268,6 +271,7 @@ impl<'program> StructuralJudge<'program> {
             ),
             machine_symbol: judged_machine.symbol,
             normal_results: Vec::new(),
+            capture_sequence: 0,
             normal_guarantees: Vec::new(),
             resolve_applications,
             runtime_body_values: false,
@@ -370,12 +374,12 @@ impl<'program> StructuralJudge<'program> {
                     }
                 }
             }
-            (StructuralTerm::Application { .. } | StructuralTerm::CapturedCallResult { .. }, _) => {
+            (StructuralTerm::Application { .. } | StructuralTerm::CapturedValue { .. }, _) => {
                 if !term_contains(&right, &left) {
                     self.rewrites.push((left, right));
                 }
             }
-            (_, StructuralTerm::Application { .. } | StructuralTerm::CapturedCallResult { .. }) => {
+            (_, StructuralTerm::Application { .. } | StructuralTerm::CapturedValue { .. }) => {
                 if !term_contains(&left, &right) {
                     self.rewrites.push((right, left));
                 }
@@ -415,7 +419,7 @@ impl<'program> StructuralJudge<'program> {
         }
         for _ in 0..32 {
             match term {
-                StructuralTerm::CapturedCallResult { .. } => {
+                StructuralTerm::CapturedValue { .. } => {
                     let Some((_, replacement)) =
                         self.rewrites.iter().find(|(source, _)| *source == term)
                     else {
@@ -976,34 +980,6 @@ impl<'program> StructuralJudge<'program> {
         self.callee_term_with_machines(expression, environment, &[], scope, depth)
     }
 
-    pub(super) fn local_term(
-        &self,
-        local: &typed_trees::statement::TableLocalData,
-        environment: &[(String, StructuralTerm)],
-    ) -> Option<StructuralTerm> {
-        if !self.resolve_applications
-            && matches!(
-                self.program
-                    .expression_table
-                    .expression(local.initial_value),
-                ExpressionNode::Call(_)
-            )
-        {
-            return local
-                .symbol
-                .is_valid()
-                .then_some(StructuralTerm::BoundValue(local.symbol));
-        }
-        self.callee_term(local.initial_value, environment, 0)
-            .or_else(|| {
-                // A saved computation has one identity even when its internal
-                // execution is outside this term language. Preserve aliases
-                // through normal substitution before using that opaque identity.
-                (self.runtime_body_values && local.symbol.is_valid())
-                    .then_some(StructuralTerm::BoundValue(local.symbol))
-            })
-    }
-
     fn callee_term_with_machines(
         &self,
         expression: ExpressionHandle,
@@ -1018,6 +994,13 @@ impl<'program> StructuralJudge<'program> {
     ) -> Option<StructuralTerm> {
         if depth >= 32 {
             return None;
+        }
+        if let Some((_, value)) = self
+            .normal_results
+            .iter()
+            .find(|(source, _)| *source == expression)
+        {
+            return Some(value.clone());
         }
         let program = self.program;
         match program.expression_table.expression(expression) {
@@ -1134,7 +1117,7 @@ impl<'program> StructuralJudge<'program> {
                     }
                     StructuralTerm::Integer(_)
                     | StructuralTerm::Float(_)
-                    | StructuralTerm::CapturedCallResult { .. }
+                    | StructuralTerm::CapturedValue { .. }
                     | StructuralTerm::Projection { .. }
                     | StructuralTerm::ScalarBinary { .. }
                     | StructuralTerm::Application { .. }
@@ -1142,9 +1125,9 @@ impl<'program> StructuralJudge<'program> {
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
-                super::structural_terms::constructor_literal_term(program, literal, |value| {
+                super::structural_terms::constructor_literal_term(program, literal, |field| {
                     self.callee_term_with_machines(
-                        value,
+                        field.value,
                         environment,
                         machine_environment,
                         scope,
@@ -1158,13 +1141,6 @@ impl<'program> StructuralJudge<'program> {
                 super::structural_terms::zero_value_structural_term(program, *type_reference)
             }
             ExpressionNode::Call(call) => {
-                if let Some((_, captured)) = self
-                    .normal_results
-                    .iter()
-                    .find(|(source, _)| *source == expression)
-                {
-                    return Some(captured.clone());
-                }
                 if self.runtime_body_values
                     || (call.receiver.is_valid()
                         && !super::structural_terms::static_call_receiver(program, call))
@@ -1272,7 +1248,7 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
             | StructuralTerm::BoundValue(_)
-            | StructuralTerm::CapturedCallResult { .. }
+            | StructuralTerm::CapturedValue { .. }
             | StructuralTerm::BoundProjection { .. } => term.clone(),
             StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
                 subject: Box::new(Self::substitute_term(subject, map)),
@@ -1339,7 +1315,7 @@ impl<'program> StructuralJudge<'program> {
                         | StructuralTerm::Float(_)
                         | StructuralTerm::Application { .. }
                         | StructuralTerm::CallProjection { .. }
-                        | StructuralTerm::CapturedCallResult { .. }
+                        | StructuralTerm::CapturedValue { .. }
                         | StructuralTerm::ScalarBinary { .. }
                         | StructuralTerm::Projection { .. } => StructuralTerm::Projection {
                             subject: Box::new(replacement.clone()),
@@ -1788,7 +1764,7 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
             | StructuralTerm::BoundValue(_) => Some(term),
-            StructuralTerm::CapturedCallResult { .. } => Some(term),
+            StructuralTerm::CapturedValue { .. } => Some(term),
             StructuralTerm::Application { .. }
             | StructuralTerm::CallProjection { .. }
             | StructuralTerm::BoundProjection { .. }

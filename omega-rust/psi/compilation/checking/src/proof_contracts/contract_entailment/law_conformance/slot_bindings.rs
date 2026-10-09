@@ -216,7 +216,7 @@ pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -
         | StructuralTerm::Integer(_)
         | StructuralTerm::Float(_)
         | StructuralTerm::BoundValue(_)
-        | StructuralTerm::CapturedCallResult { .. }
+        | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. } => false,
     }
 }
@@ -320,11 +320,11 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
     match term {
         StructuralTerm::Variable(name) => name.clone(),
         StructuralTerm::BoundValue(symbol) => format!("<completed value {symbol:?}>"),
-        StructuralTerm::CapturedCallResult {
+        StructuralTerm::CapturedValue {
             expression,
             callable,
             ..
-        } => format!("<completed call {callable:?} at {expression:?}>"),
+        } => format!("<completed value at {expression:?}, callable {callable:?}>"),
         StructuralTerm::BoundProjection { subject, path } => {
             format!("<completed value {subject:?}>.{path}")
         }

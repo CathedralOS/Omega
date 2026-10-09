@@ -337,11 +337,11 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
     // folding into an environment over the lemma's own params, then exactly
     // one Always value arm. Params map to themselves (they are the fact's
     // vocabulary); locals map to their initializer terms.
-    let sole_arm_value = |mut judge: StructuralJudge<'program>| {
+    let sole_arm_value = |judge: StructuralJudge<'program>| {
         let [root] = program.machine_states(machine) else {
             return None;
         };
-        let mut environment: Vec<(String, StructuralTerm)> = program
+        let environment: Vec<(String, StructuralTerm)> = program
             .state_parameters(root)
             .iter()
             .map(|parameter| {
@@ -349,33 +349,43 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
                 (name.clone(), StructuralTerm::Variable(name))
             })
             .collect();
-        let mut result = None;
+        let mut frames = vec![(environment, judge)];
+        let mut results = None;
         for statement in program.statement_table.statements(root.statement_nodes) {
-            if result.is_some() {
-                return None; // statements after the value arm: out of shape
+            if results.is_some() {
+                return None;
             }
             if is_arm_pattern_marker(statement) {
-                continue; // exhaustiveness carrier, not shape
+                continue;
             }
             match statement {
-                // Citation statements carry facts, not shape: their
-                // equations are already in the judge's hypotheses.
                 StatementNode::Call(call)
                     if is_citation_statement(program, &proof_only, machine, call) => {}
-                StatementNode::LocalData(local_data) => {
-                    let term = judge.normal_return_term(
-                        local_data.initial_value,
-                        &environment,
-                        (machine, root, local_data.type_reference),
-                    )?;
-                    environment.push((local_data.name.as_str().to_owned(), term));
+                StatementNode::LocalData(local) => {
+                    let mut next = Vec::new();
+                    for (environment, judge) in frames {
+                        for outcome in judge.normal_return_paths(
+                            local.initial_value,
+                            &environment,
+                            (machine, root, local.type_reference),
+                        )? {
+                            let mut environment = environment.clone();
+                            environment.push((local.name.as_str().to_owned(), outcome.value));
+                            next.push((environment, outcome.judge));
+                        }
+                    }
+                    frames = next;
                 }
                 StatementNode::Expression(value) => {
-                    result = Some(judge.normal_return_term(
-                        *value,
-                        &environment,
-                        (machine, root, root.return_type),
-                    )?);
+                    let mut values = Vec::new();
+                    for (environment, judge) in frames.drain(..) {
+                        values.extend(judge.normal_return_paths(
+                            *value,
+                            &environment,
+                            (machine, root, root.return_type),
+                        )?);
+                    }
+                    results = Some(values);
                 }
                 StatementNode::Transition(transition) => {
                     if !matches!(transition.guard, TransitionGuardNode::Always)
@@ -388,16 +398,20 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
                     else {
                         return None;
                     };
-                    result = Some(judge.normal_return_term(
-                        *value,
-                        &environment,
-                        (machine, root, root.return_type),
-                    )?);
+                    let mut values = Vec::new();
+                    for (environment, judge) in frames.drain(..) {
+                        values.extend(judge.normal_return_paths(
+                            *value,
+                            &environment,
+                            (machine, root, root.return_type),
+                        )?);
+                    }
+                    results = Some(values);
                 }
                 _ => return None,
             }
         }
-        result.map(|value| (value, judge))
+        results
     };
     let sole_arm_result = sole_arm_value(structural.clone());
     // Result-to-parameter tag forwarding needs the actual returned subject,
@@ -409,7 +423,9 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
         eprintln!(
             "STRUCT machine={} sole_arm={:?}",
             machine.name,
-            sole_arm_result.as_ref().map(|(value, _)| value)
+            sole_arm_result
+                .as_ref()
+                .map(|paths| paths.iter().map(|path| &path.value).collect::<Vec<_>>())
         );
     }
     // STRUCTURAL INDUCTION (the L7 protocol's structural twin): a bodied
@@ -460,7 +476,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
         });
     let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
         if structural_terms::is_case_observation(program, fact)
-            && let Some((term, captured)) = &sole_arm_case_result
+            && let Some(paths) = &sole_arm_case_result
             && let ExpressionNode::Binary(comparison) = program.expression_table.expression(fact)
         {
             // A parameter named `result` is not the reserved returned value.
@@ -471,13 +487,15 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
             {
                 return structural.judge(program, fact);
             }
-            let mut bound = captured.clone();
-            bound.intake_case_equation(
-                StructuralTerm::Variable(RESULT_BINDER.to_owned()),
-                term.clone(),
-                0,
-            );
-            if matches!(bound.judge(program, fact), StructuralJudgment::Proven) {
+            if paths.iter().all(|path| {
+                let mut bound = path.judge.clone();
+                bound.intake_case_equation(
+                    StructuralTerm::Variable(RESULT_BINDER.to_owned()),
+                    path.value.clone(),
+                    0,
+                );
+                matches!(bound.judge(program, fact), StructuralJudgment::Proven)
+            }) {
                 return StructuralJudgment::Proven;
             }
         }
@@ -494,14 +512,22 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
                 StructuralJudgment::Unknown
             };
         }
-        if let Some((term, captured)) = &sole_arm_result {
-            let mut bound = captured.clone();
-            if !result_is_parameter {
-                bound
-                    .substitutions
-                    .insert(0, (RESULT_BINDER.to_owned(), term.clone()));
+        if let Some(paths) = &sole_arm_result {
+            let mut verdict = StructuralJudgment::Proven;
+            for path in paths {
+                let mut bound = path.judge.clone();
+                if !result_is_parameter {
+                    bound
+                        .substitutions
+                        .insert(0, (RESULT_BINDER.to_owned(), path.value.clone()));
+                }
+                match bound.judge(program, fact) {
+                    StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
+                    StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
+                    StructuralJudgment::Proven => {}
+                }
             }
-            return bound.judge(program, fact);
+            return verdict;
         }
         let Some(arms) = &case_arms else {
             return structural.judge(program, fact);

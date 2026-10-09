@@ -363,7 +363,7 @@ fn term_has_complete_substitution(
 ) -> bool {
     match term {
         StructuralTerm::BoundValue(_)
-        | StructuralTerm::CapturedCallResult { .. }
+        | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }
         | StructuralTerm::Projection { .. }
         | StructuralTerm::Opaque(_) => false,

@@ -129,30 +129,26 @@ pub(crate) fn recognize_guarded_structural_value_arms(
         .map(|name| (name.clone(), StructuralTerm::Variable(name.clone())))
         .collect();
 
-    [first_target, second_target]
-        .into_iter()
-        .map(|target| {
-            let TransitionTargetNode::Value(value) =
-                program.statement_table.transition_target(target)
-            else {
-                return None;
-            };
-            let mut branch_judge = judge.clone();
-            let value = branch_judge.normal_return_term(
-                *value,
-                &environment,
-                (machine, root, root.return_type),
-            )?;
-            Some(StructuralCaseArm {
+    let mut leaves = Vec::new();
+    for target in [first_target, second_target] {
+        let TransitionTargetNode::Value(value) = program.statement_table.transition_target(target)
+        else {
+            return None;
+        };
+        for outcome in
+            judge.normal_return_paths(*value, &environment, (machine, root, root.return_type))?
+        {
+            leaves.push(StructuralCaseArm {
                 parameter_names: parameter_names.clone(),
                 case_hypotheses: Vec::new(),
                 case_equations: Vec::new(),
                 citations: Vec::new(),
-                normal_guarantees: branch_judge.normal_guarantees.clone(),
-                value,
-            })
-        })
-        .collect()
+                normal_guarantees: outcome.judge.normal_guarantees.clone(),
+                value: outcome.value,
+            });
+        }
+    }
+    Some(leaves)
 }
 
 /// Equality for the duplicated condition trees produced by boolean-arm
@@ -295,7 +291,49 @@ fn recognize_structural_state_leaves(
     states: &[typed_trees::state::State],
     state: &typed_trees::state::State,
     parameter_names: &[String],
-    mut environment: Vec<(String, StructuralTerm)>,
+    environment: Vec<(String, StructuralTerm)>,
+    case_hypotheses: Vec<(String, StructuralTerm)>,
+    case_equations: Vec<(StructuralTerm, StructuralTerm)>,
+    pending_citations: Vec<PendingStructuralCitation>,
+    collect_citations: bool,
+    path: &mut Vec<SymbolHandle>,
+    fresh: &mut usize,
+    requirement: &mut Option<&mut CallRequirement<'_>>,
+    established_guarantees: CitationFacts,
+) -> Option<Vec<StructuralCaseArm>> {
+    recognize_structural_state_leaves_from(
+        program,
+        machine,
+        judge,
+        classification,
+        diagnostics,
+        states,
+        state,
+        parameter_names,
+        environment,
+        case_hypotheses,
+        case_equations,
+        pending_citations,
+        collect_citations,
+        path,
+        fresh,
+        requirement,
+        established_guarantees,
+        0,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn recognize_structural_state_leaves_from(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    judge: &StructuralJudge<'_>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    states: &[typed_trees::state::State],
+    state: &typed_trees::state::State,
+    parameter_names: &[String],
+    environment: Vec<(String, StructuralTerm)>,
     case_hypotheses: Vec<(String, StructuralTerm)>,
     case_equations: Vec<(StructuralTerm, StructuralTerm)>,
     mut pending_citations: Vec<PendingStructuralCitation>,
@@ -304,11 +342,14 @@ fn recognize_structural_state_leaves(
     fresh: &mut usize,
     requirement: &mut Option<&mut CallRequirement<'_>>,
     mut established_guarantees: CitationFacts,
+    start_index: usize,
 ) -> Option<Vec<StructuralCaseArm>> {
-    if !state.symbol.is_valid() || path.contains(&state.symbol) {
+    if !state.symbol.is_valid() || (start_index == 0 && path.contains(&state.symbol)) {
         return None;
     }
-    path.push(state.symbol);
+    if start_index == 0 {
+        path.push(state.symbol);
+    }
     let mut path_judge =
         structural_arm_judge(program, machine, judge, &case_hypotheses, &case_equations);
     let judge = &mut path_judge;
@@ -319,6 +360,7 @@ fn recognize_structural_state_leaves(
         for (statement_index, statement) in program
             .statement_table
             .indexed_statements(state.statement_nodes)
+            .filter(|(statement_index, _)| *statement_index >= start_index)
         {
             if is_arm_pattern_marker(statement) {
                 continue;
@@ -379,28 +421,53 @@ fn recognize_structural_state_leaves(
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
-                    let _ = judge.normal_return_term(
+                    let outcomes = judge.normal_return_paths(
                         local.initial_value,
                         &environment,
                         (machine, state, local.type_reference),
-                    );
-                    let term = judge.local_term(local, &environment)?;
-                    if collect_citations
-                        && let Some((target, argument_handles)) =
-                            citation_call_in_statement(program, statement)
-                    {
-                        stage_citation_argument_terms(
+                    )?;
+                    let mut leaves = Vec::new();
+                    for outcome in outcomes {
+                        let mut pending_citations = pending_citations.clone();
+                        if collect_citations
+                            && let Some((target, argument_handles)) =
+                                citation_call_in_statement(program, statement)
+                        {
+                            stage_citation_argument_terms(
+                                program,
+                                &outcome.judge,
+                                machine,
+                                state,
+                                &environment,
+                                &target,
+                                &argument_handles,
+                                &mut pending_citations,
+                            )?;
+                        }
+                        let mut environment = environment.clone();
+                        environment.push((local.name.as_str().to_owned(), outcome.value));
+                        leaves.extend(recognize_structural_state_leaves_from(
                             program,
-                            judge,
                             machine,
+                            &outcome.judge,
+                            classification,
+                            diagnostics,
+                            states,
                             state,
-                            &environment,
-                            &target,
-                            &argument_handles,
-                            &mut pending_citations,
-                        )?;
+                            parameter_names,
+                            environment,
+                            case_hypotheses.clone(),
+                            case_equations.clone(),
+                            pending_citations,
+                            collect_citations,
+                            path,
+                            fresh,
+                            requirement,
+                            established_guarantees.clone(),
+                            statement_index + 1,
+                        )?);
                     }
-                    environment.push((local.name.as_str().to_owned(), term));
+                    return Some(leaves);
                 }
                 StatementNode::Call(_) if !saw_transition && collect_citations => {
                     let (target, argument_handles) =
@@ -567,23 +634,24 @@ fn recognize_structural_state_leaves(
                     if requirement.is_some() {
                         continue;
                     }
-                    let value = judge.normal_return_term(
+                    for outcome in judge.normal_return_paths(
                         *value,
                         &branch_environment,
                         (machine, state, state.return_type),
-                    )?;
-                    leaves.push(finalize_structural_case_arm(
-                        program,
-                        machine,
-                        judge,
-                        classification,
-                        diagnostics,
-                        parameter_names,
-                        branch_hypotheses,
-                        branch_equations,
-                        pending_citations.clone(),
-                        value,
-                    ));
+                    )? {
+                        leaves.push(finalize_structural_case_arm(
+                            program,
+                            machine,
+                            &outcome.judge,
+                            classification,
+                            diagnostics,
+                            parameter_names,
+                            branch_hypotheses.clone(),
+                            branch_equations.clone(),
+                            pending_citations.clone(),
+                            outcome.value,
+                        ));
+                    }
                 }
                 TransitionTargetNode::Named {
                     path: target,
@@ -602,39 +670,44 @@ fn recognize_structural_state_leaves(
                     if target_parameters.len() != argument_handles.len() {
                         return None;
                     }
-                    let target_environment = target_parameters
-                        .iter()
-                        .zip(argument_handles)
-                        .map(|(parameter, argument)| {
-                            Some((
-                                parameter.name.as_str().to_owned(),
-                                judge.normal_return_term(
-                                    *argument,
-                                    &branch_environment,
-                                    (machine, state, parameter.type_reference),
-                                )?,
-                            ))
-                        })
-                        .collect::<Option<Vec<_>>>()?;
-                    leaves.extend(recognize_structural_state_leaves(
-                        program,
-                        machine,
-                        judge,
-                        classification,
-                        diagnostics,
-                        states,
-                        target_state,
-                        parameter_names,
-                        target_environment,
-                        branch_hypotheses,
-                        branch_equations,
-                        pending_citations.clone(),
-                        true,
-                        path,
-                        fresh,
-                        requirement,
-                        established_guarantees.clone(),
-                    )?);
+                    let mut target_frames = vec![(Vec::new(), judge.clone())];
+                    for (parameter, argument) in target_parameters.iter().zip(argument_handles) {
+                        let mut next = Vec::new();
+                        for (target_environment, captured) in target_frames {
+                            for outcome in captured.normal_return_paths(
+                                *argument,
+                                &branch_environment,
+                                (machine, state, parameter.type_reference),
+                            )? {
+                                let mut target_environment = target_environment.clone();
+                                target_environment
+                                    .push((parameter.name.as_str().to_owned(), outcome.value));
+                                next.push((target_environment, outcome.judge));
+                            }
+                        }
+                        target_frames = next;
+                    }
+                    for (target_environment, captured) in target_frames {
+                        leaves.extend(recognize_structural_state_leaves(
+                            program,
+                            machine,
+                            &captured,
+                            classification,
+                            diagnostics,
+                            states,
+                            target_state,
+                            parameter_names,
+                            target_environment,
+                            branch_hypotheses.clone(),
+                            branch_equations.clone(),
+                            pending_citations.clone(),
+                            true,
+                            path,
+                            fresh,
+                            requirement,
+                            established_guarantees.clone(),
+                        )?);
+                    }
                 }
                 _ => return None,
             }
@@ -642,7 +715,9 @@ fn recognize_structural_state_leaves(
         Some(leaves)
     })();
 
-    path.pop();
+    if start_index == 0 {
+        path.pop();
+    }
     result
 }
 

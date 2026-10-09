@@ -9,7 +9,7 @@
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
-use typed_trees::expression::{ExpressionHandle, TableStructLiteral};
+use typed_trees::expression::{ExpressionHandle, TableStructLiteral, TableStructLiteralField};
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -114,7 +114,7 @@ pub(in super::super) fn case_value_term(
 pub(in super::super) fn constructor_literal_term(
     program: &dyn crate::CheckingInput,
     literal: &TableStructLiteral,
-    mut supplied_term: impl FnMut(ExpressionHandle) -> Option<StructuralTerm>,
+    mut supplied_term: impl FnMut(&TableStructLiteralField) -> Option<StructuralTerm>,
 ) -> Option<StructuralTerm> {
     let definition = program.data_definition_by_symbol(literal.type_symbol)?;
     let variant = match literal.case_symbol {
@@ -166,7 +166,7 @@ pub(in super::super) fn constructor_literal_term(
             if matches.next().is_some() {
                 return None;
             }
-            supplied_term(supplied.value)?
+            supplied_term(supplied)?
         } else {
             if field.relevance.is_erased() {
                 return None;

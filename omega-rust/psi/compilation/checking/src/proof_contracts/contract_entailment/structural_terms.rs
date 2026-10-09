@@ -277,8 +277,8 @@ fn structural_term_with_frame(
             }
         }
         ExpressionNode::StructLiteral(literal) => {
-            constructor_literal_term(program, literal, |value| {
-                structural_term_with_frame(program, scope, frame, value)
+            constructor_literal_term(program, literal, |field| {
+                structural_term_with_frame(program, scope, frame, field.value)
             })
         }
         ExpressionNode::Binary(binary) => binary_term_in_scope(
