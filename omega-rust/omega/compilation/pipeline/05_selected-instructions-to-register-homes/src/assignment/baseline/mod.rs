@@ -74,9 +74,6 @@ pub(crate) struct StagedOptimizedRegisterHomes {
 impl StagedOptimizedRegisterHomes {
     /// The retained producer stage. Replay and custody validation inspect it;
     /// ordinary consumers read the current program and analyses directly.
-    pub const fn legality_stage(&self) -> &StagedOptimizedAllocationLegality {
-        &self.legality
-    }
     /// The current selected program this assignment describes.
     pub const fn selected(
         &self,
@@ -239,9 +236,6 @@ pub(crate) struct StagedOptimizedRegisterHomesAfterFixedViewCopies {
 impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
     /// The retained reanalysis stage. Replay and custody validation inspect
     /// it; ordinary consumers read the current program and analyses directly.
-    pub const fn reanalysis_stage(&self) -> &StagedOptimizedSelectedReanalysis {
-        &self.reanalysis
-    }
     /// The transformed program this assignment describes.
     pub const fn selected(&self) -> &ValidatedFixedViewCopies {
         self.reanalysis.transformation_stage().copies()

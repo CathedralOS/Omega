@@ -83,9 +83,6 @@ pub(crate) struct StagedOptimizedRegisterHomesAfterLiteralFolds {
 impl StagedOptimizedRegisterHomesAfterLiteralFolds {
     /// The retained fold stage. Replay and custody validation inspect it;
     /// ordinary consumers read the current program and analyses directly.
-    pub const fn fold_stage(&self) -> &StagedOptimizedLiteralFolds {
-        &self.folds
-    }
     /// The final folded program this assignment describes.
     pub fn selected(
         &self,
@@ -182,9 +179,6 @@ pub(crate) struct StagedOptimizedRegisterHomesAfterSelectedLowering {
 impl StagedOptimizedRegisterHomesAfterSelectedLowering {
     /// The retained lowering run. Replay and custody validation inspect it;
     /// ordinary consumers read the current program and analyses directly.
-    pub const fn selected_lowering_run(&self) -> &StagedSelectedLoweringOptimizationRun {
-        &self.run
-    }
     /// The program this assignment describes: the last step's fold when the
     /// suite ran, otherwise the unchanged selected program the run admitted.
     pub fn selected(&self) -> SelectedProgramRef<'_> {
@@ -314,9 +308,6 @@ pub(crate) struct StagedOptimizedRegisterHomesAfterPreAllocation {
 impl StagedOptimizedRegisterHomesAfterPreAllocation {
     /// The retained pre-allocation run. Replay and custody validation inspect
     /// it; ordinary consumers read the current program and analyses directly.
-    pub const fn pre_allocation_run(&self) -> &StagedPreAllocationOptimizationRun {
-        &self.run
-    }
     /// The program this assignment describes: the run's current program —
     /// the last committed step's transformed plan, or the unchanged admitted
     /// source plan when the terminal pass was already clean.
