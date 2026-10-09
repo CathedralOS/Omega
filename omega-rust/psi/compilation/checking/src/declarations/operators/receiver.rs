@@ -86,13 +86,15 @@ fn expression_type_reference_in_state(
             field_type_reference(program, receiver, member.member_symbol, &member.member)
         })
         .or_else(|| data_binding_field_type_reference(program, state_symbol, member)),
-        ExpressionNode::Indexed(indexed) => expression_type_reference_in_state(
-            program,
-            state_symbol,
-            statement_index,
-            indexed.collection,
-        )
-        .and_then(|collection| indexed_element_type_reference(program, collection)),
+        ExpressionNode::Indexed(_) => program
+            .machine_holding_state(state_symbol)
+            .zip(program.state_by_symbol(state_symbol))
+            .and_then(|(machine, state)| {
+                // The shared selected-index owner distinguishes builtin
+                // element projection from an authored indexing result. A
+                // collection shell alone cannot replace that declaration.
+                crate::expression_result_type_reference(program, machine, state, expression)
+            }),
         ExpressionNode::Cast(cast) => {
             crate::value_custody::expression_types::cast_result_type_reference(program, cast)
         }
@@ -416,23 +418,4 @@ fn data_field_type_reference(
         program.data_field_named(data, field_name.as_str())
     };
     field.map(|field| field.type_reference)
-}
-
-fn indexed_element_type_reference(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } => indexed_element_type_reference(program, *referee),
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => Some(*element_type),
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => None,
-    }
 }

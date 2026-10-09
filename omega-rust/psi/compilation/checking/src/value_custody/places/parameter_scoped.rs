@@ -96,12 +96,7 @@ fn expression_type(
             {
                 return None;
             }
-            let collection = unwrapped_type_reference(program, collection_type)?;
-            match program.type_reference_table.type_reference(collection) {
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => *element_type,
-                _ => return None,
-            }
+            super::collection_element_type_reference(program, collection_type)?
         }
         ExpressionNode::Call(call) => {
             crate::machine_calls::calls::resolved_call_result_type(program, call)?

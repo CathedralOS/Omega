@@ -1,0 +1,14 @@
+use omega::language::core::float_operations;
+machine main() crashes Trap {
+    let values: [f32; 1] in Saturating = [(3.4028234663852886e38f32 as f32 in Saturating)];
+    let nested: [[f32; 1]; 1] in Saturating = [[(3.4028234663852886e38f32 as f32 in Saturating)]];
+    let direct: f32 in Saturating = F32::multiply_then_add(values[0], 2.0f32, 0.0f32);
+    let indirect: f32 in Saturating = F32::multiply_then_add(nested[0][0], 2.0f32, 0.0f32);
+    transition direct == 3.4028234663852886e38f32
+        && indirect == 3.4028234663852886e38f32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

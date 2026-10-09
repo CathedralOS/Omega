@@ -6,7 +6,7 @@ use typed_trees::{
     expression::{ExpressionHandle, ExpressionNode},
     name::Identifier,
     state::State,
-    types::{TypeReferenceHandle, TypeReferenceNode},
+    types::TypeReferenceHandle,
 };
 
 pub struct Projection {
@@ -144,14 +144,8 @@ pub fn expression(
             ) {
                 return Ok(None);
             }
-            let Some(collection) =
-                crate::unwrapped_type_reference(program, receiver.type_reference)
-            else {
-                return Ok(None);
-            };
-            let (TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type }) =
-                program.type_reference_table.type_reference(collection)
+            let Some(element_type) =
+                super::collection_element_type_reference(program, receiver.type_reference)
             else {
                 return Ok(None);
             };
@@ -160,7 +154,7 @@ pub fn expression(
                 // An element has no field declaration of its own. Its exact
                 // type selects the method; place and access checks retain the index.
                 symbol: SymbolHandle::invalid(),
-                type_reference: *element_type,
+                type_reference: element_type,
             })
         }
         _ => None,
