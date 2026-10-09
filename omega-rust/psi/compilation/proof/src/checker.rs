@@ -60,6 +60,49 @@ use crate::checker::derivation_cache::DerivationConsultation;
 use crate::obligations::{ProofObligation, ProofPlan};
 use diagnostics::Diagnostic;
 
+/// Obligation dispatch rows: each `plain` row runs the obligation's `check_*`
+/// function and discards its result; each `ranged` row also passes the shared
+/// assignment-range context. Arms with their own tails ride in `literal`
+/// ahead of the generated rows.
+macro_rules! check_obligations {
+    (
+        $obligation:ident, $plan:ident, $ranges:ident, $seed:ident,
+        $diagnostics:ident, $measurements:ident, $consultation:ident;
+        literal { $( $pat:pat => $body:block )* }
+        ranged { $( $($rvariant:ident)|+ => $rfunc:ident ),* $(,)? }
+        plain { $( $($variant:ident)|+ => $func:ident ),* $(,)? }
+    ) => {
+        match $obligation {
+            $( $pat => $body )*
+            $(
+                $( ProofObligation::$rvariant(obligation) )|+ => {
+                    $rfunc(
+                        $plan,
+                        obligation,
+                        &$ranges,
+                        $seed,
+                        &mut $diagnostics,
+                        $measurements,
+                        $consultation.as_mut(),
+                    );
+                }
+            )*
+            $(
+                $( ProofObligation::$variant(obligation) )|+ => {
+                    $func(
+                        $plan,
+                        obligation,
+                        $seed,
+                        &mut $diagnostics,
+                        $measurements,
+                        $consultation.as_mut(),
+                    );
+                }
+            )*
+        }
+    };
+}
+
 pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
     check_proof_plan_with_decisions(proof_plan).map(|_| ())
 }
@@ -107,66 +150,37 @@ fn check_proof_plan_inner(
         } else {
             None
         };
-        match obligation {
-            ProofObligation::BoundedAssignment(obligation) => {
-                if let Some(range) = check_bounded_assignment(
-                    proof_plan,
-                    obligation,
-                    &range_context,
-                    seed,
-                    &mut diagnostics,
-                    measurements,
-                    consultation.as_mut(),
-                ) {
-                    checked_assignments.push(CheckedIntegerAssignment {
-                        obligation: obligation_handle,
-                        range,
-                    });
+        check_obligations!(
+            obligation, proof_plan, range_context, seed,
+            diagnostics, measurements, consultation;
+            literal {
+                ProofObligation::BoundedAssignment(obligation) => {
+                    if let Some(range) = check_bounded_assignment(
+                        proof_plan,
+                        obligation,
+                        &range_context,
+                        seed,
+                        &mut diagnostics,
+                        measurements,
+                        consultation.as_mut(),
+                    ) {
+                        checked_assignments.push(CheckedIntegerAssignment {
+                            obligation: obligation_handle,
+                            range,
+                        });
+                    }
                 }
+                ProofObligation::BoundedValue(_) | ProofObligation::GuardedTransition(_) => {}
             }
-            ProofObligation::BoundedCallArgument(obligation) => {
-                check_bounded_call_argument(
-                    proof_plan,
-                    obligation,
-                    seed,
-                    &mut diagnostics,
-                    measurements,
-                    consultation.as_mut(),
-                );
+            ranged {
+                BoundedStateReturn => check_bounded_state_return
             }
-            ProofObligation::BoundedInitializer(obligation) => {
-                check_bounded_initializer(
-                    proof_plan,
-                    obligation,
-                    seed,
-                    &mut diagnostics,
-                    measurements,
-                    consultation.as_mut(),
-                );
+            plain {
+                BoundedCallArgument => check_bounded_call_argument,
+                BoundedInitializer => check_bounded_initializer,
+                BoundedTransitionArgument => check_bounded_transition_argument
             }
-            ProofObligation::BoundedStateReturn(obligation) => {
-                check_bounded_state_return(
-                    proof_plan,
-                    obligation,
-                    &range_context,
-                    seed,
-                    &mut diagnostics,
-                    measurements,
-                    consultation.as_mut(),
-                );
-            }
-            ProofObligation::BoundedTransitionArgument(obligation) => {
-                check_bounded_transition_argument(
-                    proof_plan,
-                    obligation,
-                    seed,
-                    &mut diagnostics,
-                    measurements,
-                    consultation.as_mut(),
-                );
-            }
-            ProofObligation::BoundedValue(_) | ProofObligation::GuardedTransition(_) => {}
-        }
+        );
         if decided_here {
             measurements.record_outcome(diagnostics.len() != diagnostics_before);
         }
