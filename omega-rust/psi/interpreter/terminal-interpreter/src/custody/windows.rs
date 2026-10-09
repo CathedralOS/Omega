@@ -10,8 +10,8 @@ use crate::values::StructuralRuntimePlace;
 use semantic_vocabulary::{ClaimId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralOperationResult,
-    StructuralPathSegment,
+    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPathSegment,
 };
 
 impl TerminalExecution<'_> {
@@ -78,6 +78,21 @@ impl TerminalExecution<'_> {
                 })
             {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
+            // Copyable contents carry no custody: extracting an unrestricted
+            // field of an owned value moves cells, never an affine complement
+            // or a claim, so there is nothing to stage.
+            if result.multiplicity == StructuralMultiplicity::Unrestricted
+                && selected.is_empty()
+                && !self.live_affine_frontier.iter().any(|entry| {
+                    entry.place == source
+                        && terminal_semantics::structural_paths_may_overlap(
+                            &entry.path,
+                            &argument.path,
+                        )
+                })
+            {
+                return Ok(self.live_claims.clone());
             }
             self.stage_constructor_operand(&argument, frontier, &mut Vec::new())?;
             return self.stage_constructor_claims(result, &[(&argument, Vec::new())], frontier);
