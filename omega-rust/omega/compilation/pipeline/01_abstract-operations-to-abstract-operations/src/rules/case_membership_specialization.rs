@@ -1,12 +1,8 @@
 //! Case-membership specialization pass entrance and rule registration.
 
-use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-};
+use optimization_core::{AnalysisKind, OptimizationRuleContract};
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
-use crate::rules::REPRESENTATION_SPECIALIZATION_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
 use crate::{
     AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -27,22 +23,9 @@ pub(crate) struct CaseMembershipSpecializationRule;
 
 impl CaseMembershipSpecializationRule {
     pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.case-membership-specialization.v1",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(REPRESENTATION_SPECIALIZATION_PASS_NAME),
-            1,
-            AnalysisSet::new([AnalysisKind::StronglyConnectedComponents]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::ScalarConstants,
-                AnalysisKind::ValueRanges,
-                AnalysisKind::EffectSummaries,
-            ]),
-            OptimizationSafetyClass::StructuralIdentity,
+        crate::rules::representation_specialization_contract(
+            b"omega.psi-rule.case-membership-specialization.v1",
         )
-        .expect("built-in rule has nonzero version")
     }
 }
 

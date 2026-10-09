@@ -21,6 +21,27 @@ const STATE_SPECIALIZATION_PASS_NAME: &[u8] = b"omega.psi-pass.state-specializat
 const REPRESENTATION_SPECIALIZATION_PASS_NAME: &[u8] =
     b"omega.psi-pass.representation-specialization.v1";
 
+/// The contract shape every representation-specialization rule declares: the
+/// representation pass at version 1 requiring the strongly-connected-
+/// components product and invalidating use-definition, scalar-constant,
+/// value-range and effect-summary products under structural-identity safety.
+fn representation_specialization_contract(identity: &'static [u8]) -> OptimizationRuleContract {
+    OptimizationRuleContract::new(
+        OptimizationRuleIdentity::from_canonical_bytes(identity),
+        OptimizationPassIdentity::from_canonical_bytes(REPRESENTATION_SPECIALIZATION_PASS_NAME),
+        1,
+        AnalysisSet::new([AnalysisKind::StronglyConnectedComponents]),
+        AnalysisInvalidationSet::new([
+            AnalysisKind::UseDefinition,
+            AnalysisKind::ScalarConstants,
+            AnalysisKind::ValueRanges,
+            AnalysisKind::EffectSummaries,
+        ]),
+        OptimizationSafetyClass::StructuralIdentity,
+    )
+    .expect("built-in rule has nonzero version")
+}
+
 /// The closed rule surface every classify-driven rule exposes: its
 /// contract plus a proposal that forwards unit, analyses and the contract
 /// into a shared propose helper with the rule's classify extras. One
@@ -70,11 +91,12 @@ fn representation_specialization_rule_registrations() -> Vec<catalog::BuiltInRul
 
 use optimization::PsiOptimizationSelections;
 use optimization_core::{
-    OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
-    OptimizationRuleSetIdentity};
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
+    OptimizationSafetyClass,
+};
 
 use crate::{OrderedRuleRegistry, RuleRegistryError};
-
 
 /// One scheduled Psi pass: either a fixed-point rewrite registry over
 /// `PsiRewriteCandidate`s under analysis-manager custody, or a session-level
@@ -86,7 +108,8 @@ pub(crate) enum PsiPassStep {
     /// An ordered catalog rule registry iterating to a unit-local fixed point.
     RewriteRegistry(OrderedRuleRegistry),
     /// The unique-preheader loop-invariant scalar relocation boundary.
-    LoopInvariantScalarMotion}
+    LoopInvariantScalarMotion,
+}
 
 impl PsiPassStep {
     /// The named pass group this step publishes in the run manifest. An
@@ -127,7 +150,8 @@ impl PsiPassStep {
             Self::LoopInvariantScalarMotion => OptimizationRuleSetIdentity::from_ordered_rules(&[
                 crate::ranked_rewrites::loop_invariant_scalar_motion::rule_identity(),
             ])
-            .expect("a single-rule schedule cannot duplicate")}
+            .expect("a single-rule schedule cannot duplicate"),
+        }
     }
 }
 #[cfg(any(test, feature = "test-support"))]
