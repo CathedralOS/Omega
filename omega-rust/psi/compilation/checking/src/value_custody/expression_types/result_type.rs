@@ -400,8 +400,13 @@ fn result_type(
                     &operands,
                 )
             {
+                // Indexing projects the referent's element for both owned
+                // collections and borrowed views. Its result type grants no
+                // access: the ordinary index/custody checks still own the read.
                 operands[0].and_then(|collection| {
-                    crate::value_custody::places::collection_element_type(program, collection)
+                    crate::value_custody::places::collection_element_type_reference(
+                        program, collection,
+                    )
                 })
             } else {
                 let [selected] = candidates.as_slice() else {

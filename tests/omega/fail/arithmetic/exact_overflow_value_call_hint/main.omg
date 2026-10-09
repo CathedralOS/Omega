@@ -19,9 +19,10 @@ machine triple(x: i32 in Wrapping) -> i32 {
     transition { _ -> (t as i32) }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    // `triple(4)` returns an unconstrained `i32`; `+ 100` is Exact -> unprovable.
-    main.s = triple(4) + 100;
+machine Main::main(main: &mut Main, input: i32 in Wrapping) reaches Console {
+    // Unknown captured input keeps the unconstrained return range; Exact +100
+    // can overflow even though every return in triple is now followed.
+    main.s = triple(input) + 100;
     transition { _ -> done(main) }
     state done(main: &mut Main) {
         main.console.exit_process(main.s as i32);

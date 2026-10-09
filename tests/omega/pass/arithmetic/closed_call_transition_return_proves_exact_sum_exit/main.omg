@@ -1,0 +1,23 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    s: i32 in Wrapping;
+}
+
+machine triple(x: i32 in Wrapping) -> i32 {
+    let t: i32 in Wrapping = x * 3;
+    // Explicit erasure leaves the caller's own arithmetic in Exact.
+    transition { _ -> (t as i32) }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    // The captured immutable actual fixes the complete normal-return value at 12.
+    // Follow the transition return, then prove the caller's Exact addition.
+    main.s = triple(4) + 100;
+    transition { _ -> done(main) }
+    state done(main: &mut Main) {
+        main.console.exit_process(main.s as i32);
+    }
+}
