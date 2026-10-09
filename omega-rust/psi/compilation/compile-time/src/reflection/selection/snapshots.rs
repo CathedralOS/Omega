@@ -169,7 +169,7 @@ pub fn replay_selection_snapshot(
 pub(crate) fn snapshot_revision(snapshot: &SelectionSnapshot) -> u64 {
     use crate::reflection::fnv::{byte, bytes, optional_text, query_authority, text, uint};
 
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv::OFFSET_BASIS;
     bytes(&mut hash, b"omega.reflect.selection.v1");
     text(&mut hash, &snapshot.subject_owner_identity);
     optional_text(&mut hash, &snapshot.subject_application_identity);

@@ -344,7 +344,7 @@ pub fn replay_runtime_visitation_plan(
 fn plan_revision(plan: &RuntimeVisitationPlan) -> u64 {
     use crate::reflection::fnv::{byte, bytes, optional_text, query_authority, text, uint};
 
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv::OFFSET_BASIS;
     bytes(&mut hash, b"omega.reflect.visitation.v1");
     text(&mut hash, &plan.subject_owner_identity);
     optional_text(&mut hash, &plan.subject_application_identity);

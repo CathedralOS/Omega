@@ -342,7 +342,7 @@ pub(super) fn recursive_level_materialization_report_fingerprint(
     value: &BuildTimeValue,
     bytes: &[u8],
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv::OFFSET_BASIS;
     hash_bytes(
         &mut hash,
         b"omega.const-materializable-recursive-level-children.v1",
@@ -368,7 +368,7 @@ pub(super) fn nested_record_sum_materialization_report_fingerprint(
     value: &BuildTimeValue,
     bytes: &[u8],
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv::OFFSET_BASIS;
     hash_bytes(
         &mut hash,
         b"omega.const-materializable-record-with-nested-sum-record.v1",
@@ -409,7 +409,7 @@ pub(super) fn nested_record_sums_materialization_report_fingerprint(
     value: &BuildTimeValue,
     bytes: &[u8],
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv::OFFSET_BASIS;
     hash_bytes(
         &mut hash,
         b"omega.const-materializable-record-with-nested-sum-records.v1",

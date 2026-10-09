@@ -530,7 +530,7 @@ pub(crate) fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNo
         }
     }
 
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv::OFFSET_BASIS;
     bytes(&mut hash, b"omega.reflect.schema.v1");
     query_authority(&mut hash, authority);
     uint(&mut hash, nodes.len() as u64);

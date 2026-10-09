@@ -85,7 +85,7 @@ pub(crate) fn non_authoritative_record_with_sum_array_materialization_fingerprin
     value: &BuildTimeValue,
     bytes: &[u8],
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv::OFFSET_BASIS;
     hash_bytes(
         &mut hash,
         b"omega.const-materializable-record-with-sum-array.v1",
@@ -109,7 +109,7 @@ pub(crate) fn non_authoritative_record_with_sum_arrays_materialization_fingerpri
     value: &BuildTimeValue,
     bytes: &[u8],
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv::OFFSET_BASIS;
     hash_bytes(
         &mut hash,
         b"omega.const-materializable-record-with-sum-arrays.v1",
@@ -135,7 +135,7 @@ pub(crate) fn non_authoritative_record_with_sum_materialization_report_fingerpri
     value: &BuildTimeValue,
     bytes: &[u8],
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv::OFFSET_BASIS;
     hash_bytes(&mut hash, b"omega.const-materializable-record-with-sum.v2");
     hash_text(&mut hash, schema_name);
     hash_u64(&mut hash, schema_report_fingerprint);

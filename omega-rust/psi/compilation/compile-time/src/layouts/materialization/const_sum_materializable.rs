@@ -711,7 +711,7 @@ fn non_authoritative_sum_materialization_report_fingerprint(
     value: &BuildTimeValue,
     bytes: &[u8],
 ) -> u64 {
-    let mut hash = 0xcbf29ce484222325u64;
+    let mut hash = crate::fnv::OFFSET_BASIS;
     hash_bytes(&mut hash, b"omega.const-materializable-sum.v1");
     hash_text(&mut hash, schema_name);
     hash_u64(&mut hash, schema_report_fingerprint);
