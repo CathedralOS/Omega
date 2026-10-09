@@ -663,10 +663,12 @@ defines the complete product bar.
     whole-element and element-field windows on a `&mut [T]` parameter's own
     loan, bounded by the view's live length, with
     `fail/ownership/view_element_window_{unproven_index,live_borrow,missing_repair}`;
-    qualify remaining hosts. A local subslice view (`let tail: &mut [T] =
-    view[a..b]`) still roots no window: stage 04 keys windows on parameters
-    only, and scalar stores through that local already fail native
-    legalization with `SourceCustodyMismatch`.
+    qualify remaining hosts. Keep `runtime_local_subslice_element_window_exit`
+    (0) for local and nested subslice offsets, field writes, computed copy
+    replacement and affine extraction/repair with untouched siblings; keep
+    `fail/ownership/local_subslice_window_wrong_repair` for an index that
+    does not restore the hole. Qualify runtime-selected local indices and
+    cleanup prerequisites on narrowed receivers, plus remaining native hosts.
     Qualify runtime-selected cleanup on the remaining native hosts. Keep
     `pass/drops/runtime_case_selected_cleanup_continuations_exit` (0) for
     captured scalar returns, computed temporaries, parent retention and

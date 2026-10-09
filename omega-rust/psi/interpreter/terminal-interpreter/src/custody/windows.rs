@@ -138,7 +138,7 @@ impl TerminalExecution<'_> {
     /// the operation crosses an exclusive loan, including a mutable element
     /// view's loan of its collection. Runtime address equality alone cannot
     /// convert the borrowed referent into this frame's owned storage.
-    fn owned_window_projection(
+    pub(super) fn owned_window_projection(
         &self,
         root: PlaceId,
         path: &[StructuralPathSegment],

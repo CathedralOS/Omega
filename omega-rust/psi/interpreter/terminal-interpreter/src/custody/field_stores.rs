@@ -60,18 +60,17 @@ impl TerminalExecution<'_> {
         if !owned_affine {
             return Ok(());
         }
+        // An affine view owns its exclusive descriptor, not the selected
+        // element. Move, claim repair and frontier repair share the same loan
+        // crossing judgment; result multiplicity cannot confer backing custody.
+        let Some(owned) = self.owned_window_projection(destination, path, hole)? else {
+            return Ok(());
+        };
         let root = self
             .structural_values
             .get(&destination)
             .ok_or_else(malformed)?;
-        let selected_path = hole
-            .path
-            .strip_prefix(root.path.as_slice())
-            .ok_or_else(malformed)?
-            .to_vec();
-        if hole.opaque_identity != root.opaque_identity {
-            return Err(malformed());
-        }
+        let selected_path = owned.path;
         if frontier
             .iter()
             .any(|entry| entry.place == destination && selected_path.starts_with(&entry.path))

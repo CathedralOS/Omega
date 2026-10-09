@@ -74,6 +74,23 @@ pub(super) fn actions(
         }
         _ => None,
     };
+    // The operand keeps the immediate loan carrier, while the permission
+    // producer may name its backing as the dying storage subject. These are
+    // two coordinates of this one replacement, not alternative cleanup plans.
+    let stored_place = replaced_place.as_ref().and_then(|place| {
+        let declaration = program.state_by_symbol(state)?;
+        let (root, segments) = super::super::borrowed_windows::resolve_storage_place(
+            program,
+            declaration,
+            program
+                .statement_table
+                .statements(declaration.statement_nodes),
+            *statement_index as usize,
+            place.root.as_symbol()?,
+            &place.segments,
+        );
+        Some(validation::CanonicalPlace { root, segments })
+    });
     let mut actions = Vec::new();
     for (_, disposition) in facts
         .contextual_cleanup
@@ -85,7 +102,10 @@ pub(super) fn actions(
                 && (row.root == root
                     || replaced_place
                         .as_ref()
-                        .is_some_and(|replaced| replaced.root == row.root))
+                        .is_some_and(|replaced| replaced.root == row.root)
+                    || stored_place
+                        .as_ref()
+                        .is_some_and(|stored| stored.root == row.root))
                 && row.source
                     == PermissionEventSource::Statement {
                         statement_index: *statement_index as usize,
@@ -107,7 +127,8 @@ pub(super) fn actions(
         // A store through a view writes the view's backing, while the old
         // element dies at the view's own place; only that exact death crosses
         // namespaces, as the store's destination.
-        let replaced = replaced_place.as_ref() == Some(&place);
+        let replaced =
+            replaced_place.as_ref() == Some(&place) || stored_place.as_ref() == Some(&place);
         if disposition.root != root && !replaced {
             continue;
         }

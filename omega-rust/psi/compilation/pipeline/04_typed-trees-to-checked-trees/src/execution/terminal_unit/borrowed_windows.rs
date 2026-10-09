@@ -18,8 +18,6 @@
 
 use validation::CanonicalPlace;
 
-use std::collections::BTreeSet;
-
 use super::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -91,7 +89,7 @@ pub(super) fn capture_assignment_destination(
         &access.segments,
     );
     let place = CanonicalPlace { root, segments };
-    let owned_local = match root {
+    let owned_local = match access.root {
         PlaceRoot::Symbol(symbol) => program
             .state_local_declaration(state, symbol)
             .filter(|(position, local)| {
@@ -156,18 +154,17 @@ pub(super) fn capture_assignment_destination(
 /// Canonical storage identifies the hole even through forwarding; the emitted
 /// operand must still use the retained reference loan whose child suspends that
 /// storage's original parameter. Replacing the route by the debt root loses
-/// authority. A view local has no such carrier route (see `window_place`).
+/// authority or a narrowed view's captured offset.
 pub(in crate::execution::terminal_unit) struct WindowPlace {
-    parameter_index: u32,
-    storage_path: Vec<CheckedUnitStructuralPathSegment>,
+    storage: CanonicalPlace,
     source: CheckedUnitStructuralArgumentSourcePlan,
     path: Vec<CheckedUnitStructuralPathSegment>,
 }
 
-/// The exact field chain beneath an exclusive borrowed structural parameter.
+/// The exact field chain beneath an exclusive structural loan.
 /// An empty path pins the whole referent, not its loan descriptor; a fixed or
 /// retained runtime element step selects the element the window pins. Below
-/// a `&mut [T]` parameter that element is one the view selects in storage it
+/// a `&mut [T]` loan that element is one the view selects in storage it
 /// does not own; lowering bounds it by the view's runtime length.
 ///
 /// The place is first keyed on the resolved *storage* it names — the same
@@ -196,22 +193,52 @@ pub(in crate::execution::terminal_unit) fn window_place(
         root_symbol,
         &place.segments,
     );
-    let symbol = root.as_symbol()?;
-    let position =
-        typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)?;
-    let position = u32::try_from(position).ok()?;
-    let (parameter_index, parameter) = structural_parameters
-        .iter()
-        .enumerate()
-        .find(|(_, parameter)| parameter.position == position)?;
-    if parameter.access != CheckedStructuralAccess::MutableBorrow
-        || parameter.multiplicity == Multiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-    {
-        return None;
-    }
-    let selectors = segments
+    // Storage is the checker's restoration subject, not an emitted operand.
+    // In particular its range segments must survive: a local subslice owns no
+    // elements, and rebasing its descriptor to a parameter would lose the
+    // captured offset and bypass its immediate loan lineage.
+    let storage = CanonicalPlace { root, segments };
+    let local = program
+        .state_local_declaration(state, root_symbol)
+        .filter(|(ordinal, _)| *ordinal < statement_index);
+    let (source, path) = if let Some((_, local)) = local {
+        let (_, access) =
+            super::reference_results::mutable_borrowed_parts(program, local.type_reference)?;
+        if access != CheckedStructuralAccess::MutableBorrow {
+            return None;
+        }
+        (
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: root_symbol,
+            },
+            place.segments.as_slice(),
+        )
+    } else {
+        let symbol = root.as_symbol()?;
+        let position = typed_trees::signature::state_parameter_position(
+            program.state_parameters(state),
+            symbol,
+        )?;
+        let position = u32::try_from(position).ok()?;
+        let (parameter_index, parameter) = structural_parameters
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| parameter.position == position)?;
+        if parameter.access != CheckedStructuralAccess::MutableBorrow
+            || parameter.multiplicity == Multiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return None;
+        }
+        (
+            CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            storage.segments.as_slice(),
+        )
+    };
+    let selectors = path
         .iter()
         .any(|segment| {
             matches!(
@@ -246,41 +273,9 @@ pub(in crate::execution::terminal_unit) fn window_place(
             })
             .collect::<Option<Vec<_>>>()
     };
-    let storage_path = lower_path(&segments)?;
-    // Checked argument sources use the retained structural lane, not the
-    // authored parameter list containing scalar and erased formals. Keep the
-    // same dense coordinate in the window ledger and both emitted plans.
-    let parameter_index = u32::try_from(parameter_index).ok()?;
-    // The operand keeps the retained loan when its carrier can spell the
-    // route: a reference local crosses into its referent with `Referent`. A
-    // view local has no carrier crossing. The storage rebase peels only
-    // whole-collection views, which preserve their collection's element
-    // coordinates, so such a window names that storage. A view parameter's
-    // element keeps the parameter's own loan, and Terminal selects it with a
-    // runtime element bounded by the view's live length.
-    let retained_carrier = program
-        .state_local_declaration(state, root_symbol)
-        .is_some_and(|(ordinal, local)| {
-            ordinal < statement_index
-                && crate::checks::type_reference_is_reference(program, local.type_reference)
-                && validation::slice_view_shell(program, local.type_reference, &[]).is_none()
-        });
-    let (source, path) = if retained_carrier {
-        (
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                symbol: root_symbol,
-            },
-            lower_path(&place.segments)?,
-        )
-    } else {
-        (
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-            storage_path.clone(),
-        )
-    };
+    let path = lower_path(path)?;
     Some(WindowPlace {
-        parameter_index,
-        storage_path,
+        storage,
         source,
         path,
     })
@@ -344,7 +339,10 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
 /// consuming a value does not discharge the original place's restoration debt.
 #[derive(Default)]
 pub(super) struct OpenWindows {
-    open: BTreeSet<(u32, Vec<CheckedUnitStructuralPathSegment>)>,
+    // Invocation scratch, keyed by the same canonical storage subject the
+    // source checker uses. A dense parameter coordinate cannot name local
+    // loans, and executable selector roles change at each statement.
+    open: Vec<CanonicalPlace>,
 }
 
 /// The exact storage place an immutable, non-reference, ownership-carrying
@@ -420,12 +418,14 @@ impl OpenWindows {
                 program, machine, state, local,
             ),
         };
-        if !self
+        if self
             .open
-            .insert((place.parameter_index, place.storage_path))
+            .iter()
+            .any(|open| crate::flow::canonical_places_agree(program, open, &place.storage))
         {
             return None;
         }
+        self.open.push(place.storage);
         Some((
             CheckedUnitEffectOperationPlan::MoveStructuralField {
                 result: result.clone(),
@@ -524,7 +524,7 @@ impl OpenWindows {
             root: resolved_root,
             segments: resolved_segments,
         };
-        let owned_local = match destination_place.root {
+        let owned_local = match access_place.root {
             PlaceRoot::Symbol(symbol) => program
                 .state_local_declaration(state, symbol)
                 .filter(|(ordinal, local)| {
@@ -588,9 +588,19 @@ impl OpenWindows {
                 &access_place,
                 assignment.target,
             )?;
-            let needs_displacement = !self
+            let needs_displacement = match self
                 .open
-                .remove(&(place.parameter_index, place.storage_path));
+                .iter()
+                .position(|open| {
+                    crate::flow::canonical_places_agree(program, open, &place.storage)
+                })
+            {
+                Some(position) => {
+                    self.open.remove(position);
+                    false
+                }
+                None => true,
+            };
             (
                 place.source,
                 place.path,

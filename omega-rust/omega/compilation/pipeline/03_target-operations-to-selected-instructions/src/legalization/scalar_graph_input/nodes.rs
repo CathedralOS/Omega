@@ -597,19 +597,13 @@ pub(super) fn validate(
             ..
         } = &node.operation
         {
-            // The view place is a `&mut [T]` parameter or an establishment
-            // whose collection argument carries the exclusive loan; the
-            // element's own scalar type stays authored on the value operand.
-            let mutable_view =
-                super::byte_views::mutable_parameter(optimized, *destination).is_some()
-                    || optimized.block_nodes()
-                        .any(|node| {
-                            matches!(&node.operation,
-                                AbstractOperation::EstablishElementView {
-                                    destination: view, source, ..
-                                } if *view == *destination
-                                    && source.access == terminal_psi::StructuralAccess::MutableBorrow)
-                        });
+            // Source authority follows the shared descriptor lineage query,
+            // not the producer family. Narrowing preserves its parent's loan;
+            // affine descriptor custody alone cannot create mutable access.
+            let mutable_view = optimization_unit_semantics::structural_place_access(
+                optimized,
+                *destination,
+            ) == Some(terminal_psi::StructuralAccess::MutableBorrow);
             if result.is_some()
                 || !node.definitions.is_empty()
                 || !mutable_view

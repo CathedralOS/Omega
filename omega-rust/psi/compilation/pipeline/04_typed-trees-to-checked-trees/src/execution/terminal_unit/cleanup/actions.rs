@@ -242,14 +242,20 @@ pub(super) fn disposition_actions(
         else {
             return None;
         };
-        for segments in crate::flow::concrete_cleanup_paths(&selected_path)? {
+        // The disposed value already fixes its receiver, including any view
+        // range in that captured prefix. Expand only array children inside
+        // the value; expanding the prefix again would turn one selected view
+        // element into several unrelated receivers and lose its occurrence.
+        let relative_path = selected_path.strip_prefix(place.segments.as_slice())?;
+        for relative_segments in crate::flow::concrete_cleanup_paths(relative_path)? {
+            let mut segments = place.segments.clone();
+            segments.extend_from_slice(&relative_segments);
             if case_reachability(&segments)? == validation::CleanupCaseReachability::Inactive {
                 continue;
             }
-            let relative_segments = segments.strip_prefix(place.segments.as_slice())?;
             let selected_place = validation::CanonicalPlace {
                 root: facts::PlaceRoot::TypeReference(reference),
-                segments: relative_segments.to_vec(),
+                segments: relative_segments,
             };
             let (selected_reference, relative_path) =
                 crate::execution::terminal_unit::calls::projected_argument_path(
