@@ -47,6 +47,12 @@ impl Fnv1a {
         self.bytes(&value.to_le_bytes());
     }
 
+    /// Whole-word fold: XOR-mix the entire u64 then one prime multiply.
+    pub fn u64_mix(&mut self, value: u64) {
+        self.0 ^= value;
+        self.0 = self.0.wrapping_mul(Self::PRIME);
+    }
+
     /// Byte feed closed by an explicit terminator byte (e.g. 0xff lane marks).
     pub fn bytes_terminated(&mut self, bytes: &[u8], terminator: u8) {
         self.bytes(bytes);

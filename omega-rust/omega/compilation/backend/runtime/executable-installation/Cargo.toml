@@ -12,6 +12,7 @@ path = "src/lib.rs"
 extents = { path = "../../../../../psi/foundation/extents" }
 layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
 post-handoff-writer-plan = { path = "../../plans/post-handoff-writer-plan" }
+semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 target = { path = "../../target" }
 installation-evidence = { path = "../installation-evidence" }
 sha2 = "0.10.9"
