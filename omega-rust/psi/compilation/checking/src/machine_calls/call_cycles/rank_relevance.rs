@@ -4,6 +4,10 @@
 //! cycle. This query follows the existing executable call inventory, including
 //! ordinary and nested calls: tail-only topology would hide recursion inside
 //! a finishing initializer. Opaque executable destinations remain relevant.
+//! Body-bearing token operators have already been bound to exact call nodes
+//! by typed preparation. Implicit cleanup has its own cycle owner, which rejects
+//! recurrence without an exact cleanup-edge ranking witness. Those admission
+//! boundaries keep hidden invocations from masquerading as an acyclic suffix.
 //! Relevance neither proves descent nor admits an operation; source and
 //! executable rank consumers retain their existing formation and edge proofs.
 
