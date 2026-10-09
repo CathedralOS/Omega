@@ -1,0 +1,1 @@
+The bodyless selected requirement publishes termination and no runtime effects or crash route. Its exact public interface admits the reflexive Requires and Ensures equality without an executable implementation body. The entry point returns normally; the paired invalid controls remove this promise or permit a crash.
