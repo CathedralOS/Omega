@@ -48,7 +48,7 @@ pub struct GitWorkspaceDeclaration {
 
 /// Exact source-layer custody retained for one selected workspace member.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitWorkspaceProjectionCustody {
+pub struct GitWorkspaceProjectionCustody {
     root_declaration: GitWorkspaceDeclaration,
     member_declarations: Vec<GitWorkspaceDeclaration>,
     selected_member_path: SourceRelativePath,

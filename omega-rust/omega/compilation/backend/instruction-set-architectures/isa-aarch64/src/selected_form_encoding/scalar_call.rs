@@ -42,7 +42,7 @@ pub struct Aarch64ScalarCallFixup {
 
 /// Exact selected inputs and canonical bytes for one unresolved scalar call.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedAarch64SelectedScalarCallTemplate {
+pub struct ValidatedAarch64SelectedScalarCallTemplate {
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operand_views: Vec<RegisterViewId>,

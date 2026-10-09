@@ -85,7 +85,7 @@ pub struct Aarch64NormalizedForeignCallFixup {
 /// Exact selected inputs and canonical bytes for one unresolved normalized
 /// foreign call.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ValidatedAarch64SelectedNormalizedForeignCallTemplate {
+pub struct ValidatedAarch64SelectedNormalizedForeignCallTemplate {
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operand_views: Vec<RegisterViewId>,

@@ -6,7 +6,7 @@ use register_model::RegisterViewId;
 use selected_instructions::MachineEncodedEffects;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Aarch64SelectedFormFootprint {
+pub struct Aarch64SelectedFormFootprint {
     pub register_reads: Vec<RegisterViewId>,
     pub register_writes: Vec<RegisterViewId>,
     pub writes_nzcv: bool,

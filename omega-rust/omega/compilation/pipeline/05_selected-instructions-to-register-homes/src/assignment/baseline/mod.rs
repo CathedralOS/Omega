@@ -129,7 +129,7 @@ impl StagedOptimizedRegisterHomes {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedRegisterHomeCustodyReceipt {
+pub struct StagedOptimizedRegisterHomeCustodyReceipt {
     psi: TerminalPsiIdentity,
     target: target::NativeTarget,
     entry: MachineId,
@@ -295,7 +295,7 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
+pub struct StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
     source: StagedOptimizedSelectedReanalysisCustodyReceipt,
     homes: RegisterHomeIdentity,
     post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
