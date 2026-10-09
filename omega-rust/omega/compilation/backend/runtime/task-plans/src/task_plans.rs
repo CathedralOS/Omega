@@ -5,7 +5,6 @@
 //!
 //! The areas beneath it: `activation_plan_facts` are the facts a provider
 //! publishes about a plan and `diagnostic` its failure type;
-//! `executor_selection` binds an executor to a plan's preservation axes;
 //! `runtime_invocation` receipts one activation; `stack_composition` projects
 //! WCSU stack plans;
 //! `composition_model` extracts the sealed whole-composition record proof
@@ -17,7 +16,6 @@ pub mod composition_model;
 pub(crate) mod diagnostic;
 pub(crate) mod identities;
 pub(crate) mod report_fingerprints;
-pub mod runtime_invocation;
 pub(crate) mod stack_composition;
 
 use crate::task_plans::report_fingerprints::activation_plan_report_fingerprint;

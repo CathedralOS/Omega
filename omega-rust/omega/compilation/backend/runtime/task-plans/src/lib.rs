@@ -30,7 +30,6 @@ pub use task_plans::identities::{
     TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptId,
     TaskStackCompositionId, TaskStackFrameId, TaskStackFrameValidationId, ValueLayoutId,
 };
-pub use task_plans::runtime_invocation;
 pub use task_plans::stack_composition::{
     AdmittedSameStackContribution, CallTargetBinding,
     SameStackContributionAdmissionCandidate, SameStackContributionCommitment,
