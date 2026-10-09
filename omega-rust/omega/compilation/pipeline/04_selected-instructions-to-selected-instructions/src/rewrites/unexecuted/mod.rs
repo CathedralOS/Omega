@@ -95,8 +95,6 @@ pub(super) use super::place_storage;
 mod relocation;
 mod scheduled_relocation;
 mod store_motion;
-
-pub(crate) use arm_relocation::ValidatedArmRelocation;
 pub(crate) use boundary_boolean::ValidatedBoundaryBoolean;
 pub(crate) use boundary_branch::ValidatedBoundaryBranch;
 pub(crate) use commuting_relocation::ValidatedCommutingRelocation;

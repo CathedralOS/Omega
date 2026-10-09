@@ -10,8 +10,8 @@
 //! redefinition, the operand classes against the roster, and the
 //! whole-function work all charge into the caller's budget. The replay in
 //! `replay` re-derives all of it without the table.
+use crate::ValidatedSelectedAnalysis;
+use crate::analyses::machine_effects::machine_semantic_kind;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
-use crate::ValidatedSelectedAnalysis;
-use crate::analyses::machine_effects::machine_semantic_kind;

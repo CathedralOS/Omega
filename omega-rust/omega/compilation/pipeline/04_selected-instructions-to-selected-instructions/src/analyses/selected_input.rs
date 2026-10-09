@@ -1,12 +1,8 @@
 use crate::ValidatedStoredLoadForwarding;
-use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
-use semantic_vocabulary::FuelScheduleIdentity;
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 use crate::rewrites::unexecuted::{
-    ValidatedArmRelocation, ValidatedBoundaryBoolean, ValidatedBoundaryBranch,
-    ValidatedCommutingRelocation, ValidatedConfluenceRelocation, ValidatedInflowRelocation,
-    ValidatedInterchange, ValidatedMemberRunRelocation, ValidatedScheduledRelocation,
+    ValidatedBoundaryBoolean, ValidatedBoundaryBranch, ValidatedCommutingRelocation,
+    ValidatedConfluenceRelocation, ValidatedInflowRelocation, ValidatedInterchange,
+    ValidatedMemberRunRelocation, ValidatedScheduledRelocation,
 };
 use crate::{
     ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch,
@@ -16,6 +12,10 @@ use crate::{
     ValidatedRedundantCompare, ValidatedRedundantExtension, ValidatedRuntimeRematerialization,
     ValidatedRuntimeSpill, ValidatedRuntimeSplit,
 };
+use optimization_core::OptimizationUnitIdentity;
+use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use semantic_vocabulary::FuelScheduleIdentity;
+use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 mod sealed {
     pub trait Sealed {}
@@ -49,8 +49,6 @@ macro_rules! validated_selected_analysis {
 }
 
 validated_selected_analysis!(ValidatedAddressFold);
-
-validated_selected_analysis!(ValidatedArmRelocation);
 
 validated_selected_analysis!(ValidatedBoundaryBoolean);
 
@@ -259,7 +257,6 @@ impl ValidatedSelectedAnalysis for ValidatedPressureRematerialization {
         self.receipt().fuel_schedule()
     }
 }
-
 
 validated_selected_analysis!(ValidatedCopiedCallOperand);
 
