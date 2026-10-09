@@ -142,6 +142,10 @@ pub enum IeeeFloatArithmeticOperation {
     IsNormal,
     /// True only for a nonzero value with a zero exponent field.
     IsSubnormal,
+    /// Native conventional FloatClass bytes: case ordinal in the low word,
+    /// sign Boolean in byte four. The boundary result remains structural;
+    /// only the selected form exposes this temporary integer carrier.
+    Classify,
 }
 
 /// The selected requirement's invalid-input behavior, retained through emission.
@@ -234,8 +238,8 @@ impl Ord for IeeeFloatArithmeticOperation {
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 60] = {
-        let mut all = [Self::Add; 60];
+    pub const ALL: [Self; 61] = {
+        let mut all = [Self::Add; 61];
         let fixed = [
             Self::Add,
             Self::Subtract,
@@ -272,6 +276,7 @@ impl IeeeFloatArithmeticOperation {
         all[57] = Self::IsFinite;
         all[58] = Self::IsNormal;
         all[59] = Self::IsSubnormal;
+        all[60] = Self::Classify;
         let mut operation = 0;
         while operation < IeeeFloatBinaryOperation::ALL.len() {
             let mut rounding = 0;
@@ -317,6 +322,7 @@ impl IeeeFloatArithmeticOperation {
             Self::IsFinite => 57,
             Self::IsNormal => 58,
             Self::IsSubnormal => 59,
+            Self::Classify => 60,
             // The 32- and 64-bit carriers came first (9 through 17); the
             // narrow carriers follow (18 through 29).
             Self::FromInteger(carrier) => {
@@ -375,6 +381,7 @@ impl IeeeFloatArithmeticOperation {
             | Self::IsFinite
             | Self::IsNormal
             | Self::IsSubnormal
+            | Self::Classify
             | Self::SquareRoot
             | Self::ConvertFormat
             | Self::FromInteger(_)
@@ -410,6 +417,13 @@ impl IeeeFloatArithmeticOperation {
             | Self::IsFinite
             | Self::IsNormal
             | Self::IsSubnormal => semantic_vocabulary::ScalarType::Boolean,
+            Self::Classify => semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64 is valid"),
+            ),
             Self::TruncateToInteger { target, .. } => {
                 semantic_vocabulary::ScalarType::Integer(target.integer_type())
             }

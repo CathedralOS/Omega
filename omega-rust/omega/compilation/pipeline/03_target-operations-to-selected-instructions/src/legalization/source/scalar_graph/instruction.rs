@@ -259,6 +259,7 @@ pub(super) fn project(
         // format and SSA operands; its row was rejoined by input validation.
         AbstractOperation::BoundaryCall {
             boundary,
+            result,
             arguments,
             ..
         } if scalar_graph_input::ieee_float_arithmetic::row(
@@ -268,27 +269,53 @@ pub(super) fn project(
         )?
         .is_some() =>
         {
-            let Some(target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
+            if let Some(target_operations::TargetUnitOperation::IeeeFloatClassify {
                 boundary: row_boundary,
                 realization,
+                result_home,
                 ..
             }) = scalar_graph_input::ieee_float_arithmetic::row(
                 native,
                 optimized.machine,
                 operation,
-            )?
-            else {
-                return Err(Error::custody());
-            };
-            if arguments.len() != realization.operation.operand_count() || row_boundary != boundary
-            {
-                return Err(Error::custody());
-            }
-            LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
-                boundary: *boundary,
-                operation: realization.operation,
-                format: realization.format,
-                arguments: arguments.clone(),
+            )? {
+                let abstract_operations::AbstractBoundaryResult::Structural(result) = result else {
+                    return Err(Error::custody());
+                };
+                if *row_boundary != *boundary || arguments.len() != 1 {
+                    return Err(Error::custody());
+                }
+                LegalizedScalarInstructionKind::IeeeFloatClassify {
+                    boundary: *boundary,
+                    format: realization.format,
+                    argument: arguments[0],
+                    result: result.clone(),
+                    layout: result_home.layout.sum().ok_or(Error::custody())?.clone(),
+                }
+            } else {
+                let Some(target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
+                    boundary: row_boundary,
+                    realization,
+                    ..
+                }) = scalar_graph_input::ieee_float_arithmetic::row(
+                    native,
+                    optimized.machine,
+                    operation,
+                )?
+                else {
+                    return Err(Error::custody());
+                };
+                if arguments.len() != realization.operation.operand_count()
+                    || row_boundary != boundary
+                {
+                    return Err(Error::custody());
+                }
+                LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
+                    boundary: *boundary,
+                    operation: realization.operation,
+                    format: realization.format,
+                    arguments: arguments.clone(),
+                }
             }
         }
         AbstractOperation::BoundaryCall {

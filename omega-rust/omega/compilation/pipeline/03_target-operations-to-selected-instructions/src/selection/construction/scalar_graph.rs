@@ -422,6 +422,7 @@ fn select_function(
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
                     | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }
+                    | LegalizedScalarInstructionKind::IeeeFloatClassify { .. }
                     | LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
                     | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }

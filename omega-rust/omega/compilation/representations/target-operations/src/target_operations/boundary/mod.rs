@@ -24,3 +24,6 @@ pub use arguments::{
 };
 mod fma;
 pub use fma::{TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement};
+
+mod float_class;
+pub use float_class::conventional_float_class_layout;

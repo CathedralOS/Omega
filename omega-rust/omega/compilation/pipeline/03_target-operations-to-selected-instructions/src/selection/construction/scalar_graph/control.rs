@@ -394,10 +394,9 @@ fn successor(
                         )?,
                     });
                 }
-                let parameter = source.block(next.target)
-                    .and_then(|block| {
-                        block.structural_parameter(semantic.parameter)
-                    })
+                let parameter = source
+                    .block(next.target)
+                    .and_then(|block| block.structural_parameter(semantic.parameter))
                     .ok_or(SelectedInstructionError::custody())?;
                 let transport =
                     crate::selection::aggregate_result_input::block_parameter_transport(

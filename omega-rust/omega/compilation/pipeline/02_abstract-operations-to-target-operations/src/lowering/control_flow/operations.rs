@@ -615,6 +615,7 @@ pub(super) fn lower_operation(
             super::ieee_float_arithmetic::lower(
                 operation,
                 function,
+                structural_types,
                 target,
                 boundary_machines,
                 settlements,

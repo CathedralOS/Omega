@@ -827,7 +827,8 @@ pub(super) fn validate_operation(
             )?;
         }
         (
-            TargetUnitOperation::NearestIeeeFloatArithmetic { .. },
+            TargetUnitOperation::NearestIeeeFloatArithmetic { .. }
+            | TargetUnitOperation::IeeeFloatClassify { .. },
             AbstractOperation::BoundaryCall { .. },
         ) => {
             super::super::ieee_float_arithmetic::validate(

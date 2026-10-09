@@ -167,10 +167,47 @@ pub(crate) fn footprint(
 /// binary64 register width (`d`/`x`) over binary32 (`s`/`w`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Word {
+    /// UBFM Xd, Xn, #first, #(first + width - 1): stored bit extraction.
+    ExtractUnsigned {
+        first: u8,
+        width: u8,
+        source: u8,
+        result: u8,
+    },
+    /// LSL Xd, Xn, #32 (UBFM #32,#31), without flags.
+    ShiftLeft32 {
+        source: u8,
+        result: u8,
+    },
+    /// SUB Xd, Xn, #immediate, without flags.
+    SubtractImmediate {
+        immediate: u16,
+        source: u8,
+        result: u8,
+    },
+    /// CBZ Xn or B within this selected form.
+    BranchZero {
+        general: u8,
+        displacement: i32,
+    },
+    Jump {
+        displacement: i32,
+    },
+    /// ORR (vector, 8B).
+    BitwiseOr {
+        left: u8,
+        right: u8,
+        result: u8,
+    },
     /// MRS/MSR of FPCR; sticky FPSR status is outside the control invariant.
-    FloatingControl { read: bool, general: u8 },
+    FloatingControl {
+        read: bool,
+        general: u8,
+    },
     /// `CBNZ Xn, #8`: skip exactly the following `BRK` on a true mask.
-    BranchNonzeroOverCrash { general: u8 },
+    BranchNonzeroOverCrash {
+        general: u8,
+    },
     /// Omega's native Crash instruction, `BRK #0`.
     Crash,
     /// `FMOV` (general): general register to scalar vector register.
@@ -228,7 +265,10 @@ enum Word {
     },
     /// `SXTW` (`SBFM Xd, Xn, #0, #31`): sign-extend a 32-bit result into the
     /// 64-bit carrier the scalar graph keeps for signed 32-bit values.
-    SignExtend32 { source: u8, result: u8 },
+    SignExtend32 {
+        source: u8,
+        result: u8,
+    },
     /// `SXTB`/`SXTH`/`UXTB`/`UXTH` (`SBFM`/`UBFM Wd, Wn, #0, #7|#15`):
     /// extend a narrow operand into the result register's low word.
     ExtendNarrow {
@@ -253,9 +293,17 @@ enum Word {
         result: u8,
     },
     /// `AND` (vector, 8B), preserving comparison masks.
-    BitwiseAnd { left: u8, right: u8, result: u8 },
+    BitwiseAnd {
+        left: u8,
+        right: u8,
+        result: u8,
+    },
     /// `BSL` (vector, 8B): `mask ? if_set : if_clear` per bit, into `mask`.
-    BitwiseSelect { mask: u8, if_set: u8, if_clear: u8 },
+    BitwiseSelect {
+        mask: u8,
+        if_set: u8,
+        if_clear: u8,
+    },
     /// `ADD Wd|Xd, Wn|Xn, #immediate`, without changing NZCV.
     AddImmediate {
         wide: bool,
@@ -276,6 +324,34 @@ fn encode_word(word: Word) -> u32 {
     let reg = |register: u8| u32::from(register);
     let width = |double: bool| u32::from(double);
     match word {
+        Word::ExtractUnsigned {
+            first,
+            width,
+            source,
+            result,
+        } => {
+            0xd340_0000
+                | u32::from(first) << 16
+                | u32::from(first + width - 1) << 10
+                | reg(source) << 5
+                | reg(result)
+        }
+        Word::ShiftLeft32 { source, result } => 0xd360_7c00 | reg(source) << 5 | reg(result),
+        Word::SubtractImmediate {
+            immediate,
+            source,
+            result,
+        } => 0xd100_0000 | u32::from(immediate) << 10 | reg(source) << 5 | reg(result),
+        Word::BranchZero {
+            general,
+            displacement,
+        } => 0xb400_0000 | (((displacement / 4) as u32 & 0x7ffff) << 5) | reg(general),
+        Word::Jump { displacement } => 0x1400_0000 | ((displacement / 4) as u32 & 0x03ff_ffff),
+        Word::BitwiseOr {
+            left,
+            right,
+            result,
+        } => 0x0ea0_1c00 | reg(right) << 16 | reg(left) << 5 | reg(result),
         Word::FloatingControl { read, general } => {
             (if read { 0xd53b_4400 } else { 0xd51b_4400 }) | reg(general)
         }
@@ -412,11 +488,6 @@ fn encode_word(word: Word) -> u32 {
                 | reg(source) << 5
                 | reg(result)
         }
-        Word::BitwiseAnd {
-            left,
-            right,
-            result,
-        } => 0x0e20_1c00 | reg(right) << 16 | reg(left) << 5 | reg(result),
         Word::BitwiseSelect {
             mask,
             if_set,
@@ -442,6 +513,39 @@ fn decode_word(word: u32) -> Option<Word> {
         _ => None,
     };
     Some(match word & 0xffff_fc00 {
+        _ if word & 0xffe0_fc00 == 0xd360_7c00 => Word::ShiftLeft32 {
+            source: field(5),
+            result: field(0),
+        },
+        _ if word & 0xffc0_0000 == 0xd340_0000
+            && (word >> 10 & 63) >= (word >> 16 & 63)
+            && (word >> 10 & 63) != 63 =>
+        {
+            Word::ExtractUnsigned {
+                first: (word >> 16 & 63) as u8,
+                width: ((word >> 10 & 63) - (word >> 16 & 63) + 1) as u8,
+                source: field(5),
+                result: field(0),
+            }
+        }
+        _ if word & 0xffc0_0000 == 0xd100_0000 => Word::SubtractImmediate {
+            immediate: (word >> 10 & 0xfff) as u16,
+            source: field(5),
+            result: field(0),
+        },
+        _ if word & 0xff00_0000 == 0xb400_0000 => Word::BranchZero {
+            general: field(0),
+            displacement: (((word << 8) as i32) >> 13) * 4,
+        },
+        _ if word & 0xfc00_0000 == 0x1400_0000 => Word::Jump {
+            displacement: (((word << 6) as i32) >> 6) * 4,
+        },
+        _ if word & 0xffe0_fc00 == 0x0ea0_1c00 => Word::BitwiseOr {
+            left: field(5),
+            right: field(16),
+            result: field(0),
+        },
+
         _ if word == 0xd420_0000 => Word::Crash,
         _ if word & 0xffff_ffe0 == 0xb500_0040 => {
             Word::BranchNonzeroOverCrash { general: field(0) }
@@ -531,11 +635,6 @@ fn decode_word(word: u32) -> Option<Word> {
                 result: field(0),
             }
         }
-        _ if word & 0xffe0_fc00 == 0x0e20_1c00 => Word::BitwiseAnd {
-            left: field(5),
-            right: field(16),
-            result: field(0),
-        },
         _ if word & 0xffe0_fc00 == 0x2e60_1c00 => Word::BitwiseSelect {
             mask: field(0),
             if_set: field(5),
@@ -543,6 +642,150 @@ fn decode_word(word: u32) -> Option<Word> {
         },
         _ => return None,
     })
+}
+
+/// Stored exponent and mantissa bits decide every class. No FPCR state,
+/// floating comparison, or signaling-NaN exception enters this decision tree.
+fn classification_program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
+    let double = !form.is_binary32();
+    let result = registers[1];
+    let restore = Word::ToGeneral {
+        double: true,
+        vector: LEFT_SCRATCH,
+        general: result,
+    };
+    let output = |class| Word::MoveWide {
+        keep: false,
+        shift: 0,
+        immediate: match form.operation {
+            IeeeFloatArithmeticOperation::Classify => class,
+            IeeeFloatArithmeticOperation::IsNan => u16::from(class == 0),
+            IeeeFloatArithmeticOperation::IsInfinite => u16::from(class == 1),
+            IeeeFloatArithmeticOperation::IsFinite => u16::from(class >= 2),
+            IeeeFloatArithmeticOperation::IsNormal => u16::from(class == 2),
+            IeeeFloatArithmeticOperation::IsSubnormal => u16::from(class == 3),
+            _ => unreachable!("classification operation"),
+        },
+        general: result,
+    };
+    let branch = Word::BranchZero {
+        general: result,
+        displacement: 0,
+    };
+    let jump = Word::Jump { displacement: 0 };
+    let mut instructions = vec![
+        Word::ToFloat {
+            double,
+            general: registers[0],
+            vector: LEFT_SCRATCH,
+        },
+        Word::ExtractUnsigned {
+            first: if double { 52 } else { 23 },
+            width: if double { 11 } else { 8 },
+            source: registers[0],
+            result,
+        },
+        branch,
+        Word::SubtractImmediate {
+            immediate: if double { 2047 } else { 255 },
+            source: result,
+            result,
+        },
+        branch,
+        output(2),
+        jump,
+    ];
+    let subnormal = instructions.len();
+    instructions.extend([
+        restore,
+        Word::ExtractUnsigned {
+            first: 0,
+            width: if double { 63 } else { 31 },
+            source: result,
+            result,
+        },
+        branch,
+        output(3),
+        jump,
+    ]);
+    let zero = instructions.len();
+    instructions.extend([output(4), jump]);
+    let nonfinite = instructions.len();
+    instructions.extend([
+        restore,
+        Word::ExtractUnsigned {
+            first: 0,
+            width: if double { 52 } else { 23 },
+            source: result,
+            result,
+        },
+        branch,
+        output(0),
+        jump,
+    ]);
+    let infinity = instructions.len();
+    instructions.push(output(1));
+    let end = instructions.len();
+    if form.operation == IeeeFloatArithmeticOperation::Classify {
+        instructions.extend([
+            branch,
+            Word::ToFloat {
+                double: true,
+                general: result,
+                vector: RIGHT_SCRATCH,
+            },
+            restore,
+            Word::LogicalShiftRight {
+                wide: true,
+                count: if double { 63 } else { 31 },
+                source: result,
+                result,
+            },
+            // Binary32 was zero-extended on arrival, so its sign shift is 0/1.
+            Word::ShiftLeft32 {
+                source: result,
+                result,
+            },
+            Word::ToFloat {
+                double: true,
+                general: result,
+                vector: LEFT_SCRATCH,
+            },
+            Word::BitwiseOr {
+                left: LEFT_SCRATCH,
+                right: RIGHT_SCRATCH,
+                result: LEFT_SCRATCH,
+            },
+            restore,
+        ]);
+    }
+    let mut branches = vec![
+        (2, subnormal),
+        (4, nonfinite),
+        (6, end),
+        (subnormal + 2, zero),
+        (subnormal + 4, end),
+        (zero + 1, end),
+        (nonfinite + 2, infinity),
+        (nonfinite + 4, end),
+    ];
+    if form.operation == IeeeFloatArithmeticOperation::Classify {
+        branches.push((end, instructions.len()));
+    }
+    for (index, destination) in branches {
+        let displacement = (destination as i32 - index as i32) * 4;
+        match &mut instructions[index] {
+            Word::BranchZero {
+                displacement: field,
+                ..
+            }
+            | Word::Jump {
+                displacement: field,
+            } => *field = displacement,
+            _ => unreachable!("classification branch"),
+        }
+    }
+    instructions
 }
 
 /// The two-source opcode field (bits 15..12) of each rounding operation.
@@ -630,153 +873,12 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
                 move_out(first),
             ]
         }
-        IeeeFloatArithmeticOperation::IsFinite
+        IeeeFloatArithmeticOperation::IsNan
+        | IeeeFloatArithmeticOperation::IsInfinite
+        | IeeeFloatArithmeticOperation::IsFinite
         | IeeeFloatArithmeticOperation::IsNormal
-        | IeeeFloatArithmeticOperation::IsSubnormal => {
-            let mut instructions = vec![
-                move_in(registers[0], first, double),
-                Word::OneSource {
-                    double,
-                    opcode: 1,
-                    source: first,
-                    result: first,
-                },
-            ];
-            // A positive finite payload lies strictly below infinity.
-            // Normal uses abs(value) > largest subnormal; subnormal uses
-            // minimum normal > abs(value) and abs(value) > zero.
-            if form.operation != IeeeFloatArithmeticOperation::IsFinite {
-                if form.operation == IeeeFloatArithmeticOperation::IsNormal {
-                    let value: u64 = if double {
-                        0x000f_ffff_ffff_ffff
-                    } else {
-                        0x007f_ffff
-                    };
-                    for shift in 0..4 {
-                        instructions.push(Word::MoveWide {
-                            keep: shift != 0,
-                            shift,
-                            immediate: (value >> (shift * 16)) as u16,
-                            general: result,
-                        });
-                    }
-                } else {
-                    instructions.push(Word::MoveWide {
-                        keep: false,
-                        shift: if double { 3 } else { 1 },
-                        immediate: if double { 0x0010 } else { 0x0080 },
-                        general: result,
-                    });
-                }
-                instructions.push(move_in(result, second, double));
-                let (left, right) = if form.operation == IeeeFloatArithmeticOperation::IsNormal {
-                    (first, second)
-                } else {
-                    (second, first)
-                };
-                instructions.push(Word::Compare {
-                    equal: false,
-                    double,
-                    left,
-                    right,
-                    result: mask,
-                });
-            }
-            instructions.push(Word::MoveWide {
-                keep: false,
-                shift: if double { 3 } else { 1 },
-                immediate: if form.operation == IeeeFloatArithmeticOperation::IsSubnormal {
-                    0
-                } else if double {
-                    0x7ff0
-                } else {
-                    0x7f80
-                },
-                general: result,
-            });
-            instructions.push(move_in(result, second, double));
-            let (left, right) = if form.operation == IeeeFloatArithmeticOperation::IsSubnormal {
-                (first, second)
-            } else {
-                (second, first)
-            };
-            instructions.push(Word::Compare {
-                equal: false,
-                double,
-                left,
-                right,
-                result: first,
-            });
-            if form.operation != IeeeFloatArithmeticOperation::IsFinite {
-                instructions.push(Word::BitwiseAnd {
-                    left: first,
-                    right: mask,
-                    result: first,
-                });
-            }
-            instructions.extend([
-                move_out(first),
-                Word::LogicalShiftRight {
-                    wide: double,
-                    count: if double { 63 } else { 31 },
-                    source: result,
-                    result,
-                },
-            ]);
-            instructions
-        }
-        IeeeFloatArithmeticOperation::IsInfinite => vec![
-            move_in(registers[0], first, double),
-            Word::OneSource {
-                double,
-                opcode: 1,
-                source: first,
-                result: first,
-            },
-            // Input has already moved, so the output may safely hold the
-            // infinity constant even when both operands name one register.
-            Word::MoveWide {
-                keep: false,
-                shift: if double { 3 } else { 1 },
-                immediate: if double { 0x7ff0 } else { 0x7f80 },
-                general: result,
-            },
-            move_in(result, second, double),
-            Word::Compare {
-                equal: true,
-                double,
-                left: first,
-                right: second,
-                result: first,
-            },
-            move_out(first),
-            Word::LogicalShiftRight {
-                wide: double,
-                count: if double { 63 } else { 31 },
-                source: result,
-                result,
-            },
-        ],
-        IeeeFloatArithmeticOperation::IsNan => vec![
-            move_in(registers[0], first, double),
-            Word::Compare {
-                equal: true,
-                double,
-                left: first,
-                right: first,
-                result: first,
-            },
-            move_out(first),
-            // Equality with itself is false only for NaN. Increment its
-            // all-ones/zero mask at the carrier width to obtain exactly 0/1,
-            // with no flags changed and no second evaluation of the operand.
-            Word::AddImmediate {
-                wide: double,
-                immediate: 1,
-                source: result,
-                result,
-            },
-        ],
+        | IeeeFloatArithmeticOperation::IsSubnormal
+        | IeeeFloatArithmeticOperation::Classify => classification_program(form, registers),
         IeeeFloatArithmeticOperation::FusedMultiplyAdd => vec![
             move_in(registers[0], first, double),
             move_in(registers[1], second, double),

@@ -122,6 +122,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     NearestIeeeFloatArithmeticRealization { operation, format },
                     request.target,
                     boundary,
+                    &input.plan().structural_types,
                 )
                 .map_err(|reason| {
                     vec![Diagnostic::error(format!(
@@ -192,11 +193,37 @@ fn float_arithmetic_realization(
     realization: NearestIeeeFloatArithmeticRealization,
     target: target::NativeTarget,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<NearestIeeeFloatArithmeticRealization, String> {
     if !realization.supports_target(target) {
         return Err(format!(
             "has no local target catalog realization on {target:?}"
         ));
+    }
+    if realization.operation == target_operations::IeeeFloatArithmeticOperation::Classify {
+        let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
+            return Err("does not match its structural classification result".to_owned());
+        };
+        let mut declarations = structural_types
+            .iter()
+            .filter(|declaration| declaration.id == result.structural_type);
+        if declarations
+            .next()
+            .and_then(target_operations::conventional_float_class_layout)
+            .is_none()
+            || declarations.next().is_some()
+            || boundary.scalar_parameters
+                != [semantic_vocabulary::ScalarType::IeeeFloat(
+                    realization.format,
+                )]
+            || !boundary.structural_parameters.is_empty()
+            || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+        {
+            return Err("does not match its structural classification result".to_owned());
+        }
+        return Ok(realization);
     }
     let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result else {
         return Err("does not match its Terminal boundary signature".to_owned());
@@ -397,6 +424,14 @@ fn compiler_intrinsic_execution_identity(
                 Arithmetic::IsFinite => builtin(symbols::BuiltinFunction::FloatIsFinite),
                 Arithmetic::IsNormal => builtin(symbols::BuiltinFunction::FloatIsNormal),
                 Arithmetic::IsSubnormal => builtin(symbols::BuiltinFunction::FloatIsSubnormal),
+                Arithmetic::Classify => builtin(match format {
+                    semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                        symbols::BuiltinFunction::FloatClassifyF32
+                    }
+                    semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                        symbols::BuiltinFunction::FloatClassifyF64
+                    }
+                }),
                 Arithmetic::MultiplyThenAdd => builtin(match format {
                     semantic_vocabulary::IeeeFloatFormat::Binary32 => {
                         symbols::BuiltinFunction::FloatMultiplyThenAddF32

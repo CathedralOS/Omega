@@ -25,27 +25,73 @@ use super::super::TerminalRuntimeError;
 pub(super) struct NumericImport {
     signature: TerminalImportSignature,
     realization: NearestIeeeFloatArithmeticRealization,
+    classification: Option<ClassificationResult>,
+}
+
+struct ClassificationResult {
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    cases: [semantic_vocabulary::StructuralCaseId; 5],
+    fields: [semantic_vocabulary::StructuralFieldId; 4],
 }
 
 impl NumericImport {
     pub(super) fn for_import(
+        program: &terminal_interpreter::TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
         realization: NearestIeeeFloatArithmeticRealization,
     ) -> Result<Self, TerminalRuntimeError> {
         let signature = TerminalImportSignature::from(declaration);
+        let classification = if realization.operation == IeeeFloatArithmeticOperation::Classify {
+            let terminal_psi::BoundaryMachineResult::Structural(result) = &signature.result else {
+                return Err(TerminalRuntimeError::InvalidProvision(
+                    "classification result is not structural",
+                ));
+            };
+            let declaration = program.structural_type(result.structural_type).ok_or(
+                TerminalRuntimeError::InvalidProvision("classification result type is absent"),
+            )?;
+            if target_operations::conventional_float_class_layout(declaration).is_none()
+                || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || signature.scalar_parameters
+                    != [semantic_vocabulary::ScalarType::IeeeFloat(
+                        realization.format,
+                    )]
+            {
+                return Err(TerminalRuntimeError::InvalidProvision(
+                    "classification result differs from its admitted sum contract",
+                ));
+            }
+            let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+                unreachable!("validated sum");
+            };
+            Some(ClassificationResult {
+                structural_type: result.structural_type,
+                cases: std::array::from_fn(|index| cases[index].id),
+                fields: std::array::from_fn(|index| cases[index + 1].fields[0].id),
+            })
+        } else {
+            if !signature.result.scalar().is_some_and(|result| {
+                realization.signature_matches(&signature.scalar_parameters, result)
+            }) {
+                return Err(TerminalRuntimeError::InvalidProvision(
+                    "numeric realization differs from its admitted scalar contract",
+                ));
+            }
+            None
+        };
         if signature.completion != BoundaryCompletion::NormalReturn
             || !signature.structural_parameters.is_empty()
-            || !signature.result.scalar().is_some_and(|result| {
-                realization.signature_matches(&signature.scalar_parameters, result)
-            })
         {
             return Err(TerminalRuntimeError::InvalidProvision(
-                "numeric realization differs from its admitted scalar contract",
+                "numeric realization differs from its admitted contract",
             ));
         }
         Ok(Self {
             signature,
             realization,
+            classification,
         })
     }
 }
@@ -89,6 +135,38 @@ impl TerminalEffectHandler for NumericImport {
                 })
         {
             return Err(rejected("numeric operands differ from the bound contract"));
+        }
+        if let Some(classification) = &self.classification {
+            let [TerminalScalarValue::IeeeFloat(value)] = arguments.as_slice() else {
+                return Err(rejected("classification requires one IEEE payload"));
+            };
+            let format = match self.realization.format {
+                IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
+                IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
+            };
+            let (ordinal, sign) = match FloatSemantics::classify(format, &decode(*value)) {
+                numerics::float_semantics::FloatClass::NaN => (0, None),
+                numerics::float_semantics::FloatClass::Infinity { negative } => (1, Some(negative)),
+                numerics::float_semantics::FloatClass::Normal { negative } => (2, Some(negative)),
+                numerics::float_semantics::FloatClass::Subnormal { negative } => {
+                    (3, Some(negative))
+                }
+                numerics::float_semantics::FloatClass::Zero { negative } => (4, Some(negative)),
+            };
+            return Ok(TerminalEffectResult::ScalarCase(
+                terminal_interpreter::TerminalScalarCaseValue {
+                    structural_type: classification.structural_type,
+                    result_case: classification.cases[ordinal],
+                    fields: sign
+                        .map(|negative| {
+                            vec![(
+                                classification.fields[ordinal - 1],
+                                TerminalScalarValue::Boolean(negative),
+                            )]
+                        })
+                        .unwrap_or_default(),
+                },
+            ));
         }
         let result = evaluate(self.realization, arguments)?;
         if let TerminalEffectResult::Scalar(value) = result
@@ -160,6 +238,11 @@ fn evaluate(
             return Ok(scalar(TerminalScalarValue::IeeeFloat(
                 operands[if take_first { 0 } else { 1 }],
             )));
+        }
+        Operation::Classify => {
+            return Err(rejected(
+                "structural classification entered scalar evaluation",
+            ));
         }
         Operation::IsNan => return Ok(scalar(TerminalScalarValue::Boolean(first.is_nan()))),
         Operation::IsFinite => return Ok(scalar(TerminalScalarValue::Boolean(first.is_finite()))),

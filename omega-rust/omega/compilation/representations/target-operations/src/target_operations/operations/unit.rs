@@ -119,6 +119,16 @@ pub enum TargetUnitOperation {
     /// and `execution` keep the call's identity and the admitted catalog
     /// row; `arguments` retains its exact semantic arity and authored order, and
     /// `result_home` its scalar result. No frame or call exists.
+    /// Complete structural classification result, with no fabricated scalar
+    /// source identity. Selection owns its packed implementation temporary.
+    IeeeFloatClassify {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        execution: BoundaryExecutionBinding,
+        realization: crate::NearestIeeeFloatArithmeticRealization,
+        result_home: TargetStructuralHomeRequirement,
+        argument: TargetUnitScalarArgumentSource,
+    },
     NearestIeeeFloatArithmetic {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
@@ -565,6 +575,13 @@ impl TargetUnitOperation {
     /// This query carries no backing permission or lifetime authority.
     pub fn structural_result(&self) -> Option<(OperationId, &StructuralOperationResult)> {
         match self {
+            Self::IeeeFloatClassify {
+                psi_operation,
+                result_home,
+                ..
+            } => result_home
+                .operation_result()
+                .map(|(_, result)| (*psi_operation, result)),
             Self::ByteSequenceSubslice {
                 result,
                 view:
@@ -629,7 +646,12 @@ impl TargetUnitOperation {
         &self,
     ) -> Option<(OperationId, &TargetStructuralHomeRequirement)> {
         match self {
-            Self::StructuralLeafCopy {
+            Self::IeeeFloatClassify {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::StructuralLeafCopy {
                 psi_operation,
                 result_home,
                 ..

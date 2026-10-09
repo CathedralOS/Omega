@@ -93,25 +93,20 @@ pub(crate) fn implicit_uses() -> Vec<RegisterUnitId> {
     sorted_units(view_units("mxcsr"))
 }
 
-pub(crate) fn clobbers(form: IeeeFloatArithmeticForm) -> Vec<RegisterUnitId> {
-    let extra = matches!(
-        form.operation,
-        IeeeFloatArithmeticOperation::IsNormal | IeeeFloatArithmeticOperation::IsSubnormal
-    )
-    .then(|| view_units("xmm3"))
-    .unwrap_or_default();
-    sorted_units(
-        view_units("xmm4")
-            .into_iter()
-            .chain(view_units("xmm5"))
-            .chain(extra),
-    )
+pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
+    sorted_units(view_units("xmm4").into_iter().chain(view_units("xmm5")))
 }
 
 fn conversion_control(form: IeeeFloatArithmeticForm) -> bool {
     matches!(
         form.operation,
-        IeeeFloatArithmeticOperation::FromInteger(IeeeFloatIntegerCarrier::U64)
+        IeeeFloatArithmeticOperation::IsNan
+            | IeeeFloatArithmeticOperation::IsInfinite
+            | IeeeFloatArithmeticOperation::IsFinite
+            | IeeeFloatArithmeticOperation::IsNormal
+            | IeeeFloatArithmeticOperation::IsSubnormal
+            | IeeeFloatArithmeticOperation::Classify
+            | IeeeFloatArithmeticOperation::FromInteger(IeeeFloatIntegerCarrier::U64)
             | IeeeFloatArithmeticOperation::TruncateToInteger {
                 target: IeeeFloatIntegerCarrier::U64,
                 ..
@@ -128,7 +123,7 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     let inputs = form.operand_count() as u16;
     let mut encoded = MachineEncodedEffects {
         implicit_unit_uses: implicit_uses(),
-        implicit_unit_clobbers: clobbers(form),
+        implicit_unit_clobbers: clobbers(),
         ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
     };
     if form.operation.rounding_direction().is_some() {
@@ -153,7 +148,7 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     }
     if conversion_control(form) {
         encoded.implicit_unit_clobbers =
-            sorted_units(clobbers(form).into_iter().chain(view_units("rflags")));
+            sorted_units(clobbers().into_iter().chain(view_units("rflags")));
     }
     if ieee_float_arithmetic_is_trapping(form) {
         encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
@@ -331,6 +326,17 @@ enum Instruction {
         source: u8,
     },
     /// `REX.W 85 /r`: `TEST r64, r64`, selecting zero/sign without mutation.
+    /// Integer shifts and exponent comparison classify stored bits independently
+    /// of DAZ, exception controls, and NaN signaling state.
+    ShiftInteger64 {
+        left: bool,
+        general: u8,
+        count: u8,
+    },
+    CompareImmediate64 {
+        general: u8,
+        value: u32,
+    },
     Test64 {
         general: u8,
     },
@@ -488,6 +494,20 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
             destination,
             source,
         } => bytes.extend([0x66, 0x0f, 0xeb, modrm(destination, source)]),
+        Instruction::ShiftInteger64 {
+            left,
+            general,
+            count,
+        } => bytes.extend([
+            0x48 | (general >> 3),
+            0xc1,
+            modrm(if left { 4 } else { 5 }, general),
+            count,
+        ]),
+        Instruction::CompareImmediate64 { general, value } => {
+            bytes.extend([0x48 | (general >> 3), 0x81, modrm(7, general)]);
+            bytes.extend(value.to_le_bytes());
+        }
         Instruction::Test64 { general } => bytes.extend([
             0x48 | ((general >> 3) << 2) | (general >> 3),
             0x85,
@@ -719,6 +739,28 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
             let (rex, tail) = optional_rex(bytes);
             let wide = rex & 0xa == 8;
             match tail {
+                [0xc1, modrm, count, rest @ ..]
+                    if wide && matches!((modrm >> 3) & 7, 4 | 5) && modrm & 0xc0 == 0xc0 =>
+                {
+                    Some((
+                        Instruction::ShiftInteger64 {
+                            left: (modrm >> 3) & 7 == 4,
+                            general: (modrm & 7) | ((rex & 1) << 3),
+                            count: *count,
+                        },
+                        rest,
+                    ))
+                }
+                [0x81, modrm, rest @ ..] if wide && modrm & 0xf8 == 0xf8 && rest.len() >= 4 => {
+                    let (immediate, rest) = rest.split_at(4);
+                    Some((
+                        Instruction::CompareImmediate64 {
+                            general: (modrm & 7) | ((rex & 1) << 3),
+                            value: u32::from_le_bytes(immediate.try_into().ok()?),
+                        },
+                        rest,
+                    ))
+                }
                 [0x85, modrm, rest @ ..] if wide => {
                     let (left, right) = register_pair(*modrm)?;
                     let left = left | (((rex >> 2) & 1) << 3);
@@ -759,6 +801,163 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
             }
         }
     }
+}
+
+/// One raw-bit decision tree shared by every classification operation. The
+/// input is saved before any output mutation, including aliased homes. Internal
+/// jumps stay within this indivisible form and independent decoding compares
+/// their exact destinations as well as all exponent/mantissa bits.
+fn classification_program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> {
+    let double = !form.is_binary32();
+    let result = registers[1];
+    let restore = Instruction::Transfer {
+        to_float: false,
+        wide: true,
+        xmm: LEFT_SCRATCH,
+        general: result,
+    };
+    let output = |class| Instruction::MoveImmediate64 {
+        general: result,
+        value: match form.operation {
+            IeeeFloatArithmeticOperation::Classify => class,
+            IeeeFloatArithmeticOperation::IsNan => u64::from(class == 0),
+            IeeeFloatArithmeticOperation::IsInfinite => u64::from(class == 1),
+            IeeeFloatArithmeticOperation::IsFinite => u64::from(class >= 2),
+            IeeeFloatArithmeticOperation::IsNormal => u64::from(class == 2),
+            IeeeFloatArithmeticOperation::IsSubnormal => u64::from(class == 3),
+            _ => unreachable!("classification operation"),
+        },
+    };
+    let jump = |condition| Instruction::ConditionalJump {
+        condition,
+        displacement: 0,
+    };
+    let mut instructions = vec![
+        Instruction::Transfer {
+            to_float: true,
+            wide: double,
+            xmm: LEFT_SCRATCH,
+            general: registers[0],
+        },
+        restore,
+        Instruction::ShiftInteger64 {
+            left: true,
+            general: result,
+            count: if double { 1 } else { 33 },
+        },
+        Instruction::ShiftInteger64 {
+            left: false,
+            general: result,
+            count: if double { 53 } else { 56 },
+        },
+        Instruction::CompareImmediate64 {
+            general: result,
+            value: 0,
+        },
+        jump(4),
+        Instruction::CompareImmediate64 {
+            general: result,
+            value: if double { 2047 } else { 255 },
+        },
+        jump(4),
+        output(2),
+        Instruction::Jump { displacement: 0 },
+    ];
+    let subnormal = instructions.len();
+    instructions.extend([
+        restore,
+        Instruction::ShiftInteger64 {
+            left: true,
+            general: result,
+            count: if double { 1 } else { 33 },
+        },
+        Instruction::Test64 { general: result },
+        jump(4),
+        output(3),
+        Instruction::Jump { displacement: 0 },
+    ]);
+    let zero = instructions.len();
+    instructions.extend([output(4), Instruction::Jump { displacement: 0 }]);
+    let nonfinite = instructions.len();
+    instructions.extend([
+        restore,
+        Instruction::ShiftInteger64 {
+            left: true,
+            general: result,
+            count: if double { 12 } else { 41 },
+        },
+        Instruction::Test64 { general: result },
+        jump(4),
+        output(0),
+        Instruction::Jump { displacement: 0 },
+    ]);
+    let infinity = instructions.len();
+    instructions.push(output(1));
+    let end = instructions.len();
+    if form.operation == IeeeFloatArithmeticOperation::Classify {
+        instructions.extend([
+            Instruction::CompareImmediate64 {
+                general: result,
+                value: 0,
+            },
+            jump(4),
+            Instruction::Transfer {
+                to_float: true,
+                wide: true,
+                xmm: RIGHT_SCRATCH,
+                general: result,
+            },
+            Instruction::ShiftRight {
+                quad: double,
+                arithmetic: false,
+                xmm: LEFT_SCRATCH,
+                count: if double { 63 } else { 31 },
+            },
+            Instruction::ShiftLeft {
+                quad: true,
+                xmm: LEFT_SCRATCH,
+                count: 32,
+            },
+            Instruction::Or {
+                destination: LEFT_SCRATCH,
+                source: RIGHT_SCRATCH,
+            },
+            restore,
+        ]);
+    }
+    let mut branches = vec![
+        (5, subnormal),
+        (7, nonfinite),
+        (9, end),
+        (subnormal + 3, zero),
+        (subnormal + 5, end),
+        (zero + 1, end),
+        (nonfinite + 3, infinity),
+        (nonfinite + 5, end),
+    ];
+    if form.operation == IeeeFloatArithmeticOperation::Classify {
+        branches.push((end + 1, instructions.len()));
+    }
+    let mut offsets = vec![0usize];
+    for instruction in &instructions {
+        let mut bytes = Vec::new();
+        encode_instruction(&mut bytes, *instruction);
+        offsets.push(offsets.last().copied().unwrap() + bytes.len());
+    }
+    for (branch, destination) in branches {
+        let displacement = (offsets[destination] as i64 - offsets[branch + 1] as i64) as i32;
+        match &mut instructions[branch] {
+            Instruction::Jump {
+                displacement: field,
+            }
+            | Instruction::ConditionalJump {
+                displacement: field,
+                ..
+            } => *field = displacement,
+            _ => unreachable!("classification branch"),
+        }
+    }
+    instructions
 }
 
 /// The scalar opcode of each two-operand operation.
@@ -851,189 +1050,12 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instru
         // Baseline SSE2 has no single-rounding multiply-add. Optional FMA3
         // requires a separately admitted feature and provider occurrence.
         IeeeFloatArithmeticOperation::FusedMultiplyAdd => return Err(Error::EncodedFormMismatch),
-        IeeeFloatArithmeticOperation::IsFinite
+        IeeeFloatArithmeticOperation::IsNan
+        | IeeeFloatArithmeticOperation::IsInfinite
+        | IeeeFloatArithmeticOperation::IsFinite
         | IeeeFloatArithmeticOperation::IsNormal
-        | IeeeFloatArithmeticOperation::IsSubnormal => {
-            // Read the payload before using the output register for constants:
-            // input and output may alias. Clearing only the sign preserves
-            // subnormals and leaves NaNs unordered in both comparisons.
-            let mut instructions = vec![
-                move_in(registers[0], LEFT_SCRATCH, double),
-                Instruction::ShiftLeft {
-                    quad: double,
-                    xmm: LEFT_SCRATCH,
-                    count: 1,
-                },
-                Instruction::ShiftRight {
-                    quad: double,
-                    arithmetic: false,
-                    xmm: LEFT_SCRATCH,
-                    count: 1,
-                },
-            ];
-            let minimum = if double {
-                0x0010_0000_0000_0000
-            } else {
-                0x0080_0000
-            };
-            let infinity = if double {
-                0x7ff0_0000_0000_0000
-            } else {
-                0x7f80_0000
-            };
-            if form.operation != IeeeFloatArithmeticOperation::IsFinite {
-                instructions.extend([
-                    Instruction::MoveAligned {
-                        destination: 3,
-                        source: LEFT_SCRATCH,
-                    },
-                    Instruction::MoveImmediate64 {
-                        general: result,
-                        value: minimum,
-                    },
-                    move_in(result, RIGHT_SCRATCH, double),
-                ]);
-                if form.operation == IeeeFloatArithmeticOperation::IsNormal {
-                    instructions.push(Instruction::CompareScalar {
-                        double,
-                        predicate: 2,
-                        destination: RIGHT_SCRATCH,
-                        source: LEFT_SCRATCH,
-                    });
-                    instructions.push(Instruction::MoveAligned {
-                        destination: 3,
-                        source: RIGHT_SCRATCH,
-                    });
-                } else {
-                    instructions.push(Instruction::CompareScalar {
-                        double,
-                        predicate: 1,
-                        destination: 3,
-                        source: RIGHT_SCRATCH,
-                    });
-                }
-            }
-            instructions.extend([
-                Instruction::MoveImmediate64 {
-                    general: result,
-                    value: if form.operation == IeeeFloatArithmeticOperation::IsSubnormal {
-                        0
-                    } else {
-                        infinity
-                    },
-                },
-                move_in(result, RIGHT_SCRATCH, double),
-            ]);
-            if form.operation == IeeeFloatArithmeticOperation::IsSubnormal {
-                // 0 < abs(value) excludes both zeros; the first mask already
-                // excludes normal values, infinity and every NaN.
-                instructions.push(Instruction::CompareScalar {
-                    double,
-                    predicate: 1,
-                    destination: RIGHT_SCRATCH,
-                    source: LEFT_SCRATCH,
-                });
-                instructions.push(Instruction::MoveAligned {
-                    destination: LEFT_SCRATCH,
-                    source: RIGHT_SCRATCH,
-                });
-            } else {
-                instructions.push(Instruction::CompareScalar {
-                    double,
-                    predicate: 1,
-                    destination: LEFT_SCRATCH,
-                    source: RIGHT_SCRATCH,
-                });
-            }
-            if form.operation != IeeeFloatArithmeticOperation::IsFinite {
-                instructions.push(Instruction::And {
-                    destination: LEFT_SCRATCH,
-                    source: 3,
-                });
-            }
-            instructions.extend([
-                Instruction::ShiftRight {
-                    quad: false,
-                    arithmetic: false,
-                    xmm: LEFT_SCRATCH,
-                    count: 31,
-                },
-                Instruction::Transfer {
-                    to_float: false,
-                    wide: false,
-                    xmm: LEFT_SCRATCH,
-                    general: result,
-                },
-            ]);
-            instructions
-        }
-        IeeeFloatArithmeticOperation::IsInfinite => vec![
-            move_in(registers[0], LEFT_SCRATCH, double),
-            Instruction::ShiftLeft {
-                quad: double,
-                xmm: LEFT_SCRATCH,
-                count: 1,
-            },
-            Instruction::ShiftRight {
-                quad: double,
-                arithmetic: false,
-                xmm: LEFT_SCRATCH,
-                count: 1,
-            },
-            // The input is retained in xmm4 before the result is used to
-            // materialize infinity, allowing an aliased input/result home.
-            Instruction::MoveImmediate64 {
-                general: result,
-                value: if double {
-                    0x7ff0_0000_0000_0000
-                } else {
-                    0x7f80_0000
-                },
-            },
-            move_in(result, RIGHT_SCRATCH, double),
-            Instruction::CompareScalar {
-                double,
-                predicate: 0,
-                destination: LEFT_SCRATCH,
-                source: RIGHT_SCRATCH,
-            },
-            Instruction::ShiftRight {
-                quad: false,
-                arithmetic: false,
-                xmm: LEFT_SCRATCH,
-                count: 31,
-            },
-            Instruction::Transfer {
-                to_float: false,
-                wide: false,
-                xmm: LEFT_SCRATCH,
-                general: result,
-            },
-        ],
-        IeeeFloatArithmeticOperation::IsNan => vec![
-            move_in(registers[0], LEFT_SCRATCH, double),
-            Instruction::CompareScalar {
-                double,
-                predicate: 3,
-                destination: LEFT_SCRATCH,
-                source: LEFT_SCRATCH,
-            },
-            // The unordered mask's low dword suffices for either format.
-            // Normalize it to a Boolean with flag-free SSE2, then MOVD
-            // zero-extends the result instead of retaining a floating mask.
-            Instruction::ShiftRight {
-                quad: false,
-                arithmetic: false,
-                xmm: LEFT_SCRATCH,
-                count: 31,
-            },
-            Instruction::Transfer {
-                to_float: false,
-                wide: false,
-                xmm: LEFT_SCRATCH,
-                general: result,
-            },
-        ],
+        | IeeeFloatArithmeticOperation::IsSubnormal
+        | IeeeFloatArithmeticOperation::Classify => classification_program(form, registers),
         IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
             move_in(registers[0], LEFT_SCRATCH, double),
             move_in(registers[1], RIGHT_SCRATCH, double),

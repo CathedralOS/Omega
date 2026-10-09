@@ -34,6 +34,7 @@ pub(in crate::legalization) fn row(
         matches!(
             row,
             TargetUnitOperation::NearestIeeeFloatArithmetic { psi_operation, .. }
+            | TargetUnitOperation::IeeeFloatClassify { psi_operation, .. }
                 if *psi_operation == operation
         )
     });
@@ -54,6 +55,73 @@ pub(in crate::legalization) fn validate(
     unit: &PsiOptimizationUnit,
     sources: &mut Vec<(ValueId, TargetUnitScalarArgumentSource)>,
 ) -> Result<(), LegalizationError> {
+    if let (
+        TargetUnitOperation::IeeeFloatClassify {
+            psi_operation,
+            boundary,
+            execution,
+            realization,
+            result_home,
+            argument,
+        },
+        AbstractOperation::BoundaryCall {
+            psi_operation: expected_operation,
+            boundary: expected_boundary,
+            result: AbstractBoundaryResult::Structural(result),
+            arguments,
+            structural_arguments,
+            completion_claim_sources,
+            completion_receipts,
+        },
+    ) = (target, source)
+    {
+        let declaration = plan
+            .boundary_machines
+            .iter()
+            .find(|row| row.id == *boundary)
+            .ok_or(LegalizationError::custody())?;
+        let structural_type = plan
+            .structural_types
+            .iter()
+            .find(|row| row.id == result.structural_type)
+            .ok_or(LegalizationError::custody())?;
+        let layout = target_operations::conventional_float_class_layout(structural_type)
+            .ok_or(LegalizationError::custody())?;
+        let operand = semantic_vocabulary::ScalarType::IeeeFloat(realization.format);
+        if psi_operation != expected_operation
+            || boundary != expected_boundary
+            || realization.operation != target_operations::IeeeFloatArithmeticOperation::Classify
+            || *execution
+                != BoundaryExecutionBinding::CompilerBuiltin(
+                    CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                        operation: realization.operation,
+                        format: realization.format,
+                    },
+                )
+            || !realization.supports_target(native)
+            || unit.boundary_machine(*boundary) != Some(declaration)
+            || declaration.scalar_parameters != [operand]
+            || !declaration.structural_parameters.is_empty()
+            || !matches!(&declaration.result, terminal_psi::BoundaryMachineResult::Structural(declared) if declared.structural_type == result.structural_type && declared.multiplicity == result.multiplicity && declared.qualifications == result.qualifications && declared.projected_qualifications == result.projected_qualifications)
+            || !result.is_unrestricted_plain()
+            || !result.qualification_establishments.is_empty()
+            || result_home.operation_result() != Some((*psi_operation, result))
+            || result_home.layout != target_operations::TargetStructuralHomeLayout::Sum(layout)
+            || arguments.as_slice() != [argument.source_value()]
+            || argument.scalar_type() != operand
+            || !sources
+                .iter()
+                .filter(|(value, _)| *value == argument.source_value())
+                .map(|(_, available)| available)
+                .eq(std::iter::once(argument))
+            || !structural_arguments.is_empty()
+            || !completion_claim_sources.is_empty()
+            || !completion_receipts.is_empty()
+        {
+            return Err(LegalizationError::custody());
+        }
+        return Ok(());
+    }
     let (
         TargetUnitOperation::NearestIeeeFloatArithmetic {
             psi_operation,

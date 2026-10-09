@@ -93,7 +93,8 @@ pub(super) fn bind<'host>(
                         .ok_or(TerminalRuntimeError::InvalidProvision(
                             "numeric host provision names no demanded import",
                         ))?;
-                let adapter = numeric::NumericImport::for_import(declaration, realization)?;
+                let adapter =
+                    numeric::NumericImport::for_import(program, declaration, realization)?;
                 instance
                     .bind_import(*slot, adapter)
                     .map_err(TerminalRuntimeError::Binding)?;

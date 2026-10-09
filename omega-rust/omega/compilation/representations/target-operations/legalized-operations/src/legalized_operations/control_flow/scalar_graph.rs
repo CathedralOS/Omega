@@ -340,6 +340,7 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. } => {
                 [*left, *right].into_iter().for_each(visit)
             }
+            LegalizedScalarInstructionKind::IeeeFloatClassify { argument, .. } => visit(*argument),
             LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic { arguments, .. } => {
                 arguments.iter().copied().for_each(visit)
             }
@@ -380,6 +381,13 @@ pub enum LegalizedScalarInstructionKind {
     /// exact nearest-even IEEE operation whose result has `format`, on the
     /// call's arguments in authored order. The operation defines their arity;
     /// `boundary` keeps the call's Terminal identity.
+    IeeeFloatClassify {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        format: semantic_vocabulary::IeeeFloatFormat,
+        argument: ValueId,
+        result: terminal_psi::StructuralOperationResult,
+        layout: calling_conventions::ConventionalSumLayout,
+    },
     NearestIeeeFloatArithmetic {
         boundary: semantic_vocabulary::BoundaryMachineId,
         operation: target_operations::IeeeFloatArithmeticOperation,
@@ -921,6 +929,7 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishPrimitiveLocal { result, .. }
             | Self::StructuralLeafCopy { result, .. }
             | Self::HostedReadByte { result, .. }
+            | Self::IeeeFloatClassify { result, .. }
             | Self::ByteSequenceSubslice { result, .. }
             | Self::EstablishElementView { result, .. }
             | Self::ElementViewSubslice { result, .. } => Some(result),

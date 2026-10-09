@@ -59,6 +59,7 @@ pub use boundary::{
     NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
     ProviderPlanReportIdentity, TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement,
+    conventional_float_class_layout,
 };
 pub mod operations;
 pub use operations::{

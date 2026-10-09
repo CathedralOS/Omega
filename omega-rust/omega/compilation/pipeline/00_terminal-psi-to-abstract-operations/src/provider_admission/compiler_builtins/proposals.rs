@@ -485,6 +485,8 @@ fn compiler_builtin_execution(
                 symbols::BuiltinFunction::FloatIsFinite => Arithmetic::IsFinite,
                 symbols::BuiltinFunction::FloatIsNormal => Arithmetic::IsNormal,
                 symbols::BuiltinFunction::FloatIsSubnormal => Arithmetic::IsSubnormal,
+                symbols::BuiltinFunction::FloatClassifyF32
+                | symbols::BuiltinFunction::FloatClassifyF64 => Arithmetic::Classify,
                 _ => return None,
             };
             (operation, boundary_format?)

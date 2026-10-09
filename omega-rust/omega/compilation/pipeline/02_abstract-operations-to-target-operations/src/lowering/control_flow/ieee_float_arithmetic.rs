@@ -39,6 +39,7 @@ pub(super) fn is_inline_arithmetic(
 pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
+    types: &crate::lowering::structural_type_lookup::StructuralTypeLookup<'_>,
     target: NativeTarget,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
@@ -80,6 +81,60 @@ pub(super) fn lower(
             format: realization.format,
         },
     );
+    if realization.operation == target_operations::IeeeFloatArithmeticOperation::Classify {
+        let AbstractBoundaryResult::Structural(result) = result else {
+            return Err(mismatch);
+        };
+        let operand = semantic_vocabulary::ScalarType::IeeeFloat(realization.format);
+        if binding.execution != execution
+            || !realization.supports_target(target)
+            || declaration.scalar_parameters != [operand]
+            || !declaration.structural_parameters.is_empty()
+            || !matches!(&declaration.result, terminal_psi::BoundaryMachineResult::Structural(declared) if declared.structural_type == result.structural_type && declared.multiplicity == result.multiplicity && declared.qualifications == result.qualifications && declared.projected_qualifications == result.projected_qualifications)
+            || arguments.len() != 1
+            || !structural_arguments.is_empty()
+            || !completion_claim_sources.is_empty()
+            || !completion_receipts.is_empty()
+        {
+            return Err(mismatch);
+        }
+        let argument = super::scalar_sources::source(arguments[0], function, live)?;
+        if argument.scalar_type() != operand {
+            return Err(mismatch);
+        }
+        if !result.is_unrestricted_plain() || !result.qualification_establishments.is_empty() {
+            return Err(mismatch);
+        }
+        let layout = types
+            .get(&result.structural_type)
+            .and_then(|declaration| target_operations::conventional_float_class_layout(declaration))
+            .ok_or(mismatch)?;
+        let layout = target_operations::TargetStructuralHomeLayout::Sum(layout);
+        let home = target_operations::TargetStructuralHomeRequirement {
+            origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                operation: *psi_operation,
+                result: result.clone(),
+            },
+            layout,
+        };
+        if live
+            .structural_homes
+            .insert(result.place, home.clone())
+            .is_some()
+        {
+            return Err(mismatch);
+        }
+        provenance.operations.push(*psi_operation);
+        operations.push(TargetUnitOperation::IeeeFloatClassify {
+            psi_operation: *psi_operation,
+            boundary: *boundary,
+            execution,
+            realization: *realization,
+            result_home: home,
+            argument,
+        });
+        return Ok(());
+    }
     let scalar = realization.operation.result_type(realization.format);
     let operand = realization.operation.operand_type(realization.format);
     let AbstractBoundaryResult::Scalar(result) = result else {

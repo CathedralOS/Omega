@@ -41,6 +41,7 @@ pub(super) mod indirect_results;
 mod record;
 pub(super) mod reference;
 pub(super) use local_storage::descriptor as stage_descriptor;
+mod ieee_float_classify;
 mod scalar_array;
 mod scalar_case;
 mod structural_array;
@@ -308,6 +309,13 @@ pub(super) fn operation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<bool, SelectedInstructionError> {
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::IeeeFloatClassify { .. }
+    ) {
+        ieee_float_classify::establish(source, builder, row)?;
+        return Ok(true);
+    }
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { .. }
