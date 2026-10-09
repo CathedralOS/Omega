@@ -11,7 +11,7 @@ use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ValueId};
 use terminal_psi::{FloatResultPolicy, Operation, OperationKind};
 
-fn meaning(value: IeeeFloatValue) -> FloatMeaning {
+pub fn meaning(value: IeeeFloatValue) -> FloatMeaning {
     match value {
         IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
         IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),

@@ -9,7 +9,7 @@
 //! operations; `float_result_policy.rs` adapts already evaluated IEEE results.
 
 pub(crate) mod boolean_float;
-pub(crate) mod float_result_policy;
+pub mod float_result_policy;
 pub(crate) mod integer;
 pub(crate) mod trapping;
 

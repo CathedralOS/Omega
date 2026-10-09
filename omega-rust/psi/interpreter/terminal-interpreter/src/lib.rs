@@ -96,6 +96,7 @@ pub use results::{
     TerminalStructuralResult,
 };
 pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
+pub use scalar_operations::float_result_policy;
 pub use semantic_value_comparison::{
     TerminalTraceScalarComparisonError, TerminalTraceScalarValueSide,
     TerminalTraceStructuralComparisonError, TerminalTraceStructuralValueSide,
