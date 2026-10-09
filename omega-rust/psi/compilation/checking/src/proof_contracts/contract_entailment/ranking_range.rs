@@ -65,7 +65,7 @@ pub fn closed_collection_length(
 fn slice_rank_coordinate<'program>(
     program: &'program dyn crate::CheckingInput,
     root: &State,
-    state: &State,
+    state: &'program State,
     entry_parameters: Option<&[symbols::SymbolHandle]>,
     subject: ExpressionHandle,
 ) -> Option<Option<lengths::SliceCoordinate<'program>>> {
