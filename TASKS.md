@@ -5938,10 +5938,26 @@ report a missing runtime leg explicitly.
 
 - **RC-NATIVE-MATRIX-WINDOWS-X64.** Pass the shared gates with PE execution on
   Windows x86-64, including the hosted receiver.
-  `tests/omega/pass/filesystem/windows_set_file_time_exit` rejects today and
-  its oracle is only a comment: add `expected_native_exit` so the fixture must
-  call SetFileTime then `_stat64`, read back Unix time 1,500,000,000 and exit
-  70.
+  `tests/omega/corpus_native_windows_x86_64.txt` predates 00e62d483f, whose
+  portable Console cutoff (**PSI-TARGET-FAMILIES**) rejects every std consumer
+  on every host; re-record after it lifts. At bff9578e24 Windows built every
+  fixture a macOS cross-build built except
+  `pass/float/{admitted_numeric_imports_preserve_semantics,named_provider_fused_multiply_add_exit}`
+  (**X86-FMA-PROVIDER-TRANSPORT**, shared with Linux x86-64), and every
+  executed fixture met its oracle. Remaining:
+  - 49 fixtures bind only macOS or POSIX hosts through Darwin/POSIX foreign
+    providers (`pass/host/runtime_descriptor_*`, `pass/providers/foreign_*`,
+    `pass/filesystem/native_*`, `pass/time/runtime_clock_*`) yet keep portable
+    `expected_native_exit.txt`/`expected_stdout.txt` oracles, so the Windows
+    leg reports each as an unmet promise. Author Windows provider rows where
+    the capability applies (msvcrt `_read`/`_write` return `int`, so an
+    adapter body, as in `pass/host/runtime_foreign_scalar_loan_writeback_exit`)
+    or scope the oracle to its bound hosts; `expected_stdout.txt` has no
+    per-target form.
+  - `tests/omega/pass/filesystem/windows_set_file_time_exit` rejects (its
+    `Binding<FilesystemHost>` waits on `OWNER_QUESTIONS.md` Q1) and its oracle
+    is only a comment: add `expected_native_exit` so the fixture must call
+    SetFileTime then `_stat64`, read back Unix time 1,500,000,000 and exit 70.
 
 - **MACOS-X64-HOST-PROFILE.** Cover Intel macOS: Mach-O entry/exit, hosted
   receiver and provider/import pairing. `macos_x86_64` emits and runs under

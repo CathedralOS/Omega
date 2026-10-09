@@ -24,7 +24,10 @@ use selected_instructions::{
 
 use super::CopyRemovalError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{block_instructions, member_position, terminator_successors};
+use crate::rewrites::block_edges::{
+    block_instructions, local_slot_mentions, member_position, successor_mentions,
+    terminator_successors,
+};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -59,10 +62,6 @@ fn block_instruction_mut(
     } else {
         block.instructions.get_mut(position)
     }
-}
-
-fn local_slot_mentions(slot: LocalStorageSlotId, register: VirtualRegisterId) -> bool {
-    matches!(slot, LocalStorageSlotId::Spill { register: subject } if subject == register)
 }
 
 fn frame_slot_mentions(slot: FrameStorageSlotId, register: VirtualRegisterId) -> bool {
@@ -120,64 +119,6 @@ fn origin_mentions(
         } => id == instruction || subject == register,
         StructuralParameter { .. } | EntryParameter { .. } | BlockParameter { .. } => false,
     }
-}
-
-/// Whether one successor edge mentions `register` in any transport field or
-/// slot destination. Arguments read the register on the edge; parameters
-/// define it there. Neither belongs to the same-block substitution surface.
-fn successor_mentions(successor: &SelectedSuccessor, register: VirtualRegisterId) -> bool {
-    let binding_mentions = successor
-        .bindings
-        .iter()
-        .any(|binding| match binding.transport {
-            SelectedValueTransport::Registers {
-                argument,
-                parameter,
-            } => argument == register || parameter == register,
-            SelectedValueTransport::Unused => false,
-        });
-    let structural_mentions =
-        successor
-            .structural_bindings
-            .iter()
-            .any(|binding| match binding.transport {
-                SelectedStructuralTransport::WholeValue {
-                    argument,
-                    destination,
-                    ..
-                } => argument == register || local_slot_mentions(destination, register),
-                SelectedStructuralTransport::ScalarReference {
-                    base, destination, ..
-                }
-                | SelectedStructuralTransport::Address {
-                    base, destination, ..
-                } => {
-                    local_slot_mentions(destination, register)
-                        || match base {
-                            selected_instructions::SelectedAddressBase::Register(argument) => {
-                                argument == register
-                            }
-                            selected_instructions::SelectedAddressBase::Local(slot) => {
-                                local_slot_mentions(slot, register)
-                            }
-                        }
-                }
-                SelectedStructuralTransport::Unused => false,
-            });
-    let case_mentions = successor.structural_case.as_ref().is_some_and(|case| {
-        case.source
-            .local_slot()
-            .is_some_and(|slot| local_slot_mentions(slot, register))
-            || case.payloads.iter().any(|payload| match payload.transport {
-                SelectedCasePayloadTransport::Unmaterialized { parameter } => parameter == register,
-                SelectedCasePayloadTransport::Registers {
-                    argument,
-                    parameter,
-                } => argument == register || parameter == register,
-                SelectedCasePayloadTransport::Unused => false,
-            })
-    });
-    binding_mentions || structural_mentions || case_mentions
 }
 
 pub(super) fn admit<'source>(

@@ -7,9 +7,9 @@
 //! What no catalog declaration can attest is checked on the function
 //! itself: the producer's identity as the destination register's last
 //! definition before the call, the source register's freedom from
-//! intervening redefinition, the operand classes against the roster, and
-//! the whole-function work all charge into the caller's budget. The replay
-//! in `replay` re-derives all of it without the table.
+//! intervening redefinition, the operand classes against the roster, the
+//! source's freedom from a pinned view the call writes while it stays live,
+//! and the whole-function work all charge into the caller's budget.
 
 use crate::rewrites::operand_probes::{effect_declaration, last_definition_before};
 use optimization_core::OptimizationWorkBudget;
@@ -24,7 +24,7 @@ use super::CopiedCallOperandError;
 use super::pair::{copied_call_operand_for, declared_consumer};
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::rewrites::block_edges::block_instructions;
+use crate::rewrites::block_edges::{block_instructions, successor_mentions, terminator_successors};
 
 /// One admitted copied-call-operand pair: everything `rewrite` needs to
 /// rebuild the consumer instruction and everything `replay` needs to
@@ -296,6 +296,19 @@ pub(super) fn admit<'source>(
             return Err(CopiedCallOperandError::UnsupportedUse);
         }
     }
+    // Register homes give a virtual register one home for its whole range.
+    // A rebound operand pins the source to its ABI view at the call; when the
+    // call itself writes that view (a caller-saved argument register) and the
+    // source is still mentioned afterwards, no home is both the pinned view and
+    // a register that survives the call. The copy separated those two roles,
+    // so the reroute refuses rather than leave home assignment without a
+    // common candidate. Any later mention counts: this over-approximates
+    // liveness, and an over-approximation only declines a fold.
+    if pinned_view_written_by_call(environment, consumer, destination)
+        && mentioned_after_call(function, block_index, position, copied_source)
+    {
+        return Err(CopiedCallOperandError::UnsupportedUse);
+    }
     // The declared effect surface, checked against the bound catalog: the
     // retained copy is fully effect-isolated while the call row — the
     // consumer's and the rewritten form's alike — carries the complete
@@ -339,6 +352,76 @@ pub(super) fn admit<'source>(
         position,
         source: copied_source,
         destination,
+    })
+}
+
+/// Whether a `Use` operand reading `destination` carries a fixed view whose
+/// storage the call writes through its clobbers, implicit definitions, or
+/// fixed result views.
+fn pinned_view_written_by_call(
+    environment: &ValidatedTargetRegisterEnvironment,
+    call: &SelectedInstruction,
+    destination: VirtualRegisterId,
+) -> bool {
+    let physical = environment.physical().model();
+    let view_units = |view| {
+        physical
+            .view(view)
+            .map(|view| view.units.iter().chain(&view.write_units))
+            .into_iter()
+            .flatten()
+            .copied()
+    };
+    let written: std::collections::BTreeSet<_> = call
+        .clobbers
+        .iter()
+        .chain(&call.implicit_defs)
+        .copied()
+        .chain(
+            call.operands
+                .iter()
+                .filter(|operand| operand.access != RegisterOperandAccess::Use)
+                .filter_map(|operand| operand.fixed_view)
+                .flat_map(view_units),
+        )
+        .collect();
+    call.operands
+        .iter()
+        .filter(|operand| {
+            operand.access == RegisterOperandAccess::Use && operand.virtual_register == destination
+        })
+        .filter_map(|operand| operand.fixed_view)
+        .flat_map(view_units)
+        .any(|unit| written.contains(&unit))
+}
+
+/// Whether `register` is mentioned by any operand or edge after the call at
+/// `position`: later in its block, on that block's edges, or anywhere in
+/// another block.
+fn mentioned_after_call(
+    function: &SelectedFunction,
+    block_index: usize,
+    position: usize,
+    register: VirtualRegisterId,
+) -> bool {
+    let operand_mentions = |instruction: &SelectedInstruction| {
+        instruction
+            .operands
+            .iter()
+            .any(|operand| operand.virtual_register == register)
+    };
+    function.blocks.iter().enumerate().any(|(index, block)| {
+        let skipped = if index == block_index {
+            position + 1
+        } else {
+            0
+        };
+        block_instructions(block)
+            .skip(skipped)
+            .any(operand_mentions)
+            || terminator_successors(&block.terminator)
+                .into_iter()
+                .any(|successor| successor_mentions(successor, register))
     })
 }
 

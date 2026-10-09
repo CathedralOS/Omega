@@ -13,8 +13,9 @@
 pub(super) use selected_instructions::terminator_successors;
 
 use selected_instructions::{
-    SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedSuccessor,
-    terminator_instruction,
+    LocalStorageSlotId, SelectedBlock, SelectedCasePayloadTransport, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedStructuralTransport, SelectedSuccessor,
+    SelectedValueTransport, VirtualRegisterId, terminator_instruction,
 };
 
 /// The function a plan-level rewrite entrypoint resolves — every
@@ -71,4 +72,69 @@ pub(super) fn edge_surface(successor: &SelectedSuccessor) -> usize {
             .structural_case
             .as_ref()
             .map_or(0, |case| case.payloads.len())
+}
+
+pub(super) fn local_slot_mentions(slot: LocalStorageSlotId, register: VirtualRegisterId) -> bool {
+    matches!(slot, LocalStorageSlotId::Spill { register: subject } if subject == register)
+}
+
+/// Whether one successor edge mentions `register` in any transport field or
+/// slot destination. Arguments read the register on the edge; parameters
+/// define it there. Neither belongs to the same-block substitution surface.
+pub(super) fn successor_mentions(
+    successor: &SelectedSuccessor,
+    register: VirtualRegisterId,
+) -> bool {
+    let binding_mentions = successor
+        .bindings
+        .iter()
+        .any(|binding| match binding.transport {
+            SelectedValueTransport::Registers {
+                argument,
+                parameter,
+            } => argument == register || parameter == register,
+            SelectedValueTransport::Unused => false,
+        });
+    let structural_mentions =
+        successor
+            .structural_bindings
+            .iter()
+            .any(|binding| match binding.transport {
+                SelectedStructuralTransport::WholeValue {
+                    argument,
+                    destination,
+                    ..
+                } => argument == register || local_slot_mentions(destination, register),
+                SelectedStructuralTransport::ScalarReference {
+                    base, destination, ..
+                }
+                | SelectedStructuralTransport::Address {
+                    base, destination, ..
+                } => {
+                    local_slot_mentions(destination, register)
+                        || match base {
+                            selected_instructions::SelectedAddressBase::Register(argument) => {
+                                argument == register
+                            }
+                            selected_instructions::SelectedAddressBase::Local(slot) => {
+                                local_slot_mentions(slot, register)
+                            }
+                        }
+                }
+                SelectedStructuralTransport::Unused => false,
+            });
+    let case_mentions = successor.structural_case.as_ref().is_some_and(|case| {
+        case.source
+            .local_slot()
+            .is_some_and(|slot| local_slot_mentions(slot, register))
+            || case.payloads.iter().any(|payload| match payload.transport {
+                SelectedCasePayloadTransport::Unmaterialized { parameter } => parameter == register,
+                SelectedCasePayloadTransport::Registers {
+                    argument,
+                    parameter,
+                } => argument == register || parameter == register,
+                SelectedCasePayloadTransport::Unused => false,
+            })
+    });
+    binding_mentions || structural_mentions || case_mentions
 }
