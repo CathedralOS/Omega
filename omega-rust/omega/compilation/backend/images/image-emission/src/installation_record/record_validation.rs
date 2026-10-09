@@ -210,23 +210,6 @@ pub(crate) fn internal_unit_calls_match_object<'call>(
 // Selected calls follow the source block roster while physical layout may
 // reorder blocks; the published record retains physical call order.
 
-pub(crate) fn installed_internal_unit_calls(
-    image: &ExecutableImage,
-) -> Vec<InstalledInternalUnitCall> {
-    image
-        .functions()
-        .iter()
-        .flat_map(|function| {
-            let mut calls = function.internal_unit_calls.to_vec();
-            calls.sort_by_key(|custody| custody.code_offset);
-            calls.into_iter().map(|custody| InstalledInternalUnitCall {
-                machine: function.machine,
-                text_offset: function.text_offset + custody.code_offset,
-                custody,
-            })
-        })
-        .collect()
-}
 
 pub(crate) fn installed_image_sections(image: &ExecutableImage) -> InstalledImageSections {
     let text_byte_count = image

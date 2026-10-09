@@ -6,8 +6,7 @@
 use crate::object_artifact::private_functions::validate_private_functions;
 use crate::object_artifact::{ObjectArtifact, ObjectError};
 use machine_code::{
-    CompilerPrivateMachineCodeFunction, MachineCodePlan, MachineCodePlanWithPrivateFunctions,
-};
+    CompilerPrivateMachineCodeFunction, MachineCodePlan};
 
 pub(crate) mod function_validation;
 mod layout;
@@ -26,73 +25,15 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
 
 /// Construct an object that owns semantic program functions and a disjoint,
 /// placement-identified compiler-private callback-function roster.
-pub(crate) fn build_object_artifact_with_private_functions(
-    plan: &MachineCodePlanWithPrivateFunctions,
-) -> Result<ObjectArtifact, ObjectError> {
-    build_object_artifact_with_x86_feature_profile(&plan.plan, &plan.private_functions, None, None)
-}
 
 /// Construct the bounded source-free object seam for feature-requiring scalar
 /// x86 FMA. The profile is explicit because `NativeTarget` deliberately
 /// collapses Windows and UEFI x86-64 physical layouts.
-pub(crate) fn build_feature_required_x86_fma_object_artifact(
-    plan: &MachineCodePlan,
-    profile: target::TargetProfile,
-) -> Result<ObjectArtifact, ObjectError> {
-    if !plan
-        .functions
-        .iter()
-        .any(|function| !function.x86_scalar_fma.is_empty())
-    {
-        return Err(ObjectError::MissingX86ScalarFmaFragment);
-    }
-    build_object_artifact_with_x86_feature_profile(plan, &[], Some(profile), None)
-}
 
 /// Consume exact deployment-feature and differential authority while building
 /// an object whose generic F32/F64 FMA slots may enter executable emission.
 /// Ordinary and feature-required-only builders retain their fail-closed
 /// baseline behavior.
-pub(crate) fn build_admitted_x86_fma_object_artifact(
-    plan: &MachineCodePlan,
-    provider: target::AdmittedX86ScalarFmaProvider,
-) -> Result<ObjectArtifact, ObjectError> {
-    if !provider.has_canonical_identity() {
-        return Err(ObjectError::InvalidX86ScalarFmaProviderAdmission);
-    }
-    if provider.profile().native_target() != plan.target
-        || plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.x86_scalar_fma)
-            .any(|fragment| {
-                let slot = match fragment.format {
-                    machine_code::X86ScalarFmaFormat::Binary32 => {
-                        target::X86ScalarFmaSlot::Binary32
-                    }
-                    machine_code::X86ScalarFmaFormat::Binary64 => {
-                        target::X86ScalarFmaSlot::Binary64
-                    }
-                };
-                !provider.admits(fragment.requirement, slot)
-            })
-    {
-        return Err(ObjectError::InvalidX86ScalarFmaProviderAdmission);
-    }
-    if !plan
-        .functions
-        .iter()
-        .any(|function| !function.x86_scalar_fma.is_empty())
-    {
-        return Err(ObjectError::MissingX86ScalarFmaFragment);
-    }
-    build_object_artifact_with_x86_feature_profile(
-        plan,
-        &[],
-        Some(provider.profile()),
-        Some(provider),
-    )
-}
 
 pub(crate) fn build_object_artifact_with_x86_feature_profile(
     plan: &MachineCodePlan,
@@ -112,8 +53,7 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
     let layout::ObjectLayout {
         mut object,
         text_size,
-        foreign_call_count,
-    } = layout::plan_object_layout(
+        foreign_call_count} = layout::plan_object_layout(
         plan,
         private_functions,
         &validated_private_functions,
@@ -141,8 +81,7 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         functions: &emitted.functions,
         symbols_by_machine: &emitted.symbols_by_machine,
         private_functions: &object_private_functions,
-        import_symbols: &import_symbols,
-    })?;
+        import_symbols: &import_symbols})?;
 
     let text_emission::EmittedFunctions {
         functions,
@@ -150,8 +89,7 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
-        foreign_calls,
-    } = emitted;
+        foreign_calls} = emitted;
     Ok(ObjectArtifact {
         hosted_receiver: None,
         requires_graph_storage_replay: false,
@@ -174,6 +112,5 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         foreign_calls,
         // The machine-code route carries no selected byte-literal addresses.
         byte_literal_pool: None,
-        implementation_table_pool: None,
-    })
+        implementation_table_pool: None})
 }

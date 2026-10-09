@@ -231,10 +231,6 @@ impl InitializedDataFingerprint {
         &self.0
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub const fn for_test(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

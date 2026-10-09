@@ -13,11 +13,9 @@
 use diagnostics::Diagnostic;
 use image::{
     EmittedImageOutput, FinalImageInput, emitted_direct_executable_output,
-    final_image_symbol_digest,
-};
+    final_image_symbol_digest};
 use image_elf::{
-    ElfDynamicExecutableEmissionError, ValidatedElfDynamicExecutable, emit_elf_dynamic_executable,
-};
+    ElfDynamicExecutableEmissionError, ValidatedElfDynamicExecutable, emit_elf_dynamic_executable};
 use target::{Architecture, NormalizedElfInterpreterPlan, ObjectFormat};
 
 use crate::ObjectArtifact;
@@ -32,8 +30,7 @@ use crate::final_image_validation::validate_terminal_dynamic_elf_image;
 #[derive(Debug)]
 pub struct RequestedDynamicElfImage {
     pub(crate) artifact: ObjectArtifact,
-    pub(crate) emission: DynamicElfImageEmission,
-}
+    pub(crate) emission: DynamicElfImageEmission}
 
 impl RequestedDynamicElfImage {
     pub const fn artifact(&self) -> &ObjectArtifact {
@@ -78,8 +75,7 @@ pub fn validate_requested_dynamic_elf_image(
 ///
 /// ```compile_fail
 /// use image_emission::{
-///     DynamicElfImageEmission, build_installation_record,
-/// };
+///     DynamicElfImageEmission, /// };
 /// use semantic_vocabulary::ProfileDecisionId;
 ///
 /// fn cannot_install(
@@ -93,8 +89,7 @@ pub fn validate_requested_dynamic_elf_image(
 #[must_use = "dynamic ELF production emission retains admitted byte custody"]
 pub struct DynamicElfImageEmission {
     admitted: ValidatedElfDynamicExecutable,
-    output: EmittedImageOutput,
-}
+    output: EmittedImageOutput}
 
 impl DynamicElfImageEmission {
     pub const fn admitted(&self) -> &ValidatedElfDynamicExecutable {
@@ -111,8 +106,7 @@ impl DynamicElfImageEmission {
 #[must_use = "dynamic ELF emission rejection retains admitted byte custody"]
 pub(crate) struct DynamicElfImageEmissionError {
     admitted: ValidatedElfDynamicExecutable,
-    diagnostic: Diagnostic,
-}
+    diagnostic: Diagnostic}
 
 impl DynamicElfImageEmissionError {
     pub const fn diagnostic(&self) -> &Diagnostic {
@@ -148,24 +142,21 @@ pub enum DynamicElfOrchestrationError {
     /// One of the ELF owner's 22 stages refused; the exact stage carrier is
     /// inside.
     Elf(Box<ElfDynamicExecutableEmissionError>),
-    ProductionBridge(Box<DynamicElfImageEmissionError>),
-}
+    ProductionBridge(Box<DynamicElfImageEmissionError>)}
 
 impl DynamicElfOrchestrationError {
     pub const fn stage(&self) -> &'static str {
         match self {
             Self::HostedEntryPreparation(_) => "hosted-entry-preparation",
             Self::Elf(error) => error.stage(),
-            Self::ProductionBridge(_) => "production-bridge",
-        }
+            Self::ProductionBridge(_) => "production-bridge"}
     }
 
     pub const fn diagnostic(&self) -> &Diagnostic {
         match self {
             Self::HostedEntryPreparation(diagnostic) => diagnostic,
             Self::Elf(error) => error.diagnostic(),
-            Self::ProductionBridge(error) => error.diagnostic(),
-        }
+            Self::ProductionBridge(error) => error.diagnostic()}
     }
 }
 
@@ -210,8 +201,7 @@ pub(crate) fn emit_dynamic_elf_image(
         object: prepared.object,
         relocations: prepared.relocations,
         text_bytes: prepared.text_bytes,
-        data_bytes: artifact.data_bytes(),
-    });
+        data_bytes: artifact.data_bytes()});
     let admitted = emit_elf_dynamic_executable(image, interpreter)
         .map_err(|error| Box::new(DynamicElfOrchestrationError::Elf(error)))?;
     // The writer was handed the image built just above from this prepared
@@ -224,8 +214,7 @@ pub(crate) fn emit_dynamic_elf_image(
             return Err(Box::new(DynamicElfOrchestrationError::ProductionBridge(
                 Box::new(DynamicElfImageEmissionError {
                     admitted,
-                    diagnostic,
-                }),
+                    diagnostic}),
             )));
         }
     };
@@ -239,8 +228,7 @@ struct PreparedParts<'a> {
     object: &'a object_file::ObjectPlan,
     text_bytes: &'a [u8],
     relocations: &'a object_file::RelocationPlan,
-    entry_shim: Option<crate::hosted_unit_entry::EntryShim>,
-}
+    entry_shim: Option<crate::hosted_unit_entry::EntryShim>}
 
 fn prepared_parts<'a>(
     artifact: &'a ObjectArtifact,
@@ -251,14 +239,12 @@ fn prepared_parts<'a>(
             object: artifact.object(),
             text_bytes: artifact.text_bytes(),
             relocations: artifact.relocations(),
-            entry_shim: None,
-        },
+            entry_shim: None},
         |prepared| PreparedParts {
             object: &prepared.object,
             text_bytes: prepared.text.as_slice(),
             relocations: &prepared.relocations,
-            entry_shim: Some(prepared.shim),
-        },
+            entry_shim: Some(prepared.shim)},
     )
 }
 
@@ -298,23 +284,6 @@ fn validated_output(
 
 /// Join exact admitted dynamic ELF bytes to the production image-output
 /// surface without granting publication or execution authority.
-pub(crate) fn emit_admitted_dynamic_elf_image(
-    artifact: &ObjectArtifact,
-    admitted: ValidatedElfDynamicExecutable,
-) -> Result<DynamicElfImageEmission, Box<DynamicElfImageEmissionError>> {
-    let output = match derive_output(artifact, &admitted) {
-        Ok(output) => output,
-        Err(diagnostic) => {
-            return Err(Box::new(DynamicElfImageEmissionError {
-                admitted,
-                diagnostic,
-            }));
-        }
-    };
-    // The output was derived from these exact bytes just above; it is not
-    // derived a second time to compare against itself.
-    Ok(DynamicElfImageEmission { admitted, output })
-}
 
 /// Independently replay one admitted dynamic ELF production-emission join.
 pub(crate) fn validate_dynamic_elf_image_emission(
@@ -346,8 +315,7 @@ fn derive_output(
         object: prepared.object,
         relocations: prepared.relocations,
         text_bytes: prepared.text_bytes,
-        data_bytes: artifact.data_bytes(),
-    });
+        data_bytes: artifact.data_bytes()});
     let symbol_digest = final_image_symbol_digest(&replayed_image);
     // The writer relocates `.text` and `.data` at its own load layout; the
     // terminal validation has already bound both final byte sets to the
