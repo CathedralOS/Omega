@@ -273,18 +273,18 @@ fn non_authoritative_compatibility_fingerprint(
     target: TargetProfile,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.foreign-locator.v1");
-    hash.bytes(target.target_name().as_bytes());
+    hash.bytes_framed(b"omega.foreign-locator.v1");
+    hash.bytes_framed(target.target_name().as_bytes());
     match locator {
         ForeignLocatorCandidate::PeByName { library, export } => {
             hash.byte(1);
-            hash.bytes(library);
-            hash.bytes(export);
+            hash.bytes_framed(library);
+            hash.bytes_framed(export);
         }
         ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
             hash.byte(2);
-            hash.bytes(library);
-            hash.bytes(&ordinal.to_le_bytes());
+            hash.bytes_framed(library);
+            hash.bytes_framed(&ordinal.to_le_bytes());
         }
         ForeignLocatorCandidate::ElfVersioned {
             object,
@@ -292,17 +292,17 @@ fn non_authoritative_compatibility_fingerprint(
             version,
         } => {
             hash.byte(3);
-            hash.bytes(object);
-            hash.bytes(symbol);
-            hash.bytes(version);
+            hash.bytes_framed(object);
+            hash.bytes_framed(symbol);
+            hash.bytes_framed(version);
         }
         ForeignLocatorCandidate::MachODylibSymbol {
             install_name,
             symbol,
         } => {
             hash.byte(4);
-            hash.bytes(install_name);
-            hash.bytes(symbol);
+            hash.bytes_framed(install_name);
+            hash.bytes_framed(symbol);
         }
     }
     hash.finish()

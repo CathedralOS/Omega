@@ -150,9 +150,9 @@ fn non_authoritative_compatibility_fingerprint(
     interpreter_path: &[u8],
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-interpreter-plan.v1");
-    hash.bytes(target.target_name().as_bytes());
-    hash.bytes(interpreter_path);
+    hash.bytes_framed(b"omega.elf-interpreter-plan.v1");
+    hash.bytes_framed(target.target_name().as_bytes());
+    hash.bytes_framed(interpreter_path);
     hash.finish()
 }
 

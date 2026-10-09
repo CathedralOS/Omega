@@ -233,11 +233,11 @@ impl TargetSemantics {
 
 fn report_identity(subject: &str, profile: TargetProfile) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes_raw(b"omega.target-semantics.observation-application.v1");
-    hash.bytes_raw(GUARANTEED_ENTRY_STACK_PROJECTION.as_bytes());
-    hash.bytes_raw(subject.as_bytes());
-    hash.bytes_raw(&PROJECTION_SEMANTICS_VERSION.to_le_bytes());
-    hash.bytes_raw(profile.identity().as_str().as_bytes());
+    hash.bytes(b"omega.target-semantics.observation-application.v1");
+    hash.bytes(GUARANTEED_ENTRY_STACK_PROJECTION.as_bytes());
+    hash.bytes(subject.as_bytes());
+    hash.bytes(&PROJECTION_SEMANTICS_VERSION.to_le_bytes());
+    hash.bytes(profile.identity().as_str().as_bytes());
     hash.finish()
 }
 
@@ -259,14 +259,14 @@ where
     Subject: TargetEntryStackSubject,
 {
     let mut hash = Fnv1a::new();
-    hash.bytes_raw(b"omega.target-semantics.closed-entry-stack-guarantee.v1");
-    hash.bytes_raw(
+    hash.bytes(b"omega.target-semantics.closed-entry-stack-guarantee.v1");
+    hash.bytes(
         &application
             .non_authoritative_compatibility_report_identity
             .to_le_bytes(),
     );
-    hash.bytes_raw(&Subject::GUARANTEED_AVAILABLE_BYTES.to_le_bytes());
-    hash.bytes_raw(&Subject::REQUIRED_ALIGNMENT.to_le_bytes());
+    hash.bytes(&Subject::GUARANTEED_AVAILABLE_BYTES.to_le_bytes());
+    hash.bytes(&Subject::REQUIRED_ALIGNMENT.to_le_bytes());
     hash.finish()
 }
 

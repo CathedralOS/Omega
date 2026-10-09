@@ -46,6 +46,12 @@ impl Fnv1a {
         self.bytes(&value.to_le_bytes());
     }
 
+    /// Length-framed byte feed: a u64 word prefix then the raw bytes.
+    pub fn bytes_framed(&mut self, bytes: &[u8]) {
+        self.u64(bytes.len() as u64);
+        self.bytes(bytes);
+    }
+
     /// NUL-terminated string feed.
     pub fn string_terminated(&mut self, value: &str) {
         self.bytes(value.as_bytes());
