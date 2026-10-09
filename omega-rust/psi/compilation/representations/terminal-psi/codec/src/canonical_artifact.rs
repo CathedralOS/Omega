@@ -164,7 +164,7 @@ impl CanonicalTerminalArtifact {
         if cursor.take(ARTIFACT_MAGIC.len())? != ARTIFACT_MAGIC {
             return Err(CanonicalTerminalArtifactEnvelopeError::InvalidMagic.into());
         }
-        let marker = u16::from_le_bytes(cursor.array()?);
+        let marker = cursor.u16()?;
         if marker != ARTIFACT_FORMAT_MARKER {
             return Err(
                 CanonicalTerminalArtifactEnvelopeError::UnsupportedFormatMarker(marker).into(),
@@ -311,6 +311,6 @@ fn section_len(
     cursor: &mut Cursor,
     section: &'static str,
 ) -> Result<usize, CanonicalTerminalArtifactEnvelopeError> {
-    usize::try_from(u64::from_le_bytes(cursor.array()?))
+    usize::try_from(cursor.u64()?)
         .map_err(|_| CanonicalTerminalArtifactEnvelopeError::SectionTooLong(section))
 }

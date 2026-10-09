@@ -10,8 +10,8 @@ mod codec_bytes;
 
 mod canonical_artifact;
 mod codec_error;
-mod digest_encoder;
 mod cursor;
+mod digest_encoder;
 pub use sections::semantic_module::provider_candidate_wire::{
     decode_provider_candidate_record, encode_provider_candidate_record,
 };

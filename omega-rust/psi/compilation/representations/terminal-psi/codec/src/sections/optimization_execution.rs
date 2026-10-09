@@ -135,11 +135,11 @@ pub fn decode_psi_optimization_execution_record(
     if cursor.take(MAGIC.len())? != MAGIC {
         return Err(PsiOptimizationExecutionRecordDecodeError::InvalidMagic);
     }
-    let marker = u16::from_le_bytes(cursor.array()?);
+    let marker = cursor.u16()?;
     if marker != FORMAT_MARKER {
         return Err(PsiOptimizationExecutionRecordDecodeError::UnsupportedFormatMarker(marker));
     }
-    let selections_len = usize::try_from(u64::from_le_bytes(cursor.array()?))
+    let selections_len = usize::try_from(cursor.u64()?)
         .map_err(|_| PsiOptimizationExecutionRecordDecodeError::UnexpectedEnd)?;
     let selections = PsiOptimizationSelections::decode(cursor.take(selections_len)?)
         .map_err(PsiOptimizationExecutionRecordDecodeError::Selection)?;
@@ -186,7 +186,7 @@ fn append_terminal_identity(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) 
 fn decode_terminal_identity(
     cursor: &mut Cursor<'_>,
 ) -> Result<TerminalPsiIdentity, PsiOptimizationExecutionRecordDecodeError> {
-    let marker = u16::from_le_bytes(cursor.array()?);
+    let marker = cursor.u16()?;
     let vocabulary_marker = VocabularyMarker::new(marker)
         .ok_or(PsiOptimizationExecutionRecordDecodeError::UnsupportedVocabularyMarker(marker))?;
     Ok(TerminalPsiIdentity {
