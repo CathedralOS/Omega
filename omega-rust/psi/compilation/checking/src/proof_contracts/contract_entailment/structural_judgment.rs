@@ -918,19 +918,6 @@ impl<'program> StructuralJudge<'program> {
         None
     }
 
-    /// Convert a callee-body expression to a term under the call
-    /// environment. Names must be callee parameters; case-tagged member
-    /// reads (`a.prev`) index the bound constructor's fields; case literals
-    /// and nested free calls recurse. Anything else aborts (None).
-    pub(super) fn callee_term(
-        &self,
-        expression: ExpressionHandle,
-        environment: &[(String, StructuralTerm)],
-        depth: usize,
-    ) -> Option<StructuralTerm> {
-        self.callee_term_with_machines(expression, environment, &[], None, depth)
-    }
-
     /// Form an expression under its actual declaring machine/state before
     /// substituting the captured environment. The frame retains selected call
     /// result carriers/policies and builtin computation meaning. The final
