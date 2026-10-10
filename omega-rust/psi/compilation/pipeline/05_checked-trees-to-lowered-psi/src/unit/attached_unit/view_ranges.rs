@@ -544,6 +544,9 @@ pub(crate) fn exclusive_end(
             value: semantic_vocabulary::IntegerValue::Unsigned(1),
             scalar_type,
         }),
-        formation_decided: false,
+        // `end < length` bounds `end + 1 <= length <= u64::MAX`, and the
+        // checker rejects an inclusive end whose successor overflows — the
+        // source decided this exact sum's representability at admission.
+        formation_decided: true,
     }))
 }
