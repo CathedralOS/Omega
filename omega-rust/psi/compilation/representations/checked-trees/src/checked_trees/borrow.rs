@@ -335,7 +335,7 @@ pub struct CheckedReborrowParentEndStatus {
 /// precedes statement entry, reassignment retires the displaced carrier after
 /// its right-hand side, replacement loans activate afterward, and state exit
 /// is the final boundary. These phases do not grant authority by themselves.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CheckedBorrowResourceLifecyclePhase {
     #[default]
     LastUseExpired,
