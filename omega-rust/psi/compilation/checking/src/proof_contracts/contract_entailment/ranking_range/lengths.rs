@@ -330,10 +330,7 @@ fn evaluate_length(
     }
     // Array extent belongs to the declared place, not to its current contents.
     // Replacing elements or the whole array cannot resize it.
-    if matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Name(_) | ExpressionNode::Member(_)
-    ) && let Some(length) = crate::value_custody::places::declared_collection_extent(
+    if let Some(length) = crate::value_custody::places::declared_collection_extent(
         program,
         machine,
         Some(state),
