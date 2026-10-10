@@ -19,11 +19,12 @@ pub(crate) use collection::declared_integer_range;
 pub(crate) use constraints::expression_constraints;
 pub use identity::{KEY_SCHEMA, ProofObligationKey, proof_obligation_key};
 pub(crate) use plan::FloatRange;
+pub use facts::IntegerRange;
 pub use plan::{
     BinaryValueOperands, BoundedAssignmentObligation, BoundedCallArgumentObligation,
     BoundedInitializerObligation, BoundedStateReturnObligation,
     BoundedTransitionArgumentObligation, BoundedValueObligation, GuardedTransitionObligation,
-    IntegerRange, ProofConstraint, ProofObligation, ProofObligationOwner, ProofPlan,
+    ProofConstraint, ProofObligation, ProofObligationOwner, ProofPlan,
 };
 pub(crate) use ranges::{
     float_range_from_constraints, integer_binary_range, integer_range_from_constraint_iter,

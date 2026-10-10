@@ -4,6 +4,7 @@
 use crate::obligations::collection::estimated_proof_obligation_capacity;
 use crate::obligations::ranges::float_range_bound;
 use arena::{Arena, HandleSpan};
+pub(crate) use facts::IntegerRange;
 use numerics::bignum::BigInt;
 use std::fmt;
 use symbols::SymbolHandle;
@@ -646,12 +647,6 @@ pub struct BoundedTransitionArgumentObligation {
     /// absent) -- resolved at build time, where the full parameter and
     /// argument lists are in hand.
     pub sibling_argument: ExpressionHandle,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IntegerRange {
-    pub minimum: numerics::bignum::BigInt,
-    pub maximum: numerics::bignum::BigInt,
 }
 
 /// A top-level BINARY assignment value's operands with their DECLARED ranges,
