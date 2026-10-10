@@ -1,6 +1,8 @@
 mod block;
 mod control;
 mod instruction;
+#[cfg(test)]
+mod tests;
 
 use machine_code::FunctionFragment;
 use selected_instructions::SelectedFunction;

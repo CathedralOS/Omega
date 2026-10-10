@@ -1,5 +1,5 @@
 use machine_code::FunctionFragmentBlockSpan;
-use selected_instructions::SelectedFunction;
+use selected_instructions::{SelectedFunction, terminator_instruction};
 
 use machine_code::ResolvedSelectedBlockLayout;
 
@@ -20,8 +20,30 @@ pub(super) fn emit(
         .block(resolved.block)
         .ok_or(ResolvedFragmentEmissionError::MissingBlock(resolved.block))?;
     let mut instructions = Vec::with_capacity(resolved.instructions.len());
+    // Layout emits each block's selected instructions followed by its terminator;
+    // branch relaxation changes bytes and offsets, not this order. Carry that
+    // association forward instead of searching the block again for every row.
+    let mut selected_instructions =
+        selected_block
+            .instructions
+            .iter()
+            .chain(std::iter::once(terminator_instruction(
+                &selected_block.terminator,
+            )));
     for row in &resolved.instructions {
-        instructions.push(instruction::emit(selected, selected_block, row, bytes)?);
+        let selected_instruction = selected_instructions.next().ok_or(
+            ResolvedFragmentEmissionError::MissingInstruction(row.instruction),
+        )?;
+        instructions.push(instruction::emit(
+            selected,
+            selected_block,
+            selected_instruction,
+            row,
+            bytes,
+        )?);
+    }
+    if selected_instructions.next().is_some() {
+        return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     let block_end =
         u64::try_from(bytes.len()).map_err(|_| ResolvedFragmentEmissionError::OffsetOverflow)?;

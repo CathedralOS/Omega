@@ -4,9 +4,7 @@ use machine_code::{
     FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
     FunctionFragmentNormalizedForeignCallFixupState,
 };
-use selected_instructions::{
-    SelectedBlock, SelectedInstruction, SelectedInstructionKind, terminator_instruction,
-};
+use selected_instructions::{SelectedBlock, SelectedInstruction, SelectedInstructionKind};
 
 use machine_code::{
     ResolvedSelectedFormRow, SelectedFormInternalMachineFixupState,
@@ -19,6 +17,7 @@ use crate::fragment_emission::projection::ResolvedFragmentEmissionError;
 pub(super) fn emit(
     function: &selected_instructions::SelectedFunction,
     block: &SelectedBlock,
+    instruction: &SelectedInstruction,
     row: &ResolvedSelectedFormRow,
     bytes: &mut Vec<u8>,
 ) -> Result<FunctionFragmentInstructionSpan, ResolvedFragmentEmissionError> {
@@ -27,7 +26,11 @@ pub(super) fn emit(
     if row_offset != row.offset {
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
-    let instruction = selected(block, row)?;
+    if instruction.id != row.instruction {
+        return Err(ResolvedFragmentEmissionError::MissingInstruction(
+            row.instruction,
+        ));
+    }
     let control = control::provenance(function, block, instruction)?;
     let internal_machine_fixup = translate_fixup(row, instruction)?;
     let normalized_foreign_call_fixup = translate_foreign_fixup(row, instruction)?;
@@ -261,20 +264,6 @@ fn translate_foreign_fixup(
             })
             .collect::<Result<Vec<_>, _>>()?,
     }))
-}
-
-fn selected<'a>(
-    block: &'a SelectedBlock,
-    row: &ResolvedSelectedFormRow,
-) -> Result<&'a SelectedInstruction, ResolvedFragmentEmissionError> {
-    block
-        .instructions
-        .iter()
-        .chain(std::iter::once(terminator_instruction(&block.terminator)))
-        .find(|instruction| instruction.id == row.instruction)
-        .ok_or(ResolvedFragmentEmissionError::MissingInstruction(
-            row.instruction,
-        ))
 }
 
 #[cfg(test)]
