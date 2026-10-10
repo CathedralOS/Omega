@@ -46,8 +46,14 @@
 //! (and `[..]` under the spec's range normalization -- an omitted start means
 //! zero, and an inclusive end `..=end` means `end + 1` -- so `a[..b]` and
 //! `a[c..=d]` bind exactly like `a[0..b]` and `a[c..d+1]`) supplies the
-//! collection place as the first explicit argument, just as the named static
-//! call does. Canonical floating comparisons already
+//! collection as the first explicit argument. A shared or mutable reference
+//! formal requires an explicit generated borrow on that operand, preserving
+//! the token-specific lending rule when the node becomes an ordinary call.
+//! Named calls retain authored arguments and ordinary argument admission;
+//! mutable formals still require an authored mutable borrow. Ordinary call
+//! checking owns access, storage lifetime and overlap admission; this rewrite
+//! grants no authority and never adds lending to the index argument.
+//! Canonical floating comparisons already
 //! have a selected-comparison route, including arm-local match equality. A
 //! bodyless requirement keeps its exact occurrence and operands on that route:
 //! rewriting it to a bodyless call would erase the comparison computation,
@@ -279,7 +285,9 @@ pub(crate) fn bind_selected_operator_calls(
         let operands = match operand_source {
             OperandSource::Pair(pair) => pair.to_vec(),
             OperandSource::Indexed { collection, index } => {
-                let mut operands = vec![collection];
+                let collection_argument =
+                    indexed_collection_argument(program, collection, target.collection_parameter);
+                let mut operands = vec![collection_argument];
                 let range = match program.expression_table.expression(index) {
                     ExpressionNode::Range(range) => Some(*range),
                     _ => None,
@@ -351,6 +359,7 @@ struct SelectedOperatorCall {
     entry: SymbolHandle,
     name: typed_trees::name::Identifier,
     binder: SymbolHandle,
+    collection_parameter: TypeReferenceHandle,
     start_parameter: TypeReferenceHandle,
     dispatch: Option<StaticRequirementDispatch>,
     arguments: Box<[typed_trees::expression::StaticMachineArgument]>,
@@ -414,6 +423,12 @@ fn selected_call_target(
                 entry,
                 name: meaning.requirement.name.clone(),
                 binder: meaning.bound.binder,
+                collection_parameter: program
+                    .state_signature_parameters(meaning.requirement)
+                    .first()
+                    .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                        parameter.type_reference
+                    }),
                 start_parameter: program
                     .state_signature_parameters(meaning.requirement)
                     .get(1)
@@ -445,6 +460,12 @@ fn selected_call_target(
                 entry: entry.symbol,
                 name: entry.name.clone(),
                 binder: SymbolHandle::invalid(),
+                collection_parameter: program
+                    .state_parameters(entry)
+                    .first()
+                    .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                        parameter.type_reference
+                    }),
                 start_parameter: program
                     .state_parameters(entry)
                     .get(1)
@@ -488,6 +509,12 @@ fn selected_call_target(
         entry: entry.symbol,
         name: entry.name.clone(),
         binder: SymbolHandle::invalid(),
+        collection_parameter: program
+            .state_parameters(entry)
+            .first()
+            .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                parameter.type_reference
+            }),
         start_parameter: program
             .state_parameters(entry)
             .get(1)
@@ -507,6 +534,32 @@ enum OperandSource {
         collection: ExpressionHandle,
         index: ExpressionHandle,
     },
+}
+
+/// Token indexing lends its collection under the selected formal's access.
+/// The generated call carries that ordinary borrow explicitly; named calls
+/// retain their authored arguments and receive no automatic lending.
+fn indexed_collection_argument(
+    program: &mut TypedTrees,
+    collection: ExpressionHandle,
+    parameter: TypeReferenceHandle,
+) -> ExpressionHandle {
+    if !parameter.is_valid() {
+        return collection;
+    }
+    let Some(shell) = validation::reference_shell(program, parameter) else {
+        return collection;
+    };
+    let access = shell.access;
+    if !access.is_readable() {
+        return collection;
+    }
+    program.expression_table.insert(ExpressionNode::Borrow(
+        typed_trees::expression::TableBorrowExpression {
+            target: collection,
+            access,
+        },
+    ))
 }
 
 /// The operand pair an authored range supplies to a `[..]` binding's start and

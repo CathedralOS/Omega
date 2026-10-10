@@ -157,12 +157,19 @@ pub(crate) fn infer_static_bindings(
             type_proposals,
             const_proposals,
         ),
+        // A borrowed fixed array supplies a slice formal's element carrier.
+        // This proposes the static argument only; ordinary call admission
+        // separately checks the borrowed conversion, access and bounds.
         (
             TypeReferenceNode::Slice {
                 element_type: required,
             },
             TypeReferenceNode::Slice {
                 element_type: actual,
+            }
+            | TypeReferenceNode::FixedArray {
+                element_type: actual,
+                ..
             },
         ) => infer_static_bindings(
             program,
