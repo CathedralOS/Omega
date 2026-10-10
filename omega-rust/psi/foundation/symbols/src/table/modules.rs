@@ -522,16 +522,14 @@ impl SymbolTable {
         if !imported.is_empty() {
             return SymbolLookup::from_candidates(imported.into_iter());
         }
-        // Package membership is visibility, not a lexical import. Unmoduled
-        // user files see their own declarations and exact direct imports above;
-        // discovering a helper's imports must not widen the caller's vocabulary.
-        // Toolchain and build-extension assembly retain their package-local
-        // vocabulary; a shared extension's own stratum has already won above.
-        if !current_module.is_valid()
-            && self.source_file(reference).is_none_or(|file| {
-                file.origin == source::SourceOrigin::Toolchain || shared_extension
-            })
-        {
+        // A package's module-less files form one logical module (owner ruling
+        // 2026-10-10): imports stay local to the file that authors them, but a
+        // sibling file's declarations are visible without one, as a named
+        // module's are. They rank below this file's own declarations and its
+        // imports, so a target-scoped declaration repeated in several sibling
+        // files still selects the one beside the reference. Only declarations
+        // join here; a sibling's imports never widen this file's vocabulary.
+        if !current_module.is_valid() {
             let package = candidates.iter().copied().filter(|candidate| {
                 self.name(*candidate) == name
                     && !self.symbol_module(*candidate).is_valid()

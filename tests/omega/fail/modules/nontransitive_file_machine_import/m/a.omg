@@ -1,1 +1,2 @@
+module m::a;
 pub machine seed() -> u32 { 7 }

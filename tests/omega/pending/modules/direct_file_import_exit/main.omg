@@ -1,5 +1,5 @@
 use m::b;
-use m::a;
+use m::a::A;
 use omega_language_std::console;
 use omega::language::core::binding;
 

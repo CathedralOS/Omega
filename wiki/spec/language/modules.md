@@ -43,6 +43,11 @@ same logical module. This is the ordinary import rule; it does not restrict
 visibility of the logical module's own declarations. Import exposure is not
 transitive: another module's imports do not become this file's imports.
 
+A package's source files that declare no module form one logical module: each
+sees its siblings' declarations without an import, while each file's imports
+remain its own. A file's own declarations and its imports take precedence over
+a sibling's same-spelled declaration.
+
 | Authored selection | Foreign domains exposed for carrier-qualified lookup |
 | --- | --- |
 | Import a declaring module | Its directly declared public domains. |

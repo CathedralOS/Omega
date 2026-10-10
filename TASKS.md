@@ -1234,11 +1234,9 @@ defines the complete product bar.
 
   Runtime qualification still needs package preparation and
   `omega run --both tests/omega/pass/collections/runtime_vec_u32_growth_exit/main.omg`.
-  On Linux x86-64 unchanged alloc checks, but the growth command exits 200
-  during Std symbol resolution with 194 diagnostics, beginning with
-  `Clock::sleep` not resolving to an exact trait or top-level boundary
-  requirement. **TOP-LEVEL-BOUNDARY-REQUIREMENTS** supplies the ordinary Std
-  provider migration before package preparation and entry binding review.
+  Std resolves again, but its package check stops on 15 `unimplemented:
+  portable target-family contract` refusals (**PSI-TARGET-FAMILIES**), so
+  `omega update` cannot accept std before entry binding review.
   Normal `omega update --project
   tests/omega/pass/collections/runtime_vec_u32_growth_exit --target linux_x86_64`
   exceeded a measured 600-second bound at checkable checkpoint
@@ -5791,9 +5789,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Remaining: run that fixture on Linux x86-64 hardware; run
     `x86_fma_plan_association`, `named_provider_fused_multiply_add_exit` and
     `admitted_numeric_imports_preserve_semantics` (all admit AvxFma3) once std
-    checks again: on 1843c1a8677 std stops at "machine satisfaction target
-    `Clock::sleep` does not resolve", beside the **PSI-TARGET-FAMILIES**
-    Console cutoff.
+    checks again; std now stops only at the **PSI-TARGET-FAMILIES** portable
+    contract refusals.
   - The never-populated image custody (constant-operand
     `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd`, machine-code FMA
     fragments/occurrences, `object_artifact/replay/x86_fma.rs`) waits on

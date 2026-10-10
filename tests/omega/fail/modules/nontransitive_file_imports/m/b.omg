@@ -1,2 +1,2 @@
-use m::a;
+use m::a::A;
 pub data B { value: A; }

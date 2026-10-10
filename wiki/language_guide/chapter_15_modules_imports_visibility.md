@@ -250,6 +250,9 @@ name does not bypass that rule. Imports affect resolution; they do not execute
 the imported code. Tooling may discover an enclosing build directory, but source
 imports cannot reach upward through directories to evade package declarations.
 
+A package's files that declare no module form one logical module: a file can
+name a sibling file's declarations without importing them.
+
 Imports are local to this source file, even when sibling files declare the same
 logical module. They do not spread transitively or change visibility of the
 module's own declarations. Importing a module exposes its directly declared

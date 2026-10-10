@@ -4839,3 +4839,4 @@ fail/domains/case_child_membership_requires_issuance rejected 358ms expected @c4
 	cannot prove default-domain field requirement for call observe from inactive_payload_forged_common::entry: parameter event.common requires Ticket::Issued
 	construction of `Event` field `common` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 pass/domains/runtime_case_constructor_child_memberships_exit checked 2261ms check-target:macos_arm64 @c4c1679a5391
+pass/modules/package_sibling_declarations checked 636ms @b8c186ea777a+wt
