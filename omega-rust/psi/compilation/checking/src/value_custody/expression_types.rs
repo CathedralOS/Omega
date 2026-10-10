@@ -97,7 +97,6 @@ pub(crate) use shape_validation::{
     report_view_element_argument_mismatch,
 };
 
-#[allow(unused_imports)]
 pub(crate) use value_classification::ValueClass;
 pub(crate) use value_classification::{report_cross_class_store, report_data_type_conflict};
 

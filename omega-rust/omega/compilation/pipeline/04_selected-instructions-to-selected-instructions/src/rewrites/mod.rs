@@ -160,8 +160,6 @@ pub(crate) use copied_call_operand::{
 // Reached as `crate::rewrites::<name>` by the catalog's own tests and by
 // `selected_optimization`'s admission decision.
 pub(crate) use catalog::{SELECTED_STAGE_RULE_CATALOG, SelectedStageRuleRows};
-#[allow(unused_imports)]
-pub(crate) use catalog::{selected_stage_catalog_contains, selected_stage_rule_rows};
 pub(crate) use copy_removal::{CopyRemovalError, ValidatedCopyRemoval};
 pub(crate) use copy_removal::{
     measured_steps as copy_removal_measured_steps, remove_selected_copy,
@@ -233,7 +231,6 @@ pub(crate) use selected_lowering::{
     SelectedLoweringRuleCatalogEntry, SelectedLoweringRuleCatalogError,
     resolve_selected_lowering_rules,
 };
-#[allow(unused_imports)]
 pub use selected_lowering::{LiteralFoldIdentity, ValidatedLiteralFold};
 
 /// Explicit applicability of the currently architecture-independent rules.

@@ -185,7 +185,6 @@ pub(crate) use ownership::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, call_permission_evaluation,
     discover_state_move_events, owned_call_operand_places,
 };
-#[allow(unused_imports)]
 pub(crate) use place::{
     LiteralValueProjection, canonical_place_from_semantic_place, canonical_place_from_symbol,
     canonical_place_joined_segments_may_overlap, canonical_place_overlaps_segments,
