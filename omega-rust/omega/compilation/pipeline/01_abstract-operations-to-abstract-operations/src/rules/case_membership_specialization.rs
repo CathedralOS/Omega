@@ -26,9 +26,7 @@ CaseMembershipSpecializationRule,
 );
 
 impl PsiOptimizationRule for CaseMembershipSpecializationRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
+    psi_rule_contract!(@adapter);
 
     fn propose(
         &self,

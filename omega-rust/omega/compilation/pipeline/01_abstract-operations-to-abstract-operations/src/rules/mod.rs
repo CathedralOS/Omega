@@ -68,6 +68,11 @@ fn representation_specialization_contract(identity: &'static [u8]) -> Optimizati
 /// declaration and the inherent `contract()` that handwritten impls
 /// forward into. Rules expanding this keep only their propose path.
 macro_rules! psi_rule_contract {
+    (@adapter) => {
+        fn contract(&self) -> OptimizationRuleContract {
+            Self::contract()
+        }
+    };
     ($(#[$meta:meta])* $name:ident, $contract:expr $(,)?) => {
         $(#[$meta])*
         #[derive(Debug, Clone, Copy, Default)]

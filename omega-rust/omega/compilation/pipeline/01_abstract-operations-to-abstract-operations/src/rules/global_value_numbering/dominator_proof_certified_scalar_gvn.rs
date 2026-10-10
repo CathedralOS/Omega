@@ -17,9 +17,7 @@ psi_rule_contract!(
 );
 
 impl PsiOptimizationRule for DominatorProofCertifiedScalarGvnRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
+    psi_rule_contract!(@adapter);
 
     fn propose(
         &self,
