@@ -30,7 +30,7 @@ numerics package. There are no hidden allocations or automatic copies.
 
 ## Frozen numerical oracles
 
-`oracles.json` was committed in `0f6ccf05b5` before Omega execution. The tolerances
+`oracles.json` was committed in `276f4aa16b` before Omega execution. The tolerances
 are absolute 1e-12 and relative 1e-12 for factors/solutions, absolute 1e-12 for
 infinity-norm residual, and exact symmetry for these exact fixtures. The sample
 checks use equality, stronger than these limits for their representable integer

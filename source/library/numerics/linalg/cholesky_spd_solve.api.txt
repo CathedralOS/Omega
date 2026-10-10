@@ -70,6 +70,6 @@ ALGORITHM AND VALIDATION REQUIREMENTS
   For rows i>j, L[i,j]=(A[i,j]-sum(k<j,L[i,k]*L[j,k]))/L[j,j].
   Validate finite computed values, explicitly zero output upper triangle.
   Reconstruct A=L*transpose(L), check x oracle and residual infinity norm.
-  Sample oracles/tolerances frozen in commit 0f6ccf05b5 before Omega runs.
+  Sample oracles/tolerances frozen in commit 276f4aa16b before Omega runs.
   Independent fixed-size samples pressure existing float/borrow/copy routes;
   they do not establish descriptor API integration, policy, or shared solvers.

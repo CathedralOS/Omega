@@ -28,3 +28,9 @@ Acceptance: each sample must check, execute natively with authored exit 0,
 compare Terminal execution separately, and the invalid control must reject for
 mutation of readonly storage. Keep commands, statuses and diagnostic logs.
 Parent independently reviews candidate commits and performs normal landing.
+
+Candidate publication initially rejected GH007 (private configured email).
+Authenticated GitHub account was verified; unpublished NF14 commits were
+reauthored using its official noreply address, preserving all source trees.
+The public oracle freeze commit is 276f4aa16b; original 0f6ccf05b5 exists in
+the local prepublication bundle. Both freezes precede any Omega execution.

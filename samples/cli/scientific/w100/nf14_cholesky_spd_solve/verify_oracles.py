@@ -1,7 +1,7 @@
 """Verify the frozen oracle identities with exact rational arithmetic.
 
 This verifies authored fixtures, not an implementation of Cholesky or solving.
-Run before Omega. Inputs and tolerances were frozen in commit 0f6ccf05b5.
+Run before Omega. Inputs and tolerances were frozen in commit 276f4aa16b.
 """
 from fractions import Fraction
 from pathlib import Path
