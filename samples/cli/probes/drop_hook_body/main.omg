@@ -1,0 +1,47 @@
+// Owner-attached drop hooks with real bodies: `Guard::drop` runs a
+// multi-statement hook — calling machines, writing fields — when
+// `drop(g)` disposes the local. A record without a hook disposes
+// silently.
+//
+//   * `machine Guard::drop(guard: &mut Guard)` — drop hook body
+//     invoking other machines and zeroing the handle.
+//   * `drop(g)` / `drop(c)` — explicit disposal.
+//   * `hits` records the reached arm.
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider.
+
+use omega::language::core::drop;
+
+machine sweep() { }
+
+data Ledger { }
+
+machine Ledger::note(amount: i32) { }
+machine Ledger::trace() { sweep(); }
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(guard: &mut Guard) {
+    Ledger::note(guard.handle);
+    Ledger::trace();
+    Ledger::trace();
+    guard.handle = 0;
+}
+
+data Carrier { payload: i32; }
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let g: Guard = Guard { handle: 7 };
+    let c: Carrier = Carrier { payload: 1 };
+    drop(g);
+    drop(c);
+    transition { true -> pass(main) _ -> fail(main) }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
