@@ -136,23 +136,15 @@ impl StructuralJudge<'_> {
                 let ProofFact::Expression(required) = fact else {
                     return None;
                 };
-                let required = bound_term(
-                    program,
-                    *required,
-                    callable,
-                    parameters,
-                    callable,
-                    &bindings,
-                    None,
-                    depth + 1,
-                )?;
-                let truth = StructuralTerm::Constructor {
-                    data: "bool".to_owned(),
-                    case: "true".to_owned(),
-                    fields: Vec::new(),
-                };
                 if !matches!(
-                    self.judge_equation(self.resolve_at(required, depth + 1), truth, depth + 1,),
+                    selected_requirement_judgment(
+                        self,
+                        *required,
+                        callable,
+                        parameters,
+                        &bindings,
+                        depth + 1,
+                    ),
                     StructuralJudgment::Proven
                 ) {
                     return None;
@@ -181,6 +173,89 @@ impl StructuralJudge<'_> {
         }
         Some(equations)
     }
+}
+
+/// Discharge a selected entry predicate in its own formal scope. Boolean
+/// conjunction combines judgments, rather than asking value equality to fold
+/// a formula. Case membership keeps its tag-only authority; scalar leaves use
+/// the same exact-symbol substitution as selected normal guarantees.
+pub(super) fn selected_requirement_judgment(
+    judge: &StructuralJudge<'_>,
+    expression: ExpressionHandle,
+    callable: SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    bindings: &[(SymbolHandle, StructuralTerm)],
+    depth: usize,
+) -> StructuralJudgment {
+    if depth >= 32 {
+        return StructuralJudgment::Unknown;
+    }
+    let program = judge.program;
+    if let Some(binary) = program.expression_table.binary_node(expression)
+        && binary.operator == BinaryOperator::And
+    {
+        if !crate::has_builtin_parameter_bound_expression_meaning(
+            program, callable, parameters, expression,
+        ) {
+            return StructuralJudgment::Unknown;
+        }
+        return match (
+            selected_requirement_judgment(
+                judge,
+                binary.left,
+                callable,
+                parameters,
+                bindings,
+                depth + 1,
+            ),
+            selected_requirement_judgment(
+                judge,
+                binary.right,
+                callable,
+                parameters,
+                bindings,
+                depth + 1,
+            ),
+        ) {
+            (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
+                StructuralJudgment::Refuted
+            }
+            (StructuralJudgment::Proven, StructuralJudgment::Proven) => StructuralJudgment::Proven,
+            _ => StructuralJudgment::Unknown,
+        };
+    }
+    if super::super::structural_terms::is_case_observation(program, expression) {
+        let Some(map) = parameters
+            .iter()
+            .map(|parameter| {
+                let (_, value) = bindings
+                    .iter()
+                    .find(|(symbol, _)| *symbol == parameter.symbol)?;
+                Some((parameter.name.as_str().to_owned(), value.clone()))
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return StructuralJudgment::Unknown;
+        };
+        return judge.instantiated_case_judgment(callable, parameters, expression, &map);
+    }
+    let Some(required) = bound_term(
+        program,
+        expression,
+        callable,
+        parameters,
+        callable,
+        bindings,
+        None,
+        depth + 1,
+    ) else {
+        return StructuralJudgment::Unknown;
+    };
+    judge.judge_equation(
+        judge.resolve_at(required, depth + 1),
+        super::value_predicates::boolean_term(true),
+        depth + 1,
+    )
 }
 
 fn collect_applications<'term>(

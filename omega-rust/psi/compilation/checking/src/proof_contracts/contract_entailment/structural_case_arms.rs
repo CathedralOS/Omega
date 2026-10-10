@@ -412,8 +412,15 @@ fn recognize_structural_state_leaves_from(
             }
             if requirement.is_some()
                 && !saw_transition
+                && (!judge.has_runtime_body_values() || matches!(statement, StatementNode::Call(_)))
                 && let Some((target, arguments)) = citation_call_in_statement(program, statement)
             {
+                // Value-position runtime calls, including their tag facts,
+                // belong to the normal-return traversal below. Termifying
+                // their operands here would replay an execution and rejects
+                // nested calls before that traversal can capture them.
+                // Resultless statement citations have no value expression;
+                // their proof and tag-only contracts retain this route.
                 let expected = citation_argument_types(program, &target);
                 let arguments = arguments
                     .iter()

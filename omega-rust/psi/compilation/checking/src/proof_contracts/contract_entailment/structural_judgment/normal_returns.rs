@@ -10,7 +10,9 @@ use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_leading_operands, owner_parameter_scope,
     owner_return_type, owner_symbol, selected_call_contract,
 };
-use super::selected_contracts::{bound_term, capture_equations, independent_application};
+use super::selected_contracts::{
+    capture_equations, independent_application, selected_requirement_judgment,
+};
 use super::value_predicates::boolean_term;
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
@@ -702,22 +704,15 @@ impl<'program> StructuralJudge<'program> {
                 let ProofFact::Expression(required) = fact else {
                     return;
                 };
-                let Some(required) = bound_term(
-                    program, *required, callable, parameters, callable, &bindings, None, 0,
-                ) else {
-                    return;
-                };
-                let truth = StructuralTerm::Constructor {
-                    data: "bool".to_owned(),
-                    case: "true".to_owned(),
-                    fields: Vec::new(),
-                };
                 if super::super::struct_trace() {
                     eprintln!(
-                        "STRUCT normal-capture requires expression={expression:?} required={required:?}"
+                        "STRUCT normal-capture requires expression={expression:?} required={}",
+                        program.expression_table.display_name(*required)
                     );
                 }
-                let judgment = self.judge_equation(self.resolve(required), truth, 0);
+                let judgment = selected_requirement_judgment(
+                    self, *required, callable, parameters, &bindings, 0,
+                );
                 if super::super::struct_trace() {
                     let verdict = match &judgment {
                         StructuralJudgment::Proven => "proven",
