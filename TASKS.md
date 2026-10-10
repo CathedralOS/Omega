@@ -1337,10 +1337,11 @@ defines the complete product bar.
     conservation. Recheck formation at every arrival: cancellation, equal
     intervals or unoriented disequality do not prove divisor validity, overflow
     freedom or identity. The interval-only fallback still needs one state.
-  - Execute selected-signature write frames for boundary/requirement/admitted/
-    external calls and disjoint frames for direct, nested and composed
-    initializers through the same provider contracts; add corpus fixtures for
-    requirement reads versus exclusive writes in prefix `let` call bindings.
+  - Extend the executable direct readonly `dyn` requirement prefix-`let`
+    control and rejected exclusive rank write to nested and composed
+    initializers; retain published postcondition transport. Execute boundary/
+    admitted/external selected-signature frames through the same provider
+    contracts in direct, nested and composed initializers.
 
   Acceptance: `python tools/corpus_gate.py --filter termination/` with `--both`
   and `--native` on matching hosts; changed endpoints, stale copies,
