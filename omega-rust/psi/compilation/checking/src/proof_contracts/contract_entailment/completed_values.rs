@@ -95,7 +95,6 @@ pub(super) fn declared_value_projections(
                 typed_trees::data::DataMember::Variant(variant) => {
                     program.data_payload_fields(variant)
                 }
-                _ => &[],
             });
         for field in fields {
             let previous = path.len();

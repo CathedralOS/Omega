@@ -13,7 +13,7 @@
 use super::{ExpressionHandle, ExpressionNode, Machine, State, saved_arguments};
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 /// Check the chosen receiving role against this edge's completed operands.
 /// Discovery retains fresh locations without entry ancestry, but formation of

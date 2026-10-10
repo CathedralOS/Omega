@@ -442,7 +442,7 @@ impl<'program> Coordinate<'program> {
     /// are established here; the destination's requirements supply no facts.
     pub(super) fn field_actual(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         engine: &mut Engine<'_>,

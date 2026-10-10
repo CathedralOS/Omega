@@ -137,7 +137,7 @@ impl StructuralTerm {
         }
     }
 
-    fn into_semantic_value(self) -> Self {
+    pub(super) fn into_semantic_value(self) -> Self {
         match self {
             Self::ObservedValue { value, .. } => (*value).into_semantic_value(),
             other => other,
