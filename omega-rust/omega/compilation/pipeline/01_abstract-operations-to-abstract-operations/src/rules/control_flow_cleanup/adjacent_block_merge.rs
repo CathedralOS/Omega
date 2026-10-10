@@ -10,7 +10,7 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    AdjacentBlockMergeRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
+    AdjacentBlockMergeRewrite, NodeLocation, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
     PsiRewriteCandidate, ScalarSubstitution,
 };
@@ -204,18 +204,13 @@ pub(super) fn adjacent_merge_accounting(
     let mut affected = BTreeSet::from([predecessor.block, target]);
     let first = target_block.nodes.first()?;
     let mut realized = if !first.provenance.is_empty() {
-        vec![ProvenanceRewrite {
-            input: incoming_site,
-            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(
-                NodeLocation {
-                    machine: function.machine,
-                    block: predecessor.block,
-                    node: predecessor.node,
-                },
-            )),
-            sources: incoming.provenance.clone(),
-            fuel: incoming.fuel.clone(),
-        }]
+        vec![provenance_realized_at(incoming_site, PsiRealizationSite::Node(
+            NodeLocation {
+                machine: function.machine,
+                block: predecessor.block,
+                node: predecessor.node,
+            },
+        ), &incoming.provenance, &incoming.fuel)]
     } else if !first.successors.is_empty() {
         first
             .successors
@@ -244,12 +239,7 @@ pub(super) fn adjacent_merge_accounting(
                 .node
                 .checked_add(u32::try_from(node_index).ok()?)?,
         });
-        realized.push(ProvenanceRewrite {
-            input,
-            disposition: ProvenanceDisposition::RealizedAt(output),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+        realized.push(provenance_realized_at(input, output, &node.provenance, &node.fuel));
     }
     for block in function.blocks.iter().skip(target_position + 1) {
         affected.insert(block.id);

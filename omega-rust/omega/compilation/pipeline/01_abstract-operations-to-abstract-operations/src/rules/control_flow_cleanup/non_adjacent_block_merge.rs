@@ -10,8 +10,8 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    NodeLocation, NonAdjacentBlockMergeRewrite, OptimizationBlock, ProvenanceDisposition,
-    ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
+    NodeLocation, NonAdjacentBlockMergeRewrite, OptimizationBlock, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
     PsiRewriteCandidate, ScalarSubstitution,
 };
 use semantic_vocabulary::BlockId;
@@ -200,12 +200,7 @@ pub(super) fn non_adjacent_merge_accounting(
         edge: incoming.psi_edge,
     };
     let mut realized = if first.successors.is_empty() {
-        vec![ProvenanceRewrite {
-            input: incoming_site,
-            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(predecessor)),
-            sources: incoming.provenance.clone(),
-            fuel: incoming.fuel.clone(),
-        }]
+        vec![provenance_realized_at(incoming_site, PsiRealizationSite::Node(predecessor), &incoming.provenance, &incoming.fuel)]
     } else {
         first
             .successors
@@ -233,12 +228,7 @@ pub(super) fn non_adjacent_merge_accounting(
                 .node
                 .checked_add(u32::try_from(node_index).ok()?)?,
         });
-        realized.push(ProvenanceRewrite {
-            input,
-            disposition: ProvenanceDisposition::RealizedAt(output),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+        realized.push(provenance_realized_at(input, output, &node.provenance, &node.fuel));
     }
 
     let mut input_effect = 0u64;

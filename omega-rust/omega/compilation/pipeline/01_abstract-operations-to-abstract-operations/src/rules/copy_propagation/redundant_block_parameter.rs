@@ -8,9 +8,8 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    BlockParameterIncomingBinding, NodeLocation, ProvenanceRewrite,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
-    RedundantBlockParameterWitness,
+    BlockParameterIncomingBinding, NodeLocation, PsiOptimizationUnit, PsiRealizationSite,
+    PsiRewriteCandidate, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
 };
 
 use crate::rules::COPY_PROPAGATION_PASS_NAME;

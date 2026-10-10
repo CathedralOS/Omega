@@ -3,9 +3,10 @@
 use std::collections::BTreeSet;
 
 use crate::analyses::block_dominates;
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use optimization_unit::{
-    NodeLocation, PhiTranslatedScalarIncoming, ProvenanceDisposition, ProvenanceRewrite,
-    PsiOptimizationFunction, PsiRealizationSite,
+    NodeLocation, PhiTranslatedScalarIncoming, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiRealizationSite,
 };
 use semantic_vocabulary::{BlockId, OperationId, ScalarType, ValueId};
 
@@ -24,12 +25,12 @@ pub(super) fn phi_translated_cse_accounting(
         .map(|row| row.source)
         .chain([block.id])
         .collect::<BTreeSet<_>>();
-    let mut provenance = vec![ProvenanceRewrite {
-        input: PsiRealizationSite::Node(redundant),
-        disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(redundant)),
-        sources: removed.provenance.clone(),
-        fuel: removed.fuel.clone(),
-    }];
+    let mut provenance = vec![provenance_realized_at(
+        PsiRealizationSite::Node(redundant),
+        PsiRealizationSite::Node(redundant),
+        &removed.provenance,
+        &removed.fuel,
+    )];
     for row in incoming {
         let source = function.block(row.source)?;
         let edge = source
@@ -40,12 +41,7 @@ pub(super) fn phi_translated_cse_accounting(
                 machine: function.machine,
                 edge: edge.psi_edge,
             };
-            provenance.push(ProvenanceRewrite {
-                input: site,
-                disposition: ProvenanceDisposition::RealizedAt(site),
-                sources: edge.provenance.clone(),
-                fuel: edge.fuel.clone(),
-            });
+            provenance.push(provenance_realized_at(site, site, &edge.provenance, &edge.fuel));
         }
     }
     for (index, node) in block.nodes.iter().enumerate().skip(node_position + 1) {
@@ -61,12 +57,12 @@ pub(super) fn phi_translated_cse_accounting(
             node: old.node.checked_sub(1)?,
             ..old
         };
-        provenance.push(ProvenanceRewrite {
-            input: PsiRealizationSite::Node(old),
-            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(new)),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+        provenance.push(provenance_realized_at(
+            PsiRealizationSite::Node(old),
+            PsiRealizationSite::Node(new),
+            &node.provenance,
+            &node.fuel,
+        ));
     }
     for later in function.blocks.iter().skip(block_position + 1) {
         affected.insert(later.id);
@@ -79,12 +75,7 @@ pub(super) fn phi_translated_cse_accounting(
                 block: later.id,
                 node: u32::try_from(index).ok()?,
             });
-            provenance.push(ProvenanceRewrite {
-                input: site,
-                disposition: ProvenanceDisposition::RealizedAt(site),
-                sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
-            });
+            provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
         }
     }
     provenance.sort_by_key(|row| {

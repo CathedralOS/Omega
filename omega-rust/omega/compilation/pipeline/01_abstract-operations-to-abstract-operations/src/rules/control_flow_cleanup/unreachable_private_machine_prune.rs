@@ -7,13 +7,13 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
-    UnreachablePrivateMachinesRewrite,
+    NodeLocation, ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit,
+    PsiRealizationSite, PsiRewriteCandidate, UnreachablePrivateMachinesRewrite,
 };
 use semantic_vocabulary::MachineId;
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
+use crate::rules::control_flow_cleanup::provenance_proven_unreachable_at;
 use crate::{
     AnalysisProduct, CallGraphAnalysis, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
 };
@@ -164,12 +164,7 @@ fn rule_pruned_machine_provenance(
                     node: u32::try_from(node_index).ok()?,
                 });
                 if !node.provenance.is_empty() {
-                    rows.push(ProvenanceRewrite {
-                        input,
-                        disposition: ProvenanceDisposition::ProvenUnreachableAt(input),
-                        sources: node.provenance.clone(),
-                        fuel: node.fuel.clone(),
-                    });
+                    rows.push(provenance_proven_unreachable_at(input, input, &node.provenance, &node.fuel));
                 }
                 for edge in &node.successors {
                     let input = PsiRealizationSite::Edge {
@@ -177,12 +172,7 @@ fn rule_pruned_machine_provenance(
                         edge: edge.psi_edge,
                     };
                     if !edge.provenance.is_empty() {
-                        rows.push(ProvenanceRewrite {
-                            input,
-                            disposition: ProvenanceDisposition::ProvenUnreachableAt(input),
-                            sources: edge.provenance.clone(),
-                            fuel: edge.fuel.clone(),
-                        });
+                        rows.push(provenance_proven_unreachable_at(input, input, &edge.provenance, &edge.fuel));
                     }
                 }
             }

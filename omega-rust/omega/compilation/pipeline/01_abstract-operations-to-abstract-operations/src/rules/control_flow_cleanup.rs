@@ -60,3 +60,19 @@ pub(super) fn provenance_realized_at(
         fuel: fuel.to_vec(),
     }
 }
+
+/// The unreachable-site twin of `provenance_realized_at`: the disposition lands
+/// at `unreachable_at` while provenance and fuel move over from the source.
+pub(super) fn provenance_proven_unreachable_at(
+    input: PsiRealizationSite,
+    unreachable_at: PsiRealizationSite,
+    sources: &[PsiProvenance],
+    fuel: &[FuelSettlement],
+) -> ProvenanceRewrite {
+    ProvenanceRewrite {
+        input,
+        disposition: ProvenanceDisposition::ProvenUnreachableAt(unreachable_at),
+        sources: sources.to_vec(),
+        fuel: fuel.to_vec(),
+    }
+}
