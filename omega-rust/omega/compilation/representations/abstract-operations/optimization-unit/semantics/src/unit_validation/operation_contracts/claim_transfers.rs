@@ -1,5 +1,5 @@
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{ClaimId, ContentTerm, PlaceId, Proposition, ScalarTerm};
+use semantic_vocabulary::{ContentTerm, PlaceId, Proposition, ScalarTerm};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Project private entry identities into the public argument-relative custody
@@ -182,25 +182,6 @@ pub(crate) fn validate_internal_claim_transfers(
     })
 }
 
-pub(crate) fn function_claim_input(
-    function: &PsiOptimizationFunction,
-    claim: ClaimId,
-) -> Option<(PlaceId, &[terminal_psi::StructuralPathSegment])> {
-    function
-        .entry_claim_declarations
-        .iter()
-        .find_map(|candidate| {
-            (candidate.claim == claim).then_some((candidate.input, candidate.path.as_slice()))
-        })
-        .or_else(|| {
-            function.content_entry_claims.iter().find_map(|candidate| {
-                (candidate.claim == claim).then_some((
-                    candidate.input.root,
-                    &[] as &[terminal_psi::StructuralPathSegment],
-                ))
-            })
-        })
-}
 
 pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
     fn scalar_term_roots(term: &ScalarTerm, roots: &mut BTreeSet<PlaceId>) {
