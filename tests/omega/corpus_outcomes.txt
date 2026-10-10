@@ -214,6 +214,10 @@ fail/arithmetic/wrapping_target_plain_operands_rejected rejected 127ms expected 
 	store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
 fail/arithmetic/wrong_struct_type_argument_rejected rejected 385ms expected @2d8ed253669f
 	argument `f` for state `Main::take_foo::take_foo` expects the `Foo` data type but got `Bar` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+fail/arithmetic/zero_product_operand_division_rejected rejected 1004ms expected @373d956d212f
+	partial exact division in machine `product` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/arithmetic/zero_product_operand_overflow_rejected rejected 1003ms expected @373d956d212f
+	exact arithmetic in machine `product` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/zii_range_excludes_zero_rejected rejected 283ms expected @693920652f41
 	reading `main.console` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/arrays/borrowed_array_call_argument_wrong_extent rejected 227ms expected @7a112c8923bd+wt
@@ -2705,6 +2709,7 @@ pass/arithmetic/runtime_trapping_mutable_local_traps checked 915ms check-target:
 pass/arithmetic/runtime_trapping_overflow_traps checked 1251ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_trapping_shift_count_traps checked 1744ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_u64_guarded_cap_store_exit checked 1306ms check-target:macos_arm64 @2d8ed253669f
+pass/arithmetic/runtime_unbounded_zero_product_exit checked 7421ms check-target:macos_arm64 @373d956d212f
 pass/arithmetic/runtime_wrapping_mutable_local_exit checked 1171ms check-target:macos_arm64 @ca8c127c90c5
 pass/arithmetic/runtime_wrapping_operand_truncation_exit checked 1407ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/saturating_signed_divide_min_by_neg_one checked 1593ms check-target:macos_arm64 @8778c440081

@@ -57,6 +57,12 @@ impl Interval {
     }
 
     pub(super) fn multiply(self, other: Self) -> Self {
+        // Zero annihilates every integer, including values beyond this
+        // lattice's finite endpoints. This bounds only the product: callers
+        // must still establish both operands' own formation obligations.
+        if self.is_exactly_zero() || other.is_exactly_zero() {
+            return Self::constant(0);
+        }
         let (Some(a), Some(b), Some(c), Some(d)) = (self.low, self.high, other.low, other.high)
         else {
             return Interval::UNBOUNDED;

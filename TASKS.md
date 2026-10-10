@@ -2938,6 +2938,10 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   divisor magnitudes and both remainder extrema at every migrated client;
   `arithmetic/{remainder_signed_minimum_underbound_rejected,runtime_signed_minimum_remainder_exit}`
   constrain this interval meaning independently of divisor definedness.
+  Preserve zero-product bounds for unbounded integer operands without erasing
+  operand formation obligations; `arithmetic/runtime_unbounded_zero_product_exit`
+  and `arithmetic/zero_product_operand_{overflow,division}_rejected` constrain
+  that invariant at every migrated client.
 
 - **ONE-ENSURES-PROVER.** (new-scope) Exit guarantees are decided twice:
   program validation's contract entailment
