@@ -44,12 +44,31 @@ machine consume(value: Holder) -> u32 {
     }
 }
 
+// An unconditional claim remains live when the neighboring case is empty.
+// The generic return must also retain the optional payload when it is present.
+data Mixed { required: Token; slot: Slot; }
+machine forward_mixed(value: Mixed) -> Mixed { value }
+machine empty_mixed(required: Token) -> Mixed {
+    Mixed { required: required, slot: Slot::Empty }
+}
+machine consume_mixed(value: Mixed) -> u32 {
+    let required: u32 = value.required.value;
+    drop(value.required);
+    required + consume(Holder { slot: value.slot })
+}
+
 machine main() crashes Trap {
     let first: u32 = consume(anonymous());
     let second: u32 = consume(named());
     let third: u32 = consume(returned());
     let live: u32 = consume(held(Token { value: 70 }));
-    transition first == 0 && second == 0 && third == 0 && live == 70 {
+    let mixed_empty: u32 = consume_mixed(forward_mixed(empty_mixed(Token { value: 11 })));
+    let mixed_live: u32 = consume_mixed(forward_mixed(Mixed {
+        required: Token { value: 11 },
+        slot: Slot::Held { token: Token { value: 70 } }
+    }));
+    transition first == 0 && second == 0 && third == 0 && live == 70
+        && mixed_empty == 11 && mixed_live == 81 {
         true -> done()
         _ -> bad()
     }

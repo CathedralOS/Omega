@@ -633,7 +633,10 @@ pub fn structural_qualification_contract(
                         continue;
                     }
                     path.push(CheckedUnitStructuralPathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        ),
                     ));
                     collect(
                         program,
@@ -717,7 +720,8 @@ pub fn reconstruct_structural_parameter_return_claims(
     }
     structural_result_qualifications(program, source.type_reference)?;
     structural_result_qualifications(program, destination.return_type)?;
-    let outcomes = returned_claim_outcomes(facts, machine, state)?;
+    let outcomes = returned_claim_outcomes(facts, machine, state)?
+        .ok_or("structural callee has no exact claim outcome")?;
     if outcomes.is_empty() {
         return Err("structural callee has no returned claims");
     }
@@ -790,7 +794,7 @@ fn returned_claim_outcomes(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-) -> Result<&[FlowClaimOutcomeEntryFact], &'static str> {
+) -> Result<Option<&[FlowClaimOutcomeEntryFact]>, &'static str> {
     let mut outcomes = facts
         .flow
         .ownership
@@ -798,9 +802,9 @@ fn returned_claim_outcomes(
         .iter()
         .map(|(_, map)| map)
         .filter(|map| map.machine_symbol == machine && map.state_symbol == state);
-    let outcome = outcomes
-        .next()
-        .ok_or("structural callee has no exact claim outcome")?;
+    let Some(outcome) = outcomes.next() else {
+        return Ok(None);
+    };
     if outcomes.next().is_some() {
         return Err("structural callee has ambiguous claim outcomes");
     }
@@ -812,7 +816,7 @@ fn returned_claim_outcomes(
     if entries.len() != outcome.entries.len() {
         return Err("structural claim outcome span is stale");
     }
-    Ok(entries)
+    Ok(Some(entries))
 }
 
 fn retained_claim_segments(
@@ -882,7 +886,10 @@ pub fn structural_owned_path(
                     return Err("structural claim traverses an erased field");
                 }
                 path.push(CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ),
                 ));
                 reference = field.type_reference;
             }
@@ -900,7 +907,10 @@ pub fn structural_owned_path(
                     .find(|candidate| candidate.symbol == *variant)
                     .ok_or("structural claim case differs from its typed owner")?;
                 path.push(CheckedUnitStructuralPathSegment::Case(
-                    checked_trees::CheckedMemberIdentity::of_member(selected.identity, selected.name.clone()),
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        selected.identity,
+                        selected.name.clone(),
+                    ),
                 ));
                 payload_fields = Some(program.data_payload_fields(selected));
             }
@@ -1276,10 +1286,11 @@ pub fn structural_call_custody(
     })
 }
 
-/// Bind the declared result frontier to this exact call's checked receiving
-/// establishments. Ordinary and bodyless calls use the same custody join;
-/// neither a local name nor the root carrier's multiplicity defines it.
-/// Unreceived results retain path-only names for their returning edge.
+/// Bind the callee's possible result frontier to this exact call's checked
+/// receiving establishments. An exact checked outcome excludes statically
+/// absent payloads; a missing map or bodyless contract excludes nothing.
+/// Invocation-local inactivity does not narrow the callee's catalogue.
+/// Inactive and unreceived paths retain namespace-only names, never live claims.
 pub fn structural_call_result_claims(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
@@ -1289,6 +1300,16 @@ pub fn structural_call_result_claims(
     result_type: typed_trees::types::TypeReferenceHandle,
 ) -> Result<Vec<CheckedStructuralResultClaimPlan>, &'static str> {
     let result_frontier = crate::linear_claim_frontier(program, result_type);
+    let possible_paths = possible_returned_claim_paths(program, facts, call)?;
+    if let Some(paths) = &possible_paths
+        && paths.iter().any(|path| {
+            !result_frontier
+                .iter()
+                .any(|claim| claim.path.as_slice() == *path)
+        })
+    {
+        return Err("structural callee outcome exceeds its declared result frontier");
+    }
     let received = if result_frontier.is_empty() {
         Vec::new()
     } else {
@@ -1310,6 +1331,15 @@ pub fn structural_call_result_claims(
             }
             *identity
         };
+        if possible_paths
+            .as_ref()
+            .is_some_and(|paths| !paths.contains(&claim.path.as_slice()))
+        {
+            if !claim.conditional || identity != PermissionClaimIdentity::Unknown {
+                return Err("structural callee omits a live or unconditional result claim");
+            }
+            continue;
+        }
         result_claims.push(CheckedStructuralResultClaimPlan {
             claim: identity,
             path: structural_claim_path(program, result_type, &claim.path)?,
@@ -1320,6 +1350,37 @@ pub fn structural_call_result_claims(
     }
     result_claims.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(result_claims)
+}
+
+/// A checked body's retained outcome map describes every possibly live
+/// result path across its normal exits. Boundary contracts and unknown maps
+/// keep the declared frontier; neither is evidence of an absent payload.
+fn possible_returned_claim_paths<'facts>(
+    program: &dyn crate::CheckingInput,
+    facts: &'facts CheckFacts,
+    call: &FlowCallFact,
+) -> Result<Option<Vec<&'facts [facts::PlaceSegment]>>, &'static str> {
+    let Some(state) = crate::call_target_state(program, call.target_symbol) else {
+        return Ok(None);
+    };
+    let machine = program
+        .machine_holding_state(state.symbol)
+        .ok_or("structural callee state has no exact owner")?;
+    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+        return Ok(None);
+    }
+    let Some(outcomes) = returned_claim_outcomes(facts, machine.symbol, state.symbol)? else {
+        return Ok(None);
+    };
+    let mut paths = Vec::with_capacity(outcomes.len());
+    for outcome in outcomes {
+        let path = retained_claim_segments(facts, outcome.output_segments)?;
+        if outcome.source == FlowClaimOutcomeSource::Unknown || paths.contains(&path) {
+            return Err("structural callee outcome has an unknown or duplicate result claim");
+        }
+        paths.push(path);
+    }
+    Ok(Some(paths))
 }
 
 /// Join each linear claim this call consumes to the owned argument whose
@@ -1454,8 +1515,9 @@ fn owned_argument_claim_transfers(
 /// initialized by the call, an assigned place, or an anonymous construction
 /// containing the call. The receiving join removes only constructor/storage
 /// prefixes and leaves the result-relative path with its original identity.
-/// An empty roster means no caller place receives the value (a terminal call
-/// returned at once).
+/// Explicitly inactive establishments remain in the roster without a live
+/// identity. An empty roster means no caller place receives the value (a
+/// terminal call returned at once), not that every payload is absent.
 fn received_result_claims<'facts>(
     program: &dyn crate::CheckingInput,
     facts: &'facts CheckFacts,
@@ -1470,7 +1532,6 @@ fn received_result_claims<'facts>(
             || event.kind != PermissionEventKind::Establish
             || event.access != PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Linear
-            || !event.obligation_live
             || !matches!(event.source,
                 PermissionEventSource::Statement { statement_index }
                 | PermissionEventSource::Call { statement_index, .. }
@@ -1486,8 +1547,16 @@ fn received_result_claims<'facts>(
         if producer != call.authored_expression {
             continue;
         }
-        if event.claim_identity == PermissionClaimIdentity::Unknown {
+        if event.obligation_live && event.claim_identity == PermissionClaimIdentity::Unknown {
             return Err("structural result establishment has no claim identity");
+        }
+        if !event.obligation_live
+            && (event.claim_identity != PermissionClaimIdentity::Unknown
+                || !relative
+                    .iter()
+                    .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. })))
+        {
+            return Err("inactive structural result claim has no exact conditional absence");
         }
         received.push((relative, event.claim_identity));
     }
