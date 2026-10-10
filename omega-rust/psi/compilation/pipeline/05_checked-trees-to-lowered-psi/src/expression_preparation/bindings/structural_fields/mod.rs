@@ -8,6 +8,11 @@
 //! Static payload snapshots retain their checked carrier-copy operation.
 //! Runtime element reads retain case selection on the original storage path;
 //! observing a scalar must not duplicate the collection's affine siblings.
+//! One declaration walk retains the scalar endpoint and both logical and physical
+//! projection meaning. Inline fields keep canonical proof identity; references
+//! and descriptors emit memory reads with explicit crossings and live bounds.
+//! The endpoint being a field rather than a primitive element never selects a
+//! different collection grammar or authorizes a copied backing value.
 
 use super::super::{
     CheckedUnitStructuralPathSegment, StructuralFieldId, StructuralFieldType, StructuralTypeId,
@@ -20,7 +25,6 @@ use super::{
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use semantic_vocabulary::StructuralCaseId;
-use terminal_psi::live_field;
 
 mod case_observation;
 mod observation_paths;
@@ -281,6 +285,8 @@ pub(crate) fn resolve_typed(
     position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<LoweredDirectExpression, LoweringError> {
+    use super::structural_paths::PreparedStructuralPathSegment as Prepared;
+
     let mut matching = fields
         .iter()
         .filter(|field| field.source_position == position);
@@ -290,208 +296,178 @@ pub(crate) fn resolve_typed(
     if matching.next().is_some() {
         return unsupported("runtime field observation has ambiguous bindings");
     }
-    let mut structural_type = binding.structural_type;
-    let mut carrier_path = Vec::with_capacity(path.len().saturating_sub(1));
-    let mut crosses_reference = false;
-    for (ordinal, segment) in path.iter().enumerate() {
-        // Source field paths omit dereferences. Use the same declared-carrier
-        // walk as other observations, retaining every pointer load in the
-        // emitted path; a state binding does not turn a stored reference into
-        // inline record storage. The finite source path may revisit a type,
-        // while readable_carrier rejects a cycle within a reference chain.
-        let (declaration, crossings) =
-            observation_paths::readable_carrier(structural_type, &binding.declarations)?;
-        crosses_reference |= crossings != 0;
-        if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
-            segment
-        {
-            // Indexing selects the exact element carrier. Its nested fields
-            // continue through declaration resolution below; the final scalar
-            // field and any case authority remain separate obligations.
-            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
-                return unsupported("runtime field observation indexes a non-array carrier");
-            };
-            if *element_index >= *length {
-                return unsupported("runtime field observation fixed index is out of bounds");
-            }
-            carrier_path.push(
-                semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(*element_index),
-            );
-            structural_type = *element;
-            if ordinal + 1 == path.len() {
-                let (element, _) =
-                    observation_paths::readable_carrier(structural_type, &binding.declarations)?;
-                let StructuralTypeShape::PrimitiveScalar(scalar_type) = element.shape else {
-                    return unsupported("indexed observation requires a primitive endpoint");
-                };
-                return resolve_primitive(fields, position, path, scalar_type);
-            }
-            continue;
-        }
-        if let checked_trees::CheckedStructuralPredicatePathSegment::Case(case_identity) = segment {
-            // A case of a sum reached through record fields: its payload is
-            // read in place as an ordinary scalar observation whose carrier
-            // ends in the `Case` step. Source flow admission requires this
-            // case of this exact place at the read's observation epoch; a
-            // write to the sum retires its selected-tag fact. Terminal
-            // validation independently retains the declared geometry. A
-            // root case keeps its dispatch route (`resolve_case_payload`),
-            // whose selected block binds the payload as parameters.
-            if ordinal == 0 {
-                return unsupported(
-                    "runtime field observation reads a root case payload outside its dispatch",
-                );
-            }
-            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                &declaration.shape
-            else {
-                return unsupported(
-                    "runtime field observation selects a case of a non-sum carrier",
-                );
-            };
-            let [checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity)] =
-                &path[ordinal + 1..]
-            else {
-                return unsupported(
-                    "runtime field observation requires one payload field after its case",
-                );
-            };
-            let mut selected = cases.iter().filter(|case| case.identity == *case_identity);
-            let (Some(case), None) = (selected.next(), selected.next()) else {
-                return unsupported("runtime field observation lost its declared case");
-            };
-            let mut payload = case
-                .fields
-                .iter()
-                .filter(|field| field.identity == *field_identity);
-            let (Some(field), None) = (payload.next(), payload.next()) else {
-                return unsupported("runtime field observation lost its declared payload field");
-            };
-            if field.relevance.is_erased() {
-                return unsupported("runtime field observation has an erased or ambiguous field");
-            }
-            let declared = field
-                .field_type
-                .scalar_type()
-                .ok_or(LoweringError::Unsupported(
-                    "runtime field observation requires a scalar leaf",
-                ))?;
-            carrier_path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Case(
-                case.id,
-            ));
-            return resolved_field_read(
-                binding,
-                path,
-                carrier_path,
-                field.id,
-                declared,
-                crosses_reference,
-            );
-        }
-        let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
-            unreachable!("fixed indices and cases return above");
-        };
-        // A mixed shape's common fields sit directly on the carrier beside the
-        // tag, addressed exactly like a record's; its payload fields need the
-        // `Case` step above.
-        let Some(fields) = declaration.shape.direct_fields() else {
-            return unsupported("runtime field observation requires a record carrier");
-        };
-        let Some(field) = live_field(fields, identity) else {
-            return unsupported("runtime field observation has an erased or ambiguous field");
-        };
-        if ordinal + 1 == path.len() {
-            let declared = field
-                .field_type
-                .scalar_type()
-                .ok_or(LoweringError::Unsupported(
-                    "runtime field observation requires a scalar leaf",
-                ))?;
-            return resolved_field_read(
-                binding,
-                path,
-                carrier_path,
-                field.id,
-                declared,
-                crosses_reference,
-            );
-        }
-        let Some(child) = field.field_type.as_structural() else {
-            return unsupported("runtime field observation requires a structural carrier field");
-        };
-        carrier_path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-            field.id,
-        ));
-        structural_type = child;
-    }
-    unsupported("runtime field observation requires a nonempty field path")
-}
-
-/// Symbolic field terms identify inline storage. Pointer crossings instead
-/// require an executable memory path; never erase them into a canonical term.
-fn resolved_field_read(
-    binding: &StructuralScalarFieldBinding,
-    authored_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-    canonical_path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-    field: StructuralFieldId,
-    scalar_type: ScalarType,
-    crosses_reference: bool,
-) -> Result<LoweredDirectExpression, LoweringError> {
-    let (explicit, _) = observation_paths::explicit_path(
-        binding.structural_type,
-        authored_path,
-        &binding.declarations,
-    )?;
-    // Resolve identity before deciding whether a memory read is needed. A
-    // selected case already supplied a scalar snapshot; it is not a primitive
-    // memory path (that grammar deliberately grants no payload authority).
-    let physical_path = super::structural_paths::prepare_argument_path(
-        &explicit,
-        binding.structural_type,
-        &binding.declarations,
-    )?
-    .into_iter()
-    .map(|step| match step {
-        super::structural_paths::PreparedStructuralPathSegment::Static(step) => Ok(step),
-        _ => unsupported("static payload binding requires a captured selector"),
-    })
-    .collect::<Result<Vec<_>, LoweringError>>()?;
-    if let Some((terminal_psi::StructuralPathSegment::Field(_), carrier)) =
-        physical_path.split_last()
-        && let Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) =
-            carrier.split_last()
-        && let CasePayloadAccess::Established(rows) = &binding.case_payloads
-        && let Some(row) = rows
-            .iter()
-            .find(|row| row.path == prefix && row.case == *case && row.field == field)
+    // The projection walk owns endpoint typing as well as pointer and collection
+    // geometry. A second field-only walk rejected ordinary record leaves below
+    // descriptors and disagreed with primitive-element reads about live bounds.
+    let projection =
+        observation_paths::explicit_path(binding.structural_type, path, &binding.declarations)?;
+    let scalar_type = projection.scalar_type().ok_or(LoweringError::Unsupported(
+        "runtime observation requires a declared scalar endpoint",
+    ))?;
+    if projection.scalar_field.is_none()
+        && path.iter().any(|segment| {
+            matches!(
+                segment,
+                checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
+            )
+        })
     {
-        return Ok(LoweredDirectExpression::Parameter {
-            position: row.position,
+        let (source, path) = resolve_case_primitive(binding, projection, scalar_type)?;
+        return Ok(LoweredDirectExpression::PrimitiveRead {
+            source,
+            path,
             scalar_type,
         });
     }
-    if crosses_reference {
-        let (path, declared) = crate::emission::primitive_store::lower_path(
-            binding.structural_type,
-            &explicit,
-            &binding.declarations,
-        )?;
-        if declared != scalar_type {
-            return unsupported("field observation changes its declared scalar type");
-        }
-        Ok(LoweredDirectExpression::PrimitiveRead {
-            source: binding.source.into(),
-            path,
-            scalar_type,
-        })
-    } else {
-        Ok(canonical_field_read(
-            binding.source.into(),
-            canonical_path,
-            field,
-            scalar_type,
-        ))
+    let prepared = super::structural_paths::prepare_argument_path(
+        &projection.segments,
+        binding.structural_type,
+        &binding.declarations,
+    )?;
+    if prepared
+        .iter()
+        .any(|segment| matches!(segment, Prepared::ViewExtent { .. }))
+    {
+        return descriptor_observation(binding, &prepared, scalar_type);
     }
+    let physical_path = prepared
+        .into_iter()
+        .map(|step| match step {
+            Prepared::Static(step) => Ok(step),
+            _ => unsupported("static observation requires its captured selector"),
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+
+    if let Some(field) = projection.scalar_field {
+        // A dominating selected edge may already own this scalar snapshot.
+        // Geometry alone never manufactures payload authority.
+        if let Some((terminal_psi::StructuralPathSegment::Field(_), carrier)) =
+            physical_path.split_last()
+            && let Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) =
+                carrier.split_last()
+            && let CasePayloadAccess::Established(rows) = &binding.case_payloads
+            && let Some(row) = rows
+                .iter()
+                .find(|row| row.path == prefix && row.case == *case && row.field == field.id)
+        {
+            return Ok(LoweredDirectExpression::Parameter {
+                position: row.position,
+                scalar_type,
+            });
+        }
+        if let Some(mut canonical) = projection.canonical {
+            canonical.pop();
+            return Ok(canonical_field_read(
+                binding.source.into(),
+                canonical,
+                field.id,
+                scalar_type,
+            ));
+        }
+    }
+    Ok(LoweredDirectExpression::PrimitiveRead {
+        source: binding.source.into(),
+        path: physical_path,
+        scalar_type,
+    })
+}
+
+/// Descriptor indexing is a memory operation, even when its selector is a
+/// literal and its endpoint is a field. Retain every descriptor's own count
+/// before its selector; nested fields and fixed arrays then continue through
+/// the same prepared path. No descriptor acquires a fabricated static extent.
+fn descriptor_observation(
+    binding: &StructuralScalarFieldBinding,
+    prepared: &[super::structural_paths::PreparedStructuralPathSegment],
+    scalar_type: ScalarType,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    use super::structural_paths::PreparedStructuralPathSegment as Prepared;
+    use crate::emission::operation_emission::expressions::LoweredElementPathSegment as Segment;
+
+    let count_type = crate::emission::scalar_types::terminal_scalar_type(
+        typed_trees::types::PrimitiveType::U64,
+    )?;
+    let mut path = Vec::with_capacity(prepared.len());
+    let mut extent = None;
+    for segment in prepared {
+        match segment {
+            Prepared::ViewExtent { bytes } if extent.is_none() => {
+                extent = Some(if *bytes {
+                    LoweredDirectExpression::ByteSequenceLength {
+                        source: binding.source,
+                        path: path.clone(),
+                        access: StructuralAccess::SharedBorrow,
+                        scalar_type: count_type,
+                    }
+                } else {
+                    LoweredDirectExpression::ElementViewLength {
+                        source: binding.source,
+                        path: path.clone(),
+                        access: StructuralAccess::SharedBorrow,
+                        scalar_type: count_type,
+                    }
+                });
+            }
+            Prepared::Static(terminal_psi::StructuralPathSegment::FixedIndex(index))
+                if extent.is_some() =>
+            {
+                path.push(Segment::RuntimeIndex {
+                    selector: LoweredDirectExpression::IntegerLiteral {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
+                        scalar_type: count_type,
+                    },
+                    extent: extent.take(),
+                    bound_decided: false,
+                });
+            }
+            Prepared::Static(segment) if extent.is_none() => {
+                path.push(Segment::Static(segment.clone()));
+            }
+            _ => return unsupported("descriptor observation requires its retained selector"),
+        }
+    }
+    if extent.is_some() {
+        return unsupported("descriptor observation lost its element selector");
+    }
+    let selectors = path
+        .iter()
+        .filter(|segment| matches!(segment, Segment::RuntimeIndex { .. }))
+        .count();
+    if selectors > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
+    {
+        return unsupported("descriptor observation exceeds the runtime selector namespace");
+    }
+    let first = path
+        .iter()
+        .position(|segment| matches!(segment, Segment::RuntimeIndex { .. }))
+        .ok_or(LoweringError::Unsupported(
+            "descriptor observation has no element selector",
+        ))?;
+    let element_path = path.split_off(first + 1);
+    let Some(Segment::RuntimeIndex {
+        selector,
+        extent,
+        bound_decided,
+    }) = path.pop()
+    else {
+        return unsupported("descriptor observation lost its prepared selector");
+    };
+    let prefix = path
+        .into_iter()
+        .map(|segment| match segment {
+            Segment::Static(segment) => Ok(segment),
+            _ => unsupported("descriptor observation prefix contains an unprepared selector"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+        source: binding.source,
+        path: prefix,
+        index: Box::new(selector),
+        extent: extent.map(Box::new),
+        element_path,
+        scalar_type,
+        bound_decided,
+    })
 }
 
 fn canonical_field_read(
@@ -858,16 +834,19 @@ pub(crate) fn resolve_indexed_element(
     ),
     LoweringError,
 > {
-    let (path, selected) =
+    let projection =
         observation_paths::explicit_path(structural_type, path, fields.declarations())?;
-    let element = match &selected
+    let element = match &projection
+        .declaration
         .ok_or(LoweringError::Unsupported(
             "indexed observation lost its collection carrier",
         ))?
         .shape
     {
         StructuralTypeShape::FixedArray { element, .. } => *element,
-        StructuralTypeShape::ElementView { element, .. } if path.is_empty() => *element,
+        StructuralTypeShape::ElementView { element, .. } if projection.segments.is_empty() => {
+            *element
+        }
         StructuralTypeShape::ElementView { .. } => {
             return unsupported(
                 "projected element view read requires an established descriptor home",
@@ -875,15 +854,16 @@ pub(crate) fn resolve_indexed_element(
         }
         _ => return unsupported("indexed observation requires an element collection"),
     };
-    let (element_path, _) =
+    let element_projection =
         observation_paths::explicit_path(element, element_path, fields.declarations())?;
+    let element_path = element_projection.segments;
     let scalar_type = crate::emission::primitive_store::indexed_element_scalar_type(
         element,
         &element_path,
         fields.declarations(),
     )?;
     let path = super::structural_paths::prepare_argument_path(
-        &path,
+        &projection.segments,
         structural_type,
         fields.declarations(),
     )?
@@ -898,129 +878,12 @@ pub(crate) fn resolve_indexed_element(
     Ok((source, path, element_path, scalar_type))
 }
 
-pub(crate) fn resolve_primitive(
-    fields: &[StructuralScalarFieldBinding],
-    position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-    scalar_type: ScalarType,
-) -> Result<LoweredDirectExpression, LoweringError> {
-    use super::structural_paths::PreparedStructuralPathSegment as Prepared;
-    use crate::emission::operation_emission::expressions::LoweredElementPathSegment;
-    let mut matching = fields
-        .iter()
-        .filter(|field| field.source_position == position);
-    let binding = matching.next().ok_or(LoweringError::Unsupported(
-        "primitive observation has no readable binding",
-    ))?;
-    if matching.next().is_some() {
-        return unsupported("primitive observation has ambiguous bindings");
-    }
-    if path.iter().any(|segment| {
-        matches!(
-            segment,
-            checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
-        )
-    }) {
-        let (source, path) = resolve_case_primitive(binding, path, scalar_type)?;
-        return Ok(LoweredDirectExpression::PrimitiveRead {
-            source,
-            path,
-            scalar_type,
-        });
-    }
-    let (path, selected) =
-        observation_paths::explicit_path(binding.structural_type, path, &binding.declarations)?;
-    let prepared = super::structural_paths::prepare_argument_path(
-        &path,
-        binding.structural_type,
-        &binding.declarations,
-    )?;
-    if let Some(extent_position) = prepared
-        .iter()
-        .position(|segment| matches!(segment, Prepared::ViewExtent { .. }))
-    {
-        let Some(StructuralTypeShape::PrimitiveScalar(declared_type)) =
-            selected.map(|declaration| &declaration.shape)
-        else {
-            return unsupported("indexed observation requires a primitive element carrier");
-        };
-        if *declared_type != scalar_type {
-            return unsupported("primitive observation changes its declared scalar type");
-        }
-        let prefix = prepared[..extent_position]
-            .iter()
-            .map(|segment| match segment {
-                Prepared::Static(segment) => Ok(segment.clone()),
-                _ => unsupported("indexed observation prefix requires captured selectors"),
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let Prepared::ViewExtent { bytes } = prepared[extent_position] else {
-            unreachable!()
-        };
-        let [Prepared::Static(terminal_psi::StructuralPathSegment::FixedIndex(index))] =
-            &prepared[extent_position + 1..]
-        else {
-            return unsupported("indexed observation requires its retained selector expression");
-        };
-        let count_type = crate::emission::scalar_types::terminal_scalar_type(
-            typed_trees::types::PrimitiveType::U64,
-        )?;
-        let count_path = prefix
-            .iter()
-            .cloned()
-            .map(LoweredElementPathSegment::Static)
-            .collect();
-        let extent = if bytes {
-            LoweredDirectExpression::ByteSequenceLength {
-                source: binding.source,
-                path: count_path,
-                access: StructuralAccess::SharedBorrow,
-                scalar_type: count_type,
-            }
-        } else {
-            LoweredDirectExpression::ElementViewLength {
-                source: binding.source,
-                path: count_path,
-                access: StructuralAccess::SharedBorrow,
-                scalar_type: count_type,
-            }
-        };
-        // Source checking admitted this read. Preserve the live bound as an
-        // ordinary operation rather than granting a literal an array bound.
-        return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
-            source: binding.source,
-            path: prefix,
-            index: Box::new(LoweredDirectExpression::IntegerLiteral {
-                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
-                scalar_type: count_type,
-            }),
-            extent: Some(Box::new(extent)),
-            element_path: Vec::new(),
-            scalar_type,
-            bound_decided: false,
-        });
-    }
-    let (path, declared_type) = crate::emission::primitive_store::lower_path(
-        binding.structural_type,
-        &path,
-        &binding.declarations,
-    )?;
-    if declared_type != scalar_type {
-        return unsupported("primitive observation changes its declared scalar type");
-    }
-    Ok(LoweredDirectExpression::PrimitiveRead {
-        source: binding.source.into(),
-        path,
-        scalar_type,
-    })
-}
-
 /// Resolve each declared projection independently; no source arrangement grants
 /// case membership. The emitted case-leaf copy still owes a dominating fact for
 /// every case crossed, checked again by Terminal verification.
 fn resolve_case_primitive(
     binding: &StructuralScalarFieldBinding,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    projection: observation_paths::ObservationPath<'_>,
     scalar_type: ScalarType,
 ) -> Result<
     (
@@ -1029,94 +892,27 @@ fn resolve_case_primitive(
     ),
     LoweringError,
 > {
-    use checked_trees::CheckedStructuralPredicatePathSegment as Segment;
     use semantic_vocabulary::CanonicalStructuralPathSegment as Canonical;
-    let Some((Segment::FixedIndex(index), carrier)) = path.split_last() else {
+
+    // The observation walk already selected exact declaration-local identities.
+    // A case-leaf copy needs that inline carrier, not a second source-name walk.
+    // Canonical geometry still grants neither active-case facts nor copy custody.
+    let Some(mut canonical) = projection.canonical else {
+        return unsupported("case primitive observation requires an inline canonical carrier");
+    };
+    let Some(Canonical::FixedIndex(index)) = canonical.pop() else {
         return unsupported("case primitive observation requires an indexed primitive carrier");
     };
-    let mut structural_type = binding.structural_type;
-    let mut canonical = Vec::with_capacity(path.len());
-    let mut case_fields = None;
-    for segment in carrier {
-        let mut matching = binding
-            .declarations
-            .iter()
-            .filter(|declaration| declaration.id == structural_type);
-        let (Some(declaration), None) = (matching.next(), matching.next()) else {
-            return unsupported("primitive observation requires a unique carrier declaration");
-        };
-        match segment {
-            Segment::Case(identity) => {
-                if case_fields.is_some() {
-                    return unsupported("primitive observation requires a field after its case");
-                }
-                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-                    &declaration.shape
-                else {
-                    return unsupported("primitive observation selects a case of a non-sum");
-                };
-                let mut matching = cases.iter().filter(|case| case.identity == *identity);
-                let (Some(case), None) = (matching.next(), matching.next()) else {
-                    return unsupported("primitive observation requires a unique case");
-                };
-                canonical.push(Canonical::Case(case.id));
-                case_fields = Some(case.fields.as_slice());
-            }
-            Segment::Field(identity) => {
-                let fields = match case_fields.take() {
-                    Some(fields) => fields,
-                    None => match &declaration.shape {
-                        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields.as_slice(),
-                        _ => {
-                            return unsupported(
-                                "primitive observation field has no declared carrier",
-                            );
-                        }
-                    },
-                };
-                let mut matching = fields.iter().filter(|field| field.identity == *identity);
-                let (Some(field), None) = (matching.next(), matching.next()) else {
-                    return unsupported("primitive observation requires a unique field");
-                };
-                if field.relevance.is_erased() {
-                    return unsupported("primitive observation cannot read an erased field");
-                }
-                let Some(child) = field.field_type.as_structural() else {
-                    return unsupported("primitive observation requires a structural leaf carrier");
-                };
-                canonical.push(Canonical::Field(field.id));
-                structural_type = child;
-            }
-            Segment::FixedIndex(index) => {
-                let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
-                    return unsupported("primitive observation indexes a non-array");
-                };
-                if case_fields.is_some() || index >= length {
-                    return unsupported("primitive observation index lacks its array or bound");
-                }
-                canonical.push(Canonical::FixedIndex(*index));
-                structural_type = *element;
-            }
-            // A runtime element selector carries no canonical segment: the
-            // case-primitive observation is contract vocabulary.
-            Segment::RuntimeIndex(_) => {
-                return unsupported("primitive observation selects no runtime element");
-            }
-        }
-    }
-    // Canonical lookup also rejects duplicate declaration-local identities;
-    // source spellings above select identities but cannot certify them.
-    if terminal_semantics::canonical_case_leaf_type(
+    let Some(structural_type) = terminal_semantics::canonical_case_leaf_type(
         binding.declarations.iter(),
         binding.structural_type,
         &canonical,
-    ) != Some(structural_type)
-    {
+    ) else {
         return unsupported("primitive observation lost its canonical carrier");
-    }
+    };
     let (path, declared) = crate::emission::primitive_store::lower_path(
         structural_type,
-        &[CheckedUnitStructuralPathSegment::FixedIndex(*index)],
+        &[CheckedUnitStructuralPathSegment::FixedIndex(index)],
         &binding.declarations,
     )?;
     if declared != scalar_type {

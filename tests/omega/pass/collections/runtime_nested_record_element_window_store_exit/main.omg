@@ -1,5 +1,5 @@
 data Cell where value >= 0 && value <= 9 { value: i32; }
-data Slot { child: Cell; scores: [i32; 2]; tag: u32; }
+data Slot { child: Cell; scores: [i32; 2]; active: bool; tag: u32; }
 data Grid { slots: [Slot; 3]; }
 
 machine replace(slots: &mut [Slot]) -> i32
@@ -7,7 +7,14 @@ requires slots.len >= 2
 {
     slots[1].child.value = 7;
     slots[1].scores[1] = 23;
-    slots[1].child.value
+    slots[1].active = true;
+    let observed: i32 = slots[1].child.value;
+    let score: i32 = slots[1].scores[1];
+    let active: bool = slots[1].active;
+    transition active && score == 23 {
+        true -> (observed)
+        _ -> (0)
+    }
 }
 
 machine main() crashes Trap {
@@ -18,7 +25,9 @@ machine main() crashes Trap {
     transition observed == 7 && grid.slots[2].child.value == 7
         && grid.slots[0].child.value == 0 && grid.slots[1].child.value == 0
         && grid.slots[2].scores[1] == 23 && grid.slots[2].scores[0] == 0
-        && grid.slots[0].scores[1] == 0 && grid.slots[2].tag == 0 {
+        && grid.slots[0].scores[1] == 0 && grid.slots[2].active
+        && !grid.slots[0].active && !grid.slots[1].active
+        && grid.slots[2].tag == 0 {
         true -> done()
         _ -> bad()
     }

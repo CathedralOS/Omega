@@ -289,20 +289,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     },
                 );
             }
-            // A path ending at the index selects an inline primitive
-            // element; one ending at a field is a record-field observation
-            // whose carrier may itself cross literal fixed-array indices.
-            if matches!(
-                path.last(),
-                Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
-            ) {
-                return crate::expression_preparation::bindings::structural_fields::resolve_primitive(
-                        structural_fields,
-                        *parameter_position,
-                        path,
-                        scalar_type,
-                    );
-            }
             crate::expression_preparation::bindings::structural_fields::resolve(
                 structural_fields,
                 *parameter_position,
@@ -878,22 +864,6 @@ fn lower_checked_boolean_expression_with_parameters(
                 );
             }
             if !structural_fields.is_empty() {
-                // Index-terminal paths read an inline primitive element;
-                // field-terminal paths observe a record field whose carrier
-                // may itself cross literal fixed-array indices.
-                if matches!(
-                    path.last(),
-                    Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
-                ) {
-                    let observation =
-                        crate::expression_preparation::bindings::structural_fields::resolve_primitive(
-                            structural_fields,
-                            *parameter_position,
-                            path,
-                            ScalarType::Boolean,
-                        )?;
-                    return Ok(crate::expression_preparation::bindings::structural_fields::boolean_observation(observation));
-                }
                 let observation =
                     crate::expression_preparation::bindings::structural_fields::resolve(
                         structural_fields,
