@@ -155,20 +155,9 @@ pub enum RecoveryClassificationDecodeError {
     TrailingBytes,
 }
 
-impl From<crate::cursor::Truncated> for RecoveryClassificationDecodeError {
-    fn from(_: crate::cursor::Truncated) -> Self {
-        Self::Truncated
-    }
-}
+optimization_core::truncated_from_adapter!(RecoveryClassificationDecodeError);
 
-impl From<crate::cursor::TakeError> for RecoveryClassificationDecodeError {
-    fn from(error: crate::cursor::TakeError) -> Self {
-        match error {
-            crate::cursor::TakeError::Truncated => Self::Truncated,
-            crate::cursor::TakeError::LengthOverflow => Self::LengthOverflow,
-        }
-    }
-}
+optimization_core::take_error_from_adapter!(RecoveryClassificationDecodeError);
 
 impl std::fmt::Display for RecoveryClassificationDecodeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -10,7 +10,7 @@ use calling_conventions::{MachineRegister, RegisterSet};
 use target::NativeTarget;
 
 use crate::X86_64ScalarCallFixupState;
-use crate::cursor::{Cursor, Truncated};
+use crate::cursor::Cursor;
 
 pub const X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT: usize = 90;
 pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH: u8 = 4;
@@ -949,8 +949,4 @@ fn expect(
     Ok(())
 }
 
-impl From<Truncated> for X86_64SemanticUnitWrapperEncodingError {
-    fn from(_: Truncated) -> Self {
-        Self::MalformedTemplate
-    }
-}
+optimization_core::truncated_from_adapter!(X86_64SemanticUnitWrapperEncodingError => Self::MalformedTemplate);

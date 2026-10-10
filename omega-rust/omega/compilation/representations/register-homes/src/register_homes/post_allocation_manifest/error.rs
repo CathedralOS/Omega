@@ -37,20 +37,9 @@ pub enum PostAllocationOptimizationManifestDecodeError {
     TrailingBytes,
 }
 
-impl From<crate::cursor::Truncated> for PostAllocationOptimizationManifestDecodeError {
-    fn from(_: crate::cursor::Truncated) -> Self {
-        Self::Truncated
-    }
-}
+optimization_core::truncated_from_adapter!(PostAllocationOptimizationManifestDecodeError);
 
-impl From<crate::cursor::TakeError> for PostAllocationOptimizationManifestDecodeError {
-    fn from(error: crate::cursor::TakeError) -> Self {
-        match error {
-            crate::cursor::TakeError::Truncated => Self::Truncated,
-            crate::cursor::TakeError::LengthOverflow => Self::LengthOverflow,
-        }
-    }
-}
+optimization_core::take_error_from_adapter!(PostAllocationOptimizationManifestDecodeError);
 
 impl std::fmt::Display for PostAllocationOptimizationManifestDecodeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

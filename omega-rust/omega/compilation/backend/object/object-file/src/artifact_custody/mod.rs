@@ -362,11 +362,7 @@ pub enum OptimizedObjectArtifactRecordDecodeError {
     IdentityMismatch,
     TrailingBytes}
 
-impl From<crate::cursor::Truncated> for OptimizedObjectArtifactRecordDecodeError {
-    fn from(_: crate::cursor::Truncated) -> Self {
-        Self::Truncated
-    }
-}
+optimization_core::truncated_from_adapter!(OptimizedObjectArtifactRecordDecodeError);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedObjectArtifactManifestDecodeError {
@@ -411,11 +407,7 @@ impl std::fmt::Display for OptimizedObjectArtifactManifestDecodeError {
 
 impl std::error::Error for OptimizedObjectArtifactManifestDecodeError {}
 
-impl From<crate::cursor::Truncated> for OptimizedObjectArtifactManifestDecodeError {
-    fn from(_: crate::cursor::Truncated) -> Self {
-        Self::Artifact(OptimizedObjectArtifactRecordDecodeError::Truncated)
-    }
-}
+optimization_core::truncated_from_adapter!(OptimizedObjectArtifactManifestDecodeError => Self::Artifact(OptimizedObjectArtifactRecordDecodeError::Truncated));
 
 impl From<OptimizedObjectArtifactRecordDecodeError> for OptimizedObjectArtifactManifestDecodeError {
     fn from(error: OptimizedObjectArtifactRecordDecodeError) -> Self {

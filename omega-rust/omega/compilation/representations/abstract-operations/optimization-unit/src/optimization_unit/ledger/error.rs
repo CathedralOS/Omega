@@ -48,11 +48,4 @@ impl std::fmt::Display for PsiTransformationLedgerDecodeError {
 
 impl std::error::Error for PsiTransformationLedgerDecodeError {}
 
-impl From<crate::cursor::TakeError> for PsiTransformationLedgerDecodeError {
-    fn from(error: crate::cursor::TakeError) -> Self {
-        match error {
-            crate::cursor::TakeError::Truncated => Self::Truncated,
-            crate::cursor::TakeError::LengthOverflow => Self::LengthOverflow,
-        }
-    }
-}
+optimization_core::take_error_from_adapter!(PsiTransformationLedgerDecodeError);

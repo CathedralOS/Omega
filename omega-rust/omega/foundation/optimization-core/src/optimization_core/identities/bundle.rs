@@ -3,7 +3,7 @@ use super::{
     OptimizationWorkloadProfileIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
 };
 use crate::OptimizationSelectionIdentity;
-use crate::cursor::{Cursor, Truncated};
+use crate::cursor::Cursor;
 use std::fmt;
 
 const BUNDLE_MAGIC: &[u8; 8] = b"OMGIDB\0\0";
@@ -171,11 +171,7 @@ impl fmt::Display for IdentityBundleDecodeError {
 
 impl std::error::Error for IdentityBundleDecodeError {}
 
-impl From<Truncated> for IdentityBundleDecodeError {
-    fn from(_: Truncated) -> Self {
-        Self::Truncated
-    }
-}
+crate::truncated_from_adapter!(IdentityBundleDecodeError);
 
 fn optional_identity(
     cursor: &mut Cursor,

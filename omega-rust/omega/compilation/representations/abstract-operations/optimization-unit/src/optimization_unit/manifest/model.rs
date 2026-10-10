@@ -94,11 +94,4 @@ impl std::fmt::Display for PrePhysicalOptimizationManifestDecodeError {
 
 impl std::error::Error for PrePhysicalOptimizationManifestDecodeError {}
 
-impl From<crate::cursor::TakeError> for PrePhysicalOptimizationManifestDecodeError {
-    fn from(error: crate::cursor::TakeError) -> Self {
-        match error {
-            crate::cursor::TakeError::Truncated => Self::Truncated,
-            crate::cursor::TakeError::LengthOverflow => Self::LengthOverflow,
-        }
-    }
-}
+optimization_core::take_error_from_adapter!(PrePhysicalOptimizationManifestDecodeError);

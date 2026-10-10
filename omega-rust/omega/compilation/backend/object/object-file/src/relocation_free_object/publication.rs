@@ -83,10 +83,4 @@ pub enum FunctionFragmentObjectContainerManifestDecodeError {
     TrailingBytes,
 }
 
-impl From<crate::cursor::Truncated>
-    for FunctionFragmentObjectContainerManifestDecodeError
-{
-    fn from(_: crate::cursor::Truncated) -> Self {
-        Self::Truncated
-    }
-}
+optimization_core::truncated_from_adapter!(FunctionFragmentObjectContainerManifestDecodeError);

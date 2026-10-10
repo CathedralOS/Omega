@@ -242,11 +242,7 @@ pub enum RelocationFreeObjectDecodeError {
     InvalidObject(RelocationFreeObjectError),
 }
 
-impl From<crate::cursor::Truncated> for RelocationFreeObjectDecodeError {
-    fn from(_: crate::cursor::Truncated) -> Self {
-        Self::Truncated
-    }
-}
+optimization_core::truncated_from_adapter!(RelocationFreeObjectDecodeError);
 
 pub fn canonical_private_machine_symbol_name(machine: MachineId) -> String {
     format!("__omega_terminal_machine_{}", machine.get())

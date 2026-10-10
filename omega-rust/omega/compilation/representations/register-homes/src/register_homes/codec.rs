@@ -99,17 +99,6 @@ impl std::fmt::Display for RegisterHomeDecodeError {
 
 impl std::error::Error for RegisterHomeDecodeError {}
 
-impl From<crate::cursor::Truncated> for RegisterHomeDecodeError {
-    fn from(_: crate::cursor::Truncated) -> Self {
-        Self::Truncated
-    }
-}
+optimization_core::truncated_from_adapter!(RegisterHomeDecodeError);
 
-impl From<crate::cursor::TakeError> for RegisterHomeDecodeError {
-    fn from(error: crate::cursor::TakeError) -> Self {
-        match error {
-            crate::cursor::TakeError::Truncated => Self::Truncated,
-            crate::cursor::TakeError::LengthOverflow => Self::LengthOverflow,
-        }
-    }
-}
+optimization_core::take_error_from_adapter!(RegisterHomeDecodeError);

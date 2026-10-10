@@ -83,3 +83,41 @@ impl<'a> Cursor<'a> {
         self.take(length).map_err(|_| TakeError::Truncated)
     }
 }
+
+/// Expands the standard two-branch `From<TakeError>` decode-error adapter for
+/// a crate-local error enum whose `Truncated`/`LengthOverflow` variants mirror
+/// the shared cursor errors.
+#[macro_export]
+macro_rules! take_error_from_adapter {
+    ($error:ty) => {
+        impl From<$crate::cursor::TakeError> for $error {
+            fn from(error: $crate::cursor::TakeError) -> Self {
+                match error {
+                    $crate::cursor::TakeError::Truncated => Self::Truncated,
+                    $crate::cursor::TakeError::LengthOverflow => Self::LengthOverflow,
+                }
+            }
+        }
+    };
+}
+
+/// Expands the standard `From<Truncated>` decode-error adapter for a
+/// crate-local error enum. The bare form maps to `Self::Truncated`; the
+/// `=>` arm maps onto the caller's own variant expression.
+#[macro_export]
+macro_rules! truncated_from_adapter {
+    ($error:ty) => {
+        impl From<$crate::cursor::Truncated> for $error {
+            fn from(_: $crate::cursor::Truncated) -> Self {
+                Self::Truncated
+            }
+        }
+    };
+    ($error:ty => $variant:expr) => {
+        impl From<$crate::cursor::Truncated> for $error {
+            fn from(_: $crate::cursor::Truncated) -> Self {
+                $variant
+            }
+        }
+    };
+}

@@ -145,17 +145,6 @@ impl std::fmt::Display for AllocatorAvailabilityDecodeError {
 
 impl std::error::Error for AllocatorAvailabilityDecodeError {}
 
-impl From<crate::cursor::Truncated> for AllocatorAvailabilityDecodeError {
-    fn from(_: crate::cursor::Truncated) -> Self {
-        Self::Truncated
-    }
-}
+optimization_core::truncated_from_adapter!(AllocatorAvailabilityDecodeError);
 
-impl From<crate::cursor::TakeError> for AllocatorAvailabilityDecodeError {
-    fn from(error: crate::cursor::TakeError) -> Self {
-        match error {
-            crate::cursor::TakeError::Truncated => Self::Truncated,
-            crate::cursor::TakeError::LengthOverflow => Self::LengthOverflow,
-        }
-    }
-}
+optimization_core::take_error_from_adapter!(AllocatorAvailabilityDecodeError);

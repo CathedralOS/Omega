@@ -1,7 +1,7 @@
 //! Canonical record of the target-neutral optimization phase that produced a
 //! Terminal-Psi artifact.
 
-use crate::cursor::{Cursor, Truncated};
+use crate::cursor::Cursor;
 use optimization::{
     PsiOptimizationSelectionDecodeError, PsiOptimizationSelectionIdentity,
     PsiOptimizationSelections,
@@ -252,8 +252,4 @@ impl std::error::Error for PsiOptimizationExecutionRecordError {}
 impl std::error::Error for PsiOptimizationExecutionRecordBuildError {}
 impl std::error::Error for PsiOptimizationExecutionRecordDecodeError {}
 
-impl From<Truncated> for PsiOptimizationExecutionRecordDecodeError {
-    fn from(_: Truncated) -> Self {
-        Self::UnexpectedEnd
-    }
-}
+optimization::truncated_from_adapter!(PsiOptimizationExecutionRecordDecodeError => Self::UnexpectedEnd);

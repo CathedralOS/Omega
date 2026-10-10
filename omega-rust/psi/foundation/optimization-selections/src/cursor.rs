@@ -54,3 +54,24 @@ impl<'a> Cursor<'a> {
         Ok(u64::from_le_bytes(self.array()?))
     }
 }
+
+/// Expands the standard `From<Truncated>` decode-error adapter for a
+/// crate-local error enum. The bare form maps to `Self::Truncated`; the
+/// `=>` arm maps onto the caller's own variant expression.
+#[macro_export]
+macro_rules! truncated_from_adapter {
+    ($error:ty) => {
+        impl From<$crate::cursor::Truncated> for $error {
+            fn from(_: $crate::cursor::Truncated) -> Self {
+                Self::Truncated
+            }
+        }
+    };
+    ($error:ty => $variant:expr) => {
+        impl From<$crate::cursor::Truncated> for $error {
+            fn from(_: $crate::cursor::Truncated) -> Self {
+                $variant
+            }
+        }
+    };
+}

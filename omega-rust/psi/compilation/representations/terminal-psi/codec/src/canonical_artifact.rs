@@ -6,7 +6,7 @@
 //! provider realization, deployment policy, output paths, and installation
 //! authority are deliberately absent.
 
-use crate::cursor::{Cursor, Truncated};
+use crate::cursor::Cursor;
 use terminal_psi::TerminalModule;
 
 use crate::{
@@ -270,11 +270,7 @@ pub enum CanonicalTerminalArtifactError {
     Envelope(CanonicalTerminalArtifactEnvelopeError),
 }
 
-impl From<Truncated> for CanonicalTerminalArtifactError {
-    fn from(_: Truncated) -> Self {
-        Self::Envelope(CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd)
-    }
-}
+optimization::truncated_from_adapter!(CanonicalTerminalArtifactError => Self::Envelope(CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd));
 
 impl From<CanonicalTerminalArtifactEnvelopeError> for CanonicalTerminalArtifactError {
     fn from(error: CanonicalTerminalArtifactEnvelopeError) -> Self {
@@ -301,11 +297,7 @@ impl std::fmt::Display for CanonicalTerminalArtifactError {
 
 impl std::error::Error for CanonicalTerminalArtifactError {}
 
-impl From<Truncated> for CanonicalTerminalArtifactEnvelopeError {
-    fn from(_: Truncated) -> Self {
-        Self::UnexpectedEnd
-    }
-}
+optimization::truncated_from_adapter!(CanonicalTerminalArtifactEnvelopeError => Self::UnexpectedEnd);
 
 fn section_len(
     cursor: &mut Cursor,

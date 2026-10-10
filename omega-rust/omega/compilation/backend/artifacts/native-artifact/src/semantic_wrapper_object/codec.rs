@@ -473,11 +473,7 @@ fn decode_symbol_id(
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidSymbol)
 }
 
-impl From<Truncated> for OptimizedProgramStorageSemanticWrapperObjectDecodeError {
-    fn from(_: Truncated) -> Self {
-        Self::Truncated
-    }
-}
+optimization_core::truncated_from_adapter!(OptimizedProgramStorageSemanticWrapperObjectDecodeError);
 
 impl From<TakeError> for OptimizedProgramStorageSemanticWrapperObjectDecodeError {
     fn from(error: TakeError) -> Self {

@@ -17,11 +17,7 @@ pub enum FunctionFragmentTextSectionManifestDecodeError {
     TrailingBytes,
 }
 
-impl From<crate::cursor::Truncated> for FunctionFragmentTextSectionManifestDecodeError {
-    fn from(_: crate::cursor::Truncated) -> Self {
-        Self::Truncated
-    }
-}
+optimization_core::truncated_from_adapter!(FunctionFragmentTextSectionManifestDecodeError);
 
 impl std::fmt::Display for FunctionFragmentTextSectionManifestDecodeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

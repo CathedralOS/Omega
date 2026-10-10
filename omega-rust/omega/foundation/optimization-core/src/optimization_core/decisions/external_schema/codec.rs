@@ -1,5 +1,5 @@
 use super::identity::{encode_action, encode_context};
-use crate::cursor::{Cursor, Truncated};
+use crate::cursor::Cursor;
 
 use crate::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationDecisionIdentity,
@@ -209,8 +209,4 @@ fn decode_action(
     }
 }
 
-impl From<Truncated> for ExternalDecisionSchemaError {
-    fn from(_: Truncated) -> Self {
-        Self::Truncated
-    }
-}
+crate::truncated_from_adapter!(ExternalDecisionSchemaError);

@@ -1,4 +1,4 @@
-use crate::cursor::{Cursor, Truncated};
+use crate::cursor::Cursor;
 use crate::{
     OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationReasonCode, OptimizationUnitIdentity,
@@ -408,8 +408,4 @@ mod tests {
     }
 }
 
-impl From<Truncated> for BaselineDecisionLogDecodeError {
-    fn from(_: Truncated) -> Self {
-        Self::Truncated
-    }
-}
+crate::truncated_from_adapter!(BaselineDecisionLogDecodeError);
