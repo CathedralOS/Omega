@@ -432,6 +432,8 @@ fail/borrows/nested_reference_live_source_write rejected 145ms expected @21b6591
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3)
 fail/borrows/nested_result_retains_operand_loan rejected 326ms expected @f0ed096e2456+wt
 	state `observe` receives `value` as mutable more than once
+fail/borrows/nested_retained_mutable_loan_shared_argument rejected 4327ms expected @4c9ecb65211f+wt
+	state `observe_hold` receives `counter` as both mutable and read-only
 fail/borrows/plain_read_during_live_exclusive_loan rejected 376ms expected @4aa20431b027
 	statement 3 reads `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 2 reads `items[2]` while local borrow `middle` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -3148,6 +3150,8 @@ pass/calls/runtime_case_payload_indexed_calls_exit checked 2987ms check-target:m
 pass/calls/runtime_case_payload_scalar_array_read_exit checked 1738ms check-target:macos_arm64 @a1228b9c89cd+wt
 pass/calls/runtime_case_record_return_exit checked 1636ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_case_terminal_payload_result_exit checked 1182ms check-target:macos_arm64 @987a6f356be0
+pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit checked 8626ms check-target:linux_x86_64 @4c9ecb65211f+wt
+pass/calls/runtime_completed_operand_then_shared_borrow_exit checked 8643ms check-target:linux_x86_64 @4c9ecb65211f+wt
 pass/calls/runtime_computed_case_subject_affine_argument_exit checked 851ms check-target:macos_arm64 @92bbd31b7820
 pass/calls/runtime_computed_case_terminal_payload_result_exit checked 783ms check-target:macos_arm64 @95bd0eaccc6e
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit checked 1957ms check-target:macos_arm64 @a9ea4297a1a9
@@ -3208,6 +3212,7 @@ pass/calls/runtime_mutable_local_external_scalar_call_exit checked 1998ms check-
 pass/calls/runtime_mutable_local_parameter_write_exit checked 632ms check-target:macos_arm64 @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit checked 2176ms check-target:macos_arm64 @b6846d69ce88+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 695ms check-target:macos_arm64 @3daca3fd87c2
+pass/calls/runtime_nested_completed_operands_then_shared_borrow_exit checked 8717ms check-target:linux_x86_64 @4c9ecb65211f+wt
 pass/calls/runtime_nested_constructor_child_snapshots_exit checked 1221ms check-target:macos_arm64 @8093eb34a6ed+wt
 pass/calls/runtime_nested_local_field_store_exit checked 1769ms check-target:macos_arm64 @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 803ms check-target:macos_arm64 @ac942fdbba24
@@ -4907,3 +4912,4 @@ fail/termination/rank_arrival_missing_public_result_field_equation rejected 489m
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
 pass/termination/rank_arrival_unobserved_array_extent_compile checked 580ms @09715a326eee
 pass/termination/runtime_public_result_field_rank_arrivals_exit checked 3424ms check-target:macos_arm64 @09715a326eee
+# context: {"cpus": 5, "jobs": "2", "load1_end": 0.78, "load1_start": 0.4, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}

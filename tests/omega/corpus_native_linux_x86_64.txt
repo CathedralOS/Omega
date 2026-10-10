@@ -196,6 +196,8 @@ pass/calls/requires_operand_flip_discharge built 1227ms @2d8ed253669f+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 1280ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 1593ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_case_record_return_exit built 1177ms exit:70 @2d8ed253669f+wt
+pass/calls/runtime_completed_operand_then_forwarded_shared_borrow_exit built 7945ms exit:0 @e72bacf8dae5
+pass/calls/runtime_completed_operand_then_shared_borrow_exit built 7994ms exit:0 @e72bacf8dae5
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 8025ms exit:0 @b2906d953be
 pass/calls/runtime_constructor_computed_field_exit built 967ms exit:1 @2d8ed253669f+wt
 pass/calls/runtime_constructor_projected_membership_snapshot_exit built 5404ms exit:0 @74a22511782
@@ -222,6 +224,7 @@ pass/calls/runtime_mutable_call_before_transition_args_exit built 2424ms exit:70
 pass/calls/runtime_mutable_local_parameter_write_exit built 2060ms exit:171 @bd26d3a01ac1
 pass/calls/runtime_nested_case_argument_exit built 8773ms exit:70 @b2906d953be
 pass/calls/runtime_nested_case_subject_operand_order_exit built 3600ms exit:0 @8735cafb4cf
+pass/calls/runtime_nested_completed_operands_then_shared_borrow_exit built 7590ms exit:0 @e72bacf8dae5
 pass/calls/runtime_nested_value_call_guard_exit built 4782ms exit:70 @233d30cb1ceb
 pass/calls/runtime_option_value_call_exit built 1177ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 1085ms exit:70 @2d8ed253669f+wt
@@ -1151,3 +1154,4 @@ run/borrows/shared_runtime_index_borrow built 1976ms exit:0 @2d8ed253669f+wt
 run/borrows/transition_shared_borrow built 1448ms exit:0 @2d8ed253669f+wt
 run/contained_health_loop_command_branch checked 773ms @2d8ed253669f+wt
 run/nested_mut_alias_assignment_return built 1524ms exit:0 stdout:match @9baafc0ace88
+# context: {"cpus": 5, "jobs": "2", "load1_end": 1.83, "load1_start": 1.79, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}

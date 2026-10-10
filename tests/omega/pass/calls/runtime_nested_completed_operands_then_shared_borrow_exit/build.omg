@@ -1,0 +1,4 @@
+machine build(builder:&mut Build){
+ Build::application(builder,"nested_completed_operands_then_shared");
+ Build::bind(builder,linux_x86_64::ProgramEntry,main);
+}

@@ -1,5 +1,10 @@
 //! Structural call arguments: their custody, restored reborrow aliases,
 //! exact borrow access and the claim transfers a call performs.
+//!
+//! The borrow roster retains the full operand evaluation history for conflict
+//! checking. Invocation contracts consume only accesses still live at the call:
+//! a completed nested operand can mutate a place before a later shared argument
+//! without supplying mutable access to the enclosing invocation.
 
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::argument_paths::byte_sequence_literal_argument;
@@ -815,7 +820,12 @@ pub(crate) fn exact_structural_borrow_access(
         .span_or_empty(borrow_call.accesses)
         .iter()
         .filter(|access| {
-            borrow.access_segments(access) == segments && access.root_symbol == root_symbol
+            // None retains an access through invocation. A recorded end belongs
+            // to operand evaluation, whose conflicts are checked with the full
+            // roster; it must not change this invocation's access classification.
+            access.end_before_access.is_none()
+                && borrow.access_segments(access) == segments
+                && access.root_symbol == root_symbol
         })
         .map(|access| &access.kind)
         .collect::<Vec<_>>();
