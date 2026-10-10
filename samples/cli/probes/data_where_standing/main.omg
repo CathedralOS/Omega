@@ -1,0 +1,33 @@
+// Standing data-where bound: `data Counter where
+// value <= 60` makes the bound a premise in every state of
+// machines attached to the data — `70 + main.value` exact
+// arithmetic discharges against it with no per-call proof.
+//
+//   * Where-clause on the `data` header itself.
+//   * `Main::main(main: &mut Main)` reads the gated field.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+data Counter
+where
+    value <= 60,
+{
+    value: i32;
+}
+
+data Main {
+    counter: Counter;
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let total: i32 = 70 + main.counter.value;
+    transition total <= 130 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
