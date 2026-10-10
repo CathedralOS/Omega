@@ -79,30 +79,18 @@ pub(super) fn lower(
             }
             lower_byte_observation(operation, &mut values, &mut provenance.operations)?;
         }
-        AbstractOperation::ElementViewLength { source, .. }
-        | AbstractOperation::ByteSequenceLength { source, .. }
-        | AbstractOperation::ByteSequenceSubslice { source, .. }
-        | AbstractOperation::ElementViewSubslice { source, .. } => {
-            if super::references::check_projected_shared_access(
-                function,
-                live,
-                structural_types,
-                source.place,
-                &source.path,
-                None,
-            ) {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
+        AbstractOperation::ElementViewLength { .. }
+        | AbstractOperation::ByteSequenceLength { .. }
+        | AbstractOperation::ByteSequenceSubslice { .. }
+        | AbstractOperation::ElementViewSubslice { .. } => match operation {
+            AbstractOperation::ElementViewLength { .. } => {
+                lower_element_observation(operation, &mut values, &mut provenance.operations)?;
             }
-            match operation {
-                AbstractOperation::ElementViewLength { .. } => {
-                    lower_element_observation(operation, &mut values, &mut provenance.operations)?;
-                }
-                AbstractOperation::ByteSequenceLength { .. } => {
-                    lower_byte_observation(operation, &mut values, &mut provenance.operations)?;
-                }
-                _ => {}
+            AbstractOperation::ByteSequenceLength { .. } => {
+                lower_byte_observation(operation, &mut values, &mut provenance.operations)?;
             }
-        }
+            _ => {}
+        },
         AbstractOperation::ElementViewRead { source, .. } => {
             if prepared.parameter(*source).is_none()
                 && !live.views.contains_key(source)

@@ -1,8 +1,7 @@
-//! Ordinary control graphs: definitions belong to dominating blocks, but
-//! reference custody follows actual post-transfer, post-cleanup edges. Every
-//! selected owned parameter retains its incoming formations, backing roots
-//! and immediate parents. Other live leaves agree exactly. Replay reaches a
-//! fixed point over current predecessor exits before publishing the graph.
+//! Ordinary control graphs: definitions belong to dominating blocks, while
+//! descriptor storage follows actual post-transfer, post-cleanup edges.
+//! Incoming conditional slots retain the union of possible backing origins.
+//! The fixed point computes storage metadata, not a second ownership judgment.
 use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
 use crate::lowering::selected_boundary_calls::SelectedBoundaryCall;
@@ -50,14 +49,12 @@ use operations::lower_operation;
 use target_operations::{TargetControlBlock, TargetControlGraph, TargetScalarBlockParameter};
 use terminator::lower_terminator;
 
-/// Exact custody after simultaneous edge transfer and cleanup. Descriptor
-/// formation, backing and parents survive relocation. Selected occurrences
-/// use their actual receiving parameter identity and contract.
+/// Descriptor metadata after simultaneous edge transfer and cleanup.
 #[derive(Clone)]
-struct ReferenceEdgeCustody {
+struct ReferenceEdgeStorage {
     target: semantic_vocabulary::BlockId,
-    references: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), references::ReferenceCustody>,
-    drained_loan_roots: BTreeSet<PlaceId>,
+    references: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), references::ReferenceStorage>,
+    retired_reference_roots: BTreeSet<PlaceId>,
 }
 
 #[derive(Clone)]
@@ -82,13 +79,12 @@ struct LiveDefinitions {
     /// They occupy no bytes, so they have no structural home; a whole owned
     /// call argument names the establishment as its producer.
     trivial_affine_locals: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
-    /// Live reference loans keyed by current carrier location. The map is the
-    /// lowering-time mirror of the verified ownership replay: carriers own
-    /// loan permission, never referent storage.
-    references: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), references::ReferenceCustody>,
-    /// Roots whose complete loan roster already ended on this path.
-    drained_loan_roots: BTreeSet<PlaceId>,
-    reference_edge_exits: Vec<ReferenceEdgeCustody>,
+    /// Descriptor metadata keyed by current carrier location, never permission
+    /// or referent storage. Case-qualified keys describe possible residents.
+    references: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), references::ReferenceStorage>,
+    /// Carrier roots whose descriptor metadata was already retired on this path.
+    retired_reference_roots: BTreeSet<PlaceId>,
+    reference_edge_exits: Vec<ReferenceEdgeStorage>,
 }
 
 impl LiveDefinitions {
@@ -115,30 +111,28 @@ impl LiveDefinitions {
         self.element_view_backings().view_result(function, place)
     }
 
-    fn reference_edge_exit(&self, target: semantic_vocabulary::BlockId) -> ReferenceEdgeCustody {
-        ReferenceEdgeCustody {
+    fn reference_edge_exit(&self, target: semantic_vocabulary::BlockId) -> ReferenceEdgeStorage {
+        ReferenceEdgeStorage {
             target,
             references: self.references.clone(),
-            drained_loan_roots: self.drained_loan_roots.clone(),
+            retired_reference_roots: self.retired_reference_roots.clone(),
         }
     }
 
-    /// Keep each outgoing edge intact. An intersection would lose both
-    /// transported permissions and the obligations of conditionally live loans.
-    fn finish_reference_edges(&mut self, exits: Vec<ReferenceEdgeCustody>) {
+    /// Keep each outgoing edge intact before joining its possible residents.
+    fn finish_reference_edges(&mut self, exits: Vec<ReferenceEdgeStorage>) {
         self.reference_edge_exits = exits;
     }
 
-    /// Select post-transfer, post-cleanup custody from an actual edge. The
-    /// checked ownership contract requires exact agreement at every arrival;
-    /// a type declaration cannot restore a missing loan or choose its origin.
+    /// Select post-transfer, post-cleanup storage from actual edges. A type
+    /// declaration cannot supply the descriptor's runtime-selected origin.
     fn reference_arrival(
         &self,
         target: semantic_vocabulary::BlockId,
         function: &AbstractFunction,
         storage: &BTreeSet<PlaceId>,
-    ) -> Result<ReferenceEdgeCustody, LoweringError> {
-        let scoped = |mut exit: ReferenceEdgeCustody| {
+    ) -> Result<ReferenceEdgeStorage, LoweringError> {
+        let scoped = |mut exit: ReferenceEdgeStorage| {
             exit.references
                 .retain(|(carrier, _), _| storage.contains(carrier));
             exit
@@ -158,15 +152,10 @@ impl LiveDefinitions {
         );
         for other in exits {
             let other = scoped(other.clone());
-            references::merge_arrivals(
-                function,
-                target,
-                &mut arrival.references,
-                &other.references,
-            )?;
+            references::merge_arrivals(function, &mut arrival.references, &other.references)?;
             arrival
-                .drained_loan_roots
-                .retain(|root| other.drained_loan_roots.contains(root));
+                .retired_reference_roots
+                .retain(|root| other.retired_reference_roots.contains(root));
         }
         Ok(arrival)
     }
@@ -499,7 +488,7 @@ pub(super) fn lower(
         lengths: BTreeMap::new(),
         trivial_affine_locals: BTreeMap::new(),
         references: entry_references.clone(),
-        drained_loan_roots: BTreeSet::new(),
+        retired_reference_roots: BTreeSet::new(),
         reference_edge_exits: Vec::new(),
     };
     loop {
@@ -549,7 +538,6 @@ pub(super) fn lower(
                     };
                     if references::merge_arrivals(
                         function,
-                        entries[position].block,
                         &mut arrival.references,
                         &other.references,
                     )
@@ -559,24 +547,24 @@ pub(super) fn lower(
                         continue 'blocks;
                     }
                     arrival
-                        .drained_loan_roots
-                        .retain(|root| other.drained_loan_roots.contains(root));
+                        .retired_reference_roots
+                        .retain(|root| other.retired_reference_roots.contains(root));
                 }
-                // Ordinary homes and scalar definitions still come from the
-                // dominator. Loan membership must come from an incoming edge:
-                // overlaying it would revive a child moved out by both arms.
+                // Homes and scalar definitions come from the dominator.
+                // Descriptor metadata comes from the actual incoming edges,
+                // not an overlay that could revive moved storage.
                 live.references = arrival.references;
-                live.drained_loan_roots = arrival.drained_loan_roots;
+                live.retired_reference_roots = arrival.retired_reference_roots;
             }
             live.reference_edge_exits.clear();
             if reference_entries[position].as_ref() == Some(&live.references)
-                && drained_entries[position].as_ref() == Some(&live.drained_loan_roots)
+                && drained_entries[position].as_ref() == Some(&live.retired_reference_roots)
             {
                 continue;
             }
             changed = true;
             reference_entries[position] = Some(live.references.clone());
-            drained_entries[position] = Some(live.drained_loan_roots.clone());
+            drained_entries[position] = Some(live.retired_reference_roots.clone());
             if position != entry_position {
                 transfers::enter(&entries[position], &mut live);
                 // Outgoing reference carriers were captured on the selected edge
@@ -703,9 +691,8 @@ pub(super) fn lower(
             break;
         }
     }
-    // Initial arrivals seed cyclic replay. Publication uses every latest edge,
-    // including later arms and backedges: only selected owned leaves combine
-    // provenance, while unrelated permission must agree exactly.
+    // Initial arrivals seed cyclic storage propagation. Publication uses every
+    // latest edge, including later arms and backedges.
     for (position, predecessors) in incoming.iter().enumerate() {
         let mut arrivals = predecessors.iter().map(|predecessor| {
             live_exits[*predecessor]
@@ -722,12 +709,7 @@ pub(super) fn lower(
         };
         let mut arrival = first?;
         for other in arrivals {
-            references::merge_arrivals(
-                function,
-                entries[position].block,
-                &mut arrival.references,
-                &other?.references,
-            )?;
+            references::merge_arrivals(function, &mut arrival.references, &other?.references)?;
         }
         if reference_entries[position].as_ref() != Some(&arrival.references) {
             return Err(LoweringError::unsupported_control_flow(function.machine));

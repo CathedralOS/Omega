@@ -265,7 +265,7 @@ fn land_result(
     call: &Invocation<'_>,
     callee_function: Option<&AbstractFunction>,
     structural_home: Option<TargetStructuralHomeRequirement>,
-    moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), super::references::ReferenceCustody>,
+    moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), super::references::ReferenceStorage>,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
     live: &mut LiveDefinitions,
@@ -302,13 +302,12 @@ fn land_result(
                 callee_function,
                 types,
                 result,
-                call.psi_operation,
                 call.structural_arguments,
                 live,
                 moved,
             )?;
             // Reference results own an address payload home, not referent
-            // storage. The separate roster above retains loan authority;
+            // storage. The separate roster above retains possible origins;
             // ordinary result transport captures the actually selected address.
             if live
                 .structural_homes

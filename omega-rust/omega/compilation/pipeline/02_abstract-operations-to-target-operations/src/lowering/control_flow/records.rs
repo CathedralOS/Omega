@@ -256,14 +256,6 @@ pub(super) fn establish(
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                // A bare carrier field contributes custody, not storage: its
-                // operand contract comes from the live reference map, not a
-                // structural home or signature parameter.
-                let bare_carrier = reference_bearing
-                    && matches!(
-                        types.get(&nested).map(|declaration| &declaration.shape),
-                        Some(StructuralTypeShape::Reference { .. })
-                    );
                 if !argument.path.iter().all(|segment| {
                     matches!(
                         segment,
@@ -283,34 +275,18 @@ pub(super) fn establish(
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
                     StructuralMultiplicity::Unrestricted
-                } else if bare_carrier && argument.path.is_empty() {
-                    live.references
-                        .get(&(argument.place, Vec::new()))
-                        .filter(|leaf| leaf.contract.structural_type() == nested)
-                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-                        .contract
-                        .multiplicity()
                 } else if let Some(home) = live.structural_homes.get(&argument.place) {
                     if types.subtree(home.structural_type(), &argument.path) != Some(nested)
                         || home.access() != StructuralAccess::Owned
-                        || (!argument.path.is_empty()
-                            && home.multiplicity() != StructuralMultiplicity::Affine)
                     {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
                     home.multiplicity()
                 } else {
-                    let mut parameters = function
-                        .structural_parameters
-                        .iter()
-                        .filter(|parameter| parameter.place == argument.place);
-                    let parameter = parameters
-                        .next()
+                    let parameter = function
+                        .arrival_parameter(argument.place)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                    if parameters.next().is_some()
-                        || types.subtree(parameter.structural_type, &argument.path) != Some(nested)
-                        || (!argument.path.is_empty()
-                            && parameter.multiplicity != StructuralMultiplicity::Affine)
+                    if types.subtree(parameter.structural_type, &argument.path) != Some(nested)
                         || parameter.access != StructuralAccess::Owned
                     {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -346,6 +322,7 @@ pub(super) fn establish(
                         &destination,
                         nested,
                         argument,
+                        multiplicity != StructuralMultiplicity::Unrestricted,
                         &mut relocations,
                         &mut moved_leaves,
                     )?;
@@ -357,10 +334,6 @@ pub(super) fn establish(
         .references
         .keys()
         .any(|(carrier, _)| *carrier == result.place)
-        || live
-            .references
-            .values()
-            .any(|leaf| leaf.identity.0 == result.place)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -371,7 +344,7 @@ pub(super) fn establish(
             live.structural_homes.remove(&place);
         }
     }
-    super::references::relocate_leaves(live, result.place, relocations);
+    super::references::relocate_leaves(live, result.place, relocations, moved_leaves);
     live.structural_homes
         .insert(result.place, result_home.clone());
     operations.push(if let Some(elements) = elements {

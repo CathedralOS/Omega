@@ -66,18 +66,7 @@ pub(super) fn readable_byte_field(
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
-    // Permission belongs to the exact observation. Geometry then follows every
-    // pointer crossing; a store-only path grammar cannot describe this read.
-    if super::references::check_projected_shared_access(
-        function,
-        live,
-        types,
-        source,
-        path,
-        Some(field),
-    ) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
+    // The checked observation selects storage through ordered pointer crossings.
     let (structural_type, access) = field_root(function, types, prepared, live, source)?;
     let regions = crate::lowering::structural_layout::reference_projection_regions(
         structural_type,
@@ -369,27 +358,27 @@ pub(super) fn lower(
                     // the path, and either view family lends a shared read. An
                     // affine view is also a structural home, so views win first.
                     (*structural_type, StructuralAccess::SharedBorrow)
-                } else if let Some(custody) =
+                } else if let Some(descriptor) =
                     live.references
                         .get(&(place, Vec::new()))
-                        .and_then(|custody| {
+                        .and_then(|descriptor| {
                             match types
-                                .get(&custody.contract.structural_type())
+                                .get(&descriptor.carrier_type)
                                 .map(|declaration| &declaration.shape)
                             {
                                 Some(StructuralTypeShape::Reference {
                                     access: terminal_psi::reading_borrow_pair_pattern!(),
                                     ..
-                                }) => Some(custody),
+                                }) => Some(descriptor),
                                 _ => None,
                             }
                         })
                 {
                     // The home stores the selected address. Origins constrain
-                    // custody; choosing a static origin would lose a callee's
+                    // possible backing; choosing a static origin would lose a callee's
                     // runtime selection among several admissible referents.
                     let (referent, access) = match types
-                        .get(&custody.contract.structural_type())
+                        .get(&descriptor.carrier_type)
                         .map(|declaration| &declaration.shape)
                     {
                         Some(StructuralTypeShape::Reference { referent, access }) => {
@@ -401,17 +390,12 @@ pub(super) fn lower(
                         .structural_homes
                         .get(&place)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                    if !custody.contract.matches_home(home)
-                        || custody.referent != referent
+                    if descriptor.carrier_type != home.structural_type()
+                        || descriptor.referent != referent
                         || home.has_claims()
                         || home.multiplicity() == StructuralMultiplicity::Linear
                         || !home.qualifications().is_empty()
                         || !home.projected_qualifications().is_empty()
-                        || super::references::is_suspended_root(live, place)
-                        || live
-                            .references
-                            .values()
-                            .any(|child| child.parents.contains(&custody.identity))
                     {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }

@@ -233,14 +233,9 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::ReleaseReference { .. } => super::references::release(
-            operation,
-            function,
-            structural_types,
-            live,
-            operations,
-            provenance,
-        ),
+        AbstractOperation::ReleaseReference { .. } => {
+            super::references::release(operation, function, live, operations, provenance)
+        }
         AbstractOperation::SelectImplementation {
             psi_operation,
             result,

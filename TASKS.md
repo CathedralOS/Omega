@@ -3057,10 +3057,13 @@ of a check the same flow already performed, not the check itself.
   copies, arrays, joins and returns without granting permissions to inactive
   payloads;
   `runtime_case_qualified_reference_storage_exit` retains the growing `Chain`
-  and mixed-case execution controls. Native formation, release and
-  call-result custody still retain local replay restrictions; replace their
-  necessary storage relationships rather than restoring a whole-operation
+  and mixed-case execution controls. Keep independent custody auditing in the
+  qualification; do not restore native permission replay or a whole-operation
   borrow preflight.
+  Unrestricted mixed-case call results remain an integration frontier: on
+  macOS arm64, declaring `Selection [copy]` in that fixture reaches stage 05's
+  `caller structural result` refusal (CLI 202). Close that prepared-result
+  transport; native permission replay is not a remedy.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete

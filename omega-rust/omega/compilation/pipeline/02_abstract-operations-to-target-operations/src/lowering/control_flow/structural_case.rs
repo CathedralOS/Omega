@@ -34,13 +34,6 @@ pub(super) fn observe(
     let identity = live
         .structural_observation_type(function, *source)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    if path.contains(&StructuralPathSegment::Referent)
-        && super::references::check_projected_shared_access(
-            function, live, types, *source, path, None,
-        )
-    {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
     let (tag_byte_offset, case_tag, runs) = case_projection(identity, path, *case, types)?;
     if result.scalar_type != ScalarType::Boolean {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -231,14 +224,6 @@ pub(super) fn lower(
         .pointer_slots
         .iter()
         .any(|slot| !slot.indices.is_empty())
-        || !regions.pointer_slots.is_empty()
-            && !super::references::case_reference_source_live(
-                function,
-                live,
-                structural_types,
-                *source,
-                path,
-            )
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

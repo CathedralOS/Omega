@@ -42,7 +42,7 @@ pub(super) fn lower(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     for operand in [left, right] {
-        let (source, length, whole_source) = match operand {
+        let (source, length) = match operand {
             ByteSequenceOperand::Whole { source, length } => {
                 if live.lengths.get(length) != Some(source)
                     || !(live.views.contains_key(source)
@@ -54,7 +54,7 @@ pub(super) fn lower(
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                (*source, *length, true)
+                (*source, *length)
             }
             ByteSequenceOperand::Field {
                 source,
@@ -82,12 +82,10 @@ pub(super) fn lower(
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                (source.place, *length, false)
+                (source.place, *length)
             }
         };
-        if source == result.place
-            || (whole_source && super::references::check_root_access(live, source))
-        {
+        if source == result.place {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let scalar = live

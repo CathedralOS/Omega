@@ -63,10 +63,7 @@ fn owned_root_type(
     {
         return Some(parameter.structural_type);
     }
-    live.references.get(&(place, Vec::new())).and_then(|leaf| {
-        (leaf.contract.multiplicity() == StructuralMultiplicity::Affine)
-            .then_some(leaf.contract.structural_type())
-    })
+    None
 }
 
 fn live_home_or_arrival(
@@ -89,13 +86,7 @@ fn residual_cleanup(
     // dispose it. No executable destructor is needed for this plain subtree.
     owned_root_type(live, function, discard.place).is_some_and(|root| {
         structural_types.subtree(root, &discard.path) == Some(discard.structural_type)
-    }) && !super::references::is_suspended_storage_region(
-        function,
-        live,
-        structural_types,
-        discard.place,
-        &discard.path,
-    )
+    })
 }
 
 pub(super) fn plain_home_cleanup(
@@ -117,7 +108,7 @@ pub(super) fn plain_home_cleanup(
                 // marker neither disposes reserved fields nor prunes backing
                 // captured by another carrier.
                 if owned_root_type(live, function, *place).is_none()
-                    && !live.drained_loan_roots.contains(place)
+                    && !live.retired_reference_roots.contains(place)
                     && !affine_view_carrier(live, function, structural_types, *place)
                 {
                     return Ok(false);
@@ -139,22 +130,18 @@ pub(super) fn plain_home_cleanup(
                     // path's carrier; no owned backing home is created or moved.
                     continue;
                 }
-                // Cleanup is sequential: releasing a carrier can make its
-                // backing eligible for the next discard. Do not validate all
-                // roots against the pre-cleanup frontier or reorder them by
-                // PlaceId. The authored action order is part of the contract.
+                // Psi supplies the disposal order. Retire metadata from the
+                // selected carrier storage without replaying loan permission.
                 if live
                     .references
                     .keys()
                     .any(|(carrier, _)| *carrier == *place)
-                    || live.drained_loan_roots.contains(place)
+                    || live.retired_reference_roots.contains(place)
                 {
                     super::references::discard_owned(function, structural_types, live, *place)?;
                     continue;
                 }
-                if !live_home_or_arrival(live, function, *place)
-                    || super::references::is_suspended_root(live, *place)
-                {
+                if !live_home_or_arrival(live, function, *place) {
                     return Ok(false);
                 }
                 super::references::discard_owned(function, structural_types, live, *place)?;
@@ -179,13 +166,6 @@ pub(super) fn plain_home_cleanup(
                     != Some(cleanup.structural_type)
                     || !cleanup.requirement_obligations.is_empty()
                     || !abstract_operations::control_flow::address_joins::is_static_projection(
-                        &cleanup.path,
-                    )
-                    || super::references::is_suspended_storage_region(
-                        function,
-                        live,
-                        structural_types,
-                        cleanup.place,
                         &cleanup.path,
                     )
                 {

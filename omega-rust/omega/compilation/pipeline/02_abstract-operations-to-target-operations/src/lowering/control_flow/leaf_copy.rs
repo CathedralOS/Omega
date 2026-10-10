@@ -43,15 +43,7 @@ pub(super) fn copy(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let copied = super::references::copied_leaves(
-        function,
-        types,
-        live,
-        result,
-        *source,
-        path,
-        *psi_operation,
-    )?;
+    let copied = super::references::copied_leaves(function, types, live, result, *source, path)?;
     copy_extent(
         *psi_operation,
         result,

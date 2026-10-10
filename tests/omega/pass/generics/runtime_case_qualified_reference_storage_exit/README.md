@@ -12,3 +12,10 @@ Reading 17 and 19 distinguishes their actual captured pointers and indices.
 Observing each selected
 descriptor exercises branch-local shared copies without assigning concurrent
 permissions to inactive payloads.
+
+The explicit `[copy]` shared case joins `Left`, `Right` and `Empty` before
+copying its descriptor storage. An empty payload contributes no descriptor;
+the copied active payload still reads its original referent. Carrier disposal
+multiplicity does not determine whether Psi admits that shared copy.
+Repeating one unrestricted reference-bearing record in an array and copying
+the array preserves both destination descriptors and the readable source.

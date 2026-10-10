@@ -118,8 +118,11 @@ pub(super) fn field_shape(
     }
 }
 
-/// Completed structural operands share one type, permission and storage query
-/// across record members, selected payloads and fixed-array elements.
+/// Completed structural operands share one type and storage query across record
+/// members, selected payloads and fixed-array elements. Psi owns whether the
+/// value copies or moves; native transport copies the same stored descriptor
+/// words in either case. A shared reference's affine carrier declaration does
+/// not prevent its checked use inside unrestricted aggregate storage.
 pub(super) fn structural_operand_shape(
     source: &LegalizedScalarFunction,
     parent: &terminal_psi::StructuralOperationResult,
@@ -130,10 +133,7 @@ pub(super) fn structural_operand_shape(
     if !argument.path.is_empty() {
         let expected_type = field_type.as_structural()?;
         let (selected, _) = projected_operand(source, argument)?;
-        if selected != expected_type
-            || argument.place == parent.place
-            || parent.multiplicity == StructuralMultiplicity::Unrestricted
-        {
+        if selected != expected_type || argument.place == parent.place {
             return None;
         }
         return crate::structural_inputs::structural_reference_input::shape(selected, declarations);
@@ -280,18 +280,12 @@ pub(super) fn structural_operand_shape(
                 .map(|parameter| {
                     (
                         parameter.structural_type,
-                        parameter.access == terminal_psi::StructuralAccess::Owned
-                            && (parent.multiplicity != StructuralMultiplicity::Unrestricted
-                                || parameter.multiplicity == StructuralMultiplicity::Unrestricted),
+                        parameter.access == terminal_psi::StructuralAccess::Owned,
                     )
                 })
                 .chain(source.instructions().filter_map(|row| {
                     let result = row.kind.get_structural_result()?;
-                    (result.place == argument.place).then_some((
-                        result.structural_type,
-                        (parent.multiplicity != StructuralMultiplicity::Unrestricted
-                            || result.multiplicity == StructuralMultiplicity::Unrestricted),
-                    ))
+                    (result.place == argument.place).then_some((result.structural_type, true))
                 }));
             let (child_type, plain_owned) = matches.next()?;
             if matches.next().is_some() || child_type != *nested || !plain_owned {
@@ -351,7 +345,7 @@ fn descriptor_family(actual: Option<&StructuralTypeShape>, expected: &Structural
     }
 }
 
-/// Exact static constructor selection over the original owned affine home.
+/// Exact static constructor selection over the original owned home.
 /// Return the source displacement as well as its type so construction and replay
 /// cannot accidentally copy the root's leading bytes for a later field.
 pub(super) fn projected_operand(
@@ -386,7 +380,6 @@ pub(super) fn projected_operand(
     let root = if let Some(parameter) = parameters.next() {
         if parameters.next().is_some()
             || parameter.access != terminal_psi::StructuralAccess::Owned
-            || parameter.multiplicity != StructuralMultiplicity::Affine
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {
@@ -397,8 +390,7 @@ pub(super) fn projected_operand(
         let (_, result) = super::aggregate_result_input::home(source, argument.place)?;
         // Live claims travel through the checked ownership transfer. They add
         // no bytes and do not restrict this exact source geometry projection.
-        if result.multiplicity != StructuralMultiplicity::Affine
-            || !result.qualifications.is_empty()
+        if !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
         {
             return None;

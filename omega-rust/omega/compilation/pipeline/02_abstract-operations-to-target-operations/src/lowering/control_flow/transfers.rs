@@ -33,11 +33,9 @@ pub(super) fn validate_parameters(
     Ok(())
 }
 
-/// Owned edge values re-home only loan leaves beneath their selected paths.
-/// Every source is captured before changing keys, including back-edge swaps.
-/// Formation rows, backing roots and referents stay put. Receiving parameter
-/// occurrences get their declared contract; all parent links follow the same
-/// simultaneous correspondence so no producer descriptor is invented.
+/// Capture every selected descriptor before changing storage keys, including
+/// backedge swaps. Possible origins follow the bytes; the receiving parameter
+/// supplies the exact carrier type. No parent-loan graph is reconstructed.
 pub(super) fn re_home_bound_references(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -50,7 +48,6 @@ pub(super) fn re_home_bound_references(
     }
     let mut moved = Vec::new();
     let mut selected_sources = BTreeSet::new();
-    let mut selected_identities = BTreeSet::new();
     let mut destinations = BTreeSet::new();
     for (binding, parameter) in bindings.iter().zip(parameters) {
         if binding.parameter != parameter.place {
@@ -64,7 +61,7 @@ pub(super) fn re_home_bound_references(
         // Move resident descriptor storage simultaneously. An inactive case
         // contributes no descriptor; declaration geometry checks each present
         // slot without manufacturing the other alternatives.
-        for (source, custody) in &live.references {
+        for (source, descriptor) in &live.references {
             if source.0 != binding.argument.place {
                 continue;
             }
@@ -73,9 +70,8 @@ pub(super) fn re_home_bound_references(
             };
             let destination = (parameter.place, relative.to_vec());
             if references::leaf_referent(types, parameter.structural_type, relative)
-                != Some(custody.referent)
+                != Some(descriptor.referent)
                 || !selected_sources.insert(source.clone())
-                || !selected_identities.insert(custody.identity.clone())
                 || !destinations.insert(destination.clone())
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -83,8 +79,9 @@ pub(super) fn re_home_bound_references(
             moved.push((
                 source.clone(),
                 destination,
-                custody.clone(),
-                parameter.clone(),
+                descriptor.clone(),
+                references::leaf_type(types, parameter.structural_type, relative)
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
             ));
         }
     }
@@ -96,25 +93,9 @@ pub(super) fn re_home_bound_references(
     for (source, _, _, _) in &moved {
         live.references.remove(source);
     }
-    let identities: Vec<_> = moved
-        .iter()
-        .map(|(_, destination, custody, _)| (custody.identity.clone(), destination.clone()))
-        .collect();
-    for (_, destination, mut custody, parameter) in moved {
-        custody.identity = destination.clone();
-        custody.contract = references::ReferenceCarrierContract::Parameter(parameter);
-        live.references.insert(destination, custody);
-    }
-    // Parent and child bindings are simultaneous. A transported child retains
-    // the receiving occurrence of its transported parent, not the old home.
-    for leaf in live.references.values_mut() {
-        for parent in &mut leaf.parents {
-            if let Some((_, destination)) = identities.iter().find(|(source, _)| source == parent) {
-                *parent = destination.clone();
-            }
-        }
-        leaf.parents.sort();
-        leaf.parents.dedup();
+    for (_, destination, mut storage, carrier_type) in moved {
+        storage.carrier_type = carrier_type;
+        live.references.insert(destination, storage);
     }
     Ok(())
 }
@@ -187,18 +168,13 @@ fn address_join_argument(
     let argument = &binding.argument;
     if argument.access != parameter.access
         || !abstract_operations::control_flow::address_joins::is_address_projection(&argument.path)
-        || argument
-            .path
-            .contains(&terminal_psi::StructuralPathSegment::Referent)
-            && !references::reference_loan_source_live(function, live, structural_types, argument)
-        || references::is_suspended_root(live, argument.place)
     {
         return false;
     }
     // Qualifications carry no target storage. The admitted owner loan uses
     // the same address whether its backing is a parameter or a completed local.
     // Forwarded parameters retain their precise access and predicate roster;
-    // local homes retain their authenticated result and independently held custody.
+    // local homes retain their authenticated result and independently held descriptor.
     let owner_loan = abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(
         parameter,
         |identity| structural_types.get(&identity).copied(),
@@ -301,20 +277,6 @@ pub(super) fn validate_successors(
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if structural.len() != block.structural_parameters.len() {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-            if references::owned_transfers_are_suspended(
-                function,
-                live,
-                structural_types,
-                structural
-                    .iter()
-                    .zip(&block.structural_parameters)
-                    .filter_map(|(binding, parameter)| {
-                        (parameter.access == terminal_psi::StructuralAccess::Owned)
-                            .then_some(&binding.argument)
-                    }),
-            ) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             for (binding, parameter) in structural.iter().zip(&block.structural_parameters) {
@@ -469,8 +431,7 @@ pub(super) fn validate_successors(
                     || (!binding.argument.path.is_empty()
                         && (!abstract_operations::control_flow::address_joins::is_static_projection(
                             &binding.argument.path,
-                        ) || (parameter.access != terminal_psi::StructuralAccess::Owned
-                            && references::is_suspended_root(live, place))
+                        )
                             || (parameter.access != terminal_psi::StructuralAccess::Owned
                                 && !structural_types
                                     .get(&parameter.structural_type)

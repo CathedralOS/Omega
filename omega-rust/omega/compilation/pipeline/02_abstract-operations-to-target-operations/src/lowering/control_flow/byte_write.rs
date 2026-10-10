@@ -256,18 +256,6 @@ fn writable_byte_field(
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     let reference_destination =
         super::references::writable_referent_destination(live, structural_types, destination, path);
-    if reference_destination.is_none()
-        && super::references::check_projected_access(
-            function,
-            live,
-            structural_types,
-            destination,
-            path,
-            Some(field),
-        )
-    {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
     let (root_type, access) = if let Some(reference) = &reference_destination {
         (reference.carrier_type, StructuralAccess::MutableBorrow)
     } else {
@@ -446,7 +434,6 @@ pub(super) fn lower(
                 live,
                 *destination,
             ))
-        || super::references::check_root_access(live, *destination)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

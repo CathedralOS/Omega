@@ -147,14 +147,44 @@ pub(super) fn normalize_formations(
 pub(super) fn merge_arrivals(
     function: &PsiOptimizationFunction,
     target: BlockId,
+    types: &[StructuralTypeDeclaration],
     left: &mut BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
     right: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
 ) -> Result<Option<()>, LegalizationError> {
-    if !left.keys().eq(right.keys()) {
-        return Err(invalid());
+    // An owned sum arrival carries only the selected payload. Authenticate
+    // every asymmetric slot against the receiving declaration and its case
+    // namespace; unconditional and unrelated missing loans still reject.
+    for (key, leaf) in left.iter().chain(right) {
+        if left.contains_key(key) == right.contains_key(key) {
+            continue;
+        }
+        let parameter = function
+            .block(target)
+            .and_then(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == key.0)
+            })
+            .filter(|parameter| parameter.access == StructuralAccess::Owned)
+            .ok_or_else(invalid)?;
+        if !key
+            .1
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+            || leaf.identity != *key
+            || leaf.contract != CarrierContract::Parameter(parameter.clone())
+            || leaf.formations.is_empty()
+            || leaf_referent(types, parameter.structural_type, &key.1) != Some(leaf.referent)
+        {
+            return Err(invalid());
+        }
     }
     for (key, incoming) in right {
-        let existing = left.get_mut(key).ok_or_else(invalid)?;
+        let Some(existing) = left.get_mut(key) else {
+            left.insert(key.clone(), incoming.clone());
+            continue;
+        };
         if existing == incoming {
             continue;
         }

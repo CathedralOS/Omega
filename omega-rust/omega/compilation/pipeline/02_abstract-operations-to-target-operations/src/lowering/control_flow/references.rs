@@ -1,29 +1,26 @@
-//! Reference-carrier custody through control-flow lowering. A carrier owns
-//! loan permission, never its referent's storage; every origin and parent is
-//! reconstructed from operations and signatures, never from pointer bits.
-//! A selected descriptor is one permission with a finite backing roster and
-//! all possible immediate parents. A further reborrow names that descriptor,
-//! not its grandparents; movement preserves the roster, and release waits for
-//! every child. Choosing one parent here would detach the unselected lineage.
+//! Reference descriptor storage through native lowering. Psi has already
+//! checked loan permissions, aliasing and disposal order. This stage transports
+//! only the metadata needed by native operations and their independent audit:
+//! current carrier type, referent type and possible storage origins.
 //!
-//! Calls transport the existing metadata for owned carrier storage, without
-//! replaying alias and suspension judgments across the argument roster. This
-//! metadata still supplies returned-reference origins; it never selects the
-//! runtime pointer. Formation, release and edge lowering retain local
-//! custody restrictions until their storage relationships can replace them.
+//! Origins describe possible backing; they never select a runtime address.
+//! Projection uses the pointer actually stored in the current carrier home.
+//! Conditional payload slots join by union without manufacturing a descriptor
+//! for an inactive case. Moves, copies and calls follow current storage paths,
+//! not reconstructed parent loans or formation histories.
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::call_source;
 use abstract_operations::{AbstractFunction, AbstractOperation};
-use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
 };
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
-    StructuralTypeShape, live_field_by_id,
+    StructuralTypeShape,
 };
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
@@ -112,25 +109,12 @@ pub(in crate::lowering) fn borrowed_source_catalog(
         .collect()
 }
 
-/// One outstanding loan tracked during lowering: which carrier leaf holds it,
-/// which referent root it suspends, which parent leaf it descends from, and
-/// which result row formed its identity. `root` is compile-time custody — it
-/// never names a pointer or descriptor.
+/// Metadata for a descriptor at its current carrier location. Permission and
+/// disposal identities remain with Psi, not a second native ownership model.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ReferenceCustody {
-    /// Stable identity: the place and path where the carrier leaf was formed.
-    /// Owned moves relocate the carrier, never this identity.
-    pub(super) identity: (PlaceId, Vec<StructuralPathSegment>),
-    /// Referent root resolved through custody: a primitive place directly, or
-    /// an owned ingress parameter's leaf path when custody entered owned.
+pub(super) struct ReferenceStorage {
     pub(super) root: ReferenceRoot,
-    /// All possible immediate parent identities; selection suspends each parent.
-    pub(super) parents: Vec<(PlaceId, Vec<StructuralPathSegment>)>,
-    /// The actual current carrier declaration, not a selected producer row.
-    pub(super) contract: ReferenceCarrierContract,
-    /// Every admitted formation that can arrive at this occurrence.
-    pub(super) formations: Vec<ReferenceFormation>,
-    /// This leaf's primitive referent type.
+    pub(super) carrier_type: StructuralTypeId,
     pub(super) referent: StructuralTypeId,
 }
 
@@ -141,7 +125,7 @@ pub(super) enum ReferenceRoot {
     /// One leaf of an owned reference-bearing ingress parameter; the referent
     /// storage belongs to the caller, so no local pointer exists for it.
     Ingress(PlaceId, Vec<StructuralPathSegment>),
-    /// One selected permission conservatively pins every possible ingress path.
+    /// Possible backing paths for one runtime-selected descriptor.
     Alternatives(Vec<target_operations::TargetReferenceOrigin>),
 }
 
@@ -159,24 +143,6 @@ impl ReferenceRoot {
             Self::Alternatives(origins) => origins.clone(),
         }
     }
-
-    pub(super) fn contains_place(&self, place: PlaceId) -> bool {
-        match self {
-            Self::Place(root) | Self::Ingress(root, _) => *root == place,
-            Self::Alternatives(origins) => origins.iter().any(|origin| origin.root == place),
-        }
-    }
-}
-
-fn roots_overlap(left: &ReferenceRoot, right: &ReferenceRoot) -> bool {
-    let left = left.origins();
-    let right = right.origins();
-    left.iter().any(|left| {
-        right.iter().any(|right| {
-            left.root == right.root
-                && terminal_semantics::structural_paths_may_overlap(&left.path, &right.path)
-        })
-    })
 }
 
 /// A live reference's payload producer and geometry after dereferencing it.
@@ -216,12 +182,7 @@ fn materialized_mutable_record_projection(
     ) {
         return None;
     }
-    if *referent != leaf.referent
-        || live
-            .references
-            .values()
-            .any(|child| child.parents.contains(&leaf.identity))
-    {
+    if *referent != leaf.referent {
         return None;
     }
     // Formation authenticated backing and view interpretation. A store uses
@@ -273,9 +234,6 @@ pub(super) fn reference_call_argument(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    // Calls and direct observations authenticate the same complete descriptor
-    // roster. Runtime address selection remains in ordered storage geometry.
-    access_paths::call_reference_custody(function, live, types, argument)?;
     let (root_type, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
         if home.has_claims()
             || home.multiplicity() == StructuralMultiplicity::Linear
@@ -466,8 +424,8 @@ pub(super) fn referent(
 /// The aggregate bare-reference carrier native lowering realizes: a borrow of
 /// a plain record whose referent contains storage, not another loan roster.
 /// Shared and mutable carriers read the referent through the loan; mutable
-/// and write-only carriers store through it. The carrier retains permission
-/// metadata and an address payload, never a copied referent record.
+/// and write-only carriers store through it. The carrier retains possible
+/// backing origins and an address payload, never a copied referent record.
 fn plain_record_referent(
     types: &StructuralTypeLookup<'_>,
     structural_type: StructuralTypeId,
@@ -624,15 +582,15 @@ fn source_contract(
     }
     live.references
         .get(&(place, Vec::new()))
-        .map(|leaf| leaf.contract.structural_type())
+        .map(|leaf| leaf.carrier_type)
 }
 
 /// Borrow storage through its published contract, regardless of whether it
 /// arrived as a parameter or was constructed in this activation. Lending
 /// storage does not move it or discharge the owner's claims: multiplicity
 /// constrains disposal, not this type lookup. Qualifications and access still
-/// constrain formation; normalized_source retains exact live-loan custody.
-/// A reference crossing must resolve live carrier custody instead.
+/// constrain physical representation. A reference crossing resolves the
+/// actual carrier type instead of treating its pointee as owned storage.
 fn direct_storage_type(
     function: &AbstractFunction,
     live: &LiveDefinitions,
@@ -727,63 +685,6 @@ pub(super) fn reference_source_type(
     direct_storage_type(function, live, types, source)
 }
 
-/// An edge loan follows the same authenticated carrier dependencies as a call.
-pub(super) fn reference_loan_source_live(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    source: &StructuralArgument,
-) -> bool {
-    access_paths::call_reference_custody(function, live, types, source).is_ok()
-}
-
-/// A case observation reads through the same live descriptor chain as other
-/// nonescaping accesses, without imposing a call argument's endpoint grammar.
-pub(super) fn case_reference_source_live(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    place: PlaceId,
-    path: &[StructuralPathSegment],
-) -> bool {
-    access_paths::access_reference_custody(
-        function,
-        live,
-        types,
-        &StructuralArgument {
-            place,
-            path: path.to_vec(),
-            access: StructuralAccess::SharedBorrow,
-        },
-    )
-    .is_ok()
-}
-
-// A new shared loan may coexist only with authenticated shared carrier leaves.
-// The original roots and parent identities remain live until every loan ends.
-fn shared_source_compatible(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    carrier: &PlaceId,
-    path: &[StructuralPathSegment],
-    access: StructuralAccess,
-) -> bool {
-    access == StructuralAccess::SharedBorrow
-        && source_contract(function, live, *carrier)
-            .and_then(|root| leaf_type(types, root, path))
-            .and_then(|leaf| types.get(&leaf))
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    StructuralTypeShape::Reference {
-                        access: StructuralAccess::SharedBorrow,
-                        ..
-                    }
-                )
-            })
-}
-
 /// Rebind ordinary borrowed storage without granting a new reference. Its
 /// operation owns bounds, case and access checks; formation and result mapping
 /// separately retain reference_source_type's stricter eligibility rules.
@@ -802,15 +703,15 @@ fn storage_projection(
     )
 }
 
-/// A `.., Referent` source names a suspended child of the located carrier
-/// leaf; an empty path names the whole ingress referent directly. Every
+/// A `.., Referent` source follows the located carrier's possible backing;
+/// an empty path names the whole ingress referent directly. Every
 /// selected payload and runtime index retains its exact storage coordinate.
 fn normalized_source(
     function: &AbstractFunction,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
-) -> Result<(ReferenceRoot, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
+) -> Result<ReferenceRoot, LoweringError> {
     let Some(origins) = live.borrowed_reference_sources.get(&source.place) else {
         return normalized_direct_source(function, live, types, source);
     };
@@ -842,7 +743,7 @@ fn normalized_direct_source(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
-) -> Result<(ReferenceRoot, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
+) -> Result<ReferenceRoot, LoweringError> {
     if let Some(crossing) = source
         .path
         .iter()
@@ -865,23 +766,7 @@ fn normalized_direct_source(
                         _ => None,
                     })
             }) {
-                Some(()) => {
-                    let root = ReferenceRoot::Ingress(source.place, carrier_path.to_vec());
-                    if live.references.iter().any(|((carrier, path), reference)| {
-                        roots_overlap(&reference.root, &root)
-                            && !shared_source_compatible(
-                                function,
-                                live,
-                                types,
-                                carrier,
-                                path,
-                                source.access,
-                            )
-                    }) {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    Ok((root, Vec::new()))
-                }
+                Some(()) => Ok(ReferenceRoot::Ingress(source.place, carrier_path.to_vec())),
                 None => Err(LoweringError::unsupported_control_flow(function.machine)),
             };
         };
@@ -891,37 +776,15 @@ fn normalized_direct_source(
         if leaf_type(types, leaf.referent, suffix).is_none() {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        if live.references.iter().any(|((carrier, path), child)| {
-            child.parents.contains(&leaf.identity)
-                && !shared_source_compatible(function, live, types, carrier, path, source.access)
-        }) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        Ok((leaf.root.clone(), vec![leaf.identity.clone()]))
+        Ok(leaf.root.clone())
     } else if source.path.is_empty() {
-        if live.references.iter().any(|((carrier, path), reference)| {
-            reference.root.contains_place(source.place)
-                && !shared_source_compatible(function, live, types, carrier, path, source.access)
-        }) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        Ok((ReferenceRoot::Place(source.place), Vec::new()))
+        Ok(ReferenceRoot::Place(source.place))
     } else if storage_projection(function, live, types, source).is_some() {
-        let root = ReferenceRoot::Ingress(source.place, source.path.clone());
-        if live.references.iter().any(|((carrier, path), leaf)| {
-            roots_overlap(&leaf.root, &root)
-                && !shared_source_compatible(function, live, types, carrier, path, source.access)
-        }) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        Ok((root, Vec::new()))
+        Ok(ReferenceRoot::Ingress(source.place, source.path.clone()))
     } else {
         Err(LoweringError::unsupported_control_flow(function.machine))
     }
 }
-
-/// Substitute a callee's formal result-source mapping into the caller's actual
-/// argument at the same structural-parameter position.
 
 /// The formal origin a callee result mapping names: a borrowed primitive
 /// parameter or an ingress leaf path under an owned or shared carrier.
@@ -985,203 +848,10 @@ fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bo
             )
 }
 
-mod access_paths;
 mod copies;
 pub(super) use copies::copied_leaves;
-mod occurrences;
-pub(super) use occurrences::{ReferenceCarrierContract, ReferenceFormation};
 mod arrivals;
 pub(super) use arrivals::merge_arrivals;
-
-/// Whether `place` is currently suspended as a live loan's referent root.
-/// Cleanup cannot discard storage that an outstanding carrier still names.
-pub(super) fn is_suspended_root(live: &LiveDefinitions, place: PlaceId) -> bool {
-    live.references
-        .values()
-        .any(|reference| reference.root.contains_place(place))
-}
-
-/// Test the selected storage, not an ingress descriptor's external pointee.
-/// Ingress origins at reference leaves denote caller-backed referents; origins
-/// at ordinary fields denote that field's storage. Missing declarations cannot
-/// establish disjointness. Carrier relocation never changes these origins.
-pub(super) fn is_suspended_storage_region(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    place: PlaceId,
-    path: &[StructuralPathSegment],
-) -> bool {
-    let origin_overlaps = |origin_path: &[StructuralPathSegment]| {
-        let Some(origin) = source_contract(function, live, place)
-            .and_then(|root| leaf_type(types, root, origin_path))
-            .and_then(|identity| types.get(&identity))
-        else {
-            return true;
-        };
-        !matches!(origin.shape, StructuralTypeShape::Reference { .. })
-            && terminal_semantics::structural_paths_may_overlap(path, origin_path)
-    };
-    live.references
-        .values()
-        .any(|reference| match &reference.root {
-            ReferenceRoot::Place(root) => *root == place,
-            ReferenceRoot::Ingress(root, origin) => *root == place && origin_overlaps(origin),
-            ReferenceRoot::Alternatives(origins) => origins
-                .iter()
-                .any(|origin| origin.root == place && origin_overlaps(&origin.path)),
-        })
-}
-
-/// Simultaneous carrier relocation preserves its complete parent/child cohort.
-/// Borrowed backing cannot move, nor can a parent detach from a child left
-/// outside the selected owned subtrees. Check the complete input roster before
-/// re-homing any descriptor; per-input checks would reject a transported child
-/// solely because it lives in another simultaneously transported carrier.
-pub(super) fn owned_transfers_are_suspended<'a>(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    arguments: impl Iterator<Item = &'a StructuralArgument> + Clone,
-) -> bool {
-    let selected = |carrier: PlaceId, path: &[StructuralPathSegment]| {
-        arguments.clone().any(|argument| {
-            argument.access == StructuralAccess::Owned
-                && carrier == argument.place
-                && path.starts_with(&argument.path)
-        })
-    };
-    arguments.clone().any(|argument| {
-        argument.access == StructuralAccess::Owned
-            && is_suspended_storage_region(function, live, types, argument.place, &argument.path)
-    }) || live.references.iter().any(|((carrier, path), leaf)| {
-        selected(*carrier, path)
-            && live
-                .references
-                .iter()
-                .any(|((child_carrier, child_path), child)| {
-                    child.parents.contains(&leaf.identity) && !selected(*child_carrier, child_path)
-                })
-    })
-}
-
-/// Reads, writes and establishments cannot touch a suspended referent, and a
-/// live carrier is never owned data for primitive or aggregate access.
-pub(super) fn check_root_access(live: &LiveDefinitions, place: PlaceId) -> bool {
-    check_region_access(live, place, &[])
-}
-
-fn check_region_access(
-    live: &LiveDefinitions,
-    place: PlaceId,
-    path: &[StructuralPathSegment],
-) -> bool {
-    check_region_access_with(live, place, path, |_, _| false)
-}
-
-fn check_region_access_with(
-    live: &LiveDefinitions,
-    place: PlaceId,
-    path: &[StructuralPathSegment],
-    compatible_origin: impl Fn(&PlaceId, &[StructuralPathSegment]) -> bool,
-) -> bool {
-    let overlaps = |other: &[StructuralPathSegment]| {
-        terminal_semantics::structural_paths_may_overlap(path, other)
-    };
-    live.references
-        .iter()
-        .any(|((carrier, carrier_path), reference)| {
-            (*carrier == place && overlaps(carrier_path))
-                || (reference.identity.0 == place && overlaps(&reference.identity.1))
-                || (reference.root.contains_place(place)
-                    && !compatible_origin(carrier, carrier_path)
-                    && match &reference.root {
-                        ReferenceRoot::Place(_) => true,
-                        ReferenceRoot::Ingress(_, path) => overlaps(path),
-                        ReferenceRoot::Alternatives(origins) => origins
-                            .iter()
-                            .any(|origin| origin.root == place && overlaps(&origin.path)),
-                    })
-        })
-}
-
-/// Ordinary field observations and writes touch their exact region. Rejoin the
-/// current declaration/home before using shared geometry; a missing contract
-/// conservatively covers the entire root and never supplies disjointness.
-pub(super) fn check_projected_access(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    place: PlaceId,
-    path: &[StructuralPathSegment],
-    field: Option<semantic_vocabulary::StructuralFieldId>,
-) -> bool {
-    let Some(root) = source_contract(function, live, place) else {
-        return check_root_access(live, place);
-    };
-    let region =
-        terminal_semantics::projected_storage_region(types.values().copied(), root, path, field);
-    check_region_access(live, place, region.direct_path())
-}
-
-/// Nonescaping reads and sanctioned atomic events need shared access to their
-/// exact field, not ordinary write access to the whole owner. Exclusive loans
-/// still suspend overlapping owner access, and explicit reference crossings
-/// must use the live carrier's permission rather than the owner's. The atomic
-/// operation separately owns its cell type, ordering and mutation authority.
-pub(super) fn check_projected_shared_access(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    place: PlaceId,
-    path: &[StructuralPathSegment],
-    field: Option<semantic_vocabulary::StructuralFieldId>,
-) -> bool {
-    let Some(root) = source_contract(function, live, place) else {
-        return check_root_access(live, place);
-    };
-    if path.contains(&StructuralPathSegment::Referent) {
-        let mut projection = path.to_vec();
-        if let Some(field) = field {
-            let selected = leaf_type(types, root, path)
-                .and_then(|parent| types.get(&parent))
-                .and_then(|declaration| declaration.shape.record_fields())
-                .and_then(|fields| live_field_by_id(fields, field));
-            let Some(selected) = selected else {
-                return true;
-            };
-            projection.push(StructuralPathSegment::Field(selected.identity.clone()));
-        }
-        return access_paths::access_reference_custody(
-            function,
-            live,
-            types,
-            &StructuralArgument {
-                place,
-                path: projection,
-                access: StructuralAccess::SharedBorrow,
-            },
-        )
-        .is_err();
-    }
-    let region =
-        terminal_semantics::projected_storage_region(types.values().copied(), root, path, field);
-    check_region_access_with(
-        live,
-        place,
-        region.direct_path(),
-        |carrier, carrier_path| {
-            shared_source_compatible(
-                function,
-                live,
-                types,
-                carrier,
-                carrier_path,
-                StructuralAccess::SharedBorrow,
-            )
-        },
-    )
-}
 
 /// Transport existing descriptor metadata for owned call operands. Psi owns
 /// whether these operands may move or alias; native lowering needs only the
@@ -1194,7 +864,7 @@ pub(super) fn check_projected_shared_access(
 pub(super) fn moved_argument_leaves(
     live: &LiveDefinitions,
     arguments: &[StructuralArgument],
-) -> BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody> {
+) -> BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceStorage> {
     let mut moved = BTreeMap::new();
     for argument in arguments {
         if argument.access != StructuralAccess::Owned
@@ -1216,15 +886,14 @@ pub(super) fn moved_argument_leaves(
 /// under a moved identity survive the commit.
 pub(super) fn commit_argument_moves(
     live: &mut LiveDefinitions,
-    moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody>,
+    moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceStorage>,
 ) {
     for key in moved.keys() {
         live.references.remove(key);
     }
 }
 
-/// Establish one verified reference carrier: the result place receives the
-/// loan and the referent root is retained as metadata only.
+/// Establish descriptor storage; the backing root remains metadata only.
 pub(super) fn establish(
     operation: &AbstractOperation,
     function: &AbstractFunction,
@@ -1251,10 +920,6 @@ pub(super) fn establish(
             .references
             .keys()
             .any(|(carrier, _)| *carrier == result.place)
-        || live
-            .references
-            .values()
-            .any(|leaf| leaf.identity.0 == result.place)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -1277,27 +942,17 @@ pub(super) fn establish(
     // EstablishReference always borrows, including a projection through an
     // owned record. Moving a stored descriptor uses the checked owned-value
     // projection/transfer operation, not an ingress-shape reinterpretation.
-    let (root, parents) = normalized_source(function, live, types, source)?;
-    let custody = ReferenceCustody {
-        identity: (result.place, Vec::new()),
-        root,
-        parents,
-        contract: ReferenceCarrierContract::Operation {
-            operation: *psi_operation,
-            result: result.clone(),
+    let root = normalized_source(function, live, types, source)?;
+    live.references.insert(
+        (result.place, Vec::new()),
+        ReferenceStorage {
+            root,
+            carrier_type: result.structural_type,
+            referent,
         },
-        formations: vec![ReferenceFormation {
-            identity: (result.place, Vec::new()),
-            contract: ReferenceCarrierContract::Operation {
-                operation: *psi_operation,
-                result: result.clone(),
-            },
-        }],
-        referent,
-    };
-    live.references.insert((result.place, Vec::new()), custody);
+    );
     // A reference owns descriptor storage just like every other structural
-    // result. Its separate custody row governs the loan, not home discovery.
+    // result. The metadata follows its descriptor, not referent ownership.
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     live.structural_homes
         .insert(result.place, result_home.clone());
@@ -1311,12 +966,10 @@ pub(super) fn establish(
     Ok(())
 }
 
-/// Close the exact stored carrier; path and stable loan identity survive
-/// relocation. The operation affects custody only, never referent storage.
+/// Retire metadata for the exact stored descriptor, never its referent storage.
 pub(super) fn release(
     operation: &AbstractOperation,
     function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -1329,32 +982,9 @@ pub(super) fn release(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    // Releasing stored pointer bytes cannot bypass a loan over their owner.
-    if live.references.values().any(|enclosing| {
-        enclosing.root.origins().iter().any(|origin| {
-            let origin_path = &origin.path;
-            origin.root == *source
-                && source_contract(function, live, *source)
-                    .and_then(|contract| leaf_type(types, contract, origin_path))
-                    == Some(enclosing.referent)
-                && terminal_semantics::structural_paths_may_overlap(origin_path, path)
-        })
-    }) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    let key = (*source, path.clone());
-    let leaf = live
-        .references
-        .remove(&key)
+    live.references
+        .remove(&(*source, path.clone()))
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    if live
-        .references
-        .values()
-        .any(|child| child.parents.contains(&leaf.identity))
-    {
-        live.references.insert(key, leaf);
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
     operations.push(TargetUnitOperation::ReleaseReference {
         psi_operation: *psi_operation,
         source: *source,
@@ -1371,18 +1001,18 @@ pub(super) fn discard_owned(
     live: &mut LiveDefinitions,
     source: PlaceId,
 ) -> Result<bool, LoweringError> {
-    if live.drained_loan_roots.contains(&source) {
+    if live.retired_reference_roots.contains(&source) {
         return Ok(true);
     }
     let discarded = discard_subtree(function, types, live, source, &[])?;
     if discarded {
-        live.drained_loan_roots.insert(source);
+        live.retired_reference_roots.insert(source);
     }
     Ok(discarded)
 }
 
 /// Dispose only the live descriptor slots selected by an authenticated cleanup
-/// subtree. Identity follows loan provenance; removal follows current storage.
+/// subtree. Removal follows current storage, not a formation identity.
 pub(super) fn discard_subtree(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -1400,18 +1030,6 @@ pub(super) fn discard_subtree(
     }
     // Cleanup disposes the metadata actually resident in this subtree. A
     // constructor need not supply descriptors for its inactive alternatives.
-    let released: BTreeSet<_> = live
-        .references
-        .iter()
-        .filter(|((carrier, path), _)| *carrier == source && path.starts_with(prefix))
-        .map(|(_, leaf)| leaf.identity.clone())
-        .collect();
-    if live.references.values().any(|child| {
-        !released.contains(&child.identity)
-            && child.parents.iter().any(|parent| released.contains(parent))
-    }) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
     live.references
         .retain(|(carrier, path), _| *carrier != source || !path.starts_with(prefix));
     Ok(true)
@@ -1419,8 +1037,9 @@ pub(super) fn discard_subtree(
 
 /// Structural storage transfer moves carriers, not referents. Stage the exact
 /// selected roster under its destination prefix before changing either home.
-/// Construction and window replacement preserve the same identity, backing and
-/// parents; neither a byte copy nor a matching type can create missing custody.
+/// Construction and window replacement preserve possible backing origins.
+/// Capture descriptor rows before retiring sources: one unrestricted operand
+/// may supply several destinations without losing its own readable storage.
 pub(super) fn subtree_leaves(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -1428,10 +1047,8 @@ pub(super) fn subtree_leaves(
     destination: &[StructuralPathSegment],
     nested: StructuralTypeId,
     argument: &StructuralArgument,
-    relocations: &mut Vec<(
-        (PlaceId, Vec<StructuralPathSegment>),
-        Vec<StructuralPathSegment>,
-    )>,
+    transfers_storage: bool,
+    relocations: &mut Vec<(ReferenceStorage, Vec<StructuralPathSegment>)>,
     moved: &mut BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
 ) -> Result<(), LoweringError> {
     if !contains_reference(types, nested) {
@@ -1442,19 +1059,19 @@ pub(super) fn subtree_leaves(
     if leaf_type(types, contract, &argument.path) != Some(nested) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    for ((carrier, source_path), leaf) in &live.references {
+    for ((carrier, source_path), descriptor) in &live.references {
         if *carrier != argument.place {
             continue;
         }
         let Some(path) = source_path.strip_prefix(argument.path.as_slice()) else {
             continue;
         };
-        if !moved.insert(leaf.identity.clone()) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
+        if transfers_storage {
+            moved.insert((*carrier, source_path.clone()));
         }
         let mut destination = destination.to_vec();
         destination.extend(path.iter().cloned());
-        relocations.push(((argument.place, source_path.clone()), destination));
+        relocations.push((descriptor.clone(), destination));
     }
     Ok(())
 }
@@ -1463,20 +1080,20 @@ pub(super) fn subtree_leaves(
 pub(super) fn relocate_leaves(
     live: &mut LiveDefinitions,
     result_place: PlaceId,
-    relocations: Vec<(
-        (PlaceId, Vec<StructuralPathSegment>),
-        Vec<StructuralPathSegment>,
-    )>,
+    relocations: Vec<(ReferenceStorage, Vec<StructuralPathSegment>)>,
+    moved: BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
 ) {
-    for (from, to) in relocations {
-        if let Some(leaf) = live.references.remove(&from) {
-            live.references.insert((result_place, to), leaf);
-        }
+    for source in moved {
+        live.references.remove(&source);
+    }
+    for (descriptor, destination) in relocations {
+        live.references
+            .insert((result_place, destination), descriptor);
     }
 }
 
 /// Establish the declared result reference roster of a structural-result
-/// `CallStructural` whose result carries reference custody, resolved against
+/// `CallStructural` whose result carries descriptor storage, resolved against
 /// the already-committed `moved` argument leaves. Returns the ordered resolved
 /// leaf roster retained on the target row.
 pub(super) fn call_results(
@@ -1484,10 +1101,9 @@ pub(super) fn call_results(
     callee_function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
     result: &StructuralOperationResult,
-    psi_operation: OperationId,
     structural_arguments: &[StructuralArgument],
     live: &mut LiveDefinitions,
-    moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody>,
+    moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceStorage>,
 ) -> Result<Vec<target_operations::TargetReferenceResult>, LoweringError> {
     if !contains_reference(types, result.structural_type) {
         return Ok(Vec::new());
@@ -1500,10 +1116,6 @@ pub(super) fn call_results(
         .references
         .keys()
         .any(|(carrier, _)| *carrier == result.place)
-        || live
-            .references
-            .values()
-            .any(|leaf| leaf.identity.0 == result.place)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -1512,7 +1124,6 @@ pub(super) fn call_results(
     // paths. Distinct result paths may describe mutually exclusive residences
     // of the same incoming leaf; native metadata must retain that relationship
     // rather than treating every signature slot as simultaneously resident.
-    // Borrowing a result does not move its parent loan.
     let mut established = Vec::new();
     let mut reference_results = Vec::new();
     for mapping in &callee_result.reference_sources {
@@ -1558,8 +1169,8 @@ pub(super) fn call_results(
                         })
             ) {
                 // An owned-carrier ingress mapping relocates one of the leaves the
-                // moved arguments just transferred; the leaf keeps its identity,
-                // root and parent, and lands at the declared result path.
+                // moved arguments just transferred; possible backing follows
+                // the descriptor bytes to the declared result path.
                 let Some((StructuralPathSegment::Referent, carrier_path)) =
                     source.path.split_last()
                 else {
@@ -1579,22 +1190,10 @@ pub(super) fn call_results(
                 };
                 leaf.clone()
             } else {
-                let (root, parents) = normalized_source(function, live, types, &source)?;
-                ReferenceCustody {
-                    identity: (result.place, mapping.path.clone()),
-                    root,
-                    parents,
-                    contract: ReferenceCarrierContract::Operation {
-                        operation: psi_operation,
-                        result: result.clone(),
-                    },
-                    formations: vec![ReferenceFormation {
-                        identity: (result.place, mapping.path.clone()),
-                        contract: ReferenceCarrierContract::Operation {
-                            operation: psi_operation,
-                            result: result.clone(),
-                        },
-                    }],
+                ReferenceStorage {
+                    root: normalized_source(function, live, types, &source)?,
+                    carrier_type: leaf_type(types, result.structural_type, &mapping.path)
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                     referent: expected,
                 }
             };
@@ -1603,14 +1202,9 @@ pub(super) fn call_results(
         if candidates.is_empty() {
             continue;
         }
-        let joining = candidates.len() > 1;
         let mut leaf = combine_alternatives(function, candidates)?;
-        if joining {
-            // The selected descriptor is one result resource, conservatively
-            // pinning the complete union of the consumed input permissions.
-            leaf.identity = (result.place, mapping.path.clone());
-            leaf.reform(psi_operation, result);
-        }
+        leaf.carrier_type = leaf_type(types, result.structural_type, &mapping.path)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             origins: leaf.root.origins(),
@@ -1623,51 +1217,45 @@ pub(super) fn call_results(
     Ok(reference_results)
 }
 
-/// Alternatives describe one newly returned permission, never a union of
-/// independently owned leaves or a way to detach a child from its parent.
+/// A result descriptor retains every possible backing origin. This is an
+/// address provenance join, not a new loan or a permission union.
 fn combine_alternatives(
     function: &AbstractFunction,
-    candidates: Vec<ReferenceCustody>,
-) -> Result<ReferenceCustody, LoweringError> {
+    candidates: Vec<ReferenceStorage>,
+) -> Result<ReferenceStorage, LoweringError> {
     let mut candidates = candidates.into_iter();
     let mut leaf = candidates
         .next()
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let mut origins = vec![(leaf.root.clone(), leaf.parents.clone())];
+    let mut origins = vec![leaf.root.clone()];
     for candidate in candidates {
         if leaf.referent != candidate.referent {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        origins.push((candidate.root, candidate.parents));
+        origins.push(candidate.root);
     }
-    (leaf.root, leaf.parents) = combine_candidate_origins(function, origins)?;
+    leaf.root = combine_candidate_origins(function, origins)?;
     Ok(leaf)
 }
 
 fn combine_candidate_origins(
     function: &AbstractFunction,
-    candidates: Vec<(ReferenceRoot, Vec<(PlaceId, Vec<StructuralPathSegment>)>)>,
-) -> Result<(ReferenceRoot, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
+    candidates: Vec<ReferenceRoot>,
+) -> Result<ReferenceRoot, LoweringError> {
     let mut candidates = candidates.into_iter();
-    let (root, parents) = candidates
+    let root = candidates
         .next()
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if candidates.len() == 0 {
-        return Ok((root, parents));
+        return Ok(root);
     }
-    let mut origins = Vec::new();
-    let mut immediate_parents = Vec::new();
-    for (root, parents) in std::iter::once((root, parents)).chain(candidates) {
-        // Selection produces one permission, but every possible immediate
-        // parent remains suspended until that permission and its children end.
-        origins.extend(root.origins());
-        immediate_parents.extend(parents);
+    let mut origins = root.origins();
+    for candidate in candidates {
+        origins.extend(candidate.origins());
     }
     origins.sort();
     origins.dedup();
-    immediate_parents.sort();
-    immediate_parents.dedup();
-    Ok((ReferenceRoot::Alternatives(origins), immediate_parents))
+    Ok(ReferenceRoot::Alternatives(origins))
 }
 
 /// Retain possible incoming descriptor storage, not a type-wide permission
@@ -1676,16 +1264,14 @@ fn combine_candidate_origins(
 pub(super) fn entry(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
-) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody>, LoweringError> {
+) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceStorage>, LoweringError> {
     let mut references = BTreeMap::new();
     for parameter in &function.structural_parameters {
         if !contains_reference(types, parameter.structural_type) {
             continue;
         }
-        // Parameter access describes carrier storage; each leaf retains its
-        // own descriptor permission. Owned claims, refinements and cleanup
-        // coexist with that roster and do not supply or erase any leaf loan.
-        // Borrowing lends the carrier without transferring its permissions.
+        // Seed possible descriptor slots from the signature. Case guards stay
+        // on their paths; this metadata grants no inactive-payload permission.
         let paths = leaf_paths(
             types,
             parameter.structural_type,
@@ -1693,18 +1279,12 @@ pub(super) fn entry(
         )
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         for path in paths {
-            let identity = (parameter.place, path.clone());
             references.insert(
-                identity.clone(),
-                ReferenceCustody {
-                    identity,
+                (parameter.place, path.clone()),
+                ReferenceStorage {
                     root: ReferenceRoot::Ingress(parameter.place, path.clone()),
-                    parents: Vec::new(),
-                    contract: ReferenceCarrierContract::Parameter(parameter.clone()),
-                    formations: vec![ReferenceFormation {
-                        identity: (parameter.place, path.clone()),
-                        contract: ReferenceCarrierContract::Parameter(parameter.clone()),
-                    }],
+                    carrier_type: leaf_type(types, parameter.structural_type, &path)
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                     referent: leaf_referent(types, parameter.structural_type, &path)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                 },

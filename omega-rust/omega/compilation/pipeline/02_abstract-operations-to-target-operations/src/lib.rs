@@ -19,10 +19,10 @@
 //! their permissions from types. Storage owners still join current homes,
 //! ordered pointer crossings and ABI placements; the stage 03 corpus audit
 //! independently exercises custody. Returns transport the current value home
-//! without replaying returned-loan admission. Reference formation, release and
-//! edge lowering still contain local custody restrictions, so this is not
-//! yet a claim that every native borrow replay has been removed. Source
-//! permission belongs to Psi, not a second source checker in native lowering.
+//! without replaying returned-loan admission. Formation, copying, release and
+//! control-flow joins carry descriptor types and possible backing origins,
+//! without parent-loan graphs or formation histories. Source permission belongs
+//! to Psi; physical type, layout and ABI constraints remain native-owned.
 
 mod lowering;
 mod validation;

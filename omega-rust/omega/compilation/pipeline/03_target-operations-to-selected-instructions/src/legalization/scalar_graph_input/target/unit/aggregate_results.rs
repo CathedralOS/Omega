@@ -48,13 +48,11 @@ pub(super) fn validate(
                 return Err(LegalizationError::custody());
             }
             for argument in elements {
-                let (actual, multiplicity) =
+                let actual =
                     owned_projected_field_source(optimized, argument, &unit.structural_types)?;
                 if argument.access != terminal_psi::StructuralAccess::Owned
                     || argument.place == result.place
                     || actual != element
-                    || (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                        && multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -126,8 +124,7 @@ pub(super) fn validate(
                                 ) || argument.access != terminal_psi::StructuralAccess::Owned
                                     || (!argument.path.is_empty() && match declaration.field_type {
                                         terminal_psi::StructuralFieldType::Structural(expected) =>
-                                            owned_projected_field_source(optimized, argument, &unit.structural_types)
-                                                .map_or(true, |(selected, _)| selected != expected),
+                                            owned_projected_field_source(optimized, argument, &unit.structural_types) != Ok(expected),
                                         _ => true,
                                     })
                             }
@@ -309,9 +306,8 @@ pub(super) fn validate(
                         if argument.access != terminal_psi::StructuralAccess::Owned
                             || argument.place == result.place
                         { return Err(LegalizationError::custody()); }
-                        let (actual, multiplicity) = owned_projected_field_source(optimized, argument, &unit.structural_types)?;
-                        if actual != expected || (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                            && multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
+                        let actual = owned_projected_field_source(optimized, argument, &unit.structural_types)?;
+                        if actual != expected
                         { return Err(LegalizationError::custody()); }
                     }
                 }
@@ -323,18 +319,14 @@ pub(super) fn validate(
 }
 
 /// Structural payloads retain their exact owned producer or incoming binding.
-/// Membership rows describe the selected contents; they add no storage and do
-/// not replace the independent owned access, multiplicity and claim checks.
+/// This source/target correspondence audit checks the selected storage, not
+/// whether carrier disposal multiplicity grants copying. Shared references can
+/// be copied even when their disposal occurrence is affine. Source ownership
+/// and the independent reference audit retain permission and claim checks.
 fn owned_field_source(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
-) -> Result<
-    (
-        semantic_vocabulary::StructuralTypeId,
-        terminal_psi::StructuralMultiplicity,
-    ),
-    LegalizationError,
-> {
+) -> Result<semantic_vocabulary::StructuralTypeId, LegalizationError> {
     let parameters = function
         .structural_parameters
         .iter()
@@ -343,36 +335,28 @@ fn owned_field_source(
         .map(|parameter| {
             (
                 parameter.structural_type,
-                parameter.multiplicity,
                 parameter.access == terminal_psi::StructuralAccess::Owned,
             )
         });
     let result = scalar_graph_input::structural_case::source_result(function, place)
         .ok()
-        .map(|(_, result)| (result.structural_type, result.multiplicity, true));
+        .map(|(_, result)| (result.structural_type, true));
     let mut sources = parameters.chain(result);
-    let (structural_type, multiplicity, owned) =
-        sources.next().ok_or(LegalizationError::custody())?;
+    let (structural_type, owned) = sources.next().ok_or(LegalizationError::custody())?;
     // A completed owned value retains its claims in the home origin. Moving
     // its bytes into a field uses the checked constructor operand, not a new
     // claim-free-copy rule based on which aggregate receives it.
     if sources.next().is_some() || !owned {
         return Err(LegalizationError::custody());
     }
-    Ok((structural_type, multiplicity))
+    Ok(structural_type)
 }
 
 fn owned_projected_field_source(
     function: &PsiOptimizationFunction,
     argument: &terminal_psi::StructuralArgument,
     types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Result<
-    (
-        semantic_vocabulary::StructuralTypeId,
-        terminal_psi::StructuralMultiplicity,
-    ),
-    LegalizationError,
-> {
+) -> Result<semantic_vocabulary::StructuralTypeId, LegalizationError> {
     // A shared descriptor is an owned value whose backing remains borrowed.
     // Rejoin its exact declaration; this does not turn a borrowed aggregate
     // into an owned element or grant mutable access to descriptor backing.
@@ -388,14 +372,13 @@ fn owned_projected_field_source(
             parameter.structural_type,
         )
     {
-        return Ok((parameter.structural_type, parameter.multiplicity));
+        return Ok(parameter.structural_type);
     }
-    let (root, multiplicity) = owned_field_source(function, argument.place)?;
+    let root = owned_field_source(function, argument.place)?;
     if argument.path.is_empty() {
-        return Ok((root, multiplicity));
+        return Ok(root);
     }
     if argument.access != terminal_psi::StructuralAccess::Owned
-        || multiplicity != terminal_psi::StructuralMultiplicity::Affine
         || !argument.path.iter().all(|segment| {
             matches!(
                 segment,
@@ -409,5 +392,5 @@ fn owned_projected_field_source(
     let (_, selected) =
         terminal_semantics::canonical_static_projection(types.iter(), root, &argument.path)
             .ok_or(LegalizationError::custody())?;
-    Ok((selected.id, multiplicity))
+    Ok(selected.id)
 }

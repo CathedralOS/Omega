@@ -4,10 +4,9 @@
 //! carrier leaf holds it, which referent root it suspends, and which operation
 //! formed it. A carrier owns loan permission, never referent storage; roots
 //! are reconstructed from operations and signatures, never from pointer bits.
-//! This is the legalization-side mirror of the lowering custody map — the
-//! semantic replay in `optimization-unit-semantics` already proved legality,
-//! so this pass only needs enough state to rejoin `.., Referent` arguments and
-//! declared result leaf rosters independently.
+//! Production lowering transports storage metadata without this permission
+//! model. This explicit audit independently rejoins `.., Referent` arguments
+//! and declared result leaf rosters against the optimized source graph.
 //! Selection retains one descriptor with every possible immediate parent.
 //! Child access, transfer and disposal test membership in that complete roster;
 //! roots describe possible storage, never a runtime address to choose here.
@@ -1366,7 +1365,8 @@ fn discard_residual(
 
 /// Stage every selected reference leaf before committing a storage transfer.
 /// Projection prefixes select source storage; destination prefixes relocate
-/// its leaves without moving a sibling or changing the loan's stable identity.
+/// its leaves without moving a sibling. Owned unrestricted operands retain
+/// their sources and form fresh shared occurrences; moves preserve identity.
 fn relocate_subtree_leaves<'a>(
     custody: &mut Custody,
     function: &PsiOptimizationFunction,
@@ -1394,6 +1394,22 @@ fn relocate_subtree_leaves<'a>(
             return Err(invalid());
         }
         let contract = source_contract(function, custody, argument.place).ok_or(invalid())?;
+        let parameter = function.structural_parameter(argument.place).or_else(|| {
+            function
+                .block_structural_parameters()
+                .find(|parameter| parameter.place == argument.place)
+        });
+        let copies_storage = parameter.map_or_else(
+            || {
+                super::structural_case::source_result(function, argument.place).is_ok_and(
+                    |(_, result)| result.multiplicity == StructuralMultiplicity::Unrestricted,
+                )
+            },
+            |parameter| {
+                parameter.access == StructuralAccess::Owned
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            },
+        );
         if argument.access != StructuralAccess::Owned
             || argument.place == destination
             || leaf_type(types, contract, &argument.path) != Some(nested)
@@ -1410,16 +1426,64 @@ fn relocate_subtree_leaves<'a>(
             if leaf_referent(types, nested, path) != Some(leaf.referent) {
                 return Err(invalid());
             }
-            if !moved.insert(leaf.identity.clone()) {
-                return Err(invalid());
-            }
             let mut target_path = prefix.clone();
             target_path.extend(path.iter().cloned());
-            relocations.push(((argument.place, source_path.clone()), target_path));
+            let mut leaf = leaf.clone();
+            if copies_storage {
+                let reference_type = leaf_type(types, nested, path).ok_or(invalid())?;
+                if !find_structural_type(types, reference_type).is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Reference {
+                            access: StructuralAccess::SharedBorrow,
+                            ..
+                        }
+                    )
+                }) {
+                    return Err(invalid());
+                }
+                let mut observation = source_path.clone();
+                observation.push(StructuralPathSegment::Referent);
+                call_paths::call_reference_custody(
+                    function,
+                    custody,
+                    types,
+                    &StructuralArgument {
+                        place: argument.place,
+                        path: observation,
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                )?;
+                leaf.identity = (destination, target_path.clone());
+                if let Ok((operation, result)) =
+                    super::structural_case::source_result(function, destination)
+                {
+                    leaf.reform(operation, result);
+                } else {
+                    let parameter = function
+                        .structural_parameter(destination)
+                        .or_else(|| {
+                            function
+                                .block_structural_parameters()
+                                .find(|parameter| parameter.place == destination)
+                        })
+                        .ok_or(invalid())?;
+                    leaf.contract = CarrierContract::Parameter(parameter.clone());
+                    leaf.formations = vec![Formation {
+                        identity: leaf.identity.clone(),
+                        contract: leaf.contract.clone(),
+                    }];
+                }
+            } else if !moved.insert((argument.place, source_path.clone())) {
+                return Err(invalid());
+            }
+            relocations.push((leaf, target_path));
         }
     }
-    for (from, to) in relocations {
-        let leaf = custody.leaves.remove(&from).ok_or(invalid())?;
+    for source in moved {
+        custody.leaves.remove(&source).ok_or(invalid())?;
+    }
+    for (leaf, to) in relocations {
         custody.leaves.insert((destination, to), leaf);
     }
     Ok(())
@@ -1532,13 +1596,27 @@ pub(in crate::legalization) fn apply(
             {
                 return Err(invalid());
             }
-            let paths = leaf_paths(types, result.structural_type, custody.leaves.len())
+            // Bound declared slots as at ingress, not by resident descriptors:
+            // an empty case may legitimately have no live payload leaves.
+            let paths = leaf_paths(types, result.structural_type, 4096)
                 .filter(|paths| !paths.is_empty())
                 .ok_or(invalid())?;
             let mut copied = Vec::with_capacity(paths.len());
             for relative in &paths {
                 let mut selected = path.to_vec();
                 selected.extend_from_slice(relative);
+                let Some(source_leaf) = custody.leaves.get(&(*source, selected.clone())) else {
+                    // Case namespaces describe conditional residences. A copy
+                    // transports only present descriptors, but may not omit
+                    // an unconditional leaf from the independently read type.
+                    if relative
+                        .iter()
+                        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+                    {
+                        continue;
+                    }
+                    return Err(invalid());
+                };
                 let mut observation = selected.clone();
                 observation.push(StructuralPathSegment::Referent);
                 // Observation authenticates current permission and descriptor
@@ -1553,7 +1631,6 @@ pub(in crate::legalization) fn apply(
                         access: StructuralAccess::SharedBorrow,
                     },
                 )?;
-                let source_leaf = custody.leaves.get(&(*source, selected)).ok_or(invalid())?;
                 let expected =
                     leaf_referent(types, result.structural_type, relative).ok_or(invalid())?;
                 if source_leaf.referent != expected {
@@ -2210,8 +2287,14 @@ pub(in crate::legalization) fn block_entry_states(
             let mut complete = first.clone();
             let mut consistent = true;
             for (_, _, arrival) in incoming {
-                if merge_arrivals(function, target, &mut complete.leaves, &arrival.leaves)?
-                    .is_none()
+                if merge_arrivals(
+                    function,
+                    target,
+                    types,
+                    &mut complete.leaves,
+                    &arrival.leaves,
+                )?
+                .is_none()
                 {
                     consistent = false;
                     break;
@@ -2250,7 +2333,8 @@ pub(in crate::legalization) fn block_entry_states(
         let (_, _, first) = arrivals.next().ok_or_else(invalid)?;
         let mut complete = first.leaves.clone();
         for (_, _, arrival) in arrivals {
-            if merge_arrivals(function, block.id, &mut complete, &arrival.leaves)?.is_none() {
+            if merge_arrivals(function, block.id, types, &mut complete, &arrival.leaves)?.is_none()
+            {
                 return Err(invalid());
             }
         }

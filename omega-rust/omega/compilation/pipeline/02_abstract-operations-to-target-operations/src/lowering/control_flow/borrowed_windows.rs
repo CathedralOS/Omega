@@ -25,8 +25,8 @@
 //! the installed value to supply them; physical transport does not erase or
 //! establish them by accepting a carrier's bytes. Reference-bearing storage
 //! additionally transfers its exact descriptor roster with the bytes, through
-//! the same subtree transfer that construction uses. Backing and parent loan
-//! identities remain unchanged; a missing roster still rejects.
+//! the same subtree transfer that construction uses. Possible backing origins
+//! follow current descriptor storage; permission remains Psi's responsibility.
 //!
 //! A root window (`field: None`, empty path) is whole-value assignment
 //! through an exclusive loan: both copies span the whole referent at offset
@@ -86,6 +86,7 @@ pub(super) fn move_field(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut relocations = Vec::new();
+    let mut moved_leaves = BTreeSet::new();
     super::references::subtree_leaves(
         function,
         types,
@@ -97,8 +98,9 @@ pub(super) fn move_field(
             path: path.clone(),
             access: StructuralAccess::Owned,
         },
+        true,
         &mut relocations,
-        &mut BTreeSet::new(),
+        &mut moved_leaves,
     )?;
     super::leaf_copy::copy_extent(
         *psi_operation,
@@ -112,7 +114,7 @@ pub(super) fn move_field(
         operations,
         provenance,
     )?;
-    super::references::relocate_leaves(live, result.place, relocations);
+    super::references::relocate_leaves(live, result.place, relocations, moved_leaves);
     Ok(())
 }
 
@@ -204,6 +206,7 @@ pub(super) fn store_field(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut relocations = Vec::new();
+    let mut moved_leaves = BTreeSet::new();
     super::references::subtree_leaves(
         function,
         types,
@@ -211,10 +214,11 @@ pub(super) fn store_field(
         &custody_path,
         field_type,
         value,
+        multiplicity != StructuralMultiplicity::Unrestricted,
         &mut relocations,
-        &mut BTreeSet::new(),
+        &mut moved_leaves,
     )?;
-    super::references::relocate_leaves(live, destination.place(), relocations);
+    super::references::relocate_leaves(live, destination.place(), relocations, moved_leaves);
     // The store consumes an owned value as record construction consumes a
     // field operand; an unrestricted value's home stays readable.
     if multiplicity != StructuralMultiplicity::Unrestricted {
