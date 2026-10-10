@@ -229,9 +229,7 @@ fn point_owner(point: ProgramPoint) -> SymbolHandle {
         ProgramPoint::Machine { machine_symbol }
         | ProgramPoint::State { machine_symbol, .. }
         | ProgramPoint::Statement { machine_symbol, .. }
-        | ProgramPoint::Call { machine_symbol, .. }
-        | ProgramPoint::CallRequires { machine_symbol, .. }
-        | ProgramPoint::CallEnsures { machine_symbol, .. }
+        | facts::call_point_triple_pattern!(machine_symbol, ..)
         | ProgramPoint::TransitionArm { machine_symbol, .. }
         | ProgramPoint::Exit { machine_symbol, .. } => machine_symbol,
     }

@@ -601,15 +601,7 @@ pub(super) fn capture(
             ProgramPoint::Statement {
                 statement_index, ..
             } => (statement_index + 1, 0),
-            ProgramPoint::Call {
-                statement_index, ..
-            }
-            | ProgramPoint::CallRequires {
-                statement_index, ..
-            }
-            | ProgramPoint::CallEnsures {
-                statement_index, ..
-            } => (statement_index + 1, 1),
+            facts::call_point_triple_pattern!(statement_index, ..) => (statement_index + 1, 1),
             ProgramPoint::TransitionArm {
                 statement_index, ..
             }
