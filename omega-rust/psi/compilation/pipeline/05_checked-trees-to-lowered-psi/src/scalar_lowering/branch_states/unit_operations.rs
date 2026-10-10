@@ -1,5 +1,9 @@
 //! Lower ordinary calls retained by scalar evaluation using their checked custody.
 //! Unit effects and structural values share argument admission and call emission.
+//! A call nested in a selected scalar expression still borrows the caller's
+//! real storage. The published formal distinguishes a primitive home from a
+//! structural referent; use the shared storage resolvers for both rather than
+//! restricting this schedule to primitive loans or copying a record argument.
 use super::{
     CheckedTrees, LoweringError, QualifiedScalarType, storage, terminal_scalar_type, unsupported,
 };
@@ -229,31 +233,26 @@ pub(super) fn prepare(
             lowered_arguments.push(source);
             continue;
         }
-        let source_parameter = checked
-            .state_parameters(callee_state)
-            .get(parameter.position as usize)
-            .ok_or(LoweringError::Unsupported(
-                "scalar Unit formal position is absent",
-            ))?;
-        let checked_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
-            .type_reference_table
-            .type_reference(source_parameter.type_reference)
-        else {
-            return unsupported("scalar Unit structural argument is not a primitive borrow");
+        let source = if let Some(primitive) = parameter.primitive_referent {
+            bindings.primitive_borrow(
+                identities,
+                checked,
+                argument,
+                terminal_scalar_type(primitive)?,
+                structural_types,
+            )?
+        } else {
+            let (caller_machine, caller_state) =
+                crate::declarations::state_declaration(checked, state.state)?;
+            bindings.borrowed_structural_argument(
+                identities,
+                checked,
+                argument,
+                caller_machine,
+                checked.state_parameters(caller_state),
+            )?
         };
-        let primitive =
-            checked
-                .primitive_type_reference(*referee)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar Unit borrow is not primitive",
-                ))?;
-        lowered_arguments.push(bindings.primitive_borrow(
-            identities,
-            checked,
-            argument,
-            terminal_scalar_type(primitive)?,
-            structural_types,
-        )?);
+        lowered_arguments.push(source);
     }
     let argument_types = target
         .scalar_parameters

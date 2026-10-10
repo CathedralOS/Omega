@@ -4,10 +4,11 @@ Acceptance: `omega run --both main.omg`. Both engines must exit 0.
 
 Current preparation refuses the omitted end of the selected range declaration.
 Expanding it to a second collection expression is not a valid repair: guarded
-collection producers must still execute exactly once. With that tentative
-expansion, source admission succeeds but native lowering also reports that
-`choose` has no executable body (outer calls: statement window). Keep both
-dependencies with the collection-view migration outcome.
+collection producers must still execute exactly once. The explicit-end
+counterpart at `pass/operators/runtime_declared_range_guarded_collection_exit`
+exercises shared and mutable producer loans within the selected arm. An omitted
+end must observe the captured collection operand, not create another producer
+or hoist its effects out of that arm.
 
 The selected range body is an ordinary machine over a copied nominal collection.
 Its omitted end reads that collection's length. An effectful collection producer
