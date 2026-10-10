@@ -101,9 +101,9 @@ pub(super) fn unknown_length_range_is_proven(
         );
     if !range.end_inclusive {
         let start_is_length =
-            is_exact_collection_length(program, machine, state, collection, range.start);
+            is_exact_collection_length(program, machine, state, facts, collection, range.start);
         let end_is_length =
-            is_exact_collection_length(program, machine, state, collection, range.end);
+            is_exact_collection_length(program, machine, state, facts, collection, range.end);
         if end_is_length {
             // The exclusive end is this same place's current extent. The
             // start still owes its own bound, including the nonempty-tail guard.
@@ -162,11 +162,12 @@ fn symbolic_extent_is_named(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     expression: ExpressionHandle,
     extent: &(symbols::SymbolHandle, typed_trees::name::Identifier),
 ) -> bool {
-    if is_exact_collection_length(program, machine, state, collection, expression) {
+    if is_exact_collection_length(program, machine, state, facts, collection, expression) {
         return true;
     }
     let Some(path) = program.expression_table.name_path_node(expression) else {
@@ -233,7 +234,7 @@ fn symbolic_extent_range_bound_is_proven(
     let floor =
         super::types::collection_symbolic_extent_floor(program, machine, state, collection, extent);
     facts.range_bound_is_proven(&collection_label, &bound_label)
-        || symbolic_extent_is_named(program, machine, state, collection, bound, extent)
+        || symbolic_extent_is_named(program, machine, state, facts, collection, bound, extent)
         // A declared `u64[..N]` or `u64[..=N]` bound asserts `bound <= N`
         // under either inclusivity.
         || super::types::declared_bound_names_symbolic_extent(
@@ -294,10 +295,18 @@ pub(super) fn symbolic_extent_range_is_proven(
             program, machine, state, facts, collection, range.end,
         );
     if !range.end_inclusive {
-        let start_is_length =
-            symbolic_extent_is_named(program, machine, state, collection, range.start, extent);
-        let end_is_length =
-            symbolic_extent_is_named(program, machine, state, collection, range.end, extent);
+        let start_is_length = symbolic_extent_is_named(
+            program,
+            machine,
+            state,
+            facts,
+            collection,
+            range.start,
+            extent,
+        );
+        let end_is_length = symbolic_extent_is_named(
+            program, machine, state, facts, collection, range.end, extent,
+        );
         if end_is_length {
             // `items[..N]`/`items[..items.len]`: the start still owes `<= N`
             // (or the trivial zero).
@@ -395,7 +404,7 @@ pub(in crate::checks::ranges) fn length_difference_is_within_collection(
             Some(state),
             expression,
         )
-        || !is_exact_collection_length(program, machine, state, collection, binary.left)
+        || !is_exact_collection_length(program, machine, state, facts, collection, binary.left)
     {
         return false;
     }
@@ -432,15 +441,20 @@ pub(in crate::checks::ranges) fn length_difference_is_within_collection(
 
 /// The current builtin extent of the exact place, never a same-spelled field,
 /// another descriptor, or a saved scalar observation from a previous snapshot.
+/// Range endpoints use the same live captured-measurement edge as guards:
+/// evaluating an endpoint once into a local must not discard its relationship
+/// to the descriptor. Writes retire that edge in `retire_captured_lengths`.
 pub(super) fn is_exact_collection_length(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     expression: ExpressionHandle,
 ) -> bool {
     let Some(receiver) =
         validation::collection_length_receiver(program, machine, Some(state), expression)
+            .or_else(|| facts.captured_length_collection(program, expression))
     else {
         return false;
     };

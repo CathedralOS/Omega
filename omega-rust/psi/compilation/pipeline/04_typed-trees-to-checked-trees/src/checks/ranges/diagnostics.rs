@@ -76,7 +76,9 @@ pub(super) fn unknown_length_range_failure(
     range: &TableRangeExpression,
 ) -> SubsliceRangeFailure {
     if !range.end_inclusive
-        && super::proofs::is_exact_collection_length(program, machine, state, collection, range.end)
+        && super::proofs::is_exact_collection_length(
+            program, machine, state, facts, collection, range.end,
+        )
     {
         return SubsliceRangeFailure::StartBound;
     }

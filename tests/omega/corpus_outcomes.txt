@@ -4980,3 +4980,12 @@ pass/traits/applied_nominal_callback_local_types_exit checked 3083ms check-targe
 fail/termination/bounded_distance_stalled_cursor_exit_state rejected 579ms expected @a957d2bfdca7+wt
 	terminating machine fill: cannot prove strict rank decrease on a recurrent arrival: the transition from `fill` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 pass/termination/runtime_bounded_distance_loop_exit_state_exit checked 3517ms check-target:macos_arm64 @a957d2bfdca7+wt
+pass/slices/runtime_captured_range_end_exit checked 4762ms check-target:macos_arm64 @af65e4684ce5+wt
+fail/slices/captured_range_end_after_descriptor_replacement rejected 540ms expected @5c3bc44636b5+wt
+	cannot prove subslice range end bound `0..__hoist_14` is within unknown slice length
+fail/slices/captured_range_end_after_scalar_replacement rejected 539ms expected @5c3bc44636b5+wt
+	cannot prove subslice range end bound `0..__hoist_14` is within unknown slice length
+fail/slices/captured_range_end_after_selector_replacement rejected 539ms expected @5c3bc44636b5+wt
+	cannot prove subslice range end bound `0..__hoist_15` is within unknown slice length
+fail/slices/captured_range_end_for_other_descriptor rejected 540ms expected @5c3bc44636b5+wt
+	cannot prove subslice range end bound `0..__hoist_14` is within unknown slice length

@@ -414,12 +414,16 @@ helper that passes does not close an item.
   - View receivers: 20 corpus fixtures and `samples/cli/games/dungeon_crawler_cli`
     still call `X.as_slice()`/`X.as_mut_slice()`; the rest spell `&X[..]`. In
     the Rust reference the range view drops facts the receiver call carries:
-    the whole collection's length, element default-domain facts (`in Utf8`),
+    whole-collection index/length facts at view bindings, element
+    default-domain facts (`in Utf8`),
     cleanup `requires` through the view, and the reborrow lifecycle replay of
     two borrow fixtures. Carry them through `[..]`, respell the rest, then
     retire the receiver recognizer (`collection_view_call` in
     `checking/src/value_custody/places/collection_operations.rs`) and its
-    consumers.
+    consumers. Preserve live captured extent evidence when forming ranges:
+    `omega run --both tests/omega/pass/slices/runtime_captured_range_end_exit/main.omg`
+    must retain the narrowed view and exit 70; replacing either the measured
+    descriptor or scalar must not retain the old range-end authority.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.
   Acceptance: static customers execute with their authored exit/output; the
@@ -2364,11 +2368,9 @@ crash and native exit behavior.
     shared constrained-field reads still require cross-host execution coverage
     under **PLACED-ACCESS-NATIVE-OPS**; preserve the
     [unchanged authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md).
-    The slice-return
-    controls below still reject their captured range
-    endpoint against an unknown length on untouched main `9657a66795`;
-    **MACOS-NATIVE-LOST-SUCCESSES** owns that shared hoisted-bound dependency.
-    Their authored exits remain required. Preserve current-occurrence selection
+    Preserve the slice-return controls below at their authored exits, including
+    live captured range endpoints through returned views.
+    Preserve current-occurrence selection
     availability: a whole-local refill after selection installs a new carrier
     without reviving the consumed one; its new backing stays protected until
     that carrier's last read. The consumed-source RHS, partial-child refill and

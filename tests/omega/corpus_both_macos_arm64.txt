@@ -717,3 +717,7 @@ pass/traits/applied_nominal_callback_closed_local_types_exit built 3013ms exit:0
 pass/drops/runtime_selected_nominal_owner_cleanup_exit built 2975ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @63328daf043b+wt
 pass/generics/contextual_static_machine_applications_exit built 2992ms exit:0 interpreter-exit:0 interpreter:agrees @2347e2eb005f+wt
 pass/traits/applied_nominal_callback_local_types_exit built 2912ms exit:0 interpreter-exit:0 interpreter:agrees @2347e2eb005f+wt
+pass/slices/runtime_captured_range_end_exit built 5066ms exit:70 interpreter-exit:70 interpreter:agrees @af65e4684ce5+wt
+pass/slices/callee_non_byte_view_len_index_subslice built 5082ms exit:9 interpreter-exit:9 interpreter:agrees @af65e4684ce5+wt
+pass/slices/qualified_subslice_composition_exit built 5091ms exit:70 interpreter-exit:70 interpreter:agrees @af65e4684ce5+wt
+pass/slices/runtime_mutable_slice_result_whole_forward_exit built 3843ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt

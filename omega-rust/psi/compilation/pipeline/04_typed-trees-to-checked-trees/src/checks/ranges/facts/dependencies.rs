@@ -406,6 +406,17 @@ impl<'field> RangeFacts<'field> {
         if let Some(member) = validation::length_member(program, expression) {
             return Some(member.receiver);
         }
+        self.captured_length_collection(program, expression)
+    }
+
+    /// A retained measurement names its descriptor only while the scalar,
+    /// descriptor and captured selectors have not been replaced. This is the
+    /// same snapshot edge consumed by guards, not a replay of an initializer.
+    pub(in crate::checks::ranges) fn captured_length_collection(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<ExpressionHandle> {
         let symbol =
             validation::expression_traversal::single_segment_name_symbol(program, expression)?;
         self.scalar_binding_dependencies.iter().find_map(|row| {
