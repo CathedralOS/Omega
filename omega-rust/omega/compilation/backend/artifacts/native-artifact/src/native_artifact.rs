@@ -13,7 +13,6 @@ use abstract_operations::AbstractOperationPlan;
 use effects::{
     SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt,
     TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
-use installation_evidence::ObjectEvidence;
 use installation_evidence::ProviderExecutionEvidence;
 use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
 use terminal_psi::TerminalPsiIdentity;
