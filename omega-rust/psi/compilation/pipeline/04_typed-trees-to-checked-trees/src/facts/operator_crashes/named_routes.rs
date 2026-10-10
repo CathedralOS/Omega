@@ -315,13 +315,7 @@ fn expression_evaluates_effects(
         match program.expression_table.expression(expression) {
             ExpressionNode::Call(_) | ExpressionNode::Atomic(_) => return true,
             ExpressionNode::Match(dispatch) => {
-                pending.push(dispatch.subject);
-                for arm in program.expression_table.match_arms(dispatch.arms) {
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                    pending.push(arm.value);
-                }
+                crate::facts::push_match_children(program, dispatch, &mut pending)
             }
             ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
             _ => crate::facts::push_expression_children(program, expression, &mut pending),

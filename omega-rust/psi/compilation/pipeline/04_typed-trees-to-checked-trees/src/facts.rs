@@ -25,7 +25,9 @@ pub(crate) use crash_entry_values::{
 };
 mod crash_plan_facts;
 mod dynamic_conformance;
-pub(crate) use expression_children::{push_every_expression_child, push_expression_children};
+pub(crate) use expression_children::{
+    push_every_expression_child, push_expression_children, push_match_children,
+};
 pub(crate) mod index_compatibility;
 mod integer_writes;
 pub(crate) use integer_writes::obligations::integer_write_obligation;

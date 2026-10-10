@@ -516,13 +516,7 @@ fn expression_may_overwrite(
                 }
             }
             ExpressionNode::Match(dispatch) => {
-                pending.push(dispatch.subject);
-                for arm in program.expression_table.match_arms(dispatch.arms) {
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                    pending.push(arm.value);
-                }
+                crate::facts::push_match_children(program, dispatch, &mut pending)
             }
             _ => crate::facts::push_expression_children(program, expression, &mut pending),
         }

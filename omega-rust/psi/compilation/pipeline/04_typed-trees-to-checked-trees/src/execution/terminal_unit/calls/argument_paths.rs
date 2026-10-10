@@ -329,6 +329,27 @@ pub(crate) fn projected_evaluated_path(
     projected_argument_path_impl(program, state, statement, place, Some(machine), selector)
 }
 
+/// The segment prefix ending before `position` re-rooted as its own place and
+/// resolved to its container type — the descend every member, index, window or
+/// case segment takes to learn the extent it must stay inside.
+fn prefix_container_type_reference(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &validation::CanonicalPlace,
+    position: usize,
+) -> Option<TypeReferenceHandle> {
+    validation::canonical_place_type_reference(
+        program,
+        state_symbol,
+        statement_index,
+        &validation::CanonicalPlace {
+            root: place.root,
+            segments: place.segments[..position].to_vec(),
+        },
+    )
+}
+
 fn projected_argument_path_impl(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
@@ -376,15 +397,12 @@ fn projected_argument_path_impl(
         // crossing before selecting the next member. The canonical source
         // place keeps the authored field path for borrow-fact correspondence.
         if position > 0 && matches!(segment, facts::PlaceSegment::Field { .. }) {
-            let container = validation::CanonicalPlace {
-                root: place.root,
-                segments: place.segments[..position].to_vec(),
-            };
-            let mut reference = validation::canonical_place_type_reference(
+            let mut reference = prefix_container_type_reference(
                 program,
                 state_symbol,
                 statement_index,
-                &container,
+                place,
+                position,
             )?;
             let mut crossings = 0usize;
             while let Some(shell) = validation::reference_shell(program, reference) {
@@ -410,15 +428,12 @@ fn projected_argument_path_impl(
                 path.push(CheckedUnitStructuralPathSegment::Field(identity));
             }
             facts::PlaceSegment::FixedIndex { index } => {
-                let container = validation::CanonicalPlace {
-                    root: place.root,
-                    segments: place.segments[..position].to_vec(),
-                };
-                let container = validation::canonical_place_type_reference(
+                let container = prefix_container_type_reference(
                     program,
                     state_symbol,
                     statement_index,
-                    &container,
+                    place,
+                    position,
                 )?;
                 fixed_index_within_extent(program, container, *index)?;
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(
@@ -433,15 +448,12 @@ fn projected_argument_path_impl(
                 // literal-bound check `FixedIndex` segments take rather than
                 // reaching for runtime-selector evidence.
                 if let Some(index) = constant_local_index(program, state_symbol, *expression) {
-                    let container = validation::CanonicalPlace {
-                        root: place.root,
-                        segments: place.segments[..position].to_vec(),
-                    };
-                    let container = validation::canonical_place_type_reference(
+                    let container = prefix_container_type_reference(
                         program,
                         state_symbol,
                         statement_index,
-                        &container,
+                        place,
+                        position,
                     )?;
                     fixed_index_within_extent(program, container, index)?;
                     path.push(CheckedUnitStructuralPathSegment::FixedIndex(
@@ -487,15 +499,12 @@ fn projected_argument_path_impl(
                 // literal extent bounds the window — the same shape the
                 // `FixedIndex` walk proves — since a stored view carries no
                 // runtime bound evidence of its own.
-                let container = validation::CanonicalPlace {
-                    root: place.root,
-                    segments: place.segments[..position].to_vec(),
-                };
-                let container = validation::canonical_place_type_reference(
+                let container = prefix_container_type_reference(
                     program,
                     state_symbol,
                     statement_index,
-                    &container,
+                    place,
+                    position,
                 )?;
                 fixed_byte_range_within_extent(program, container, *start, *end)?;
                 path.push(CheckedUnitStructuralPathSegment::FixedByteRange {
@@ -507,15 +516,12 @@ fn projected_argument_path_impl(
                 // Resolve the exact case and its following field together.
                 // The canonical type walker alone skips Case markers; it is
                 // not evidence that a payload belongs to the selected case.
-                let container = validation::CanonicalPlace {
-                    root: place.root,
-                    segments: place.segments[..position].to_vec(),
-                };
-                let reference = validation::canonical_place_type_reference(
+                let reference = prefix_container_type_reference(
                     program,
                     state_symbol,
                     statement_index,
-                    &container,
+                    place,
+                    position,
                 )?;
                 let reference = validation::unwrapped_type_reference(program, reference)?;
                 let owner = program.closed_data_definition(reference)?;

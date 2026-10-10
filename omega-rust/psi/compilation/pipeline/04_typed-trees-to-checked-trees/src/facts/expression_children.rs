@@ -1,7 +1,24 @@
 //! Plain structural children of an expression: the descent every
 //! worklist walk shares once its own semantic arms are handled.
 
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMatchExpression};
+
+/// Pushes a `Match`'s owned children: the subject, each `Value` arm pattern,
+/// and each arm body. `push_expression_children` leaves `Match` to its
+/// callers, so every walk that descends through dispatches shares this arm.
+pub(crate) fn push_match_children(
+    program: &dyn ::validation::CheckingInput,
+    dispatch: &TableMatchExpression,
+    pending: &mut Vec<ExpressionHandle>,
+) {
+    pending.push(dispatch.subject);
+    for arm in program.expression_table.match_arms(dispatch.arms) {
+        if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+            pending.push(pattern);
+        }
+        pending.push(arm.value);
+    }
+}
 
 /// Pushes the expression's ordinary children onto `pending`. Covers the
 /// node kinds with no walk-specific semantics; callers match their own
@@ -54,15 +71,7 @@ pub(crate) fn push_every_expression_child(
     pending: &mut Vec<ExpressionHandle>,
 ) {
     match node {
-        ExpressionNode::Match(dispatch) => {
-            pending.push(dispatch.subject);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    pending.push(pattern);
-                }
-                pending.push(arm.value);
-            }
-        }
+        ExpressionNode::Match(dispatch) => push_match_children(program, dispatch, pending),
         ExpressionNode::ArrayLiteral(values) => {
             pending.extend(
                 program
