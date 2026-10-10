@@ -47,7 +47,7 @@ pub(super) fn analyze(
             })
             .unwrap_or(NEUTRAL)
         });
-    with_declared_result_carrier(walk.program, call, analysis)
+    with_result_carrier(walk, expression, analysis)
 }
 
 /// Decision 17 is operand-driven: a call whose callee declares a qualified
@@ -59,16 +59,36 @@ pub(super) fn analyze(
 /// Exact is a declared result policy too, not the absence of one. Bounds can
 /// be unknown without making a typed call result anonymous: omitting Exact
 /// here would let a store silently add Wrapping, Saturating or Trapping to
-/// that result. Preserve an operation's already selected policy and fill any
-/// missing policy from the signature, independently of result-range inference.
-/// The declared type likewise bounds an unknown value for ordinary and
-/// receiver calls so they retain their enclosing formation obligations.
-fn with_declared_result_carrier(
-    program: &dyn crate::CheckingInput,
-    call: &TableCallExpression,
+/// that result. Read the computed result through the shared type owner: a
+/// prepared token call can retain a selected policy adapter beyond its raw
+/// callee signature. Re-reading that signature here would silently erase the
+/// adapter and disagree with ordinary value delivery. State and declaration
+/// scopes supply their own places to that same result query; neither a
+/// destination nor inferred bounds chooses the carrier or policy.
+fn with_result_carrier(
+    walk: &ExpressionWalk,
+    expression: ExpressionHandle,
     analysis: Analysis,
 ) -> Analysis {
-    let Some(return_type) = call_return_type(program, call) else {
+    let program = walk.program;
+    let result = match walk.state {
+        Some(state) => {
+            crate::expression_result_type_reference(program, walk.machine, state, expression)
+        }
+        None => {
+            let parameters = program
+                .machine_states(walk.machine)
+                .first()
+                .map_or(&[][..], |entry| program.state_parameters(entry));
+            crate::parameter_expression_result_type_reference(
+                program,
+                walk.machine.symbol,
+                parameters,
+                expression,
+            )
+        }
+    };
+    let Some(return_type) = result else {
         return analysis;
     };
     let domain = program.arithmetic_domain_for_type_reference(return_type);
