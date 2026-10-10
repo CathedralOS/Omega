@@ -448,30 +448,18 @@ fn complete_family_members<'program>(
     program: &'program dyn crate::CheckingInput,
     interface: &typed_trees::machine::Machine,
 ) -> Option<&'program [typed_trees::machine::TargetMachineFamilyMember]> {
-    let mut families = program
-        .target_machine_families
-        .iter()
-        .filter(|family| family.canonical == interface.symbol);
-    let family = families.next()?;
-    if families.next().is_some() || family.members.is_empty() {
-        return None;
-    }
-    let mut visited = Vec::with_capacity(family.members.len());
-    for member in &family.members {
+    let members = super::calls::target_family_members(program, interface)?;
+    for member in members {
         let machine = program.machine(member.machine)?;
-        if machine.target_family_interface
-            || !machine.supplies_checked_body()
+        if !machine.supplies_checked_body()
             || !machine.body_is_present
             || machine.body_status != typed_trees::machine::MachineBodyStatus::Complete
             || machine.structural_type_equations_pending
-            || program.machine_states(machine).is_empty()
-            || visited.contains(&member.machine)
         {
             return None;
         }
-        visited.push(member.machine);
     }
-    Some(&family.members)
+    Some(members)
 }
 
 /// Rejoin a selected public operator with its exact authored implementation.

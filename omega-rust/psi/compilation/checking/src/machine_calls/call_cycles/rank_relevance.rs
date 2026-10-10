@@ -3,7 +3,11 @@
 //! Rank membership ends on an exit suffix that cannot return to a ranked
 //! cycle. This query follows the existing executable call inventory, including
 //! ordinary and nested calls: tail-only topology would hide recursion inside
-//! a finishing initializer. Opaque executable destinations remain relevant.
+//! a finishing initializer. A pinned boundary with an empty synchronous
+//! invocation ceiling cannot return to the ranked component. Its progress
+//! guarantee is independent: an exit suffix may discard the rank even when
+//! that boundary has no termination promise. Unresolved destinations and
+//! boundaries permitting synchronous invocation remain relevant.
 //! Body-bearing token operators have already been bound to exact call nodes
 //! by typed preparation. Implicit cleanup has its own cycle owner, which rejects
 //! recurrence without an exact cleanup-edge ranking witness. Those admission
@@ -54,39 +58,67 @@ pub fn rank_relevance(
     while let Some(&(machine, state)) = states.get(position) {
         let mut targets = Vec::new();
         let mut has_opaque_call = false;
-        for (statement_index, _) in program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
-        {
-            for call in collect_call_sites_in_statement(program, machine, state, statement_index) {
-                let symbol = match call {
-                    CallSite::Statement(call) => call.target_symbol,
-                    CallSite::Expression { call, .. } => call.target_symbol,
-                    CallSite::TransitionNamed { path, .. } => path.symbol,
-                };
-                let Some(target) = call_target_state(program, symbol) else {
+        // A generated interface carries no executable body. Its topology is
+        // the union of all retained members, never the current host's member
+        // or the interface's deliberately empty authored invocation roster.
+        let callees = if machine.target_family_interface {
+            match super::super::calls::target_family_members(program, machine) {
+                Some(members) => members.iter().map(|member| member.machine).collect(),
+                None => {
                     has_opaque_call = true;
-                    continue;
-                };
-                let Some((owner, target)) = find_state(program, target.symbol) else {
-                    has_opaque_call = true;
-                    continue;
-                };
-                // A bodyless interface's implementation is not an empty body.
-                if !owner.body_is_present {
-                    has_opaque_call = true;
-                    continue;
+                    Vec::new()
                 }
-                let target_position = states
-                    .iter()
-                    .position(|(_, stored)| stored.symbol == target.symbol)
-                    .unwrap_or_else(|| {
-                        let target_position = states.len();
-                        states.push((owner, target));
-                        target_position
-                    });
-                targets.push(target_position);
             }
+        } else {
+            program
+                .statement_table
+                .indexed_statements(state.statement_nodes)
+                .flat_map(|(statement_index, _)| {
+                    collect_call_sites_in_statement(program, machine, state, statement_index)
+                })
+                .map(|call| match call {
+                    CallSite::Statement(call) => {
+                        let candidates =
+                            typed_trees::operator::named_statement_call_candidates(program, call);
+                        match candidates.as_slice() {
+                            [operator] if operator.is_boundary => operator.symbol,
+                            _ => call.target_symbol,
+                        }
+                    }
+                    CallSite::Expression { call, .. } => {
+                        super::super::calls::call_target_symbol(program, call)
+                    }
+                    CallSite::TransitionNamed { path, .. } => path.symbol,
+                })
+                .collect::<Vec<_>>()
+        };
+        for symbol in callees {
+            if boundary_excludes_synchronous_entry(program, symbol) {
+                continue;
+            }
+            let Some(target) = call_target_state(program, symbol) else {
+                has_opaque_call = true;
+                continue;
+            };
+            let Some((owner, target)) = find_state(program, target.symbol) else {
+                has_opaque_call = true;
+                continue;
+            };
+            // A bodyless interface's implementation is not an empty body.
+            // Generated family nodes expand their complete roster above.
+            if !owner.body_is_present && !owner.target_family_interface {
+                has_opaque_call = true;
+                continue;
+            }
+            let target_position = states
+                .iter()
+                .position(|(_, stored)| stored.symbol == target.symbol)
+                .unwrap_or_else(|| {
+                    let target_position = states.len();
+                    states.push((owner, target));
+                    target_position
+                });
+            targets.push(target_position);
         }
         targets.sort_unstable();
         targets.dedup();
@@ -138,4 +170,61 @@ pub fn rank_relevance(
             .map(|((_, state), relevant)| (state.symbol, relevant))
             .collect(),
     })
+}
+
+/// Bodyless omission forbids synchronous entry (language/effects.md). Read the
+/// exact authored ceiling, not a filtered inference result: an unresolved
+/// `invokes` target must not become evidence of an empty ceiling. Ordinary
+/// requirements lack this boundary guarantee and retain opaque topology.
+fn boundary_excludes_synchronous_entry(
+    program: &dyn crate::CheckingInput,
+    target: SymbolHandle,
+) -> bool {
+    if let Some((owner, signature)) = program.trait_machine_signature(target) {
+        return owner.is_boundary && signature.invokes.is_empty();
+    }
+    if let Some(operator) = program.operator_definition_by_symbol(target) {
+        // The boundary operator contract has no synchronous-invocation row.
+        return operator.is_boundary;
+    }
+    let Some((machine, _)) = super::super::calls::find_machine_head(program, target) else {
+        return false;
+    };
+    if machine.body_is_present
+        || !matches!(
+            machine.supply_mode,
+            language_semantics::MachineSupplyMode::Boundary
+                | language_semantics::MachineSupplyMode::TopLevelRequirement
+                | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+        )
+        || !machine.invokes.is_empty()
+    {
+        return false;
+    }
+    // A directly named external satisfier retains every pinned requirement's
+    // ceiling; a narrower declaration cannot erase an inherited callback edge.
+    let requirements = program.machine_trait_conformances(machine);
+    (!matches!(
+        machine.supply_mode,
+        language_semantics::MachineSupplyMode::ExternalRealization { .. }
+    ) || !requirements.is_empty())
+        && requirements.iter().all(|conformance| {
+            match typed_trees::machine::resolve_satisfied_declaration(
+                program.typed_program(),
+                machine,
+                conformance,
+            ) {
+                Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                    definition,
+                    requirement,
+                }) => definition.is_boundary && requirement.invokes.is_empty(),
+                Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                    requirement,
+                )) => requirement.invokes.is_empty(),
+                Some(typed_trees::machine::SatisfiedDeclaration::Operator(operator)) => {
+                    operator.is_boundary
+                }
+                _ => false,
+            }
+        })
 }

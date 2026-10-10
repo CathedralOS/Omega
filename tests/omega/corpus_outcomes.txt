@@ -4891,3 +4891,12 @@ fail/borrows/generic_result_retains_lifetime_candidates rejected 503ms expected 
 	statement 3 mutates `second` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/termination/forwarding_state_in_ranked_loop rejected 830ms expected @627f55ca50e5+wt
 	terminating machine argmax: cannot prove strict rank decrease on a recurrent arrival: the transition from `argmax` to `step` is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/rankless_boundary_progress_unpromised rejected 308ms expected @cbdea668881e+wt
+	cannot prove published termination for machine `console_write_bytes`: its checked body reaches an operation without a usable termination guarantee
+fail/termination/rankless_callback_suffix rejected 361ms expected @cbdea668881e+wt
+	cannot prove the `terminates by` ranking for machine console_write_bytes
+fail/termination/rankless_family_member_reentry rejected 362ms expected @cbdea668881e+wt
+	cannot prove the `terminates by` ranking for machine count
+pass/termination/rankless_boundary_operator_suffix checked 411ms @cbdea668881e+wt
+pass/termination/rankless_boundary_slice_suffix checked 411ms @cbdea668881e+wt
+pass/termination/runtime_rankless_boundary_suffix_exit checked 2297ms check-target:macos_arm64 @cbdea668881e+wt

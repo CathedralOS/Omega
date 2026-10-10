@@ -326,3 +326,37 @@ pub fn call_target_symbol(
     typed_trees::operator::selected_boundary_operator(program, call)
         .map_or(call.target_symbol, |operator| operator.symbol)
 }
+
+/// The complete structural roster behind a generated portable interface.
+/// Consumers apply their own body/contract eligibility after this exact join;
+/// external members belong to the roster just as checked bodies do. This is
+/// dependency topology, not an executable dispatch or a host-target selection.
+pub(crate) fn target_family_members<'program>(
+    program: &'program dyn crate::CheckingInput,
+    interface: &typed_trees::machine::Machine,
+) -> Option<&'program [typed_trees::machine::TargetMachineFamilyMember]> {
+    if !interface.target_family_interface {
+        return None;
+    }
+    let mut families = program
+        .target_machine_families
+        .iter()
+        .filter(|family| family.canonical == interface.symbol);
+    let family = families.next()?;
+    if families.next().is_some() || family.members.is_empty() {
+        return None;
+    }
+    for (index, member) in family.members.iter().enumerate() {
+        let machine = program.machine(member.machine)?;
+        if machine.target_family_interface
+            || machine.authored_target.as_ref() != Some(&member.target)
+            || program.machine_states(machine).is_empty()
+            || family.members[..index]
+                .iter()
+                .any(|prior| prior.machine == member.machine || prior.target == member.target)
+        {
+            return None;
+        }
+    }
+    Some(&family.members)
+}

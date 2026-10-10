@@ -12,7 +12,7 @@ use crate::execution::terminal_unit::calls::{
 use crate::execution::terminal_unit::types::{
     ShapeCollector, boundary_borrowed_referent, boundary_domain_requirements,
     fold_authorized_result_domains, is_unit, machine_binders, parameter_qualifications,
-    projected_parameter_qualifications, state_flow, structural_access_for_type_reference,
+    projected_parameter_qualifications, structural_access_for_type_reference,
     type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, substituted_formal_type};
@@ -72,7 +72,9 @@ pub(crate) fn build_boundary_machine(
     )?;
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
     let scalar_requires = boundary_scalar_requires(program, machine, contract)?;
-    let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
+    // The callable's checked reach can include target-family members. Its
+    // empty interface state is not the machine's inferred execution closure.
+    let machine_reach = facts.service_reaches.for_machine(machine.symbol)?;
 
     Some(CheckedBoundaryMachinePlan {
         machine: machine.symbol,
@@ -91,7 +93,10 @@ pub(crate) fn build_boundary_machine(
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
-        service_reach: state_flow.service_reach,
+        service_reach: language_semantics::ServiceReachSummary {
+            direct: machine_reach.inferred_direct,
+            transitive: machine_reach.inferred_transitive,
+        },
     })
 }
 

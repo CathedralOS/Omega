@@ -1338,9 +1338,12 @@ defines the complete product bar.
   Retain executable controls `pass/termination/runtime_saved_rank_cycle_exit`
   for saved values, requirements and disjoint writes,
   `pass/termination/joint_rank_acyclic_finish_exit` for a joint preserving/strict
-  cycle with a rankless finish, and
+  cycle with a rankless finish,
+  `pass/termination/runtime_rankless_boundary_suffix_exit` for a finishing
+  boundary call with no synchronous-invocation permission, and
   `pass/termination/rank_range_record_snapshot_compile` for an ordinary
-  snapshot return (source-only). Rankless exits returning to recurrence,
+  snapshot return (source-only). Empty `invokes` does not imply termination.
+  Rankless exits returning to recurrence,
   nondecreasing cycles, stale premises, overwritten requirement inputs and
   unproved arrivals reject; entry requirements do not become internal-arrival
   facts. Free and attached mutual owners retain authored claim identities;
