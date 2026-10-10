@@ -384,6 +384,28 @@ fn shared_type_head(
     weak_head_normalize_retaining(arena, context.signature(), shared_type, budget, retained)
 }
 
+/// Motives compare at the left motive's inferred type — every stuck
+/// elimination below decides that comparison identically.
+fn motives_convertible(
+    arena: &mut TermArena,
+    context: &Context,
+    left_motive: TermHandle,
+    right_motive: TermHandle,
+    budget: &mut Budget,
+    retained: &impl Fn(u32) -> bool,
+) -> Result<bool, CoreError> {
+    let motive_type = infer_type(arena, context, left_motive, budget)?;
+    convertible_retaining(
+        arena,
+        context,
+        left_motive,
+        right_motive,
+        motive_type,
+        budget,
+        retained,
+    )
+}
+
 /// Typed conversion: are `left` and `right` definitionally equal at
 /// `shared_type` under `context`?
 ///
@@ -701,18 +723,9 @@ pub fn convertible_retaining(
             // applied to its constructor. A constructor scrutinee never
             // reaches here — weak-head normalization already selected
             // its branch — so only stuck scrutinees meet this rule.
-            let motive_type = infer_type(arena, context, left_motive, budget)?;
-            if !convertible_retaining(
-                arena,
-                context,
-                left_motive,
-                right_motive,
-                motive_type,
-                budget,
-                retained,
-            )? {
-                return Ok(false);
-            }
+            if !motives_convertible(arena, context, left_motive, right_motive, budget, retained)? {
+            return Ok(false);
+}
             let two = arena.insert(Term::Two);
             if !convertible_retaining(
                 arena,
@@ -840,18 +853,9 @@ pub fn convertible_retaining(
             // `refl` scrutinee never reaches here — weak-head
             // normalization already selected the base — so only stuck
             // proofs meet this rule.
-            let motive_type = infer_type(arena, context, left_motive, budget)?;
-            if !convertible_retaining(
-                arena,
-                context,
-                left_motive,
-                right_motive,
-                motive_type,
-                budget,
-                retained,
-            )? {
-                return Ok(false);
-            }
+            if !motives_convertible(arena, context, left_motive, right_motive, budget, retained)? {
+            return Ok(false);
+}
             let proof_type = infer_type(arena, context, left_proof, budget)?;
             let proof_head = weak_head_normalize_retaining(
                 arena,
@@ -1026,18 +1030,9 @@ pub fn convertible_retaining(
             // tree never reaches here — weak-head normalization already
             // unfolded `step a k ih` — so only stuck trees meet this
             // rule.
-            let motive_type = infer_type(arena, context, left_motive, budget)?;
-            if !convertible_retaining(
-                arena,
-                context,
-                left_motive,
-                right_motive,
-                motive_type,
-                budget,
-                retained,
-            )? {
-                return Ok(false);
-            }
+            if !motives_convertible(arena, context, left_motive, right_motive, budget, retained)? {
+            return Ok(false);
+}
             let tree_type = infer_type(arena, context, left_tree, budget)?;
             let tree_head = weak_head_normalize_retaining(
                 arena,
@@ -1251,18 +1246,9 @@ pub fn convertible_retaining(
             // the bodies at `Π(a : A). P (box a)` rebuilt from them. A
             // `box` scrutinee never reaches here — weak-head
             // normalization already applied the body.
-            let motive_type = infer_type(arena, context, left_motive, budget)?;
-            if !convertible_retaining(
-                arena,
-                context,
-                left_motive,
-                right_motive,
-                motive_type,
-                budget,
-                retained,
-            )? {
-                return Ok(false);
-            }
+            if !motives_convertible(arena, context, left_motive, right_motive, budget, retained)? {
+            return Ok(false);
+}
             let scrutinee_type = infer_type(arena, context, left_scrutinee, budget)?;
             let scrutinee_head = weak_head_normalize_retaining(
                 arena,
