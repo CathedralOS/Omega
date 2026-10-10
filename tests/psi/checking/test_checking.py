@@ -2273,6 +2273,18 @@ def main() -> None:
         b"machine identity(value: bool) -> bool\nensures result == value\n{ value }",
     )
 
+    accepted(
+        program,
+        "record-copy-keeps-its-fields",
+        b"data Player [copy] { health: i32; }\n"
+        b"domain Player::Alive(player)\nrequires player.health > 0;\n"
+        b"machine inspect(player: Player)\nrequires player in Player::Alive\n{}\n"
+        b"machine run(player: Player)\nrequires player in Player::Alive\n{\n"
+        b"    let copy: Player = player;\n"
+        b"    inspect(copy);\n"
+        b"}",
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

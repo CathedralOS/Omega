@@ -411,7 +411,9 @@ holding or failing, the left operand of `&&` (or failing `||`) for its right
 operand, a value pattern's arm (the subject equals it), a `let` and an
 assignment add facts, a Boolean place bound from a condition stands for it
 at a later dispatch or guard until a place that existed when it was bound
-is written ([`checking/aliases.omg`](checking/aliases.omg)), and a constant whose initializer is an anonymous
+is written ([`checking/aliases.omg`](checking/aliases.omg)), a record bound
+from another place takes the integer fields known directly below it, and a
+constant whose initializer is an anonymous
 integer tree is that value
 ([`checking/facts.omg`](checking/facts.omg),
 [`checking/flow.omg`](checking/flow.omg)); a write forgets the place and

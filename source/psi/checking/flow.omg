@@ -976,6 +976,7 @@ crashes Trap
         let inside: bool = Checker::within(checker, owner, place);
         let stale: bool = value.known && value.subject > 0 && (owner == 0 || inside);
         Checker::forget_place(checker, typing, place);
+        Checker::copy_fields(checker, typing, place, value.place);
         let entry: Place = Checker::place_at(checker, place - 1);
         transition entry.subject > 0 {
             true -> rebound(checker, entry.subject, value, stale)
