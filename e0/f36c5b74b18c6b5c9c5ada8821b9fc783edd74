@@ -1,0 +1,4 @@
+owner: z10 / ONE-INTEGER-BOUNDS-ENGINE clients 1-2
+provenance: clients: update_bounds Bounds→Interval (1:1), construction_bounds Bounds embeds Interval + domain saturating ops
+ticket: 39e18004c0934feab7685fdf6f952a56
+published_utc: 2026-10-10T08:00:11.678302+00:00
