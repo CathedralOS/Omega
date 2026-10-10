@@ -16,7 +16,7 @@ DIAGNOSTICS = (
     "ConversionOutOfRange", "ShiftCountOutOfRange", "RequirementUnproven",
     "DomainUnproven", "CrashNotDeclared", "GuaranteeUnproven", "RankUnproven",
     "ProgressUnproven", "UseAfterMove", "MoveOutOfBorrow", "LinearUnconsumed",
-    "LinearOverwritten", "OverlappingArguments",
+    "LinearOverwritten", "OverlappingArguments", "LoanConflict", "LoanEscapes",
 )
 
 
@@ -2024,6 +2024,27 @@ def main() -> None:
         b"main.inner.value",
     )
 
+    # A nested call whose result holds references keeps its operands' loans
+    # for the outer call; one with a reference-free result has released them.
+    rejected(
+        program,
+        "nested-result-keeps-its-operand-loan",
+        b"data Held { value: &mut u64; }\n"
+        b"machine hold(target: &mut u64) -> Held { Held { value: target } }\n"
+        b"machine bump(target: &mut u64) -> u64 { 0 }\n"
+        b"machine observe(held: Held, changed: u64) -> u64 { changed }\n"
+        b"machine run(count: &mut u64) -> u64 { observe(hold(count), bump(count)) }",
+        "OverlappingArguments",
+        b"count!3",
+    )
+    accepted(
+        program,
+        "completed-nested-call-releases-its-operand",
+        b"machine bump(target: &mut u64) -> u64 { 0 }\n"
+        b"machine observe(first: u64, second: u64) -> u64 { first }\n"
+        b"machine run(count: &mut u64) -> u64 { observe(bump(count), bump(count)) }",
+    )
+
     # Remainders and policy results of constants (evaluation.omg, arithmetic.omg).
     accepted(
         program,
@@ -2077,6 +2098,107 @@ def main() -> None:
         b"machine run(count: &mut u64) -> u64 { take(count, count) }",
         "OverlappingArguments",
         b"count!3",
+    )
+
+    # Loans held by locals (loans.omg): a loan lasts until its holder's last
+    # use, and an exit may not return a loan of the body's own storage.
+    storage = (b"data Storage { value: i32; }\n"
+               b"machine use_value(value: &mut i32) { value = 1; }\n"
+               b"machine write_alias(value: &mut i32) { value = 2; }\n")
+    rejected(
+        program,
+        "exclusive-loan-live-until-its-last-use",
+        storage + b"machine run() {\n"
+        b"    let mut storage: Storage = Storage { value: 0 };\n"
+        b"    let alias: &mut i32 = &mut storage.value;\n"
+        b"    alias = 3;\n"
+        b"    use_value(&mut storage.value);\n"
+        b"    write_alias(alias);\n"
+        b"}",
+        "LoanConflict",
+        b"storage.value!2",
+    )
+    accepted(
+        program,
+        "loan-ends-at-its-last-use",
+        storage + b"machine run() {\n"
+        b"    let mut storage: Storage = Storage { value: 0 };\n"
+        b"    let alias: &mut i32 = &mut storage.value;\n"
+        b"    alias = 3;\n"
+        b"    use_value(&mut storage.value);\n"
+        b"}",
+    )
+    score = (b"data Score { points: i32; }\n"
+             b"machine take(score: Score) {}\n"
+             b"machine read(score: &Score) -> i32 { score.points }\n")
+    rejected(
+        program,
+        "move-under-a-shared-loan",
+        score + b"machine run() -> i32 {\n"
+        b"    let score: Score = Score { points: 1 };\n"
+        b"    let alias: &Score = &score;\n"
+        b"    take(score);\n"
+        b"    read(alias)\n"
+        b"}",
+        "LoanConflict",
+        b"score!6",
+    )
+    accepted(
+        program,
+        "shared-loan-admits-reads",
+        score + b"machine run() -> i32 {\n"
+        b"    let score: Score = Score { points: 1 };\n"
+        b"    let alias: &Score = &score;\n"
+        b"    let direct: i32 = score.points;\n"
+        b"    let seen: i32 = read(alias);\n"
+        b"    direct\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "call-result-holds-its-argument-loan",
+        b"data Cell { value: i32; }\n"
+        b"data Tally { first: Cell; hits: i32; }\n"
+        b"machine pick(tally: &mut Tally) -> &mut Cell { &mut tally.first }\n"
+        b"machine run() {\n"
+        b"    let mut tally: Tally = Tally { first: Cell { value: 0 }, hits: 0 };\n"
+        b"    let cell: &mut Cell = pick(&mut tally);\n"
+        b"    tally.hits = 5;\n"
+        b"    cell.value = 7;\n"
+        b"}",
+        "LoanConflict",
+        b"tally.hits",
+    )
+    rejected(
+        program,
+        "stored-reference-holds-its-loan",
+        b"data Cell { value: i32; }\n"
+        b"data Message { body: &Cell; }\n"
+        b"machine read_cell(cell: &Cell) -> i32 { cell.value }\n"
+        b"machine exercise(cell: &mut Cell) -> i32 {\n"
+        b"    let message: Message = Message { body: cell };\n"
+        b"    cell.value = 71;\n"
+        b"    read_cell(message.body)\n"
+        b"}",
+        "LoanConflict",
+        b"cell.value!2",
+    )
+    rejected(
+        program,
+        "local-loan-escapes-its-body",
+        b"data Score { points: i32; }\n"
+        b"machine leak() -> &Score {\n"
+        b"    let score: Score = Score { points: 1 };\n"
+        b"    &score\n"
+        b"}",
+        "LoanEscapes",
+        b"&score",
+    )
+    accepted(
+        program,
+        "borrowed-view-returns",
+        b"data Score { points: i32; }\n"
+        b"machine view(score: &Score) -> &i32 { &score.points }",
     )
 
     # The product's own psi package, each module under source/psi as

@@ -53,6 +53,11 @@ pub data CheckDiagnosticCode [copy] {
     // A call argument accessing a place an earlier argument holds, either
     // exclusively.
     case OverlappingArguments;
+    // An access to a place a live loan held by a local covers, the loan or
+    // the access exclusive.
+    case LoanConflict;
+    // An exit returning a loan of storage the body owns.
+    case LoanEscapes;
 }
 
 pub data CheckDiagnostic [copy] {

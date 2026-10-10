@@ -521,8 +521,14 @@ match, rejects. A transition's and a match's arms are separate paths, and a
 match's join holds what any arm moved. A call holds each place an argument
 lends until it returns, exclusively only when the argument and its
 parameter both are, and a later argument's access overlapping a held place
-rejects when either side is exclusive
-([`checking/holds.omg`](checking/holds.omg)).
+rejects when either side is exclusive; a place lent to a nested call
+whose result holds references stays held by the argument
+([`checking/holds.omg`](checking/holds.omg)). A local whose type holds
+references holds a loan of each place its initializer lends until its last
+use; an access overlapping a live loan, other than through its holder,
+rejects when the loan or the access is exclusive, and an exit may not
+return a loan of the body's own storage
+([`checking/loans.omg`](checking/loans.omg)).
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet

@@ -6258,8 +6258,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   again, nothing moves out of a reference or a borrowed binder, each owed
   linear place moves whole by every exit and is never discarded, overwritten
   live or moved on only some paths of a reconvergence, and no call argument
-  overlaps an earlier argument's loan where either is exclusive. Checking
-  reports each rejected machine's first rejection.
+  overlaps an earlier argument's loan where either is exclusive. A local
+  whose type holds references holds the loans its initializer forms until
+  its last use, and an exit may not return a loan of the body's own
+  storage. Checking reports each rejected machine's first rejection.
   `tests/psi/checking/test-checking.sh` passes 144 checking cases and accepts
   the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 80
   of the 102 `source/library/std` and `core` files; the other 22 stop first at

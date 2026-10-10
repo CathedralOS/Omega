@@ -1,5 +1,6 @@
 use psi::checking::checker;
 use psi::checking::holds;
+use psi::checking::loans;
 use psi::checking::owned_places;
 use psi::checks::checks;
 use psi::resolution::resolution;
@@ -89,6 +90,18 @@ pub data Ownership {
     joining: MovedSet;
     // A crash or an exit ended the body's path.
     ended: bool;
+    // Loans held by locals (loans.omg): each local's last use, by its place
+    // key, and each loan's holder, place, exclusivity and whether it
+    // borrows storage the body owns; the statement being walked.
+    use_locals: [u64; 128];
+    use_last: [u64; 128];
+    use_count: u64;
+    loan_holders: [u64; 64];
+    loan_places: [u64; 64];
+    loan_exclusive: [bool; 64];
+    loan_owned: [bool; 64];
+    loan_count: u64;
+    statement: u64 in Trapping;
 }
 
 // The ownership walk of a machine's bodies: its entry and every state, each
@@ -169,8 +182,21 @@ crashes Trap
     ) {
         transition index < parameter_end {
             true -> owe_parameter(checker, syntax, resolution, typing, index, parameter_end, first_statement, statement_end, source_span)
-            _ -> statement(checker, syntax, resolution, typing, first_statement, statement_end, source_span)
+            _ -> uses(checker, syntax, resolution, typing, first_statement, statement_end, source_span)
         }
+    }
+
+    state uses(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        first_statement: u64 in Trapping,
+        statement_end: u64 in Trapping,
+        source_span: SourceSpan
+    ) {
+        Checker::find_last_uses(checker, syntax, resolution, first_statement, statement_end);
+        transition { _ -> statement(checker, syntax, resolution, typing, first_statement, statement_end, source_span) }
     }
 
     state owe_parameter(
@@ -215,6 +241,7 @@ crashes Trap
         end: u64 in Trapping,
         source_span: SourceSpan
     ) {
+        checker.ownership.statement = index;
         Checker::own_statement(checker, syntax, resolution, typing, index);
         transition { _ -> statement(checker, syntax, resolution, typing, index + 1, end, source_span) }
     }
@@ -260,6 +287,7 @@ crashes Trap
         let type_handle: u64 in Trapping = Typing::expression_type(typing, statement.value);
         let multiplicity: DataMultiplicity = Checker::multiplicity(syntax, typing, type_handle);
         Checker::owe_linear(checker, multiplicity, index * 4 + 1, statement.source_span);
+        Checker::create_loans(checker, syntax, resolution, typing, index, statement);
     }
 
     // The value is evaluated before the place it is stored in.
@@ -270,6 +298,7 @@ crashes Trap
 
     state tail(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
         Checker::own_tree(checker, syntax, resolution, typing, statement.value, UseRole::Value);
+        Checker::own_escape(checker, syntax, resolution, typing, statement.value);
         Checker::own_exit(checker, syntax, resolution, typing, statement.source_span);
         checker.ownership.ended = true;
     }
@@ -381,8 +410,18 @@ crashes Trap
         _ -> evaluated(checker, syntax, resolution, typing, arm)
     }
 
+    // A terminal call or value leaves the body; a jump stays in it.
     state evaluated(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm) {
         Checker::own_tree(checker, syntax, resolution, typing, arm.target, UseRole::Value);
+        let selection: Selection = Typing::selection(typing, arm.target);
+        transition selection {
+            Selection::State { handle as _ } -> exit(checker, syntax, resolution, typing, arm)
+            _ -> terminal(checker, syntax, resolution, typing, arm)
+        }
+    }
+
+    state terminal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, arm: TransitionArm) {
+        Checker::own_escape(checker, syntax, resolution, typing, arm.target);
         transition { _ -> exit(checker, syntax, resolution, typing, arm) }
     }
 
@@ -827,6 +866,8 @@ crashes Trap
     }
 
     state place(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
+        let excludes: bool = Checker::access_excludes(syntax, typing, handle, role);
+        Checker::loan_access(checker, syntax, resolution, typing, handle, excludes);
         let conflict: bool = Checker::moved_conflict(checker, syntax, resolution, typing, handle);
         let taken: bool = role == UseRole::Value || role == UseRole::Drop;
         transition conflict {
@@ -923,6 +964,7 @@ crashes Trap
 machine Checker::own_write(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping)
 crashes Trap
 {
+    Checker::loan_access(checker, syntax, resolution, typing, handle, true);
     let root: u64 in Trapping = Checker::place_root(syntax, resolution, typing, handle);
     transition root > 0 {
         true -> owned(checker, syntax, resolution, typing, handle, root)
