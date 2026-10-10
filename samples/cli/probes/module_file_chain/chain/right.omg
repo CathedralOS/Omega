@@ -1,0 +1,5 @@
+use chain::left;
+
+pub data Right {
+    value: Left;
+}
