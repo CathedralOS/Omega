@@ -30,6 +30,31 @@ pub(super) fn lower(
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
     let mut values = scalar_values(live, &prepared.scalar_parameters)?;
+
+    let lower_byte_observation = |operation, values, provenance_operations| {
+        byte_views::lower_byte_observation_with_lengths(
+            operation,
+            function,
+            structural_types,
+            &prepared.parameters,
+            live.element_view_backings(),
+            values,
+            &live.lengths,
+            provenance_operations,
+        )
+    };
+    let lower_element_observation = |operation, values, provenance_operations| {
+        element_views::lower_element_observation_with_lengths(
+            operation,
+            function,
+            structural_types,
+            &prepared.parameters,
+            live.element_view_backings(),
+            values,
+            &live.lengths,
+            provenance_operations,
+        )
+    };
     match operation {
         AbstractOperation::ByteSequenceRead { source, .. } => {
             // A live byte-owner address join observes its own storage. The
@@ -42,44 +67,17 @@ pub(super) fn lower(
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            byte_views::lower_byte_observation_with_lengths(
-                operation,
-                function,
-                structural_types,
-                &prepared.parameters,
-                live.element_view_backings(),
-                &mut values,
-                &live.lengths,
-                &mut provenance.operations,
-            )?;
+            lower_byte_observation(operation, &mut values, &mut provenance.operations)?;
         }
         AbstractOperation::ByteSequencePredicate { operand, .. } => {
             byte_sequence_operand_gate(function, structural_types, prepared, live, operand)?;
-            byte_views::lower_byte_observation_with_lengths(
-                operation,
-                function,
-                structural_types,
-                &prepared.parameters,
-                live.element_view_backings(),
-                &mut values,
-                &live.lengths,
-                &mut provenance.operations,
-            )?;
+            lower_byte_observation(operation, &mut values, &mut provenance.operations)?;
         }
         AbstractOperation::ByteSequenceEqual { left, right, .. } => {
             for operand in [left, right] {
                 byte_sequence_operand_gate(function, structural_types, prepared, live, operand)?;
             }
-            byte_views::lower_byte_observation_with_lengths(
-                operation,
-                function,
-                structural_types,
-                &prepared.parameters,
-                live.element_view_backings(),
-                &mut values,
-                &live.lengths,
-                &mut provenance.operations,
-            )?;
+            lower_byte_observation(operation, &mut values, &mut provenance.operations)?;
         }
         AbstractOperation::ElementViewLength { source, .. }
         | AbstractOperation::ByteSequenceLength { source, .. }
@@ -97,28 +95,10 @@ pub(super) fn lower(
             }
             match operation {
                 AbstractOperation::ElementViewLength { .. } => {
-                    element_views::lower_element_observation_with_lengths(
-                        operation,
-                        function,
-                        structural_types,
-                        &prepared.parameters,
-                        live.element_view_backings(),
-                        &mut values,
-                        &live.lengths,
-                        &mut provenance.operations,
-                    )?;
+                    lower_element_observation(operation, &mut values, &mut provenance.operations)?;
                 }
                 AbstractOperation::ByteSequenceLength { .. } => {
-                    byte_views::lower_byte_observation_with_lengths(
-                        operation,
-                        function,
-                        structural_types,
-                        &prepared.parameters,
-                        live.element_view_backings(),
-                        &mut values,
-                        &live.lengths,
-                        &mut provenance.operations,
-                    )?;
+                    lower_byte_observation(operation, &mut values, &mut provenance.operations)?;
                 }
                 _ => {}
             }
@@ -131,16 +111,7 @@ pub(super) fn lower(
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if !matches!(operation, AbstractOperation::ElementViewSubslice { .. }) {
-                element_views::lower_element_observation_with_lengths(
-                    operation,
-                    function,
-                    structural_types,
-                    &prepared.parameters,
-                    live.element_view_backings(),
-                    &mut values,
-                    &live.lengths,
-                    &mut provenance.operations,
-                )?;
+                lower_element_observation(operation, &mut values, &mut provenance.operations)?;
             }
         }
         _ => {}
