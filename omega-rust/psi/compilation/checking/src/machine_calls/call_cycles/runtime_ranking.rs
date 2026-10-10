@@ -783,7 +783,7 @@ fn expression_is_inert_or_calls(
         typed_trees::literal_expression_pattern!() => true,
         ExpressionNode::Member(member) => inert(member.receiver),
         ExpressionNode::Binary(binary) => {
-            meaning::binary_is_builtin(program, machine.symbol, expression, binary)
+            meaning::binary_is_builtin(program, machine, state, expression, binary)
                 && inert(binary.left)
                 && inert(binary.right)
         }

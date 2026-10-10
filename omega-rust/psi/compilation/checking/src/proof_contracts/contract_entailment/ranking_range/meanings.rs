@@ -226,17 +226,28 @@ pub(super) fn builtin(
                     None => return None,
                 },
             };
+            // Proof coordinates can be carrier-less (notably slice length),
+            // but operator selection needs their actual runtime types. Keep
+            // the coordinate carriers below independent of this dispatch query.
+            let operand_types = [binary.left, binary.right].map(|operand| {
+                crate::proof_contracts::bound_expression_meaning::operand_type(
+                    program,
+                    machine,
+                    Some(state),
+                    crate::expression_traversal::unwrapped(program, operand),
+                )
+            });
             if !typed_trees::operator::has_builtin_spelled_expression_meaning(
                 program,
                 machine.symbol,
                 expression,
                 spelling,
-                &[left, right],
+                &operand_types,
             ) {
                 return None;
             }
             // Only already-admitted builtin arithmetic inherits its operand
-            // carrier. Literal types remain wildcard inputs to the owner.
+            // carrier. This does not turn a natural coordinate into stored data.
             if matches!(
                 binary.operator,
                 BinaryOperator::Add
