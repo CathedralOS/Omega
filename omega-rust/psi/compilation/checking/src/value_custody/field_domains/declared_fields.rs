@@ -43,82 +43,90 @@ fn collect_data_field_domain_rows(
     rows: &mut Vec<FieldDomainRow>,
 ) {
     for field in program.data_member_fields(program.data_members(data)) {
-        if readable_type_reference(program, field.type_reference).is_none() {
-            continue;
-        }
         let prefix_length = path.len();
         crate::push_field_place_segments(program, path, field.symbol);
-        for (domain_symbol, semantic_domain) in
-            super::domain_constraint_identities(program, field.type_reference)
-        {
-            rows.push(FieldDomainRow {
-                path: path.clone(),
-                domain_symbol,
-                semantic_domain,
-                transfer,
-            });
-        }
-        if let Some(nested) = readable_nominal_definition(program, field.type_reference)
-            && !visited.contains(&nested.symbol)
-        {
-            visited.push(nested.symbol);
-            collect_data_field_domain_rows(program, transfer, nested, path, visited, rows);
-            visited.pop();
-        }
-        // A slice-typed field's elements carry their declared fields through
-        // the whole-extent row alone: no static extent exists to enumerate, so
-        // it stays under `origin` -- for a slice the rollup IS the obligation.
-        if let Some(element_type) = readable_slice_element(program, field.type_reference)
-            && let Some(nested) = readable_nominal_definition(program, element_type)
-            && !visited.contains(&nested.symbol)
-        {
-            visited.push(nested.symbol);
-            path.push(WHOLE_ELEMENT_EXTENT);
-            collect_data_field_domain_rows(program, transfer, nested, path, visited, rows);
-            path.pop();
-            visited.pop();
-        }
-        // A fixed array field enumerates each nominal element's declared fields
-        // at `field[i]` -- element coverage rides the same entry facts and the
-        // same call-boundary obligations as one-level fields. The whole-extent
-        // `field[0..usize::MAX]` row is seeded alongside so a runtime selector
-        // or a slice view can narrow coverage from it; it is EVIDENCE ONLY
-        // (`StatementTransfer`) because the per-element rows already spell the
-        // complete obligation.
-        //
-        // Every element declares the same rows, so the element is walked once
-        // and its rows are placed under each index. An element that declares
-        // none adds no row at any index, however long the array.
-        if let Some((element_type, length)) =
-            readable_fixed_array_elements(program, field.type_reference)
-            && let Some(nested) = readable_nominal_definition(program, element_type)
-            && !visited.contains(&nested.symbol)
-        {
-            visited.push(nested.symbol);
-            let mut element_rows = Vec::new();
-            collect_data_field_domain_rows(
-                program,
-                transfer,
-                nested,
-                &mut Vec::new(),
-                visited,
-                &mut element_rows,
-            );
-            visited.pop();
-            if !element_rows.is_empty() {
-                for index in 0..length {
-                    place_element_rows(
-                        path,
-                        PlaceSegment::FixedIndex { index },
-                        &element_rows,
-                        None,
-                        rows,
-                    );
-                }
-                place_element_rows(path, WHOLE_ELEMENT_EXTENT, &element_rows, Some(true), rows);
-            }
-        }
+        collect_type_domain_rows(program, transfer, field.type_reference, path, visited, rows);
         path.truncate(prefix_length);
+    }
+}
+
+/// All live declaration obligations below a readable value, including a
+/// qualified scalar element. A collection element's own qualification and a
+/// record element's fields use the same extent coordinates and invalidation.
+/// This roster declares incoming obligations; it establishes no stored value.
+pub fn declared_type_domain_rows(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Vec<FieldDomainRow> {
+    let mut rows = Vec::new();
+    collect_type_domain_rows(
+        program,
+        false,
+        reference,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut rows,
+    );
+    rows
+}
+
+fn collect_type_domain_rows(
+    program: &dyn crate::CheckingInput,
+    transfer: bool,
+    reference: TypeReferenceHandle,
+    path: &mut Vec<PlaceSegment>,
+    visited: &mut Vec<SymbolHandle>,
+    rows: &mut Vec<FieldDomainRow>,
+) {
+    if readable_type_reference(program, reference).is_none() {
+        return;
+    }
+    for (domain_symbol, semantic_domain) in super::domain_constraint_identities(program, reference)
+    {
+        rows.push(FieldDomainRow {
+            path: path.clone(),
+            domain_symbol,
+            semantic_domain,
+            transfer,
+        });
+    }
+    if let Some(data) = readable_nominal_definition(program, reference)
+        && !visited.contains(&data.symbol)
+    {
+        visited.push(data.symbol);
+        collect_data_field_domain_rows(program, transfer, data, path, visited, rows);
+        visited.pop();
+    }
+    // A slice has no enumerated extent: its whole-extent row is the incoming
+    // obligation. A fixed array also seeds exact elements, so its rollup is
+    // evidence only. Both preserve the element's normalized domain instance.
+    if let Some(element) = readable_slice_element(program, reference) {
+        path.push(WHOLE_ELEMENT_EXTENT);
+        collect_type_domain_rows(program, transfer, element, path, visited, rows);
+        path.pop();
+    }
+    if let Some((element, length)) = readable_fixed_array_elements(program, reference) {
+        let mut element_rows = Vec::new();
+        collect_type_domain_rows(
+            program,
+            transfer,
+            element,
+            &mut Vec::new(),
+            visited,
+            &mut element_rows,
+        );
+        if !element_rows.is_empty() {
+            for index in 0..length {
+                place_element_rows(
+                    path,
+                    PlaceSegment::FixedIndex { index },
+                    &element_rows,
+                    None,
+                    rows,
+                );
+            }
+            place_element_rows(path, WHOLE_ELEMENT_EXTENT, &element_rows, Some(true), rows);
+        }
     }
 }
 

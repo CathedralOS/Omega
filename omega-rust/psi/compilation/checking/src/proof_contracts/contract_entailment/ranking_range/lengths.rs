@@ -345,32 +345,7 @@ fn evaluate_length(
             else {
                 return None;
             };
-            // The name must resolve to exactly one local declaration of this
-            // state: zero means the name is a formal or unknown, two means the
-            // statement list is ambiguous, and a mutable or written local's
-            // incoming extent is not the value the call site observes.
-            let (_, local) = program.state_local_declaration(state, symbol)?;
-            if local.is_mutable
-                || !local.initial_value.is_valid()
-                || binding_is_exclusively_exposed(program, state, symbol)
-                || binding_is_written(program, state, symbol)
-            {
-                return None;
-            }
-            let mut captured = Engine::strict_with_symbol_bindings(
-                program,
-                machine,
-                &engine.closed_symbol_bindings()?,
-            );
-            return evaluate_length(
-                program,
-                machine,
-                state,
-                local.initial_value,
-                &[],
-                &mut captured,
-                depth + 1,
-            );
+            return saved_length(program, machine, state, symbol, engine, depth);
         }
         ExpressionNode::ArrayLiteral(values) => Some(values.len() as u64),
         ExpressionNode::Call(call) => slice_view_call_length(program, machine, state, call)
@@ -378,6 +353,38 @@ fn evaluate_length(
         _ => None,
     }?;
     Some(Polynomial::constant(BigInt::from_u64(length)))
+}
+
+/// The stable descriptor captured by one local declaration. Both expression
+/// and canonical-place consumers use this gate; writes and exclusive exposure
+/// prevent replaying an obsolete initializer as the current descriptor.
+pub(super) fn saved_length(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    symbol: SymbolHandle,
+    engine: &Engine<'_>,
+    depth: usize,
+) -> Option<Polynomial> {
+    let (_, local) = program.state_local_declaration(state, symbol)?;
+    if local.is_mutable
+        || !local.initial_value.is_valid()
+        || binding_is_exclusively_exposed(program, state, symbol)
+        || binding_is_written(program, state, symbol)
+    {
+        return None;
+    }
+    let mut captured =
+        Engine::strict_with_symbol_bindings(program, machine, &engine.closed_symbol_bindings()?);
+    evaluate_length(
+        program,
+        machine,
+        state,
+        local.initial_value,
+        &[],
+        &mut captured,
+        depth + 1,
+    )
 }
 
 /// A constant produced extent, independent of current caller facts. Reuse

@@ -24,6 +24,9 @@
 //! complete call-boundary obligation. For a slice the window row is the ONLY
 //! elementwise claim, so it rides the obligation origin and every caller owes
 //! the whole extent.
+//! Element qualifications use the same declaration roster as record fields:
+//! the whole-extent fact for `[i32 in D]` denotes every live scalar element,
+//! rather than treating its static element type as proof at a later read.
 //!
 //! Immutable scalar parameters also carry their enforced float ranges. The
 //! range-obligation owner checks incoming values; these source-free predicates
@@ -40,8 +43,8 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use validation::field_domains::{
-    FieldDomainRow, WHOLE_ELEMENT_EXTENT, declared_data_field_domain_rows,
-    readable_fixed_array_elements, readable_nominal_definition, readable_slice_element,
+    FieldDomainRow, WHOLE_ELEMENT_EXTENT, readable_fixed_array_elements,
+    readable_nominal_definition, readable_slice_element,
 };
 
 /// The declared surface of a state parameter for entry-invariant seeding:
@@ -256,7 +259,7 @@ pub(super) fn append_state_parameter_domain_facts(
     program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
 ) {
-    let mut field_domain_walks = std::collections::HashMap::new();
+    let mut field_domain_walks: Vec<(TypeReferenceHandle, Vec<FieldDomainRow>)> = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut refs = arena::HandleSpan::empty();
@@ -273,9 +276,19 @@ pub(super) fn append_state_parameter_domain_facts(
                 // `&write` subloan could never discharge, even though the
                 // lent place's own declaration already carries the atom.
                 let lent = lent_type_reference(program, parameter.type_reference);
-                if let Some(data) = lent.and_then(|lent| readable_nominal_definition(program, lent))
-                {
-                    let rows = data_field_domain_rows(program, data, &mut field_domain_walks);
+                if let Some(lent) = lent {
+                    let row_index = field_domain_walks
+                        .iter()
+                        .position(|(reference, _)| *reference == lent)
+                        .unwrap_or_else(|| {
+                            let index = field_domain_walks.len();
+                            field_domain_walks.push((
+                                lent,
+                                validation::field_domains::declared_type_domain_rows(program, lent),
+                            ));
+                            index
+                        });
+                    let rows = &field_domain_walks[row_index].1;
                     append_state_parameter_data_field_domain_facts(
                         facts,
                         machine.symbol,
@@ -283,64 +296,7 @@ pub(super) fn append_state_parameter_domain_facts(
                         parameter.symbol,
                         obligation_origin,
                         &[],
-                        &rows,
-                        &mut refs,
-                    );
-                }
-                // Fixed-array collection parameters carry each element's declared
-                // fields at the exact `FixedIndex` place. Every index is seeded
-                // explicitly; coverage is never encoded as an unresolved `Index`.
-                // The whole-extent `0..usize::MAX` row is seeded alongside so a
-                // runtime `x[index]` subject or an `as_slice()` view can narrow
-                // coverage from it; it is EVIDENCE ONLY (`StatementTransfer`)
-                // because the per-element rows already spell the complete
-                // call-boundary obligation.
-                if let Some((element_type, length)) =
-                    lent.and_then(|lent| readable_fixed_array_elements(program, lent))
-                    && let Some(data) = readable_nominal_definition(program, element_type)
-                {
-                    let rows = data_field_domain_rows(program, data, &mut field_domain_walks);
-                    for index in 0..length {
-                        append_state_parameter_data_field_domain_facts(
-                            facts,
-                            machine.symbol,
-                            state.symbol,
-                            parameter.symbol,
-                            obligation_origin,
-                            &[PlaceSegment::FixedIndex { index }],
-                            &rows,
-                            &mut refs,
-                        );
-                    }
-                    append_state_parameter_data_field_domain_facts(
-                        facts,
-                        machine.symbol,
-                        state.symbol,
-                        parameter.symbol,
-                        FactOrigin::StatementTransfer,
-                        &[WHOLE_ELEMENT_EXTENT],
-                        &rows,
-                        &mut refs,
-                    );
-                }
-                // Slice parameters have no static extent to enumerate; the
-                // whole-extent row is the ONLY elementwise spelling, so it must
-                // stay an obligation: the caller owes every element's declared
-                // fields, which is exactly what `rooms[index]` subjects narrow
-                // coverage from inside the callee.
-                if let Some(element_type) =
-                    lent.and_then(|lent| readable_slice_element(program, lent))
-                    && let Some(data) = readable_nominal_definition(program, element_type)
-                {
-                    let rows = data_field_domain_rows(program, data, &mut field_domain_walks);
-                    append_state_parameter_data_field_domain_facts(
-                        facts,
-                        machine.symbol,
-                        state.symbol,
-                        parameter.symbol,
-                        obligation_origin,
-                        &[WHOLE_ELEMENT_EXTENT],
-                        &rows,
+                        rows,
                         &mut refs,
                     );
                 }
@@ -575,17 +531,6 @@ fn append_state_parameter_carry_fact(
         },
         refs,
     );
-}
-
-fn data_field_domain_rows(
-    program: &dyn ::validation::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
-    walks: &mut std::collections::HashMap<SymbolHandle, std::rc::Rc<[FieldDomainRow]>>,
-) -> std::rc::Rc<[FieldDomainRow]> {
-    walks
-        .entry(data.symbol)
-        .or_insert_with(|| declared_data_field_domain_rows(program, data).into())
-        .clone()
 }
 
 #[allow(clippy::too_many_arguments)]

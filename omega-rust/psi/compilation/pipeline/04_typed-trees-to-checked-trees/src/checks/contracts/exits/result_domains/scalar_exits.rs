@@ -282,6 +282,10 @@ pub(in crate::checks::contracts) fn exact_scalar_membership(
     domain_symbol: symbols::SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
+    // A live whole-extent row also proves one selected element's membership.
+    // Narrow its coordinates with the same coverage rule as call obligations;
+    // preserve the exact domain instance and never reread a declaration to
+    // restore a row that storage invalidation has retired.
     semantic_domain.is_valid()
         && contexts.iter().any(|context| {
             facts
@@ -302,7 +306,14 @@ pub(in crate::checks::contracts) fn exact_scalar_membership(
                             &facts.semantic,
                             facts.semantic.places.get(place),
                         )
-                        .is_some_and(|candidate| candidate == *subject)
+                        .is_some_and(|candidate| {
+                            candidate.root == subject.root
+                                && crate::checks::contracts::prover::segments_cover_subject(
+                                    program,
+                                    &candidate.segments,
+                                    &subject.segments,
+                                )
+                        })
                 })
         })
 }

@@ -88,15 +88,9 @@ fn segment_covers_subject(
     }
 }
 
-/// A subject carrying a `FixedRange` window is covered elementwise: prove the
-/// domain at every index inside the extent. A finite `x[a..b]` enumerates its
-/// bounds directly. The whole-extent `x[0..usize::MAX]` row enumerates the
-/// index set the seeding recorded for that collection -- the plan's
-/// `x[i].<suffix>` coordinates are exactly the fixed extent `0..N`, seeded
-/// contiguously, so a contiguous record is complete element coverage; a slice
-/// records no element coordinates and returns empty. Each element is then
-/// proved on its own evidence: the entry row where still live, or the
-/// write's re-establishment where the write was domain-carrying.
+/// A range obligation proves every element in declaration-derived geometry.
+/// Recorded facts supply membership, never the collection's extent: a
+/// contiguous prefix of writes can still leave later cells uninitialized.
 fn prove_domain_by_extent_enumeration(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
@@ -114,69 +108,34 @@ fn prove_domain_by_extent_enumeration(
     let facts::PlaceSegment::FixedRange { start, end } = subject.segments[position] else {
         return false;
     };
-    let indices: Vec<usize> = if start == 0 && end == usize::MAX {
-        recorded_element_extent(program, semantic, subject, position)
+    let end = if start == 0 && end == usize::MAX {
+        let mut collection = subject.clone();
+        collection.segments.truncate(position);
+        let Some(length) = contexts.iter().find_map(|context| {
+            let point = semantic.contexts.get(*context).point;
+            let state = match point {
+                facts::ProgramPoint::State { state_symbol, .. }
+                | facts::ProgramPoint::Statement { state_symbol, .. }
+                | facts::call_point_triple_pattern!(state_symbol, ..)
+                | facts::ProgramPoint::TransitionArm { state_symbol, .. }
+                | facts::ProgramPoint::Exit { state_symbol, .. } => state_symbol,
+                _ => return None,
+            };
+            validation::closed_collection_length_at_place(program, state, &collection)
+                .and_then(|length| usize::try_from(length).ok())
+        }) else {
+            return false;
+        };
+        length
     } else {
-        (start..end).collect()
+        end
     };
-    !indices.is_empty()
-        && indices.iter().all(|index| {
+    start < end
+        && (start..end).all(|index| {
             let mut element = subject.clone();
-            element.segments[position] = facts::PlaceSegment::FixedIndex { index: *index };
+            element.segments[position] = facts::PlaceSegment::FixedIndex { index };
             prove_domain_at_place(program, semantic, contexts, &element, domain)
         })
-}
-
-/// The element indices seeded for the collection at `position` of `subject`:
-/// every fact place sharing `subject`'s root, prefix, and suffix with a
-/// `FixedIndex` at `position`. Fixed-array seeding emits exactly `0..N`
-/// contiguous element coordinates, so a contiguous record is the collection's
-/// whole extent; a gap means the coordinates came from elsewhere and are not
-/// a whole-extent claim. Never confuses a partial record with coverage.
-fn recorded_element_extent(
-    program: &dyn ::validation::CheckingInput,
-    semantic: &FactPlan,
-    subject: &CanonicalPlace,
-    position: usize,
-) -> Vec<usize> {
-    let mut indices = Vec::new();
-    for (_, fact) in semantic.facts.iter() {
-        let Some(place) = fact.place.as_place() else {
-            continue;
-        };
-        let Some(candidate) =
-            canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
-        else {
-            continue;
-        };
-        if (candidate.root) != (subject.root)
-            || candidate.segments.len() != subject.segments.len()
-            || !candidate
-                .segments
-                .iter()
-                .zip(&subject.segments)
-                .enumerate()
-                .all(|(at, (candidate, subject))| {
-                    if at == position {
-                        matches!(candidate, facts::PlaceSegment::FixedIndex { .. })
-                    } else {
-                        crate::flow::canonical_place_segments_equal(program, *candidate, *subject)
-                    }
-                })
-        {
-            continue;
-        }
-        if let facts::PlaceSegment::FixedIndex { index } = candidate.segments[position] {
-            indices.push(index);
-        }
-    }
-    indices.sort_unstable();
-    indices.dedup();
-    if indices.last().is_some_and(|max| indices.len() == max + 1) {
-        indices
-    } else {
-        Vec::new()
-    }
 }
 
 /// Whether a carried membership fact on `subject` (a declared constraint or

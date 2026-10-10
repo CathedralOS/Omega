@@ -170,6 +170,44 @@ pub fn ranking_slice_length_observation(
     ))
 }
 
+/// Exact collection geometry at a canonical storage place, independent of
+/// which element membership facts happen to exist. Fixed arrays retain their
+/// declared extent under replacement. A slice descriptor uses the ordinary
+/// length evaluator and its stable-binding gate; unknown geometry stays unknown.
+pub fn closed_collection_length_at_place(
+    program: &dyn crate::CheckingInput,
+    state_symbol: symbols::SymbolHandle,
+    collection: &crate::CanonicalPlace,
+) -> Option<u64> {
+    let (machine, state) = crate::find_state_with_machine(program, state_symbol)?;
+    if let Some(mut reference) =
+        crate::canonical_place_type_reference(program, state_symbol, usize::MAX, collection)
+    {
+        loop {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                TypeReferenceNode::FixedArray {
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                    ..
+                } => return u64::try_from(*length).ok(),
+                _ => break,
+            }
+        }
+    }
+    if !collection.segments.is_empty() {
+        return None;
+    }
+    if let Some(expression) = collection.root.as_expression() {
+        return closed_collection_length(program, machine, state, expression);
+    }
+    let symbol = collection.root.as_symbol()?;
+    let engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    lengths::saved_length(program, machine, state, symbol, &engine, 0)?
+        .constant_value()?
+        .to_u64()
+}
+
 /// The scalar rank produced by an independently selected ranking view.
 #[derive(Clone, Copy)]
 pub enum RankingRangeMeasure {
