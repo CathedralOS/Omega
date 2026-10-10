@@ -3,11 +3,10 @@ use super::super::super::StructuralFieldType;
 use super::super::{
     CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId, StructuralMultiplicity,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    allocate_dense, obligation_id, place_id, unsupported,
+    allocate_dense, place_id, unsupported,
 };
 use super::emission;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
-use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn structural_case(
@@ -142,33 +141,43 @@ impl emission::Emission<'_, '_, '_> {
                     )?
                 }
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
-                    let Some(child_type) = target.field_type.as_structural() else {
-                        return unsupported("nested case operand has a scalar destination");
-                    };
-                    let mut prefix = Vec::new();
-                    if roster.start == common.len() {
-                        prefix.push(terminal_psi::StructuralPathSegment::Case(shape_case.id));
-                    }
-                    prefix.push(terminal_psi::StructuralPathSegment::Field(
-                        target.identity.clone(),
-                    ));
-                    let completed = self.child_constructor_operand(
-                        child_type,
-                        value,
-                        field.type_reference,
-                        &prefix,
-                    )?;
-                    if self.multiplicity == StructuralMultiplicity::Affine {
-                        for claim in completed.claims {
-                            let mut path = prefix.clone();
-                            path.extend(claim.path);
-                            claims.push(terminal_psi::StructuralResultClaimBinding {
-                                claim: claim.claim,
-                                path,
-                            });
+                    if let Some(scalar_type) = target.field_type.scalar_type() {
+                        self.zeroed_scalar_field(
+                            value,
+                            scalar_type,
+                            &target.field_type,
+                            &mut scalar_positions,
+                            initialized.len(),
+                        )?
+                    } else {
+                        let Some(child_type) = target.field_type.as_structural() else {
+                            return unsupported("nested case operand has a scalar destination");
+                        };
+                        let mut prefix = Vec::new();
+                        if roster.start == common.len() {
+                            prefix.push(terminal_psi::StructuralPathSegment::Case(shape_case.id));
                         }
+                        prefix.push(terminal_psi::StructuralPathSegment::Field(
+                            target.identity.clone(),
+                        ));
+                        let completed = self.child_constructor_operand(
+                            child_type,
+                            value,
+                            field.type_reference,
+                            &prefix,
+                        )?;
+                        if self.multiplicity == StructuralMultiplicity::Affine {
+                            for claim in completed.claims {
+                                let mut path = prefix.clone();
+                                path.extend(claim.path);
+                                claims.push(terminal_psi::StructuralResultClaimBinding {
+                                    claim: claim.claim,
+                                    path,
+                                });
+                            }
+                        }
+                        terminal_psi::RecordFieldValue::Structural(completed.argument)
                     }
-                    terminal_psi::RecordFieldValue::Structural(completed.argument)
                 }
             };
             initialized.push((
@@ -180,49 +189,6 @@ impl emission::Emission<'_, '_, '_> {
             ));
         }
         self.remap_saved_scalar_fields(scalar_positions, &mut initialized, source_count);
-        // Case construction zero-initializes every common field the literal
-        // leaves unnamed. The zero is an ordinary constant after every
-        // authored operand, so no later evaluation can move it; a bounded
-        // common field still requests its range proof against that zero.
-        for (position, declaration) in common.iter().enumerate() {
-            if initialized
-                .iter()
-                .any(|(initialized, _)| *initialized == position)
-            {
-                continue;
-            }
-            let scalar_type =
-                declaration
-                    .field_type
-                    .scalar_type()
-                    .ok_or(LoweringError::Unsupported(
-                        "an unnamed common field has no scalar zero",
-                    ))?;
-            let zero = emit_scalar_leaf(
-                super::record::zero_constant(scalar_type),
-                scalar_type,
-                self.next_value,
-                self.operations,
-            );
-            let range_obligation =
-                if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type) {
-                    Some(obligation_id(allocate_dense(
-                        &mut self.calls.next_obligation_identity,
-                    )?))
-                } else {
-                    None
-                };
-            initialized.push((
-                position,
-                terminal_psi::RecordFieldInitializer {
-                    field: declaration.id,
-                    value: terminal_psi::RecordFieldValue::Scalar {
-                        value: zero,
-                        range_obligation,
-                    },
-                },
-            ));
-        }
         initialized.sort_by_key(|(position, _)| *position);
         let place = place_id(allocate_dense(self.next_place)?);
         self.temporary_places.push(emit_completed(
@@ -261,13 +227,15 @@ pub(crate) fn emit_completed<'parameter>(
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let mut projected_qualifications = Vec::new();
-    for field in &fields {
+    for (position, field) in fields.iter().enumerate() {
         let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
             continue;
         };
-        let position = declarations
-            .iter()
-            .position(|declaration| declaration.id == field.field)
+        // IDs may coincide between common and payload namespaces. The
+        // declaration-ordered roster, not an ID search, selects the member.
+        let declaration = declarations
+            .get(position)
+            .filter(|declaration| declaration.id == field.field)
             .ok_or(LoweringError::Unsupported(
                 "completed case field has no declaration",
             ))?;
@@ -276,7 +244,7 @@ pub(crate) fn emit_completed<'parameter>(
             prefix.push(terminal_psi::StructuralPathSegment::Case(result_case));
         }
         prefix.push(terminal_psi::StructuralPathSegment::Field(
-            declarations[position].identity.clone(),
+            declaration.identity.clone(),
         ));
         super::member_memberships::append(
             argument,

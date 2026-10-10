@@ -349,15 +349,22 @@ pub(super) fn adapt(
                             }
                         }
                     }
-                    for field in fields {
+                    for (field_ordinal, field) in fields.iter().enumerate() {
                         if let Some(source) = field.value.as_structural() {
-                            let path = match &operation.kind {
+                            let destination = match &operation.kind {
                                 OperationKind::EstablishStructuralCase { result_case, .. } => {
-                                    vec![StructuralPathSegment::Case(*result_case)]
+                                    let shape =
+                                        &module.structural_type(result?.structural_type)?.shape;
+                                    let path = terminal_psi::structural_case_initializer_path(
+                                        shape,
+                                        *result_case,
+                                        field_ordinal,
+                                        field.field,
+                                    )?;
+                                    location(result?.place, &path, None)?
                                 }
-                                _ => Vec::new(),
+                                _ => location(result?.place, &[], Some(field.field))?,
                             };
-                            let destination = location(result?.place, &path, Some(field.field))?;
                             if let Some(source) = location(source.place, &source.path, None) {
                                 step.derivations.push((source, destination));
                             } else {

@@ -675,50 +675,39 @@ impl Preparation<'_> {
                     }
                 }
                 CheckedStructuralRecordFieldValue::Structural(child) => {
-                    let mut child_path = claim_path.to_vec();
-                    if let AggregateKind::Case(case) = kind
-                        && !declared_fields[position].2
-                    {
-                        child_path.push(terminal_psi::StructuralPathSegment::Case(case));
+                    if let Some(scalar_type) = target.field_type.scalar_type() {
+                        // Both record and case producers retain omitted scalar
+                        // members as checked zero operands. They establish the
+                        // scalar field, never a structural child or another home.
+                        if !matches!(
+                            plans.nodes.get(child).kind,
+                            CheckedStructuralValueKind::ZeroedStructural { .. }
+                        ) {
+                            return unsupported(
+                                "nested constructor operand has a scalar destination",
+                            );
+                        }
+                        Field::Zero {
+                            scalar_type,
+                            bounded: terminal_semantics::scalar_field_requires_evidence(
+                                &target.field_type,
+                            ),
+                        }
+                    } else {
+                        let mut child_path = claim_path.to_vec();
+                        if let AggregateKind::Case(case) = kind
+                            && !declared_fields[position].2
+                        {
+                            child_path.push(terminal_psi::StructuralPathSegment::Case(case));
+                        }
+                        child_path.push(terminal_psi::StructuralPathSegment::Field(
+                            target.identity.clone(),
+                        ));
+                        Field::Structural(self.value(child, field.type_reference, &child_path)?)
                     }
-                    child_path.push(terminal_psi::StructuralPathSegment::Field(
-                        target.identity.clone(),
-                    ));
-                    Field::Structural(self.value(child, field.type_reference, &child_path)?)
                 }
             };
             initialized.push((position, (target.id, field_value)));
-        }
-        // Case literals default unnamed common scalar fields only after all
-        // authored operands. The same declaration-owned range obligation still
-        // applies to that zero; no structural child or payload is invented.
-        for (position, (_, target, defaults_to_zero)) in declared_fields.iter().enumerate() {
-            if !defaults_to_zero
-                || target.relevance.is_erased()
-                || initialized
-                    .iter()
-                    .any(|(initialized, _)| *initialized == position)
-            {
-                continue;
-            }
-            let scalar_type = target
-                .field_type
-                .scalar_type()
-                .ok_or(LoweringError::Unsupported(
-                    "an unnamed common field has no scalar zero",
-                ))?;
-            initialized.push((
-                position,
-                (
-                    target.id,
-                    Field::Zero {
-                        scalar_type,
-                        bounded: terminal_semantics::scalar_field_requires_evidence(
-                            &target.field_type,
-                        ),
-                    },
-                ),
-            ));
         }
         initialized.sort_by_key(|(position, _)| *position);
         if !initialized
@@ -751,9 +740,13 @@ impl Preparation<'_> {
                     fields: initialized.into_iter().map(|(_, field)| field).collect(),
                     declarations: declared_fields
                         .iter()
+                        .filter(|(_, field, _)| !field.relevance.is_erased())
                         .map(|(_, field, _)| (*field).clone())
                         .collect(),
-                    common_fields: common.len(),
+                    common_fields: common
+                        .iter()
+                        .filter(|field| !field.relevance.is_erased())
+                        .count(),
                 },
             },
             prefix: self.prefix.clone(),

@@ -113,8 +113,8 @@ pub use terminal_module::{
     is_structural_scalar_store_path, live_field, live_field_by_id, live_field_by_identity,
     live_field_entry, observation, ownership,
     program_local_root_introduction_compatibility_report_identity, proof,
-    structural_case_by_identity, structural_case_position, structural_children,
-    structural_parameter_position, structural_type_by_identity, structural_type_contains_reference,
-    structural_type_contains_reference_by, suspension_frontier_commitment, types,
-    unique_structural_declaration, values,
+    structural_case_by_identity, structural_case_initializer_path, structural_case_position,
+    structural_children, structural_parameter_position, structural_type_by_identity,
+    structural_type_contains_reference, structural_type_contains_reference_by,
+    suspension_frontier_commitment, types, unique_structural_declaration, values,
 };

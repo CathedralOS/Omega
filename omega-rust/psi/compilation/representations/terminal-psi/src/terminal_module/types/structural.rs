@@ -632,6 +632,46 @@ pub fn find_structural_case<'cases>(
     cases.iter().find(|case| case.id == id)
 }
 
+/// The logical destination of one declaration-ordered case initializer.
+/// Common and payload field IDs are separate namespaces: the roster ordinal
+/// disambiguates them. Common children use Field alone; payload custody and
+/// descriptor origins retain Case/Field even when their physical bytes overlay.
+pub fn structural_case_initializer_path(
+    shape: &StructuralTypeShape,
+    selected_case: StructuralCaseId,
+    field_ordinal: usize,
+    field: StructuralFieldId,
+) -> Option<Vec<crate::StructuralPathSegment>> {
+    let (common, cases) = match shape {
+        StructuralTypeShape::Sum { cases } => (&[][..], cases),
+        StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+        _ => return None,
+    };
+    let selected = find_structural_case(cases, selected_case)?;
+    let (declaration, is_payload) = common
+        .iter()
+        .map(|declaration| (declaration, false))
+        .chain(
+            selected
+                .fields
+                .iter()
+                .map(|declaration| (declaration, true)),
+        )
+        .filter(|(declaration, _)| !declaration.relevance.is_erased())
+        .nth(field_ordinal)?;
+    if declaration.id != field {
+        return None;
+    }
+    let mut path = Vec::new();
+    if is_payload {
+        path.push(crate::StructuralPathSegment::Case(selected_case));
+    }
+    path.push(crate::StructuralPathSegment::Field(
+        declaration.identity.clone(),
+    ));
+    Some(path)
+}
+
 /// The position of the case keyed `id` in `cases`, when declared. Position
 /// encodes the wire ordinal, so selection and aggregate lowering index it
 /// directly rather than re-deriving it from the declaration.

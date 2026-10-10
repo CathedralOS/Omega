@@ -228,11 +228,7 @@ impl TerminalExecution<'_> {
                     );
                 }
                 terminal_psi::RecordFieldValue::Structural(argument) => {
-                    // Verification refuses a structural common field, so
-                    // only a payload member nests a child subtree.
-                    if namespace != ScalarFieldNamespace::CasePayload
-                        || argument.access != StructuralAccess::Owned
-                    {
+                    if argument.access != StructuralAccess::Owned {
                         return Err(malformed());
                     }
                     let member = StructuralRuntimePlace {
@@ -241,7 +237,10 @@ impl TerminalExecution<'_> {
                     };
                     // Custody retains the namespace; physical payload storage
                     // overlays the sum and therefore omits its Case segment.
-                    let mut claim_path = vec![StructuralPathSegment::Case(result_case)];
+                    let mut claim_path = Vec::new();
+                    if namespace == ScalarFieldNamespace::CasePayload {
+                        claim_path.push(StructuralPathSegment::Case(result_case));
+                    }
                     claim_path.extend_from_slice(&member.path);
                     claim_operands.push((argument, claim_path.clone()));
                     let transfers_custody =
@@ -257,8 +256,8 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    // Logical membership paths retain the selected Case even
-                    // though its payload bytes overlay the sum's physical root.
+                    // Only payload memberships select Case; common children
+                    // remain reachable independently of the active tag.
                     child.append_memberships(&claim_path, &mut value.projected_qualifications);
                     storage.stage(self, argument, &child, &member, transfers_custody)?;
                 }

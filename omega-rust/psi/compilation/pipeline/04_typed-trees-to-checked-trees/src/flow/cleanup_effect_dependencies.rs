@@ -152,7 +152,7 @@ pub(crate) fn whole_cleanup_is_eligible(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
-    let mut has_erased_members = false;
+    let mut has_erased_obligations = false;
     let complete = visit(
         program,
         reference,
@@ -161,14 +161,14 @@ pub(crate) fn whole_cleanup_is_eligible(
         &mut Vec::new(),
         &mut Vec::new(),
         &mut Vec::new(),
-        &mut has_erased_members,
+        &mut has_erased_obligations,
         &|_| false,
     )
     .is_some();
-    // Runtime cleanup leaves deliberately omit erased fields. They cannot
-    // authorize whole linear consumption: erased semantic obligations need
-    // their own disposition evidence before this query can admit that owner.
-    complete && !has_erased_members
+    // Runtime cleanup omits erased fields. Ordinary unrestricted subjects
+    // owe no consuming disposition; other erased subjects conservatively need
+    // semantic disposition evidence that this runtime-only query cannot supply.
+    complete && !has_erased_obligations
 }
 
 pub(crate) fn derive_cleanup_effect_dependencies(
@@ -264,7 +264,7 @@ fn visit_field_child(
     active: &mut Vec<TypeReferenceHandle>,
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
-    has_erased_members: &mut bool,
+    has_erased_obligations: &mut bool,
     inactive_case: &InactiveCase<'_>,
     field: &typed_trees::data::DataField,
 ) -> Option<()> {
@@ -279,7 +279,7 @@ fn visit_field_child(
         active,
         path,
         leaves,
-        has_erased_members,
+        has_erased_obligations,
         inactive_case,
     )?;
     path.pop();
@@ -294,7 +294,7 @@ fn visit(
     active: &mut Vec<TypeReferenceHandle>,
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
-    has_erased_members: &mut bool,
+    has_erased_obligations: &mut bool,
     inactive_case: &InactiveCase<'_>,
 ) -> Option<()> {
     if removed.iter().any(|path| path.is_empty()) {
@@ -328,7 +328,7 @@ fn visit(
                 active,
                 path,
                 leaves,
-                has_erased_members,
+                has_erased_obligations,
                 inactive_case,
             )
         }
@@ -340,7 +340,7 @@ fn visit(
             active,
             path,
             leaves,
-            has_erased_members,
+            has_erased_obligations,
             inactive_case,
         ),
         TypeReferenceNode::Generic {
@@ -371,7 +371,7 @@ fn visit(
                 active,
                 path,
                 leaves,
-                has_erased_members,
+                has_erased_obligations,
                 inactive_case,
             )
         }
@@ -425,7 +425,7 @@ fn visit_owner(
     active: &mut Vec<TypeReferenceHandle>,
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
-    has_erased_members: &mut bool,
+    has_erased_obligations: &mut bool,
     inactive_case: &InactiveCase<'_>,
 ) -> Option<()> {
     let symbol = program
@@ -477,7 +477,7 @@ fn visit_owner(
                     active,
                     path,
                     leaves,
-                    has_erased_members,
+                    has_erased_obligations,
                     inactive_case,
                     field,
                 )?;
@@ -503,10 +503,15 @@ fn visit_owner(
                     continue;
                 }
                 let mut case_matched = 0;
-                *has_erased_members |= program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .any(|field| field.relevance.is_erased());
+                *has_erased_obligations |=
+                    program.data_payload_fields(variant).iter().any(|field| {
+                        field.relevance.is_erased()
+                            && erased_subject_needs_disposition(
+                                program,
+                                field.type_reference,
+                                substitutions,
+                            )
+                    });
                 for field in program
                     .data_payload_fields(variant)
                     .iter()
@@ -526,7 +531,7 @@ fn visit_owner(
                         active,
                         path,
                         leaves,
-                        has_erased_members,
+                        has_erased_obligations,
                         inactive_case,
                         field,
                     )?;
@@ -536,10 +541,32 @@ fn visit_owner(
                     return None;
                 }
             }
-            DataMember::Field(_) => *has_erased_members = true,
+            DataMember::Field(field) => {
+                *has_erased_obligations |=
+                    erased_subject_needs_disposition(program, field.type_reference, substitutions);
+            }
         }
     }
     (matched == removed.len()).then_some(())
+}
+
+/// A runtime cleanup cannot discharge a semantic-only obligation. Reuse the
+/// complete closed contents judgment: only unrestricted plain-owned subjects
+/// can be forgotten without an erased disposition, never open type parameters,
+/// linear descendants, loans, nominal hooks or unclassified qualifications.
+fn erased_subject_needs_disposition(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let carrier = resolve_peeled_type_reference(program, reference, substitutions);
+    program.type_multiplicity(carrier) != Multiplicity::Unrestricted
+        || !validation::has_contents_with_substitutions(
+            program,
+            reference,
+            substitutions,
+            validation::ContentsRequirement::PlainOwned,
+        )
 }
 
 fn selected<'a>(removed: &[&'a [PlaceSegment]], segment: PlaceSegment) -> Vec<&'a [PlaceSegment]> {
@@ -558,7 +585,7 @@ fn visit_array(
     active: &mut Vec<TypeReferenceHandle>,
     path: &mut Vec<PlaceSegment>,
     leaves: &mut Vec<CleanupLeaf>,
-    has_erased_members: &mut bool,
+    has_erased_obligations: &mut bool,
     inactive_case: &InactiveCase<'_>,
 ) -> Option<()> {
     // Only endpoints named by custody participate. This is an effect set, so
@@ -607,7 +634,7 @@ fn visit_array(
             active,
             path,
             leaves,
-            has_erased_members,
+            has_erased_obligations,
             inactive_case,
         )?;
         path.pop();

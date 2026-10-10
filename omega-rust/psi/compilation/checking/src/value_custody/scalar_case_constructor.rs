@@ -177,9 +177,8 @@ fn case_constructor_parts(
         return None;
     }
     // A scalar construction needs numeric-owned contents throughout; the
-    // structural route may stand a union whose only non-variant members are
-    // `[erased]` -- cleanup-owned contents admit them because they never
-    // produce runtime storage (storage_contents.rs).
+    // structural route classifies common and payload members recursively.
+    // Erased members retain their semantic type but produce no runtime storage.
     let contents = if erased_member_owner {
         crate::has_contents(
             program,
@@ -193,24 +192,16 @@ fn case_constructor_parts(
             crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
         )
     };
-    // The structural route also stands a mixed shape whose runtime common
-    // fields are scalar primitives, the only common fields
-    // `data::validate_data_shape` admits. Case construction zero-initializes
-    // every common field the literal leaves unnamed, so a named one is an
-    // operand beside the payload and an unnamed one is the lowering's zero.
-    let common_scalar = |field: &typed_trees::data::DataField| {
-        erased_member_owner
-            && (field.relevance.is_erased()
-                || program
-                    .primitive_type_reference(field.type_reference)
-                    .is_some())
-    };
+    // Common members obey the same recursive contents and establishment
+    // rules as payload members. The structural producer retains omitted
+    // common zeros as ordinary checked operands; the scalar-only producer
+    // remains a payload-only interface, not a mixed-value fallback.
     if !contents
         || program
             .data_members(owner)
             .iter()
             .any(|member| match member {
-                DataMember::Field(field) => !common_scalar(field),
+                DataMember::Field(_) => !erased_member_owner,
                 DataMember::Variant(_) => false,
             })
         || program.symbols.get(selected).parent != authored_owner.symbol

@@ -251,7 +251,7 @@ fn contiguous_primitive_projection(
             &mut BTreeSet::new(),
         )
         .ok()?;
-        if let StructuralTypeShape::Record { fields, .. } = &declarations.get(&carrier)?.shape {
+        if let Some(fields) = declarations.get(&carrier)?.shape.direct_fields() {
             let field = terminal_psi::live_field_by_identity(fields, identity)?;
             let scalar = match field.field_type {
                 StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => Some(scalar),
@@ -324,9 +324,7 @@ fn contiguous_primitive_read_projection(
         &mut BTreeSet::new(),
     )
     .ok()?;
-    let StructuralTypeShape::Record { fields, .. } = &declarations.get(&carrier_type)?.shape else {
-        return None;
-    };
+    let fields = declarations.get(&carrier_type)?.shape.direct_fields()?;
     let field = terminal_psi::live_field_by_identity(fields, identity)?;
     // Eligibility was checked on the complete read. This suffix supplies only
     // the scalar's storage layout, never store authority or a canonical fact.
@@ -741,12 +739,29 @@ fn field_path(
             .get(&structural_type)
             .copied()
             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-        let Some(fields) = declaration.shape.record_fields() else {
+        let Some(fields) = declaration.shape.direct_fields() else {
             return Err(LoweringError::UnknownStructuralType(structural_type));
+        };
+        // Mixed common members share Field identity with record members but
+        // sit after the tag. Use their actual conventional-sum placements,
+        // never a record-relative accumulation that would read tag bytes.
+        let common_layout = if matches!(declaration.shape, StructuralTypeShape::Mixed { .. }) {
+            Some(structural_sum_layout(
+                structural_type,
+                declarations,
+                cache,
+                active,
+            )?)
+        } else {
+            None
         };
         let mut local_offset = 0_u32;
         let mut selected = None;
-        for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+        for (field_position, field) in fields
+            .iter()
+            .filter(|field| !field.relevance.is_erased())
+            .enumerate()
+        {
             if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
                 continue;
             }
@@ -760,8 +775,18 @@ fn field_path(
                 cache,
                 active,
             )?;
-            local_offset =
-                structural_field_offset(field, local_offset, field_shape.alignment, root_type)?;
+            local_offset = match &common_layout {
+                Some(layout) => {
+                    layout
+                        .common_fields
+                        .get(field_position)
+                        .ok_or(LoweringError::UnknownStructuralType(structural_type))?
+                        .byte_offset
+                }
+                None => {
+                    structural_field_offset(field, local_offset, field_shape.alignment, root_type)?
+                }
+            };
             if field.identity == *identity {
                 repeated_stride = field
                     .storage

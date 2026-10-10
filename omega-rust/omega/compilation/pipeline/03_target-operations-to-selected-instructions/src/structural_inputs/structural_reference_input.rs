@@ -492,8 +492,9 @@ pub(crate) fn primitive_geometry(
     }
     if let Some((StructuralPathSegment::Field(identity), carrier_path)) = path.split_last() {
         let (carrier, _, _) = runtime_projection(root, carrier_path, declarations)?;
-        if let StructuralTypeShape::Record { fields, .. } =
-            &find_structural_type(declarations, carrier)?.shape
+        if let Some(fields) = find_structural_type(declarations, carrier)?
+            .shape
+            .direct_fields()
         {
             let field = terminal_psi::live_field_by_identity(fields, identity)?;
             if field.field_type.scalar_type() == Some(scalar) {
@@ -560,11 +561,9 @@ fn contiguous_primitive_read_geometry(
         return None;
     };
     let (carrier_type, _, _) = runtime_projection(root, carrier, declarations)?;
-    let StructuralTypeShape::Record { fields, .. } =
-        &find_structural_type(declarations, carrier_type)?.shape
-    else {
-        return None;
-    };
+    let fields = find_structural_type(declarations, carrier_type)?
+        .shape
+        .direct_fields()?;
     let field = terminal_psi::live_field_by_identity(fields, identity)?;
     // The complete read established eligibility; this suffix independently
     // reconstructs the declared scalar width, field offset and region bounds.
@@ -1361,11 +1360,9 @@ pub(crate) fn projected_scalar_codec(
     let (root, path) = referent_projection(root, path, declarations)?;
     if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
         let (parent, _, _) = runtime_projection(root, prefix, declarations)?;
-        let StructuralTypeShape::Record { fields, .. } =
-            &find_structural_type(declarations, parent)?.shape
-        else {
-            return None;
-        };
+        let fields = find_structural_type(declarations, parent)?
+            .shape
+            .direct_fields()?;
         let field = terminal_psi::field_by_identity(fields, identity)?;
         return scalar_field_codec(root, prefix, field.id, declarations);
     }
@@ -1386,11 +1383,9 @@ pub(crate) fn projected_scalar_fragments<'declarations>(
         return None;
     };
     let (parent, _, _) = runtime_projection(root, prefix, declarations)?;
-    let StructuralTypeShape::Record { fields, .. } =
-        &find_structural_type(declarations, parent)?.shape
-    else {
-        return None;
-    };
+    let fields = find_structural_type(declarations, parent)?
+        .shape
+        .direct_fields()?;
     let field = terminal_psi::field_by_identity(fields, identity)?;
     scalar_field_fragments(root, prefix, field.id, declarations)
 }
@@ -2113,6 +2108,21 @@ fn scalar_field_geometry(
     observes_byte_length: bool,
 ) -> Option<(u32, u32, Vec<RuntimeElement>)> {
     let (carrier, carrier_offset, elements) = runtime_projection(root, path, declarations)?;
+    if matches!(
+        find_structural_type(declarations, carrier)?.shape,
+        StructuralTypeShape::Mixed { .. }
+    ) {
+        // A selected array element retains its own common-field placement
+        // after the tag. Reconstruct that offset independently, keeping the
+        // carrier's runtime selectors and enclosing storage bounds.
+        if observes_byte_length {
+            return None;
+        }
+        let (offset, bytes) = mixed_common_field_geometry(carrier, field, scalar, declarations)?;
+        let offset = carrier_offset.checked_add(offset)?;
+        return scalar_access_within_storage(root, offset, bytes, &elements, declarations)
+            .then_some((offset, bytes, elements));
+    }
     let StructuralTypeShape::Record { fields, .. } =
         &find_structural_type(declarations, carrier)?.shape
     else {

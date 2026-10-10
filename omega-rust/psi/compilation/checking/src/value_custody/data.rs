@@ -6,7 +6,7 @@ use crate::value_custody::type_references::{
 };
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
-use typed_trees::data::{DataMember, DataShapeKind};
+use typed_trees::data::DataMember;
 use typed_trees::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -47,7 +47,6 @@ pub(crate) fn validate_data_field_types(
         );
         validate_generic_instance_argument_bounds(program, data_definition, symbols, diagnostics);
         validate_data_member_names(data_definition, data_members, diagnostics);
-        validate_data_shape(program, data_definition, data_members, diagnostics);
         validate_data_default_domain(program, data_definition, data_members, diagnostics);
 
         for member in data_members {
@@ -526,59 +525,6 @@ fn validate_payload_field_names(
                 variant.name,
                 field.name
             )));
-        }
-    }
-}
-
-/// Mixed shapes (common fields + cases) are accepted with two honest-first-cut
-/// restrictions, both rejected loudly here:
-///
-/// - COMMON fields must be scalar primitives (bool / integers / floats).
-///   Case construction zero-initializes every common field not named in the
-///   literal, and a scalar zero is one storage write in both backends; zeroing
-///   nested aggregates / text / slices at construction is deferred.
-/// - COMMON fields may not declare default initializers. Construction of a
-///   mixed value is always the case-literal form, whose rule is
-///   zero-unless-named (ZII keeps that valid); a default would silently not
-///   apply, so it is rejected instead of ignored.
-///
-/// Payload-field/common-field name collisions are rejected separately in
-/// `validate_payload_field_names` (member access searches both namespaces).
-fn validate_data_shape(
-    program: &dyn crate::CheckingInput,
-    data_definition: &typed_trees::data::DataDefinition,
-    data_members: &[DataMember],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    match typed_trees::data::DataDefinition::shape_kind_from_members(data_members) {
-        DataShapeKind::Empty | DataShapeKind::Enum | DataShapeKind::Record => {}
-        DataShapeKind::Mixed => {
-            // Generic declarations describe semantic shape, not a concrete
-            // representation. Closed synthesis revalidates each executable
-            // instance after substituting its exact field types.
-            if !data_definition.type_parameters.is_empty() {
-                return;
-            }
-            for member in data_members {
-                let Some(field) = member.as_field() else {
-                    continue;
-                };
-                // Erased common bindings have no runtime zero-initialization
-                // or storage requirement; relevance validation separately
-                // preserves their semantic obligations.
-                if field.relevance.is_erased() {
-                    continue;
-                }
-                let scalar = program
-                    .primitive_type_reference(field.type_reference)
-                    .is_some();
-                if !scalar {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "data `{}` common field `{}` is not a scalar primitive; mixed data shape common fields support only bool, integer, and float types for now (case construction zero-initializes unnamed common fields)",
-                        data_definition.name, field.name
-                    )));
-                }
-            }
         }
     }
 }

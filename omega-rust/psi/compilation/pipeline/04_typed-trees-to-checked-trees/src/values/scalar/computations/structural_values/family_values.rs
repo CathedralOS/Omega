@@ -141,9 +141,8 @@ impl Builder<'_, '_> {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        // An ordinary runtime field may be omitted only when its zero value
-        // satisfies the declared carrier — today that means a `[scalar; N]`
-        // leaf whose element is a plain integer primitive. Every authored
+        // An omitted runtime field uses its recursively zeroable carrier;
+        // source checking separately establishes its default domain. Every authored
         // initializer must still name a declared member exactly once.
         let omitted = relevant
             .iter()
@@ -274,23 +273,37 @@ impl Builder<'_, '_> {
             });
         }
         for field in omitted {
-            let declared = field.type_reference;
-            if zeroed_scalar_array_parts(self.program, declared).is_none() {
-                // Structural members carry no element roster: the emitted
-                // EstablishZeroedStructural owns the whole shape's zeros.
-                let node = self.publish_structural_value(
-                    expression,
-                    declared,
-                    CheckedStructuralValueKind::ZeroedStructural {},
-                )?;
-                fields.push(checked_trees::CheckedStructuralRecordField {
-                    field: field.symbol,
-                    expression,
-                    type_reference: declared,
-                    value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
-                });
-                continue;
-            }
+            fields.push(self.zeroed_constructor_field(expression, field)?);
+        }
+        Some(CheckedStructuralValueKind::Record {
+            data_symbol,
+            fields: self.structural_values.record_fields.insert_many(fields),
+        })
+    }
+
+    /// Retain an omitted member at its construction occurrence, after authored
+    /// operands. Record and case common members share this storage producer;
+    /// source checking still owns default-domain and zero-validity judgments.
+    fn zeroed_constructor_field(
+        &mut self,
+        expression: ExpressionHandle,
+        field: &typed_trees::data::DataField,
+    ) -> Option<checked_trees::CheckedStructuralRecordField> {
+        let declared = field.type_reference;
+        if zeroed_scalar_array_parts(self.program, declared).is_none()
+            && !validation::zeroed_structural_parts(self.program, declared)
+        {
+            return None;
+        }
+        let node = if zeroed_scalar_array_parts(self.program, declared).is_none() {
+            // Structural members carry no element roster: the emitted
+            // EstablishZeroedStructural owns the whole shape's zeros.
+            self.publish_structural_value(
+                expression,
+                declared,
+                CheckedStructuralValueKind::ZeroedStructural {},
+            )?
+        } else {
             let (primitive_type, element_count) =
                 zeroed_scalar_array_parts(self.program, declared)?;
             let zero = zeroed_integer_literal(primitive_type)?;
@@ -306,24 +319,20 @@ impl Builder<'_, '_> {
             // This literal has no authored scalar occurrence. The zeroed array
             // owns its node; structural replay checks the declared carrier,
             // element count and literal zero before emission.
-            let node = self.publish_structural_value(
+            self.publish_structural_value(
                 expression,
                 declared,
                 CheckedStructuralValueKind::ZeroedScalarArray {
                     element,
                     element_count,
                 },
-            )?;
-            fields.push(checked_trees::CheckedStructuralRecordField {
-                field: field.symbol,
-                expression,
-                type_reference: declared,
-                value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
-            });
-        }
-        Some(CheckedStructuralValueKind::Record {
-            data_symbol,
-            fields: self.structural_values.record_fields.insert_many(fields),
+            )?
+        };
+        Some(checked_trees::CheckedStructuralRecordField {
+            field: field.symbol,
+            expression,
+            type_reference: declared,
+            value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
         })
     }
 
@@ -378,6 +387,28 @@ impl Builder<'_, '_> {
                 type_reference: declared,
                 value,
             });
+        }
+        // Common fields exist for every active case. Their omitted operands
+        // use the record's recursive zero route rather than a scalar-only
+        // late lowering loop; payload completeness remains with the classifier.
+        let common = self
+            .program
+            .data_members(
+                self.program
+                    .closed_data_definition(constructor.type_reference)?,
+            )
+            .iter()
+            .filter_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
+                    Some(field)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for field in common {
+            if fields.iter().all(|operand| operand.field != field.symbol) {
+                fields.push(self.zeroed_constructor_field(expression, field)?);
+            }
         }
         Some(CheckedStructuralValueKind::StructuralCase {
             data_symbol,

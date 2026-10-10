@@ -235,16 +235,18 @@ pub(crate) fn indexed_element_scalar_type(
         let Walked::Declared(record) = walked else {
             return unsupported("indexed field carrier is not a record");
         };
-        let StructuralTypeShape::Record { fields, .. } = &unique_declaration(
+        let declaration = unique_declaration(
             types,
             record,
             "primitive projection type is absent",
             "primitive projection type is ambiguous",
-        )?
-        .shape
-        else {
-            return unsupported("indexed field carrier is not a record");
-        };
+        )?;
+        let fields = declaration
+            .shape
+            .direct_fields()
+            .ok_or(LoweringError::Unsupported(
+                "indexed field carrier has no directly addressed fields",
+            ))?;
         let mut matching = fields.iter().filter(|field| field.identity == *identity);
         let (Some(field), None) = (matching.next(), matching.next()) else {
             return unsupported("indexed field is absent or ambiguous");

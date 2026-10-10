@@ -510,15 +510,24 @@ fn adapt(
                             }
                         }
                     }
-                    let path = match operation {
-                        O::EstablishCase { result_case, .. } => {
-                            vec![StructuralPathSegment::Case(*result_case)]
-                        }
-                        _ => Vec::new(),
-                    };
-                    for field in fields {
+                    for (field_ordinal, field) in fields.iter().enumerate() {
                         if let terminal_psi::RecordFieldValue::Structural(source) = &field.value {
-                            let destination = location(result.place, &path, Some(field.field))?;
+                            let destination = match operation {
+                                O::EstablishCase { result_case, .. } => {
+                                    let shape = &types
+                                        .iter()
+                                        .find(|row| row.id == result.structural_type)?
+                                        .shape;
+                                    let path = terminal_psi::structural_case_initializer_path(
+                                        shape,
+                                        *result_case,
+                                        field_ordinal,
+                                        field.field,
+                                    )?;
+                                    location(result.place, &path, None)?
+                                }
+                                _ => location(result.place, &[], Some(field.field))?,
+                            };
                             if let Some(source) = location(source.place, &source.path, None) {
                                 step.derivations.push((source, destination));
                             } else {

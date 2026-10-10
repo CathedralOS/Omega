@@ -140,13 +140,14 @@ pub(super) fn validate_establish_structural_case(
     // A mixed case binds its runtime common fields in declaration order, then
     // the selected payload; erased common members take no roster position,
     // so an all-erased union binds the payload alone as a closed sum does.
-    // Runtime common fields must be relevant scalars, matching verification.
+    // Common and payload members share the same exact initializer validation;
+    // nested common storage has no selected-case segment in its logical path.
     let (common, cases) = match &declaration.shape {
         StructuralTypeShape::Sum { cases } => (&[][..], cases),
         StructuralTypeShape::Mixed { fields, cases }
             if fields.iter().all(|field| {
                 matches!(field.field_type, StructuralFieldType::Erased { .. })
-                    || (!field.relevance.is_erased() && field.field_type.scalar_type().is_some())
+                    || !field.relevance.is_erased()
             }) =>
         {
             (fields.as_slice(), cases)

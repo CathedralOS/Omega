@@ -1,0 +1,1 @@
+after `receipt` was transferred or consumed

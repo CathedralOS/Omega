@@ -1204,7 +1204,7 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    /// Join a selected record and its observed declaration to the original
+    /// Join a selected carrier and its observed declaration to the original
     /// scalar cell. Primitive reads and direct/recast element views use this
     /// same field identity and carrier relationship; neither recreates storage.
     pub(crate) fn scalar_field_at_record(
@@ -1260,7 +1260,8 @@ impl TerminalExecution<'_> {
         let Some(fields) = self
             .program
             .structural_types()
-            .record_fields(&record.structural_type)
+            .get(&record.structural_type)
+            .and_then(|declaration| declaration.shape.direct_fields())
         else {
             return Ok(None);
         };
@@ -1285,7 +1286,7 @@ impl TerminalExecution<'_> {
         Ok(Some((record, field, stored_type)))
     }
 
-    /// Observe the final scalar field under its original runtime record.
+    /// Observe the final direct field under its original runtime carrier.
     /// Admission checked the complete read path before runtime selection;
     /// eligibility on a suffix would lose the preceding selectors. Restricted
     /// fields keep their stored carrier, without granting store authority.

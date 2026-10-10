@@ -125,34 +125,10 @@ impl emission::Emission<'_, '_, '_> {
                 }
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
                     if let Some(scalar_type) = target.field_type.scalar_type() {
-                        // Omitted scalar members mint a zeroed structural
-                        // child with no authored operand; establish the
-                        // declared type's zero as the field's scalar value.
-                        if !matches!(
-                            self.checked
-                                .facts
-                                .values
-                                .structural_values
-                                .nodes
-                                .get(value)
-                                .kind,
-                            checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
-                        ) {
-                            return unsupported("nested record operand has a scalar destination");
-                        }
-                        let zero = emit_scalar_leaf(
-                            zero_constant(scalar_type),
+                        self.zeroed_scalar_field(
+                            value,
                             scalar_type,
-                            self.next_value,
-                            self.operations,
-                        );
-                        self.scalar_field_value(
                             &target.field_type,
-                            ValueDeclaration {
-                                qualifications: Default::default(),
-                                id: zero,
-                                scalar_type,
-                            },
                             &mut scalar_positions,
                             initialized.len(),
                         )?
@@ -220,6 +196,46 @@ impl emission::Emission<'_, '_, '_> {
         }
         self.temporary_places.push(declaration);
         Ok(place)
+    }
+
+    /// Omitted scalar fields are checked zero operands, not structural children.
+    /// Records and mixed-case common fields use the same carrier/range join.
+    pub(super) fn zeroed_scalar_field(
+        &mut self,
+        value: checked_trees::CheckedStructuralValueHandle,
+        scalar_type: ScalarType,
+        field_type: &StructuralFieldType,
+        positions: &mut Vec<(usize, usize)>,
+        field_index: usize,
+    ) -> Result<terminal_psi::RecordFieldValue, LoweringError> {
+        if !matches!(
+            self.checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get(value)
+                .kind,
+            checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
+        ) {
+            return unsupported("nested constructor operand has a scalar destination");
+        }
+        let zero = emit_scalar_leaf(
+            zero_constant(scalar_type),
+            scalar_type,
+            self.next_value,
+            self.operations,
+        );
+        self.scalar_field_value(
+            field_type,
+            ValueDeclaration {
+                qualifications: Default::default(),
+                id: zero,
+                scalar_type,
+            },
+            positions,
+            field_index,
+        )
     }
 }
 

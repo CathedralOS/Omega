@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 1.11, "load1_start": 0.86, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 5.22, "load1_start": 3.85, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1209,6 +1209,8 @@ fail/dependent/dependent_forward_after_write_rejected rejected 214ms expected @b
 	cannot prove transition argument `i` satisfies dependent parameter `k` in `Main::main.read`; expected 0..=main.count -- relate them on the arm (`i <= main.count` or a `<` guard), or tighten the argument below the field's declared minimum
 fail/dependent/dependent_range_on_field_rejected rejected 194ms expected @b03305417fb2+wt
 	data `Main` field `cursor` declares a range whose bound is not a constant integer expression; a non-constant bound cannot be enforced (it would silently behave unbounded). A dependent maximum (`[0..=<parameter>.<field>]` on a subject parameter) is supported on machine STATE PARAMETERS whose named field carries an enforced literal integer range
+fail/dependent/mixed_common_nested_zero_requires_establishment rejected 334ms expected @9cc6a58bcdc4+wt
+	construction of `Event` omits gated field `common`: its zero-filled representation is not an established value -- initialize it explicitly
 fail/dependent/mutable_referent_alias_corruption_return_rejected rejected 594ms expected @2d8ed253669f
 	cannot prove default-domain field requirement for return from corrupt at statement 2: level.rooms[1].label requires [u8; N]::Utf8
 fail/dependent/nested_gated_field_omitted_rejected rejected 350ms expected @2d8ed253669f
@@ -1342,6 +1344,8 @@ fail/drops/drop_ensures_unlocked_predicate rejected 316ms expected @9beb2be72f2d
 	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: mutex_guard.mutex.unlocked()
 fail/drops/empty_array_owner_cleanup_prerequisite rejected 418ms expected @04d0fbe9d97c
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing holder.ready == true required by Holder::drop clause `holder.ready`
+fail/drops/erased_linear_subject_requires_disposition rejected 637ms expected @9cc6a58bcdc4+wt
+	cannot automatically dispose borrowed temporary `named(name(Event))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
 fail/drops/generic_cleanup_fixed_owner_cannot_infer_demand rejected 374ms expected @65e8a0783b05
 	cannot prove automatic cleanup requires at selected edge from retire state entry after statement 1: token does not establish Token::drop clause `token.value == 7`
 	cannot prove automatic cleanup requires at selected edge from retire$specialized$5ae389475f33531d$0 state entry after statement 1: token does not establish Token::drop clause `token.value == 7`
@@ -1999,6 +2003,8 @@ fail/ownership/linear_live_overwrite rejected 572ms expected @2d8ed253669f
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/ownership/linear_mixed_branch_treatment rejected 633ms expected @2d8ed253669f
 	linear value `receipt` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation
+fail/ownership/linear_mixed_common_payload_duplicate_operand rejected 769ms expected @9cc6a58bcdc4+wt
+	cannot use `receipt` in machine `main` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/linear_qualified_field_observation_after_transfer rejected 296ms expected @34440012a21b
 	cannot use `receipt.code` in machine `consumed` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 	cannot use `replacement` in machine `reused_replacement` state `entry` (statement 3) after `replacement` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `replacement` first
@@ -3556,6 +3562,7 @@ pass/data/runtime_case_reassignment_exit checked 1285ms check-target:macos_arm64
 pass/data/runtime_constructor_observation_exit checked 1704ms check-target:macos_arm64 @c4e45d3dda38+wt
 pass/data/runtime_data_properties_exit checked 1213ms check-target:macos_arm64 @2d8ed253669f
 pass/data/runtime_mixed_case_common_fields_exit checked 1291ms check-target:macos_arm64 @2d8ed253669f
+pass/data/runtime_mixed_case_nested_common_fields_exit checked 3322ms check-target:macos_arm64 @9cc6a58bcdc4+wt
 pass/data/runtime_mixed_case_payload_dispatch_exit checked 1537ms check-target:macos_arm64 @ca8c127c90c5
 pass/data/runtime_mixed_shape_exit checked 2078ms check-target:macos_arm64 @ca8c127c90c5
 pass/data/runtime_proof_only_data_declared_exit checked 1252ms check-target:macos_arm64 @2d8ed253669f

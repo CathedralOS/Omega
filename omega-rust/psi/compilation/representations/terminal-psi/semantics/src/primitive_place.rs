@@ -262,7 +262,7 @@ pub fn primitive_read_field<'a>(
     else {
         return None;
     };
-    let field = record.shape.live_record_field(identity)?;
+    let field = terminal_psi::live_field(record.shape.direct_fields()?, identity)?;
     match field.field_type {
         StructuralFieldType::Scalar(ScalarType::Boolean) => {}
         StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {}

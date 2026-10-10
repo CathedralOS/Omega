@@ -572,11 +572,9 @@ fn runtime_path(
     for (position, segment) in path.iter().enumerate() {
         match segment {
             semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                let terminal_psi::StructuralTypeShape::Record { fields, .. } =
-                    &find_structural_type(types, carrier)?.shape
-                else {
-                    return None;
-                };
+                let fields = find_structural_type(types, carrier)?
+                    .shape
+                    .direct_fields()?;
                 let selected = live_field_by_id(fields, *field)?;
                 let child = match &selected.field_type {
                     terminal_psi::StructuralFieldType::Structural(child) => *child,

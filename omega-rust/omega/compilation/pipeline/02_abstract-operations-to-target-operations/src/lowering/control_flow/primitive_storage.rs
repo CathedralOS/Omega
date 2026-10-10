@@ -475,14 +475,23 @@ pub(super) fn lower(
             for (position, segment) in path.iter().enumerate() {
                 match segment {
                     semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                        let StructuralTypeShape::Record { fields, .. } = &types
+                        let shape = &types
                             .get(&carrier)
                             .ok_or_else(|| {
                                 LoweringError::unsupported_control_flow(function.machine)
                             })?
-                            .shape
-                        else {
-                            return Err(LoweringError::unsupported_control_flow(function.machine));
+                            .shape;
+                        // Common members are always present: entering their
+                        // structural child is the same Field hop as a record,
+                        // independent of the mixed parent's selected payload.
+                        let fields = match shape {
+                            StructuralTypeShape::Record { fields, .. }
+                            | StructuralTypeShape::Mixed { fields, .. } => fields,
+                            _ => {
+                                return Err(LoweringError::unsupported_control_flow(
+                                    function.machine,
+                                ));
+                            }
                         };
                         let selected = fields
                             .iter()

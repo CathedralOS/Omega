@@ -445,7 +445,7 @@ defines the complete product bar.
     `EstablishStructuralValue` route through ordinary argument evaluation,
     not another whole-body plan. Preserve once-only
     field/operand order, selective short-circuit effects, computed-result float
-    format, selected affine cleanup and omitted common-field zero initialization:
+    format and selected affine cleanup:
     `pass/float/computed_comparison_literal_landing_exit`,
     `pass/calls/runtime_constructed_payload_arguments_exit`,
     `pass/calls/runtime_constructed_copy_payload_arguments_exit` and
@@ -459,6 +459,13 @@ defines the complete product bar.
     `pass/domains/runtime_nested_record_membership_transport_exit` stay at 0
     in both engines; `fail/domains/record_child_membership_requires_issuance`
     must reject literal forgery, stale source epochs and sibling substitution.
+    Routed case common-field memberships still need occurrence-bound source
+    publication from completed children. Stage 04's
+    `semantic/facts/field_domains.rs::append_local_case_payload_domain_facts`
+    omits common fields and predicate-free routed domains: an `Event` constructed
+    from licensed `Receipt::issue()` children fails a consuming call with
+    "cannot prove default-domain field requirement" for its common and payload
+    paths. Preserve issuer evidence rather than granting from the receiver's type.
     Keep `pass/calls/runtime_constructor_child_pure_calls_exit` at 0 in both
     engines without adding an ensures clause or a Terminal certificate.
     Keep stored snapshot controls
@@ -477,6 +484,10 @@ defines the complete product bar.
     return-discard flag is not liveness authority. Keep
     `pass/calls/runtime_case_payload_scalar_array_read_exit` as the exact
     selected collection and sibling-payload observation control.
+    Keep `pass/data/runtime_mixed_case_nested_common_fields_exit` at 0 in both
+    engines for recursive omitted common zeros, erased-member rosters, ordered
+    constructor effects and indexed common reads; reject invalid zero domains
+    and duplicate linear common/payload operands.
     **CML4** owns remaining residual cleanup. Reference debt must
     follow ordinary disposal, not a trivial affine discard.
     Keep: `pass/expressions/runtime_temporary_record_field_call_exit` (a
