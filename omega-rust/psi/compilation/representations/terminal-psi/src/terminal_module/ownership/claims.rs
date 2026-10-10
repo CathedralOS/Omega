@@ -5,6 +5,10 @@ use semantic_vocabulary::{ClaimId, PlaceId};
 /// an exclusive call completes normally. Payload paths are root-relative;
 /// stored case guards select which bindings exist. This is neither an owned
 /// argument transfer nor evidence that the displaced value survived.
+/// The codec restricts region and claim paths to typed cases, fields and fixed
+/// indices. A reference descriptor may belong to that subtree; its referent
+/// cannot. Dynamic access geometry requires separate selector custody and is
+/// not a completion path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoanCompletion {
     pub operation: semantic_vocabulary::OperationId,

@@ -159,6 +159,8 @@ fn validate_entry_claims(
 }
 
 /// Completion rows have an actual call, owned home and typed payload paths.
+/// Paths stay inside that home: owning a reference descriptor does not own its
+/// referent, and completion rows carry no runtime-selector capture or bounds.
 /// This validates representation shape; source checking still owns exclusive
 /// authority and the callee's obligation to return established storage.
 fn validate_loan_completions(
@@ -184,14 +186,37 @@ fn validate_loan_completions(
         {
             return malformed("loan completion cannot own borrowed ingress");
         }
-        validate_structural_path(module, root, &completion.path)?;
+        validate_owned_completion_path(module, root, &completion.path)?;
         for claim in &completion.claims {
             if !claim.path.starts_with(&completion.path) {
                 return malformed("loan completion claim lies outside its returned region");
             }
-            validate_structural_path(module, root, &claim.path)?;
+            validate_owned_completion_path(module, root, &claim.path)?;
         }
     }
+    Ok(())
+}
+
+/// Preserve the producer's owned-subtree grammar at both codec entrances.
+/// Ordinary access paths also admit dereferences and runtime selectors; neither
+/// can establish caller-owned custody. Case guards remain typed path components,
+/// and a path may end at a reference descriptor without crossing its loan.
+fn validate_owned_completion_path(
+    module: &TerminalModule,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Result<(), CodecError> {
+    if path.iter().any(|segment| {
+        !matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::Case(_)
+                | terminal_psi::StructuralPathSegment::Field(_)
+                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        return malformed("loan completion path must retain a static owned subtree");
+    }
+    validate_structural_path(module, root, path)?;
     Ok(())
 }
 
