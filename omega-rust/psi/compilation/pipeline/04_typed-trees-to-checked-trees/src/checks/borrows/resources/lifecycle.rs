@@ -6,8 +6,7 @@ use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowLoanResourceDraft, ParentResourceIndex,
 };
 use checked_trees::{
-    BorrowLoanFact, CheckedBorrowResourceLifecyclePhase, CheckedReborrowAccessEffect, FlowFacts,
-    FlowInvalidationSource,
+    BorrowLoanFact, CheckedBorrowResourceLifecyclePhase, FlowFacts, FlowInvalidationSource,
 };
 use diagnostics::Diagnostic;
 
@@ -40,34 +39,14 @@ pub(crate) struct LifecycleEvent {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum EphemeralResourceStatus {
     Available,
-    SharedFrozenBy {
+    BorrowedBy {
         children: Vec<ParentResourceIndex>,
     },
-    SuspendedBy {
-        child: ParentResourceIndex,
-    },
-    RetiredWhileSharedFrozen {
+    RetiredWhileBorrowed {
         children: Vec<ParentResourceIndex>,
-        weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    },
-    RetiredWhileSuspended {
-        child: ParentResourceIndex,
         weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
     },
     Retired,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum DispositionUpdate {
-    None,
-    RestoreExclusive {
-        target: ParentResourceIndex,
-        expected_child: ParentResourceIndex,
-    },
-    UpdateSharedParent {
-        parent: ParentResourceIndex,
-        status: EphemeralResourceStatus,
-    },
 }
 
 #[derive(Debug, Clone)]
@@ -202,41 +181,26 @@ pub(crate) fn apply_activation_batch(
             let Some(child) = reborrows.get(child_index) else {
                 return Err(reborrow_disposition_drift());
             };
-            let parent_status = statuses.get(parent);
-            let next_parent = match child.access_effect {
-                CheckedReborrowAccessEffect::SharedRelease => {
-                    if parent_status != Some(EphemeralResourceStatus::Available) {
-                        return Err(reborrow_disposition_drift());
-                    }
-                    None
-                }
-                CheckedReborrowAccessEffect::SharedFreeze => match parent_status {
-                    Some(EphemeralResourceStatus::Available) => {
-                        Some(EphemeralResourceStatus::SharedFrozenBy {
-                            children: vec![event.resource],
-                        })
-                    }
-                    Some(EphemeralResourceStatus::SharedFrozenBy { mut children }) => {
-                        if children.contains(&event.resource) {
-                            return Err(reborrow_disposition_drift());
-                        }
-                        children.push(event.resource);
-                        Some(EphemeralResourceStatus::SharedFrozenBy { children })
-                    }
-                    _ => return Err(reborrow_disposition_drift()),
-                },
-                CheckedReborrowAccessEffect::ExclusiveSuspension => {
-                    if parent_status != Some(EphemeralResourceStatus::Available) {
-                        return Err(reborrow_disposition_drift());
-                    }
-                    Some(EphemeralResourceStatus::SuspendedBy {
-                        child: event.resource,
-                    })
-                }
-            };
-            if let Some(next_parent) = next_parent
-                && !statuses.set(parent, next_parent)
+            // The ledger retains descent and closure, not relational admission.
+            // Siblings may suspend disjoint projections of the same parent;
+            // compatibility judges their captured places separately. Recording
+            // a second child must neither restore nor duplicate whole-parent
+            // authority. Shared children also remain in the closure graph.
+            if child.parent_access.direct_reborrow_effect(&child.access)
+                != Some(child.access_effect)
             {
+                return Err(reborrow_disposition_drift());
+            }
+            let mut children = match statuses.get(parent) {
+                Some(EphemeralResourceStatus::Available) => Vec::new(),
+                Some(EphemeralResourceStatus::BorrowedBy { children }) => children,
+                _ => return Err(reborrow_disposition_drift()),
+            };
+            if children.contains(&event.resource) {
+                return Err(reborrow_disposition_drift());
+            }
+            children.push(event.resource);
+            if !statuses.set(parent, EphemeralResourceStatus::BorrowedBy { children }) {
                 return Err(reborrow_disposition_drift());
             }
         }
@@ -263,18 +227,14 @@ pub(crate) fn apply_weakening_batch(
                 }
                 EphemeralResourceStatus::Retired
             }
-            Some(EphemeralResourceStatus::SuspendedBy { child }) => {
-                EphemeralResourceStatus::RetiredWhileSuspended { child, weakening }
-            }
-            Some(EphemeralResourceStatus::SharedFrozenBy { children }) => {
-                EphemeralResourceStatus::RetiredWhileSharedFrozen {
+            Some(EphemeralResourceStatus::BorrowedBy { children }) => {
+                EphemeralResourceStatus::RetiredWhileBorrowed {
                     children,
                     weakening,
                 }
             }
             None
-            | Some(EphemeralResourceStatus::RetiredWhileSharedFrozen { .. })
-            | Some(EphemeralResourceStatus::RetiredWhileSuspended { .. })
+            | Some(EphemeralResourceStatus::RetiredWhileBorrowed { .. })
             | Some(EphemeralResourceStatus::Retired) => {
                 return Err(reborrow_disposition_drift());
             }

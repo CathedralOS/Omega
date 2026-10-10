@@ -17,10 +17,9 @@ mod persistent;
 // consumed by lowering.
 mod aggregates;
 pub(crate) mod calls;
-mod resources;
-pub(crate) use resources::{LifecyclePhase, weakening_event_boundary};
 mod moves;
 mod reads;
+mod resources;
 mod statements;
 
 // Shared by the checks: compatibility judgments, and binding and loan

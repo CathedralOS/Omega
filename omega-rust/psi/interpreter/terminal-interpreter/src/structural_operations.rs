@@ -1078,7 +1078,7 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
             // `base` comes from the live, access-checked captured reference,
             // not raw pointer equality. Its semantic storage identity must
-            // still belong to this frame's exclusive parameter authority.
+            // belong to this frame's exclusive ingress or live owned storage.
             let borrowed_origin = machine
                 .structural_parameters
                 .iter()
@@ -1094,7 +1094,35 @@ impl TerminalExecution<'_> {
                                     && base.path.starts_with(&storage.path)
                             })
                 });
-            if !borrowed_origin {
+            let owned_origin = self.structural_values.iter().any(|(place, storage)| {
+                if storage.opaque_identity != base.opaque_identity
+                    || !base.path.starts_with(&storage.path)
+                {
+                    return false;
+                }
+                if let Some(parameter) = machine.structural_parameter(*place) {
+                    return parameter.access == StructuralAccess::Owned
+                        && parameter.multiplicity != StructuralMultiplicity::Linear
+                        && parameter.qualifications.is_empty()
+                        && parameter.projected_qualifications.is_empty();
+                }
+                machine.producing_operation(*place).is_some_and(|(operation, _)| {
+                    matches!(&operation.result, terminal_psi::OperationResult::Structural(result)
+                        if result.place == *place
+                            && result.multiplicity != StructuralMultiplicity::Linear
+                            && result.claims.is_empty()
+                            && result.qualifications.is_empty()
+                            && result.projected_qualifications.is_empty()
+                            && result.qualification_establishments.is_empty())
+                })
+            });
+            let view_origin = self.element_view_values.iter().any(|(place, view)| {
+                self.structural_values
+                    .get(place)
+                    .is_some_and(|storage| view.matches_descriptor_home(storage))
+                    && view.lends_structural_storage(&base)
+            });
+            if !borrowed_origin && !owned_origin && !view_origin {
                 return Err(malformed());
             }
         }

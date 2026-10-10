@@ -730,6 +730,11 @@ fn storage_projection(
 /// A `.., Referent` source names a suspended child of the located carrier
 /// leaf; an empty path names the whole ingress referent directly. Every
 /// selected payload and runtime index retains its exact storage coordinate.
+/// Formation compatibility belongs to Psi's admitted borrow judgment, not
+/// this coordinate reconstruction. A conservative path-overlap query cannot
+/// replay logical disequality of runtime selectors. This audit authenticates
+/// existing parents, types and origins; receiving use and disposition still
+/// check the live roster rather than treating those origins as permission.
 fn normalized_source(
     function: &PsiOptimizationFunction,
     custody: &Custody,
@@ -794,19 +799,6 @@ fn normalized_direct_source(
             }) {
                 Some(()) => {
                     let root = Root::Ingress(source.place, carrier_path.to_vec());
-                    if custody.leaves.iter().any(|((carrier, path), reference)| {
-                        roots_overlap(&reference.root, &root)
-                            && !shared_source_compatible(
-                                function,
-                                custody,
-                                types,
-                                carrier,
-                                path,
-                                source.access,
-                            )
-                    }) {
-                        return Err(invalid());
-                    }
                     Ok((root, Vec::new()))
                 }
                 None => Err(invalid()),
@@ -815,29 +807,11 @@ fn normalized_direct_source(
         if leaf_type(types, leaf.referent, suffix).is_none() {
             return Err(invalid());
         }
-        if custody.leaves.iter().any(|((carrier, path), child)| {
-            child.parents.contains(&leaf.identity)
-                && !shared_source_compatible(function, custody, types, carrier, path, source.access)
-        }) {
-            return Err(invalid());
-        }
         Ok((leaf.root.clone(), vec![leaf.identity.clone()]))
     } else if source.path.is_empty() {
-        if custody.leaves.iter().any(|((carrier, path), reference)| {
-            reference.root.contains_place(source.place)
-                && !shared_source_compatible(function, custody, types, carrier, path, source.access)
-        }) {
-            return Err(invalid());
-        }
         Ok((Root::Place(source.place), Vec::new()))
     } else if storage_projection(function, custody, types, source).is_some() {
         let root = Root::Ingress(source.place, source.path.clone());
-        if custody.leaves.iter().any(|((carrier, path), leaf)| {
-            roots_overlap(&leaf.root, &root)
-                && !shared_source_compatible(function, custody, types, carrier, path, source.access)
-        }) {
-            return Err(invalid());
-        }
         Ok((root, Vec::new()))
     } else {
         Err(invalid())

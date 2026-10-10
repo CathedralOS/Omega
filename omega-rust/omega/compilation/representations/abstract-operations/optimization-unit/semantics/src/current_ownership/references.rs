@@ -219,7 +219,7 @@ fn check_window_access(
                 .iter()
                 .find(|loan| loan.carrier == root.place() && loan.carrier_path.is_empty())
                 .map(|loan| origin_place(&loan.root));
-            if !terminal_semantics::structural_window_parameter_origins(
+            if !terminal_semantics::structural_window_origins(
                 function.structural_parameters.iter().chain(
                     function
                         .blocks
@@ -227,12 +227,13 @@ fn check_window_access(
                         .flat_map(|block| &block.structural_parameters),
                 ),
                 origin,
+                |place| crate::structural_place_supports_window_restoration(function, place),
             ) {
                 return Err(invalid(
                     function,
                     block,
                     Some(node),
-                    "whole-referent restoration requires an exclusive parameter origin",
+                    "whole-referent restoration requires live owned or exclusive ingress storage",
                 ));
             }
         }

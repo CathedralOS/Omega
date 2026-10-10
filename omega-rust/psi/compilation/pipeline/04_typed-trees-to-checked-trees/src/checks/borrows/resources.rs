@@ -8,7 +8,6 @@
 mod call_operands;
 mod disposition_events;
 mod lifecycle;
-pub(crate) use lifecycle::{LifecyclePhase, weakening_event_boundary};
 mod loan_resources;
 mod reborrow_drafts;
 

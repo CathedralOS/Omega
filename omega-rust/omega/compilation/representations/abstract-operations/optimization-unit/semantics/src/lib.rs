@@ -50,6 +50,27 @@ pub fn structural_place_access(
         .map(|source| source.access)
 }
 
+/// Declaration-side owned or exclusive storage for whole-referent restoration.
+/// Producer-derived view access follows its actual backing contract; an owned
+/// descriptor alone does not grant referent access. The receiving custody walk
+/// separately proves the origin live and the captured loan mutable.
+pub fn structural_place_supports_window_restoration(
+    function: &optimization_unit::PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> bool {
+    unit_validation::operation_contracts::structural_source_contract(function, place).is_some_and(
+        |source| {
+            matches!(
+                source.access,
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            ) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                && source.is_unqualified()
+                && !source.has_result_evidence()
+        },
+    )
+}
+
 // Whole-unit acceptance.
 pub(crate) use unit_validation::validate_psi_optimization_unit;
 pub use unit_validation::{

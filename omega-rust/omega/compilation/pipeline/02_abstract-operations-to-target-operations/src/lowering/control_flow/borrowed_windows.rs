@@ -30,8 +30,9 @@
 //!
 //! A root window (`field: None`, empty path) is whole-value assignment
 //! through an exclusive loan: both copies span the whole referent at offset
-//! zero beneath the loan's pointer, and only a borrowed-parameter root
-//! qualifies.
+//! zero beneath the loan's pointer. A captured mutable carrier retains its
+//! actual live owned or exclusive-ingress backing; descriptor ownership is
+//! not permission to write the referent.
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
@@ -261,8 +262,9 @@ pub(super) fn window_referent(
     Ok(Some(referent))
 }
 
-/// A whole-root window needs the original exclusive parameter loan. Crossing
-/// an owned reference carrier does not grant that authority over its referent.
+/// The live captured loan, not ownership of its descriptor, grants access to
+/// the backing. Owned local storage and exclusive ingress retain the same
+/// replacement operation; every possible origin must have actual custody.
 fn root_window_loan(
     function: &AbstractFunction,
     live: &LiveDefinitions,
@@ -283,9 +285,9 @@ fn root_window_loan(
         return false;
     };
     // A retained alias uses its own pointer and live permission, but every
-    // possible backing must still owe restoration to exclusive parameter
-    // storage. Owning the descriptor never grants that parameter authority.
-    terminal_semantics::structural_window_parameter_origins(
+    // possible backing must still have live owned or exclusive storage
+    // authority. Owning the descriptor never grants referent authority.
+    terminal_semantics::structural_window_origins(
         function.structural_parameters.iter().chain(
             function
                 .block_entries
@@ -293,6 +295,30 @@ fn root_window_loan(
                 .flat_map(|block| &block.structural_parameters),
         ),
         loan.root.origins().into_iter().map(|origin| origin.root),
+        |place| {
+            live.structural_homes.get(&place).is_some_and(|home| {
+                home.access() == StructuralAccess::Owned
+                    && home.multiplicity() != StructuralMultiplicity::Linear
+                    && match &home.origin {
+                        target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            result,
+                            ..
+                        } => {
+                            result.qualifications.is_empty()
+                                && result.projected_qualifications.is_empty()
+                                && result.qualification_establishments.is_empty()
+                                && result.claims.is_empty()
+                        }
+                        target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                            declaration,
+                            ..
+                        } => {
+                            declaration.qualifications.is_empty()
+                                && declaration.projected_qualifications.is_empty()
+                        }
+                    }
+            })
+        },
     )
 }
 

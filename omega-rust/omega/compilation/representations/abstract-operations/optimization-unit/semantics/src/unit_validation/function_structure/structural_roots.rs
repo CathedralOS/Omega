@@ -1157,7 +1157,7 @@ fn borrowed_window_root(
     }
 }
 
-/// A whole-root window needs the original exclusive parameter loan. Crossing
+/// A whole-root window needs actual mutable backing custody. Crossing
 /// a reference alone does not select a child or transfer that authority.
 fn root_window_loan(
     root: &abstract_operations::StructuralWindowRoot,

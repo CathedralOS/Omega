@@ -16,7 +16,7 @@ requires
     right_index <= 1,
     left_index != right_index
 {
-    let view: &mut [Entry] = main.entries.as_mut_slice();
+    let view: &mut [Entry] = &mut main.entries[..];
     let left: &mut Entry = &mut view[left_index];
     let right: &mut Entry = &mut view[right_index];
     left = Entry { value: 1 };

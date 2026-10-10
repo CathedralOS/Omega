@@ -23,25 +23,28 @@ pub struct StructuralWindowProjection {
     pub structural_type: StructuralTypeId,
 }
 
-/// Authenticate every reconstructed backing of a whole-referent window as
-/// exclusive parameter storage. The caller must obtain these roots from live
-/// loan custody, not pointer bits or a producer origin assertion. A reference
-/// carrier alone supplies no whole-root authority, and no possible origin may
-/// be discarded just because another candidate is an exclusive parameter.
-pub fn structural_window_parameter_origins<'parameters>(
+/// Authenticate every reconstructed backing of a whole-referent window.
+/// A captured exclusive loan can originate at an exclusive parameter or at
+/// established owned or exclusive storage. The caller authenticates storage against
+/// its current custody, never pointer bits or a producer origin assertion.
+/// No candidate may be discarded merely because another one is admissible.
+pub fn structural_window_origins<'parameters>(
     parameters: impl Iterator<Item = &'parameters terminal_psi::StructuralParameterDeclaration> + Clone,
     origins: impl IntoIterator<Item = PlaceId>,
+    mut live_storage: impl FnMut(PlaceId) -> bool,
 ) -> bool {
     let mut found_origin = false;
     for root in origins {
         found_origin = true;
-        if !parameters.clone().any(|parameter| {
-            parameter.place == root
-                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-                && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
-        }) {
+        if !live_storage(root)
+            && !parameters.clone().any(|parameter| {
+                parameter.place == root
+                    && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                    && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+            })
+        {
             return false;
         }
     }

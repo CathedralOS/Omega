@@ -215,8 +215,8 @@ fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<Str
     Some(StructuralWindowRoot::OwnedResult { producer, result })
 }
 
-/// A whole-root window needs the original exclusive parameter loan. A
-/// reference crossing alone does not turn its whole referent into a child.
+/// A whole-root window needs actual mutable backing custody. A reference
+/// crossing alone does not turn its whole referent into a child.
 fn root_window_loan(
     root: &StructuralWindowRoot,
     path: &[StructuralPathSegment],
@@ -224,7 +224,7 @@ fn root_window_loan(
 ) -> bool {
     terminal_semantics::structural_window_selects_child(path, field)
         // This is the declared route, not live authority. Current loan replay
-        // authenticates all of its parameter origins before realization.
+        // authenticates all of its owned or exclusive ingress origins.
         || (path.first() == Some(&StructuralPathSegment::Referent)
             && root.parameter().is_none())
         || (path.is_empty() && root.parameter().is_some())

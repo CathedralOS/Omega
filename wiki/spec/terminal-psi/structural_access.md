@@ -164,7 +164,11 @@ ownership of the referent. Its descendants must have ended, and every possible
 ingress origin stays suspended until the carrier is released. Restoration debt
 names the carrier and complete referent-relative field path, so an overlapping
 access or repair at a possible origin cannot bypass the hole. This does not
-extend whole-root windows beyond direct exclusive parameter loans. A `Referent`
+grant whole-root access merely by owning a descriptor. A whole-referent window
+requires a live, unsuspended mutable loan whose every possible origin has
+exclusive ingress or established owned-storage custody. Linear and qualified
+whole-root origins retain their existing rejection; selected child windows
+keep their independent membership and restoration obligations. A `Referent`
 crossing starts a new storage root; only a field or element selected below it
 makes the window a child projection. `field: None` alone does not distinguish
 a whole root from a complete indexed-element path.

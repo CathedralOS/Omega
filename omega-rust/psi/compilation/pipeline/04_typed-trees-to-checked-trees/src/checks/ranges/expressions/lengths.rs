@@ -50,14 +50,20 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
                     super::super::arrays::fixed_array_type_length(program, type_reference)
                 })
         }),
-        ExpressionNode::Name(path) => facts.local_length(
-            path.symbol,
-            program
-                .expression_table
-                .name_path_members(path.members)
-                .last()
-                .map(|name| name.as_str()),
-        ),
+        ExpressionNode::Name(path) => facts
+            .local_length(
+                path.symbol,
+                program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .last()
+                    .map(|name| name.as_str()),
+            )
+            .or_else(|| {
+                facts
+                    .checked_calls?
+                    .collection_extent(program, facts.statement_index, expression)
+            }),
         ExpressionNode::Borrow(inner) => {
             expression_indexable_length(program, machine, state, facts, inner.target)
         }

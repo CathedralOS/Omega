@@ -425,6 +425,9 @@ impl Default for CheckedBorrowResourceDispositionTarget {
 /// cleanup, or Terminal authority.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum CheckedReborrowResourceDisposition {
+    /// One exclusive branch ended while a sibling still retained its own
+    /// projection. This does not restore whole-parent authority.
+    BranchRelease,
     /// One shared descendant ended without restoring parent authority. For a
     /// `Read` parent no restoration is required; for a mutable parent this is
     /// a non-final shared-cohort release.

@@ -2,10 +2,9 @@
 
 use crate::checks::borrows::resources::lifecycle::span_handle;
 use crate::checks::borrows::resources::lifecycle::{
-    DispositionUpdate, EphemeralResourceStatus, EphemeralStatuses, LifecycleBoundaryKey,
-    LifecycleEvent, LifecycleEventKind, LifecyclePhase, activation_boundary,
-    apply_activation_batch, apply_weakening_batch, exact_resource_lifecycle_handles,
-    weakening_event_boundary,
+    EphemeralResourceStatus, EphemeralStatuses, LifecycleBoundaryKey, LifecycleEvent,
+    LifecycleEventKind, LifecyclePhase, activation_boundary, apply_activation_batch,
+    apply_weakening_batch, exact_resource_lifecycle_handles, weakening_event_boundary,
 };
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowDispositionEventDraft, CheckedReborrowLoanResourceDraft, DispositionTargetIndex,
@@ -109,53 +108,18 @@ pub(crate) fn plan_reborrow_disposition_events(
             } else {
                 let completed = apply_weakening_batch(&mut statuses, batch)?;
                 let snapshot = statuses.clone();
-                let completed_resources = completed
-                    .iter()
-                    .map(|(index, _)| ParentResourceIndex::Reborrow(*index))
-                    .collect::<Vec<_>>();
-                let mut updates = Vec::new();
                 for (child_index, child_weakening) in completed {
-                    let (draft, update) = resolve_disposition_event(
+                    let draft = resolve_disposition_event(
                         flow,
                         child_index,
                         child_weakening,
                         boundary,
+                        &mut statuses,
                         &snapshot,
-                        direct,
                         reborrows,
                         installation,
-                        &completed_resources,
                     )?;
-                    updates.push((draft.retired_parent_path.clone(), update));
                     dispositions.push(draft);
-                }
-                for (retired_path, update) in updates {
-                    for (resource, _) in retired_path {
-                        if !statuses.set(resource, EphemeralResourceStatus::Retired) {
-                            return Err(reborrow_disposition_drift());
-                        }
-                    }
-                    match update {
-                        DispositionUpdate::None => {}
-                        DispositionUpdate::RestoreExclusive {
-                            target,
-                            expected_child,
-                        } => {
-                            if statuses.get(target)
-                                != Some(EphemeralResourceStatus::SuspendedBy {
-                                    child: expected_child,
-                                })
-                                || !statuses.set(target, EphemeralResourceStatus::Available)
-                            {
-                                return Err(reborrow_disposition_drift());
-                            }
-                        }
-                        DispositionUpdate::UpdateSharedParent { parent, status } => {
-                            if !statuses.set(parent, status) {
-                                return Err(reborrow_disposition_drift());
-                            }
-                        }
-                    }
                 }
             }
             start = end;
@@ -164,279 +128,156 @@ pub(crate) fn plan_reborrow_disposition_events(
     Ok(dispositions)
 }
 
+/// Close one leaf and then only those retired ancestors whose entire child
+/// roster is empty. A sibling release never restores whole-parent authority.
+/// The batch snapshot supplies the shared roster; evolving statuses decide
+/// closure, so simultaneous grandchildren cannot close a parent twice.
 fn resolve_disposition_event(
     flow: &FlowFacts,
     child_index: usize,
     child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
     boundary: LifecycleBoundaryKey,
-    statuses: &EphemeralStatuses,
-    direct: &[CheckedDirectBorrowLoanResource],
+    statuses: &mut EphemeralStatuses,
+    snapshot: &EphemeralStatuses,
     reborrows: &[CheckedReborrowLoanResourceDraft],
     installation: &[ParentResourceIndex],
-    completed_resources: &[ParentResourceIndex],
-) -> Result<(CheckedReborrowDispositionEventDraft, DispositionUpdate), Vec<Diagnostic>> {
+) -> Result<CheckedReborrowDispositionEventDraft, Vec<Diagnostic>> {
     let Some(child) = reborrows.get(child_index) else {
         return Err(reborrow_disposition_drift());
     };
     if child.child_weakening != child_weakening {
         return Err(reborrow_disposition_drift());
     }
-    let child_resource = ParentResourceIndex::Reborrow(child_index);
     let Some(immediate_parent) = installation.get(child_index).copied() else {
         return Err(reborrow_disposition_drift());
     };
-    if child.access_effect != CheckedReborrowAccessEffect::ExclusiveSuspension {
-        return resolve_shared_disposition_event(
-            child_index,
-            child_weakening,
-            boundary,
-            statuses,
-            child,
-            immediate_parent,
-            completed_resources,
-        );
-    }
-    let mut retired_parent_path = Vec::new();
-    let (disposition, final_target, update_target) = match statuses.get(immediate_parent) {
-        Some(EphemeralResourceStatus::SuspendedBy { child }) if child == child_resource => (
-            CheckedReborrowResourceDisposition::Reactivate,
-            DispositionTargetIndex::ParentResource(immediate_parent),
-            DispositionUpdate::RestoreExclusive {
-                target: immediate_parent,
-                expected_child: child_resource,
-            },
-        ),
-        Some(EphemeralResourceStatus::RetiredWhileSuspended { child, weakening })
-            if child == child_resource =>
-        {
-            let mut retired = immediate_parent;
-            let mut retired_weakening = weakening;
-            loop {
-                retired_parent_path.push((retired, retired_weakening));
-                let retired_fact = flow.borrow_lifetimes.weakenings.get(retired_weakening);
-                let retired_boundary =
-                    weakening_event_boundary(retired_fact.source, retired_fact.reason)?;
-                if retired_boundary > boundary {
-                    return Err(reborrow_disposition_drift());
+    let shared_cohort = if child.access_effect == CheckedReborrowAccessEffect::SharedRelease {
+        vec![child_index]
+    } else if child.access_effect == CheckedReborrowAccessEffect::SharedFreeze {
+        let children = match snapshot.get(immediate_parent) {
+            Some(EphemeralResourceStatus::BorrowedBy { children })
+            | Some(EphemeralResourceStatus::RetiredWhileBorrowed { children, .. }) => children,
+            _ => return Err(reborrow_disposition_drift()),
+        };
+        children
+            .into_iter()
+            .filter_map(|resource| match resource {
+                ParentResourceIndex::Reborrow(index)
+                    if reborrows[index].access_effect
+                        == CheckedReborrowAccessEffect::SharedFreeze =>
+                {
+                    Some(index)
                 }
-                if retired_boundary == boundary {
-                    let final_target = match retired {
-                        ParentResourceIndex::Direct(index) => {
-                            if direct.get(index).is_none() {
-                                return Err(reborrow_disposition_drift());
-                            }
-                            DispositionTargetIndex::DirectRootLifetime(index)
-                        }
-                        ParentResourceIndex::Reborrow(_) => {
-                            DispositionTargetIndex::ParentResource(retired)
-                        }
-                    };
-                    let disposition =
-                        closing_disposition(boundary, retired_boundary, &final_target)?;
-                    break (disposition, final_target, DispositionUpdate::None);
-                }
-                match retired {
-                    ParentResourceIndex::Direct(index) => {
-                        if direct.get(index).is_none() {
-                            return Err(reborrow_disposition_drift());
-                        }
-                        let final_target = DispositionTargetIndex::DirectRootLifetime(index);
-                        let disposition = if boundary.phase == LifecyclePhase::StateExit {
-                            closing_disposition(boundary, retired_boundary, &final_target)?
-                        } else {
-                            CheckedReborrowResourceDisposition::CascadeThroughRetiredParent
-                        };
-                        break (disposition, final_target, DispositionUpdate::None);
-                    }
-                    ParentResourceIndex::Reborrow(index) => {
-                        let Some(next) = installation.get(index).copied() else {
-                            return Err(reborrow_disposition_drift());
-                        };
-                        match statuses.get(next) {
-                            Some(EphemeralResourceStatus::SuspendedBy { child })
-                                if child == retired =>
-                            {
-                                break (
-                                    CheckedReborrowResourceDisposition::CascadeThroughRetiredParent,
-                                    DispositionTargetIndex::ParentResource(next),
-                                    DispositionUpdate::RestoreExclusive {
-                                        target: next,
-                                        expected_child: retired,
-                                    },
-                                );
-                            }
-                            Some(EphemeralResourceStatus::RetiredWhileSuspended {
-                                child,
-                                weakening,
-                            }) if child == retired => {
-                                retired = next;
-                                retired_weakening = weakening;
-                            }
-                            _ => return Err(reborrow_disposition_drift()),
-                        }
-                    }
-                }
-            }
-        }
-        _ => return Err(reborrow_disposition_drift()),
+                _ => None,
+            })
+            .collect()
+    } else {
+        Vec::new()
     };
-    let boundary_source = child.weakening_source;
-    let boundary_phase = boundary.phase;
-    Ok((
-        CheckedReborrowDispositionEventDraft {
-            machine_symbol: child.machine_symbol,
-            state_symbol: child.state_symbol,
-            child_loan: child.loan,
-            child_resource: child_index,
-            child_activation: child.child_activation,
-            child_weakening,
-            parent_loan: child.parent_loan,
-            parent_resource: immediate_parent,
-            boundary_source,
-            boundary_phase,
-            shared_cohort: Vec::new(),
-            retired_parent_path,
-            final_target,
-            disposition,
-            restored_call: Default::default(),
-            restored_borrow_call: Default::default(),
-            restored_call_access: Default::default(),
-        },
-        update_target,
-    ))
-}
-
-fn closing_disposition(
-    boundary: LifecycleBoundaryKey,
-    retired_boundary: LifecycleBoundaryKey,
-    final_target: &DispositionTargetIndex,
-) -> Result<CheckedReborrowResourceDisposition, Vec<Diagnostic>> {
-    if boundary.phase == LifecyclePhase::StateExit
-        && matches!(final_target, DispositionTargetIndex::DirectRootLifetime(_))
-    {
-        return Ok(CheckedReborrowResourceDisposition::StateExitDirectRootHandoff);
-    }
-    if retired_boundary == boundary {
-        return Ok(CheckedReborrowResourceDisposition::SameBoundaryLineageClosure);
-    }
-    Err(reborrow_disposition_drift())
-}
-
-fn resolve_shared_disposition_event(
-    child_index: usize,
-    child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    boundary: LifecycleBoundaryKey,
-    statuses: &EphemeralStatuses,
-    child: &CheckedReborrowLoanResourceDraft,
-    immediate_parent: ParentResourceIndex,
-    completed_resources: &[ParentResourceIndex],
-) -> Result<(CheckedReborrowDispositionEventDraft, DispositionUpdate), Vec<Diagnostic>> {
-    let child_resource = ParentResourceIndex::Reborrow(child_index);
-    let (disposition, shared_cohort, update) = match child.access_effect {
-        CheckedReborrowAccessEffect::SharedRelease => {
-            if !matches!(
-                statuses.get(immediate_parent),
-                Some(EphemeralResourceStatus::Available | EphemeralResourceStatus::Retired)
-            ) {
-                return Err(reborrow_disposition_drift());
-            }
-            (
-                CheckedReborrowResourceDisposition::SharedRelease,
-                vec![child_index],
-                DispositionUpdate::None,
-            )
-        }
-        CheckedReborrowAccessEffect::SharedFreeze => {
-            let (cohort, parent_retired, parent_weakening) = match statuses.get(immediate_parent) {
-                Some(EphemeralResourceStatus::SharedFrozenBy { children }) => {
-                    (children, false, None)
-                }
-                Some(EphemeralResourceStatus::RetiredWhileSharedFrozen {
+    let release = if child.access_effect == CheckedReborrowAccessEffect::ExclusiveSuspension {
+        CheckedReborrowResourceDisposition::BranchRelease
+    } else {
+        CheckedReborrowResourceDisposition::SharedRelease
+    };
+    let mut closed_child = ParentResourceIndex::Reborrow(child_index);
+    let mut parent = immediate_parent;
+    let mut retired_parent_path = Vec::new();
+    let (disposition, final_target) = loop {
+        let (mut children, parent_weakening) = match statuses.get(parent) {
+            Some(EphemeralResourceStatus::BorrowedBy { children }) => (children, None),
+            Some(EphemeralResourceStatus::RetiredWhileBorrowed {
+                children,
+                weakening,
+            }) => (children, Some(weakening)),
+            _ => return Err(reborrow_disposition_drift()),
+        };
+        let Some(child_position) = children
+            .iter()
+            .position(|resource| *resource == closed_child)
+        else {
+            return Err(reborrow_disposition_drift());
+        };
+        children.remove(child_position);
+        if !children.is_empty() {
+            let status = if let Some(weakening) = parent_weakening {
+                EphemeralResourceStatus::RetiredWhileBorrowed {
                     children,
                     weakening,
-                }) => (children, true, Some(weakening)),
-                _ => return Err(reborrow_disposition_drift()),
+                }
+            } else {
+                EphemeralResourceStatus::BorrowedBy { children }
             };
-            if !cohort.contains(&child_resource) {
+            if !statuses.set(parent, status) {
                 return Err(reborrow_disposition_drift());
             }
-            let ending = cohort
-                .iter()
-                .copied()
-                .filter(|member| completed_resources.contains(member))
-                .collect::<Vec<_>>();
-            let Some(last_ending) = ending.last().copied() else {
+            break (release, DispositionTargetIndex::ParentResource(parent));
+        }
+        let Some(weakening) = parent_weakening else {
+            if !statuses.set(parent, EphemeralResourceStatus::Available) {
                 return Err(reborrow_disposition_drift());
-            };
-            let remaining = cohort
-                .iter()
-                .copied()
-                .filter(|member| !ending.contains(member))
-                .collect::<Vec<_>>();
-            let is_batch_leader = child_resource == last_ending;
-            let restores_parent = is_batch_leader && remaining.is_empty() && !parent_retired;
-            let disposition = if restores_parent {
-                CheckedReborrowResourceDisposition::RestoreSharedCohort
+            }
+            let disposition = if parent != immediate_parent {
+                CheckedReborrowResourceDisposition::CascadeThroughRetiredParent
             } else {
-                CheckedReborrowResourceDisposition::SharedRelease
-            };
-            let update = if !is_batch_leader {
-                DispositionUpdate::None
-            } else {
-                let status = if remaining.is_empty() {
-                    if parent_retired {
-                        EphemeralResourceStatus::Retired
-                    } else {
-                        EphemeralResourceStatus::Available
+                match child.access_effect {
+                    CheckedReborrowAccessEffect::SharedRelease => {
+                        CheckedReborrowResourceDisposition::SharedRelease
                     }
-                } else if let Some(weakening) = parent_weakening {
-                    EphemeralResourceStatus::RetiredWhileSharedFrozen {
-                        children: remaining,
-                        weakening,
+                    CheckedReborrowAccessEffect::SharedFreeze => {
+                        CheckedReborrowResourceDisposition::RestoreSharedCohort
                     }
-                } else {
-                    EphemeralResourceStatus::SharedFrozenBy {
-                        children: remaining,
+                    CheckedReborrowAccessEffect::ExclusiveSuspension => {
+                        CheckedReborrowResourceDisposition::Reactivate
                     }
-                };
-                DispositionUpdate::UpdateSharedParent {
-                    parent: immediate_parent,
-                    status,
                 }
             };
-            let shared_cohort = cohort
-                .iter()
-                .map(|member| match member {
-                    ParentResourceIndex::Reborrow(index) => Ok(*index),
-                    ParentResourceIndex::Direct(_) => Err(reborrow_disposition_drift()),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            (disposition, shared_cohort, update)
+            break (disposition, DispositionTargetIndex::ParentResource(parent));
+        };
+        let retired_fact = flow.borrow_lifetimes.weakenings.get(weakening);
+        let retired_boundary = weakening_event_boundary(retired_fact.source, retired_fact.reason)?;
+        if retired_boundary > boundary || !statuses.set(parent, EphemeralResourceStatus::Retired) {
+            return Err(reborrow_disposition_drift());
         }
-        CheckedReborrowAccessEffect::ExclusiveSuspension => unreachable!(),
+        retired_parent_path.push((parent, weakening));
+        match parent {
+            ParentResourceIndex::Direct(index) => {
+                let final_target = DispositionTargetIndex::DirectRootLifetime(index);
+                let disposition = if boundary.phase == LifecyclePhase::StateExit {
+                    CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
+                } else if retired_boundary == boundary {
+                    CheckedReborrowResourceDisposition::SameBoundaryLineageClosure
+                } else {
+                    CheckedReborrowResourceDisposition::CascadeThroughRetiredParent
+                };
+                break (disposition, final_target);
+            }
+            ParentResourceIndex::Reborrow(index) => {
+                closed_child = parent;
+                parent = *installation
+                    .get(index)
+                    .ok_or_else(reborrow_disposition_drift)?;
+            }
+        }
     };
-    Ok((
-        CheckedReborrowDispositionEventDraft {
-            machine_symbol: child.machine_symbol,
-            state_symbol: child.state_symbol,
-            child_loan: child.loan,
-            child_resource: child_index,
-            child_activation: child.child_activation,
-            child_weakening,
-            parent_loan: child.parent_loan,
-            parent_resource: immediate_parent,
-            boundary_source: child.weakening_source,
-            boundary_phase: boundary.phase,
-            shared_cohort,
-            retired_parent_path: Vec::new(),
-            final_target: DispositionTargetIndex::ParentResource(immediate_parent),
-            disposition,
-            restored_call: Default::default(),
-            restored_borrow_call: Default::default(),
-            restored_call_access: Default::default(),
-        },
-        update,
-    ))
+    Ok(CheckedReborrowDispositionEventDraft {
+        machine_symbol: child.machine_symbol,
+        state_symbol: child.state_symbol,
+        child_loan: child.loan,
+        child_resource: child_index,
+        child_activation: child.child_activation,
+        child_weakening,
+        parent_loan: child.parent_loan,
+        parent_resource: immediate_parent,
+        boundary_source: child.weakening_source,
+        boundary_phase: boundary.phase,
+        shared_cohort,
+        retired_parent_path,
+        final_target,
+        disposition,
+        restored_call: Default::default(),
+        restored_borrow_call: Default::default(),
+        restored_call_access: Default::default(),
+    })
 }
 
 fn exact_shared_cohort_observation(

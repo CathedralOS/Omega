@@ -29,25 +29,11 @@ pub(super) fn establish(
     {
         return Err(invalid());
     }
-    // Element projections borrow retained backing storage. A view's carrier
-    // home is only appropriate when borrowing the whole descriptor itself.
-    let projected_base = if address.projects_root_storage {
-        super::runtime_address::projection_base(
-            source,
-            builder,
-            row,
-            address.place,
-            address.byte_offset,
-        )?
-    } else {
-        None
-    };
-    let mut input = match projected_base {
-        Some(pointer) => pointer,
-        // Inline ABI fragments have no registered address until this loan
-        // requests their home; view payload resolution above never declines.
-        None => place_pointer(builder, row, address.place, 0)?,
-    };
+    // Geometry owns every descriptor crossing, including a view's backing
+    // pointer. Begin at the carrier's home: resolving its payload here first
+    // would make the first geometry load reinterpret element bytes as a pointer.
+    // Inline ABI fragments receive a home through the ordinary address owner.
+    let mut input = place_pointer(builder, row, address.place, 0)?;
     for (offset, indices) in address.descriptor_offsets {
         input = super::runtime_address::scale(
             builder,

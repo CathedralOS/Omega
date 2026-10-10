@@ -320,7 +320,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 
 /// The declared root type a window operation may name. A field window may
 /// open beneath a mutable-borrowed parameter or a completed owned home; a
-/// whole-root window needs the original exclusive parameter loan. A reference
+/// whole-root window needs actual mutable backing custody. A reference
 /// crossing without a following child selector still names a whole referent.
 
 fn window_root_type(
@@ -336,7 +336,7 @@ fn window_root_type(
         }
         // Serialization proves the carrier and referent geometry. Ordered
         // custody must additionally authenticate the reference's backing as
-        // exclusive parameter storage, with no live descendants.
+        // live owned or exclusive ingress storage, with no live descendants.
         if path.first() != Some(&terminal_psi::StructuralPathSegment::Referent) {
             return None;
         }

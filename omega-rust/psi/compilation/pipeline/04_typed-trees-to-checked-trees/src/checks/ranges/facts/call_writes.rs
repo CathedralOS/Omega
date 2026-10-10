@@ -14,6 +14,7 @@ pub(in crate::checks::ranges) struct RangeCallContext<'program> {
     borrows: &'program checked_trees::BorrowFacts,
     borrow_calls: &'program [checked_trees::BorrowCallFact],
     flow_calls: &'program [checked_trees::FlowCallFact],
+    flow: &'program checked_trees::FlowFacts,
     call_frames: Option<&'program validation::CallFrameResolver<'program>>,
 }
 
@@ -48,6 +49,7 @@ impl<'program> RangeCallContext<'program> {
             borrows,
             borrow_calls,
             flow_calls,
+            flow,
             call_frames,
         }
     }
@@ -58,6 +60,42 @@ impl<'program> RangeCallContext<'program> {
         &self,
     ) -> Option<&validation::CallFrameResolver<'_>> {
         self.call_frames
+    }
+
+    pub(in crate::checks::ranges) fn collection_extent(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        statement_index: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<usize> {
+        let state = self.flow.control.states.iter().find_map(|(_, state)| {
+            (state.machine_symbol == self.machine.symbol && state.state_symbol == self.state.symbol)
+                .then_some(state)
+        })?;
+        let statement = self
+            .flow
+            .control
+            .statements
+            .span_or_empty(state.statements)
+            .iter()
+            .find(|statement| statement.statement_index == statement_index)?;
+        let place = validation::canonical_place_from_expression_in_state(
+            program,
+            self.state.symbol,
+            statement_index,
+            expression,
+        )?;
+        crate::checks::collection_extents::from_live_loans(
+            program,
+            self.state.symbol,
+            statement_index,
+            self.borrows,
+            &place,
+            self.flow
+                .contexts
+                .constraint_refs
+                .span_or_empty(statement.entry_constraints),
+        )
     }
 
     /// Rejoin the exact checked call occurrence for one authored site in the

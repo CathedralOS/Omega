@@ -152,7 +152,7 @@ pub use structural_effect::{
     subslice_length_equation, validate_structural_effect_semantic_rows,
 };
 pub use structural_window::{
-    StructuralWindowProjection, structural_window_parameter_origins, structural_window_projection,
+    StructuralWindowProjection, structural_window_origins, structural_window_projection,
     structural_window_selects_child,
 };
 pub use zero_valid_storage::{scalar_declaration_accepts_zero, zero_valid_record_storage};

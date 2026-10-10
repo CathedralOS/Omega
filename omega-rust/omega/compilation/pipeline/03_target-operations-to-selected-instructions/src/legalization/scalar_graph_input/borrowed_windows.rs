@@ -12,7 +12,8 @@
 //! opens restoration debt, nothing observes the hole, the store closes it)
 //! belongs to Psi and the emitted window's sequencing;
 //! it needs no second replay here. A root window (`field: None`, empty path)
-//! names the whole referent of a borrowed-parameter loan at offset zero.
+//! names the whole referent at offset zero. Its live mutable loan may derive
+//! from exclusive ingress or established owned storage.
 //! Membership transport is checked against exact selected declaration rows
 //! before physical lowering. Qualifications add no bytes and cannot replace
 //! the independent origin, projection, layout or reference-custody checks here.
@@ -121,7 +122,7 @@ pub(in crate::legalization) fn extent(
     if !terminal_semantics::structural_window_selects_child(path, field) {
         let authenticated = if referent.is_some() {
             custody.leaf(root.place(), &[]).is_some_and(|loan| {
-                terminal_semantics::structural_window_parameter_origins(
+                terminal_semantics::structural_window_origins(
                     function.structural_parameters.iter().chain(
                         function
                             .blocks
@@ -129,6 +130,11 @@ pub(in crate::legalization) fn extent(
                             .flat_map(|block| &block.structural_parameters),
                     ),
                     loan.root.origins().into_iter().map(|origin| origin.root),
+                    |place| {
+                        optimization_unit_semantics::structural_place_supports_window_restoration(
+                            function, place,
+                        )
+                    },
                 )
             })
         } else {

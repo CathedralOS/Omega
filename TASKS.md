@@ -411,22 +411,20 @@ helper that passes does not close an item.
     partitioning and cleanup. Entry provisioning now joins explicit source
     positions; remove remaining attachment-driven discovery without changing
     provider or storage authority.
-  - View receivers: `borrows/borrow_stated_index_disequality_mut`,
-    `borrows/borrow_unknown_index_pair_mut`,
-    `samples/cli/games/dungeon_crawler_cli` and the remaining collection-view
-    probes still need ordinary borrow/range spellings. With `&mut X[..]`, the
-    paired-index fixtures stop at `resources/lifecycle.rs`: the resource ledger
-    permits only one exclusive child of a parent, before checking the proven
-    disjoint element projections. Retain exact immediate lineage and track
-    suspension of each parent branch; do not erase ancestry or treat lexical
-    expiry as restored authority. The negative fixture must reject for
-    conflicting loans, not resource replay drift. Finish these migrations, then
+  - View receivers: `samples/cli/games/dungeon_crawler_cli` and the remaining
+    collection-view probes still need ordinary borrow/range spellings. Finish
+    these migrations, then
     retire the receiver recognizer (`collection_view_call` in
     `checking/src/value_custody/places/collection_operations.rs`) and its
     consumers. Preserve live captured extent evidence when forming ranges:
     `omega run --both tests/omega/pass/slices/runtime_captured_range_end_exit/main.omg`
     must retain the narrowed view and exit 70; replacing either the measured
     descriptor or scalar must not retain the old range-end authority.
+    Keep `omega run --both tests/omega/pass/borrows/runtime_disjoint_child_loans_restore_parent_exit/main.omg`
+    and `omega run --both tests/omega/pass/borrows/disjoint_branch_closure_with_grandchild/main.omg`
+    at exit 0: exact immediate lineage and every sibling's closure must remain
+    independent of projection compatibility. Unknown index pairs and use of
+    the parent before its last child ends must still reject.
     Whole-range endpoints captured into scalar bindings still need live
     correspondence to transport element domains and length aliases, including
     `&mut main.rooms[0..main.rooms.len]` in

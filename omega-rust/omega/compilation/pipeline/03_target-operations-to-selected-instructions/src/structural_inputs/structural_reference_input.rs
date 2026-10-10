@@ -248,7 +248,7 @@ struct StorageProjectionRegions {
     uses_borrowed_backing: bool,
 }
 
-/// A stored reference and an indexed view both cross a pointer word. Keep
+/// A stored reference and an indexed borrowed view both cross a pointer word. Keep
 /// each selector on the side of the load where it addresses real storage.
 fn storage_projection_regions(
     mut root: StructuralTypeId,
@@ -314,6 +314,20 @@ fn storage_projection_regions(
                     | StructuralPathSegment::RuntimeIndex { .. },
                     StructuralTypeShape::ElementView { .. },
                 ) => (carrier, position, false, 16),
+                (
+                    StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. },
+                    borrowed,
+                ) if borrowed.is_borrowed_byte_carrier() => {
+                    // Bounded byte views carry one pointer; unbounded views
+                    // also carry a length. Both load the same backing word.
+                    (
+                        carrier,
+                        position,
+                        false,
+                        shape(carrier, declarations)?.byte_size,
+                    )
+                }
                 (StructuralPathSegment::Referent, _) => return None,
                 _ => continue,
             };

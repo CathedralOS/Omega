@@ -187,6 +187,25 @@ impl ElementView {
         self.access
     }
 
+    /// Authenticate a captured element against this live view's original
+    /// backing and window. The descriptor's opaque identity is not the backing
+    /// identity, including when a view arrives from a caller's frame.
+    pub(crate) fn lends_structural_storage(&self, selected: &TerminalStructuralValue) -> bool {
+        let ElementViewBacking::Structural { collection } = &self.backing else {
+            return false;
+        };
+        let Some(path) = selected.path.strip_prefix(collection.path.as_slice()) else {
+            return false;
+        };
+        let Some(StructuralPathSegment::FixedIndex(element_index)) = path.first() else {
+            return false;
+        };
+        selected.opaque_identity == collection.opaque_identity
+            && self.access == StructuralAccess::MutableBorrow
+            && usize::try_from(*element_index)
+                .is_ok_and(|element_index| self.window.contains(&element_index))
+    }
+
     /// Select original scalar storage below a fixed-array loan. No snapshot or
     /// byte geometry participates; the owner's accessor checks the frame home.
     pub(crate) fn scalar_storage(
