@@ -1,7 +1,6 @@
 //! The existing declaration/custody owner, not token spelling, admits arithmetic.
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State, fields,
-    lengths, saved_arguments,
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State, lengths,
 };
 use typed_trees::expression::UnaryOperator;
 use typed_trees::types::TypeReferenceHandle;
@@ -35,23 +34,28 @@ pub(super) fn builtin(
                 // including for mutable parameters.
                 return (!parameter.is_const).then_some(Some(parameter.type_reference));
             }
-            // A state-local `let` the saved-observation owner admits denotes
-            // the exact value its initializer produced at binding time: one
-            // binding for the symbol, never written, never the root of an
-            // exclusive borrow, over carriers that stay stable for the whole
-            // state. Meaning admission stops there; the saved-binding pass
-            // still owns normalizing the initializer, so a local whose
-            // initializer leaves the strict language or a moved carrier
-            // keeps no usable meaning downstream and fails closed.
-            saved_arguments::saved(program, state, path.symbol)
-                .map(|local| Some(local.type_reference))
+            // Declaration identity admits the place's carrier independently
+            // of its current value. Saved/captured observation owners still
+            // establish stability and supply values before normalization.
+            crate::value_custody::places::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                expression,
+            )
+            .map(Some)
         }
         ExpressionNode::Atomic(atomic) => builtin(program, machine, state, atomic.value, depth + 1),
         ExpressionNode::Member(_) => {
-            // An exact declared projection chain, rooted at a formal that
-            // names its record directly or through a reference, has builtin
-            // meaning at every step, whatever its leaf's carrier.
-            if let Some(reference) = fields::projected_type(program, state, expression) {
+            // The same exact declaration owner handles formal and local
+            // projections. This gives a carrier, not permission to reread a
+            // mutable field after its completed observation.
+            if let Some(reference) = crate::value_custody::places::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) {
                 return Some(Some(reference));
             }
             let receiver = crate::value_custody::places::collection_length_receiver(

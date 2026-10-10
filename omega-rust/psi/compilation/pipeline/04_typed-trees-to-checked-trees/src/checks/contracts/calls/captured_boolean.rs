@@ -481,6 +481,22 @@ fn reference_construction_preserves_source(
         capture.expression,
         &mut sources,
     );
+    let (machine, body) =
+        validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)?;
+    let produced_windows: Vec<_> = sources
+        .iter()
+        .filter(|source| {
+            validation::has_builtin_subslice_meaning(program, machine, Some(body), **source)
+        })
+        .filter_map(|source| {
+            validation::canonical_place_from_expression_in_state(
+                program,
+                state.state_symbol,
+                capture.statement_index,
+                *source,
+            )
+        })
+        .collect();
     for source in sources {
         let Some(mut place) = validation::canonical_place_from_expression_in_state(
             program,
@@ -501,6 +517,17 @@ fn reference_construction_preserves_source(
         }
         if source == capture.expression {
             place.extend_segments(remaining);
+        }
+        // A completed window is a descriptor value, not a replaceable
+        // binding at the range-shaped source coordinate. Its original
+        // descriptor prefixes and endpoint/selector dependencies are checked
+        // separately above. Exact coordinate equality also covers a borrow
+        // of that completed window without exempting further projections.
+        if produced_windows
+            .iter()
+            .any(|window| crate::flow::canonical_places_agree(program, window, &place))
+        {
+            continue;
         }
         let reference = validation::canonical_place_type_reference(
             program,
