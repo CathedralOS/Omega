@@ -16,7 +16,7 @@
 
 pub mod calling_policy_plans;
 pub mod component_progress;
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
 mod fnv1a;
 mod intrinsic_requirements;

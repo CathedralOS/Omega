@@ -13,7 +13,7 @@
 //! executor selection, invocation receipts, stack composition, composition
 //! model, identities and report fingerprints beneath it.
 
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 mod fnv1a;
 mod task_plans;
 

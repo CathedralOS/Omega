@@ -17,7 +17,7 @@
 //! capture belongs to provider planning; no source arena is needed here.
 
 mod codec_bytes;
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 mod entry_signature;
 mod optimized_semantic_entry;
 mod optimized_semantic_wrapper;

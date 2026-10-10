@@ -10,7 +10,7 @@
 //! admission belong to `package-manager`.
 
 mod custody;
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 mod error;
 pub mod git;
 pub(crate) mod identity;

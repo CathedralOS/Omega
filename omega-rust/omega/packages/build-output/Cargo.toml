@@ -8,4 +8,4 @@ version.workspace = true
 [dependencies]
 filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-sha2 = "0.10.9"
+optimization-core = { path = "../../foundation/optimization-core" }

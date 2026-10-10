@@ -15,7 +15,7 @@
 //! libraries.
 
 mod codec_bytes;
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 mod aggregate_layout;
 mod fnv1a;
 mod boundary_application;

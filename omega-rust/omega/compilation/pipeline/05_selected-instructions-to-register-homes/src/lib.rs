@@ -29,7 +29,7 @@
 //! and the seven selected-program analysis names listed last, which the
 //! post-allocation stages still import through this crate.
 
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 mod assignment;
 mod output;
 mod preservation;

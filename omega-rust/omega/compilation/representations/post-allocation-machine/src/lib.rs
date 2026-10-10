@@ -7,7 +7,7 @@
 
 mod codec_bytes;
 
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 pub mod physical_instructions;
 pub use physical_instructions::{
     Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity, MachineAlternativeChoiceRule,

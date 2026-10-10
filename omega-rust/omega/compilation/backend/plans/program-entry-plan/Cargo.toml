@@ -17,6 +17,7 @@ installed-writer = [
 ]
 
 [dependencies]
+optimization-core = { path = "../../../../foundation/optimization-core" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
@@ -31,4 +32,3 @@ target = { path = "../../target" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
 language-semantics = { path = "../../../../../psi/foundation/language-semantics" }
-sha2 = "0.10.9"

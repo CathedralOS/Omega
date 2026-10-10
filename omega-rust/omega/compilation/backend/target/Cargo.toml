@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+optimization-core = { path = "../../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 
 sha2 = "0.10.9"

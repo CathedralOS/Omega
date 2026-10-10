@@ -44,7 +44,7 @@
 
 // 1. Function-relative realization.
 mod codec_bytes;
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 mod function_realization;
 
 pub use function_realization::stage_fixed_frame_function_relative_realization;

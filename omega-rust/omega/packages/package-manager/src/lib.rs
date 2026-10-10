@@ -25,7 +25,7 @@ mod build_session;
 mod hex;
 pub(crate) use hex::Hex;
 pub mod declarations;
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 pub mod lock;
 pub mod operations;
 pub mod package_manager;

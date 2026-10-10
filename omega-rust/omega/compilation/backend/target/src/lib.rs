@@ -16,7 +16,7 @@ mod codec_bytes;
 
 mod application;
 pub mod compatibility_fingerprint;
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 mod elf_loader;
 mod explicit_target_set;
 mod foreign_locator;

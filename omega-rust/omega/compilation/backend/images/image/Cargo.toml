@@ -9,6 +9,7 @@ name = "image"
 path = "src/lib.rs"
 
 [dependencies]
+optimization-core = { path = "../../../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 calling-conventions = { path = "../../calling-conventions" }
 function-identity = { path = "../../../../foundation/function-identity" }
@@ -16,7 +17,6 @@ arena = { path = "../../../../../psi/foundation/arena" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 object-file = { path = "../../object/object-file" }
 target = { path = "../../target" }
-sha2 = "0.10.9"
 
 [dev-dependencies]
 optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }

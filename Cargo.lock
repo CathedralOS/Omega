@@ -129,8 +129,8 @@ version = "0.1.0"
 dependencies = [
  "effects",
  "numerics",
+ "optimization-core",
  "semantic-vocabulary",
- "sha2",
  "terminal-psi",
 ]
 
@@ -177,7 +177,6 @@ dependencies = [
  "representation-planning",
  "selected-dispatch",
  "semantic-vocabulary",
- "sha2",
  "source",
  "symbols",
  "syntax-trees",
@@ -196,7 +195,7 @@ version = "0.1.0"
 dependencies = [
  "diagnostics",
  "filesystem-authority",
- "sha2",
+ "optimization-core",
 ]
 
 [[package]]
@@ -238,8 +237,8 @@ dependencies = [
 name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
+ "optimization-core",
  "semantic-vocabulary",
- "sha2",
  "target",
 ]
 
@@ -399,7 +398,6 @@ dependencies = [
  "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
- "sha2",
  "source",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
@@ -451,7 +449,6 @@ dependencies = [
  "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
- "sha2",
  "source",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
@@ -480,9 +477,9 @@ name = "component-description"
 version = "0.1.0"
 dependencies = [
  "effects",
+ "optimization-core",
  "proof-admission",
  "semantic-vocabulary",
- "sha2",
  "terminal-codec",
  "terminal-psi",
 ]
@@ -556,6 +553,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "optimization-core",
  "semantic-vocabulary",
  "sha2",
  "source",
@@ -597,7 +595,6 @@ dependencies = [
  "optimization-core",
  "post-handoff-writer-plan",
  "semantic-vocabulary",
- "sha2",
  "target",
 ]
 
@@ -685,7 +682,6 @@ dependencies = [
  "object-file",
  "optimization-core",
  "semantic-vocabulary",
- "sha2",
  "target",
  "terminal-psi",
 ]
@@ -737,7 +733,6 @@ dependencies = [
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
- "sha2",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "syntax-trees-to-symbol-resolved-trees",
@@ -786,7 +781,6 @@ name = "installation-evidence"
 version = "0.1.0"
 dependencies = [
  "semantic-vocabulary",
- "sha2",
  "target",
  "terminal-psi",
 ]
@@ -1049,7 +1043,6 @@ dependencies = [
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
- "sha2",
  "target",
  "target-operations",
  "terminal-fuel",
@@ -1177,7 +1170,6 @@ dependencies = [
  "optimization-core",
  "selected-instructions",
  "semantic-vocabulary",
- "sha2",
  "target",
  "target-operations",
  "terminal-codec",
@@ -1308,7 +1300,6 @@ dependencies = [
  "representation-planning",
  "selected-dispatch",
  "semantic-vocabulary",
- "sha2",
  "source",
  "symbols",
  "target",
@@ -1370,6 +1361,7 @@ dependencies = [
  "cap-primitives",
  "cap-std",
  "nix",
+ "optimization-core",
  "platform-custody",
  "resolver-execution",
  "sha1-checked",
@@ -1450,9 +1442,9 @@ dependencies = [
  "isa-x86_64",
  "language-semantics",
  "layout-plans",
+ "optimization-core",
  "post-handoff-writer-plan",
  "semantic-vocabulary",
- "sha2",
  "target",
  "terminal-psi",
  "terminal-semantics",
@@ -1507,11 +1499,11 @@ dependencies = [
  "layout",
  "layout-plans",
  "numerics",
+ "optimization-core",
  "package-compilation",
  "program-entry-plan",
  "representation-planning",
  "semantic-vocabulary",
- "sha2",
  "source",
  "symbols",
  "target",
@@ -1620,6 +1612,7 @@ dependencies = [
 name = "register-model"
 version = "0.1.0"
 dependencies = [
+ "optimization-core",
  "sha2",
  "target",
 ]
@@ -1794,7 +1787,6 @@ dependencies = [
  "selected-instructions",
  "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
- "sha2",
  "target",
  "target-operations",
  "target-operations-to-selected-instructions",
@@ -1819,7 +1811,6 @@ dependencies = [
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
- "sha2",
  "target",
  "target-operations",
  "target-operations-to-selected-instructions",
@@ -2021,6 +2012,7 @@ name = "target"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
+ "optimization-core",
  "semantic-vocabulary",
  "sha2",
 ]
@@ -2069,8 +2061,8 @@ name = "task-plans"
 version = "0.1.0"
 dependencies = [
  "language-core",
+ "optimization-core",
  "semantic-vocabulary",
- "sha2",
  "symbols",
 ]
 
@@ -2165,7 +2157,6 @@ dependencies = [
  "program-entry-plan",
  "proof-admission",
  "semantic-vocabulary",
- "sha2",
  "source",
  "symbols",
  "target",
@@ -2221,8 +2212,8 @@ dependencies = [
  "diagnostics",
  "effects",
  "language-semantics",
+ "optimization-core",
  "semantic-vocabulary",
- "sha2",
  "source",
  "symbols",
  "terminal-psi",

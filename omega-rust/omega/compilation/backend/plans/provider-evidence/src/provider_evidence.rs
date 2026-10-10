@@ -8,7 +8,7 @@
 
 pub(crate) mod authority;
 pub(crate) mod component_eras;
-pub(crate) mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 pub(crate) mod executable_scopes;
 pub(crate) mod providers;
 

@@ -9,7 +9,7 @@
 pub(crate) mod cursor;
 mod codec_bytes;
 
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 pub mod machine_code;
 pub use machine_code::{
     Aarch64ForeignCallFloatingControlRecord,

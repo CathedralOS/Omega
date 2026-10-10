@@ -54,7 +54,7 @@ native-artifact = { path = "../backend/artifacts/native-artifact" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 
 [build-dependencies]
-sha2 = "0.10.9"
+optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }

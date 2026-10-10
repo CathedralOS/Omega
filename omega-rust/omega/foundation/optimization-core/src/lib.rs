@@ -11,7 +11,7 @@
 
 mod codec_bytes;
 mod cursor;
-mod digest_encoder;
+pub mod digest_encoder;
 mod optimization_core;
 
 pub use optimization_core::contracts::{

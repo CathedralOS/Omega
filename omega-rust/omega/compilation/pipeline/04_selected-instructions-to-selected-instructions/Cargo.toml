@@ -27,5 +27,4 @@ legalized-operations = { path = "../../representations/target-operations/legaliz
 target-operations = { path = "../../representations/target-operations" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
-sha2 = "0.10.9"
 

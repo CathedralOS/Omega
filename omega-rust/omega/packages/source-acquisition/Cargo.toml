@@ -10,6 +10,7 @@ test-fixtures = []
 
 [dependencies]
 bounded-process = { path = "../../foundation/bounded-process" }
+optimization-core = { path = "../../foundation/optimization-core" }
 platform-custody = { path = "../../foundation/platform-custody" }
 source = { path = "../../../psi/foundation/source" }
 resolver-execution = { path = "../resolver-execution" }

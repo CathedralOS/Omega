@@ -94,6 +94,20 @@ impl Sha256RegisterDigest for sha2::Sha256 {
     }
 }
 
+impl Sha256RegisterDigest for optimization_core::digest_encoder::DomainDigestEncoder {
+    fn byte(&mut self, value: u8) {
+        optimization_core::digest_encoder::DomainDigestEncoder::byte(self, value);
+    }
+
+    fn u64(&mut self, value: u64) {
+        optimization_core::digest_encoder::DomainDigestEncoder::u64(self, value);
+    }
+
+    fn raw(&mut self, bytes: &[u8]) {
+        optimization_core::digest_encoder::DomainDigestEncoder::raw(self, bytes);
+    }
+}
+
 /// Length-prefix writer shared by identity hashes.
 pub fn sha256_length<H: Sha256RegisterDigest + ?Sized>(hasher: &mut H, value: usize) {
     hasher.u64(value as u64);

@@ -6,7 +6,7 @@
 //! This is an invalidation key, not compiler attestation. The separately loaded
 //! Omega library is identified by its loader at acceptance/compilation time.
 
-mod digest_encoder;
+use optimization_core::digest_encoder;
 use std::error::Error;
 use std::fs;
 use std::io;

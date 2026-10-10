@@ -15,7 +15,6 @@ function-identity = { path = "../../../foundation/function-identity" }
 numerics = { path = "../../../../psi/foundation/numerics" }
 target-operations = { path = "../../representations/target-operations" }
 task-plans = { path = "../../backend/runtime/task-plans" }
-sha2 = "0.10.9"
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 boundary-applications = { path = "../../backend/artifacts/boundary-applications" }

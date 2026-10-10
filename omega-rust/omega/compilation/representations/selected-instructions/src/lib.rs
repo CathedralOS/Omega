@@ -7,7 +7,7 @@
 
 mod codec_bytes;
 
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 pub mod selected_instructions;
 pub use selected_instructions::{
     AddressFoldIdentity, ArchitecturalUnitAction, ArchitecturalUnitActionKind,

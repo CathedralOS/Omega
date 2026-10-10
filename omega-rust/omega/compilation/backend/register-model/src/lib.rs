@@ -26,7 +26,7 @@ macro_rules! invalid_display {
 }
 
 mod codec_bytes;
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 mod register_model;
 #[cfg(test)]
 mod tests;

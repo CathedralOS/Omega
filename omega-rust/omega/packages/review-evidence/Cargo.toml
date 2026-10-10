@@ -31,5 +31,4 @@ symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 validation = { path = "../../../psi/compilation/checking" }
-sha2 = "0.10.9"
 

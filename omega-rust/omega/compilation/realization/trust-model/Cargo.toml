@@ -13,6 +13,7 @@ build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
 checked-interpreter = { path = "../../../../psi/interpreter/checked-interpreter" }
 effects = { path = "../../backend/plans/provider-evidence" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
+optimization-core = { path = "../../../foundation/optimization-core" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
@@ -22,4 +23,3 @@ symbols = { path = "../../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
 validation = { path = "../../../../psi/compilation/checking" }
 typed-trees-to-checked-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
-sha2 = "0.10.9"

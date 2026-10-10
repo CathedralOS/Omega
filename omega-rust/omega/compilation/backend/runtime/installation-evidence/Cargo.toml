@@ -12,4 +12,3 @@ path = "src/lib.rs"
 target = { path = "../../target" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
-sha2 = "0.10.9"

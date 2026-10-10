@@ -28,7 +28,7 @@ mod checked_source_cache;
 mod codec_bytes;
 mod compilation_reuse;
 mod cursor;
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 pub mod source_assembly;
 pub mod source_imports;
 pub mod toolchain_library;

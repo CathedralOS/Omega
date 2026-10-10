@@ -20,7 +20,7 @@
 
 mod codec_bytes;
 mod cursor;
-mod digest_encoder;
+pub(crate) use optimization_core::digest_encoder;
 mod entry_receiver;
 mod fragment_object_publication;
 mod native_artifact;
