@@ -43,13 +43,12 @@ use crate::TypedTrees;
 /// rendering happens outside the interner: producers compute their text,
 /// then intern it here.
 fn program_intern_type_identity(program: &TypedTrees, identity: String) -> TypeIdentityId {
-    // The rendered text is the structural key, so the same key always mints
-    // the same handle; the revision marker only bounds when the table's own
-    // storage was initialized, mirroring the callable interner.
-    let revision = program.structural_fingerprint();
+    // The rendered text is the structural key, and the table only grows, so
+    // the same key mints the same handle for the program's lifetime, even
+    // across arena revisions. See `arena::OwnedInterner`.
     program
         .type_identities
-        .with_mut(revision, TypeIdentityTable::default, |table| {
+        .with_mut(|table| {
             table.intern(&identity)
         })
 }
@@ -473,9 +472,8 @@ impl TypedTrees {
     /// The retained rendering of one interned type identity: diagnostics
     /// and artifact encoding only. Identity comparisons read the handle.
     pub fn type_identity_text(&self, identity: TypeIdentityId) -> Option<String> {
-        let revision = self.structural_fingerprint();
         self.type_identities
-            .with(revision, TypeIdentityTable::default, |table| {
+            .with(|table| {
                 table.text(identity).map(str::to_owned)
             })
     }
@@ -491,9 +489,8 @@ impl TypedTrees {
     /// when the text was never an identity of this program. Boundary readers
     /// rehydrate their `String` payload through this reverse join.
     pub fn type_identity_by_text(&self, text: &str) -> TypeIdentityId {
-        let revision = self.structural_fingerprint();
         self.type_identities
-            .with(revision, TypeIdentityTable::default, |table| {
+            .with(|table| {
                 table.by_text(text)
             })
     }

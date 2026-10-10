@@ -69,7 +69,7 @@ use crate::{
     data, domain, expression, machine, mathematical, measure, proposition, signature, snapshot,
     trait_definition, types, wire,
 };
-use arena::{Arena, Handle, HandleSpan, OwnedIndex};
+use arena::{Arena, Handle, HandleSpan, OwnedIndex, OwnedInterner};
 use diagnostics::PhaseSnapshot;
 use std::ops::{Deref, DerefMut};
 use symbols::{SymbolHandle, SymbolTable};
@@ -226,7 +226,7 @@ pub struct TypedTrees {
     /// The hash-consed structural type keys minted on demand by the type
     /// identity queries. A handle minted here compares by integer; its text
     /// stays inside the table for diagnostics and artifact encoding.
-    pub type_identities: OwnedIndex<crate::type_identity::TypeIdentityTable>,
+    pub type_identities: OwnedInterner<crate::type_identity::TypeIdentityTable>,
 }
 
 /// A package-scoped declaration whose consumer role supplies its completion
@@ -477,7 +477,7 @@ impl TypedTrees {
             ranking_expression_custody: Vec::new(),
             pending_const_range_endpoints: std::collections::HashSet::new(),
             callable_identities: OwnedIndex::default(),
-            type_identities: OwnedIndex::default(),
+            type_identities: OwnedInterner::default(),
         }
     }
 

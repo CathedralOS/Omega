@@ -3046,6 +3046,20 @@ slice unchanged (check plus `--native` where the code is backend-visible).
 Re-checking stays allowed at trust boundaries; these items remove repetition
 of a check the same flow already performed, not the check itself.
 
+- **CALLABLE-IDENTITY-STABILITY.** (new-scope) `TypedTrees::callable_identities`
+  is an `OwnedIndex`, rebuilt from empty whenever `structural_fingerprint()`
+  moves, yet checked plans store the `CallableIdentityId`s it mints, as they
+  did type identities before `arena::OwnedInterner`. Split its durable key
+  interning (paths, parameters, result dispatches, records) into an
+  `OwnedInterner` and keep only the revision-dependent memo (`by_declaration`,
+  machine positions, `swept`) in the `OwnedIndex`. Two native regressions from
+  3469d8ce0ff remain on Windows x86-64:
+  `pass/capabilities/callback_direct_install_compile` (Debug
+  `SemanticIdentityMismatch`) and
+  `pass/ownership/linear_computed_call_claim_transfers_exit` (now
+  `settle_array` has no executable body). Acceptance: both run again and no
+  checked plan holds a handle from a table that can reset.
+
 - **TERMINAL-IDENTITY-TABLE.** (new-scope) Depends on **CHECKED-IDENTITY-IDS**.
   Terminal Psi is the persisted boundary, so its identities stay
   content-derived, but they should be stored once. `terminal-psi`'s module

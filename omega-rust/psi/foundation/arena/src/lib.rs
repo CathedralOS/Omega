@@ -23,6 +23,7 @@ mod handle;
 mod hierarchy_arena;
 mod ordered_root_arena;
 mod owned_index;
+mod owned_interner;
 mod paged_arena;
 mod paged_arena_set;
 
@@ -39,5 +40,6 @@ pub use hierarchy_arena::{
 };
 pub use ordered_root_arena::{OrderedRootArena, OrderedRootArenaIter};
 pub use owned_index::OwnedIndex;
+pub use owned_interner::OwnedInterner;
 pub use paged_arena::{PagedArena, PagedArenaIter, PagedSlice, PagedSliceIter};
 pub use paged_arena_set::{PagedArenaFrontier, PagedArenaSet};
