@@ -118,6 +118,14 @@ fn compile_occurrences(
     let mut products: Vec<[Option<OccurrenceProducts>; 2]> =
         graph.packages().iter().map(|_| [None, None]).collect();
     let mut checked_root = None;
+    // Each dependency occurrence's retained Build/Product pair, keyed like
+    // `products` by graph position and purpose slot, chains to the next
+    // target's equal settled input. The root's pair stays in the shared
+    // judgment and is not recorded here.
+    let mut occurrence_retained: Vec<Option<compilation_products::RetainedCompilationChecks>> =
+        std::iter::repeat_with(|| None)
+            .take(graph.packages().len() * 2)
+            .collect();
 
     for key in dependency_first_package_order(closure) {
         let position = graph
@@ -188,6 +196,12 @@ fn compile_occurrences(
                     errors,
                 })?;
             let is_root = &key == root && purpose.is_product();
+            let occurrence_prior = request
+                .settled_check_reuse
+                .prior
+                .occurrences
+                .get(position * 2 + purpose_slot(purpose))
+                .and_then(|slot| slot.as_ref());
             let entry = if is_root {
                 request.entry.to_path_buf()
             } else {
@@ -237,13 +251,20 @@ fn compile_occurrences(
                         )) as Box<dyn compiler::RestrictedBuildGrants>
                     }),
                     collect_timings: request.timings,
-                    // The root's Build judgment chains across targets like
-                    // its Product judgment; each occurrence still runs its own
-                    // admission and execution.
-                    settled_check_reuse: if is_root {
-                        request.settled_check_reuse.clone()
-                    } else {
-                        compiler::SettledCheckReuse::default()
+                    // Each occurrence's Build judgment chains across targets
+                    // like the root's Product judgment; an equal settled
+                    // input takes the prior judgment instead of checking
+                    // again. Admission and execution stay per occurrence.
+                    settled_check_reuse: compiler::SettledCheckReuse {
+                        prior: compilation_products::RetainedCompilationChecks {
+                            build: if is_root {
+                                request.settled_check_reuse.prior.build.clone()
+                            } else {
+                                occurrence_prior.and_then(|prior| prior.build.clone())
+                            },
+                            ..compilation_products::RetainedCompilationChecks::default()
+                        },
+                        retain: request.settled_check_reuse.retain,
                     },
                     ..CheckedCompileRequest::new(&entry, Some(target.target_name()))
                 },
@@ -266,6 +287,8 @@ fn compile_occurrences(
                 prepared.build().independent_components().selections,
                 graph,
                 &mut products,
+                &request.settled_check_reuse,
+                &mut occurrence_retained,
             )?;
             let prepared = prepared
                 .with_independent_component_descriptions(descriptions)
@@ -283,6 +306,13 @@ fn compile_occurrences(
                     diagnostics: failure.into_diagnostics(),
                 })?);
             } else {
+                occurrence_retained[position * 2 + purpose_slot(purpose)] = prepared
+                    .retained_build_check()
+                    .cloned()
+                    .map(|build| compilation_products::RetainedCompilationChecks {
+                        build: Some(build),
+                        ..compilation_products::RetainedCompilationChecks::default()
+                    });
                 products[position][purpose_slot(purpose)] = Some(OccurrenceProducts {
                     generated: prepared.generated_source_bundle().clone(),
                     prepared: Some(prepared),
@@ -298,7 +328,13 @@ fn compile_occurrences(
             }
         }
     }
-    checked_root.ok_or_else(|| failure(root, "ordinary compilation produced no checked root"))
+    let checked = checked_root
+        .ok_or_else(|| failure(root, "ordinary compilation produced no checked root"))?;
+    // Publish the dependency occurrences' retained judgments beside the
+    // root's so the next target's equal settled inputs can take them.
+    let mut settled_checks = checked.settled_checks().clone();
+    settled_checks.occurrences = occurrence_retained;
+    Ok(checked.with_settled_checks(settled_checks))
 }
 
 fn selected_component_descriptions(
@@ -307,6 +343,8 @@ fn selected_component_descriptions(
     selections: Vec<compilation_products::IndependentComponentSelection>,
     graph: &crate::resolution::graph::ResolvedPackageClosure,
     products: &mut [[Option<OccurrenceProducts>; 2]],
+    settled_check_reuse: &compiler::SettledCheckReuse,
+    occurrence_retained: &mut [Option<compilation_products::RetainedCompilationChecks>],
 ) -> Result<Vec<IndependentComponentDescription>, Error> {
     let mut descriptions = Vec::new();
     for selection in selections {
@@ -349,13 +387,28 @@ fn selected_component_descriptions(
             })?;
             let checked = compiler::check_prepared_package_build(
                 prepared,
-                compiler::SettledCheckReuse::default(),
+                compiler::SettledCheckReuse {
+                    prior: compilation_products::RetainedCompilationChecks {
+                        product: settled_check_reuse
+                            .prior
+                            .occurrences
+                            .get(position * 2 + purpose_slot(purpose))
+                            .and_then(|slot| slot.as_ref())
+                            .and_then(|prior| prior.product.clone()),
+                        ..compilation_products::RetainedCompilationChecks::default()
+                    },
+                    retain: settled_check_reuse.retain,
+                },
             )
             .result
             .map_err(|failure| Error::Compilation {
                 package: consumer.clone(),
                 diagnostics: failure.into_diagnostics(),
             })?;
+            // The checked component's own retained judgments replace whatever
+            // its earlier Build custody captured.
+            occurrence_retained[position * 2 + purpose_slot(purpose)] =
+                Some(checked.settled_checks().clone());
             products.description =
                 Some(publish_checked_component(checked).map_err(|diagnostics| {
                     Error::Compilation {

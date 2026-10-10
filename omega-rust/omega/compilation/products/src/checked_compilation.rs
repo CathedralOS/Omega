@@ -26,10 +26,16 @@ pub use report::CheckedProductReport;
 /// Invocation-local language judgments retained for the next review pass of
 /// this occurrence. Build and Product are independent checked programs; neither
 /// judgment carries provider selection, executor resources or consent.
+///
+/// `occurrences` holds each dependency occurrence's pair in the same custody,
+/// indexed by graph position and purpose slot. Dependency checks settle inside
+/// their own package occurrence, so they cannot share the root's pair without
+/// confusing which occurrence's input the judgment describes.
 #[derive(Debug, Clone, Default)]
 pub struct RetainedCompilationChecks {
     pub build: Option<typed_trees_to_checked_trees::RetainedCheck>,
     pub product: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    pub occurrences: Vec<Option<RetainedCompilationChecks>>,
 }
 
 /// Whole stage products supplied when sealing a checked compilation, each as

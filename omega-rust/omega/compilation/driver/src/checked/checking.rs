@@ -181,7 +181,7 @@ fn prepare_package_build_worker(
         optimization_rollback: request.optimization_rollback.clone(),
         restricted_build_grants: request.restricted_build_grants,
         permit_unsettled_fused_service_fields: false,
-        settled_check_reuse: SettledCheckReuse::default(),
+        settled_check_reuse: request.settled_check_reuse,
     };
     let prepared_source = request.retain_prepared_source.then(|| source.clone());
     let prepared = prepare_build_source(&request.root_path, source, child, owner.as_ref())?;
@@ -436,6 +436,7 @@ pub(crate) fn check_completed_source(
             checked.with_settled_checks(compilation_products::RetainedCompilationChecks {
                 build: retained_build_check,
                 product: settled_check,
+                ..compilation_products::RetainedCompilationChecks::default()
             })
         })
     });

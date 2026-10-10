@@ -77,6 +77,12 @@ impl PreparedPackageBuild {
         &self.prepared.timings
     }
 
+    /// The Build judgment this occurrence retained for its next equal-input
+    /// settlement, when one was requested.
+    pub fn retained_build_check(&self) -> Option<&typed_trees_to_checked_trees::RetainedCheck> {
+        self.prepared.built.retained_build_check.as_ref()
+    }
+
     /// Answer actual independent product selections after their Build has run.
     /// Only component descriptions may join: source, purpose, bindings, generated
     /// bytes and execution inputs remain those the admitted activation consumed.
