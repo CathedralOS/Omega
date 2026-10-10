@@ -1,0 +1,38 @@
+// float_match_effects: float literals and call-pattern match arms — the
+// first sample where a match arm's pattern is itself a call.
+//
+//   * `bump(&mut calls, x)` is invoked once per arm until a literal
+//     compares equal — `calls` reaches exactly 3, proving ordered
+//     first-match evaluation across call-pattern arms.
+//   * `1.0f64`/`1.0f32` literals match as patterns in both `match`
+//     subjects and `match` arms.
+//   * `values[0u64]` indexes a `[f32; 1]` with a u64 index literal —
+//     the index spelling carries its own type suffix.
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider — one core import (`float_operations`) supplies the selected
+// float-equality operator meaning.
+use omega::language::core::float_operations;
+
+machine bump(calls: &mut i32 in Wrapping, value: f64) -> f64 {
+    calls = calls + 1;
+    value
+}
+
+machine float_match_effects() {
+    let mut calls: i32 in Wrapping = 0;
+    let result: i64 = match bump(&mut calls, 2.0f64) {
+        bump(&mut calls, 1.0f64) -> 99,
+        bump(&mut calls, 2.0f64) -> 7,
+        bump(&mut calls, 3.0f64) -> 0,
+        _ -> 1
+    };
+    let values: [f32; 1] = [1.0f32];
+    let projected: i64 = match values[0u64] { 1.0f32 -> 5, _ -> 0 };
+    transition result == 7 && calls == 3 && projected == 5 {
+        true -> done(70)
+        _ -> done(71)
+    }
+
+    state done(code: i32) {}
+}
