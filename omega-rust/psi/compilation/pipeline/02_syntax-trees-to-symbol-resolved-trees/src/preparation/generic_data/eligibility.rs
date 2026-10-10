@@ -1,4 +1,9 @@
 //! Eligible data shapes, recursion and substitutable types.
+//! Named array extents either belong to the template's binder roster or select
+//! a closed declaration in their authored scope. Reuse the closed extent reader
+//! for declaration readiness without rewriting the identifier: substitution and
+//! receiving typing still need its selected origin. Binder-headed paths cannot
+//! fall through to a same-spelled global declaration during specialization.
 use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::GenericDataShape;
@@ -264,13 +269,31 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
             );
             let length_is_substitutable = match length {
                 FixedArrayLength::Literal(_) | FixedArrayLength::ConstCall(_) => true,
-                FixedArrayLength::ConstParameter(name) => base_info
-                    .parameter_names
-                    .iter()
-                    .zip(&base_info.const_parameter_types)
-                    .any(|(parameter_name, parameter_type)| {
-                        parameter_type.is_some() && parameter_name == name.as_str()
-                    }),
+                FixedArrayLength::ConstParameter(name) => {
+                    let head = name
+                        .as_str()
+                        .split_once("::")
+                        .map_or(name.as_str(), |(head, _)| head);
+                    if let Some((parameter_name, parameter_type)) = base_info
+                        .parameter_names
+                        .iter()
+                        .zip(&base_info.const_parameter_types)
+                        .find(|(parameter_name, _)| parameter_name.as_str() == head)
+                    {
+                        // Only a bare const binder is an extent substitution.
+                        // A type binder or binder-qualified path stays open;
+                        // the top-level constant selector lacks this roster.
+                        parameter_name == name.as_str() && parameter_type.is_some()
+                    } else {
+                        super::closed_fixed_array_length(
+                            syntax,
+                            length,
+                            &declaration_selection::GenericApplicationSubstitution::new(),
+                            selection,
+                        )
+                        .is_ok()
+                    }
+                }
             };
             element_is_substitutable && length_is_substitutable
         }

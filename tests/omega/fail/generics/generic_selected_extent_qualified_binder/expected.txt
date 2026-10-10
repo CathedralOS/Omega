@@ -1,0 +1,1 @@
+uses unresolved fixed-array length `Counts::FOUR`

@@ -5033,15 +5033,16 @@ wait for Cathedral's instruction coverage. The interpreter is
   beyond closed nominal name equations,
   [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference)
   and [canonical domain indices](wiki/spec/language/generics.md#canonical-domain-index-matching)
-  through specialization, layout and execution. The running customer is
+  through specialization, layout and execution. The Std-backed customer is
   `tests/omega/pass/generics/omitted_data_binder_range_equation` (infers
-  Capacity = 256 from `u64::AtMost<256>`, exit 92 native and interpreted);
-  extend from it. Reuse
+  Capacity = 256 from `u64::AtMost<256>`, authored native/interpreted exit 92);
+  its portable Console-family checking remains blocked below. Reuse
   `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/type_equations/`
   and `.../preparation/machine_equations.rs`; array, anonymous reference/slice
   and integer/Boolean application matching exist, including source-selected
   constructor constants with declared-carrier custody and closed named actual
-  array extents with source selection retained through instance identity.
+  array extents with source selection retained through instance identity and
+  substitution of selected closed extent fields.
 
   - Combine equations with argument/result inference and keep obligations
     through forwarding beyond closed scalar constructor indices, retained
@@ -5076,8 +5077,11 @@ wait for Cathedral's instruction coverage. The interpreter is
   `linux_x86_64::ProgramEntry` binding. Normal
   `omega update --project tests/omega/pass/generics/runtime_generic_carrier_equation_exit --target linux_x86_64`
   exceeded the measured 600-second bound before emitting a review document.
-  Preserve entry-review authority; portable console-family contract refusals
-  depend on **PIPELINE-ARCHITECTURE-ENFORCEMENT**. The bounded package-free
+  Preserve entry-review authority. The Std-backed
+  `omitted_data_binder_range_equation` also rejects during source checking on
+  Linux: Console byte operations lack portable target-family contracts.
+  These refusals depend on **PIPELINE-ARCHITECTURE-ENFORCEMENT**.
+  The bounded package-free
   carrier repair does not satisfy this original Std-backed acceptance.
 
 - **FINITE-GENERIC-DISPATCH.** Select a finite generic instance at runtime under

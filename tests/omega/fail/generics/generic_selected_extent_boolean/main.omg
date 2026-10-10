@@ -1,0 +1,9 @@
+data Counts {}
+const Counts::FOUR: bool = true;
+
+data Wrong<Element [copy]> {
+    values: [Element; Counts::FOUR];
+}
+
+data Main { wrong: Wrong<u64>; }
+machine main() {}
