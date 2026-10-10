@@ -56,7 +56,9 @@ pub use proof_contracts::arithmetic_domains::domain_intervals::{
 };
 pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
 pub use proof_contracts::collection_predicates::{length_member, premises_prove_expression};
-pub use proof_contracts::contract_entailment::{closed_collection_length, unique_literal_field};
+pub use proof_contracts::contract_entailment::{
+    captured_collection_length, closed_collection_length, unique_literal_field,
+};
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,
 };
@@ -330,6 +332,14 @@ pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::structural_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::transparent_proposition_application_entailed;
 pub use proof_contracts::contract_entailment::{
+    ArithmeticCallObservation, RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises,
+    RankingRangeState, arithmetic_entry_requirement_is_covered, discover_state_entry_mappings,
+    discover_state_entry_mappings_preferring, prove_arithmetic_call_requirement,
+    prove_captured_arithmetic_call_requirement, prove_ranking_range_edge,
+    prove_ranking_range_entry, prove_ranking_range_transition, ranking_range_premise_symbols,
+    ranking_range_required_symbols, ranking_slice_length_observation,
+};
+pub use proof_contracts::contract_entailment::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
     ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
     find_declared_measure, identity_subject_matches, measure_body_shape,
@@ -341,14 +351,6 @@ pub use proof_contracts::contract_entailment::{
 };
 pub use proof_contracts::contract_entailment::{
     MatchedLawGuarantee, matched_machine_law_guarantees,
-};
-pub use proof_contracts::contract_entailment::{
-    RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
-    arithmetic_entry_requirement_is_covered, discover_state_entry_mappings,
-    discover_state_entry_mappings_preferring, prove_arithmetic_call_requirement,
-    prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
-    ranking_range_premise_symbols, ranking_range_required_symbols,
-    ranking_slice_length_observation,
 };
 pub use proof_contracts::contract_entailment::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,

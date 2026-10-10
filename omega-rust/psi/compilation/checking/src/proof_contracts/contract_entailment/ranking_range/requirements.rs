@@ -40,6 +40,176 @@ pub fn arithmetic_entry_requirement_is_covered(
         && engine.collect_comparisons(&[goal], &mut Vec::new())
 }
 
+/// Declaration-shaped obligations are prepared once by the same selected
+/// meaning and exact coordinate owners for both caller-fact and captured-value
+/// judgments. The two evidence epochs never share hypotheses.
+struct ArithmeticRequirement<'program> {
+    engine: Engine<'program>,
+    bindings: Vec<super::StrictArithmeticSymbolBinding>,
+    fields: FieldCoordinates<'program>,
+    lengths: Vec<(symbols::SymbolHandle, String)>,
+    projected_lengths: lengths::SliceCoordinates<'program>,
+    comparisons: Vec<super::Comparison>,
+}
+
+fn prepare_requirement<'program>(
+    program: &'program dyn crate::CheckingInput,
+    callee: &Machine,
+    goal: ExpressionHandle,
+) -> Option<ArithmeticRequirement<'program>> {
+    let target = program.machine_states(callee).first()?;
+    meanings::builtin(program, callee, target, goal, 0)?;
+    let bindings = integer_bindings(program, target)?;
+    let mut engine = Engine::strict_with_symbol_bindings(program, callee, &bindings);
+    let mut fields = FieldCoordinates::empty();
+    fields.install(program, target, target, None, &mut engine, &[goal])?;
+    let lengths = lengths::bindings(program, callee, target, None);
+    lengths::install(
+        program,
+        callee,
+        target,
+        target,
+        &lengths,
+        &mut engine,
+        &[goal],
+    )?;
+    let mut projected_lengths = lengths::SliceCoordinates::empty();
+    projected_lengths.install(program, callee, target, target, None, &mut engine, &[goal])?;
+    let mut comparisons = Vec::new();
+    if !engine.strict_symbol_bindings_are_valid()
+        || !engine.collect_comparisons(&[goal], &mut comparisons)
+    {
+        return None;
+    }
+    Some(ArithmeticRequirement {
+        engine,
+        bindings,
+        fields,
+        lengths,
+        projected_lengths,
+        comparisons,
+    })
+}
+
+/// One declared observation demanded by a normalized arithmetic obligation.
+/// The path contains exact declared fields, not an actual's source itinerary.
+#[derive(Clone, Copy)]
+pub enum ArithmeticCallObservation<'path> {
+    Value(&'path [symbols::SymbolHandle]),
+    CollectionLength(&'path [symbols::SymbolHandle]),
+}
+
+/// Captured values are supplied by the call-flow owner after authenticating
+/// the complete ordered operand roster. Only demanded observations are queried;
+/// absence is unknown, never permission to omit an operand or its effects.
+pub fn prove_captured_arithmetic_call_requirement(
+    program: &dyn crate::CheckingInput,
+    callee: &Machine,
+    goal: ExpressionHandle,
+    mut observation: impl FnMut(symbols::SymbolHandle, ArithmeticCallObservation<'_>) -> Option<BigInt>,
+) -> bool {
+    captured_requirement(program, callee, goal, &mut observation).unwrap_or(false)
+}
+
+fn captured_requirement(
+    program: &dyn crate::CheckingInput,
+    callee: &Machine,
+    goal: ExpressionHandle,
+    observation: &mut dyn FnMut(
+        symbols::SymbolHandle,
+        ArithmeticCallObservation<'_>,
+    ) -> Option<BigInt>,
+) -> Option<bool> {
+    let ArithmeticRequirement {
+        engine,
+        bindings,
+        fields: coordinates,
+        lengths,
+        projected_lengths,
+        comparisons: obligations,
+    } = prepare_requirement(program, callee, goal)?;
+    let demanded = |identity: &str| {
+        obligations.iter().any(|(_, left, right)| {
+            [left, right].into_iter().any(|value| {
+                value
+                    .terms
+                    .keys()
+                    .any(|monomial| monomial.contains_key(identity))
+            })
+        })
+    };
+    let mut substitutions = BTreeMap::new();
+    for binding in &bindings {
+        let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
+            return None;
+        };
+        if demanded(identity) {
+            substitutions.insert(
+                identity.clone(),
+                Polynomial::constant(observation(
+                    binding.symbol,
+                    ArithmeticCallObservation::Value(&[]),
+                )?),
+            );
+        }
+    }
+    for coordinate in coordinates.coordinates() {
+        if demanded(&coordinate.identity) {
+            let path = coordinate
+                .steps
+                .iter()
+                .map(|field| field.symbol)
+                .chain(std::iter::once(coordinate.field.symbol))
+                .collect::<Vec<_>>();
+            substitutions.insert(
+                coordinate.identity.clone(),
+                Polynomial::constant(observation(
+                    coordinate.parameter.symbol,
+                    ArithmeticCallObservation::Value(&path),
+                )?),
+            );
+        }
+    }
+    for (symbol, identity) in lengths {
+        if demanded(&identity) {
+            substitutions.insert(
+                identity,
+                Polynomial::constant(observation(
+                    symbol,
+                    ArithmeticCallObservation::CollectionLength(&[]),
+                )?),
+            );
+        }
+    }
+    for coordinate in projected_lengths.coordinates() {
+        if demanded(&coordinate.identity) {
+            let path = coordinate
+                .steps
+                .iter()
+                .map(|field| field.symbol)
+                .chain(std::iter::once(coordinate.field.symbol))
+                .collect::<Vec<_>>();
+            substitutions.insert(
+                coordinate.identity.clone(),
+                Polynomial::constant(observation(
+                    coordinate.parameter.symbol,
+                    ArithmeticCallObservation::CollectionLength(&path),
+                )?),
+            );
+        }
+    }
+    // There are no caller hypotheses here: a completed closed value is its
+    // own evidence. No live source atom or callee requirement proves a capture.
+    for (operator, left, right) in obligations {
+        let left = inductive_judgment::apply_argument_map(&left, &substitutions)?;
+        let right = inductive_judgment::apply_argument_map(&right, &substitutions)?;
+        if !comparison_proven(&engine, operator, &left, &right) {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
 /// Check the actual callee requirement against the caller's surviving facts.
 /// Caller and goal engines remain separate even on a self-call: binding a
 /// formal must not rewrite the hypotheses or recursively substitute an actual.
@@ -119,7 +289,13 @@ fn prove(
         .collect::<Vec<_>>();
 
     let caller_bindings = integer_bindings(program, caller_state)?;
-    let goal_bindings = integer_bindings(program, target)?;
+    let ArithmeticRequirement {
+        bindings: goal_bindings,
+        fields: goal_fields,
+        lengths: goal_lengths,
+        comparisons: obligations,
+        ..
+    } = prepare_requirement(program, callee, goal)?;
     // A ranged caller member's own authored range is proven site evidence at
     // an internal call site: the member's state-edge judgment re-establishes
     // the produced rank's membership and endpoint pinning on every internal
@@ -142,14 +318,10 @@ fn prove(
         engine_bindings = bindings;
     }
     let mut source_engine = Engine::strict_with_symbol_bindings(program, caller, &engine_bindings);
-    let mut goal_engine = Engine::strict_with_symbol_bindings(program, callee, &goal_bindings);
-    if !source_engine.strict_symbol_bindings_are_valid()
-        || !goal_engine.strict_symbol_bindings_are_valid()
-    {
+    if !source_engine.strict_symbol_bindings_are_valid() {
         return None;
     }
     let mut source_fields = FieldCoordinates::empty();
-    let mut goal_fields = FieldCoordinates::empty();
     source_fields.install(
         program,
         caller_state,
@@ -158,9 +330,7 @@ fn prove(
         &mut source_engine,
         &expressions,
     )?;
-    goal_fields.install(program, target, target, None, &mut goal_engine, &[goal])?;
     let source_lengths = lengths::bindings(program, caller, caller_state, None);
-    let goal_lengths = lengths::bindings(program, callee, target, None);
     lengths::install(
         program,
         caller,
@@ -184,19 +354,6 @@ fn prove(
         &source_lengths,
         &mut source_engine,
     );
-    lengths::install(
-        program,
-        callee,
-        target,
-        target,
-        &goal_lengths,
-        &mut goal_engine,
-        &[goal],
-    )?;
-    let mut obligations = Vec::new();
-    if !goal_engine.collect_comparisons(&[goal], &mut obligations) {
-        return None;
-    }
     let mut substitutions = BTreeMap::new();
     for (parameter, argument) in parameters.iter().zip(arguments) {
         for field in goal_fields

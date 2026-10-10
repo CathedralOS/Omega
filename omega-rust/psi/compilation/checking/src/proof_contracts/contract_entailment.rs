@@ -120,7 +120,14 @@ pub use proof_integer::{anonymous_integer_math_literal, proof_integer_expression
 pub(crate) use proof_integer::{
     proof_integer_nonnegative, proof_nat_cast, validate_proof_fact_integer_casts,
 };
-pub use ranking_range::closed_collection_length;
+pub use ranking_range::{
+    ArithmeticCallObservation, RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises,
+    RankingRangeState, arithmetic_entry_requirement_is_covered, discover_state_entry_mappings,
+    discover_state_entry_mappings_preferring, prove_arithmetic_call_requirement,
+    prove_captured_arithmetic_call_requirement, prove_ranking_range_edge,
+    prove_ranking_range_entry, prove_ranking_range_transition, ranking_range_premise_symbols,
+    ranking_range_required_symbols, ranking_slice_length_observation,
+};
 pub use ranking_range::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
     ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
@@ -132,14 +139,7 @@ pub(crate) use ranking_range::{
     call_member_premise_symbols, mixed_call_endpoints_are_pinned, positive_step_amount,
     prove_ranking_range_call, prove_ranking_range_call_entry,
 };
-pub use ranking_range::{
-    RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
-    arithmetic_entry_requirement_is_covered, discover_state_entry_mappings,
-    discover_state_entry_mappings_preferring, prove_arithmetic_call_requirement,
-    prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
-    ranking_range_premise_symbols, ranking_range_required_symbols,
-    ranking_slice_length_observation,
-};
+pub use ranking_range::{captured_collection_length, closed_collection_length};
 pub use refuted_requires::instantiated_value_call_requires_proven;
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
 pub use scoped_arithmetic::{

@@ -24,7 +24,8 @@ mod state_aliases;
 mod telescope;
 
 pub use requirements::{
-    arithmetic_entry_requirement_is_covered, prove_arithmetic_call_requirement,
+    ArithmeticCallObservation, arithmetic_entry_requirement_is_covered,
+    prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
 };
 pub(crate) use telescope::positive_step_amount;
 pub use telescope::{discover_state_entry_mappings, discover_state_entry_mappings_preferring};
@@ -53,6 +54,38 @@ pub fn closed_collection_length(
 ) -> Option<u64> {
     let mut engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
     saved_arguments::install(program, machine, state, &[], &mut engine);
+    lengths::actual(program, machine, state, collection, &[], &mut engine)?
+        .constant_value()?
+        .to_u64()
+}
+
+/// Close a completed collection's extent with observations from that operand's
+/// own evidence epoch. The existing length evaluator owns descriptor geometry
+/// and bounds; this query installs only exact integer place values. It grants
+/// neither selector bounds nor loans, and imports no live caller hypotheses.
+/// Saved initializers receive no captured symbol bindings, so a later source
+/// value cannot be replayed as the initializer's earlier operand.
+pub fn captured_collection_length(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    collection: ExpressionHandle,
+    mut observe: impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
+) -> Option<u64> {
+    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    let mut expressions = Vec::new();
+    crate::expression_traversal::collect_expression_tree(program, collection, &mut expressions);
+    for expression in expressions {
+        let Some(place) = crate::canonical_place_from_expression(program, expression) else {
+            continue;
+        };
+        let Some(value) = observe(&place) else {
+            continue;
+        };
+        if !engine.bind_captured_integer_place(machine, state, expression, value) {
+            return None;
+        }
+    }
     lengths::actual(program, machine, state, collection, &[], &mut engine)?
         .constant_value()?
         .to_u64()

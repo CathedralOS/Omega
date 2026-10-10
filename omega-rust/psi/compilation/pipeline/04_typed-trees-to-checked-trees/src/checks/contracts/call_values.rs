@@ -190,6 +190,109 @@ fn captured_value<'facts>(
     values.pop()
 }
 
+/// A requirement observes only its demanded formal coordinate. The complete
+/// ordered call roster remains authenticated by `captured_operands`; this
+/// projection does not suppress evaluation or availability of another actual.
+/// Scalar values use the established copy/live-referent epoch. Descriptor
+/// geometry closes in its own completed operand epoch, not in later invocation
+/// facts about the selector or endpoints that built that descriptor.
+pub(crate) fn captured_arithmetic_observation(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    formal: SymbolHandle,
+    observation: validation::ArithmeticCallObservation<'_>,
+) -> Option<numerics::bignum::BigInt> {
+    if !call.authored_source_custody_valid {
+        return None;
+    }
+    let parameters = validation::call_target_parameters(program, call.target_symbol)?;
+    let position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == formal)?;
+    let path = match observation {
+        validation::ArithmeticCallObservation::Value(path)
+        | validation::ArithmeticCallObservation::CollectionLength(path) => path
+            .iter()
+            .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+            .collect(),
+    };
+    let actual = actual_at(program, state, call, position, path)?;
+    let captured = captured_value(program, facts, state, call, &actual)?;
+    if captured.observation.state_symbol != state.state_symbol
+        || captured.observation.statement_index != call.statement_index
+        || captured.operand.state_symbol != state.state_symbol
+        || captured.operand.statement_index > call.statement_index
+    {
+        return None;
+    }
+    let (machine, body) =
+        validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)?;
+    match observation {
+        validation::ArithmeticCallObservation::Value(_) => {
+            let reference = validation::project_type_reference_from_segments(
+                program,
+                actual.parameter.type_reference,
+                &actual.path,
+            )?;
+            let primitive = program.primitive_type_reference(reference)?;
+            if !primitive.is_fixed_integer() {
+                return None;
+            }
+            let contexts = actual_contexts(program, facts, state, call, &actual);
+            let value = current_actual(
+                program,
+                facts,
+                state,
+                call,
+                &captured,
+                primitive,
+                &contexts,
+                &mut Vec::new(),
+            )?;
+            match crate::values::evaluate_checked_scalar(&value, &mut |_| None)? {
+                facts::ScalarValue::Integer(value) => Some(value),
+                _ => None,
+            }
+        }
+        validation::ArithmeticCallObservation::CollectionLength(_) => {
+            if !captured.projection.remaining.is_empty() {
+                return None;
+            }
+            let contexts = facts
+                .flow
+                .semantic_constraint_contexts(captured.operand.constraints)
+                .collect::<Vec<_>>();
+            let length = validation::captured_collection_length(
+                program,
+                machine,
+                body,
+                captured.projection.expression,
+                |place| {
+                    let reference = validation::canonical_place_type_reference(
+                        program,
+                        state.state_symbol,
+                        captured.operand.statement_index,
+                        place,
+                    )?;
+                    if !program
+                        .primitive_type_reference(reference)?
+                        .is_fixed_integer()
+                    {
+                        return None;
+                    }
+                    match scalar_at(program, facts, &contexts, place)? {
+                        facts::ScalarValue::Integer(value) => Some(value),
+                        _ => None,
+                    }
+                },
+            )?;
+            Some(numerics::bignum::BigInt::from_u64(length))
+        }
+    }
+}
+
 /// Select the evidence epoch of a declared membership's exact formal. A
 /// copied argument retains completion facts even when a later operand writes
 /// its source; borrowed arguments retain the ordinary invocation-live rules.

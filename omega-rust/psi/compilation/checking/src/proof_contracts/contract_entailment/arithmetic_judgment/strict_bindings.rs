@@ -432,6 +432,36 @@ impl<'program> Engine<'program> {
         self.bind_strict_occurrence(expression, value).then_some(())
     }
 
+    /// A completed operand may supply a captured value of an exact builtin
+    /// integer place. The flow owner authenticates its evidence epoch; this
+    /// facade preserves the source place/type/selected-meaning boundary before
+    /// installing an occurrence in the private arithmetic namespace.
+    pub(in crate::proof_contracts::contract_entailment) fn bind_captured_integer_place(
+        &mut self,
+        machine: &Machine,
+        state: &typed_trees::state::State,
+        expression: ExpressionHandle,
+        value: BigInt,
+    ) -> bool {
+        let Some(reference) =
+            crate::declared_place_type_raw(self.program, machine, Some(state), expression)
+        else {
+            return false;
+        };
+        crate::canonical_place_from_expression(self.program, expression).is_some()
+            && self
+                .program
+                .primitive_type_reference(reference)
+                .is_some_and(|primitive| primitive.is_fixed_integer())
+            && crate::has_builtin_bound_expression_meaning(
+                self.program,
+                machine,
+                Some(state),
+                expression,
+            )
+            && self.bind_strict_occurrence(expression, Polynomial::constant(value))
+    }
+
     fn bind_strict_occurrence(&mut self, expression: ExpressionHandle, value: Polynomial) -> bool {
         if self.strict_symbol_bindings.is_none()
             || !self.strict_symbol_bindings_valid
