@@ -27,6 +27,35 @@ impl Builder<'_, '_> {
         Some(value)
     }
 
+    pub(super) fn record_transition_selectors(
+        &mut self,
+        statement: u32,
+        argument_ordinal: u32,
+        argument: ExpressionHandle,
+    ) {
+        let Some(place) = validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            argument,
+        ) else {
+            return;
+        };
+        for segment in place.segments {
+            if let facts::PlaceSegment::Index { expression } = segment {
+                let role = CheckedScalarExpressionRole::TransitionSelector {
+                    argument_ordinal,
+                    expression,
+                };
+                if self.plans.root_at(self.state, statement, role).is_none()
+                    && let Some(root) = self.index_selector(expression)
+                {
+                    self.push_scalar_root(role, root);
+                }
+            }
+        }
+    }
+
     pub(super) fn record_call_arguments(
         &mut self,
         statement: u32,

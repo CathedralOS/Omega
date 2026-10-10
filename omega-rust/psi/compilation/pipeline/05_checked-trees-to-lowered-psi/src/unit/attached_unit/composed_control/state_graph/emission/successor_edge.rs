@@ -290,15 +290,59 @@ impl StateGraphEmission<'_, '_> {
                             // case step selects geometry, not authority: the
                             // receiving verifier still requires live membership
                             // on the edge that borrows its payload.
-                            let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                                identities,
-                                &subject.path,
-                                root_type,
-                                &self.catalogs.structural_types,
-                                None,
-                                &mut std::iter::empty(),
-                                None,
-                            )?;
+                            let mut calls = self.catalogs.scalar_calls.emission_context();
+                            let mut selectors = Vec::new();
+                            let source_value_count = edge_values.len();
+                            for segment in &subject.path {
+                                if let checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(handle) = segment {
+                                    let root = checked
+                                        .facts
+                                        .values
+                                        .scalar_computations
+                                        .roots
+                                        .iter()
+                                        .map(|(_, root)| root)
+                                        .find(|root| {
+                                            root.root == *handle
+                                                && root.machine == owner
+                                                && root.state == state.state
+                                                && root.statement_ordinal == edge.statement_ordinal
+                                                && matches!(root.role, CheckedScalarExpressionRole::TransitionSelector {
+                                                argument_ordinal, ..
+                                            } if argument_ordinal as usize == argument_position)
+                                        })
+                                        .ok_or(LoweringError::Unsupported(
+                                            "state loan selector lost its exact source occurrence",
+                                        ))?;
+                                    let value = edge_evaluation.source_value(
+                                        checked,
+                                        owner,
+                                        state.state,
+                                        edge.statement_ordinal,
+                                        root.role,
+                                        &checked_trees::CheckedCallScalarArgument::Computation(*handle),
+                                        source_value_count,
+                                        &mut edge_values,
+                                        next_value,
+                                        next_block,
+                                        next_edge,
+                                        operations,
+                                        &mut calls,
+                                    )?;
+                                    selectors.push(value.id);
+                                }
+                            }
+                            let path =
+                                crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                                    identities,
+                                    &subject.path,
+                                    root_type,
+                                    &self.catalogs.structural_types,
+                                    Some(&edge_values),
+                                    &mut selectors.into_iter(),
+                                    Some(&mut calls),
+                                )?;
+                            self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
                             // Every borrowed successor binds the selected
                             // subtree directly, including write-only access.
                             // The target's declared access limits the loan;

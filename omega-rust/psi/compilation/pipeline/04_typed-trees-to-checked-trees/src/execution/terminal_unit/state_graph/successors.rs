@@ -739,6 +739,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         if loan_permitted(source_parameter.access)
                             && let Some(transfer) = projected_loan_transfer(
                                 program,
+                                facts,
                                 shapes,
                                 machine.symbol,
                                 source.symbol,
@@ -834,6 +835,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         if mutable_local_loan
                             && let Some(transfer) = projected_loan_transfer(
                                 program,
+                                facts,
                                 shapes,
                                 machine.symbol,
                                 source.symbol,
@@ -1133,6 +1135,7 @@ fn projected_value_subject(
 #[allow(clippy::too_many_arguments)]
 fn projected_loan_transfer(
     program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: symbols::SymbolHandle,
     source: symbols::SymbolHandle,
@@ -1145,8 +1148,32 @@ fn projected_loan_transfer(
     target_parameters: &[typed_trees::signature::StateParameter],
     target_index: usize,
 ) -> Option<CheckedStructuralControlTransferPlan> {
-    let (projected_type, path) =
-        calls::projected_borrowed_path(program, machine, source, ordinal as usize, place)?;
+    let computations = &facts.values.scalar_computations;
+    let selector = |expression| {
+        let root = computations.root_at(
+            source,
+            ordinal,
+            CheckedScalarExpressionRole::TransitionSelector {
+                argument_ordinal: target.position,
+                expression,
+            },
+        )?;
+        if !computations.nodes.is_valid(root.root) {
+            return None;
+        }
+        let primitive = computations.nodes.get(root.root).primitive_type;
+        (primitive.is_fixed_integer()
+            && computations.is_authored_root(root, machine, expression, primitive))
+            .then_some(CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
+    };
+    let (projected_type, path) = calls::projected_evaluated_path(
+        program,
+        machine,
+        source,
+        ordinal as usize,
+        place,
+        Some(&selector),
+    )?;
     let target_type_reference = target_parameters
         .get(target.position as usize)?
         .type_reference;
@@ -1156,6 +1183,11 @@ fn projected_loan_transfer(
             CheckedUnitStructuralPathSegment::Field(_)
                 | CheckedUnitStructuralPathSegment::Case(_)
                 | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                | CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::Parameter { .. }
+                        | checked_trees::CheckedRuntimeIndex::Local { .. }
+                )
+                | CheckedUnitStructuralPathSegment::ComputedIndex(_)
         )
     }) || !calls::argument_presentation::classify(
         program,

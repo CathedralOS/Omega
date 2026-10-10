@@ -730,6 +730,11 @@ pub(crate) fn build_checked_value_computation_plans(
                                     *argument,
                                     parameter.type_reference,
                                 );
+                                builder.record_transition_selectors(
+                                    statement_ordinal,
+                                    argument_ordinal,
+                                    *argument,
+                                );
                             }
                             continue;
                         };

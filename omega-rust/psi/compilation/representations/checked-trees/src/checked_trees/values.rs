@@ -271,6 +271,12 @@ pub enum CheckedScalarExpressionRole {
         argument_ordinal: u32,
         expression: ExpressionHandle,
     },
+    /// One address operand of a selected named successor. The full target
+    /// parameter position keeps its evaluation distinct from sibling actuals.
+    TransitionSelector {
+        argument_ordinal: u32,
+        expression: ExpressionHandle,
+    },
     /// Captured byte coordinate of this representation view occurrence.
     RepresentationViewOffset {
         expression: ExpressionHandle,
