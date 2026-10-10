@@ -312,12 +312,6 @@ impl OptimizedObjectArtifactCustodyReceipt {
         self.psi_artifact
     }
 
-    pub const fn object_container_manifest(
-        self,
-    ) -> FunctionFragmentObjectContainerManifestIdentity {
-        self.object_container_manifest
-    }
-
     pub const fn object(self) -> RelocationFreeObjectPlanIdentity {
         self.object
     }
