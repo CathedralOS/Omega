@@ -30,33 +30,25 @@ pub enum StructuralScalarStoreDestination {
     },
 }
 
+/// One store-destination field accessor: every carrying variant reads the
+/// same field through its parameter or result declaration.
+macro_rules! store_destination_field {
+    ($name:ident, $field:ident -> $ty:ty) => {
+        pub fn $name(&self) -> $ty {
+            match self {
+                Self::Parameter(parameter) | Self::OwnedBlockParameter { parameter, .. } => {
+                    parameter.$field
+                }
+                Self::OwnedResult { result, .. } => result.$field,
+            }
+        }
+    };
+}
+
 impl StructuralScalarStoreDestination {
-    pub fn place(&self) -> PlaceId {
-        match self {
-            Self::Parameter(parameter) | Self::OwnedBlockParameter { parameter, .. } => {
-                parameter.place
-            }
-            Self::OwnedResult { result, .. } => result.place,
-        }
-    }
-
-    pub fn structural_type(&self) -> StructuralTypeId {
-        match self {
-            Self::Parameter(parameter) | Self::OwnedBlockParameter { parameter, .. } => {
-                parameter.structural_type
-            }
-            Self::OwnedResult { result, .. } => result.structural_type,
-        }
-    }
-
-    pub fn multiplicity(&self) -> StructuralMultiplicity {
-        match self {
-            Self::Parameter(parameter) | Self::OwnedBlockParameter { parameter, .. } => {
-                parameter.multiplicity
-            }
-            Self::OwnedResult { result, .. } => result.multiplicity,
-        }
-    }
+    store_destination_field!(place, place -> PlaceId);
+    store_destination_field!(structural_type, structural_type -> StructuralTypeId);
+    store_destination_field!(multiplicity, multiplicity -> StructuralMultiplicity);
 
     /// The borrowed parameter whose loan authorizes the write. Owned homes,
     /// including an owned block parameter, carry their own authority.
