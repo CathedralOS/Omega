@@ -1,0 +1,73 @@
+// higher_order_streams: machines as type parameters as sample code — the
+// first sample declaring `data Stream<machine S>` with a `where machine`
+// signature bound, then forwarding a concrete schema machine through a
+// higher-order machine parameter.
+//
+//   * `Index` is a recursive enum: `Next` carries an `Index` payload, so a
+//     finite chain has observable depth.
+//   * `Stream<machine S>` binds a static machine parameter behind
+//     `where machine S(index: Index) -> Index`; `Stream::More` stores
+//     `tail: Stream<S>` — recursion through the machine-typed parameter.
+//   * `forward_schema<identity_schema, succ>` invokes a machine passed as
+//     a machine, which invokes the selected requirement — dispatch with
+//     zero `dyn` selectors.
+//
+// The machine builds a two-element Stream<succ>, forwards it through
+// identity_schema, then destructures the result twice and accepts on the
+// Empty tail. Compile-checked only: no standard-library dependency.
+pub data Index {
+    case Zero;
+    case Next(previous: Index);
+}
+
+data Stream<machine S>
+where machine S(index: Index) -> Index;
+{
+    case Empty;
+    case More(sample: Index, tail: Stream<S>);
+}
+
+machine succ(index: Index) -> Index {
+    Index::Next { previous: index }
+}
+
+machine identity_schema<machine Chosen>(value: Stream<Chosen>) -> Stream<Chosen>
+where machine Chosen(index: Index) -> Index;
+{
+    value
+}
+
+machine forward_schema<machine Schema, machine Selected>(value: Stream<Selected>) -> Stream<Selected>
+where machine Schema<machine Inner>(value: Stream<Inner>) -> Stream<Inner>
+where machine Inner(index: Index) -> Index;
+where machine Selected(index: Index) -> Index;
+{
+    Schema<Selected>(value)
+}
+
+machine higher_order_streams() {
+    let tail: Stream<succ> = Stream::Empty;
+    let mid: Stream<succ> = Stream::More { sample: succ(Index::Zero), tail: tail };
+    let stream: Stream<succ> = Stream::More { sample: Index::Zero, tail: mid };
+    let forwarded: Stream<succ> = forward_schema<identity_schema, succ>(stream);
+    transition forwarded {
+        Stream::More { sample, tail } -> check_tail(tail)
+        Stream::Empty -> done(71)
+    }
+
+    state check_tail(tail: Stream<succ>) {
+        transition tail {
+            Stream::More { sample, tail } -> check_empty(tail)
+            Stream::Empty -> done(72)
+        }
+    }
+
+    state check_empty(tail: Stream<succ>) {
+        transition tail {
+            Stream::Empty -> done(70)
+            Stream::More { sample, tail } -> done(73)
+        }
+    }
+
+    state done(code: i32) {}
+}
