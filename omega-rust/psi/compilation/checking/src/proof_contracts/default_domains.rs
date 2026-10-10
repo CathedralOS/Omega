@@ -534,7 +534,9 @@ fn walk_state(
     // case because it is globally monotone.
     let mut poisoned_all = false;
     let mut poisoned_paths: Vec<String> = Vec::new();
-    // Slice 11: establishment ADDED by callee summaries at call sites.
+    // In-state exact establishment from accepted stores, surviving nominal
+    // values and callee summaries. Unlike valuations, validity survives calls;
+    // a later overlapping invariant window still fences every observation.
     let mut call_established: Vec<String> = Vec::new();
     // WINDOW TRANSPORT: windows still open from predecessor states
     // ((spelling, data name) pairs, MAY-union over predecessors). A write
@@ -606,6 +608,18 @@ fn walk_state(
                     &mut poisoned_paths,
                     born_zero,
                 );
+                // Assignment checking establishes the destination's declared
+                // type, not an unfinished containing predicate or every
+                // element a runtime selector could identify. Retain this for
+                // scalar as well as nominal destinations; windows are checked
+                // independently and may still forbid observing the parent.
+                if let Some(spelling) =
+                    place_queries::write_place_spelling(program, assignment.target)
+                    && !spelling.contains("[*]")
+                    && !call_established.contains(&spelling)
+                {
+                    call_established.push(spelling);
+                }
                 // A write that re-proved the facts (tracked window CLOSED)
                 // closes the inherited window on the same place.
                 inherited_windows.retain(|(spelling, _, _)| {

@@ -656,7 +656,6 @@ fn validate_qualified_place_read(
     } else {
         entry_established
             .iter()
-            .chain(call_established)
             .any(|place| place_spelling_covers(place, &spelling))
             || declared_root_established(
                 program,
@@ -664,6 +663,13 @@ fn validate_qualified_place_read(
                 expression_root_symbol(program, expression),
             )
     };
+    // A checked exact child store remains established even while an ancestor
+    // is only reserved storage. It cannot waive the parent's coupled domain:
+    // every overlapping open window below still fences the observation.
+    let established = established
+        || call_established
+            .iter()
+            .any(|place| place_spelling_covers(place, &spelling));
     let open = tracked.iter().any(|place| {
         place.any_window_open()
             && (place_spelling_covers(&place.spelling, &spelling)
