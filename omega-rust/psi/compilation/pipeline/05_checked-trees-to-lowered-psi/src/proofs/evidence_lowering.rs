@@ -8,6 +8,7 @@
 //! `producer_provenance.rs` lowers evidence producer provenance.
 
 mod evidence_terms;
+mod outcome_specific_calls;
 mod outcome_specific_ensures;
 mod proof_output_calls;
 
@@ -16,7 +17,8 @@ use crate::proofs::evidence_lowering::evidence_terms::{
     lower_evidence_contract_lanes, lower_evidence_term_ids, lower_evidence_terms,
     lower_proposition_vocabulary,
 };
-use crate::proofs::evidence_lowering::outcome_specific_ensures::lower_outcome_specific_ensures;
+use crate::proofs::evidence_lowering::outcome_specific_calls::lower_outcome_specific_call_evidence;
+use crate::proofs::evidence_lowering::outcome_specific_ensures::outcome_specific_ensure_rows;
 use crate::proofs::evidence_lowering::proof_output_calls::lower_proof_output_calls;
 
 pub(crate) fn lower_and_install_evidence_artifacts(
@@ -34,7 +36,7 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         &applications,
         evidence_term_ids.term_ids,
     )?;
-    let outcome_specific_ensures = lower_outcome_specific_ensures(
+    let outcome_specific_ensures = outcome_specific_ensure_rows(
         checked,
         machine,
         lowered.semantic_module.entry,
@@ -57,6 +59,15 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         &evidence_terms.term_ids,
         &declarations,
         &applications,
+    )?;
+    lower_outcome_specific_call_evidence(
+        checked,
+        machine,
+        lowered,
+        &evidence_terms.term_ids,
+        &declarations,
+        &applications,
+        &evidence_terms.declarations,
     )?;
     lowered.semantic_module.proposition_declarations = declarations;
     lowered.semantic_module.proposition_applications = applications;

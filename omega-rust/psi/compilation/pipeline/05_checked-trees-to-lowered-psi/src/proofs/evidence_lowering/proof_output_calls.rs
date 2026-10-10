@@ -421,7 +421,7 @@ pub(crate) fn terminal_evidence_term_id(
         .ok_or(LoweringError::Unsupported(error))
 }
 
-fn terminal_proposition_application_id(
+pub(crate) fn terminal_proposition_application_id(
     checked: &CheckedTrees,
     term_ids: &[Option<EvidenceTermId>],
     declarations: &[PropositionDeclaration],

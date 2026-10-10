@@ -8,7 +8,7 @@ use crate::proofs::{
     obligation_id, unsupported,
 };
 
-pub(crate) fn lower_outcome_specific_ensures(
+pub(crate) fn outcome_specific_ensure_rows(
     checked: &CheckedTrees,
     selected_machine: symbols::SymbolHandle,
     terminal_machine_id: MachineId,

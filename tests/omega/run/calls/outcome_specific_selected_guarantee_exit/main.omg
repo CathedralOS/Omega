@@ -1,0 +1,47 @@
+// A caller arm may select an output of the callee's outcome-specific
+// guarantee row for the exact result case it tests. `pick` promises
+// `selected: selected_ready()` only beneath `Outcome::Success` and mints the
+// term from the named `Fresh` implementation; the caller's matching arm
+// binds that term as `proof` so lowering can retain the evidence on the
+// call's `CallStructural` operation.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Outcome [copy] {
+    case Success;
+    case Failure;
+}
+
+trait Evidence {
+}
+
+proposition selected_ready() evidence Evidence;
+
+Fresh satisfies Evidence {
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine pick() -> Outcome
+ensures Outcome::Success -> { selected: selected_ready(); }
+{
+    selected = Fresh;
+    Outcome::Success
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    transition pick() {
+        Outcome::Success { ; selected: proof } -> ok(main)
+        _ -> bad(main)
+    }
+
+    state ok(main: &mut Main) {
+        main.console.exit_process(0);
+    }
+
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
+    }
+}

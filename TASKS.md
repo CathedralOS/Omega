@@ -2843,14 +2843,18 @@ routes in dependency order. New capability work
 never a new per-route case. Land coherent cuts that delete their superseded
 code and preserve check/native behavior for the named customer slices.
 
-- **OUTCOME-SPECIFIC-CALL-EVIDENCE.** (split-of:RETURN-ROSTERS-RETIRED) A
-  caller arm matching a callee's outcome-specific guarantee
-  (`ensures Result::Case -> { ... }`) has no producer. Parsing and resolution
-  accept the clause and Terminal defines `OutcomeSpecificCallEvidence`, but
-  stage 05 never emits it, and no corpus fixture writes the clause. Add a run
-  fixture whose caller arm needs one case's guarantee, then emit the evidence
-  for the callee's Unit-body exit. Coordinate operator returns with
-  **OPERATOR-BOUNDARY-CALLS**.
+- **OUTCOME-SPECIFIC-CALL-EVIDENCE.** (split-of:RETURN-ROSTERS-RETIRED)
+  Emission landed: `proofs/evidence_lowering/outcome_specific_calls.rs` joins
+  each caller arm's selected rows to the `CallStructural` site via the
+  recorded source occurrence and the callee's canonical guarded rows
+  (`outcome_specific_ensure_rows`, factored out of the ensures pass). Run
+  fixture `run/calls/outcome_specific_selected_guarantee_exit` added.
+  Verification frontier: program-entry binding admission is env-blocked
+  (identical on every entry-bound fixture incl. `shared_local_borrow`; two
+  `omega update` runs timed out), so the check leg never reaches lowering in
+  this environment. Bounded rows still refused: result substitution,
+  proposition/interface dependencies, evidence uses. Coordinate operator
+  returns with **OPERATOR-BOUNDARY-CALLS**.
 
 - **LOCAL-BINDINGS-GENERALIZED.** (new-scope) Local data bindings are split
   into `EstablishPrimitiveLocal`, `EstablishScalarLocal`,
