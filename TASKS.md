@@ -3100,17 +3100,6 @@ of a check the same flow already performed, not the check itself.
   none of those crates declares a `String`-typed identity (source-scanning
   guard in each), and the native corpus is unchanged.
 
-- **PROVIDER-SCHEMA-IDENTITY-IDS.** (new-scope) The `effects` crate's
-  `ServiceSchema`/`ServiceMethod`
-  (`omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/providers/provider_plan/service_schemas.rs`)
-  carry `trait_name` and `requirement_identity`, and
-  `ProviderBinding::CheckedAdapter` carries `machine_identity`, all as rendered
-  `String`s that selection, dispatch and digest code compare as text. Reuse
-  `CallableIdentityId` for in-process identity; only the plan's digest encoder writes
-  the canonical content. Acceptance: those schema and binding
-  fields hold no `String`, plan digests (and so package-review records) are
-  unchanged, and the provider and native corpus slices are unchanged.
-
 - **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) Complete qualification of the
   frozen typed-to-checked boundary. Typed elaboration now belongs to
   `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`;
