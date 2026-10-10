@@ -7,7 +7,7 @@
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     fixed_byte_array_range_path, open_byte_range_path, projected_argument_path,
-    projected_argument_path_with_identity, projected_borrowed_path, projected_evaluated_path,
+    projected_argument_path_for_identity, projected_borrowed_path, projected_evaluated_path,
 };
 use crate::execution::terminal_unit::calls::argument_presentation::ArgumentPresentation;
 use crate::execution::terminal_unit::calls::boundary_admission::fixed_byte_array_view_is_admitted;
@@ -335,7 +335,7 @@ impl ParameterArgument<'_> {
     }
 
     fn exact_projection_path(self) -> Option<ArgumentPath> {
-        projected_argument_path_with_identity(
+        projected_argument_path_for_identity(
             self.program,
             self.state,
             self.statement_index,

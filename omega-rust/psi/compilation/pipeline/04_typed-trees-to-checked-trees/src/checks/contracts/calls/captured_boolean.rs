@@ -171,7 +171,7 @@ fn captured_contract_proven(
         return true;
     }
     matches!(
-        super::super::prover::evaluate_with_atoms(
+        super::super::prover::evaluate_for_atoms(
             program,
             expression,
             &mut |_| None,

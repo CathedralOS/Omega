@@ -34,7 +34,7 @@ pub(super) use assigned_values::{
 mod scalars;
 pub(super) use crate::values::evaluate_checked_scalar;
 pub(super) use scalars::{
-    ScalarValue, closed_boolean_value, evaluate as evaluate_scalar, evaluate_with_atoms,
+    ScalarValue, closed_boolean_value, evaluate as evaluate_scalar, evaluate_for_atoms,
     has_builtin_operators,
 };
 mod booleans;

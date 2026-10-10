@@ -553,7 +553,7 @@ fn validate(
                 // call retires mutable-storage facts; copied immutable scalars
                 // retain their already established value snapshots.
                 let value_written = call_frames.as_ref().and_then(|frames| {
-                    frames.statement_value_may_write_paths_with_symbols(
+                    frames.statement_value_may_write_paths_for_symbols(
                         machine,
                         &machine_symbols,
                         statement,

@@ -1,6 +1,6 @@
 //! Token selection from a generic machine's authored conformance requirements.
 use crate::declarations::traits::conformance::signature_matching::trait_type_bindings;
-use crate::declarations::traits::conformance::signature_matching::type_references_match_with_trait_bindings;
+use crate::declarations::traits::conformance::signature_matching::type_references_match_for_trait_bindings;
 use crate::declarations::traits::trait_definition_by_symbol;
 use language_core::OperatorSpelling;
 use typed_trees::machine::Machine;
@@ -37,7 +37,7 @@ pub fn generic_bound_operator_requirement<'program>(
             );
             if !operands.iter().zip(parameters).all(|(actual, parameter)| {
                 actual.is_some_and(|actual| {
-                    type_references_match_with_trait_bindings(
+                    type_references_match_for_trait_bindings(
                         program,
                         actual,
                         parameter.type_reference,

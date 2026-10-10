@@ -36,7 +36,7 @@ pub(super) fn instantiate_written_path(
         precision: FramePathPrecision::Exact,
         source: Default::default(),
     });
-    instantiate_written_path_with_origins(
+    instantiate_written_path_for_origins(
         program,
         caller_machine,
         relative,
@@ -51,7 +51,7 @@ pub(super) fn instantiate_written_path(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn instantiate_written_path_with_origins(
+pub(super) fn instantiate_written_path_for_origins(
     program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     relative: &str,

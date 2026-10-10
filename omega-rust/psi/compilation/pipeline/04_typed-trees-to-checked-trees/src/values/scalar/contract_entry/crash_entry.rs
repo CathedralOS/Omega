@@ -117,7 +117,7 @@ pub(crate) fn lower_entry_scalar(
         remaining: 4096,
         subjects: None,
     };
-    crate::values::lower_unit_scalar_argument_with_places(
+    crate::values::lower_unit_scalar_argument_for_places(
         program,
         operators,
         state,

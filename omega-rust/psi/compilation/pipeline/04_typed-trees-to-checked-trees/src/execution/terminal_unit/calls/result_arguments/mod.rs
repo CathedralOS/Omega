@@ -17,7 +17,7 @@ use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
-    projected_argument_path_with_identity, projected_borrowed_path,
+    projected_argument_path_for_identity, projected_borrowed_path,
 };
 use crate::execution::terminal_unit::calls::argument_presentation::ArgumentPresentation;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
@@ -238,7 +238,7 @@ fn argument_contract(
             }
                 Some(path)
             } else {
-                projected_argument_path_with_identity(
+                projected_argument_path_for_identity(
                     program,
                     state,
                     call.statement_index,

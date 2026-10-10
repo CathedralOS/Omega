@@ -22,7 +22,7 @@ use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolate
 use crate::machine_calls::calls::write_frames::known_call_written_paths_for_parts;
 use crate::machine_calls::calls::write_frames::local_aliases::expression_reborrows_unresolved_reference_binding;
 use crate::machine_calls::calls::write_frames::path_instantiation::{
-    instantiate_written_path, instantiate_written_path_with_origins,
+    instantiate_written_path, instantiate_written_path_for_origins,
 };
 use crate::machine_calls::calls::write_frames::place_paths::{
     FramePathPrecision, FramePlaceOrigin,
@@ -57,7 +57,7 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// graph must prove that repeated substitution cannot grow paths without
 /// bound. Unknown effects or origins remain opaque. Borrow admission is a
 /// separate judgment and still rejects conflicting uses of aliased storage.
-pub(crate) fn summarize_state_written_paths_with_cycles<'program>(
+pub(crate) fn summarize_state_written_paths_for_cycles<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     entry: &'program State,
@@ -639,7 +639,7 @@ pub(crate) fn summarize_transition_target_written_paths(
             )?;
             let mut instantiated = Vec::new();
             for relative in target_writes {
-                for path in instantiate_written_path_with_origins(
+                for path in instantiate_written_path_for_origins(
                     program,
                     machine,
                     &relative,

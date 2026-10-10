@@ -9,7 +9,7 @@ pub use closed_requirement::resolve as resolve_closed_requirement_application;
 use crate::declarations::traits::conformance::signature_matching::{
     TraitTypeBinding, TraitTypeBindingTarget, authored_satisfier_parameters, parameter_shape_label,
     satisfier_parameter_correspondence, type_reference_lifetimes_match_requirement_application,
-    type_references_match_with_trait_bindings, validate_applied_trait_signature,
+    type_references_match_for_trait_bindings, validate_applied_trait_signature,
 };
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
 use crate::declarations::traits::trait_definition_by_symbol;
@@ -263,7 +263,7 @@ fn validate_machine_top_level_requirement_conformance(
         else {
             continue;
         };
-        if !type_references_match_with_trait_bindings(
+        if !type_references_match_for_trait_bindings(
             program,
             actual_type,
             required_type,
@@ -302,7 +302,7 @@ fn validate_machine_top_level_requirement_conformance(
             continue;
         }
 
-        if !type_references_match_with_trait_bindings(
+        if !type_references_match_for_trait_bindings(
             program,
             actual.type_reference,
             required.type_reference,
@@ -318,7 +318,7 @@ fn validate_machine_top_level_requirement_conformance(
         }
     }
 
-    let return_matches = type_references_match_with_trait_bindings(
+    let return_matches = type_references_match_for_trait_bindings(
         program,
         provider_entry.return_type,
         requirement_entry.return_type,

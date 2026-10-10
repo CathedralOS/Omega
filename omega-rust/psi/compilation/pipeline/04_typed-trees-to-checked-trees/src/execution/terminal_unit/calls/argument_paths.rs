@@ -758,7 +758,7 @@ fn runtime_index_field_selector(
 
 /// The shared owner under the ordinary rule: the projected type must carry the
 /// target parameter's exact normalized identity.
-pub(crate) fn projected_argument_path_with_identity(
+pub(crate) fn projected_argument_path_for_identity(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,

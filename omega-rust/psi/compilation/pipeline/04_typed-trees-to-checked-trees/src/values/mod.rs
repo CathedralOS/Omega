@@ -61,7 +61,7 @@ pub(crate) use scalar::{
     lower_scalar_parameter_refinement_predicates, lower_signature_crash_contract_expression,
     lower_state_interval_predicate, lower_state_scalar_contract_predicate,
     lower_state_scalar_expression, lower_unit_scalar_argument,
-    lower_unit_scalar_argument_with_places, nested_structural_call_return_type,
+    lower_unit_scalar_argument_for_places, nested_structural_call_return_type,
     occupies_scalar_position, operator_is_builtin, parameter_position,
     resolve_structural_parameter_path, retain_nested_structural_call_arguments,
     scalar_expression_type, structural_data, structural_parameter_place,

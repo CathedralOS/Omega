@@ -362,7 +362,7 @@ pub(crate) fn validate_applied_trait_signature(
                 else {
                     continue;
                 };
-                if !type_references_match_with_trait_bindings(
+                if !type_references_match_for_trait_bindings(
                     program,
                     actual_type,
                     required_type,
@@ -424,7 +424,7 @@ pub(crate) fn validate_applied_trait_signature(
         }
     }
 
-    if !type_references_match_with_trait_bindings(
+    if !type_references_match_for_trait_bindings(
         program,
         callable_state.return_type,
         requirement.return_type,
@@ -531,7 +531,7 @@ fn validate_trait_parameter_match(
         return;
     }
 
-    if !type_references_match_with_trait_bindings(
+    if !type_references_match_for_trait_bindings(
         program,
         actual.type_reference,
         required.type_reference,
@@ -624,7 +624,7 @@ pub(crate) fn trait_type_bindings<'a>(
         .collect()
 }
 
-pub(crate) fn type_references_match_with_trait_bindings(
+pub(crate) fn type_references_match_for_trait_bindings(
     program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     required: TypeReferenceHandle,
@@ -671,7 +671,7 @@ pub(crate) fn type_references_match_with_trait_bindings(
             },
         ) => {
             actual_access == required_access
-                && type_references_match_with_trait_bindings(
+                && type_references_match_for_trait_bindings(
                     program,
                     *actual_referee,
                     *required_referee,
@@ -680,7 +680,7 @@ pub(crate) fn type_references_match_with_trait_bindings(
                 )
         }
         typed_trees::constrained_type_reference_pair!(actual_base, required_base) => {
-            type_references_match_with_trait_bindings(
+            type_references_match_for_trait_bindings(
                 program,
                 *actual_base,
                 *required_base,
@@ -703,7 +703,7 @@ pub(crate) fn type_references_match_with_trait_bindings(
                 actual_length,
                 required_length,
                 bindings,
-            ) && type_references_match_with_trait_bindings(
+            ) && type_references_match_for_trait_bindings(
                 program,
                 *actual_element,
                 *required_element,
@@ -718,7 +718,7 @@ pub(crate) fn type_references_match_with_trait_bindings(
             TypeReferenceNode::Slice {
                 element_type: required_element,
             },
-        ) => type_references_match_with_trait_bindings(
+        ) => type_references_match_for_trait_bindings(
             program,
             *actual_element,
             *required_element,
@@ -751,7 +751,7 @@ pub(crate) fn type_references_match_with_trait_bindings(
                             .iter(),
                     )
                     .all(|(actual_argument, required_argument)| {
-                        type_references_match_with_trait_bindings(
+                        type_references_match_for_trait_bindings(
                             program,
                             *actual_argument,
                             *required_argument,
@@ -770,7 +770,7 @@ pub(crate) fn type_references_match_with_trait_bindings(
             crate::declarations::data_queries::data_definition_by_symbol(program, *actual_symbol)
                 .and_then(|definition| definition.generic_instance)
                 .is_some_and(|origin| {
-                    type_references_match_with_trait_bindings(
+                    type_references_match_for_trait_bindings(
                         program,
                         origin,
                         required,

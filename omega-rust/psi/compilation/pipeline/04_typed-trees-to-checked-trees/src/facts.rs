@@ -274,7 +274,7 @@ pub(crate) fn build_check_facts(
     let dependencies =
         crate::flow::derive_cleanup_effect_dependencies(program, &operational, &prepared)?;
     let operational =
-        validation::infer_operational_may_with_cleanup_dependencies(program, &dependencies);
+        validation::infer_operational_may_for_cleanup_dependencies(program, &dependencies);
     let service_reach_inference = validation::infer_service_reaches(program, &operational);
     let prepared_effects = validation::PreparedEffectPlans {
         operational: operational.clone(),

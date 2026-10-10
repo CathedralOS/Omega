@@ -471,7 +471,7 @@ fn current_actual(
         ) {
             return None;
         }
-        if let Some(value) = crate::values::lower_unit_scalar_argument_with_places(
+        if let Some(value) = crate::values::lower_unit_scalar_argument_for_places(
             program,
             &facts.operators,
             body,

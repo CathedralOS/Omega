@@ -78,12 +78,12 @@ pub fn infer_operational_may(program: &dyn crate::CheckingInput) -> OperationalP
 pub(crate) fn infer_operational_may_uncached(
     program: &dyn crate::CheckingInput,
 ) -> OperationalPlan {
-    infer_operational_may_with_cleanup_dependencies(program, &arena::Arena::default())
+    infer_operational_may_for_cleanup_dependencies(program, &arena::Arena::default())
 }
 
 /// Settle the same operational graph with ownership-selected edge invocations.
 /// The caller supplies exact custody selection, never inferred source calls.
-pub fn infer_operational_may_with_cleanup_dependencies(
+pub fn infer_operational_may_for_cleanup_dependencies(
     program: &dyn crate::CheckingInput,
     dependencies: &arena::Arena<flow_effects::CleanupDependency>,
 ) -> OperationalPlan {

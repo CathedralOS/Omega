@@ -21,7 +21,7 @@ use super::{
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
-use crate::machine_calls::calls::write_frames::cycle_frames::summarize_state_written_paths_with_cycles;
+use crate::machine_calls::calls::write_frames::cycle_frames::summarize_state_written_paths_for_cycles;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, summarize_state_written_paths,
 };
@@ -813,13 +813,13 @@ impl<'program> CallFrameResolver<'program> {
             .into_complete_paths()
     }
 
-    pub(crate) fn statement_value_may_write_paths_with_symbols(
+    pub(crate) fn statement_value_may_write_paths_for_symbols(
         &self,
         current_machine: &'program Machine,
         machine_symbols: &MachineSymbols<'program>,
         statement: &StatementNode,
     ) -> Option<Vec<String>> {
-        self.statement_value_write_frame_with_symbols(current_machine, machine_symbols, statement)
+        self.statement_value_write_frame_for_symbols(current_machine, machine_symbols, statement)
             .into_complete_paths()
     }
 
@@ -831,10 +831,10 @@ impl<'program> CallFrameResolver<'program> {
         let Some(machine_symbols) = self.machine_symbols(current_machine) else {
             return NormalizedWriteFrame::opaque();
         };
-        self.statement_value_write_frame_with_symbols(current_machine, &machine_symbols, statement)
+        self.statement_value_write_frame_for_symbols(current_machine, &machine_symbols, statement)
     }
 
-    fn statement_value_write_frame_with_symbols(
+    fn statement_value_write_frame_for_symbols(
         &self,
         current_machine: &'program Machine,
         machine_symbols: &MachineSymbols<'program>,
@@ -947,7 +947,7 @@ impl<'program> CallFrameResolver<'program> {
             &mut inference,
         )
         .or_else(|| {
-            summarize_state_written_paths_with_cycles(
+            summarize_state_written_paths_for_cycles(
                 self.program,
                 machine,
                 state,

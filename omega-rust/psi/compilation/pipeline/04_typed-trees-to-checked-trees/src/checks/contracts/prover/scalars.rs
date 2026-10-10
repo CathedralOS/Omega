@@ -61,7 +61,7 @@ pub(in crate::checks::contracts) fn evaluate(
     resolve_leaf: &mut impl FnMut(ExpressionHandle) -> Option<ScalarValue>,
     comparison_is_admitted: &impl Fn(&ScalarValue, &ScalarValue) -> bool,
 ) -> Option<ScalarValue> {
-    evaluate_with_atoms(
+    evaluate_for_atoms(
         program,
         expression,
         resolve_leaf,
@@ -73,7 +73,7 @@ pub(in crate::checks::contracts) fn evaluate(
 /// Exact semantic observations can supply Boolean atoms before their retained
 /// syntax is decomposed. The observation owns its meaning and subject custody;
 /// ordinary scalar comparisons keep their independent admission check.
-pub(in crate::checks::contracts) fn evaluate_with_atoms(
+pub(in crate::checks::contracts) fn evaluate_for_atoms(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     resolve_leaf: &mut impl FnMut(ExpressionHandle) -> Option<ScalarValue>,
@@ -90,7 +90,7 @@ pub(in crate::checks::contracts) fn evaluate_with_atoms(
         return Some(ScalarValue::Boolean(value));
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow) => evaluate_with_atoms(
+        ExpressionNode::Borrow(borrow) => evaluate_for_atoms(
             program,
             borrow.target,
             resolve_leaf,
@@ -98,7 +98,7 @@ pub(in crate::checks::contracts) fn evaluate_with_atoms(
             observe_boolean,
         ),
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            let ScalarValue::Boolean(value) = evaluate_with_atoms(
+            let ScalarValue::Boolean(value) = evaluate_for_atoms(
                 program,
                 unary.operand,
                 resolve_leaf,
@@ -123,7 +123,7 @@ pub(in crate::checks::contracts) fn evaluate_with_atoms(
                     | BinaryOperator::GreaterOrEqual
             ) =>
         {
-            let left = evaluate_with_atoms(
+            let left = evaluate_for_atoms(
                 program,
                 binary.left,
                 resolve_leaf,
@@ -142,7 +142,7 @@ pub(in crate::checks::contracts) fn evaluate_with_atoms(
                 }
                 _ => {}
             }
-            let right = evaluate_with_atoms(
+            let right = evaluate_for_atoms(
                 program,
                 binary.right,
                 resolve_leaf,

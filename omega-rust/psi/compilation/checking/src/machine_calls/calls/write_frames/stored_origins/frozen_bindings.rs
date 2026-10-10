@@ -303,7 +303,7 @@ fn call_written_paths(
     let mut paths = Vec::new();
     for relative in written? {
         paths.extend(
-            super::super::path_instantiation::instantiate_written_path_with_origins(
+            super::super::path_instantiation::instantiate_written_path_for_origins(
                 program,
                 caller,
                 &relative,

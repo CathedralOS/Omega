@@ -9,7 +9,7 @@ use typed_trees::{expression::ExpressionHandle, machine::Machine};
 
 use super::super::{
     prover::{
-        ScalarValue, evaluate_checked_scalar, evaluate_scalar, evaluate_with_atoms,
+        ScalarValue, evaluate_checked_scalar, evaluate_scalar, evaluate_for_atoms,
         has_builtin_operators, semantic_contexts_prove_boolean_expression,
     },
     return_values::{exit_return_expression, is_result_reference},
@@ -77,7 +77,7 @@ pub(super) fn proves<'program>(
         requirement,
         call_frames,
     );
-    evaluate_with_atoms(
+    evaluate_for_atoms(
         program,
         expression,
         &mut |leaf| evaluator.contract_value(leaf),

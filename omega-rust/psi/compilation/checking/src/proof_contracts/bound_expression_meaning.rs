@@ -920,7 +920,7 @@ fn builtin_arithmetic_node(
     expression: ExpressionHandle,
     binary: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
-    builtin_arithmetic_with_operand_types(
+    builtin_arithmetic_for_operand_types(
         program,
         machine.symbol,
         expression,
@@ -934,7 +934,7 @@ fn builtin_arithmetic_node(
 /// Establish the actual builtin arithmetic identity with the selected source
 /// result types supplied by an executable or abstract declaration owner. A
 /// matching token and arithmetic qualification alone confer no builtin law.
-pub(crate) fn builtin_arithmetic_with_operand_types(
+pub(crate) fn builtin_arithmetic_for_operand_types(
     program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,

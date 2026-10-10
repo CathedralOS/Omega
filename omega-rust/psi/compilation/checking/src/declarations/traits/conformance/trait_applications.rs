@@ -3,7 +3,7 @@
 
 use crate::declarations::traits::conformance::signature_matching::{
     carrier_data_definition_for_argument, required_trait_type_parameter, trait_type_bindings,
-    type_references_match_with_trait_bindings,
+    type_references_match_for_trait_bindings,
 };
 use crate::value_custody::type_references::type_references_match;
 use diagnostics::Diagnostic;
@@ -204,7 +204,7 @@ fn validate_proposition_family_arguments(
             };
             used_indexed_carrier |= indexed_match.is_some();
             let matches = indexed_match.unwrap_or_else(|| {
-                type_references_match_with_trait_bindings(
+                type_references_match_for_trait_bindings(
                     program,
                     actual.type_reference,
                     expected.type_reference,

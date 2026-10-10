@@ -287,7 +287,7 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         access: language_semantics::ReferenceAccess,
     ) -> Option<String> {
-        let identity = self.add_view_type_with_substitutions(reference, binders, &[], access)?;
+        let identity = self.add_view_type_for_substitutions(reference, binders, &[], access)?;
         // A root view lends actual backing storage. Its independently demanded
         // shape is distinct from the pointer carrier recorded above; stored
         // reference fields do not recursively demand their targets' storage.
@@ -296,7 +296,7 @@ impl<'program> ShapeCollector<'program> {
         Some(identity)
     }
 
-    fn add_view_type_with_substitutions(
+    fn add_view_type_for_substitutions(
         &mut self,
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
@@ -421,7 +421,7 @@ impl<'program> ShapeCollector<'program> {
                 // nested reference shells must not collapse after substitution.
                 return None;
             }
-            return self.add_view_type_with_substitutions(
+            return self.add_view_type_for_substitutions(
                 reference,
                 binders,
                 substitutions,

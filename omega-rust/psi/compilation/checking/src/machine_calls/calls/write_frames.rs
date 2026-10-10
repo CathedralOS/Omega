@@ -95,7 +95,7 @@ use local_aliases::{expression_may_rebind_mutable_alias, rebase_local_alias_path
 use parameter_aliases::{
     ParameterRelativeFrameOrigin, expression_reborrows_transparent_alias_binding,
 };
-use path_instantiation::instantiate_written_path_with_origins;
+use path_instantiation::instantiate_written_path_for_origins;
 use place_paths::{
     FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, coarse_place_path,
     frame_place_path, split_place_root,
@@ -368,7 +368,7 @@ fn summarize_resolved_call(
     // only enclosing body guards belong to that actual's origin proof.
     for relative in relative_paths? {
         for base in &receiver_bases {
-            for instantiated in instantiate_written_path_with_origins(
+            for instantiated in instantiate_written_path_for_origins(
                 program,
                 caller_machine,
                 &relative,

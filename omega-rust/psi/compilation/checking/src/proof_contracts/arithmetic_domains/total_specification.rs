@@ -81,7 +81,7 @@ pub(crate) fn validate_total_specification_arithmetic(
     };
     let expression_domain = |candidate| analyzed(candidate).value.domain;
     let expression_interval = |candidate| Some(analyzed(candidate).value.interval);
-    validate_total_specification_arithmetic_with_domain_lookup(
+    validate_total_specification_arithmetic_for_domains(
         program,
         expression,
         owner,
@@ -98,7 +98,7 @@ pub(crate) fn validate_total_specification_arithmetic(
     );
 }
 
-fn validate_total_specification_arithmetic_with_domain_lookup(
+fn validate_total_specification_arithmetic_for_domains(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     owner: &str,
@@ -375,7 +375,7 @@ pub(super) fn abstract_specification_builtin_arithmetic(
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
-    crate::proof_contracts::bound_expression_meaning::builtin_arithmetic_with_operand_types(
+    crate::proof_contracts::bound_expression_meaning::builtin_arithmetic_for_operand_types(
         program,
         bindings.owner_symbol,
         expression,
@@ -899,7 +899,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                     diagnostics,
                 );
             };
-            validate_total_specification_arithmetic_with_domain_lookup(
+            validate_total_specification_arithmetic_for_domains(
                 program,
                 *expression,
                 owner,

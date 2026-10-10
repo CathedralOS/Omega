@@ -23,7 +23,7 @@ use crate::machine_calls::calls::write_frames::caller_aliases::AssignmentWriteTa
 use crate::machine_calls::calls::write_frames::caller_aliases::CallOriginContext;
 use crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite;
 use crate::machine_calls::calls::write_frames::cycle_frames::{
-    summarize_state_written_paths_with_cycles, summarize_transition_target_written_paths,
+    summarize_state_written_paths_for_cycles, summarize_transition_target_written_paths,
 };
 use crate::machine_calls::calls::write_frames::demand::{
     collect_expression_call_written_paths, statement_value_expression_roots,
@@ -98,7 +98,7 @@ pub(crate) fn summarize_complete_state_written_paths(
     if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
         // The solver already records every state it solves — including `state`
         // — into the shared completed-summary memo.
-        return summarize_state_written_paths_with_cycles(
+        return summarize_state_written_paths_for_cycles(
             program, machine, state, symbols, inference,
         );
     }

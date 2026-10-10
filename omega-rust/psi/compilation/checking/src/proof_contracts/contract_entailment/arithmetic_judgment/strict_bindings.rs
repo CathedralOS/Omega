@@ -245,7 +245,7 @@ impl<'program> Engine<'program> {
                 | BinaryOperator::Divide
                 | BinaryOperator::Modulo
         ) {
-            crate::proof_contracts::bound_expression_meaning::builtin_arithmetic_with_operand_types(
+            crate::proof_contracts::bound_expression_meaning::builtin_arithmetic_for_operand_types(
                 self.program,
                 owner,
                 expression,

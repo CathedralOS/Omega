@@ -92,7 +92,7 @@ pub(crate) fn lower_unit_scalar_argument(
 /// Lower the ordinary scalar algebra, then bind each storage observation in
 /// that exact state namespace. The binder supplies its own custody policy;
 /// local reads stay reads of the local value rather than its initializer.
-pub(crate) fn lower_unit_scalar_argument_with_places(
+pub(crate) fn lower_unit_scalar_argument_for_places(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     state: &typed_trees::state::State,
