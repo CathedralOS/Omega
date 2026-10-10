@@ -34,6 +34,7 @@ use terminal_psi::{
     StructuralTypeShape, find_structural_type,
 };
 
+mod borrowed_arrivals;
 mod occurrences;
 use occurrences::{CarrierContract, Formation, merge_arrivals, re_home_bound_leaves};
 
@@ -699,11 +700,29 @@ fn storage_projection(
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Option<optimization_unit_semantics::StructuralStorageProjection> {
-    let carrier = source_contract(function, custody, source.place)?;
+    let mut carrier = source_contract(function, custody, source.place)?;
+    let mut path = source.path.as_slice();
+    if let Some(crossing) = path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        let leaf = custody.leaf(source.place, &path[..crossing])?;
+        let reference = leaf_type(types, carrier, &path[..crossing])?;
+        let StructuralTypeShape::Reference { referent, access } =
+            find_structural_type(types, reference)?.shape
+        else {
+            return None;
+        };
+        if referent != leaf.referent || !source.access.admits_referent(access) {
+            return None;
+        }
+        carrier = leaf.referent;
+        path = &path[crossing + 1..];
+    }
     optimization_unit_semantics::structural_borrowed_storage_projection(
         types.iter(),
         carrier,
-        &source.path,
+        path,
         source.access,
     )
 }
@@ -727,6 +746,9 @@ fn normalized_source(
     let expected = storage_projection(function, custody, types, source).ok_or(invalid())?;
     let mut candidates = Vec::with_capacity(origins.len());
     for origin in origins {
+        if !source.access.admits(origin.access) {
+            return Err(invalid());
+        }
         let mut resolved = origin.clone();
         resolved.path.extend_from_slice(&source.path);
         resolved.access = source.access;
@@ -1382,6 +1404,7 @@ fn relocate_subtree_leaves<'a>(
 ) -> Result<(), LegalizationError> {
     let mut relocations = Vec::new();
     let mut moved = BTreeSet::new();
+    let mut locations = BTreeMap::new();
     for (argument, nested, prefix) in operands {
         if !contains_reference(types, nested) {
             continue;
@@ -1474,8 +1497,12 @@ fn relocate_subtree_leaves<'a>(
                         contract: leaf.contract.clone(),
                     }];
                 }
-            } else if !moved.insert((argument.place, source_path.clone())) {
-                return Err(invalid());
+            } else {
+                let source = (argument.place, source_path.clone());
+                if !moved.insert(source.clone()) {
+                    return Err(invalid());
+                }
+                locations.insert(source, (destination, target_path.clone()));
             }
             relocations.push((leaf, target_path));
         }
@@ -1486,6 +1513,7 @@ fn relocate_subtree_leaves<'a>(
     for (leaf, to) in relocations {
         custody.leaves.insert((destination, to), leaf);
     }
+    borrowed_arrivals::relocate(custody, &locations);
     Ok(())
 }
 
@@ -2097,64 +2125,18 @@ fn apply_cleanup_actions(
 fn borrowed_sources(
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
-    unit: &PsiOptimizationUnit,
 ) -> std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>> {
-    use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
-    use terminal_semantics::descriptor_results::DescriptorAnalysis;
-    let mut sources = BTreeMap::new();
-    for parameter in function.block_structural_parameters() {
-        if parameter.access != StructuralAccess::Owned
-            && !terminal_semantics::descriptor_results::is_shared_descriptor(
-                types.iter(),
-                parameter.structural_type,
-            )
-        {
-            sources.insert(parameter.place, None);
-        }
-    }
-    if sources.is_empty() {
-        return std::sync::Arc::new(sources);
-    }
-    if let Some(graph) = optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
-        unit.functions.iter(),
-        &unit.boundary_machines,
-        types,
-    ) {
-        if let Some(current) =
-            terminal_semantics::descriptor_results::descriptor_machine(&graph, function.machine)
-        {
-            let mut analysis = DescriptorAnalysis::new(types, &graph);
-            for block in &function.blocks {
-                for parameter in &block.structural_parameters {
-                    let Some(slot) = sources.get_mut(&parameter.place) else {
-                        continue;
-                    };
-                    *slot = analysis
-                        .storage_origins(
-                            function.machine,
-                            (block.id, 0),
-                            &DescriptorLocation::whole(parameter.place),
-                        )
-                        .and_then(|origins| {
-                            origins
-                                .into_iter()
-                                .map(|origin| {
-                                    Some(StructuralArgument {
-                                        place: origin.root,
-                                        path: descriptor_path(
-                                            types,
-                                            *current.place_types.get(&origin.root)?,
-                                            &origin.path,
-                                        )?,
-                                        access: parameter.access,
-                                    })
-                                })
-                                .collect()
-                        });
-                }
-            }
-        }
-    }
+    let sources = function
+        .block_structural_parameters()
+        .filter(|parameter| {
+            parameter.access != StructuralAccess::Owned
+                && !terminal_semantics::descriptor_results::is_shared_descriptor(
+                    types.iter(),
+                    parameter.structural_type,
+                )
+        })
+        .map(|parameter| (parameter.place, None))
+        .collect();
     std::sync::Arc::new(sources)
 }
 
@@ -2209,7 +2191,7 @@ pub(in crate::legalization) fn block_entry_states(
         blocks.iter().map(|block| block.id),
         &predecessors,
     );
-    let borrowed_sources = borrowed_sources(function, types, unit);
+    let borrowed_sources = borrowed_sources(function, types);
     let mut initial = entry(function, types)?;
     initial.borrowed_sources = borrowed_sources;
     let mut entries = BTreeMap::from([(function.entry, initial)]);
@@ -2260,6 +2242,14 @@ pub(in crate::legalization) fn block_entry_states(
                     types,
                 )?;
             }
+            borrowed_arrivals::bind(
+                function,
+                &custody,
+                &mut arrival,
+                &edge.structural_bindings,
+                &blocks[target_position].structural_parameters,
+                types,
+            )?;
             let scope = dominators.get(&edge.target).ok_or(invalid())?;
             arrival.leaves.retain(|(carrier, _), _| {
                 storage_definitions
@@ -2300,6 +2290,15 @@ pub(in crate::legalization) fn block_entry_states(
                     break;
                 }
             }
+            if consistent {
+                for (_, _, arrival) in final_arrivals
+                    .iter()
+                    .flatten()
+                    .filter(|(_, candidate, _)| *candidate == target)
+                {
+                    borrowed_arrivals::merge(&mut complete, arrival)?;
+                }
+            }
             let target_position = *positions.get(&target).ok_or_else(invalid)?;
             if !consistent {
                 // Keep the previous state provisional while other predecessors
@@ -2310,9 +2309,10 @@ pub(in crate::legalization) fn block_entry_states(
                 continue;
             }
             let was_deferred = deferred.remove(&target);
-            let changed = entries
-                .get(&target)
-                .is_none_or(|entry| entry.leaves != complete.leaves);
+            let changed = entries.get(&target).is_none_or(|entry| {
+                entry.leaves != complete.leaves
+                    || entry.borrowed_sources != complete.borrowed_sources
+            });
             if changed {
                 entries.insert(target, complete);
             }
@@ -2331,17 +2331,24 @@ pub(in crate::legalization) fn block_entry_states(
             .flatten()
             .filter(|(_, target, _)| *target == block.id);
         let (_, _, first) = arrivals.next().ok_or_else(invalid)?;
-        let mut complete = first.leaves.clone();
+        let mut complete = first.clone();
         for (_, _, arrival) in arrivals {
-            if merge_arrivals(function, block.id, types, &mut complete, &arrival.leaves)?.is_none()
+            if merge_arrivals(
+                function,
+                block.id,
+                types,
+                &mut complete.leaves,
+                &arrival.leaves,
+            )?
+            .is_none()
             {
                 return Err(invalid());
             }
+            borrowed_arrivals::merge(&mut complete, arrival)?;
         }
-        if entries
-            .get(&block.id)
-            .is_none_or(|entry| entry.leaves != complete)
-        {
+        if entries.get(&block.id).is_none_or(|entry| {
+            entry.leaves != complete.leaves || entry.borrowed_sources != complete.borrowed_sources
+        }) {
             return Err(invalid());
         }
     }
