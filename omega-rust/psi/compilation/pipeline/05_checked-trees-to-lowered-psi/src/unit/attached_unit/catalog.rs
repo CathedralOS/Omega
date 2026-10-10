@@ -437,8 +437,8 @@ pub(super) fn lower_unit_structural_types_including(
                     crate::scalar_lowering::computations::fields::prepare_place_observations(
                         identities,
                         checked,
-                        state,
                         *machine,
+                        state,
                         &declarations,
                     );
                 needs_coordinate |= loans.iter().any(|loan| {

@@ -3121,13 +3121,6 @@ of a check the same flow already performed, not the check itself.
   `omega run tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg`
   and conflicting-mutation/distinct-region controls in that qualification;
   the bounded operator, algebra-law and returned-loan cohort does not replace it.
-  Restore lowering argument correspondence after Terminal identity interning:
-  incoming call-site edits permute machine/state owners, scalar prefixes and
-  value/block/edge allocators despite unchanged declaration order. The native
-  cohort now refuses on clean main, including `guard has no retained source
-  value` in the case-qualified storage program. Repair the shared invocation
-  inputs before renewing full check qualification; do not add source-shaped
-  exceptions or bypass the independent custody audit.
   Attribute remaining moves before claiming qualification; do not repin
   refusals. Include the std-dependent setter and const-container gates under
   **PIPELINE-ARCHITECTURE-ENFORCEMENT** in that qualification.

@@ -13,6 +13,13 @@
 //! through one `operation_frame::OperationFrame`. `providers` checks each
 //! provider candidate against the boundary it satisfies.
 //!
+//! The module's identity table interns output vocabulary; it does not change
+//! invocation ownership or evaluation namespaces. Machine/state identities,
+//! source/erased value prefixes and value/block/edge allocators retain their
+//! distinct roles even where Rust gives them identical types. A new shared
+//! context must not permute those operands or replace retained input with an
+//! empty roster: doing so loses already-produced custody and cleanup work.
+//!
 //! Replacement has no separate source-shape recognizer. The checked operation
 //! stream already orders production, old-value cleanup and establishment.
 //! `OperationFrame` resolves the completed value in the same storage namespace
