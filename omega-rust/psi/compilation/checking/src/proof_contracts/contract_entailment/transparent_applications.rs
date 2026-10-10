@@ -169,7 +169,7 @@ pub fn transparent_proposition_application_entailed(
             SignatureContractKind::Requires,
         )
         .collect::<Vec<_>>();
-    let mut judge = StructuralJudge::from_requires(program, machine, &expression_requires);
+    let mut judge = StructuralJudge::from_requires(program, machine, &expression_requires, true);
     for application in program
         .contract_facts(
             program

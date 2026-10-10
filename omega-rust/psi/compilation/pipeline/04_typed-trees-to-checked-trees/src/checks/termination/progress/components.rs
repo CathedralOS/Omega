@@ -100,7 +100,7 @@ fn derive_component(
     for (index, machine) in program.machines().iter().enumerate() {
         if component.contains(&machine.symbol) {
             summaries[index].guarantee =
-                super::super::infer_machine_checked_summary_with_call_frames(
+                super::super::infer_machine_checked_summary(
                     program,
                     machine,
                     call_frames,

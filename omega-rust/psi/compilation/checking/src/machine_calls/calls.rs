@@ -680,7 +680,7 @@ fn validate_value_call_argument_classes(
         );
         // Result use does not relax argument admission. Ordinary and generic
         // value calls use the same carrier correspondence as statement calls.
-        if !crate::value_custody::expression_types::argument_matches_carrier_with_substitutions(
+        if !crate::value_custody::expression_types::argument_matches_carrier(
             program,
             *argument,
             parameter.type_reference,

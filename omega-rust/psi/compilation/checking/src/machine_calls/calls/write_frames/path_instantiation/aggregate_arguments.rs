@@ -29,15 +29,25 @@ pub(super) fn written_paths(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
-    let leaves = reference_leaves(
-        program,
+    let leaves = reference_leaves(program,
         caller_machine,
         argument,
         expected_type,
         suffix,
         symbols,
         inference,
-    )?;
+        false,
+        &|expression,
+        _,
+        _,
+        inference| {
+            exclusive_reference_origins(program, caller_machine, expression, symbols, inference)
+        },
+        &|expression,
+        reference,
+        inference| {
+            symbolic_reference_leaves(program, caller_machine, expression, reference, inference)
+        })?;
     let mut written = Vec::new();
     for leaf in leaves.references {
         let origin = leaf.origin?;
@@ -91,36 +101,11 @@ pub(in crate::machine_calls::calls::write_frames) type AggregateResolver<'resolv
     dyn Fn(ExpressionHandle, TypeReferenceHandle, &FrameInference) -> Option<AggregateOrigins>
         + 'resolver;
 
-pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
-    program: &dyn crate::CheckingInput,
-    caller_machine: &Machine,
-    argument: ExpressionHandle,
-    expected_type: TypeReferenceHandle,
-    suffix: &str,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-) -> Option<AggregateOrigins> {
-    reference_leaves_with_origins(
-        program,
-        caller_machine,
-        argument,
-        expected_type,
-        suffix,
-        symbols,
-        inference,
-        false,
-        &|expression, _, _, inference| {
-            exclusive_reference_origins(program, caller_machine, expression, symbols, inference)
-        },
-        &|expression, reference, inference| {
-            symbolic_reference_leaves(program, caller_machine, expression, reference, inference)
-        },
-    )
-}
+
 
 /// The caller supplies frozen or symbolic leaf evidence; the shared walker
 /// filters demand and attaches it beneath the current literal's prefix.
-pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origins(
+pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
     program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     argument: ExpressionHandle,

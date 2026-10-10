@@ -50,8 +50,8 @@ pub(crate) fn call_parameter_domains(
     };
     let mut requirements = Vec::new();
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        let declared = validation::parameter_domain_constraints(program, parameter.type_reference);
-        for domain in validation::parameter_domain_constraints_with_substitutions(
+        let declared = validation::parameter_domain_constraints(program, parameter.type_reference, &[]);
+        for domain in validation::parameter_domain_constraints(
             program,
             parameter.type_reference,
             &bindings,

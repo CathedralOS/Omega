@@ -227,6 +227,8 @@ fn build_state_plan(
                 (!super::terminal_unit::types::type_graph_requires_nominal_drop(
                     program,
                     parameter.type_reference,
+                    &[],
+                    &mut std::collections::BTreeSet::new(),
                 ))
                 .then_some(position)
             })
@@ -299,7 +301,8 @@ fn projected_read_retains_parent(
         program,
         payload,
         validation::ContentsRequirement::OwnedOrSharedView,
-    )) || super::terminal_unit::types::type_graph_requires_nominal_drop(program, payload)
+    )) || super::terminal_unit::types::type_graph_requires_nominal_drop(
+        program, payload, &[], &mut std::collections::BTreeSet::new())
     {
         return None;
     }

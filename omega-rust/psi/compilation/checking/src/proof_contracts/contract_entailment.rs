@@ -157,7 +157,6 @@ pub use strict_arithmetic::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
     StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
     strict_arithmetic_expression_implication,
-    strict_arithmetic_expression_implication_with_arguments,
 };
 pub(crate) use structural_judgment::declared_index_algebra_laws;
 pub use transparent_applications::transparent_proposition_application_entailed;
@@ -307,7 +306,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
     // engine's vacuity rule. Payload-carrying constructor TERMS in facts are
     // grammar-gated today (struct literals do not parse in contract
     // position), so injectivity decomposition is the recorded next rung.
-    let mut structural = StructuralJudge::from_requires(program, machine, &requires);
+    let mut structural = StructuralJudge::from_requires(program, machine, &requires, true);
     // CITATIONS (ch10 "Citing Proofs"; the settled proof-citation rule):
     // each statement call to a free proof machine carries the callee's
     // proven ensures to this proof, instantiated at the call's argument
@@ -475,7 +474,8 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes<'program>(
     let case_arms: Option<Vec<StructuralCaseArm>> = if sole_arm_result.is_some() {
         None
     } else {
-        recognize_structural_case_arms(program, machine, &structural, &proof_only, diagnostics)
+        recognize_structural_case_arms(program, machine, &structural, &proof_only, diagnostics,
+        None)
             .or_else(|| recognize_guarded_structural_value_arms(program, machine, &structural))
     };
     // This legacy term vocabulary is name-based. An authored entry parameter

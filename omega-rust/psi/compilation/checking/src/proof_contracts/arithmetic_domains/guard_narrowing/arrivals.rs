@@ -415,25 +415,19 @@ fn condition_belongs_to_state(
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_) => true,
         ExpressionNode::Call(_) => {
-            ordered_values::operand_with_frames(program, machine, state, expression, frames)
+            ordered_values::operand(program, machine, state, expression, frames)
                 .is_some()
         }
         _ => false,
     }
 }
 
-pub(super) fn incoming_environments(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    frames: Option<&CallFrameResolver>,
-) -> Vec<(SymbolHandle, ValueEnvironment)> {
-    incoming_environments_with_entry(program, machine, frames, None)
-}
+
 
 /// A captured invocation supplies immutable entry values. This uses the same
 /// arrival joins and effect transfer as body checking; descendant calls retain
 /// declared guarantees so a recursive body cannot justify its own bound.
-fn incoming_environments_with_entry(
+pub(super) fn incoming_environments(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     frames: Option<&CallFrameResolver>,
@@ -576,7 +570,7 @@ pub(crate) fn inferred_normal_return_interval(
     }
     let frames = CallFrameResolver::new(program);
     let incoming =
-        incoming_environments_with_entry(program, machine, frames.as_ref(), Some((entry, actuals)));
+        incoming_environments(program, machine, frames.as_ref(), Some((entry, actuals)));
     let mut combined: Option<Interval> = None;
     for state in program.machine_states(machine) {
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -807,7 +801,7 @@ impl ArrivalWalk<'_, '_> {
                 bindings.push((path, parameter.name.as_str().to_owned()));
             }
             if (!environment.ordered_values.is_empty() || !environment.boolean_values.is_empty())
-                && let Some(value) = ordered_values::operand_with_frames(
+                && let Some(value) = ordered_values::operand(
                     self.program,
                     self.machine,
                     source,

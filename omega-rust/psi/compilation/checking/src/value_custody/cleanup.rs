@@ -17,22 +17,8 @@ use typed_trees::statement::TransitionTargetNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// True when automatic disposal would have to run a reachable nominal
-/// `::drop`. Borrowed views do not own referent cleanup; callers assessing an
-/// owned receiver must pass its referent type rather than its loan type.
-pub fn type_graph_requires_nominal_drop(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    type_graph_requires_nominal_drop_with_substitutions(
-        program,
-        type_reference,
-        &[],
-        &mut BTreeSet::new(),
-    )
-}
 
-fn type_graph_requires_nominal_drop_with_substitutions(
+pub fn type_graph_requires_nominal_drop(
     program: &dyn crate::CheckingInput,
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -69,7 +55,7 @@ fn type_graph_requires_nominal_drop_with_substitutions(
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => false,
         TypeReferenceNode::Constrained { base_type, .. } => {
-            type_graph_requires_nominal_drop_with_substitutions(
+            type_graph_requires_nominal_drop(
                 program,
                 *base_type,
                 substitutions,
@@ -77,7 +63,7 @@ fn type_graph_requires_nominal_drop_with_substitutions(
             )
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_graph_requires_nominal_drop_with_substitutions(
+            type_graph_requires_nominal_drop(
                 program,
                 *element_type,
                 substitutions,
@@ -163,7 +149,7 @@ fn data_graph_requires_nominal_drop_with_substitutions(
         .any(|member| match member {
             DataMember::Field(field) => {
                 !field.relevance.is_erased()
-                    && type_graph_requires_nominal_drop_with_substitutions(
+                    && type_graph_requires_nominal_drop(
                         program,
                         field.type_reference,
                         substitutions,
@@ -173,7 +159,7 @@ fn data_graph_requires_nominal_drop_with_substitutions(
             DataMember::Variant(variant) => {
                 program.data_payload_fields(variant).iter().any(|field| {
                     !field.relevance.is_erased()
-                        && type_graph_requires_nominal_drop_with_substitutions(
+                        && type_graph_requires_nominal_drop(
                             program,
                             field.type_reference,
                             substitutions,

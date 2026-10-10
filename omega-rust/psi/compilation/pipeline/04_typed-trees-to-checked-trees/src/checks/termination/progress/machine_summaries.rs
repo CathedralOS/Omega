@@ -22,7 +22,7 @@ pub(crate) fn derive_machine_summary(
     summaries: &[CheckedProgressSummary],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedProgressSummary> {
-    if !crate::checks::termination::infer_machine_checked_summary_with_call_frames(
+    if !crate::checks::termination::infer_machine_checked_summary(
         program,
         machine,
         call_frames,

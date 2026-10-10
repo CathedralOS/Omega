@@ -129,7 +129,8 @@ fn proof_term_type_matches(
             program.state_by_symbol(caller_state).is_some_and(|state| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.symbol == *parameter_symbol
-                        && base_type_identity(program, parameter.type_reference, &[]).as_deref()
+                        && base_type_identity(program, parameter.type_reference, &[],
+        &[]).as_deref()
                             == Some(type_identity)
                 })
             })
@@ -787,7 +788,8 @@ pub(crate) fn projected_argument_path_with_identity(
     target_identity: &str,
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
     let (projected, path) = projected_argument_path(program, state_symbol, statement_index, place)?;
-    (base_type_identity(program, projected, &[])? == target_identity).then_some(path)
+    (base_type_identity(program, projected, &[],
+        &[])? == target_identity).then_some(path)
 }
 
 /// The literal element count of a fixed array reached through any number of

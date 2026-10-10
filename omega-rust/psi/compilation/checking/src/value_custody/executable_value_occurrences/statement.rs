@@ -69,7 +69,7 @@ impl ValueOccurrenceVisitor<'_, '_> {
                     .copied()
                     .enumerate()
                 {
-                    self.collect_expression_with_expected_primitive(
+                    self.collect_expression(
                         argument,
                         checked_trees::CheckedValueOrigin::StateStatement {
                             machine_symbol,

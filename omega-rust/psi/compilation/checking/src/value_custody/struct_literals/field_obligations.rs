@@ -111,11 +111,10 @@ pub(super) fn enforce_construction_field_obligations(
                 diagnostics.push(Diagnostic::error(format!("{slot_context} {reason}")));
                 continue;
             }
-            if !crate::value_custody::expression_types::argument_matches_carrier(
-                program,
+            if !crate::value_custody::expression_types::argument_matches_carrier(program,
                 field.value,
                 field_type,
-            ) {
+        &[]) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{slot_context} expects reference `{}`, but the source does not supply its carrier and access",
                     program.display_type_reference_with_constraints(field_type),

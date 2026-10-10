@@ -271,7 +271,7 @@ pub(crate) fn solve_private_summary_fixed_point(
                         // edges to their cause bucket.
                         SummaryCrashBucket::unconditional(bucket.cause)
                     } else {
-                        bucket.substitute(&dependency.substitution)
+                        bucket.substitute(&dependency.substitution, None)
                     }
                 }));
             }

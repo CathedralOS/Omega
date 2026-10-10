@@ -132,7 +132,7 @@ pub(crate) fn analyze_checked_progress_with_call_frames(
         // Ranking diagnostics own local control-flow failure and can name the
         // missing or invalid witness precisely. Progress coverage begins only
         // after that independent obligation succeeds.
-        if !super::infer_machine_checked_summary_with_call_frames(program, machine, call_frames)
+        if !super::infer_machine_checked_summary(program, machine, call_frames)
             .promises_termination()
         {
             continue;

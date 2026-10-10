@@ -18,29 +18,11 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
-pub(super) fn entry_value(
-    program: &dyn ::validation::CheckingInput,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    before_statement: usize,
-    expression: ExpressionHandle,
-    depth: u32,
-) -> Option<CrashPredicateExpression> {
-    entry_value_with_selector(
-        program,
-        machine_symbol,
-        state_symbol,
-        before_statement,
-        expression,
-        depth,
-        &mut |_, _, expression| literal_index(program, expression),
-    )
-}
 
 /// The caller supplies evaluated index evidence at the projection's own
 /// statement prefix. Following a saved local changes that prefix; consulting
 /// the eventual consumer's facts would replay a newer selector value.
-pub(super) fn entry_value_with_selector(
+pub(super) fn entry_value(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -63,7 +45,7 @@ pub(super) fn entry_value_with_selector(
     )
 }
 
-fn literal_index(
+pub(crate) fn literal_index(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<usize> {

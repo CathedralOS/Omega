@@ -161,7 +161,7 @@ pub(crate) fn erased_proof_parameter_plans(
             Some(checked_trees::CheckedErasedProofParameterPlan {
                 source_position: u32::try_from(position).ok()?,
                 parameter_symbol: parameter.symbol,
-                type_identity: base_type_identity(program, parameter.type_reference, &[])?,
+                type_identity: base_type_identity(program, parameter.type_reference, &[], &[])?,
             })
         })
         .collect()

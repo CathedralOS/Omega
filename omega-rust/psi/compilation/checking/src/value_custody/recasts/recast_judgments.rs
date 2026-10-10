@@ -644,7 +644,7 @@ fn judge_slice_recast(
     }
 
     let element_count = source_representation.size / element_representation.size;
-    let Some(target_representation) = repeat_representation(&element_representation, element_count)
+    let Some(target_representation) = repeat_representation(&element_representation, element_count, element_representation.size)
     else {
         diagnostics.push(
             Diagnostic::error(format!(

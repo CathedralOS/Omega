@@ -4,7 +4,7 @@
 use crate::execution::terminal_unit::calls::call_operations::ExpectedCallValueResult;
 use crate::execution::terminal_unit::types::is_unit;
 use crate::execution::terminal_unit::types::{
-    base_type_identity_with_substitutions, substituted_formal_type,
+    base_type_identity, substituted_formal_type,
 };
 use crate::execution::terminal_unit::{
     Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode, is_reference,
@@ -118,7 +118,7 @@ pub(crate) fn boundary_value_result_matches(
                 && !is_reference(program, return_type)
                 && validation::reference_result_custody::result_multiplicity(program, return_type)
                     == expected.multiplicity
-                && base_type_identity_with_substitutions(program, return_type, &[], substitutions)
+                && base_type_identity(program, return_type, &[], substitutions)
                     .is_some_and(|identity| identity == expected.type_identity)
         }
     }

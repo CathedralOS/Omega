@@ -177,7 +177,8 @@ pub(crate) fn structural_computation_argument(
     Some(CheckedUnitStructuralArgumentPlan {
         source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
         path: Vec::new(),
-        type_identity: base_type_identity(program, target.type_reference, &[])?,
+        type_identity: base_type_identity(program, target.type_reference, &[],
+        &[])?,
         access,
     })
 }
@@ -324,7 +325,8 @@ pub(crate) fn borrowed_storage_argument(
     // home; declaration spelling is not an additional eligibility rule.
     // The formal's own referee names the plan: a bounded byte owner keeps
     // the qualification its carrier is registered under.
-    let target_identity = base_type_identity(program, target_shell.referee, &[])?;
+    let target_identity = base_type_identity(program, target_shell.referee, &[],
+        &[])?;
     let parameters = program.state_parameters(state);
     let (reference, mut source) = if let Some(position) =
         typed_trees::signature::state_parameter_position(parameters, symbol)
@@ -906,11 +908,13 @@ pub(super) fn primitive_local_argument(
         target_access,
         &[],
     )?;
-    let type_identity = base_type_identity(program, target_type, &[])?;
+    let type_identity = base_type_identity(program, target_type, &[],
+        &[])?;
     if !storage.segments.is_empty()
         || target_access == CheckedStructuralAccess::Owned
         || access != target_access
-        || base_type_identity(program, local.type_reference, &[])? != type_identity
+        || base_type_identity(program, local.type_reference, &[],
+        &[])? != type_identity
     {
         return None;
     }

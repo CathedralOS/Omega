@@ -64,28 +64,6 @@ pub enum StrictArithmeticImplicationJudgment {
     Unknown,
 }
 
-/// Judge one instantiated integer-expression goal from an exact authored
-/// hypothesis roster. This authority-bearing adapter is stricter than the
-/// ordinary contract validator: every hypothesis and the goal must be inside
-/// the arithmetic engine's language, every name must resolve through a
-/// symbol-keyed binding, and only `Proven` succeeds. In particular, the
-/// validator's sound stand-down behavior is `Unknown` here, never acceptance.
-pub fn strict_arithmetic_expression_implication(
-    program: &dyn crate::CheckingInput,
-    context_machine: &Machine,
-    hypotheses: &[ExpressionHandle],
-    goal: ExpressionHandle,
-    bindings: &[StrictArithmeticSymbolBinding],
-) -> StrictArithmeticImplicationJudgment {
-    strict_arithmetic_expression_implication_with_arguments(
-        program,
-        context_machine,
-        hypotheses,
-        goal,
-        bindings,
-        &[],
-    )
-}
 
 /// Instantiate all arguments simultaneously in the original symbol namespace
 /// before judging the goal. Unknown arguments and conflicting formal bindings
@@ -94,7 +72,7 @@ pub fn strict_arithmetic_expression_implication(
 /// formal. Hypotheses keep the caller's meaning; only the goal reads formals,
 /// which shadow a caller symbol they share (a self-call's parameters).
 /// This supplies mathematical substitution, not executable value custody.
-pub fn strict_arithmetic_expression_implication_with_arguments(
+pub fn strict_arithmetic_expression_implication(
     program: &dyn crate::CheckingInput,
     context_machine: &Machine,
     hypotheses: &[ExpressionHandle],

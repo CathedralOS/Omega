@@ -320,7 +320,7 @@ fn prove(
         })
         .collect::<Vec<_>>();
     Some(
-        validation::strict_arithmetic_expression_implication_with_arguments(
+        validation::strict_arithmetic_expression_implication(
             program,
             caller_machine,
             &hypotheses,

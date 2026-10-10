@@ -124,7 +124,7 @@ fn known_call_written_paths(
 ) -> Option<Vec<String>> {
     let receiver_members =
         crate::machine_calls::calls::signature_queries::call_receiver_member_names(program, call);
-    known_call_written_paths_for_parts_with_origins(
+    known_call_written_paths_for_parts(
         program,
         call.target_symbol,
         call.target.as_str(),
@@ -140,38 +140,9 @@ fn known_call_written_paths(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-fn known_call_written_paths_for_parts(
-    program: &dyn crate::CheckingInput,
-    target_symbol: SymbolHandle,
-    target: &str,
-    receiver_members: &[String],
-    receiver_origins: &[FramePlaceOrigin],
-    receiver_data_name: Option<&str>,
-    arguments: &[ExpressionHandle],
-    current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-) -> Option<Vec<String>> {
-    known_call_written_paths_for_parts_with_origins(
-        program,
-        target_symbol,
-        target,
-        receiver_members,
-        receiver_origins,
-        receiver_data_name,
-        arguments,
-        current_machine,
-        machine_symbols,
-        symbols,
-        inference,
-        None,
-    )
-}
 
 #[allow(clippy::too_many_arguments)]
-fn known_call_written_paths_for_parts_with_origins(
+fn known_call_written_paths_for_parts(
     program: &dyn crate::CheckingInput,
     target_symbol: SymbolHandle,
     target: &str,

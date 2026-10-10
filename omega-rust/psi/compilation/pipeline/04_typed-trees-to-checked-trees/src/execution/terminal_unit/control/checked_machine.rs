@@ -311,7 +311,9 @@ pub(crate) fn build_checked_machine_residual_parts(
             && matches!(
                 statements.get(result.statement_index as usize),
                 Some(StatementNode::LocalData(local))
-                    if type_graph_requires_nominal_drop(program, local.type_reference)
+                    if type_graph_requires_nominal_drop(program, local.type_reference,
+        &[],
+        &mut BTreeSet::new())
             )
     }) {
         return None;

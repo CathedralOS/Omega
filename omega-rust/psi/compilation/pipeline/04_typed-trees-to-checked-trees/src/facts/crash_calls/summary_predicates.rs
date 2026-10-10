@@ -203,9 +203,6 @@ impl SummaryCrashBucket {
         }
     }
 
-    pub(crate) fn substitute(&self, arguments: &CallArgumentSubstitution) -> Self {
-        self.substitute_with_entry_resolver(arguments, None)
-    }
 
     /// `substitute` with an optional per-projection operand resolver. When
     /// `resolve` is present it answers each referenced formal's entry operand
@@ -214,7 +211,7 @@ impl SummaryCrashBucket {
     /// to `Truth`. Callers without live invocation context (the private
     /// fixed point, hand-built test substitutions) pass `None` and keep the
     /// whole-operand `arguments.identity` boundary.
-    pub(crate) fn substitute_with_entry_resolver(
+    pub(crate) fn substitute(
         &self,
         arguments: &CallArgumentSubstitution,
         mut resolve: Option<&mut dyn FnMut(u32, &[String]) -> Option<CrashPredicateExpression>>,

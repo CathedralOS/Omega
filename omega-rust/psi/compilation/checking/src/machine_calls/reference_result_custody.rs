@@ -476,7 +476,8 @@ pub fn returned_record_sources(
     if !is_reference_record(program, state.return_type) {
         return None;
     }
-    returned_reference_sources(program, state)
+    returned_reference_sources(program, state,
+        None)
 }
 
 /// The expression producing a state's returned value: the tail expression
@@ -1186,18 +1187,11 @@ fn returned_sources_with_calls(
     has_normal_completion.then_some(sources)
 }
 
-/// Every normal completion contributes its exact caller-relative origin.
-pub fn returned_reference_sources(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    returned_reference_sources_with_frames(program, state, None)
-}
 
 /// Borrow an already prepared compilation resolver through every substituted
 /// origin query. Standalone consumers prepare their own resolver; source
 /// checks must not rebuild whole-program symbol tables for each returned view.
-pub fn returned_reference_sources_with_frames(
+pub fn returned_reference_sources(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     call_frames: Option<&crate::CallFrameResolver<'_>>,
@@ -2337,7 +2331,8 @@ fn state_reference_custody(
 ) -> StateReferenceCustodyRow {
     StateReferenceCustodyRow {
         tail_return_expression: tail_return_expression(program, state).unwrap_or_default(),
-        returns_complete_reference_origins: returned_reference_sources(program, state).is_some(),
+        returns_complete_reference_origins: returned_reference_sources(program, state,
+        None).is_some(),
         tail_names_source_parameter: source_parameter(program, state).is_some(),
         tail_selects_source_leaf: source_leaf(program, state).is_some(),
     }

@@ -16,7 +16,7 @@ use super::caller_aliases::{
 };
 use super::{
     coarse_place_path, known_boundary_call_written_paths_for_parts, known_call_written_paths,
-    known_call_written_paths_for_parts_with_origins, memoized, normalize_state_relative_path,
+    known_call_written_paths_for_parts, memoized, normalize_state_relative_path,
     receiver_member_chain,
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
@@ -1147,7 +1147,7 @@ pub(super) fn collect_expression_call_written_paths(
                     inference,
                 )
             };
-            let paths = known_call_written_paths_for_parts_with_origins(
+            let paths = known_call_written_paths_for_parts(
                 program,
                 call.target_symbol,
                 call.target.as_str(),

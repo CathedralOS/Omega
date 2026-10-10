@@ -172,7 +172,7 @@ fn caller_requires_judge<'program>(
     caller_state: &'program typed_trees::state::State,
 ) -> StructuralJudge<'program> {
     let caller_requires = requires_expressions(program, caller_machine, caller_state);
-    StructuralJudge::from_requires(program, caller_machine, &caller_requires)
+    StructuralJudge::from_requires(program, caller_machine, &caller_requires, true)
 }
 
 /// The callee's `requires` expression facts in declaration order: machine

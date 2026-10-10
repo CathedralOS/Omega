@@ -9,7 +9,7 @@
 
 use super::path_instantiation::aggregate_arguments::{
     AggregateOrigins, AggregateResolver, ReferenceLeaf, ReferenceResolver,
-    reference_leaves_with_origins,
+    reference_leaves,
 };
 use super::stored_origins::canonical_reference_origins;
 use super::{
@@ -382,7 +382,7 @@ fn merge_result_arm(
                 inference,
             )?
         } else {
-            reference_leaves_with_origins(
+            reference_leaves(
                 program,
                 machine,
                 result,

@@ -415,6 +415,7 @@ impl ParameterArgument<'_> {
             place,
             self.selectors,
         )?;
-        (base_type_identity(program, projected, &[])? == self.target_identity).then_some(path)
+        (base_type_identity(program, projected, &[],
+        &[])? == self.target_identity).then_some(path)
     }
 }

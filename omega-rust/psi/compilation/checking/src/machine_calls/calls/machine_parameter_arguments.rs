@@ -29,7 +29,7 @@ pub(super) fn validate_machine_parameter_arguments(
         writable_roots,
         false,
         &[],
-        |argument, required| argument_matches_carrier(program, argument, required),
+        |argument, required| argument_matches_carrier(program, argument, required, &[]),
         diagnostics,
     );
 }

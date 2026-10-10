@@ -106,7 +106,7 @@ fn completed_field_sources(
 ) -> Option<Result<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>, usize>> {
     use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
     use validation::reference_result_custody::{
-        loan_place_segments, returned_reference_sources_with_frames,
+        loan_place_segments, returned_reference_sources,
     };
 
     let (machine, state) = validation::find_state_with_machine(program, target)?;
@@ -115,7 +115,7 @@ fn completed_field_sources(
     {
         return None;
     }
-    let sources = returned_reference_sources_with_frames(program, state, call_frames)?;
+    let sources = returned_reference_sources(program, state, call_frames)?;
     let parameters = program.state_parameters(state);
     let mut output = Vec::with_capacity(sources.len());
     let mut covered = vec![false; fields.len()];

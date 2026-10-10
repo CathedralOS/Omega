@@ -11,7 +11,7 @@
 //! sources. This replaces the local pure-tail-return exception with ordinary
 //! transfer, without treating incomplete effect summaries as complete.
 
-use super::path_instantiation::aggregate_arguments::reference_leaves_with_origins;
+use super::path_instantiation::aggregate_arguments::reference_leaves;
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, split_place_root,
 };
@@ -278,7 +278,7 @@ pub(super) fn declaration_origins_for_query(
         origins.moves.clear();
         return Some(origins);
     }
-    let leaves = reference_leaves_with_origins(
+    let leaves = reference_leaves(
         program,
         machine,
         local.initial_value,

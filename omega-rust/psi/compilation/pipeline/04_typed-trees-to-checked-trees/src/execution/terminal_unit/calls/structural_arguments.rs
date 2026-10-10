@@ -211,7 +211,8 @@ pub(crate) fn structural_call_arguments(
             .unwrap_or_else(|| authored_place.clone());
         // Byte carriers and `&[T]` views name their own carriers under the
         // same structural identity rule as every other formal.
-        let target_identity = base_type_identity(program, target.type_reference, &[])?;
+        let target_identity = base_type_identity(program, target.type_reference, &[],
+        &[])?;
         arm("call operation: structural arguments: caller structural result");
         if let Some((result, _)) = caller_structural_results
             .iter()

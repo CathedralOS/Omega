@@ -116,19 +116,12 @@ pub(in crate::execution::terminal_unit) fn is_unit(
 /// carriers a call presents. Other storage declines. The identity itself is
 /// the rule `validation::structural_type_identity` owns, so a bounded byte
 /// owner keeps its qualification here exactly as its registered plan does.
-pub(in crate::execution::terminal_unit) fn base_type_identity(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    binders: &[(SymbolHandle, String)],
-) -> Option<String> {
-    base_type_identity_with_substitutions(program, type_reference, binders, &[])
-}
 
 /// The same identity under a call edge's checked generic substitutions: the
 /// callee's `Type` parameters resolve to the actuals its admitted
 /// specialization derived, so a requirement formal's identity compares
 /// against the caller's concrete presentation.
-pub(in crate::execution::terminal_unit) fn base_type_identity_with_substitutions(
+pub(in crate::execution::terminal_unit) fn base_type_identity(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
@@ -163,7 +156,7 @@ pub(in crate::execution::terminal_unit) fn lent_storage_identity(
 ) -> Option<String> {
     let storage = validation::reference_shell(program, type_reference)
         .map_or(type_reference, |shell| shell.referee);
-    base_type_identity_with_substitutions(program, storage, &[], substitutions)
+    base_type_identity(program, storage, &[], substitutions)
 }
 
 /// A call edge's checked specialization maps a bare `Type` formal to the

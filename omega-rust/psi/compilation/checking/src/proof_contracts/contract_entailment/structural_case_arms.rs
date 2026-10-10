@@ -221,28 +221,8 @@ fn stage_citation_argument_terms(
 
 type PendingStructuralCitation = (CitationTarget, Vec<StructuralTerm>);
 
-/// Recognize a proof machine as a tree of structural case states. Each named
-/// state can either terminate in a value or refine another subject and hand
-/// the branch to a further named state. Unsupported statement order, an
-/// unresolved target, or a state cycle fails the whole recognition closed.
-pub(crate) fn recognize_structural_case_arms(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    judge: &StructuralJudge<'_>,
-    classification: &typed_trees::proof_only::ProofOnlyClassification,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Option<Vec<StructuralCaseArm>> {
-    recognize_structural_case_arms_with_requirement(
-        program,
-        machine,
-        judge,
-        classification,
-        diagnostics,
-        None,
-    )
-}
 
-pub(super) fn recognize_structural_case_arms_with_requirement(
+pub(crate) fn recognize_structural_case_arms(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     judge: &StructuralJudge<'_>,

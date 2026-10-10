@@ -16,7 +16,7 @@ use super::citations::{
 use super::refuted_requires::instantiated_fact_judgment;
 use super::self_induction::intake_available_self_induction_hypotheses;
 use super::structural_case_arms::{
-    recognize_structural_case_arms_with_requirement, structural_arm_judge,
+    recognize_structural_case_arms, structural_arm_judge,
 };
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use symbols::SymbolHandle;
@@ -89,13 +89,13 @@ pub fn structural_call_requirement_entailed(
     } else if contains_case_premise(program, expression) {
         StructuralJudge::from_case_requires(program, machine, &requires)
     } else {
-        StructuralJudge::from_requires(program, machine, &requires)
+        StructuralJudge::from_requires(program, machine, &requires, true)
     };
     if case_facts_only {
         judge.restrict_to_case_facts();
     }
     let mut diagnostics = Vec::new();
-    let recognized = recognize_structural_case_arms_with_requirement(
+    let recognized = recognize_structural_case_arms(
         program,
         machine,
         &judge,

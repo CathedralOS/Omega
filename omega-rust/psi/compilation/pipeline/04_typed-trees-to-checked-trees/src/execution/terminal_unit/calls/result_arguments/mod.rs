@@ -518,7 +518,8 @@ fn argument_contract(
         || if access == CheckedStructuralAccess::Owned {
             result.type_identity == target_identity
         } else {
-            base_type_identity(program, referent, &[])? == result.type_identity
+            base_type_identity(program, referent, &[],
+        &[])? == result.type_identity
         };
     // A projection selects the referent's type, not the containing owner's
     // multiplicity: an affine owner can hold linear members. Its resolved
@@ -651,7 +652,8 @@ fn argument_contract(
                                 local.type_reference,
                                 validation::ContentsRequirement::RepresentedOwned,
                             )))
-                        || base_type_identity(program, local.type_reference, &[])?
+                        || base_type_identity(program, local.type_reference, &[],
+        &[])?
                             != result.type_identity)
                 {
                     return None;

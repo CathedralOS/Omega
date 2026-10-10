@@ -211,20 +211,12 @@ impl Clone for StructuralJudge<'_> {
 }
 
 impl<'program> StructuralJudge<'program> {
-    pub(super) fn from_requires(
-        program: &'program dyn crate::CheckingInput,
-        judged_machine: &Machine,
-        requires: &[ExpressionHandle],
-    ) -> Self {
-        Self::from_requires_with_resolution(program, judged_machine, requires, true)
-    }
-
     pub(super) fn from_case_requires(
         program: &'program dyn crate::CheckingInput,
         judged_machine: &Machine,
         requires: &[ExpressionHandle],
     ) -> Self {
-        Self::from_requires_with_resolution(program, judged_machine, requires, false)
+        Self::from_requires(program, judged_machine, requires, false)
     }
 
     pub(super) fn has_exact_case_subjects(&self) -> bool {
@@ -257,7 +249,7 @@ impl<'program> StructuralJudge<'program> {
         self.hypotheses_contradictory = false;
     }
 
-    fn from_requires_with_resolution(
+    pub(crate) fn from_requires(
         program: &'program dyn crate::CheckingInput,
         judged_machine: &Machine,
         requires: &[ExpressionHandle],

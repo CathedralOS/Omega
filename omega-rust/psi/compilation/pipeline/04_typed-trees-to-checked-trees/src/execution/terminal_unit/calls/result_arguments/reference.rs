@@ -60,7 +60,8 @@ pub(crate) fn argument(
         path.extend(suffix);
         selected
     };
-    if base_type_identity(program, selected, &[])? != target_identity {
+    if base_type_identity(program, selected, &[],
+        &[])? != target_identity {
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {

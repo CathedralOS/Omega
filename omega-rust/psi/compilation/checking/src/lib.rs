@@ -70,7 +70,7 @@ pub use proof_contracts::domains::{
     scalar_state_contracts_are_qualifications, scalar_type_tags,
 };
 pub use proof_contracts::parameter_domains::{
-    parameter_domain_constraints, parameter_domain_constraints_with_substitutions,
+    parameter_domain_constraints,
 };
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
 pub use proof_contracts::signature_ensures::{
@@ -358,7 +358,6 @@ pub use proof_contracts::contract_entailment::{
     StrictArithmeticExpressionBinding, StrictArithmeticImplicationJudgment,
     StrictArithmeticSymbolBinding, scoped_arithmetic_implication,
     scoped_arithmetic_values_relation, strict_arithmetic_expression_implication,
-    strict_arithmetic_expression_implication_with_arguments,
 };
 pub use proof_contracts::contract_entailment::{
     anonymous_integer_math_literal, proof_integer_expression,

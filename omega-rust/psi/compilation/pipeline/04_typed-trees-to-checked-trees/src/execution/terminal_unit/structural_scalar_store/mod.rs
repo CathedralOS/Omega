@@ -754,7 +754,8 @@ fn case_field_store(
                 parameter_index: u32::try_from(value_index).ok()?,
             },
             path: value_path,
-            type_identity: super::types::base_type_identity(program, projected, &[])?,
+            type_identity: super::types::base_type_identity(program, projected, &[],
+        &[])?,
             access: value_plan.access,
         }),
     )
@@ -856,7 +857,8 @@ fn case_literal_field_store(
         checked_trees::CheckedStoreValue::CaseLiteral(checked_trees::CheckedCaseLiteralValuePlan {
             literal: assignment.value,
             case_identity: variant.path_identity(),
-            type_identity: super::types::base_type_identity(program, field.type_reference, &[])?,
+            type_identity: super::types::base_type_identity(program, field.type_reference, &[],
+        &[])?,
             fields,
         }),
     )

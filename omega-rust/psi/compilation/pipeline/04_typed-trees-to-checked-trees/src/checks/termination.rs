@@ -176,20 +176,8 @@ pub(crate) fn build_checked_termination_plan_with_summary(
 
 pub(crate) use progress::analyze_checked_progress_with_call_frames;
 
-/// Derive the same body-local termination summary retained in checked facts.
-///
-/// This query deliberately shares the graph and ranking implementation with
-/// checked lowering. Pre-check consumers such as semantic-evaluation admission
-/// need the judgment before they can materialize constants into the typed
-/// program; they must not grow a second approximation of termination.
-pub(crate) fn infer_machine_checked_summary(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-) -> language_semantics::TerminationGuarantee {
-    infer_machine_checked_summary_with_call_frames(program, machine, None)
-}
 
-pub(crate) fn infer_machine_checked_summary_with_call_frames(
+pub(crate) fn infer_machine_checked_summary(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,

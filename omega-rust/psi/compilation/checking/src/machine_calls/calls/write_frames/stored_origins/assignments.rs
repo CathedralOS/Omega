@@ -5,7 +5,7 @@
 //! write cannot establish which element was replaced. Neither operation grants
 //! access permission, and later reference demands still need proven origins.
 
-use super::super::path_instantiation::aggregate_arguments::reference_leaves_with_origins;
+use super::super::path_instantiation::aggregate_arguments::reference_leaves;
 use super::super::place_paths::append_place_suffix;
 use super::super::reference_origins::exclusive_reference_origins;
 use super::super::reference_subjects;
@@ -189,7 +189,7 @@ fn assigned_stored_origins(
     }) {
         return None;
     }
-    let leaves = reference_leaves_with_origins(
+    let leaves = reference_leaves(
         program,
         machine,
         assignment.value,

@@ -845,7 +845,8 @@ pub(super) fn build_traced(
     if whole_reference {
         trace.phase("state graph: reference result origins");
         plan.result_reference_sources =
-            validation::reference_result_custody::returned_reference_sources(program, &states[0])?;
+            validation::reference_result_custody::returned_reference_sources(program, &states[0],
+        None)?;
     } else if matches!(
         result,
         checked_trees::CheckedControlResultPlan::Structural(_)
@@ -855,7 +856,8 @@ pub(super) fn build_traced(
         // origin relation. Comparing returning states' parameter ordinals loses
         // edge substitution; a one-state record gate loses ordinary control.
         plan.result_reference_sources =
-            validation::reference_result_custody::returned_reference_sources(program, &states[0])?;
+            validation::reference_result_custody::returned_reference_sources(program, &states[0],
+        None)?;
     }
     plan.result = result;
     Some(plan)

@@ -714,7 +714,7 @@ fn mutable_record_representation_inner_body(
                 budget,
                 false,
             )?;
-            let repeated = repeat_representation_with_stride(
+            let repeated = repeat_representation(
                 &element,
                 *element_count,
                 repeated_field.element_stride,
@@ -967,14 +967,9 @@ pub(crate) fn recast_representations_equivalent(
     mutable_record_representations_equivalent(program, &source, &target)
 }
 
-pub(super) fn repeat_representation(
-    element: &MutableRecordRepresentation,
-    count: usize,
-) -> Option<MutableRecordRepresentation> {
-    repeat_representation_with_stride(element, count, element.size)
-}
+pub(super) 
 
-fn repeat_representation_with_stride(
+fn repeat_representation(
     element: &MutableRecordRepresentation,
     count: usize,
     stride: usize,

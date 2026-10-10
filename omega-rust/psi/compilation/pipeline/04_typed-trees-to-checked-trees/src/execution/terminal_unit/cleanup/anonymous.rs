@@ -119,7 +119,8 @@ fn validate_permissions_at(
                 };
                 let (reference, path) =
                     projected_argument_path(program, state, statement_index, &place)?;
-                dropped.push((path, base_type_identity(program, reference, &[])?));
+                dropped.push((path, base_type_identity(program, reference, &[],
+        &[])?));
             }
             _ => return None,
         }

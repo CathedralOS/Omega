@@ -374,7 +374,7 @@ pub(super) fn attach_checked_crash_calls(
                         summary
                             .iter()
                             .map(|bucket| {
-                                bucket.substitute_with_entry_resolver(
+                                bucket.substitute(
                                     &substitution,
                                     Some(&mut resolve_entry),
                                 )

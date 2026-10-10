@@ -2,7 +2,7 @@
 //! reference leaves. A missing input case removes its entire payload together.
 
 use super::super::path_instantiation::aggregate_arguments::{
-    AggregateOrigins, AggregateResolver, ReferenceResolver, reference_leaves_with_origins,
+    AggregateOrigins, AggregateResolver, ReferenceResolver, reference_leaves,
 };
 use super::super::stored_origins::{self, StoredLocalOrigins, StoredWriteOrigin};
 use super::super::{FrameInference, Machine, TopLevelSymbols};
@@ -93,7 +93,7 @@ pub(super) fn instantiate_moves(
         {
             return None;
         }
-        let actual = reference_leaves_with_origins(
+        let actual = reference_leaves(
             program,
             caller_machine,
             *arguments.get(index)?,

@@ -96,7 +96,7 @@ pub(super) fn written_paths(
         &argument_types,
     )?;
     let paths = if super::machine_state_by_symbol(program, callee_symbol).is_some() {
-        super::known_call_written_paths_for_parts_with_origins(
+        super::known_call_written_paths_for_parts(
             program,
             callee_symbol,
             name.as_str(),

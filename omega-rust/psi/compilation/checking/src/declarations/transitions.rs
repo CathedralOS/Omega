@@ -172,9 +172,8 @@ pub(crate) fn validate_transition_target_node(
             false,
             argument_environments,
             |argument, required| {
-                crate::value_custody::expression_types::argument_matches_carrier(
-                    program, argument, required,
-                )
+                crate::value_custody::expression_types::argument_matches_carrier(program, argument, required,
+        &[])
             },
             diagnostics,
         );
@@ -282,9 +281,8 @@ fn validate_transition_arguments_handles(
         false,
         argument_environments,
         |argument, required| {
-            crate::value_custody::expression_types::argument_matches_carrier(
-                program, argument, required,
-            )
+            crate::value_custody::expression_types::argument_matches_carrier(program, argument, required,
+        &[])
         },
         diagnostics,
     );

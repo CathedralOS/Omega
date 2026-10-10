@@ -1,5 +1,6 @@
 //! Building boundary machines and their static boundary requirements.
 
+use std::collections::BTreeSet;
 use crate::execution::terminal_unit::calls::{
     boundary_owner_scalar_signature, exact_external_leaf_boundary_requirement,
     free_structural_scalar_signature,
@@ -783,7 +784,9 @@ pub(crate) fn boundary_result_plan(
         return Some(CheckedBoundaryMachineResultPlan::Scalar(scalar));
     }
     if is_reference(program, type_reference)
-        || type_graph_requires_nominal_drop(program, type_reference)
+        || type_graph_requires_nominal_drop(program, type_reference,
+        &[],
+        &mut BTreeSet::new())
     {
         return None;
     }

@@ -20,7 +20,7 @@ pub(in crate::facts) fn entry_value(
     expression: ExpressionHandle,
 ) -> Option<CrashPredicateExpression> {
     let machine = program.machine(state_flow.machine_symbol)?;
-    super::literal_projection::entry_value_with_selector(
+    super::literal_projection::entry_value(
         program,
         machine.symbol,
         state_flow.state_symbol,

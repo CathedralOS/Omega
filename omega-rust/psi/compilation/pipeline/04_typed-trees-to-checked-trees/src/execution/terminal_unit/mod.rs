@@ -867,7 +867,8 @@ fn body_route(
     let owes_nominal_drop = |type_reference| {
         !types::is_reference(program, type_reference)
             && crate::checks::type_multiplicity(program, type_reference) != Multiplicity::Linear
-            && types::type_graph_requires_nominal_drop(program, type_reference)
+            && types::type_graph_requires_nominal_drop(
+                program, type_reference, &[], &mut std::collections::BTreeSet::new())
     };
     if statements.iter().any(|statement| match statement {
         StatementNode::Transition(_) => true,

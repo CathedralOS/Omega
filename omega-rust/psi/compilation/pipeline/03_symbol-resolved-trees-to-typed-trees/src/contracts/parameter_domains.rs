@@ -98,7 +98,7 @@ pub(crate) fn lower_state_parameters_collecting_domain_constraints(
     for parameter in lowerer.source_trees.state_parameters(parameters) {
         let parameter = lower_state_parameter(lowerer, parameter)?;
         for (domain_symbol, domain_full_name, domain_arguments, semantic_domain) in
-            domain_constraints(&lowerer.typed_trees, parameter.type_reference)
+            domain_constraints(&lowerer.typed_trees, parameter.type_reference, &[])
         {
             domain_constrained_parameters.push((
                 parameter.symbol,

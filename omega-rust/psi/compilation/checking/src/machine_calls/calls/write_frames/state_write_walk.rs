@@ -31,7 +31,7 @@ use crate::machine_calls::calls::write_frames::demand::{
 };
 use crate::machine_calls::calls::write_frames::inference::FrameInference;
 use crate::machine_calls::calls::write_frames::isolation::type_is_caller_isolated_local;
-use crate::machine_calls::calls::write_frames::known_call_written_paths_for_parts_with_origins;
+use crate::machine_calls::calls::write_frames::known_call_written_paths_for_parts;
 use crate::machine_calls::calls::write_frames::local_aliases::expression_reborrows_unresolved_reference_binding;
 use crate::machine_calls::calls::write_frames::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, coarse_place_path, split_place_root,
@@ -1060,7 +1060,7 @@ fn walk_state_write_prefix_inner(
                     let has_divergent_actual = arguments
                         .iter()
                         .any(|argument| origins.mentions_divergent(program, *argument));
-                    known_call_written_paths_for_parts_with_origins(
+                    known_call_written_paths_for_parts(
                         program,
                         nested_call.target_symbol,
                         nested_call.target.as_str(),

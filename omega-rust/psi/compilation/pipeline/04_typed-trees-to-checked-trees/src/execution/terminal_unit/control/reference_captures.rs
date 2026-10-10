@@ -121,8 +121,10 @@ pub(in crate::execution::terminal_unit) fn plan(
         crossings,
     ));
     if !is_view
-        && base_type_identity(program, backing_type, &[])?
-            != base_type_identity(program, referent, &[])?
+        && base_type_identity(program, backing_type, &[],
+        &[])?
+            != base_type_identity(program, referent, &[],
+        &[])?
     {
         return None;
     }
@@ -193,7 +195,8 @@ pub(in crate::execution::terminal_unit) fn plan(
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                 symbol: root,
-                root_type_identity: base_type_identity(program, shell.referee, &[])?,
+                root_type_identity: base_type_identity(program, shell.referee, &[],
+        &[])?,
             }
         } else {
             // Owned contents lend their admitted access independently of
@@ -231,7 +234,8 @@ pub(in crate::execution::terminal_unit) fn plan(
         source: CheckedUnitStructuralArgumentPlan {
             source,
             path,
-            type_identity: base_type_identity(program, backing_type, &[])?,
+            type_identity: base_type_identity(program, backing_type, &[],
+        &[])?,
             access,
         },
         storage,

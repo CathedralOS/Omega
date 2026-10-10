@@ -39,7 +39,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
         return false;
     };
     let requires = machine_requires_facts(program, machine);
-    let mut judge = StructuralJudge::from_requires(program, machine, &requires);
+    let mut judge = StructuralJudge::from_requires(program, machine, &requires, true);
     let trace = std::env::var_os("OMEGA_EDGE_TRACE").is_some();
 
     // Incoming-arm hypotheses -- SOUND only when this state has exactly ONE

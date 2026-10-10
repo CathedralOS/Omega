@@ -395,7 +395,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             ))
     {
         result.reference_sources =
-            super::super::super::reference_results::returned_reference_sources(program, state)?;
+            super::super::super::reference_results::returned_reference_sources(program, state, None)?;
     }
     // Release each returned carrier at its actual checked weakening boundary,
     // before any scalar completion or following statement can reuse the parent.

@@ -523,7 +523,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         || target.multiplicity != Multiplicity::Unrestricted
                         || program.normalized_type_identity(root.type_reference)
                             != program.normalized_type_identity(parameter.type_reference)
-                        || super::super::types::base_type_identity(program, root.type_reference, &[])?
+                        || super::super::types::base_type_identity(program, root.type_reference, &[],
+        &[])?
                             != target.type_identity
                     {
                         return None;
@@ -788,6 +789,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 && !super::super::types::type_graph_requires_nominal_drop(
                                     program,
                                     local.type_reference,
+                                    &[],
+                                    &mut std::collections::BTreeSet::new(),
                                 ));
                         if mutable_local_loan
                             && let Some(transfer) = projected_loan_transfer(
@@ -1019,7 +1022,8 @@ fn projected_value_subject(
         });
         let (result, _) = candidates.next()?;
         if candidates.next().is_some()
-            || super::super::types::base_type_identity(program, local.type_reference, &[])?
+            || super::super::types::base_type_identity(program, local.type_reference, &[],
+        &[])?
                 != result.type_identity
         {
             return None;
@@ -1058,7 +1062,8 @@ fn projected_value_subject(
         // domain constraints and reference shells peel, so a borrowed leaf
         // matches its referent and a `T in D` leaf matches `T`'s base —
         // the same base-identity convention argument presentation uses.
-        || super::super::types::base_type_identity(program, projected_type, &[])
+        || super::super::types::base_type_identity(program, projected_type, &[],
+        &[])
             .is_none_or(|identity| identity != target.type_identity)
     {
         return None;
@@ -1129,7 +1134,8 @@ fn projected_loan_transfer(
         return None;
     }
     let identity = borrowed_identity
-        .or_else(|| super::super::types::base_type_identity(program, projected_type, &[]));
+        .or_else(|| super::super::types::base_type_identity(program, projected_type, &[],
+        &[]));
     if identity.is_some_and(|identity| declared_contains_reference(shapes, &identity)) {
         return None;
     }
@@ -1217,7 +1223,8 @@ fn case_payload_transfer(
         // The signature's structural identities are storage identities:
         // domain constraints and reference shells peel, so the comparison
         // uses the same base-identity convention argument presentation does.
-        super::super::types::base_type_identity(program, reference, &[])
+        super::super::types::base_type_identity(program, reference, &[],
+        &[])
     };
     let shared_referee = {
         let mut cursor = field.type_reference;

@@ -190,11 +190,10 @@ pub(super) fn build(
                             binding_ordinal: result.binding_ordinal,
                         },
                         path: vec![checked_trees::CheckedUnitStructuralPathSegment::Referent],
-                        type_identity: crate::execution::terminal_unit::types::base_type_identity(
-                            program,
+                        type_identity: crate::execution::terminal_unit::types::base_type_identity(program,
                             shell.referee,
                             &[],
-                        )?,
+        &[])?,
                         access: CheckedStructuralAccess::SharedBorrow,
                     },
                     shell.referee,
@@ -235,7 +234,8 @@ pub(super) fn build(
         )?;
         subject.path.extend(path);
         subject.type_identity =
-            crate::execution::terminal_unit::types::base_type_identity(program, projected, &[])?;
+            crate::execution::terminal_unit::types::base_type_identity(program, projected, &[],
+        &[])?;
         // Dispatch observes a subtree, not an owned move of its enclosing
         // record. Ordinary selected-edge cleanup still owns that root.
         subject.access = CheckedStructuralAccess::SharedBorrow;

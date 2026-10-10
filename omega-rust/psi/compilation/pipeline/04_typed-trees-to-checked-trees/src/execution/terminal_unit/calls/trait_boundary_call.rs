@@ -24,7 +24,7 @@ use crate::execution::terminal_unit::calls::structural_arguments::{
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
-    base_type_identity_with_substitutions, substituted_formal_type,
+    base_type_identity, substituted_formal_type,
 };
 use crate::execution::terminal_unit::types::{
     is_unit, signature_contracts_are_exact_parameter_qualifications,
@@ -245,7 +245,7 @@ pub(super) fn build(
         }
         phase("call operation: boundary argument identity");
         let target_identity =
-            base_type_identity_with_substitutions(program, formal, &[], substitutions.as_slice())?;
+            base_type_identity(program, formal, &[], substitutions.as_slice())?;
         if let Some(literal) = byte_sequence_literal_argument(program, formal, *argument) {
             structural_arguments.push(literal);
             continue;

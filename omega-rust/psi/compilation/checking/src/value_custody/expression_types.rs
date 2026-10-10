@@ -138,20 +138,8 @@ pub fn argument_matches_type_reference_handle(
     )
 }
 
-/// Match a runtime argument before the call's independent flow contract check.
-/// Carrier and access must correspond, while a shared referee's declared-domain
-/// requirements may be proved from the actual's live facts. Logical formation
-/// and package-review rechecks have no such call context and use the declared
-/// correspondence above. Both judgments traverse the identical expressions.
-pub(crate) fn argument_matches_carrier(
-    program: &dyn crate::CheckingInput,
-    argument: ExpressionHandle,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    argument_matches_carrier_with_substitutions(program, argument, type_reference, &[])
-}
 
-pub(crate) fn argument_matches_carrier_with_substitutions(
+pub(crate) fn argument_matches_carrier(
     program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,

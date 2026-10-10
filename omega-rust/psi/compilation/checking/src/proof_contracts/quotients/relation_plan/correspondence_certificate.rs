@@ -218,13 +218,12 @@ pub(super) fn derive_direct_lift_precondition_implication(
                 else {
                     return Err(implication_error(application, representative_position));
                 };
-                if strict_arithmetic_expression_implication(
-                    program,
+                if strict_arithmetic_expression_implication(program,
                     public_machine,
                     hypotheses,
                     *goal,
                     &arithmetic_bindings,
-                ) != StrictArithmeticImplicationJudgment::Proven
+        &[]) != StrictArithmeticImplicationJudgment::Proven
                 {
                     return Err(implication_error(application, representative_position));
                 }
@@ -324,13 +323,12 @@ pub(super) fn derive_fixed_representative_call_preconditions(
                     representative_position,
                 ));
             };
-            if strict_arithmetic_expression_implication(
-                program,
+            if strict_arithmetic_expression_implication(program,
                 public_machine,
                 hypotheses,
                 *goal,
                 &arithmetic_bindings,
-            ) != StrictArithmeticImplicationJudgment::Proven
+        &[]) != StrictArithmeticImplicationJudgment::Proven
             {
                 return Err(RelationPlanError::DirectLiftFixedPreconditionNotImplied(
                     representative_position,

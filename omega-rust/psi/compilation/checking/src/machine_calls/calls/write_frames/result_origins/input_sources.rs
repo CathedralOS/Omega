@@ -2,7 +2,7 @@
 //! boundary. Exact source coordinates survive conservative effect footprints.
 
 use super::super::path_instantiation::aggregate_arguments::{
-    AggregateResolver, ReferenceResolver, reference_leaves_with_origins,
+    AggregateResolver, ReferenceResolver, reference_leaves,
 };
 use super::super::reference_origins::{
     exclusive_reference_origins, exclusive_reference_referee, referent_has_only_owned_storage,
@@ -85,7 +85,7 @@ pub(super) fn instantiate_source(
         .references
         .iter()
         .find(|leaf| source_reaches_leaf(&relative.source.segments, &leaf.local_segments))?;
-    let actual_leaves = reference_leaves_with_origins(
+    let actual_leaves = reference_leaves(
         program,
         caller_machine,
         actual,
