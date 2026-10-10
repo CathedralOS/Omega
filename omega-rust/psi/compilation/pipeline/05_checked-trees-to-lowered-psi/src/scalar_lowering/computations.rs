@@ -741,7 +741,7 @@ impl<'a> Expansion<'a> {
                 for operand in &operands {
                     operand_types.push(self.argument_type(operand, site, input_types)?);
                 }
-                let expression = storage::ScalarBindings::for_computation_operands(
+                let expression = site.bindings.clone().with_computation_operands(
                     input_types.len(),
                     operand_types[input_types.len()..]
                         .iter()

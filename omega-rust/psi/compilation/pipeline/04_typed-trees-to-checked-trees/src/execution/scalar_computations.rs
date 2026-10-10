@@ -37,6 +37,7 @@ mod cases;
 mod dispatch;
 mod dynamic_calls;
 mod enum_equality;
+mod indexed_reads;
 mod integers;
 mod normal_return;
 mod rank_observations;

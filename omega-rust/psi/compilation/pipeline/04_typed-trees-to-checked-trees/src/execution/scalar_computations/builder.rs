@@ -477,6 +477,9 @@ impl Builder<'_, '_> {
             self.plans.nodes.get_mut(computation).value_source = expression;
             return Some(computation);
         }
+        if let Some((computation, _, primitive_type)) = self.indexed_read(expression) {
+            return (primitive_type == expected_type).then_some(computation);
+        }
         if expected_type == PrimitiveType::Bool
             && let Some(equality) = self.enum_equality(expression)
         {

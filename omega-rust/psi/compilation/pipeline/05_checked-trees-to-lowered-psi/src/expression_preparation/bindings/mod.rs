@@ -673,6 +673,22 @@ impl ScalarBindings {
         }
     }
 
+    /// A computed template names completed operand values, while its storage
+    /// observations retain the enclosing body's physical source namespace.
+    /// Replacing the scalar telescope must not discard a local array, view or
+    /// captured field home that the template reads after its operands complete.
+    pub(crate) fn with_computation_operands(
+        mut self,
+        offset: usize,
+        types: impl IntoIterator<Item = ScalarType>,
+    ) -> Self {
+        let operands = Self::for_computation_operands(offset, types);
+        self.authored = operands.authored;
+        self.immutable = operands.immutable;
+        self.parameter_count = operands.parameter_count;
+        self
+    }
+
     pub(crate) fn new(parameters: impl IntoIterator<Item = ScalarType>) -> Self {
         Self::for_computation_operands(0, parameters)
     }

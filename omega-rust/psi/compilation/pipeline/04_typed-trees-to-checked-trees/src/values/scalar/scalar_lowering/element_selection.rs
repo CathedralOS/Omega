@@ -37,6 +37,35 @@ pub(crate) fn selected_element(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<ElementSelection> {
+    selected_element_with_selector(
+        program,
+        operators,
+        expression,
+        authored_parameters,
+        &mut |_, operand| {
+            pure_selector(
+                program,
+                operators,
+                operand,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+            )
+        },
+    )
+}
+
+/// Both expression templates and computation graphs retain this declaration
+/// geometry; the caller supplies a scalar selector in its own value namespace.
+fn selected_element_with_selector(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    authored_parameters: &[StateParameter],
+    selector: &mut impl FnMut(ExpressionHandle, ExpressionHandle) -> Option<CheckedScalarExpression>,
+) -> Option<ElementSelection> {
     let indexed = program.expression_table.indexed_node(expression)?;
     let (root, path, collection_type) = structural_fields::structural_storage_place(
         program,
@@ -67,21 +96,7 @@ pub(crate) fn selected_element(
     // Geometry uses the storage carrier; the observed value keeps the exact
     // effective element policy retained by the shared projection owner.
     let element_type = validation::collection_element_type_reference(program, collection_type)?;
-    let index =
-        land_anonymous_scalar_expression(program, operators, indexed.index, PrimitiveType::U64)
-            .or_else(|| {
-                lower_scalar_expression(
-                    program,
-                    operators,
-                    indexed.index,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                )
-                .map(|(index, _)| index)
-            })?;
+    let index = selector(expression, indexed.index)?;
     let index_type = scalar_expression_type(&index)?;
     if !is_integer(index_type) || index_type == PrimitiveType::Addr {
         return None;
@@ -113,6 +128,36 @@ pub(crate) fn indexed_scalar_read(
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    indexed_scalar_read_with_selectors(
+        program,
+        operators,
+        expression,
+        authored_parameters,
+        |_, operand| {
+            pure_selector(
+                program,
+                operators,
+                operand,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+            )
+        },
+    )
+}
+
+/// Prepare the same observation with selectors supplied by the consuming
+/// scalar namespace. The reader owns indexing occurrences and declaration
+/// geometry; supplying a value never supplies an indexing proof.
+pub(crate) fn indexed_scalar_read_with_selectors(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    authored_parameters: &[StateParameter],
+    mut selector: impl FnMut(ExpressionHandle, ExpressionHandle) -> Option<CheckedScalarExpression>,
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     enum Projection {
         Field(ExpressionHandle),
@@ -157,15 +202,12 @@ pub(crate) fn indexed_scalar_read(
             _ => return None,
         }
     };
-    let selection = selected_element(
+    let selection = selected_element_with_selector(
         program,
         operators,
         first_selection,
-        parameters,
         authored_parameters,
-        parameter_types,
-        locals,
-        exact_integer_casts,
+        &mut selector,
     )?;
     let mut element_type = selection.element_type;
     let mut element_path = Vec::with_capacity(projections.len());
@@ -210,26 +252,8 @@ pub(crate) fn indexed_scalar_read(
                         CheckedStructuralPredicatePathSegment::FixedIndex(literal),
                     ));
                 } else {
-                    let selector = land_anonymous_scalar_expression(
-                        program,
-                        operators,
-                        operand,
-                        PrimitiveType::U64,
-                    )
-                    .or_else(|| {
-                        lower_scalar_expression(
-                            program,
-                            operators,
-                            operand,
-                            parameters,
-                            authored_parameters,
-                            parameter_types,
-                            locals,
-                            exact_integer_casts,
-                        )
-                        .map(|(selector, _)| selector)
-                    })?;
-                    let carrier = scalar_expression_type(&selector)?;
+                    let value = selector(occurrence, operand)?;
+                    let carrier = scalar_expression_type(&value)?;
                     if !is_integer(carrier) || carrier == PrimitiveType::Addr {
                         return None;
                     }
@@ -237,7 +261,7 @@ pub(crate) fn indexed_scalar_read(
                         structural_fields::runtime_index_element_type(program, element_type)?;
                     element_path.push(checked_trees::CheckedScalarReadProjection::RuntimeIndex(
                         checked_trees::CheckedScalarSelector {
-                            expression: selector,
+                            expression: value,
                             occurrence,
                         },
                     ));
@@ -270,6 +294,34 @@ pub(crate) fn indexed_scalar_read(
         },
         program.arithmetic_domain_for_type_reference(element_type),
     ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn pure_selector(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    operand: ExpressionHandle,
+    parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<CheckedScalarExpression> {
+    land_anonymous_scalar_expression(program, operators, operand, PrimitiveType::U64).or_else(
+        || {
+            lower_scalar_expression(
+                program,
+                operators,
+                operand,
+                parameters,
+                authored_parameters,
+                parameter_types,
+                locals,
+                exact_integer_casts,
+            )
+            .map(|(value, _)| value)
+        },
+    )
 }
 
 /// `literal`'s bit-width admission against `landed_type` plus the landed

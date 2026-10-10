@@ -162,6 +162,14 @@ impl Builder<'_, '_> {
                 computation: CheckedScalarComputationHandle::invalid(),
             });
         }
+        if let Some((computation, domain, primitive_type)) = self.indexed_read(expression) {
+            return is_integer(primitive_type).then_some(IntegerOperand {
+                value: parameter(0, primitive_type),
+                value_source: ExpressionHandle::invalid(),
+                domain,
+                computation,
+            });
+        }
         match self.program.expression_table.expression(expression).clone() {
             ExpressionNode::Match(dispatch) => {
                 // Result policy comes from authored arms, never from the parent
