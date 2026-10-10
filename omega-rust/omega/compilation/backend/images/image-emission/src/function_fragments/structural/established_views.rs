@@ -26,9 +26,8 @@ pub(super) fn location(
     let (abstracted, _) = source::function(source, selected.machine)?;
     let mut producers = abstracted.operations.iter().filter(|operation| {
         matches!(operation,
-        abstract_operations::AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
+        abstract_operations::element_view_or_byte_subslice_pattern!(psi_operation, ..)
         | abstract_operations::AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
-        | abstract_operations::AbstractOperation::ElementViewSubslice { psi_operation, .. }
         | abstract_operations::AbstractOperation::EstablishElementView { psi_operation, .. }
         if *psi_operation == producer)
     });

@@ -608,10 +608,9 @@ pub(super) fn lower_operation(
         }
         AbstractOperation::ByteSequenceLength { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
-        | AbstractOperation::ByteSequenceSubslice { .. }
+        | abstract_operations::element_view_or_byte_subslice_pattern!(..)
         | AbstractOperation::ElementViewLength { .. }
         | AbstractOperation::ElementViewRead { .. }
-        | AbstractOperation::ElementViewSubslice { .. }
         | abstract_operations::integer_equal_less_pair_pattern!(..)
         | AbstractOperation::IntegerLessOrEqual { .. }
         | abstract_operations::boolean_not_or_equal_pair_pattern!(..)

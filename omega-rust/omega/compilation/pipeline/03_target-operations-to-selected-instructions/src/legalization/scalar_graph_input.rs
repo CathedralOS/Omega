@@ -160,7 +160,7 @@ pub(super) fn trapping_operands_rejoin(
     let typed =
         |value, expected| value_type(optimized, value) == Some(ScalarType::Integer(expected));
     match operation {
-        terminal_psi::trapping_arith_set_pattern!(left,right, ..) => {
+        terminal_psi::trapping_arith_set_pattern!(left, right, ..) => {
             operand_type == scalar_type && typed(left, scalar_type) && typed(right, scalar_type)
         }
         T::ShiftLeft { value, count } | T::ShiftRight { value, count } => {
@@ -408,21 +408,16 @@ pub(super) fn match_input(
             obligation,
             ..
         }
-        | AbstractOperation::ByteSequenceSubslice {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | abstract_operations::element_view_read_write_pair_pattern!(
+        | abstract_operations::element_view_or_byte_subslice_pattern!(
             psi_operation,
             obligation,
             ..
         )
-        | AbstractOperation::ElementViewSubslice {
+        | abstract_operations::element_view_read_write_pair_pattern!(
             psi_operation,
             obligation,
             ..
-        } = &node.operation
+        ) = &node.operation
             && obligation_custody_missing(*psi_operation, *obligation)
         {
             return Err(LegalizationError::custody());

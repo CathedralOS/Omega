@@ -57,10 +57,9 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
         | AbstractOperation::BooleanConstant { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
-        | AbstractOperation::ByteSequenceSubslice { .. }
+        | abstract_operations::element_view_or_byte_subslice_pattern!(..)
         | abstract_operations::byte_view_length_triple_pattern!(..)
         | abstract_operations::element_view_read_write_pair_pattern!(..)
-        | AbstractOperation::ElementViewSubslice { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | AbstractOperation::StructuralScalarFieldRead { .. }
         | abstract_operations::boolean_not_or_equal_pair_pattern!(..)

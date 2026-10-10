@@ -1,10 +1,9 @@
 //! Independent object-record comparison against admitted call and storage contracts.
 use super::{
-    CallSiteOwner, Error, IndirectPointerLocation, InternalUnitCallArgumentRecord,
-    InternalUnitCallSource, InternalUnitScalarArgumentSourceRecord,
-    InternalUnitStructuralArgumentSourceRecord, LegalizedScalarArgument, MachineId,
-    NativeCallOrigin, ObjectBoundarySettlement, ObjectFunction, OperationId, PlaceId,
-    SelectedBoundarySettlement, SelectedFunction, SelectedMemoryAccessRole,
+    Error, IndirectPointerLocation, InternalUnitCallArgumentRecord, InternalUnitCallSource,
+    InternalUnitScalarArgumentSourceRecord, InternalUnitStructuralArgumentSourceRecord,
+    LegalizedScalarArgument, MachineId, NativeCallOrigin, ObjectBoundarySettlement, ObjectFunction,
+    OperationId, PlaceId, SelectedBoundarySettlement, SelectedFunction, SelectedMemoryAccessRole,
     SemanticCodeAttribution, SemanticCodeSite, StagedOptimizedRelocationFreeObjectContainer,
     StructuralSourceLocation, ValueLocation, ValuePlacement, attribution, byte_input, byte_output,
     established_views, fragment, host, inline_owned_placement, primitive_locals, process_exit,
@@ -103,8 +102,8 @@ pub(in crate::function_fragments) fn validate_function(
             .iter()
             .find(|row| {
                 super::call_site_owner_semantic_site(&contract.owner)
-                        .map(|site| row.site == site)
-                        .unwrap_or(false)
+                    .map(|site| row.site == site)
+                    .unwrap_or(false)
             })
             .ok_or_else(invalid)?;
         let call_span = fragment
