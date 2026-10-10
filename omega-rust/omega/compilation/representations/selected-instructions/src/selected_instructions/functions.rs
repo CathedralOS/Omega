@@ -131,7 +131,7 @@ impl SelectedFunctions {
 
 impl From<Vec<SelectedFunction>> for SelectedFunctions {
     fn from(functions: Vec<SelectedFunction>) -> Self {
-        Self(functions.into_iter().map(FunctionEntry::new).collect())
+        Self::from_iter(functions)
     }
 }
 
