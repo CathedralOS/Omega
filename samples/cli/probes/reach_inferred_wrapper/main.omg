@@ -1,0 +1,27 @@
+use omega::language::core::binding;
+// Transitive effect inference: the direct boundary caller declares
+// `reaches Console`; the wrapper `greet` propagates that reach without
+// repeating the declaration.
+pub domain [u8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+pub boundary trait Console {
+    machine write_line(text: &[u8] in Utf8)
+    reaches
+        Console;
+}
+data App {
+    console: Binding<Console>;
+}
+machine App::greet(app: &mut App) {
+    App::helper(app);
+}
+machine App::helper(app: &mut App) reaches Console {
+    app.console.write_line("hi");
+}
+data Main {
+    app: App;
+}
+machine Main::main(main: &mut Main) {
+    App::greet(&mut main.app);
+}
