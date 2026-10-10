@@ -1,0 +1,47 @@
+// A trait parameter bounded by `satisfies`:
+// `trait Service<Policy satisfies Decider>` — the type
+// argument must carry a named Decider implementation,
+// declared by the `X satisfies Decider { Decider::member
+// = Impl::member; }` roster spelling.
+//
+//   * `trait Service<Policy satisfies Decider> { }` —
+//     satisfies-bounded trait parameter.
+//   * `Registrar satisfies Decider { Decider::pick =
+//     Registrar::pick; }` — named implementation roster
+//     wiring a trait member to its machine.
+//   * `Host satisfies Service<Registrar> { }` — the
+//     bound type used as the satisfies argument.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+trait Decider {
+    machine pick(value: u64) -> u64;
+}
+
+data Registrar {}
+
+Registrar satisfies Decider {
+    Decider::pick = Registrar::pick;
+}
+
+machine Registrar::pick(value: u64) -> u64 { value }
+
+trait Service<Policy satisfies Decider> { }
+
+data Host {}
+
+Host satisfies Service<Registrar> { }
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let picked: u64 = Decider::pick(6);
+    transition picked == 6 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
