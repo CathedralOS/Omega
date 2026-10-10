@@ -348,14 +348,14 @@ pub fn exact_call_composition_semantic_row_in(
     if !is_call_composition_tag(tag) {
         return Ok(None);
     }
-    let mut matches = rows.iter().filter(|row| row.tag == tag);
-    let row = matches
-        .next()
-        .ok_or(OperationSemanticError::MissingCallCompositionRow(tag))?;
-    if matches.next().is_some() {
-        return Err(OperationSemanticError::DuplicateCallCompositionRow(tag));
-    }
-    Ok(Some(row))
+    crate::semantic_rows::exactly_one_row_for_tag(
+        rows,
+        tag,
+        |row| row.tag,
+        OperationSemanticError::MissingCallCompositionRow,
+        OperationSemanticError::DuplicateCallCompositionRow,
+    )
+    .map(Some)
 }
 
 fn canonical_schema(tag: OperationSemanticTag) -> Option<CallCompositionSchema> {

@@ -286,14 +286,13 @@ pub fn exact_operation_semantic_row_in(
     tag: OperationSemanticTag,
     rows: &[OperationSemanticRow],
 ) -> Result<&OperationSemanticRow, OperationSemanticError> {
-    let mut matches = rows.iter().filter(|row| row.tag == tag);
-    let row = matches
-        .next()
-        .ok_or(OperationSemanticError::MissingRow(tag))?;
-    if matches.next().is_some() {
-        return Err(OperationSemanticError::DuplicateRow(tag));
-    }
-    Ok(row)
+    exactly_one_row_for_tag(
+        rows,
+        tag,
+        |row| row.tag,
+        OperationSemanticError::MissingRow,
+        OperationSemanticError::DuplicateRow,
+    )
 }
 
 pub fn operation_semantic_row(
@@ -316,4 +315,20 @@ pub fn is_unconditionally_total_scalar(operation: &OperationKind) -> bool {
                     && schema.frontier() == ScalarLeafFrontierPolicy::PreserveLocal
             })
         })
+}
+
+/// Unique-match row lookup: exactly one row must carry `tag`.
+pub(crate) fn exactly_one_row_for_tag<'row, R>(
+    rows: &'row [R],
+    tag: OperationSemanticTag,
+    row_tag: impl Fn(&R) -> OperationSemanticTag,
+    missing: impl FnOnce(OperationSemanticTag) -> OperationSemanticError,
+    duplicate: impl FnOnce(OperationSemanticTag) -> OperationSemanticError,
+) -> Result<&'row R, OperationSemanticError> {
+    let mut matches = rows.iter().filter(|row| row_tag(row) == tag);
+    let row = matches.next().ok_or_else(|| missing(tag))?;
+    if matches.next().is_some() {
+        return Err(duplicate(tag));
+    }
+    Ok(row)
 }

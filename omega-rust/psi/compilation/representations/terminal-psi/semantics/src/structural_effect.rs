@@ -386,14 +386,14 @@ pub fn exact_structural_effect_semantic_row_in(
     if !is_structural_effect_tag(tag) {
         return Ok(None);
     }
-    let mut matches = rows.iter().filter(|row| row.tag == tag);
-    let row = matches
-        .next()
-        .ok_or(OperationSemanticError::MissingStructuralEffectRow(tag))?;
-    if matches.next().is_some() {
-        return Err(OperationSemanticError::DuplicateStructuralEffectRow(tag));
-    }
-    Ok(Some(row))
+    crate::semantic_rows::exactly_one_row_for_tag(
+        rows,
+        tag,
+        |row| row.tag,
+        OperationSemanticError::MissingStructuralEffectRow,
+        OperationSemanticError::DuplicateStructuralEffectRow,
+    )
+    .map(Some)
 }
 
 pub fn structural_effect_semantic_row(
