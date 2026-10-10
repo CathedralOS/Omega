@@ -301,6 +301,13 @@ pub fn canonical_static_projection<'a>(
     Some((canonical?, tip))
 }
 
+/// Where a primitive projection walk lands.
+pub enum Position {
+    Declared(StructuralTypeId),
+    ScalarField(ScalarType),
+    ByteElement,
+}
+
 /// Resolve the declared structural tip of a runtime projection. A dynamic
 /// selector determines an element type without identifying a canonical static
 /// place. Bounds, live backing and access remain the consuming operation's
@@ -394,11 +401,6 @@ fn walk_primitive_projection<'a>(
     scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
     mut step: impl FnMut(Option<CanonicalStructuralPathSegment>),
 ) -> Option<ProjectionTip<'a>> {
-    enum Position {
-        Declared(StructuralTypeId),
-        ScalarField(ScalarType),
-        ByteElement,
-    }
     let unique = |id: StructuralTypeId| {
         let mut matching = declarations
             .clone()
