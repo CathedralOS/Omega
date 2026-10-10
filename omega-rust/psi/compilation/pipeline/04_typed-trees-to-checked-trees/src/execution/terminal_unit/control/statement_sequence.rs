@@ -37,7 +37,7 @@ use crate::execution::terminal_unit::control::structural_operands;
 use crate::execution::terminal_unit::scalar_locals::scalar_expression_local_at;
 use crate::execution::terminal_unit::scalar_return_expressions::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, is_unit, machine_binders, parameter_qualifications,
+    ShapeCollector, is_unit, machine_binders,
 };
 
 use checked_trees::CheckedUnitStructuralReturnPlan;
