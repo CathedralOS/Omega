@@ -91,35 +91,16 @@ pub(crate) fn measured_steps(
     materialize_surface: usize,
     producer_defs: usize,
 ) -> Result<u64, ConstantBooleanError> {
-    let cone = crate::rewrites::cone_propagation(function, successors, || {
-        ConstantBooleanError::IdentityOverflow
-    })?;
-    let per_unit = Some(cone.per_unit_base)
-        .and_then(|total| {
-            total.checked_add(
-                flag_universe
-                    .checked_add(materialize_surface)?
-                    .checked_add(producer_defs)?,
-            )
-        })
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let walk_setup = Some(cone.walk_setup_base)
-        .and_then(|total| total.checked_add(flag_universe))
-        .and_then(|total| total.checked_add(materialize_surface))
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let function_scan = cone.function_scan;
-    let reach_scan = implicit_uses
-        .checked_mul(per_unit)
-        .and_then(|total| total.checked_add(walk_setup))
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let steps = crate::rewrites::rewrite_scan(plan, function)
-        .and_then(|total| {
-            total
-                .checked_add(function_scan.checked_mul(2)?)?
-                .checked_add(reach_scan)
-        })
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    u64::try_from(steps).map_err(|_| ConstantBooleanError::IdentityOverflow)
+    crate::rewrites::constant_fold_measured_steps(
+        plan,
+        function,
+        successors,
+        implicit_uses,
+        flag_universe,
+        materialize_surface,
+        producer_defs,
+        || ConstantBooleanError::IdentityOverflow,
+    )
 }
 
 /// Admit a freshly produced plan with its receipt; the producer calls this

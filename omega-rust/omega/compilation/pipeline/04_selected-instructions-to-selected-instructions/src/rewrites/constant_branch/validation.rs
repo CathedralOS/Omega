@@ -87,35 +87,16 @@ pub(crate) fn measured_steps(
     jump_surface: usize,
     compare_defs: usize,
 ) -> Result<u64, ConstantBranchError> {
-    let cone = crate::rewrites::cone_propagation(function, successors, || {
-        ConstantBranchError::IdentityOverflow
-    })?;
-    let per_unit = Some(cone.per_unit_base)
-        .and_then(|total| {
-            total.checked_add(
-                flag_universe
-                    .checked_add(jump_surface)?
-                    .checked_add(compare_defs)?,
-            )
-        })
-        .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let walk_setup = Some(cone.walk_setup_base)
-        .and_then(|total| total.checked_add(flag_universe))
-        .and_then(|total| total.checked_add(jump_surface))
-        .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let function_scan = cone.function_scan;
-    let reach_scan = implicit_uses
-        .checked_mul(per_unit)
-        .and_then(|total| total.checked_add(walk_setup))
-        .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let steps = crate::rewrites::rewrite_scan(plan, function)
-        .and_then(|total| {
-            total
-                .checked_add(function_scan.checked_mul(2)?)?
-                .checked_add(reach_scan)
-        })
-        .ok_or(ConstantBranchError::IdentityOverflow)?;
-    u64::try_from(steps).map_err(|_| ConstantBranchError::IdentityOverflow)
+    crate::rewrites::constant_fold_measured_steps(
+        plan,
+        function,
+        successors,
+        implicit_uses,
+        flag_universe,
+        jump_surface,
+        compare_defs,
+        || ConstantBranchError::IdentityOverflow,
+    )
 }
 
 /// Admit a freshly produced plan with its receipt; the producer calls this
