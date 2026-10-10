@@ -58,7 +58,7 @@ pub(crate) mod catalog;
 mod claims;
 mod entry_requirements;
 mod providers;
-mod signatures;
+pub(crate) mod signatures;
 mod target_families;
 
 // Body emission: each ordinary body and each composed state graph, through
@@ -77,7 +77,7 @@ mod provider_attachments;
 // The operations a body lowers, each with its exact source custody.
 pub(crate) mod byte_locals;
 mod byte_subslices;
-mod ordinary_calls;
+pub(crate) mod ordinary_calls;
 mod parameters;
 pub(crate) mod primitive_locals;
 mod reference_results;

@@ -16,6 +16,8 @@ use terminal_psi::{StructuralArgument, ValueDeclaration};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreparedStructuralArgument {
     pub(crate) place: semantic_vocabulary::PlaceId,
+    /// Physical root carrier, distinct from a selected projected alias.
+    pub(crate) root_type: Option<semantic_vocabulary::StructuralTypeId>,
     pub(crate) access: terminal_psi::StructuralAccess,
     pub(crate) path: Vec<
         crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment,
@@ -25,7 +27,10 @@ pub(crate) struct PreparedStructuralArgument {
 }
 
 impl PreparedStructuralArgument {
-    pub(crate) fn from_static(argument: StructuralArgument) -> Result<Self, LoweringError> {
+    pub(crate) fn from_static(
+        argument: StructuralArgument,
+        root_type: Option<semantic_vocabulary::StructuralTypeId>,
+    ) -> Result<Self, LoweringError> {
         let path = argument.path.into_iter().map(|segment| {
             if matches!(segment, terminal_psi::StructuralPathSegment::RuntimeIndex { .. }) {
                 return unsupported("prepared call cannot capture another operation's runtime path");
@@ -33,6 +38,7 @@ impl PreparedStructuralArgument {
             Ok(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static(segment))
         }).collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
+            root_type,
             place: argument.place,
             access: argument.access,
             path,
@@ -113,6 +119,8 @@ pub(crate) struct CallEmissionContext<'a> {
     pub(crate) claims: crate::emission::claim_bindings::ClaimBindings<'a>,
     pub(crate) cleanup_receivers: &'a [(symbols::SymbolHandle, semantic_vocabulary::PlaceId)],
     pub(crate) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
+    pub(crate) signatures: &'a [crate::unit::attached_unit::signatures::MachineSignature],
+    pub(crate) structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
     pub(crate) requirement_counts: &'a [(symbols::SymbolHandle, usize)],
     /// Lowered boundary declarations a nested boundary application may name.
     /// Routes without an attached Unit closure carry none, so such an
@@ -193,17 +201,30 @@ fn emit_direct_call_operation(
         call.target_machine,
         "direct scalar call target is absent from the terminal closure",
     )?;
-    let crash_continuations = lower_checked_crash_route_buckets(crash_routes, crash_values)?;
-    let requirement_count = call_emission
-        .requirement_counts
+    let signatures = call_emission.signatures;
+    let requirement_obligations = if let Some(signature) = signatures
         .iter()
-        .find_map(|(source, count)| (*source == call.target_machine).then_some(*count))
-        .ok_or(LoweringError::Unsupported(
-            "direct scalar call target has no prepared contract",
-        ))?;
-    let requirement_obligations = (0..requirement_count)
-        .map(|_| call_emission.allocate_requirement())
-        .collect::<Result<Vec<_>, _>>()?;
+        .find(|signature| signature.source == call.target_machine)
+    {
+        crate::unit::attached_unit::ordinary_calls::prepare_requirement_obligations(
+            &signature.call_target(),
+            call_emission,
+            operations,
+        )?
+    } else {
+        // Standalone scalar catalogs carry their own exact requirement count;
+        // attached closures additionally retain the allocated source provenance.
+        let requirement_count = call_emission
+            .requirement_counts
+            .iter()
+            .find_map(|(source, count)| (*source == call.target_machine).then_some(*count))
+            .ok_or(LoweringError::Unsupported(
+                "direct scalar call target has no prepared contract",
+            ))?;
+        (0..requirement_count)
+            .map(|_| call_emission.allocate_requirement())
+            .collect::<Result<Vec<_>, _>>()?
+    };
     let result = value_id(*next_value_identity);
     *next_value_identity = next_value_identity
         .checked_add(1)
@@ -238,6 +259,36 @@ fn emit_direct_call_operation(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let crash_continuations = if call.structural_arguments.is_empty() {
+        lower_checked_crash_route_buckets(crash_routes, crash_values)?
+    } else {
+        let signature = crate::unit::attached_unit::signatures::find(
+            call_emission.signatures,
+            call.target_machine,
+        )?;
+        crate::unit::attached_unit::ordinary_calls::prepare_crash_continuations(
+            signature.call_target(),
+            crash_routes,
+            crash_values,
+            &structural_arguments,
+            call_emission.structural_types,
+            |argument, index| {
+                if argument.path.is_empty() {
+                    return Ok(Vec::new());
+                }
+                let root_type = call.structural_arguments[index].root_type.ok_or(
+                    LoweringError::Unsupported(
+                        "computed crash argument has no physical root carrier",
+                    ),
+                )?;
+                crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
+                    argument,
+                    root_type,
+                    call_emission.structural_types,
+                )
+            },
+        )?
+    };
     let claim_transfers = crate::emission::claim_bindings::emit_prepared_claim_transfers(
         &call.claim_transfers,
         call_emission.claims.bindings(),

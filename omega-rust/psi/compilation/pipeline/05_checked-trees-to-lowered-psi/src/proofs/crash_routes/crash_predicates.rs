@@ -85,7 +85,7 @@ pub(crate) fn charge_boolean_expansion(
     Ok(())
 }
 
-fn checked_boolean_proposition_with_budget(
+pub(super) fn checked_boolean_proposition_with_budget(
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
     remaining: &mut usize,
@@ -282,7 +282,7 @@ fn checked_boolean_connective_polarity(
     }
 }
 
-fn checked_boolean_atom_polarity(
+pub(super) fn checked_boolean_atom_polarity(
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
     positive: bool,

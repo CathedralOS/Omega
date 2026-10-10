@@ -10,11 +10,10 @@ use crate::proofs::crash_routes::structural_members::{
     lower_structural_sum_subject,
 };
 use crate::proofs::{
-    BTreeMap, CanonicalStructuralPathSegment, CheckedBooleanExpression,
-    CheckedScalarExpression, IeeeFloatFormat, LoweringError, PlaceId,
-    PrimitiveType, Proposition, ScalarTerm, ScalarType, StructuralParameterDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalCrashCause, ValueDeclaration,
-    integer_landing_scalar_type, integer_scalar_type, integer_value, unsupported,
+    CanonicalStructuralPathSegment, CheckedBooleanExpression, CheckedScalarExpression,
+    IeeeFloatFormat, LoweringError, PlaceId, PrimitiveType, Proposition, ScalarTerm, ScalarType,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalCrashCause, ValueDeclaration, integer_scalar_type, unsupported,
 };
 
 pub(crate) fn lower_structural_crash_route_buckets(
@@ -139,13 +138,8 @@ impl RouteTerms<'_> {
                 let Some(integer_type) = left.scalar_type().as_integer() else {
                     return unsupported("structural crash comparison operand is not an integer");
                 };
-                super::scalar_terms::checked_integer_comparison(
-                    *kind,
-                    integer_type,
-                    left,
-                    right,
-                )
-                .map_err(LoweringError::InvalidCrashPredicate)
+                super::scalar_terms::checked_integer_comparison(*kind, integer_type, left, right)
+                    .map_err(LoweringError::InvalidCrashPredicate)
             }
             CheckedBooleanExpression::IeeeFloatComparison { .. } => {
                 unsupported("IEEE equality lowers as an atomic proposition")
@@ -178,11 +172,17 @@ impl RouteTerms<'_> {
         &self,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
+        // Scalar subtrees retain the existing scalar operation and safety
+        // policy. Structural observations need the declaration's place/type
+        // namespace; they must not redirect unrelated scalar casts or shifts.
+        if !uses_structural_storage(expression) {
+            return checked_scalar_term(expression, self.scalar_parameters, &[]);
+        }
         crate::proofs::integer_predicates::lower(
             expression,
             self.runtime_requirements,
             &|expression| match expression {
-                CheckedScalarExpression::Parameter { .. } => {
+                expression if !uses_structural_storage(expression) => {
                     checked_scalar_term(expression, self.scalar_parameters, &[])
                 }
                 CheckedScalarExpression::StructuralParameterField {
@@ -203,16 +203,6 @@ impl RouteTerms<'_> {
                         self.parameters,
                         self.structural_types,
                     )
-                }
-                CheckedScalarExpression::IntegerLiteral { literal } => {
-                    let scalar_type = integer_landing_scalar_type(literal)?;
-                    let Some(integer_type) = scalar_type.as_integer() else {
-                        return unsupported(
-                            "structural crash integer literal is not fixed-integer",
-                        );
-                    };
-                    ScalarTerm::integer(integer_type, integer_value(literal, scalar_type)?)
-                        .map_err(LoweringError::InvalidCrashPredicate)
                 }
                 _ => unsupported(
                     "structural crash integer predicate contains an unsupported operand",
@@ -269,6 +259,18 @@ impl RouteTerms<'_> {
         remaining: &mut usize,
         depth: usize,
     ) -> Result<Proposition, LoweringError> {
+        if matches!(
+            expression,
+            CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
+        ) {
+            return super::crash_predicates::checked_boolean_atom_polarity(
+                expression,
+                self.scalar_parameters,
+                positive,
+                remaining,
+                depth,
+            );
+        }
         charge_boolean_expansion(remaining, depth)?;
         if positive || contains_structural_atomic_proposition(expression) {
             let proposition = self.lower_proposition(expression, remaining, depth + 1)?;
@@ -294,6 +296,22 @@ impl RouteTerms<'_> {
         remaining: &mut usize,
         depth: usize,
     ) -> Result<Proposition, LoweringError> {
+        // Scalar IEEE atoms keep the scalar owner's negation and NaN policy,
+        // including when another formal or conjunct observes structural storage.
+        // Share the guard's expansion budget rather than restarting it here.
+        if matches!(
+            expression,
+            CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
+        ) || matches!(expression, CheckedBooleanExpression::Not(operand)
+                if matches!(operand.as_ref(), CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }))
+        {
+            return super::crash_predicates::checked_boolean_proposition_with_budget(
+                expression,
+                self.scalar_parameters,
+                remaining,
+                depth,
+            );
+        }
         charge_boolean_expansion(remaining, depth)?;
         // Existing atomic denotations, including proposition-only negation,
         // remain unchanged. Only composition that cannot be a scalar term
@@ -489,6 +507,35 @@ impl RouteTerms<'_> {
     }
 }
 
+/// Select the term's leaf namespace from checked operations, independent of
+/// caller shape or unused formals. Boolean terms are not integer leaves.
+fn uses_structural_storage(expression: &CheckedScalarExpression) -> bool {
+    let mut pending = vec![expression];
+    while let Some(expression) = pending.pop() {
+        match expression {
+            CheckedScalarExpression::StructuralParameterField { .. }
+            | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
+            | CheckedScalarExpression::StructuralParameterByteLength { .. }
+            | CheckedScalarExpression::Boolean(_) => return true,
+            CheckedScalarExpression::IntegerBinary { left, right, .. } => {
+                pending.extend([left.as_ref(), right.as_ref()]);
+            }
+            CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
+            | CheckedScalarExpression::IntegerWiden { operand, .. }
+            | CheckedScalarExpression::IntegerExactCast { operand, .. }
+            | CheckedScalarExpression::RepresentationView { operand, .. } => pending.push(operand),
+            CheckedScalarExpression::StorageRead { .. }
+            | CheckedScalarExpression::Parameter { .. }
+            | CheckedScalarExpression::ErasedParameter { .. }
+            | CheckedScalarExpression::Local { .. }
+            | CheckedScalarExpression::IntegerLiteral { .. }
+            | CheckedScalarExpression::IeeeFloatLiteral { .. }
+            | CheckedScalarExpression::ImplementationSelection { .. } => {}
+        }
+    }
+    false
+}
+
 fn checked_member_path(
     expression: &checked_trees::CrashPredicateExpression,
     path: &mut Vec<String>,
@@ -513,7 +560,7 @@ fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression)
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
         CheckedBooleanExpression::Not(operand) => contains_structural_atomic_proposition(operand),
-        facts::checked_boolean_triple_pattern!(left,right, ..) => {
+        facts::checked_boolean_triple_pattern!(left, right, ..) => {
             contains_structural_atomic_proposition(left)
                 || contains_structural_atomic_proposition(right)
         }
@@ -530,19 +577,29 @@ fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression)
 
 pub(crate) fn substitute_structural_crash_route_roots(
     buckets: &mut [terminal_psi::CrashRouteBucket],
-    substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    substitutions: &mut dyn FnMut(
+        PlaceId,
+    ) -> Result<
+        Option<(PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+        LoweringError,
+    >,
 ) -> Result<(), LoweringError> {
     fn substitute_term(
         term: &mut ScalarTerm,
-        substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+        substitutions: &mut dyn FnMut(
+            PlaceId,
+        ) -> Result<
+            Option<(PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+            LoweringError,
+        >,
     ) -> Result<(), LoweringError> {
         match term {
             ScalarTerm::BooleanField { root, path }
             | ScalarTerm::IntegerField { root, path, .. } => {
-                let Some((replacement, prefix)) = substitutions.get(root) else {
+                let Some((replacement, prefix)) = substitutions(*root)? else {
                     return Ok(());
                 };
-                *root = *replacement;
+                *root = replacement;
                 if !prefix.is_empty() {
                     let mut rebased = Vec::with_capacity(prefix.len() + path.len());
                     rebased.extend(prefix);
@@ -593,7 +650,12 @@ pub(crate) fn substitute_structural_crash_route_roots(
 
     fn substitute_proposition(
         proposition: &mut Proposition,
-        substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+        substitutions: &mut dyn FnMut(
+            PlaceId,
+        ) -> Result<
+            Option<(PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+            LoweringError,
+        >,
     ) -> Result<(), LoweringError> {
         match proposition {
             Proposition::Equal(left, right) => {
@@ -614,21 +676,21 @@ pub(crate) fn substitute_structural_crash_route_roots(
             }
             Proposition::IeeeFloatComparison { left, right, .. } => {
                 for field in [left, right] {
-                    if let Some((root, prefix)) = substitutions.get(&field.root()) {
-                        *field = field.rebase(*root, prefix);
+                    if let Some((root, prefix)) = substitutions(field.root())? {
+                        *field = field.rebase(root, &prefix);
                     }
                 }
             }
             Proposition::ByteSequenceEqual { left, right } => {
                 for field in [left, right] {
-                    if let Some((root, prefix)) = substitutions.get(&field.root()) {
-                        *field = field.rebase(*root, prefix);
+                    if let Some((root, prefix)) = substitutions(field.root())? {
+                        *field = field.rebase(root, &prefix);
                     }
                 }
             }
             Proposition::StructuralCaseMembership { subject, .. } => {
-                if let Some((root, prefix)) = substitutions.get(&subject.root()) {
-                    *subject = subject.rebase(*root, prefix);
+                if let Some((root, prefix)) = substitutions(subject.root())? {
+                    *subject = subject.rebase(root, &prefix);
                 }
             }
             _ => {}

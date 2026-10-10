@@ -4,15 +4,13 @@ use super::super::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, ValueId,
     structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
 };
-use super::bodies::UnitPlans;
 use super::parameters::call_index_selectors;
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError,
     OperationResult, PlaceId, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, UnitBody, ValueDeclaration, allocate_dense,
-    argument_evaluation, lookup_type_id, lower_checked_crash_route_buckets,
-    lower_structural_arguments, lower_structural_crash_route_buckets, place_id, primitive_locals,
-    unsupported,
+    StructuralPlaceKind, StructuralTypeId, ValueDeclaration, allocate_dense, argument_evaluation,
+    lookup_type_id, lower_checked_crash_route_buckets, lower_structural_arguments,
+    lower_structural_crash_route_buckets, place_id, primitive_locals, unsupported,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::borrowed_window::terminal_multiplicity;
@@ -22,7 +20,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
-pub(super) struct Target<'a> {
+pub(crate) struct Target<'a> {
     pub parameters: &'a [StructuralParameterDeclaration],
     pub scalar_parameters: &'a [ValueDeclaration],
     pub predicate_parameters: &'a [StructuralParameterDeclaration],
@@ -88,7 +86,6 @@ impl PreparedCall {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prepare(
     checked: &CheckedTrees,
-    plans: UnitPlans<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     target: Target<'_>,
     evaluated_scalar_arguments: Option<&[ValueDeclaration]>,
@@ -108,11 +105,11 @@ pub(super) fn prepare(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<PreparedCall, LoweringError> {
-    // An ordinary call with a Unit or structural result; a structural call
-    // keeps its claim transfers in its custody record.
+    // All ordinary result kinds share operand custody and callee contracts.
+    // Result formation and publication remain with the operation frame.
     let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
         .call()
-        .filter(|call| call.is_module() && call.scalar_result().is_none())
+        .filter(|call| call.is_module())
         .and_then(|call| {
             Some((
                 call,
@@ -127,7 +124,9 @@ pub(super) fn prepare(
     let scalar_arguments = &call.scalar_arguments;
     let structural_arguments = &call.structural_arguments;
     let claim_transfers = call.claim_transfers();
-    let checked_target = UnitBody::find(plans, *target_machine)?.entry()?;
+    if structural_arguments.len() != target.parameters.len() {
+        return unsupported("ordinary call has an unsupported structural operand arity");
+    }
     let erased_proof_arguments = erased_proof_arguments
         .iter()
         .map(|argument| {
@@ -158,7 +157,7 @@ pub(super) fn prepare(
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    if scalar_arguments.len() != checked_target.scalar_parameters.len() {
+    if scalar_arguments.len() != target.scalar_parameters.len() {
         return unsupported("Unit call scalar argument count disagrees with its target");
     }
     let terminal_scalar_values = argument_evaluation::validated_values(
@@ -201,13 +200,93 @@ pub(super) fn prepare(
         Some((next_value, operations)),
     )?;
 
+    let crash_continuations = prepare_crash_continuations(
+        Target { ..target },
+        &crate::unit::effective_crash_routes(checked, *target_machine)?,
+        &terminal_scalar_values,
+        &terminal_arguments,
+        structural_types,
+        |argument, _| {
+            if call_byte_places.contains(&argument.place) {
+                Ok(Vec::new())
+            } else {
+                structural_crash_route_argument_prefix(
+                    argument,
+                    parameters,
+                    local_places,
+                    structural_result_places,
+                    structural_types,
+                    primitive_local_places,
+                )
+            }
+        },
+    )?;
+    let requirement_obligations = prepare_requirement_obligations(&target, calls, operations)?;
+    Ok(PreparedCall {
+        arguments: terminal_scalar_arguments,
+        erased_arguments,
+        erased_proof_arguments,
+        structural_arguments: terminal_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    })
+}
+
+/// Retain the signature's ordered requirement identities and the source
+/// checker's exact closed-clause discharge for every ordinary call adapter.
+pub(crate) fn prepare_requirement_obligations(
+    target: &Target<'_>,
+    calls: &mut CallEmissionContext<'_>,
+    operations: &mut OperationBuffer,
+) -> Result<Vec<ObligationId>, LoweringError> {
+    // Retain one identity per published requirement while certificate production
+    // remains. The source checker has already discharged authored
+    // clauses at this exact call, including projected aggregate observations.
+    // Re-searching those decisions after lowering loses source fact transport
+    // and duplicates checking. Generated runtime requirements retain their
+    // separate decision route until the checker cutover completes.
+    target
+        .requires
+        .iter()
+        .map(|requirement| {
+            let obligation = calls.allocate_requirement()?;
+            if target.source_checked_requires.contains(requirement) {
+                operations.source_checked_obligations.push(obligation);
+            }
+            Ok(obligation)
+        })
+        .collect()
+}
+
+/// The callee's allocated formal namespace and completed actual roots are
+/// shared by frame calls and computed calls. Caller adapters only supply the
+/// physical argument prefix; none may lower structural guards as scalar terms.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_crash_continuations(
+    target: Target<'_>,
+    routes: &[checked_trees::CrashRouteBucket],
+    terminal_scalar_values: &[ValueDeclaration],
+    terminal_arguments: &[StructuralArgument],
+    structural_types: &[StructuralTypeDeclaration],
+    mut prefix: impl FnMut(
+        &StructuralArgument,
+        usize,
+    ) -> Result<
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        LoweringError,
+    >,
+) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
+    if target.parameters.len() != terminal_arguments.len() {
+        return unsupported("ordinary call has an unsupported structural operand arity");
+    }
     if target.scalar_parameters.len() != terminal_scalar_values.len() {
         return unsupported("Unit call scalar requirement arity is inconsistent");
     }
     let scalar_substitutions = target
         .scalar_parameters
         .iter()
-        .zip(&terminal_scalar_values)
+        .zip(terminal_scalar_values)
         .map(|(formal, actual)| {
             if formal.scalar_type != actual.scalar_type {
                 return unsupported("Unit call scalar requirement parameter type is inconsistent");
@@ -216,9 +295,9 @@ pub(super) fn prepare(
         })
         .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
     let mut crash_continuations = {
-        let target_routes = crate::unit::effective_crash_routes(checked, *target_machine)?;
+        let target_routes = routes.to_vec();
         if target.parameters.is_empty() {
-            lower_checked_crash_route_buckets(&target_routes, &terminal_scalar_values)?
+            lower_checked_crash_route_buckets(&target_routes, terminal_scalar_values)?
         } else {
             // Only structural crash substitution reads the callee's runtime
             // requirements, instantiated at this call. A callee without
@@ -240,7 +319,7 @@ pub(super) fn prepare(
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             lower_structural_crash_route_buckets(
                 &target_routes,
-                &terminal_scalar_values,
+                terminal_scalar_values,
                 target.predicate_parameters,
                 structural_types,
                 &target_runtime_requirements,
@@ -248,61 +327,23 @@ pub(super) fn prepare(
         }
     };
     if !crash_continuations.is_empty() {
-        let substitutions = target
-            .parameters
-            .iter()
-            .zip(&terminal_arguments)
-            .map(|(parameter, argument)| {
-                Ok((
-                    parameter.place,
-                    (
-                        argument.place,
-                        if call_byte_places.contains(&argument.place) {
-                            // Transfer validation already required the exact whole
-                            // immutable byte view. Its canonical path has no segments.
-                            Vec::new()
-                        } else {
-                            structural_crash_route_argument_prefix(
-                                argument,
-                                parameters,
-                                local_places,
-                                structural_result_places,
-                                structural_types,
-                                primitive_local_places,
-                            )?
-                        },
-                    ),
-                ))
-            })
-            .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
-        substitute_structural_crash_route_roots(&mut crash_continuations, &substitutions)?;
+        // Only observed formal roots need a canonical crash prefix. An
+        // unrelated actual may legitimately contain a runtime selector or a
+        // reference projection that the crash predicate never reads.
+        substitute_structural_crash_route_roots(&mut crash_continuations, &mut |root| {
+            let Some((index, _)) = target
+                .parameters
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| parameter.place == root)
+            else {
+                return Ok(None);
+            };
+            let argument = &terminal_arguments[index];
+            Ok(Some((argument.place, prefix(argument, index)?)))
+        })?;
     }
-    // Retain one identity per published requirement while certificate production
-    // remains. The source checker has already discharged authored
-    // clauses at this exact call, including projected aggregate observations.
-    // Re-searching those decisions after lowering loses source fact transport
-    // and duplicates checking. Generated runtime requirements retain their
-    // separate decision route until the checker cutover completes.
-    let requirement_obligations = target
-        .requires
-        .iter()
-        .map(|requirement| {
-            let obligation = calls.allocate_requirement()?;
-            if target.source_checked_requires.contains(requirement) {
-                operations.source_checked_obligations.push(obligation);
-            }
-            Ok(obligation)
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    Ok(PreparedCall {
-        arguments: terminal_scalar_arguments,
-        erased_arguments,
-        erased_proof_arguments,
-        structural_arguments: terminal_arguments,
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-    })
+    Ok(crash_continuations)
 }
 
 #[allow(clippy::too_many_arguments)]

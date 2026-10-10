@@ -16,11 +16,9 @@
 //! that current home before considering unaddressed scalar bindings; creating
 //! another home here would split storage identity from later reads and writes.
 
-use super::super::parameters::{self, lower_structural_arguments};
 use super::super::{argument_evaluation, ordinary_calls, signatures, structural_values};
 use super::{OperationFrame, StructuralResults};
-use crate::direct_calls::{DirectCall, DirectCallResult};
-use crate::emission::claim_bindings::emitted_claim_transfers;
+use crate::direct_calls::DirectCallResult;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
@@ -28,8 +26,7 @@ use crate::terminal_identities::lookup_type_id;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, OperationResult, PlaceId,
     StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
-    lookup_machine_id, lower_checked_crash_route_buckets, terminal_scalar_type, unsupported,
-    value_id,
+    lookup_machine_id, terminal_scalar_type, unsupported, value_id,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
 
@@ -82,21 +79,8 @@ impl OperationFrame<'_, '_> {
                 self.unit_call(operation, call, &inputs)?;
                 Ok(())
             }
-            (
-                CheckedUnitCallRoute::Module {
-                    erased_scalar_arguments,
-                    erased_proof_arguments,
-                    ..
-                },
-                CheckedUnitCallResult::Scalar(result),
-            ) => {
-                let value = self.scalar_call(
-                    call,
-                    result,
-                    erased_scalar_arguments,
-                    erased_proof_arguments,
-                    &inputs,
-                )?;
+            (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(result)) => {
+                let value = self.scalar_call(operation, call, result, &inputs)?;
                 self.bind_scalar_result(call.coordinate, value)
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
@@ -595,7 +579,6 @@ impl OperationFrame<'_, '_> {
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
         let prepared = ordinary_calls::prepare(
             checked,
-            self.callees.plans,
             operation,
             signatures::find(self.callees.signatures, *target_machine)?.call_target(),
             inputs.evaluated_scalar_arguments,
@@ -874,10 +857,9 @@ impl OperationFrame<'_, '_> {
     /// structural scalar call shape.
     fn scalar_call(
         &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
         call: &CheckedUnitCallPlan,
         result: &checked_trees::CheckedUnitScalarResultBindingPlan,
-        erased_scalar_arguments: &[checked_trees::CheckedCallScalarArgument],
-        erased_proof_arguments: &[checked_trees::CheckedProofTerm],
         inputs: &CallInputs<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let checked = self.checked;
@@ -922,142 +904,60 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("Unit scalar call target formals disagree with its signature");
         }
-        // The checked plan keeps the proof-only lanes apart from the retained
-        // operands, in the target's erased-formal order, as for a Unit call:
-        // erased actuals are pure terms over the caller's namespace and never
-        // runtime operands.
-        let arguments = argument_evaluation::validated_values(
-            inputs.evaluated_scalar_arguments,
-            &expected_parameter_types,
-        )?;
-        if erased_scalar_arguments.len() != target.erased_parameters().len() {
+        if call
+            .erased_scalar_arguments()
+            .ok_or(LoweringError::Unsupported(
+                "scalar module call has no erased lane",
+            ))?
+            .len()
+            != target.erased_parameters().len()
+        {
             return unsupported("scalar call erased lane disagrees with its target roster");
         }
-        let erased_arguments = erased_scalar_arguments
-            .iter()
-            .map(|argument| {
-                let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument else {
-                    return unsupported(
-                        "scalar call erased actual must be a pure checked expression",
-                    );
-                };
-                crate::proofs::crash_routes::checked_scalar_term(
-                    expression,
-                    self.values,
-                    self.caller.erased_scalar_parameters,
-                )
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-        // Caller `Formal` occurrences resolve against this body's erased-proof
-        // roster.
-        let erased_proof_arguments = erased_proof_arguments
-            .iter()
-            .map(|term| {
-                crate::scalar_lowering::contracts::checked_proof_term(
-                    checked,
-                    term,
-                    self.caller.erased_proof_parameters,
-                )
-                .and_then(|term| {
-                    crate::scalar_lowering::contracts::lowered_proof_term(
-                        &term,
-                        self.values,
-                        self.caller.erased_scalar_parameters,
-                    )
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-        if checked
-            .facts
-            .contract_plans
-            .for_machine(*realization_machine)
-            .is_none()
-        {
-            return Err(LoweringError::Unsupported(
-                "Unit scalar call target has no checked contract",
-            ));
-        }
-        let crash_continuations = lower_checked_crash_route_buckets(
-            &crate::unit::effective_crash_routes(checked, *realization_machine)?,
-            &arguments,
+        // Structural guards resolve through the same allocated signature and
+        // completed operands as Unit calls. A scalar result changes publication,
+        // never the namespace or root substitution of the callee's contract.
+        let earlier =
+            self.results
+                .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
+        let prepared = ordinary_calls::prepare(
+            checked,
+            operation,
+            signature.call_target(),
+            inputs.evaluated_scalar_arguments,
+            inputs.evaluated_selectors,
+            self.values,
+            self.caller.erased_scalar_parameters,
+            self.caller.erased_proof_parameters,
+            self.parameters,
+            self.caller.local_places,
+            &earlier,
+            self.primitive_locals,
+            &self.evaluation.structural_locals,
+            &self.evaluation.scalar_bindings,
+            self.structural_types.declarations(),
+            inputs.byte_places,
+            self.calls,
+            self.next_value,
+            self.operations,
         )?;
-        let requirement_count = self
-            .calls
-            .requirement_counts
-            .iter()
-            .find_map(|(source, count)| (*source == *realization_machine).then_some(*count))
-            .ok_or(LoweringError::Unsupported(
-                "Unit scalar call target has no prepared contract",
-            ))?;
-        let requirement_obligations = (0..requirement_count)
-            .map(|_| self.calls.allocate_requirement())
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        drop(earlier);
         let value = ValueDeclaration {
             qualifications: result_qualifications,
             id: value_id(allocate_dense(self.next_value)?),
             scalar_type: target_result,
         };
         let callee = lookup_machine_id(self.calls.machine_ids, *realization_machine)?;
-        let arguments = arguments.iter().map(|argument| argument.id).collect();
-        let structural_arguments = &call.structural_arguments;
-        let claim_transfers = call.claim_transfers();
-        if structural_arguments.len() != target.structural_parameters().len() {
-            return unsupported("scalar call arguments disagree with its retained formals");
-        }
-        let (structural_arguments, claim_transfers) = {
-            // Arguments and transfer indices already name retained dense slots.
-            // Never remove a receiver or rebase claims during emission.
-            let mut selector_values =
-                parameters::call_index_selectors(structural_arguments, inputs.evaluated_selectors)?
-                    .into_iter();
-            let earlier =
-                self.results
-                    .earlier(structural_arguments, self.operations, self.evaluation)?;
-
-            (
-                lower_structural_arguments(
-                    structural_arguments,
-                    self.structural_types.declarations(),
-                    self.parameters,
-                    self.caller.local_places,
-                    &earlier,
-                    &self.operations.structural_values.clone(),
-                    inputs.byte_places,
-                    self.primitive_locals,
-                    &self.evaluation.structural_locals,
-                    Some(&self.evaluation.scalar_bindings),
-                    Some(self.values),
-                    &mut selector_values,
-                    Some(&mut *self.calls),
-                    Some((self.next_value, self.operations)),
-                )?,
-                emitted_claim_transfers(
-                    claim_transfers,
-                    self.calls.claims.bindings(),
-                    &signature.parameters,
-                    self.structural_types.declarations(),
-                )?,
-            )
-        };
         let (coordinate, frontier) = self.source_call_record(*coordinate)?;
-        crate::direct_calls::emit_direct_call(
+        prepared.emit(
             self.operations,
             coordinate,
             None,
             source_target,
             crate::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Scalar(value),
-            DirectCall::new(
-                callee,
-                arguments,
-                erased_arguments,
-                erased_proof_arguments,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-                DirectCallResult::Scalar,
-            ),
+            callee,
+            DirectCallResult::Scalar,
         )?;
         Ok(value)
     }

@@ -975,7 +975,7 @@ impl ScalarBindings {
                 if !permits(*granted, access) {
                     return unsupported("computed primitive ingress widens original access");
                 }
-                return crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(StructuralArgument { place, path: Vec::new(), access });
+                return crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(StructuralArgument { place, path: Vec::new(), access }, None);
             }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
                 if !argument.path.is_empty() {
@@ -1001,7 +1001,7 @@ impl ScalarBindings {
                 {
                     return unsupported("computed primitive local changes original ownership");
                 }
-                return crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(StructuralArgument { place, path, access });
+                return crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(StructuralArgument { place, path, access }, None);
             }
             _ if argument.structural_storage_root().is_some() => {
                 let root = argument
@@ -1054,6 +1054,7 @@ impl ScalarBindings {
         Ok(
             crate::emission::operation_emission::calls::PreparedStructuralArgument {
                 place: source.place,
+                root_type: self.structural_place_type(source.place),
                 path: source
                     .path
                     .into_iter()

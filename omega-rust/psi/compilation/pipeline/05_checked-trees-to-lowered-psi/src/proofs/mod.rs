@@ -49,9 +49,7 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, ValueDeclaration,
 };
 
-use crate::emission::scalar_types::{
-    integer_landing_scalar_type, integer_scalar_type, integer_value, terminal_scalar_type,
-};
+use crate::emission::scalar_types::{integer_scalar_type, terminal_scalar_type};
 use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::{

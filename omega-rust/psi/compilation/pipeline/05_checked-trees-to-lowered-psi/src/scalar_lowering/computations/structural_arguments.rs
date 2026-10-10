@@ -61,6 +61,7 @@ pub(super) fn lower(
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
                         place: slot.place,
+                        root_type: Some(slot.structural_type),
                         path: crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
                             &argument.path, slot.structural_type, structural_types,
                         )?,
@@ -76,7 +77,7 @@ pub(super) fn lower(
                 let selected_root = bindings.structural_argument_type(&source).ok_or(
                     LoweringError::Unsupported("computed owned argument lost its published carrier"),
                 )?;
-                let mut prepared = PreparedStructuralArgument::from_static(source)?;
+                let mut prepared = PreparedStructuralArgument::from_static(source.clone(), bindings.structural_place_type(source.place))?;
                 prepared.path.extend(crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
                     &argument.path, selected_root, structural_types,
                 )?);
@@ -100,6 +101,7 @@ pub(super) fn lower(
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
                         place: slot.place,
+                        root_type: Some(slot.structural_type),
                         path: Vec::new(),
                         access,
                     });
@@ -123,6 +125,7 @@ pub(super) fn lower(
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
                         place: slot.place,
+                        root_type: Some(slot.structural_type),
                         path: Vec::new(),
                         access: StructuralAccess::SharedBorrow,
                     });
@@ -140,6 +143,7 @@ pub(super) fn lower(
                 return Ok(PreparedStructuralArgument {
                     selector_positions: Vec::new(),
                     place: source.place,
+                    root_type: bindings.structural_place_type(source.place),
                     path,
                     access: readable_borrowed_access(argument.access).ok_or(
                         LoweringError::Unsupported(

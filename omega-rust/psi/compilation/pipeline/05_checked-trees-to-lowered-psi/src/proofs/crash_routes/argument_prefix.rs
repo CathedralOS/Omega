@@ -18,7 +18,7 @@ pub(crate) fn structural_crash_route_argument_prefix(
     structural_types: &[StructuralTypeDeclaration],
     primitive_locals: &[PrimitiveLocal],
 ) -> Result<Vec<CanonicalStructuralPathSegment>, LoweringError> {
-    let mut structural_type = parameters
+    let structural_type = parameters
         .iter()
         .find(|parameter| parameter.place == argument.place)
         .map(|parameter| parameter.structural_type)
@@ -54,6 +54,14 @@ pub(crate) fn structural_crash_route_argument_prefix(
         .ok_or(LoweringError::Unsupported(
             "structural crash route argument has no caller structural source",
         ))?;
+    structural_crash_route_prefix_from_type(argument, structural_type, structural_types)
+}
+
+pub(crate) fn structural_crash_route_prefix_from_type(
+    argument: &StructuralArgument,
+    mut structural_type: semantic_vocabulary::StructuralTypeId,
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<Vec<CanonicalStructuralPathSegment>, LoweringError> {
     let mut prefix = Vec::with_capacity(argument.path.len());
     let mut selected_case: Option<&terminal_psi::StructuralCaseDeclaration> = None;
     for (position, segment) in argument.path.iter().enumerate() {

@@ -7,6 +7,8 @@ mod discovery;
 pub(crate) use discovery::checked_scalar_call_closure_with_structural_roots;
 
 pub(crate) struct EmbeddedScalarCalls {
+    signatures: Vec<crate::unit::attached_unit::signatures::MachineSignature>,
+    structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
     domain_ids: Vec<crate::terminal_identities::StructuralDomainBinding>,
     claim_bindings: Vec<(
         language_semantics::PermissionClaimIdentity,
@@ -29,6 +31,8 @@ impl EmbeddedScalarCalls {
         next_call_obligation: u64,
     ) -> Self {
         Self {
+            signatures: Vec::new(),
+            structural_types: Vec::new(),
             domain_ids: Vec::new(),
             claim_bindings: Vec::new(),
             cleanup_receivers: Vec::new(),
@@ -45,7 +49,11 @@ impl EmbeddedScalarCalls {
         boundaries: &[crate::unit::attached_unit::BoundaryParameters],
         domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
         cleanup_receivers: Vec<(symbols::SymbolHandle, semantic_vocabulary::PlaceId)>,
+        signatures: &[crate::unit::attached_unit::signatures::MachineSignature],
+        structural_types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Self {
+        self.signatures = signatures.to_vec();
+        self.structural_types = structural_types.to_vec();
         self.boundaries = boundaries.to_vec();
         self.domain_ids = domain_ids.to_vec();
         self.cleanup_receivers = cleanup_receivers;
@@ -63,6 +71,8 @@ impl EmbeddedScalarCalls {
             ),
             cleanup_receivers: &self.cleanup_receivers,
             machine_ids: &self.machine_ids,
+            signatures: &self.signatures,
+            structural_types: &self.structural_types,
             requirement_counts: &self.requirement_counts,
             boundaries: &self.boundaries,
             next_obligation_identity: self.next_call_obligation,

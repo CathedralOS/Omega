@@ -384,6 +384,7 @@ pub(super) fn emit(
                 .map(|receiver| (signature.source, receiver))
         })
         .collect::<Vec<_>>();
+    let call_structural_types = structural_types.clone();
     let mut emission = MachineEmission {
         checked,
         plan,
@@ -425,6 +426,8 @@ pub(super) fn emit(
             ),
             cleanup_receivers: &cleanup_receivers,
             machine_ids,
+            signatures: machine_signatures,
+            structural_types: &call_structural_types,
             requirement_counts: scalar_requirement_counts,
             boundaries: lowered_boundary_parameters,
             next_obligation_identity: next_call_obligation,

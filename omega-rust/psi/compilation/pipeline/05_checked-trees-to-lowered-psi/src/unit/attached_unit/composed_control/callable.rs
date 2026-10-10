@@ -106,6 +106,8 @@ pub(in crate::unit::attached_unit) fn emit(
                         .map(|receiver| (signature.source, receiver))
                 })
                 .collect(),
+            shared.signatures,
+            shared.structural_types,
         ),
         root_crash_routes: crate::unit::effective_crash_routes(checked, plan.machine)?,
         next_place: *counters.place,

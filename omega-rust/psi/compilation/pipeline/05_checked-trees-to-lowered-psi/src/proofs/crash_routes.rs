@@ -14,7 +14,9 @@ pub(super) mod structural_arithmetic;
 mod structural_members;
 mod structural_route_buckets;
 
-pub(crate) use argument_prefix::structural_crash_route_argument_prefix;
+pub(crate) use argument_prefix::{
+    structural_crash_route_argument_prefix, structural_crash_route_prefix_from_type,
+};
 pub(crate) use crash_predicates::{checked_boolean_proposition, lower_checked_crash_predicates};
 pub(crate) use scalar_terms::{
     checked_boolean_scalar_term, checked_scalar_term, checked_scalar_term_with_views,
@@ -30,8 +32,8 @@ pub(crate) use structural_route_buckets::{
 
 use super::{
     BTreeSet, CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedTrees, ClaimId,
-    LoweringError, PermissionClaimIdentity, ScalarType, TerminalCrashCause, ValueDeclaration,
-    dense_identity, unsupported, value_id,
+    LoweringError, PermissionClaimIdentity, Proposition, ScalarType, TerminalCrashCause,
+    ValueDeclaration, dense_identity, unsupported, value_id,
 };
 use crate::scalar_lowering::branch_states::prepared::LoweredCrashExit;
 
@@ -39,6 +41,9 @@ pub(crate) fn lower_boundary_crash_routes(
     checked: &CheckedTrees,
     boundary: &CheckedBoundaryMachinePlan,
     scalar_types: &[ScalarType],
+    structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    runtime_requirements: &[Proposition],
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
     // Trait requirements own capsules; attached bodyless declarations own
     // machine contracts. Neither may borrow a selected provider's body summary.
@@ -57,7 +62,16 @@ pub(crate) fn lower_boundary_crash_routes(
         .ok_or(LoweringError::Unsupported(
             "boundary crash contract owner is absent",
         ))?;
-    lower_formal_crash_routes(buckets, scalar_types)
+    // Boundary predicates observe the declaration's own structural formals.
+    // The scalar-only operation contract path cannot resolve these members;
+    // using provider body bindings here would change the published contract.
+    lower_structural_crash_route_buckets(
+        &normalize_formal_crash_routes(buckets),
+        &formal_crash_parameters(scalar_types)?,
+        structural_parameters,
+        structural_types,
+        runtime_requirements,
+    )
 }
 
 /// Lower published crash routes into a declaration-local formal namespace:
@@ -71,7 +85,16 @@ pub(crate) fn lower_formal_crash_routes(
     buckets: &[checked_trees::CrashRouteBucket],
     scalar_types: &[ScalarType],
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
-    let parameters = scalar_types
+    lower_checked_crash_route_buckets(
+        &normalize_formal_crash_routes(buckets),
+        &formal_crash_parameters(scalar_types)?,
+    )
+}
+
+fn formal_crash_parameters(
+    scalar_types: &[ScalarType],
+) -> Result<Vec<ValueDeclaration>, LoweringError> {
+    scalar_types
         .iter()
         .enumerate()
         .map(|(position, scalar_type)| {
@@ -81,8 +104,13 @@ pub(crate) fn lower_formal_crash_routes(
                 qualifications: Default::default(),
             })
         })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    let normalized = buckets
+        .collect()
+}
+
+fn normalize_formal_crash_routes(
+    buckets: &[checked_trees::CrashRouteBucket],
+) -> Vec<checked_trees::CrashRouteBucket> {
+    buckets
         .iter()
         .filter_map(|bucket| {
             let guards = bucket
@@ -103,8 +131,7 @@ pub(crate) fn lower_formal_crash_routes(
                 .collect();
             checked_trees::CrashRouteBucket::new(bucket.cause(), guards)
         })
-        .collect::<Vec<_>>();
-    lower_checked_crash_route_buckets(&normalized, &parameters)
+        .collect()
 }
 
 pub(crate) fn lower_checked_crash_frontier(

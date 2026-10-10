@@ -27,7 +27,7 @@ use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::ValueDeclaration;
 
 #[derive(Clone)]
-pub(super) struct MachineSignature {
+pub(crate) struct MachineSignature {
     pub source: SymbolHandle,
     pub parameters: Vec<StructuralParameterDeclaration>,
     pub scalar_parameters: Vec<ValueDeclaration>,
@@ -41,7 +41,7 @@ pub(super) struct MachineSignature {
     /// resolve positions by parameter symbol.
     pub erased_proof_parameters: Vec<checked_trees::CheckedErasedProofParameterPlan>,
     pub predicate_parameters: Vec<StructuralParameterDeclaration>,
-    pub claims: LoweredUnitClaims,
+    pub(super) claims: LoweredUnitClaims,
     /// A hook's actual borrowed parameter or its reserved proof-only subject.
     pub cleanup_receiver: Option<semantic_vocabulary::PlaceId>,
     /// Every published `requires` row in canonical contract order, combining
@@ -53,7 +53,7 @@ pub(super) struct MachineSignature {
 }
 
 impl MachineSignature {
-    pub(super) fn call_target(&self) -> ordinary_calls::Target<'_> {
+    pub(crate) fn call_target(&self) -> ordinary_calls::Target<'_> {
         ordinary_calls::Target {
             parameters: &self.parameters,
             scalar_parameters: &self.scalar_parameters,
@@ -65,7 +65,7 @@ impl MachineSignature {
     }
 }
 
-pub(super) fn find(
+pub(crate) fn find(
     signatures: &[MachineSignature],
     source: SymbolHandle,
 ) -> Result<&MachineSignature, LoweringError> {

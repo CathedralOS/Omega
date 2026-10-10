@@ -57,6 +57,28 @@ pub(crate) fn lower_declarations(
         let requires = lower_requirements(plan, &parameters, domain_ids)?;
         let scalar_requires = lower_scalar_requires(plan, &scalar_parameters)?;
         let scalar_ensures = lower_scalar_ensures(plan, &scalar_parameters)?;
+        // Terminal call operands use packed structural positions; checked
+        // predicates retain authored positions across interleaved scalar lanes.
+        // Reuse the allocated places and types, changing only predicate lookup.
+        let predicate_parameters = plan
+            .structural_parameters
+            .iter()
+            .zip(&parameters)
+            .map(
+                |(source, terminal)| terminal_psi::StructuralParameterDeclaration {
+                    position: source.position,
+                    ..terminal.clone()
+                },
+            )
+            .collect::<Vec<_>>();
+        let crash_routes = lower_boundary_crash_routes(
+            checked,
+            plan,
+            &scalar_parameters,
+            &predicate_parameters,
+            structural_types,
+            &scalar_requires,
+        )?;
         let requirement_count = scalar_requires.len();
         let id = boundary_machine_id(dense_identity(index)?);
         declarations.push(BoundaryMachineDeclaration {
@@ -77,7 +99,7 @@ pub(crate) fn lower_declarations(
                 .map(|identity| lookup_type_id(type_ids, identity))
                 .transpose()?,
             scalar_parameters: scalar_parameters.clone(),
-            crash_routes: lower_boundary_crash_routes(checked, plan, &scalar_parameters)?,
+            crash_routes,
             structural_parameters: parameters.clone(),
             result: lower_boundary_result(&plan.result, type_ids, domain_ids)?,
             requires,
