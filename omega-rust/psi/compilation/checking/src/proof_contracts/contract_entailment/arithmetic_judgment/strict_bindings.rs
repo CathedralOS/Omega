@@ -13,11 +13,9 @@ impl<'program> Engine<'program> {
         program: &'program dyn crate::CheckingInput,
         owner: SymbolHandle,
     ) -> Self {
-        let mut engine = Self::for_proof_integer_formation(program);
+        let mut engine = Self::for_explicit_bindings(program);
         engine.machine_symbol = owner;
         engine.source_owner = owner;
-        engine.proof_integer_formation = false;
-        engine.strict_symbol_bindings = Some(Vec::new());
         engine
     }
 

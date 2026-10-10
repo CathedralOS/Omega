@@ -26,13 +26,6 @@ pub(super) fn initializer_satisfies_predicate_domain(
     if !domain_symbol.is_valid() || active.contains(&domain_symbol) {
         return false;
     }
-    // An explicit `x as T in D` mint declares the qualification directly;
-    // the staged mint fence at validation owns judging its legality.
-    if let Some(cast) = program.expression_table.cast_node(value)
-        && cast.semantic_domain_symbol == domain_symbol
-    {
-        return true;
-    }
     // A domain-owned operator is the sanctioned producer for its domain: the
     // selected candidate's domain qualifies the result, matching the trust
     // basis of a declared `-> T in D` call signature.

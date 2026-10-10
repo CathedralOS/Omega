@@ -106,7 +106,12 @@ fn predicate_interval(
     if definition.alias.is_some() {
         return None;
     }
-    let indices = closed_index_bindings(program, definition, domain)?;
+    let indices = crate::proof_contracts::domains::closed_integer_index_bindings(
+        program,
+        definition,
+        &domain.arguments,
+        domain.semantic_id,
+    )?;
     let mut interval = PredicateInterval {
         minimum: None,
         maximum: None,
@@ -224,88 +229,4 @@ pub fn closed_interval_from_comparison(
         _ => return None,
     };
     Some((low, high))
-}
-
-/// Bind the declaration's static telescope without consulting runtime values
-/// or flow bounds. Exact normalized identity and carrier checks keep a summary
-/// of `AtMost<256>` from authorizing `AtMost<512>` or an open application.
-fn closed_index_bindings(
-    program: &dyn crate::CheckingInput,
-    definition: &typed_trees::domain::DomainDefinition,
-    domain: &typed_trees::types::DomainConstraint,
-) -> Option<Vec<(symbols::SymbolHandle, numerics::bignum::BigInt)>> {
-    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
-    use numerics::bignum::BigInt;
-    use typed_trees::data::TypeParameterKind;
-    use typed_trees::types::{PrimitiveType, TypeReferenceNode};
-
-    let parameters = typed_trees::domain::index_parameters(program, definition);
-    if parameters.len() != domain.arguments.len()
-        || definition.index_arguments.len() != parameters.len()
-        || typed_trees::domain::has_generic_carrier(program, definition)
-    {
-        return None;
-    }
-    // The declaration's head must name its index binders in telescope order.
-    // A computed or reordered head is not permission to solve an equation for
-    // a binder or substitute one index's value into another index's predicate.
-    if !parameters
-        .iter()
-        .zip(&definition.index_arguments)
-        .all(|(parameter, argument)| {
-            matches!(program.type_reference_table.type_reference(*argument),
-            TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol)
-        })
-    {
-        return None;
-    }
-    let identity = typed_trees::domain::indexed_domain_instance_name(
-        program,
-        definition,
-        parameters,
-        &domain.arguments,
-    )
-    .ok()?;
-    if !domain.semantic_id.is_valid()
-        || program.semantic_domains.name(domain.semantic_id) != Some(identity.as_str())
-    {
-        return None;
-    }
-    parameters
-        .iter()
-        .zip(&domain.arguments)
-        .map(|(parameter, argument)| {
-            let TypeParameterKind::Const { type_reference } = parameter.kind else {
-                return None;
-            };
-            if !parameter.symbol.is_valid() {
-                return None;
-            }
-            let carrier = program.primitive_type_reference(type_reference)?;
-            let (minimum, maximum) =
-                crate::proof_contracts::proof_embeddings::primitive_range(carrier)?;
-            let value = match program.type_reference_table.type_reference(*argument) {
-                TypeReferenceNode::Named { name, .. } => {
-                    if let Some(canonical) = CanonicalConstValue::from_atom(name.as_str()) {
-                        if PrimitiveType::from_name(&canonical.type_name) != Some(carrier) {
-                            return None;
-                        }
-                        let DecodedCanonicalConstValue::Integer { value, .. } =
-                            canonical.decode_encoding()?
-                        else {
-                            return None;
-                        };
-                        BigInt::from_i128(value)
-                    } else {
-                        BigInt::from_decimal_str(name.as_str())?
-                    }
-                }
-                TypeReferenceNode::ConstExpression(expression) => {
-                    crate::closed_integer_range_bound(program, *expression)?
-                }
-                _ => return None,
-            };
-            (minimum <= value && value <= maximum).then_some((parameter.symbol, value))
-        })
-        .collect()
 }

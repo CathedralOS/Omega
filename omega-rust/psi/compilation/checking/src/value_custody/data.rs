@@ -355,18 +355,21 @@ fn constraint_requires_establishment(
                 ) {
                     return false;
                 }
-                let zero_interval = crate::proof_contracts::arithmetic_domains::domain_intervals::exact_declared_domain_interval(program, domain)
-                    .is_some_and(|(minimum, maximum)| {
-                        minimum.is_none_or(|minimum| minimum <= BigInt::zero())
-                            && maximum.is_none_or(|maximum| maximum >= BigInt::zero())
-                    });
+                let zero_integer =
+                    crate::proof_contracts::domains::integer_domain_membership(
+                        program,
+                        domain.symbol,
+                        &domain.arguments,
+                        domain.semantic_id,
+                        &crate::proof_contracts::contract_entailment::ScopedArithmeticValue::Integer(BigInt::zero()),
+                    ) == crate::proof_contracts::contract_entailment::StrictArithmeticImplicationJudgment::Proven;
                 let zero_bytes = domain.establishment_routes.is_empty()
                     && domain.semantic_roles == Default::default()
                     && crate::value_custody::field_domains::domain_admits_empty_byte_sequence(
                         program,
                         domain.symbol,
                     );
-                !zero_interval && !zero_bytes
+                !zero_integer && !zero_bytes
             }
             // These constrain the carrier, or exclude non-finite floats;
             // they do not require value establishment beyond the base type.

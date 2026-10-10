@@ -11,10 +11,13 @@
 //! Predicate discharge and authorized provenance remain independent obligations.
 
 use crate::program_validation::{ExpressionInterval, expression_interval};
+use crate::proof_contracts::contract_entailment::{
+    ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
+};
 use diagnostics::Diagnostic;
+use numerics::bignum::BigInt;
 use symbols::JoinedPath;
-use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
+use typed_trees::expression::{ExpressionNode, TableCastExpression};
 
 pub(crate) fn validate(
     program: &dyn crate::CheckingInput,
@@ -66,8 +69,9 @@ fn judge_qualification_cast(
             // A predicate proof is not an authorized origin. In particular,
             // computed bounds cannot mint a routed domain whose predicate
             // happens to hold. Existing route transport keeps its own owner.
-            if !domain.establishment_routes.is_empty()
+            if crate::field_domains::domain_requires_provenance(program, domain.symbol)
                 || (!domain.predicate_body.is_present()
+                    && domain.alias.is_none()
                     && !crate::field_domains::domain_is_vacuous(
                         program,
                         domain.symbol,
@@ -81,18 +85,10 @@ fn judge_qualification_cast(
                 )));
                 return;
             }
-            if !domain.predicate_body.is_present() {
+            if crate::field_domains::domain_is_vacuous(program, domain.symbol, &mut Vec::new()) {
                 return;
             }
-            let indices = cast_domain_index_bindings(program, domain, cast);
-            let mut judgment = literal_mint_discharges(program, domain, cast.value, &indices);
-            if matches!(judgment, MintJudgment::NotProved)
-                && let Some(source) = source
-                && let Some(judged) =
-                    interval_mint_judgment(program, domain, source.low, source.high, &indices)
-            {
-                judgment = judged;
-            }
+            let judgment = operand_mint_judgment(program, cast, source);
             match judgment {
                 MintJudgment::Discharged => {}
                 MintJudgment::FactFalse => {
@@ -133,56 +129,6 @@ fn judge_qualification_cast(
     }
 }
 
-/// The cast instance's closed index bindings: `domain<const Bound: u64>
-/// u64::AtMost<Bound>` minted as `... in AtMost<256>` pairs `Bound`'s
-/// parameter symbol with 256, so facts declared as `subject <= Bound` judge
-/// against the instance's argument rather than the parameter name.
-fn cast_domain_index_bindings(
-    program: &dyn crate::CheckingInput,
-    domain: &typed_trees::domain::DomainDefinition,
-    cast: &TableCastExpression,
-) -> Vec<(SymbolHandle, i128)> {
-    let arguments = program
-        .type_reference_table
-        .type_reference_handles(cast.semantic_domain_arguments);
-    typed_trees::domain::index_parameters(program, domain)
-        .iter()
-        .zip(arguments)
-        .filter_map(|(parameter, argument)| {
-            let typed_trees::types::TypeReferenceNode::Named { name, .. } =
-                program.type_reference_table.type_reference(*argument)
-            else {
-                return None;
-            };
-            let value = if let Some(canonical) =
-                language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
-            {
-                match canonical.decode_encoding() {
-                    Some(
-                        language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                            value,
-                            ..
-                        },
-                    ) => value,
-                    _ => return None,
-                }
-            } else {
-                name.as_str().parse::<i128>().ok()?
-            };
-            Some((parameter.symbol, value))
-        })
-        .collect()
-}
-
-/// A fact leaf naming one of the minted instance's index parameters reads as
-/// the closed argument's value.
-fn index_literal(indices: &[(SymbolHandle, i128)], symbol: SymbolHandle) -> Option<i128> {
-    indices
-        .iter()
-        .find(|(candidate, _)| *candidate == symbol)
-        .map(|(_, value)| *value)
-}
-
 /// The mint's tri-state judgment for one qualification cast.
 enum MintJudgment {
     Discharged,
@@ -190,127 +136,42 @@ enum MintJudgment {
     NotProved,
 }
 
-/// Fold every domain fact at the cast's literal value (`subject := literal`).
-/// Only integer literals and `subject <op> literal` / `literal <op> subject`
-/// comparison facts fold; anything else is conservatively NotProved.
-/// Unsupported propositions are missing evidence, never ignorable facts.
-fn literal_mint_discharges(
+/// Read the operand's actual value, not its asserted result. A literal keeps
+/// full-width precision; otherwise the arithmetic walk supplies independent
+/// bounds on a private value. The complete theory reader visits aliases and
+/// nested membership too, so an alias's empty local fact list is not vacuity.
+fn operand_mint_judgment(
     program: &dyn crate::CheckingInput,
-    domain: &typed_trees::domain::DomainDefinition,
-    value: ExpressionHandle,
-    indices: &[(SymbolHandle, i128)],
+    cast: &TableCastExpression,
+    source: Option<&ExpressionInterval>,
 ) -> MintJudgment {
-    let Some(literal) = program.expression_table.integer_node(value) else {
+    let value = if let Some(literal) = program.expression_table.integer_node(cast.value)
+        && let Some(value) = BigInt::from_decimal_str(literal.text())
+    {
+        ScopedArithmeticValue::Integer(value)
+    } else if let Some(source) = source {
+        ScopedArithmeticValue::BoundedInteger {
+            value: Box::new(ScopedArithmeticValue::Atom {
+                identity: format!("qualification operand {:?}", cast.value),
+                unsigned: false,
+            }),
+            minimum: source.low.map(BigInt::from_i64),
+            maximum: source.high.map(BigInt::from_i64),
+        }
+    } else {
         return MintJudgment::NotProved;
     };
-    let Ok(minted) = literal.text().parse::<i128>() else {
-        return MintJudgment::NotProved;
-    };
-    for fact in program.proof_facts.span_or_empty(domain.facts) {
-        let Some(expression) = fact.as_expression() else {
-            return MintJudgment::NotProved;
-        };
-        match program.expression_table.expression(*expression) {
-            ExpressionNode::Boolean(true) => continue,
-            ExpressionNode::Boolean(false) => return MintJudgment::FactFalse,
-            _ => {}
-        }
-        let Some(binary) = program.expression_table.binary_node(*expression) else {
-            return MintJudgment::NotProved;
-        };
-        if !crate::has_builtin_domain_decomposed_guard_meaning(program, domain, *expression) {
-            return MintJudgment::NotProved;
-        }
-        let side_value = |handle: ExpressionHandle| -> Option<i128> {
-            match program.expression_table.expression(handle) {
-                ExpressionNode::Name(_)
-                    if typed_trees::domain::domain_subject_reference(program, domain, handle) =>
-                {
-                    Some(minted)
-                }
-                ExpressionNode::Name(path) => index_literal(indices, path.symbol),
-                ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
-                _ => None,
-            }
-        };
-        let (Some(left), Some(right)) = (side_value(binary.left), side_value(binary.right)) else {
-            return MintJudgment::NotProved;
-        };
-        use typed_trees::expression::BinaryOperator;
-        let holds = match binary.operator {
-            BinaryOperator::Less => left < right,
-            BinaryOperator::LessOrEqual => left <= right,
-            BinaryOperator::Greater => left > right,
-            BinaryOperator::GreaterOrEqual => left >= right,
-            BinaryOperator::Equal => left == right,
-            BinaryOperator::NotEqual => left != right,
-            _ => return MintJudgment::NotProved,
-        };
-        if !holds {
-            return MintJudgment::FactFalse;
-        }
+    match crate::proof_contracts::domains::integer_domain_membership(
+        program,
+        cast.semantic_domain_symbol,
+        program
+            .type_reference_table
+            .type_reference_handles(cast.semantic_domain_arguments),
+        cast.semantic_domain_id,
+        &value,
+    ) {
+        StrictArithmeticImplicationJudgment::Proven => MintJudgment::Discharged,
+        StrictArithmeticImplicationJudgment::Refuted => MintJudgment::FactFalse,
+        StrictArithmeticImplicationJudgment::Unknown => MintJudgment::NotProved,
     }
-    MintJudgment::Discharged
-}
-
-/// Every `subject OP literal` domain fact must hold over the whole interval
-/// (`subject >= K` iff low >= K; `subject <= K` iff high <= K; strict and equality
-/// forms accordingly). An absent endpoint entails nothing on its side.
-fn interval_mint_judgment(
-    program: &dyn crate::CheckingInput,
-    domain: &typed_trees::domain::DomainDefinition,
-    low: Option<i64>,
-    high: Option<i64>,
-    indices: &[(SymbolHandle, i128)],
-) -> Option<MintJudgment> {
-    use typed_trees::expression::BinaryOperator;
-
-    for fact in program.proof_facts.span_or_empty(domain.facts) {
-        let expression = fact.as_expression()?;
-        match program.expression_table.expression(*expression) {
-            ExpressionNode::Boolean(true) => continue,
-            ExpressionNode::Boolean(false) => return Some(MintJudgment::FactFalse),
-            _ => {}
-        }
-        let Some(binary) = program.expression_table.binary_node(*expression) else {
-            return None;
-        };
-        if !crate::has_builtin_domain_decomposed_guard_meaning(program, domain, *expression) {
-            return None;
-        }
-        let literal_of = |handle: ExpressionHandle| -> Option<i64> {
-            match program.expression_table.expression(handle) {
-                ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
-                ExpressionNode::Name(fact_path) => index_literal(indices, fact_path.symbol)
-                    .and_then(|value| i64::try_from(value).ok()),
-                _ => None,
-            }
-        };
-        let (operator, bound) =
-            if typed_trees::domain::domain_subject_reference(program, domain, binary.left) {
-                (binary.operator, literal_of(binary.right)?)
-            } else if typed_trees::domain::domain_subject_reference(program, domain, binary.right) {
-                let flipped = binary.operator.mirrored();
-                (flipped, literal_of(binary.left)?)
-            } else {
-                return None;
-            };
-        let holds = match operator {
-            BinaryOperator::GreaterOrEqual => low.is_some_and(|l| l >= bound),
-            BinaryOperator::Greater => low.is_some_and(|l| l > bound),
-            BinaryOperator::LessOrEqual => high.is_some_and(|h| h <= bound),
-            BinaryOperator::Less => high.is_some_and(|h| h < bound),
-            BinaryOperator::Equal => {
-                low.is_some_and(|l| l == bound) && high.is_some_and(|h| h == bound)
-            }
-            BinaryOperator::NotEqual => {
-                high.is_some_and(|h| h < bound) || low.is_some_and(|l| l > bound)
-            }
-            _ => return None,
-        };
-        if !holds {
-            return Some(MintJudgment::NotProved);
-        }
-    }
-    Some(MintJudgment::Discharged)
 }

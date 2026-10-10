@@ -516,16 +516,26 @@ impl<'program> Engine<'program> {
                 ));
             }
         }
+        let mut engine = Self::for_explicit_bindings(program);
+        engine.strict_symbol_bindings = Some(bindings);
+        engine.proof_integer_formation = true;
+        engine
+    }
+
+    /// Start with an empty explicit roster. Declaration-scoped judgments supply
+    /// every binder themselves; scanning all program names only to discard that
+    /// roster makes each local predicate proportional to the entire program.
+    pub(super) fn for_explicit_bindings(program: &'program dyn crate::CheckingInput) -> Self {
         Self {
             program,
             machine_symbol: SymbolHandle::default(),
             source_owner: SymbolHandle::default(),
             parameter_atoms: Vec::new(),
-            strict_symbol_bindings: Some(bindings),
+            strict_symbol_bindings: Some(Vec::new()),
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
-            proof_integer_formation: true,
+            proof_integer_formation: false,
             integer_embedding_policy: true,
             unsigned_atoms: Vec::new(),
             substitutions: BTreeMap::new(),
@@ -761,6 +771,11 @@ impl<'program> Engine<'program> {
     /// Judge a full ensures fact: an `&&` chain proves when every conjunct
     /// proves, and is disproved when any conjunct is.
     pub(super) fn judge(&mut self, fact: ExpressionHandle) -> Judgment {
+        match self.program.expression_table.expression(fact) {
+            ExpressionNode::Boolean(true) => return Judgment::Proven,
+            ExpressionNode::Boolean(false) => return Judgment::ConstantFalse,
+            _ => {}
+        }
         if self.is_mathematical_application(fact) {
             return self.judge_mathematical_application(fact);
         }

@@ -176,14 +176,13 @@ pub fn structural_state_contract_scalar_predicates(
                     ) else {
                         return None;
                     };
-                    let domain = program.domain_definition(membership.domain_symbol)?;
+                    program.domain_definition(membership.domain_symbol)?;
                     // A scalar parameter's interval membership is carried as its
                     // closed interval; a scalar tag is carried by the qualified
                     // Terminal signature itself and needs no row. The
-                    // qualification comparison below still requires either to
-                    // restate the declared type exactly. A tag compares by its
-                    // applied identity, which differs from its declaration's
-                    // when the family takes arguments (`Indexed<A>`).
+                    // qualification comparison below uses the exact applied
+                    // identity for both tags and interval domains. The family's
+                    // declaration identity cannot restate an indexed instance.
                     let parameter = program.state_parameter_by_symbol(state, path.symbol);
                     let tag = parameter.is_some_and(|parameter| {
                         program
@@ -192,14 +191,7 @@ pub fn structural_state_contract_scalar_predicates(
                             && crate::scalar_type_tags(program, parameter.type_reference)
                                 .contains(&(membership.domain_symbol, membership.semantic_domain))
                     });
-                    actual.push((
-                        symbol,
-                        if tag {
-                            membership.semantic_domain.0
-                        } else {
-                            domain.semantic_id.0
-                        },
-                    ));
+                    actual.push((symbol, membership.semantic_domain.0));
                     if let Some(parameter) = parameter
                         && let Some(primitive) =
                             program.primitive_type_reference(parameter.type_reference)

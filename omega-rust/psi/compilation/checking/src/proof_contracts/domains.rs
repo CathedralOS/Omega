@@ -1,3 +1,17 @@
+//! Domain theories retain their declaration and exact application arguments.
+//!
+//! Integer membership interprets every predicate under a scoped subject value;
+//! interval summaries are weaker information for readers, not a membership
+//! certificate. Zero establishment and explicit qualification from exact values
+//! or independently checked operand bounds share this judgment. Nested
+//! memberships and transparent aliases retain their own
+//! lexical subjects, while routed provenance remains an independent obligation.
+
+mod closed_instances;
+mod integer_membership;
+pub(crate) use closed_instances::closed_integer_index_bindings;
+pub(crate) use integer_membership::integer_domain_membership;
+
 mod runtime_predicates;
 pub use runtime_predicates::{
     scalar_domain_predicate, scalar_field_domain_predicate, scalar_field_restriction,

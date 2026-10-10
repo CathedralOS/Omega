@@ -1,5 +1,8 @@
-//! Domain implication routes: declared-type carries, value-call returns,
-//! recast sources, state-place establishment, and zero-value admission.
+//! Domain implication consumes the producer's prepared result type for places,
+//! calls and casts alike. It never treats a receiving annotation as evidence.
+//! Routed domains still require live provenance, indexed domains require exact
+//! instance identity, and payload reads require the currently selected case.
+//! Recast sources and contextual predicate proofs retain their distinct duties.
 
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::FactPayload;
@@ -23,7 +26,8 @@ pub(super) fn value_proves_qualification(
         return false;
     }
     if !validation::field_domains::domain_requires_provenance(program, domain) {
-        return value_proves_domain(program, facts, state, statement_index, value, domain);
+        return value_result_type_carries_domain(program, state, value, domain, identity)
+            || value_proves_domain(program, facts, state, statement_index, value, domain);
     }
     let Some(subject) = validation::canonical_place_from_expression_in_state(
         program,
@@ -73,9 +77,6 @@ pub(super) fn statement_semantic_contexts(
         .collect::<Vec<_>>()
 }
 
-/// Discharge a `requires` predicate domain against the initializer itself.
-/// can consume its field facts. Use the same completed-operand contexts as
-/// routed membership, never an initializer or a post-assignment destination.
 /// An extracted payload needs its current tag before any qualification rule
 /// can consume its field facts. Use the same completed-operand contexts as
 /// routed membership, never an initializer or a post-assignment destination.
@@ -123,14 +124,6 @@ pub(super) fn value_proves_domain(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    // IDENTITY. A value whose DECLARED TYPE already carries this domain is in
-    // it by declaration: a place declared `in D` establishes D at every write,
-    // so reading it yields a value in D and no separate fact is owed. Reading
-    // `self.scalar: i32 in Small` into `let x: i32 in Small` is the whole
-    // obligation, and it is discharged by the declaration that created it.
-    if value_declared_type_carries_domain(program, state_flow, value, domain_symbol) {
-        return true;
-    }
     let entry_constraints = facts
         .flow
         .state_statement(state_flow, statement_index)
@@ -190,6 +183,9 @@ pub(in crate::checks::contracts) fn value_proves_qualification_in_contexts(
             )
         });
     }
+    if value_result_type_carries_domain(program, state, value, domain, identity) {
+        return true;
+    }
     // Numeric field domains use the same contextual proof as nominal call
     // arguments; requiring only an existing membership token would reject a
     // construction whose scalar value already establishes the predicate.
@@ -228,6 +224,15 @@ pub(super) fn value_proves_domain_in_contexts(
 ) -> bool {
     if !typed_trees::domain::has_symbol_only_proof(program, domain_symbol) {
         return false;
+    }
+    if value_result_type_carries_domain(
+        program,
+        state_flow,
+        value,
+        domain_symbol,
+        language_semantics::SemanticDomainId::NULL,
+    ) {
+        return true;
     }
     if validation::field_domains::string_literal_expression_grants_domain(
         program,
@@ -270,16 +275,6 @@ pub(super) fn value_proves_domain_in_contexts(
         ) {
             return true;
         }
-    }
-
-    // A value-position call whose target's DECLARED return type carries a domain
-    // implying `domain_symbol` is accepted on the same trust basis as a declared
-    // param domain at a call site: the signature's domain is trusted at use
-    // sites, with its establishment enforced separately (params at call sites;
-    // results at ordinary exits in exits/result_domains.rs). This is how a
-    // `-> &[u8] in Utf8` value-call result flows into a `&[u8] in Utf8` field.
-    if value_call_return_domain_implies(program, value, domain_symbol) {
-        return true;
     }
 
     // A place whose DECLARED leaf type carries a ZII-admitting domain implying
@@ -407,33 +402,6 @@ fn declared_value_domain_implies(
             validation::field_domains::domain_membership_implies(
                 program,
                 value_domain,
-                domain_symbol,
-            )
-        })
-}
-
-/// Whether `value` is a value-position call whose resolved target state declares
-/// a return type carrying a domain that implies `domain_symbol`.
-fn value_call_return_domain_implies(
-    program: &dyn ::validation::CheckingInput,
-    value: ExpressionHandle,
-    domain_symbol: SymbolHandle,
-) -> bool {
-    let Some(call) = program.expression_table.call_node(value) else {
-        return false;
-    };
-    let Some(target) = program.state_by_symbol(call.target_symbol) else {
-        return false;
-    };
-    if !target.return_type.is_valid() {
-        return false;
-    }
-    validation::field_domains::predicate_domain_constraint_symbols(program, target.return_type)
-        .into_iter()
-        .any(|return_domain| {
-            validation::field_domains::domain_membership_implies(
-                program,
-                return_domain,
                 domain_symbol,
             )
         })
@@ -710,17 +678,17 @@ fn expression_is_subject_relative(
     }
 }
 
-/// Whether the value's own declared type carries `domain_symbol`.
-///
-/// This is the identity case of membership, not an inference: the type is the
-/// declaration the place was created under, so a read of it is already a value
-/// of that domain. A value with no resolvable declared type, or one carrying a
-/// different domain, answers `false` and leaves every other route to decide.
-fn value_declared_type_carries_domain(
+/// Consume the value producer's result, not the receiving annotation. Places,
+/// selected calls and casts share this route; a cast's prepared result already
+/// expands aliases, while independent source validation proves the mint.
+/// Indexed theories require the complete instance identity. A symbol-only
+/// caller can use ordinary implication only for symbol-only theories.
+fn value_result_type_carries_domain(
     program: &dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
+    identity: language_semantics::SemanticDomainId,
 ) -> bool {
     let Some((machine, state)) =
         program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
@@ -728,10 +696,20 @@ fn value_declared_type_carries_domain(
         return false;
     };
     let Some(type_reference) =
-        validation::declared_place_type_raw(program, machine, Some(state), value)
+        validation::expression_result_type_reference(program, machine, state, value)
     else {
         return false;
     };
-    validation::field_domains::domain_constraint_symbols(program, type_reference)
-        .contains(&domain_symbol)
+    validation::field_domains::domain_constraint_identities(program, type_reference)
+        .into_iter()
+        .any(|(source, source_identity)| {
+            if !typed_trees::domain::has_symbol_only_proof(program, source)
+                || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
+            {
+                return identity.is_valid()
+                    && source == domain_symbol
+                    && source_identity == identity;
+            }
+            validation::field_domains::domain_membership_implies(program, source, domain_symbol)
+        })
 }

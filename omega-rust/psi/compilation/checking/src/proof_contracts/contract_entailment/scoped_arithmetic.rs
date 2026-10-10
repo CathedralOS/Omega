@@ -164,7 +164,7 @@ pub fn scoped_arithmetic_implication(
     scoped_arithmetic_implication_for_declaration(program, context_machine.symbol, hypotheses, goal)
 }
 
-pub(super) fn scoped_arithmetic_implication_for_declaration(
+pub(crate) fn scoped_arithmetic_implication_for_declaration(
     program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
     hypotheses: &[ScopedArithmeticHypothesis],
