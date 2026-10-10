@@ -593,3 +593,57 @@ Until answered, only the discovery/default-source phase subfrontier of
 **TERMINAL-BUILD-SEED** is owner-blocked. Terminal production, mutable-slot
 contracts, accounting, immutable resolution and retained identity/evidence joins
 remain implementation work.
+
+### Q11 - May Terminal re-verify an authored operation decision the checker already carried?
+
+Named decision: `terminal-reverification-of-carried-operation-decisions`.
+
+**Customer:** **CHECKER-CARRIES-OPERATION-DECISIONS** (TASKS.md) discharges
+primitive operation conditions once at checking into occurrence-bound verdicts
+and directs stage 05 and stage 00 to consume them through
+`formation_decided`/`SourceChecked` — "no second syntax walks." Generated
+selector classes already carry their verdicts on main (byte-region footprint
+bounds and literal byte coordinates are recorded source-checked). The remaining
+frontier is authored selectors: inner element-path `coll[i]` runtime indexes
+inside paths, calls and view ranges, whose selector obligations Terminal
+currently re-derives. Whether those authored verdicts may be carried is the
+open trust rule: carrying them shrinks Terminal's runtime check surface to
+generated selectors and ambient-fact derivations only.
+
+**Existing rules:** `CheckedRuntimeIndex`
+(`omega-rust/psi/compilation/representations/checked-trees/facts/src/predicates.rs:558`)
+documents that its segments intentionally carry no bound — "Terminal re-proves
+`0 <= index < extent` from the facts that hold before the operation" — an
+implementation-local trust assertion. Checking already emits the verdict for
+each authored `coll[i]` access (`proven_scalar_indexes`, keyed per indexed
+expression handle); the checked path segment retains no handle to join it.
+[pipeline.md](omega-rust/pipeline.md) states the Psi/Terminal contract
+(Terminal Psi is the only portable boundary; checking produces it) but is
+silent on whether an obligation discharged at checking may be re-verified
+downstream or whether carried source-checked obligations are the complete
+trust surface. The task item directs removing the second walk; the doc comment
+asserts the re-proof; no spec text rules between them.
+
+**Decision needed:** are authored `coll[i]` selector bounds carried to Terminal
+as source-checked obligations — checking's verdict being the decision — or
+does Terminal keep re-proving them as a deliberate independent trust boundary?
+
+1. **Recommended: carry the verdict.** Record the owning `coll[i]` occurrence
+   on each checked `RuntimeIndex` segment at checking; Terminal joins
+   `proven_scalar_indexes` and marks those selector obligations source-checked
+   like the generated ones. Its remaining runtime checks cover only generated
+   selectors and ambient derivations. `CheckedRuntimeIndex` keeps its
+   bound-free shape — the join rides on the occurrence handle, not a copied
+   bound. This is the item's stated direction and makes the checking verdict
+   the single proof surface.
+2. **Keep Terminal re-verification as a trust boundary.** Terminal independently
+   re-proves authored selector bounds from ambient facts;
+   `proven_scalar_indexes` stays a check-internal input for its other
+   consumers. The `CheckedRuntimeIndex` doc stands as written, and the item's
+   frontier shrinks to generated selectors, casts and the non-selector
+   conditions already landed.
+
+Until answered, only the authored-selector subfrontier of
+**CHECKER-CARRIES-OPERATION-DECISIONS** is owner-blocked. The remaining
+non-selector conditions (representation geometry, capacities, bounded stores,
+arrival obligations, synthesized casts) stay implementation work.
