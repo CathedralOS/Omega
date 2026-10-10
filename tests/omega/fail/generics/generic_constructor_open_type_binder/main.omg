@@ -1,0 +1,4 @@
+data Box<Value [copy]> [copy] { value: Value; }
+data Nested<Box> { value: Box<u64>; }
+data Main { value: Nested<bool>; }
+machine main() {}

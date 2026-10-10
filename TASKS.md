@@ -5049,7 +5049,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   constructor constants with declared-carrier custody and closed named actual
   array extents with source selection retained through instance identity.
   Closed instances substitute selected extent fields and composite generic
-  field arguments recursively.
+  field arguments recursively while preserving lexical constructor-head
+  dependencies; ordinary type binders cannot supply generic constructors.
 
   - Combine equations with argument/result inference and keep obligations
     through forwarding beyond closed scalar constructor indices, retained

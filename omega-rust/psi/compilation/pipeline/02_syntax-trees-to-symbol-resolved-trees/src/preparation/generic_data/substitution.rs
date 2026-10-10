@@ -940,12 +940,29 @@ pub(crate) fn type_reference_mentions_parameter(
 ) -> bool {
     match syntax.tables.type_references.type_reference(handle) {
         TypeReferenceNode::Named(name) => substitution.contains_key(name.as_str()),
-        TypeReferenceNode::Generic { arguments, .. } => syntax
-            .tables
-            .type_references
-            .type_reference_handles(*arguments)
-            .iter()
-            .any(|&argument| type_reference_mentions_parameter(syntax, argument, substitution)),
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } => {
+            // A closed argument pack does not make its constructor closed:
+            // a lexical binder can shadow the declaration selected by name.
+            // Keep that dependency so nested applications cannot bypass the
+            // constructor-head guard and capture a global during synthesis.
+            let head = base_name
+                .as_str()
+                .split_once("::")
+                .map_or(base_name.as_str(), |(head, _)| head);
+            substitution.contains_key(head)
+                || syntax
+                    .tables
+                    .type_references
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .any(|&argument| {
+                        type_reference_mentions_parameter(syntax, argument, substitution)
+                    })
+        }
         // The common composite shells recurse precisely, so a parameter-FREE
         // field like `touched: i32 in Wrapping` or `tags: [u8; 4]` shares
         // unchanged instead of refusing the whole container. An indexed

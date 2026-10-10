@@ -18,9 +18,10 @@
 //! reference access and lifetimes, constraints (`constraint_validation`),
 //! fixed-array lengths and elements, slices, generic applications and their
 //! arguments (lengths and arguments through `generic_arguments`), dynamic
-//! trait values, and named types. `generic_arguments` also exports the exact
-//! const-argument checks that checking, package review and the terminal
-//! artifact call.
+//! trait values, and named types. Generic constructor heads must select a
+//! declaration: an ordinary type binder is not a higher-kinded constructor.
+//! `generic_arguments` also exports the exact const-argument checks that
+//! checking, package review and the terminal artifact call.
 //!
 //! The other children are queries. `integer_ranges` and `float_ranges` answer
 //! the closed range a declared type carries, for checking, lowering and proof.
@@ -741,6 +742,19 @@ fn validate_type_reference_handle_with_context(
             arguments,
             ..
         } => {
+            // Resolution gives lexical binders priority over declarations.
+            // Validate that selected identity, rather than accepting any
+            // in-scope spelling as a constructor or recapturing a global.
+            if type_parameter_scope.type_parameters.iter().any(|parameter| {
+                matches!(parameter.kind, TypeParameterKind::Type)
+                    && ((base_symbol.is_valid() && parameter.symbol == *base_symbol)
+                        || (!program.symbols.has_source_metadata()
+                            && parameter.name.as_str() == base_name.as_str()))
+            }) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} cannot apply generic parameter `{base_name}` as a generic constructor"
+                )));
+            }
             let base_resolves = symbols.has_type_symbol(*base_symbol)
                 || PrimitiveType::from_name(base_name.as_str()).is_some()
                 || (!program.symbols.has_source_metadata() && symbols.has_type(base_name));

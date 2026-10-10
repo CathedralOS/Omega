@@ -40,6 +40,7 @@ pass/generics/runtime_equation_named_array_actual_exit built 4791ms exit:0 inter
 pass/generics/runtime_generic_carrier_binder_equation_exit built 4986ms exit:0 interpreter-exit:0 interpreter:agrees @bb32bdfc8620+wt
 pass/generics/runtime_generic_carrier_equation_context_exit built 4671ms exit:0 interpreter-exit:0 interpreter:agrees @bb32bdfc8620+wt
 pass/generics/runtime_generic_composite_field_arguments_exit built 4744ms exit:0 interpreter-exit:0 interpreter:agrees @9cc6a58bcdc4+wt
+pass/generics/runtime_generic_qualified_constructor_shadow_exit built 4765ms exit:0 interpreter-exit:0 interpreter:agrees @42ef1cd6453d+wt
 pass/generics/runtime_generic_selected_extent_fields_exit built 4885ms exit:0 interpreter-exit:0 interpreter:agrees @ff58fd9c986a+wt
 pass/generics/runtime_grouped_decimal_const_argument_exit built 6818ms exit:0 interpreter-exit:0 interpreter:agrees @1e24b2973189
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit built 6694ms exit:0 interpreter-exit:0 interpreter:agrees @1e24b2973189
