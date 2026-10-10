@@ -82,7 +82,7 @@ fn seed_length_equality_side(
     value: ExpressionHandle,
     possible_length: ExpressionHandle,
 ) -> bool {
-    let Some(member) = super::length_member(program, possible_length) else {
+    let Some(member) = ::validation::length_member(program, possible_length) else {
         return false;
     };
 

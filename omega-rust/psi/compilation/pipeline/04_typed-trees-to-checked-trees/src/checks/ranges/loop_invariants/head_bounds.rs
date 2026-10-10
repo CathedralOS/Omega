@@ -1,7 +1,6 @@
 //! head bounds slice of loop_invariants.
 
 use super::*;
-use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -226,12 +225,7 @@ pub(super) fn parse_counter_relational_upper(
         }
         _ => return None,
     };
-    let Some(member) = program.expression_table.member_node(possible_length) else {
-        return None;
-    };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        == Some(CollectionMeasure::Length)
-    {
+    if let Some(member) = ::validation::length_member(program, possible_length) {
         return validation::expression_names_attached_storage(
             program,
             machine,
@@ -401,7 +395,6 @@ pub(super) fn authored_upper_term(
     arrival: &State,
     expression: ExpressionHandle,
 ) -> Option<UpperTerm> {
-    let member = program.expression_table.member_node(expression)?;
     let canonical = |place| {
         validation::canonical_storage_label(
             program,
@@ -410,9 +403,7 @@ pub(super) fn authored_upper_term(
             &program.expression_table.display_name(place),
         )
     };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        == Some(CollectionMeasure::Length)
-    {
+    if let Some(member) = ::validation::length_member(program, expression) {
         return validation::expression_names_attached_storage(
             program,
             machine,

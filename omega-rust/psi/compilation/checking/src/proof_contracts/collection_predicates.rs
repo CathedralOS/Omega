@@ -35,6 +35,18 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
+/// The member expression when `expression` is a `<collection>.length` read —
+/// the bound shape length-guard seeding rules gate on identically.
+pub fn length_member<'program>(
+    program: &'program dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<&'program typed_trees::expression::TableMemberExpression> {
+    let member = program.expression_table.member_node(expression)?;
+    (language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
+        member.member.as_str(),
+    ) == Some(language_semantics::declaration_selection::CollectionMeasure::Length))
+    .then_some(member)
+}
 
 /// Initial knowledge of one predicate argument.
 #[derive(Debug, Clone, PartialEq, Eq)]

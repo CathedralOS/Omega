@@ -463,10 +463,7 @@ fn decreasing_value_kind(
     decreases: ExpressionHandle,
 ) -> Option<DecreasingValueKind> {
     // `value.len` (or any member spelled `len`) is a nat-like scalar.
-    if let Some(member) = program.expression_table.member_node(decreases)
-        && CollectionMeasure::from_authored_spelling(member.member.as_str())
-            == Some(CollectionMeasure::Length)
-    {
+    if ::validation::length_member(program, decreases).is_some() {
         return Some(DecreasingValueKind::Nat);
     }
 

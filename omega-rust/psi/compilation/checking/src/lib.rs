@@ -55,7 +55,7 @@ pub use proof_contracts::arithmetic_domains::domain_intervals::{
     exact_declared_domain_carrier_interval, exact_declared_domain_interval,
 };
 pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
-pub use proof_contracts::collection_predicates::premises_prove_expression;
+pub use proof_contracts::collection_predicates::{length_member, premises_prove_expression};
 pub use proof_contracts::contract_entailment::{closed_collection_length, unique_literal_field};
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,

@@ -55,21 +55,16 @@ pub(in crate::legalization) fn admit(
         }
         return Ok((*psi_operation, result.map(|result| result.value)));
     }
-    if let abstract_operations::element_view_or_byte_subslice_pattern!(psi_operation, ..)
-    | AbstractOperation::EstablishElementView { psi_operation, .. }
-    | AbstractOperation::EstablishByteSequenceConcatenation { psi_operation, .. }
+    if let abstract_operations::establish_or_subslice_set_pattern!(psi_operation, ..)
     | AbstractOperation::EstablishRecord { psi_operation, .. }
     | AbstractOperation::EstablishReference { psi_operation, .. }
     | AbstractOperation::ReleaseReference { psi_operation, .. }
-    | AbstractOperation::EstablishStructuralArray { psi_operation, .. }
-    | AbstractOperation::EstablishScalarArray { psi_operation, .. }
     | AbstractOperation::EstablishCase { psi_operation, .. }
     | AbstractOperation::CallStructural {
         psi_operation,
         result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Structural { .. },
         ..
     }
-    | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
     | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
     | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
     | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
@@ -120,7 +115,9 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             ..
         } => Ok((*psi_operation, *result)),
-        abstract_operations::scalar_read_membership_triple_pattern!(psi_operation,result, ..) => Ok((*psi_operation, result.value)),
+        abstract_operations::scalar_read_membership_triple_pattern!(psi_operation, result, ..) => {
+            Ok((*psi_operation, result.value))
+        }
         AbstractOperation::IeeeFloatConstant {
             psi_operation,
             result,
@@ -142,8 +139,9 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             // rosters and the ordinary argument storage contract.
             Ok((*psi_operation, result.value))
         }
-        abstract_operations::byte_read_or_field_read_pattern!(psi_operation,
-            result, ..) if result.scalar_type == ScalarType::Integer(u8_type()) => {
+        abstract_operations::byte_read_or_field_read_pattern!(psi_operation, result, ..)
+            if result.scalar_type == ScalarType::Integer(u8_type()) =>
+        {
             Ok((*psi_operation, result.value))
         }
         AbstractOperation::ByteSequenceLength {
@@ -163,7 +161,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         } if result.scalar_type == ScalarType::Integer(u64_type()) => {
             Ok((*psi_operation, result.value))
         }
-        abstract_operations::byte_read_predicate_equal_pattern!(psi_operation,result, ..) if result.scalar_type == ScalarType::Boolean => Ok((*psi_operation, result.value)),
+        abstract_operations::byte_read_predicate_equal_pattern!(psi_operation, result, ..)
+            if result.scalar_type == ScalarType::Boolean =>
+        {
+            Ok((*psi_operation, result.value))
+        }
         AbstractOperation::ElementViewRead {
             psi_operation,
             result,
@@ -193,9 +195,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             scalar_type,
             ..
         }
-        | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
+        | abstract_operations::bitwise_or_xor_pair_pattern!(
+            psi_operation,
             result,
-            scalar_type, ..) if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
+            scalar_type,
+            ..
+        ) if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
             Ok((*psi_operation, *result))
         }
         AbstractOperation::IntegerBitwiseNot {
@@ -238,15 +243,13 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         } if trapping_form(*scalar_type, *operand_type, operation.primitive()).is_some() => {
             Ok((*psi_operation, *result))
         }
-        abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
-            result, ..)
+        abstract_operations::integer_equal_less_pair_pattern!(psi_operation, result, ..)
         | AbstractOperation::IntegerLessOrEqual {
             psi_operation,
             result,
             ..
         } => Ok((*psi_operation, *result)),
-        abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation,
-            result, ..)
+        abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation, result, ..)
         | AbstractOperation::IntegerWiden {
             psi_operation,
             result,
@@ -541,10 +544,9 @@ pub(super) fn validate(
             // Source authority follows the shared descriptor lineage query,
             // not the producer family. Narrowing preserves its parent's loan;
             // affine descriptor custody alone cannot create mutable access.
-            let mutable_view = optimization_unit_semantics::structural_place_access(
-                optimized,
-                *destination,
-            ) == Some(terminal_psi::StructuralAccess::MutableBorrow);
+            let mutable_view =
+                optimization_unit_semantics::structural_place_access(optimized, *destination)
+                    == Some(terminal_psi::StructuralAccess::MutableBorrow);
             if result.is_some()
                 || !node.definitions.is_empty()
                 || !mutable_view
@@ -829,9 +831,7 @@ pub(super) fn validate(
                 right,
                 ..
             }
-            | abstract_operations::bitwise_or_xor_pair_pattern!(scalar_type,
-                left,
-                right, ..) => {
+            | abstract_operations::bitwise_or_xor_pair_pattern!(scalar_type, left, right, ..) => {
                 if value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {

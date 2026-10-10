@@ -42,7 +42,7 @@ fn proof_nat_type(
                     }
                     && crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
                         .is_some_and(|data| {
-                            
+
                             let members = program.data_members(data);
                             members.len() == 2 && members.iter().all(|member| {
                                 let Some(variant) = member.as_variant() else { return false; };

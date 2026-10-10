@@ -1,7 +1,6 @@
 //! The typed decrease rule shared by runtime and proof slice recursion.
 
 use crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
-use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -61,7 +60,7 @@ pub fn slice_tail_strictly_decreases_with_bound_lookup<'p>(
     let Some(binary) = program.expression_table.binary_node(guard) else {
         return false;
     };
-    let Some(length) = program.expression_table.member_node(binary.left) else {
+    let Some(length) = crate::length_member(program, binary.left) else {
         return false;
     };
     // `len > m` proves `len >= m + 1`, so it discharges `len >= start` when
@@ -71,9 +70,7 @@ pub fn slice_tail_strictly_decreases_with_bound_lookup<'p>(
         BinaryOperator::GreaterOrEqual => 0,
         _ => return false,
     };
-    CollectionMeasure::from_authored_spelling(length.member.as_str())
-        == Some(CollectionMeasure::Length)
-        && names_parameter(program, length.receiver, parameter)
+    names_parameter(program, length.receiver, parameter)
         && tail_bound(
             program,
             bound_lookup.get_or_insert_with(|| ImmutableBoundLookup::new(program)),

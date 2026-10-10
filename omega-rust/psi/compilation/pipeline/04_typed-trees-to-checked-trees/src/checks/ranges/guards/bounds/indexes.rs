@@ -73,7 +73,7 @@ pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
         return;
     }
 
-    let Some(member) = super::length_member(program, upper_bound) else {
+    let Some(member) = ::validation::length_member(program, upper_bound) else {
         return;
     };
 
@@ -141,7 +141,7 @@ pub(in crate::checks::ranges::guards) fn seed_at_most_len_range_bound_fact(
         return;
     }
 
-    let Some(member) = super::length_member(program, upper_bound) else {
+    let Some(member) = ::validation::length_member(program, upper_bound) else {
         return;
     };
 
@@ -183,7 +183,7 @@ pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(
         return;
     };
 
-    let Some(member) = super::length_member(program, upper_bound) else {
+    let Some(member) = ::validation::length_member(program, upper_bound) else {
         return;
     };
 
