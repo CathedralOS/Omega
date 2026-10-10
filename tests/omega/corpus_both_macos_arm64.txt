@@ -741,3 +741,6 @@ pass/slices/runtime_predicate_qualified_scalar_copy_exit built 3934ms exit:0 int
 pass/slices/runtime_qualified_record_copy_local_exit built 4643ms exit:70 interpreter-exit:70 interpreter:agrees @d732c6499355
 pass/slices/runtime_range_qualified_scalar_copy_exit built 3958ms exit:0 interpreter-exit:0 interpreter:agrees @d732c6499355
 pass/slices/runtime_range_qualified_scalar_copy_local_exit built 3959ms exit:0 interpreter-exit:0 interpreter:agrees @d732c6499355
+# context: {"cpus": 10, "jobs": "4", "load1_end": 4.26, "load1_start": 4.19, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/generics/contextual_static_machine_conformance_application_exit built 3544ms exit:0 interpreter-exit:0 interpreter:agrees @fb4bf4786bb2+wt
+pass/generics/contextual_static_machine_evidence_scopes_exit built 3621ms exit:0 interpreter-exit:0 interpreter:agrees @fb4bf4786bb2+wt

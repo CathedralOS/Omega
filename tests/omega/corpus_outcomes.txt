@@ -5029,3 +5029,17 @@ pass/drops/runtime_narrowed_cleanup_receiver_exit checked 4163ms check-target:ma
 pass/slices/runtime_exact_scalar_stores_establish_qualified_view_exit checked 4055ms check-target:macos_arm64 @d732c6499355
 fail/slices/scalar_store_does_not_establish_sibling rejected 331ms expected @d732c6499355
 	reading `values[1]` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Positive]`
+# context: {"cpus": 10, "jobs": "4", "load1_end": 4.26, "load1_start": 4.19, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/generics/contextual_static_machine_conformance_application_exit checked 3505ms check-target:macos_arm64 @fb4bf4786bb2+wt
+pass/generics/contextual_static_machine_evidence_scopes_exit checked 3486ms check-target:macos_arm64 @fb4bf4786bb2+wt
+fail/generics/contextual_static_machine_applied_evidence_effect_ceiling rejected 212ms expected @fb4bf4786bb2+wt
+	machine argument `probe` for `apply` does not refine `Callback`: its `crashes Trap` routes are not contained by the required crash ceiling
+fail/generics/contextual_static_machine_evidence_overflow rejected 71ms expected @fb4bf4786bb2+wt
+	nested machine application supplies an argument beyond its declared telescope
+fail/generics/contextual_static_machine_forwarded_evidence_mismatch rejected 270ms expected @fb4bf4786bb2+wt
+	generic machine `probe` cannot bind implementation `Evidence`: forwarded binder `Evidence` does not guarantee the exact `Probe` trait application
+fail/generics/contextual_static_machine_unused_evidence rejected 257ms expected @fb4bf4786bb2+wt
+	static machine argument `accepts` for `Callback` is a nested machine application without a completely admitted callable tuple
+fail/generics/contextual_static_machine_wrong_evidence_authority rejected 1317ms expected @fb4bf4786bb2+wt
+	generic machine `relay` cannot bind `Evidence` to conformance `Wrong`: expected a complete `Probe` implementation with the instantiated trait arguments
+	generic machine `probe` cannot bind `Evidence` to conformance `Wrong`: expected a complete `Probe` implementation with the instantiated trait arguments
