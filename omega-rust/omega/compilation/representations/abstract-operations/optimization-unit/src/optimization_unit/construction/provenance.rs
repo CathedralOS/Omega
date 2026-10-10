@@ -56,7 +56,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::BooleanConstant { psi_operation, .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(psi_operation, ..)
         | O::ByteSequenceWrite { psi_operation, .. }
-        | abstract_operations::byte_sequence_store_pair_pattern!( psi_operation, .. )
+        | abstract_operations::byte_sequence_store_pair_pattern!(psi_operation, ..)
         | abstract_operations::byte_view_triple_pattern!(psi_operation, ..)
         | abstract_operations::byte_view_length_triple_pattern!(psi_operation, ..)
         | abstract_operations::element_view_read_write_pair_pattern!(psi_operation, ..)
@@ -69,7 +69,9 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | abstract_operations::integer_widen_or_exact_cast_pattern!(psi_operation, ..)
         | abstract_operations::bitwise_and_or_view_pair_pattern!(psi_operation, ..)
         | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation, ..)
-        | abstract_operations::integer_dispatch_triple_pattern!(psi_operation, ..) => PsiProvenance::Operation(*psi_operation),
+        | abstract_operations::integer_dispatch_triple_pattern!(psi_operation, ..) => {
+            PsiProvenance::Operation(*psi_operation)
+        }
     };
     vec![site]
 }

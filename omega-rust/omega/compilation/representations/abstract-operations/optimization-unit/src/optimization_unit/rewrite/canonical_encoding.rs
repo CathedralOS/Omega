@@ -43,18 +43,10 @@ pub(super) fn encode_len(bytes: &mut Vec<u8>, len: usize) {
 }
 
 pub(super) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
-    match scalar_type {
-        ScalarType::Boolean => bytes.push(1),
-        ScalarType::Integer(integer) => {
-            bytes.push(2);
-            encode_integer_type(bytes, integer);
-        }
-        ScalarType::IeeeFloat(format) => {
-            bytes.push(3);
-            bytes.push(match format {
-                semantic_vocabulary::IeeeFloatFormat::Binary32 => 1,
-                semantic_vocabulary::IeeeFloatFormat::Binary64 => 2,
-            });
-        }
-    }
+    crate::optimization_unit::encode_scalar_type(
+        bytes,
+        scalar_type,
+        |bytes, tag| bytes.push(tag),
+        encode_integer_type,
+    )
 }

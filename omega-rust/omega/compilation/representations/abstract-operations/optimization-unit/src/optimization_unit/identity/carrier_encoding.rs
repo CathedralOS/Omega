@@ -41,20 +41,12 @@ pub(super) fn encode_abstract_result(
 }
 
 pub(super) fn encode_scalar_type(bytes: &mut CanonicalBytes, scalar_type: ScalarType) {
-    match scalar_type {
-        ScalarType::Boolean => bytes.u8(1),
-        ScalarType::Integer(integer) => {
-            bytes.u8(2);
-            encode_integer_type(bytes, integer);
-        }
-        ScalarType::IeeeFloat(format) => {
-            bytes.u8(3);
-            bytes.u8(match format {
-                semantic_vocabulary::IeeeFloatFormat::Binary32 => 1,
-                semantic_vocabulary::IeeeFloatFormat::Binary64 => 2,
-            });
-        }
-    }
+    crate::optimization_unit::encode_scalar_type(
+        bytes,
+        scalar_type,
+        |bytes, tag| bytes.u8(tag),
+        encode_integer_type,
+    )
 }
 
 pub(super) fn encode_integer_type(bytes: &mut CanonicalBytes, integer_type: IntegerType) {

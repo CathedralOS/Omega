@@ -116,11 +116,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(destination.place());
             places.insert(value.place);
         }
-        abstract_operations::byte_sequence_store_pair_pattern!(
-            destination,
-            source,
-            ..
-        ) => {
+        abstract_operations::byte_sequence_store_pair_pattern!(destination, source, ..) => {
             places.insert(*destination);
             places.insert(*source);
         }

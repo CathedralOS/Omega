@@ -43,10 +43,8 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
         | O::IeeeFloatCompare { result, .. }
         | abstract_operations::integer_equal_less_pair_pattern!(result, ..)
         | O::IntegerLessOrEqual { result, .. } => Some((*result, ScalarType::Boolean)),
-        abstract_operations::bitwise_not_and_pair_pattern!(result,
-            scalar_type, ..)
-        | abstract_operations::bitwise_or_xor_pair_pattern!(result,
-            scalar_type, ..)
+        abstract_operations::bitwise_not_and_pair_pattern!(result, scalar_type, ..)
+        | abstract_operations::bitwise_or_xor_pair_pattern!(result, scalar_type, ..)
         | O::IntegerArithmetic {
             result,
             scalar_type,
@@ -57,8 +55,9 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
             scalar_type,
             ..
         } => Some((*result, ScalarType::Integer(*scalar_type))),
-        abstract_operations::integer_widen_or_exact_cast_pattern!(result,
-            target_type, ..) => Some((*result, ScalarType::Integer(*target_type))),
+        abstract_operations::integer_widen_or_exact_cast_pattern!(result, target_type, ..) => {
+            Some((*result, ScalarType::Integer(*target_type)))
+        }
         O::IntegerShift {
             result, value_type, ..
         } => Some((*result, ScalarType::Integer(*value_type))),
@@ -117,7 +116,9 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::EstablishReference { storage, .. } => {
             storage.iter().map(|view| view.byte_offset).collect()
         }
-        abstract_operations::byte_read_or_field_read_pattern!(index, length, ..) => vec![*index, *length],
+        abstract_operations::byte_read_or_field_read_pattern!(index, length, ..) => {
+            vec![*index, *length]
+        }
         O::ElementViewRead { index, length, .. } => vec![*index, *length],
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.length(), right.length()]
@@ -126,10 +127,10 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::ByteSequenceEqual { left, right, .. } => {
             vec![left.length(), right.length()]
         }
-        abstract_operations::byte_sequence_store_pair_pattern!( length, .. ) => vec![*length],
-        abstract_operations::byte_sequence_write_pair_pattern!(index,
-            value,
-            length, ..) => vec![*index, *value, *length],
+        abstract_operations::byte_sequence_store_pair_pattern!(length, ..) => vec![*length],
+        abstract_operations::byte_sequence_write_pair_pattern!(index, value, length, ..) => {
+            vec![*index, *value, *length]
+        }
         O::ByteSequenceSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],

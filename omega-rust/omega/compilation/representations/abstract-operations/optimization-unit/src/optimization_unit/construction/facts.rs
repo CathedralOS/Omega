@@ -23,8 +23,7 @@ pub(super) fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<Optimi
         );
     }
     match operation {
-        abstract_operations::establish_record_or_case_pattern!(psi_operation,
-            fields, ..) => {
+        abstract_operations::establish_record_or_case_pattern!(psi_operation, fields, ..) => {
             facts.extend(fields.iter().filter_map(|initializer| {
                 let terminal_psi::RecordFieldValue::Scalar {
                     range_obligation, ..
@@ -92,18 +91,13 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             obligation,
             ..
         }
-        | abstract_operations::byte_sequence_store_pair_pattern!(
-            psi_operation,
-            obligation,
-            ..
-        )
+        | abstract_operations::byte_sequence_store_pair_pattern!(psi_operation, obligation, ..)
         | O::StructuralByteSequenceFieldByteStore {
             psi_operation,
             obligation,
             ..
         }
-        | abstract_operations::byte_read_or_field_read_pattern!(psi_operation,
-            obligation, ..)
+        | abstract_operations::byte_read_or_field_read_pattern!(psi_operation, obligation, ..)
         | O::ElementViewSubslice {
             psi_operation,
             obligation,
@@ -114,8 +108,11 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             region: terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. },
             ..
         }
-        | abstract_operations::element_view_read_write_pair_pattern!(psi_operation,
-            obligation, ..)
+        | abstract_operations::element_view_read_write_pair_pattern!(
+            psi_operation,
+            obligation,
+            ..
+        )
         | O::IntegerExactCast {
             psi_operation,
             obligation,

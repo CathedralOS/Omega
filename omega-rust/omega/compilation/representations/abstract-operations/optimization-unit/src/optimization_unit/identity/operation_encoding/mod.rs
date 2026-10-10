@@ -53,7 +53,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::StructuralScalarFieldRead { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceWrite { .. }
-        | abstract_operations::byte_sequence_store_pair_pattern!( .. )
+        | abstract_operations::byte_sequence_store_pair_pattern!(..)
         | O::StructuralByteViewFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceLength { .. }
@@ -66,7 +66,9 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
         | abstract_operations::bitwise_and_or_view_pair_pattern!(..)
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)
-        | abstract_operations::integer_dispatch_triple_pattern!(..) => scalar::encode(bytes, operation),
+        | abstract_operations::integer_dispatch_triple_pattern!(..) => {
+            scalar::encode(bytes, operation)
+        }
 
         abstract_operations::jump_or_conditional_pattern!()
         | O::StructuralCase { .. }

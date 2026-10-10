@@ -1,4 +1,3 @@
-use crate::cursor::Cursor;
 use super::{
     BaselineDecisionLog, FuelScheduleIdentity, OptimizationIdentityBundle,
     OptimizationManifestStage, OptimizationPassManifestRecord, OptimizationSelections,
@@ -7,6 +6,7 @@ use super::{
     PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestDecodeError,
     PrePhysicalOptimizationManifestIdentity, PsiTransformationLedger, TerminalPsiIdentity,
 };
+use crate::cursor::Cursor;
 const PRE_PHYSICAL_MANIFEST_MAGIC: &[u8; 8] = b"OMGPPM\0\0";
 const PRE_PHYSICAL_MANIFEST_VERSION: u32 = 6;
 
@@ -180,7 +180,6 @@ fn encode_len(bytes: &mut Vec<u8>, value: usize) {
             .to_le_bytes(),
     );
 }
-
 
 /// The manifest-body bytes shared by content and artifact encodings: stage
 /// and physical-data tags, psi markers, unit/projection payloads, selection

@@ -5,6 +5,8 @@
 //! identity, ledger, observation, evidence, rewrite vocabulary, and tests —
 //! is subordinate to it.
 
+use semantic_vocabulary::IntegerType;
+
 use super::{
     AbstractFunction, AbstractOperation, AbstractOperationPlan, AbstractSuccessor, Arc, BTreeSet,
     BlockId, BoundaryMachineDeclaration, FuelScheduleIdentity, MachineId, ObligationId,
@@ -244,3 +246,30 @@ pub use structural_places::{
 };
 
 pub use integer_intervals::{IntervalExtraction, extract_integer_intervals, proof_range_goal};
+
+/// Shared scalar-type tag encoding: the variant tag byte plus the caller's
+/// per-kind payload encode.
+pub(crate) fn encode_scalar_type<B>(
+    bytes: &mut B,
+    scalar_type: ScalarType,
+    push_u8: impl Fn(&mut B, u8),
+    encode_integer: impl FnOnce(&mut B, IntegerType),
+) {
+    match scalar_type {
+        ScalarType::Boolean => push_u8(bytes, 1),
+        ScalarType::Integer(integer) => {
+            push_u8(bytes, 2);
+            encode_integer(bytes, integer);
+        }
+        ScalarType::IeeeFloat(format) => {
+            push_u8(bytes, 3);
+            push_u8(
+                bytes,
+                match format {
+                    semantic_vocabulary::IeeeFloatFormat::Binary32 => 1,
+                    semantic_vocabulary::IeeeFloatFormat::Binary64 => 2,
+                },
+            );
+        }
+    }
+}
