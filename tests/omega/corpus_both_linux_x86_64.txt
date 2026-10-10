@@ -83,3 +83,4 @@ pass/text/zii_default_string_equality_exit built 2875ms exit:70 interpreter-exit
 run/borrows/local_mut_borrow built 4701ms exit:9 interpreter-exit:9 interpreter:agrees @944fb1232f17
 pass/generics/runtime_qualified_closed_equation_exit built 4980ms exit:0 interpreter-exit:0 interpreter:agrees @8d6cc0f5fef7+wt
 pass/modules/selected_constant_array_alias_named_extent_exit built 57137ms exit:7 interpreter-exit:7 interpreter:agrees @b5964efaecb8
+pass/arithmetic/runtime_signed_minimum_remainder_postcondition_exit built 81297ms exit:0 interpreter-exit:0 interpreter:agrees @141e5d32a85a

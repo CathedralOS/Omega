@@ -571,11 +571,9 @@ fn bounds(
                 // definedness obligation, even though its result would be zero.
                 return None;
             }
-            // The shared i64 interval engine cannot represent abs(i64::MIN).
-            // Do not use its saturating divisor magnitude as an exact bound.
-            if binary.operator == BinaryOperator::Modulo && right.interval.low == Some(i64::MIN) {
-                return None;
-            }
+            // The shared remainder domain keeps signed-MIN divisor magnitudes
+            // exact before projecting result bounds. Use that provider here;
+            // original-operand landing and MIN / -1 formation remain above.
             let interval = match binary.operator {
                 BinaryOperator::Add => left.interval.add(right.interval),
                 BinaryOperator::Subtract => left.interval.subtract(right.interval),
