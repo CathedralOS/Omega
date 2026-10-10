@@ -61,17 +61,14 @@ pub(crate) fn receiving_reference_access_refusal(
             });
     }
     let expected_access = declared_reference_access(program, required);
-    let supplied_access = supplied_reference_access(program, value);
-    if let Some(borrow) = program.expression_table.borrow_expression(value)
-        && borrow.access.is_exclusive()
-        && let Some(refusal) = explicit_borrow_source_refusal(
-            program,
-            machine,
-            state,
-            prior_statements,
-            borrow.target,
-            borrow.access,
-        )
+    let completed_borrow = completed_reference_borrow_source(program, machine, state, value);
+    let supplied_access = completed_borrow
+        .map(|(_, access)| access)
+        .or_else(|| declared_call_reference_access(program, value));
+    if let Some((source, access)) = completed_borrow
+        && access.is_exclusive()
+        && let Some(refusal) =
+            borrow_source_access_refusal(program, machine, state, prior_statements, source, access)
     {
         return Some(refusal);
     }
@@ -102,25 +99,79 @@ pub(crate) fn is_reference_destination(
     declared_reference_access(program, required).is_some()
 }
 
-/// The reference access one argument actually supplies: an explicit `&`,
-/// `&mut`, or `&write` borrow expression, or a resolved call result carrying
-/// its declared access. Shared by the statement/transition path
-/// (`validate_call_arguments_handles`) and the value-position path
-/// (`validate_value_call_argument_classes`).
-fn supplied_reference_access(
+/// A completed borrowing operation retains its exact storage source and
+/// source-selected access. The call-shape owner excludes declared machines
+/// with the same spelling; the receiver's actual carrier distinguishes the
+/// compiler collection operation. Window geometry retains its selected builtin
+/// meaning. Neither a receiving reference type nor a slot's mutability can
+/// supply access, and this query establishes no extent or loan.
+fn completed_reference_borrow_source(
     program: &dyn crate::CheckingInput,
-    argument: ExpressionHandle,
-) -> Option<language_semantics::ReferenceAccess> {
-    match program.expression_table.expression(argument) {
-        ExpressionNode::Borrow(borrow) => Some(borrow.access),
+    machine: &Machine,
+    state: Option<&State>,
+    value: ExpressionHandle,
+) -> Option<(ExpressionHandle, language_semantics::ReferenceAccess)> {
+    use language_semantics::ReferenceAccess;
+    use language_semantics::declaration_selection::CollectionViewOperation;
+
+    match program.expression_table.expression(value) {
+        ExpressionNode::Borrow(borrow) => Some((borrow.target, borrow.access)),
         ExpressionNode::Call(call) => {
-            // A resolved result carries its declared reference access;
-            // passing it onward is not a new borrow of a binding slot.
-            crate::machine_calls::calls::resolved_call_result_type(program, call)
-                .and_then(|reference| declared_reference_access(program, reference))
+            let operation = crate::collection_operations::collection_view_call(program, call)?;
+            let reference = crate::value_custody::places::declared_place_type_raw(
+                program,
+                machine,
+                state,
+                call.receiver,
+            )?;
+            if !crate::collection_operations::type_reference_is_collection(program, reference) {
+                return None;
+            }
+            let access = match operation {
+                CollectionViewOperation::SharedSlice => ReferenceAccess::Shared,
+                CollectionViewOperation::MutableSlice => ReferenceAccess::Mutable,
+                // Text and byte-content conversions have different carrier and
+                // source laws; their declared result/formation owners remain.
+                CollectionViewOperation::TextView | CollectionViewOperation::Bytes => return None,
+            };
+            Some((call.receiver, access))
+        }
+        ExpressionNode::Indexed(indexed)
+            if program.expression_table.range_node(indexed.index).is_some()
+                && crate::value_custody::places::place_has_builtin_coordinates(
+                    program, machine, state, value,
+                ) =>
+        {
+            let reference = crate::value_custody::places::declared_place_type_raw(
+                program,
+                machine,
+                state,
+                indexed.collection,
+            )?;
+            if !crate::collection_operations::type_reference_is_collection(program, reference) {
+                return None;
+            }
+            Some((
+                indexed.collection,
+                declared_reference_access(program, reference)?,
+            ))
         }
         _ => None,
     }
+}
+
+/// A selected ordinary callable forwards its declared result access; it does
+/// not form a new borrow of a binding slot. Compiler-owned borrowing operations
+/// use their retained source instead, through the common judgment above.
+fn declared_call_reference_access(
+    program: &dyn crate::CheckingInput,
+    argument: ExpressionHandle,
+) -> Option<language_semantics::ReferenceAccess> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(argument) else {
+        return None;
+    };
+    crate::machine_calls::calls::resolved_call_result_type(program, call)
+        .and_then(|reference| declared_reference_access(program, reference))
 }
 
 /// Forward the selected reference permission, not the mutability of its slot.
@@ -151,10 +202,10 @@ fn value_forwards_mutable_reference(
     )
 }
 
-/// An exclusive borrow lends its source place's own access. A representation
+/// Every exclusive borrowing operation lends its source place's own access. A representation
 /// recast (`&mut place as &mut [T]`) lends the place it views, exactly as
 /// borrow admission resolves it; the viewed type grants no writability.
-fn explicit_borrow_source_refusal(
+fn borrow_source_access_refusal(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
