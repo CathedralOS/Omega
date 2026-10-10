@@ -1232,17 +1232,7 @@ impl PrimitiveType {
     /// Whether the primitive is one of the eight fixed-width integers
     /// (`i8`–`u64`); the pointer-width `Addr` is not a member.
     pub fn is_fixed_integer(self) -> bool {
-        matches!(
-            self,
-            Self::I8
-                | Self::I16
-                | Self::I32
-                | Self::I64
-                | Self::U8
-                | Self::U16
-                | Self::U32
-                | Self::U64
-        )
+        self.is_integer()
     }
 
     /// Whether an integer primitive is signed. `usize` is treated as unsigned.
