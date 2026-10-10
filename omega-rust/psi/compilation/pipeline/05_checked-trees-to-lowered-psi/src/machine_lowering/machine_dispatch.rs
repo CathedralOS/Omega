@@ -49,9 +49,7 @@ pub fn select_terminal_machine<'checked>(
     }
 }
 
-fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {
-    Err(LoweringError::Unsupported(message))
-}
+use crate::lowering_error::unsupported;
 
 pub(crate) fn lower_selected_machine(
     checked: &CheckedTrees,
