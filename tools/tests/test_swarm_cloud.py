@@ -1172,4 +1172,68 @@ class DocumentationTests(unittest.TestCase):
         self.assertIn('no routine parent sign-off', (ROOT/'tools/swarm/cloud.md').read_text())
 
 
+class ObservationalPilotTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.store=Store(Path(self.temp.name)/'observer.json');self.store.initialize('unreported','unreported')
+        self.capabilities=dict(mode='observational-only',evidence='Parent exposed cloud_threads.read(threadId,limit?,cursor?)',
+            tools=dict(read='cloud_threads.read'),reporting=dict(mode='recorded-thread-items',evidence='Parent actual structuredContent schema'))
+
+    def update(self,change):return self.store.update(self.store.load()['revision'],change)
+
+    def attach(self):
+        self.update(lambda r:cloud.initialize(r,self.capabilities))
+        self.update(lambda r:cloud.observe_existing(r,dict(id='observe-omega5',thread='existing-omega5',evidence='Actual parent supplied existing thread ID')))
+
+    def reserve(self):
+        self.attach();values=[]
+        self.update(lambda r:cloud.prepare_step(r,dict(assignment='observe-omega5',step='read-once',operation='read-once',action='read',parameters=dict(limit=20))))
+        self.update(lambda r:values.append(cloud.dispatch_step(r,'observe-omega5','read-once')))
+        return values[0]['request']
+
+    def test_real_read_only_schema_bootstraps_without_compiler_or_executor_evidence(self):
+        request=self.reserve()
+        self.assertEqual(request['runtime_arguments'],dict(threadId='existing-omega5',limit=20))
+        row=self.store.load()['cloud']['assignments']['observe-omega5']
+        self.assertIsNone(row['environment']);self.assertIsNone(row['generation']);self.assertIsNone(row['checkpoint'])
+        self.assertNotIn('acceptance',row);self.assertNotIn('preflight',row);self.assertNotIn('readiness',row)
+        self.assertEqual(cloud.plan(self.store.load())['assignments'][0]['runtime'],'unknown')
+        self.assertEqual(cloud.plan(self.store.load())['batches'],{})
+        with self.assertRaisesRegex(RecoveryError,'observational'):
+            self.update(lambda r:cloud.intent(r,'observe-omega5','create','forbidden',{}))
+        with self.assertRaisesRegex(RecoveryError,'observational'):
+            self.update(lambda r:cloud.admit(r,manifest(),snapshot()))
+        with self.assertRaisesRegex(RecoveryError,'already dispatched'):
+            self.update(lambda r:cloud.dispatch_step(r,'observe-omega5','read-once'))
+
+    def test_raw_receipt_completion_does_not_invent_runtime_or_managed_credit(self):
+        request=self.reserve();raw=dict(threadId='existing-omega5',parentThreadId='actual-parent',
+            latestTurn=dict(id='actual-turn',status='completed',error=None),items=[dict(type='task-result',text='Fixture recorded result')],nextCursor=None)
+        envelope=dict(schema=1,operation=request['operation'],execution_id=request['execution_id'],assignment=request['assignment'],
+            revision=self.store.load()['revision'],observed_utc=cloud.now(),effect='applied',evidence='Actual read receipt locator',result=raw)
+        self.update(lambda r:cloud.save_step_result(r,'observe-omega5','read-once',envelope))
+        self.store=Store(self.store.path)
+        self.update(lambda r:cloud.complete_step(r,'observe-omega5','read-once'))
+        row=self.store.load()['cloud']['assignments']['observe-omega5']
+        self.assertEqual(row['observation']['structuredContent'],raw)
+        self.assertEqual(row['runtime'],'unknown');self.assertIsNone(row['accepted'])
+        self.assertIsNone(row['environment']);self.assertIsNone(row['generation'])
+        self.assertFalse(row['observation']['executor_readiness_verified'])
+        self.assertEqual(cloud.step_status(self.store.load(),'observe-omega5','read-once')['action'],'settled')
+        revision=self.store.load()['revision'];self.update(lambda r:cloud.complete_step(r,'observe-omega5','read-once'))
+        self.assertEqual(self.store.load()['revision'],revision)
+
+    def test_observer_refuses_wrong_thread_and_stale_result(self):
+        request=self.reserve();raw=dict(threadId='different',parentThreadId=None,latestTurn=None,items=[],nextCursor=None)
+        envelope=dict(schema=1,operation=request['operation'],execution_id=request['execution_id'],assignment=request['assignment'],
+            revision=self.store.load()['revision'],observed_utc=cloud.now(),effect='applied',evidence='Fixture read',result=raw)
+        self.update(lambda r:cloud.save_step_result(r,'observe-omega5','read-once',envelope))
+        with self.assertRaisesRegex(RecoveryError,'thread'):
+            self.update(lambda r:cloud.complete_step(r,'observe-omega5','read-once'))
+        self.assertIsNone(self.store.load()['cloud']['assignments']['observe-omega5']['observation'])
+        self.update(lambda r:r.update(unrelated='progress'))
+        with self.assertRaisesRegex(RecoveryError,'stale runtime'):
+            self.update(lambda r:cloud.complete_step(r,'observe-omega5','read-once'))
+
+
 if __name__=='__main__': unittest.main()

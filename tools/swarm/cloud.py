@@ -45,6 +45,15 @@ def initialize(record, capabilities):
     require("cloud" not in record, "cloud controller already initialized")
     require(capabilities.get("evidence") and isinstance(capabilities.get("tools"), dict),
             "inspect actual exposed tool schemas before declaring adapter capabilities")
+    if capabilities.get("mode") == "observational-only":
+        require(not record["lanes"] and record["build_slot"] is None,
+                "observational bootstrap cannot adopt executor resources or recovery lanes")
+        require(set(capabilities["tools"]) == {"read"} and capabilities["tools"].get("read")
+                and capabilities.get("reporting", {}).get("mode") == "recorded-thread-items"
+                and capabilities["reporting"].get("evidence"), "observational controller requires only actual read capability")
+        record["cloud"] = dict(capabilities=capabilities, batches={}, assignments={}, handoffs={}, operations={})
+        return
+    require(capabilities.get("mode", "managed") == "managed", "unsupported controller mode")
     require(capabilities.get("reporting", {}).get("mode") == "bounded-turn-results"
             and type(capabilities["reporting"].get("max_turn_seconds")) is int
             and 0 < capabilities["reporting"]["max_turn_seconds"] <= 1800
@@ -55,8 +64,28 @@ def initialize(record, capabilities):
     record["cloud"] = dict(capabilities=capabilities, batches={}, assignments={}, handoffs={}, operations={})
 
 
+def observe_existing(record, value):
+    """Bind only a reported existing thread, without a compiler or host claim."""
+    cloud = record["cloud"]
+    require(cloud["capabilities"].get("mode") == "observational-only", "observational-only controller required")
+    require(set(value) == {"id", "thread", "evidence"} and value.get("evidence")
+            and isinstance(value.get("thread"), str) and value["thread"].strip(), "actual existing thread and binding evidence required")
+    identifier(value["id"])
+    existing = cloud["assignments"].get(value["id"])
+    if existing:
+        require(existing["thread"] == value["thread"] and existing["binding_evidence"] == value["evidence"],
+                "conflicting observational binding")
+        return
+    require(not any(row["thread"] == value["thread"] for row in cloud["assignments"].values()),
+            "duplicate observational thread binding")
+    cloud["assignments"][value["id"]] = dict(id=value["id"], mode="observational-only", thread=value["thread"],
+        binding_evidence=value["evidence"], environment=None, generation=None, runtime="unknown", checkpoint=None,
+        observation=None, accepted=None)
+
+
 def admit(record, manifest, snapshot, *, rolling_from=None):
     cloud = record["cloud"]
+    require(cloud.get("capabilities", {}).get("mode") != "observational-only", "observational controller cannot admit compiler work")
     identifier(manifest["id"])
     require(manifest["id"] not in cloud["batches"], "batch already admitted")
     size = manifest["size"]
@@ -90,6 +119,7 @@ def admit(record, manifest, snapshot, *, rolling_from=None):
     require(len({row["item"] for row in rows.values()}) == size, "one DRI per outcome item")
     for row in rows.values():
         row.pop("binding", None)  # Session provenance enters only through a verified binding.
+        row.pop("mode", None)  # Read-only provenance enters only through observe-existing.
         for field in ("source_revision", "revisions", "preflight_history", "scouting", "readiness", "successor", "successor_receipt"):
             row.pop(field, None)
         identifier(row["id"])
@@ -429,6 +459,23 @@ def intent(record, assignment, action, operation, parameters):
     cloud = record["cloud"]
     row = cloud["assignments"][assignment]
     identifier(operation)
+    if row.get("mode") == "observational-only":
+        require(action == "read", "observational assignment permits only reads")
+        require(isinstance(parameters, dict) and not set(parameters) - {"limit", "cursor"}, "only supported read parameters required")
+        require(type(parameters.get("limit", 20)) is int and 0 < parameters.get("limit", 20) <= 100,
+                "bounded observation limit must be 1..100")
+        require("cursor" not in parameters or isinstance(parameters["cursor"], str), "actual read cursor must be a string")
+        require(operation not in cloud["operations"], "operation already recorded; reconcile, never redispatch")
+        runtime_arguments = dict(threadId=row["thread"], limit=parameters.get("limit", 20))
+        if "cursor" in parameters:
+            runtime_arguments["cursor"] = parameters["cursor"]
+        request = dict(schema=1, operation=operation, execution_id=uuid.uuid4().hex, assignment=assignment,
+            action="read", tool=cloud["capabilities"]["tools"]["read"], thread=row["thread"], environment=None, generation=None,
+            parameters=copy.deepcopy(parameters), runtime_arguments=runtime_arguments,
+            contract=dict(id=assignment, mode="observational-only", thread=row["thread"], binding_evidence=row["binding_evidence"]),
+            readiness_contract=None, readiness_gate=None, dependencies=[], reporting=cloud["capabilities"]["reporting"], created_utc=now())
+        cloud["operations"][operation] = dict(request=request, assignment=assignment, effect="unknown", result=None)
+        return request
     require(isinstance(parameters, dict) and not set(parameters) - {"model", "reasoning", "phase", "message", "environment", "lifecycle_action"},
             "only normalized adapter parameters are accepted; no credentials or permission bypass fields")
     require(action != "follow_up" or parameters.get("phase") in {"preflight", "implementation"},
@@ -551,6 +598,8 @@ def dispatch_step(record, assignment, step):
     checked = intent(scratch, assignment, request["action"], entry["operation"], request["parameters"])
     for field in ("tool", "thread", "environment", "generation", "contract", "readiness_contract", "readiness_gate", "dependencies", "reporting"):
         require(checked[field] == request[field], "prepared dispatch contract changed; reconcile")
+    if "runtime_arguments" in request:
+        require(checked["runtime_arguments"] == request["runtime_arguments"], "prepared observation arguments changed")
     entry["dispatched_utc"] = now()
     return dict(action="invoke_once", request=copy.deepcopy(request))
 
@@ -608,6 +657,22 @@ def ingest(record, envelope):
     effect = envelope.get("effect")
     require(effect in {"applied", "not_applied", "unknown"} and envelope.get("evidence"), "adapter effect evidence required")
     result = envelope.get("result", {})
+    if row.get("mode") == "observational-only":
+        require(request["action"] == "read" and fresh(envelope) and envelope.get("revision") == record["revision"],
+                "stale observational read or unsupported action")
+        if effect == "applied":
+            require(isinstance(result, dict) and result.get("threadId") == row["thread"], "observational read thread mismatch")
+            require({"parentThreadId", "latestTurn", "items", "nextCursor"} <= result.keys()
+                    and isinstance(result["items"], list)
+                    and (result["latestTurn"] is None or isinstance(result["latestTurn"], dict)
+                         and {"id", "status", "error"} <= result["latestTurn"].keys()), "actual structured thread-read result required")
+            row["observation"] = dict(structuredContent=copy.deepcopy(result), observed_utc=envelope["observed_utc"],
+                                      evidence=envelope["evidence"], executor_readiness_verified=False)
+        else:
+            row["observation"] = None
+        # Recorded turn status does not attest live processes or executor identity.
+        op.update(effect=effect, result=copy.deepcopy(result), receipt=digest, envelope=copy.deepcopy(envelope))
+        return
     if request["action"] == "read":
         require(fresh(envelope) and envelope.get("revision") == record["revision"], "stale runtime observation")
         if effect != "applied":
@@ -1010,6 +1075,12 @@ def plan(record):
     cloud = record["cloud"]
     rows = []
     for name, row in cloud["assignments"].items():
+        if row.get("mode") == "observational-only":
+            rows.append(dict(assignment=name, mode="observational-only", action="inspect_recorded_thread",
+                thread=row["thread"], environment=None, generation=None, runtime="unknown", accepted=None,
+                observation=row["observation"], executor_readiness_verified=False,
+                steps=[step_status(record, name, step) for step in cloud.get("steps", {}).get(name, {})]))
+            continue
         pending = [key for key, op in cloud["operations"].items() if op["assignment"] == name and op["effect"] == "unknown" and op["request"]["action"] != "read"]
         waiting = [d["id"] for d in dependencies(record, name) if d["id"] not in cloud["handoffs"]]
         unacknowledged = [key for key, op in cloud["operations"].items()
@@ -1062,7 +1133,7 @@ def main(argv=None):
     parser.add_argument("--revision", type=int)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("status")
-    for name in ("init", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "review-revision", "import-completion", "approval", "intent", "prepare-step", "dispatch-step", "save-step-result", "complete-step", "successor", "ingest", "cleanup-review", "accept"):
+    for name in ("init", "observe-existing", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "review-revision", "import-completion", "approval", "intent", "prepare-step", "dispatch-step", "save-step-result", "complete-step", "successor", "ingest", "cleanup-review", "accept"):
         command = commands.add_parser(name)
         command.add_argument("--input", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -1077,6 +1148,7 @@ def main(argv=None):
             request = []
             def change(record):
                 if args.command == "init": initialize(record, value)
+                elif args.command == "observe-existing": observe_existing(record, value)
                 elif args.command == "admit": admit(record, value["manifest"], value["claims"])
                 elif args.command == "successor": successor(record, value)
                 elif args.command == "prepare-step": request.append(prepare_step(record, value))

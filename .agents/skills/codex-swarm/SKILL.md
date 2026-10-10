@@ -56,6 +56,15 @@ the manifest pending. Do not replace independent sessions with native agents,
 Devin, detached shell agents, guessed HTTP routes or credential workarounds.
 An explicitly requested native swarm uses [dot-swarm](../dot-swarm/SKILL.md).
 
+When the parent has only a recorded thread-read schema and no managed ledger,
+use the controller's separate `observational-only` bootstrap to inspect an
+actual existing thread. Bind it through `observe-existing`, then prepare and
+reserve a read using the durable adapter. Preserve the raw `structuredContent`
+receipt. Leave unreported executor/environment/generation unknown, and do not
+invent compiler acceptance or preflight to fit a managed assignment. This mode
+cannot dispatch work or acquire managed rollout/completion credit. See
+[observational bootstrap](../../../tools/swarm/cloud.md#observational-bootstrap-without-a-managed-pool).
+
 ## Select work and record the pool
 
 1. Preserve the starting checkout and fetch current main. Record the exact

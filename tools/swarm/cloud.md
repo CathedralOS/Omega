@@ -68,6 +68,39 @@ A read envelopes it as `result.report`. Parent observation time is distinct from
 child `checkpoint.progress_utc`; preserve the latter. The schema rejects stale
 sequence numbers and mismatched assignment/thread/environment identities.
 
+## Observational bootstrap without a managed pool
+
+A parent that has only recorded thread reads and no managed controller ledger
+can initialize a separate `observational-only` controller. Capabilities contain
+only the actual `read` tool, schema evidence, and
+`reporting:{"mode":"recorded-thread-items","evidence":"actual schema"}`.
+It requires no create/follow-up capability, compiler acceptance, claims,
+preflight, smoke result, or independent executor identity. If executor/generation
+are unreported, use literal `unreported` for those Store envelope fields and
+retain that unknown status; this observation journal owns no host or build slot.
+It cannot be promoted into a managed pool by adding capabilities or certificates.
+
+`observe-existing` input is exactly `{"id":"observation-ID",
+"thread":"ACTUAL_EXISTING_THREAD","evidence":"actual parent mapping source"}`.
+This is a binding to an existing reported thread, not session creation, task
+admission, or verified host mapping. Environment/generation remain null. Only
+read intents are permitted. Prepare/reserve/save/complete use the existing
+durable step protocol. Read parameters are optional `limit` (1..100, default20)
+and `cursor` (actual returned string). For the supplied parent tool contract,
+the emitted `runtime_arguments` are `threadId`, `limit`, and optional `cursor`.
+The adapter must verify this against its actual exposed schema before execution.
+
+For `cloud_threads.read`, the read envelope's `result` is the unmodified
+`structuredContent` object: `threadId`, `parentThreadId`, `latestTurn`
+(`id`,`status`,`error`, or null), `items`, and `nextCursor`. Correlation,
+receipt evidence and observation time belong in the outer envelope. The
+controller checks the exact thread ID and retains the raw object. It does not
+parse task text into readiness, process clearance, acknowledgments, pending
+mutation proofs, claims, landing credit, or new assignments. A completed
+`latestTurn` never establishes settled processes. Status keeps runtime unknown,
+executor readiness false, and acceptance null. Ordinary managed controller
+admission and final acceptance gates are unchanged.
+
 ## Controller procedure
 
 ```sh
