@@ -172,13 +172,6 @@ impl Evaluation {
             )
     }
 
-    /// `contextual_bindings` plus deferred case payloads: a case arm or
-    /// short-circuit guard may read a payload its own membership test
-    /// selects; the dispatch binds or refuses each read.
-    fn case_payload_bindings(&self) -> crate::expression_preparation::bindings::ScalarBindings {
-        self.contextual_bindings().with_deferred_case_payloads()
-    }
-
     /// Selected cleanup sources that are declared parameters, in descending
     /// authored-position order and deduplicated by place.
 

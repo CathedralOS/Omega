@@ -16,6 +16,11 @@
 //! including the selecting root and case. They execute below the same selected
 //! edge; preparing a copy source does not itself establish case knowledge.
 //!
+//! The dispatch is a value source, not case authority. Checking proved the
+//! active case of every payload read it admitted; a read whose case came from
+//! an entry `requires` or another dominating fact rather than a test in this
+//! decision stays an in-place observation, and the planner does not refuse it.
+//!
 //! The dispatch neither consumes nor copies the root: every unselected case
 //! takes the test's false outcome, so the decision's meaning is the original
 //! membership test. Payload parameters stay valid exactly where the selected
@@ -73,7 +78,6 @@ pub(crate) fn plan<'a>(
         namespace,
         next_value,
         outcome_reads_payloads,
-        &[],
     )?;
     let established = established_on_true(&decision, namespace).unwrap_or_default();
     Ok(PlannedGuard {
@@ -88,23 +92,14 @@ fn plan_decision<'a>(
     namespace: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
     outcome_reads_payloads: bool,
-    established_cases: &[(PlaceId, StructuralCaseId)],
 ) -> Result<LoweredBooleanDecision, LoweringError> {
     match decision {
-        LoweredBooleanDecision::Value(expression) => {
-            if boolean_reads_unestablished_case_payload(&expression, established_cases) {
-                return unsupported("case payload observation requires an established case");
-            }
-            Ok(LoweredBooleanDecision::Value(expression))
-        }
+        LoweredBooleanDecision::Value(expression) => Ok(LoweredBooleanDecision::Value(expression)),
         LoweredBooleanDecision::Test {
             condition,
             when_true,
             when_false,
         } => {
-            if boolean_reads_unestablished_case_payload(&condition, established_cases) {
-                return unsupported("case payload observation requires an established case");
-            }
             let LoweredBooleanReturnExpression::StructuralCaseMembership { source, path, case } =
                 &condition
             else {
@@ -116,7 +111,6 @@ fn plan_decision<'a>(
                         namespace,
                         next_value,
                         outcome_reads_payloads,
-                        established_cases,
                     )?),
                     when_false: Box::new(plan_decision(
                         *when_false,
@@ -124,7 +118,6 @@ fn plan_decision<'a>(
                         namespace,
                         next_value,
                         outcome_reads_payloads,
-                        established_cases,
                     )?),
                 });
             };
@@ -147,7 +140,6 @@ fn plan_decision<'a>(
                         namespace,
                         next_value,
                         outcome_reads_payloads,
-                        established_cases,
                     )?),
                     when_false: Box::new(plan_decision(
                         *when_false,
@@ -155,7 +147,6 @@ fn plan_decision<'a>(
                         namespace,
                         next_value,
                         outcome_reads_payloads,
-                        established_cases,
                     )?),
                     condition,
                 });
@@ -204,8 +195,6 @@ fn plan_decision<'a>(
             // Scalar fields become parameters; structural payload carriers
             // remain deferred checked copies. Both are authorized only below
             // this selected edge, including when the case has no scalar slots.
-            let mut selected_cases = established_cases.to_vec();
-            selected_cases.push((source, selected));
             Ok(LoweredBooleanDecision::CaseDispatch {
                 dispatch: CaseDispatch {
                     source,
@@ -219,7 +208,6 @@ fn plan_decision<'a>(
                     namespace,
                     next_value,
                     outcome_reads_payloads,
-                    &selected_cases,
                 )?),
                 when_false: Box::new(plan_decision(
                     *when_false,
@@ -227,7 +215,6 @@ fn plan_decision<'a>(
                     namespace,
                     next_value,
                     outcome_reads_payloads,
-                    established_cases,
                 )?),
             })
         }
@@ -820,26 +807,6 @@ fn collect_direct_case_reads(
     }
 }
 
-fn boolean_reads_unestablished_case_payload(
-    expression: &LoweredBooleanReturnExpression,
-    established_cases: &[(PlaceId, StructuralCaseId)],
-) -> bool {
-    let mut reads = Vec::new();
-    case_reads(expression, &mut reads);
-    // Only a leading `Case` step needs the dispatch: its payload can enter the
-    // decision no other way. A case below a field step emits as an ordinary
-    // path-qualified read whose authority the verifier's `case_hops` judges —
-    // the dominating membership test that proved it is the same one a guard
-    // arm's conjunction carries.
-    reads.iter().any(|(source, path)| {
-        let Some(CanonicalStructuralPathSegment::Case(case)) = path.first() else {
-            return false;
-        };
-        !established_cases.contains(&(*source, *case))
-    })
-}
-
-/// Whether a still-deferred read below this outcome observes `case` of `source`.
 /// Whether a decision can end in the guard's true outcome: any leaf but a
 /// constant false.
 fn reaches_true_outcome(decision: &LoweredBooleanDecision) -> bool {
@@ -861,6 +828,7 @@ fn reaches_true_outcome(decision: &LoweredBooleanDecision) -> bool {
     }
 }
 
+/// Whether a read below this outcome observes `case` of `source`.
 fn decision_reads_case(
     decision: &LoweredBooleanDecision,
     source: PlaceId,

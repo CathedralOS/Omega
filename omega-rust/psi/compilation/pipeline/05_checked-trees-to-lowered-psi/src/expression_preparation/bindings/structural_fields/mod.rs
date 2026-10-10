@@ -36,7 +36,21 @@ pub(crate) struct StructuralScalarFieldBinding {
     source: PlaceId,
     structural_type: StructuralTypeId,
     declarations: std::sync::Arc<[StructuralTypeDeclaration]>,
-    case_payloads: CasePayloadAccess,
+    /// Payload values a dominating `StructuralCase` dispatch bound for this root.
+    ///
+    /// Case authority is decided before lowering: checking proved the selected
+    /// case for every payload access it admitted, whether from a dominating
+    /// membership test, an entry `requires root in Sum::Case`, or a callee's
+    /// case guarantee. Lowering therefore chooses only where the value comes
+    /// from. A read below a dispatch that bound the field uses that dispatch's
+    /// parameter; every other admitted read observes the payload in place
+    /// through its canonical `Case` carrier, as a sum below record fields and a
+    /// structural payload member already do. Guard decision lowering rewrites
+    /// in-place reads below the dispatch it plans into that dispatch's
+    /// parameters. Lowering never re-decides whether the case is active:
+    /// refusing an unbound read would duplicate the checker's judgement and
+    /// reject admitted programs whose case knowledge comes from a contract.
+    case_payloads: Vec<EstablishedCasePayload>,
 }
 
 /// Observation roots share one declaration catalog, including when the machine
@@ -155,26 +169,6 @@ impl StructuralFieldBindings {
     }
 }
 
-/// Whether a read through a case segment may observe this root's payload.
-///
-/// A whole root's scalar payload is read as a parameter of the block its
-/// `StructuralCase` dispatch selected for that case, so the verifier's own tag
-/// dispatch is the case knowledge. A read of a root case payload therefore
-/// resolves to an established payload value, is deferred for the guard
-/// decision lowering that will introduce the dispatch, or is refused. A sum
-/// below record fields has no dispatch terminator; `resolve_typed` reads its
-/// payload in place through a carrier ending in the `Case` step instead.
-/// Structural payload members carry their own observation source, independent
-/// of this parameter-binding mode: a case-leaf copy is emitted at the read and
-/// owes the active-case fact there. No successor scanner precomputes the read.
-#[derive(Clone, Default)]
-enum CasePayloadAccess {
-    #[default]
-    Unavailable,
-    Deferred,
-    Established(Vec<EstablishedCasePayload>),
-}
-
 /// One payload field bound by a dominating `StructuralCase` successor, at its
 /// dense position in the scalar namespace of the code it dominates.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -190,19 +184,12 @@ pub(crate) struct EstablishedCasePayload {
 
 /// A resolved case-qualified payload read.
 pub(crate) enum CasePayloadRead {
-    /// A declaration-resolved read, not an active-case assertion. Scalar
-    /// payloads may bind through a dispatch; structural carriers are copied
-    /// at the observation point under independent active-case validation.
+    /// An in-place read whose active case checking already proved. Guard
+    /// lowering may still bind a scalar read through the dispatch it plans;
+    /// structural carriers are copied at the observation point.
     Observation { expression: LoweredDirectExpression },
     /// The dominating dispatch's payload parameter.
     Established { position: usize },
-}
-
-/// Let guard lowering keep case-qualified reads for its dispatch to bind.
-pub(crate) fn defer_case_payloads(fields: &mut [StructuralScalarFieldBinding]) {
-    for field in fields {
-        field.case_payloads = CasePayloadAccess::Deferred;
-    }
 }
 
 /// Bind reads of payloads a dominating dispatch selected on every incoming path.
@@ -226,7 +213,7 @@ pub(crate) fn establish_case_payloads(
             .cloned()
             .collect::<Vec<_>>();
         if !rows.is_empty() {
-            field.case_payloads = CasePayloadAccess::Established(rows);
+            field.case_payloads = rows;
         }
     }
 }
@@ -252,7 +239,7 @@ impl StructuralScalarFieldBinding {
                 source: parameter.place,
                 structural_type: parameter.structural_type,
                 declarations: std::sync::Arc::clone(&declarations),
-                case_payloads: CasePayloadAccess::Unavailable,
+                case_payloads: Vec::new(),
             });
         }
         StructuralFieldBindings {
@@ -345,8 +332,8 @@ pub(crate) fn resolve_typed(
             physical_path.split_last()
             && let Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) =
                 carrier.split_last()
-            && let CasePayloadAccess::Established(rows) = &binding.case_payloads
-            && let Some(row) = rows
+            && let Some(row) = binding
+                .case_payloads
                 .iter()
                 .find(|row| row.path == prefix && row.case == *case && row.field == field.id)
         {
@@ -515,9 +502,10 @@ pub(crate) fn boolean_observation(
 
 /// Resolve a scalar read below one sum root's selected payload. The selected case
 /// must belong to the root's exact declared sum and the leaf must be a
-/// relevant scalar leaf of the requested carrier. Scalar payloads retain their
-/// dispatch binding; structural payload members retain a checked copy source.
-/// Resolving a declaration is not evidence that its case is active.
+/// relevant scalar leaf of the requested carrier. A scalar payload a dominating
+/// dispatch bound reads that binding; every other admitted read observes the
+/// payload in place, and structural payload members retain a checked copy
+/// source. Checking proved the active case before this resolution runs.
 pub(crate) fn resolve_case_payload(
     fields: &[StructuralScalarFieldBinding],
     position: u32,
@@ -634,30 +622,25 @@ pub(crate) fn resolve_case_payload(
             return unsupported("case payload observation requires one case and one payload field");
         }
     };
-    match &binding.case_payloads {
-        CasePayloadAccess::Deferred => Ok(CasePayloadRead::Observation {
-            expression: canonical_field_read(
-                binding.source.into(),
-                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Case(
-                    case.id,
-                )],
-                field,
-                scalar_type,
-            ),
-        }),
-        CasePayloadAccess::Established(rows) => rows
-            .iter()
-            .find(|row| row.path.is_empty() && row.case == case.id && row.field == field)
-            .map(|row| CasePayloadRead::Established {
-                position: row.position,
-            })
-            .ok_or(LoweringError::Unsupported(
-                "case payload observation requires an established case",
-            )),
-        CasePayloadAccess::Unavailable => {
-            unsupported("case payload observation requires an established case")
-        }
+    if let Some(row) = binding
+        .case_payloads
+        .iter()
+        .find(|row| row.path.is_empty() && row.case == case.id && row.field == field)
+    {
+        return Ok(CasePayloadRead::Established {
+            position: row.position,
+        });
     }
+    Ok(CasePayloadRead::Observation {
+        expression: canonical_field_read(
+            binding.source.into(),
+            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Case(
+                case.id,
+            )],
+            field,
+            scalar_type,
+        ),
+    })
 }
 
 /// One planned leaf read below a case payload's record member: `member` is
@@ -727,7 +710,7 @@ pub(crate) fn plan_case_payload_leaf(
         source: binding.source,
         structural_type: member_type,
         declarations: std::sync::Arc::clone(&binding.declarations),
-        case_payloads: CasePayloadAccess::Unavailable,
+        case_payloads: Vec::new(),
     };
     let observation = resolve_typed(std::slice::from_ref(&projected), position, projection).ok()?;
     Some(PlannedCasePayloadLeaf {

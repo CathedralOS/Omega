@@ -93,7 +93,7 @@ impl Evaluation {
             .ok_or(LoweringError::Unsupported(
                 "guard has no retained source value",
             ))?;
-        let bindings = self.case_payload_bindings();
+        let bindings = self.contextual_bindings();
         let expression = bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
         // A short-circuit guard is always a planned decision. So is a whole-root
         // case test whose successor may read that case's payload: only the

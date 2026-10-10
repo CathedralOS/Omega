@@ -531,7 +531,7 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let bindings = self.case_payload_bindings();
+        let bindings = self.contextual_bindings();
         let qualifications = &self.shared_qualifications;
         let source_types = values
             .iter()
