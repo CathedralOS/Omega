@@ -157,7 +157,7 @@ pub(super) fn view_type(
 /// Return the descriptor value, independent of the producer's storage family.
 /// This joins the exact declaration and empty custody; whole-program descriptor
 /// origin validation separately proves that the backing survives the return.
-pub(in crate::legalization) fn shared_return(
+pub(in crate::legalization) fn descriptor_return(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -166,7 +166,10 @@ pub(in crate::legalization) fn shared_return(
         return false;
     };
     if view_type(function, place, types) != Some(declared.structural_type)
-        || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !matches!(
+            declared.multiplicity,
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
+        )
         || !declared.projected_qualifications.is_empty()
         || !terminal_semantics::descriptor_results::is_shared_descriptor(
             types.iter(),
@@ -178,8 +181,16 @@ pub(in crate::legalization) fn shared_return(
     if let Some(parameter) = function.arrival_parameter(place) {
         return matches!(
             parameter.access,
-            terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::SharedBorrow
-        ) && parameter.multiplicity == declared.multiplicity
+            terminal_psi::StructuralAccess::Owned
+                | terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        ) && (declared.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+            || parameter.access != terminal_psi::StructuralAccess::SharedBorrow)
+            && (parameter.multiplicity == declared.multiplicity
+                || declared.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                    && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                    && parameter.multiplicity
+                        == terminal_psi::StructuralMultiplicity::Unrestricted)
             && parameter.qualifications == declared.qualifications
             && parameter.projected_qualifications.is_empty();
     }
@@ -190,7 +201,8 @@ pub(in crate::legalization) fn shared_return(
             && result.projected_qualifications.is_empty()
             && result.qualification_establishments.is_empty();
     }
-    super::literals::declaration_producer(function, place).is_some()
+    declared.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && super::literals::declaration_producer(function, place).is_some()
 }
 
 pub(in crate::legalization) fn element_type(
@@ -302,7 +314,7 @@ pub(in crate::legalization) fn descriptor_result(
     semantic_vocabulary::StructuralTypeId,
 )> {
     let (producer, result) = super::structural_case::source_result(function, place).ok()?;
-    (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+    (matches!(result.multiplicity, terminal_psi::nonlinear_multiplicity_pair_pattern!())
         && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
@@ -323,12 +335,13 @@ pub(in crate::legalization) fn call_descriptor_origins(
     caller: semantic_vocabulary::MachineId,
     result: &terminal_psi::StructuralOperationResult,
 ) -> Result<Vec<legalized_operations::LegalizedDescriptorOrigin>, LegalizationError> {
-    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !terminal_semantics::descriptor_results::is_shared_descriptor(
-            unit.structural_types.iter(),
-            result.structural_type,
-        )
-    {
+    if !matches!(
+        result.multiplicity,
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
+    ) || !terminal_semantics::descriptor_results::is_shared_descriptor(
+        unit.structural_types.iter(),
+        result.structural_type,
+    ) {
         return Ok(Vec::new());
     }
     optimization_unit_semantics::descriptor_results::call_origins(unit, caller, result.place)

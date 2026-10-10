@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "1", "load1_end": 13.21, "load1_start": 13.31, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 1.11, "load1_start": 0.86, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -2451,6 +2451,13 @@ fail/slices/overlapping_mut_subslice_windows_rejected rejected 525ms expected @8
 	statement 3 reads `a.unknown` while local borrow `b` is still active (borrowed at statement 2)
 fail/slices/result_length_contract_requires_returned_view rejected 663ms expected @1152c1496b39
 	cannot prove ensures contract for exit from bogus at statement 0: result.len == 2
+fail/slices/returned_mutable_slice_local_escape rejected 991ms expected @3c4074822bef
+	machine `escape` returns a view borrowing the local `local`, which does not outlive the call; return a borrow of an input parameter or `self` instead
+fail/slices/returned_mutable_slice_overlapping_arguments rejected 993ms expected @3c4074822bef
+	state `write` receives `selected` as both mutable and read-only
+	cannot prove requires contract for call write from main: selected.len > 0 && selected.len > 0 (needs fact `items.len > 0 && other.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/slices/returned_shared_slice_mutable_call rejected 525ms expected @3c4074822bef
+	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/scalar_copy_invalidated_domain rejected 1226ms expected @72f9cbd4156c+wt
 	cannot prove assignment value `101` satisfies bounded target `items[1]` in `copy.entry`; expected 0..=100
 fail/slices/scalar_copy_missing_bounds rejected 1598ms expected @72f9cbd4156c+wt
@@ -4356,7 +4363,12 @@ pass/slices/runtime_join_meet_bound_exit checked 1360ms check-target:macos_arm64
 pass/slices/runtime_literal_view_return_exit checked 4289ms check-target:macos_arm64 @cfe60a3a242
 pass/slices/runtime_machine_entry_view_requires_index_exit checked 1659ms check-target:macos_arm64 @0991904fed3b+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 879ms check-target:macos_arm64 @59aa9580a54d+wt
+pass/slices/runtime_mutable_record_slice_result_reborrow_exit checked 7234ms check-target:macos_arm64 @3c4074822bef
 pass/slices/runtime_mutable_slice_element_write_exit checked 1286ms check-target:macos_arm64 @2d8ed253669f
+pass/slices/runtime_mutable_slice_result_nested_reborrow_exit checked 7276ms check-target:macos_arm64 @3c4074822bef
+pass/slices/runtime_mutable_slice_result_reborrow_exit checked 7174ms check-target:macos_arm64 @3c4074822bef
+pass/slices/runtime_mutable_slice_result_shared_observation_exit checked 7247ms check-target:macos_arm64 @3c4074822bef
+pass/slices/runtime_mutable_slice_result_whole_forward_exit checked 7290ms check-target:macos_arm64 @3c4074822bef
 pass/slices/runtime_mutable_subslice_state_forwarding_exit checked 7367ms check-target:macos_arm64 @0582eca912a4+wt
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 1425ms check-target:macos_arm64 @2d8ed253669f
 pass/slices/runtime_policy_element_view_tail_recursion_exit checked 732ms check-target:macos_arm64 @de74b73e1452+wt

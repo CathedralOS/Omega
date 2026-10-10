@@ -193,7 +193,13 @@ pub(super) fn plan(
         } else {
             consume_value_places(facts, root.root, structural_results, &mut *operations)?;
         }
-        super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
+        super::consume_value_call_sources(
+            facts,
+            structural_results,
+            &mut *operations,
+            &calls,
+            root.root,
+        )?;
         assignment_phase("statement sequence: assignment: structural result type");
         let mut produced = if matches!(
             facts.values.structural_values.nodes.get(root.root).kind,
@@ -484,7 +490,13 @@ fn element_replacements(
             windows,
         )?;
         consume_value_places(facts, leaf.value, structural_results, &mut *operations)?;
-        super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
+        super::consume_value_call_sources(
+            facts,
+            structural_results,
+            &mut *operations,
+            &calls,
+            leaf.value,
+        )?;
         let mut produced =
             checked_structural_result_type(program, shapes, leaf.type_reference, binders)?;
         produced.statement_index = statement_index;

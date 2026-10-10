@@ -404,7 +404,8 @@ pub(crate) fn nested_structural_call_return_type(
         // A checked body's linear result is an anonymous owner like an
         // affine one: its call binds the claims the returning edge holds,
         // and the consuming call transfers them whole.
-        && ((match program.type_multiplicity(return_type) {
+        && ((ordinary && crate::execution::terminal_unit::types::borrowed_slice_result(program, return_type))
+            || (match program.type_multiplicity(return_type) {
             language_semantics::Multiplicity::Affine => true,
             language_semantics::Multiplicity::Linear => ordinary,
             language_semantics::Multiplicity::Unrestricted => false,

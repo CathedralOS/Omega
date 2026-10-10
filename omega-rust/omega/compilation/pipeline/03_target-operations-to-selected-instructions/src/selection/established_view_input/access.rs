@@ -36,9 +36,15 @@ fn view_access_with_budget(
     let mut copied_whole = false;
     for remaining in (0..budget).rev() {
         if let Some((_, result)) = super::completed_descriptor(function, place) {
-            return (required == A::SharedBorrow
+            let access = match result.multiplicity {
+                M::Unrestricted => A::SharedBorrow,
+                M::Affine => A::MutableBorrow,
+                M::Linear => return None,
+            };
+            return (supplies(access, required)
+                && (!copied_whole || access == A::SharedBorrow)
                 && expected_type.is_none_or(|identity| identity == result.structural_type))
-            .then_some(initial.unwrap_or(A::SharedBorrow));
+            .then_some(initial.unwrap_or(access));
         }
         let mut declarations = signature
             .structural_places

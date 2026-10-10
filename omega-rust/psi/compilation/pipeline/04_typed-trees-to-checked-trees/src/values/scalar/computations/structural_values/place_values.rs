@@ -329,7 +329,8 @@ impl Builder<'_, '_> {
                     || validation::has_contents(self.program, expected, validation::ContentsRequirement::LinearOwned)
                 || validation::has_contents(self.program, expected, validation::ContentsRequirement::OwnedOrSharedView)
                 || validation::reference_result_custody::is_reference_record(self.program, expected)
-                || validation::reference_result_custody::stored_loan_parts(self.program, expected).is_some())
+                || validation::reference_result_custody::stored_loan_parts(self.program, expected).is_some()
+                || validation::borrowed_slice_view_result(self.program, expected))
         {
             return None;
         }
@@ -396,7 +397,8 @@ impl Builder<'_, '_> {
                 self.program,
                 reference,
             )
-            .is_some())
+            .is_some()
+                || validation::borrowed_slice_view_result(self.program, reference))
         {
             return None;
         }

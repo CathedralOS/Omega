@@ -587,11 +587,55 @@ pub(in crate::execution::terminal_unit) fn consume_retained_results(
 
 pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
     facts: &CheckFacts,
-    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    results: &mut Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
     operations: &mut [CheckedUnitEffectOperationPlan],
     calls: &[checked_trees::CheckedStructuralValueCall],
+    value: checked_trees::CheckedStructuralValueHandle,
 ) -> Option<()> {
     for call in calls {
+        // A whole call publishes its preparation into this sequence. Adopt
+        // those exact anonymous producer roots with the operations, so their
+        // consuming continuation can select the existing cleanup dispositions.
+        // Aggregate child calls keep their private evaluator namespace.
+        if call.value == value
+            && matches!(
+                facts.values.structural_values.nodes.get(value).kind,
+                checked_trees::CheckedStructuralValueKind::Call { .. }
+            )
+        {
+            for operand in call.operands().iter() {
+                let Some(result) = operand.structural_result_binding() else {
+                    continue;
+                };
+                let expression = if let Some(producer) = operand.call() {
+                    let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
+                        producer.source_site()?
+                    else {
+                        return None;
+                    };
+                    expression
+                } else if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    value,
+                    ..
+                } = operand
+                {
+                    facts.values.structural_values.nodes.get(*value).expression
+                } else {
+                    return None;
+                };
+                let root = facts::PlaceRoot::Expression(expression);
+                if let Some((existing, existing_root)) = results
+                    .iter()
+                    .find(|(existing, _)| existing.binding_ordinal == result.binding_ordinal)
+                {
+                    if existing != result || *existing_root != root {
+                        return None;
+                    }
+                    continue;
+                }
+                results.push((result.clone(), root));
+            }
+        }
         for operation in call
             .operands()
             .iter()
@@ -678,13 +722,15 @@ pub(in crate::execution::terminal_unit) fn consume_result(
         // Argument admission retains exact access, path and loan lifetime.
         // A whole owned operand transfers the descriptor itself, including
         // its loan and later retirement, to the receiving value. Lending the
-        // referent keeps that descriptor in this holder instead.
+        // referent keeps that descriptor in this holder instead. A returned
+        // slice already is the descriptor, while a stored reference crosses
+        // its referent path. Both leave disposal here; argument admission owns
+        // that type/path distinction, not the cleanup scheduling flag.
         return match access {
             CheckedStructuralAccess::Owned => !projected,
-            CheckedStructuralAccess::SharedBorrow => true,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow => {
-                projected
-            }
+            CheckedStructuralAccess::SharedBorrow
+            | CheckedStructuralAccess::MutableBorrow
+            | CheckedStructuralAccess::WriteOnlyBorrow => true,
         }
         .then_some(());
     }

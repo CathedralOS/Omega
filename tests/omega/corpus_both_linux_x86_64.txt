@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 0.89, "load1_start": 0.88, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 0.8, "load1_start": 0.4, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_bounded_dividend_remainder_exit built 9272ms exit:0 interpreter-exit:0 interpreter:agrees @cb7a5a5136b3
 pass/arithmetic/runtime_explicit_call_result_policy_exit built 7513ms exit:0 interpreter-exit:0 interpreter:agrees @30eb6513ae80+wt
 pass/arithmetic/runtime_signed_minimum_remainder_exit built 7703ms exit:0 interpreter-exit:0 interpreter:agrees @1e7d4009e238
@@ -85,6 +85,11 @@ pass/recast/runtime_scalar_parameter_shared_views_exit built 2535ms exit:70 inte
 pass/recast/runtime_shared_domain_weakening_recast_exit built 7058ms exit:70 interpreter-exit:70 interpreter:agrees @f64782b89114+wt
 pass/slices/runtime_empty_qualified_scalar_array_exit built 11818ms exit:0 interpreter-exit:0 interpreter:agrees @72f9cbd4156c+wt
 pass/slices/runtime_erased_field_record_copy_exit built 11614ms exit:0 interpreter-exit:0 interpreter:agrees @72f9cbd4156c+wt
+pass/slices/runtime_mutable_record_slice_result_reborrow_exit built 7350ms exit:0 interpreter-exit:0 interpreter:agrees @3c4074822bef
+pass/slices/runtime_mutable_slice_result_nested_reborrow_exit built 7179ms exit:0 interpreter-exit:0 interpreter:agrees @3c4074822bef
+pass/slices/runtime_mutable_slice_result_reborrow_exit built 7169ms exit:0 interpreter-exit:0 interpreter:agrees @3c4074822bef
+pass/slices/runtime_mutable_slice_result_shared_observation_exit built 7165ms exit:0 interpreter-exit:0 interpreter:agrees @3c4074822bef
+pass/slices/runtime_mutable_slice_result_whole_forward_exit built 7189ms exit:0 interpreter-exit:0 interpreter:agrees @3c4074822bef
 pass/slices/runtime_range_qualified_fixed_scalar_snapshot_exit built 10901ms exit:0 interpreter-exit:0 interpreter:agrees @72f9cbd4156c+wt
 pass/slices/runtime_range_qualified_scalar_copy_exit built 10136ms exit:0 interpreter-exit:0 interpreter:agrees @72f9cbd4156c+wt
 pass/slices/runtime_range_qualified_scalar_copy_local_exit built 10408ms exit:0 interpreter-exit:0 interpreter:agrees @72f9cbd4156c+wt

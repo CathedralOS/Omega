@@ -369,7 +369,10 @@ pub(super) fn call_result<'a>(
         _ if terminal_semantics::descriptor_results::is_shared_descriptor(
             source.structural.as_ref()?.structural_types.iter(),
             result.structural_type,
-        ) && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted =>
+        ) && matches!(
+            result.multiplicity,
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
+        ) =>
         {
             crate::structural_inputs::structural_reference_input::shape(
                 result.structural_type,
@@ -409,7 +412,10 @@ pub(super) fn returned_descriptor<'a>(
         .or_else(|| super::established_view_input::element_view_type(source, *place))?;
     let placement = source.call_plan.result.as_ref()?;
     if identity != declared.structural_type
-        || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !matches!(
+            declared.multiplicity,
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
+        )
         || !declared.projected_qualifications.is_empty()
         || !terminal_semantics::descriptor_results::is_shared_descriptor(
             signature.structural_types.iter(),

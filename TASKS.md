@@ -4352,9 +4352,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     receiving assignment receipts, independent snapshots, and live per-element
     domains. Missing range/bounds, invalidated or partially initialized domains,
     and shared-view writes must continue to reject.
-  - mutable-view result and cyclic forwarding compositions on the Unit-graph
-    route remain unverified. Acyclic named-state subslice forwarding retains
-    caller backing for scalar and record writes (controls:
+  - cyclic view forwarding compositions on the Unit-graph route remain
+    unverified. Preserve call-result descriptor retirement and exclusive
+    reborrowing when extending this route. Acyclic named-state subslice forwarding
+    retains caller backing for scalar and record writes (controls:
     `slices/runtime_mutable_subslice_state_forwarding_exit`,
     `slices/runtime_dynamic_record_subslice_state_forwarding_exit`), including
     record field writes through the Terminal interpreter's structural backing.

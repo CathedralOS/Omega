@@ -154,7 +154,7 @@ pub(super) fn build(
                     program,
                     target_state.return_type,
                 )
-                && (crate::execution::terminal_unit::types::borrowed_slice_view(
+                && (crate::execution::terminal_unit::types::borrowed_slice_result(
                     program,
                     target_state.return_type,
                 ) || crate::execution::terminal_unit::types::borrowed_named_view(

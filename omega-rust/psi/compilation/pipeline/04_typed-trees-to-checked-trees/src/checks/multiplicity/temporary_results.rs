@@ -22,15 +22,15 @@ use language_semantics::PermissionProvenance;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceNode;
 
+mod borrowed_owners;
 mod owned_transfers;
 mod owners;
 mod projected;
-mod shared_borrows;
 
+pub(super) use borrowed_owners::append_borrow;
 pub(super) use owned_transfers::append_owned_transfer;
 pub(crate) use owners::owned_temporary_type;
 pub(super) use owners::{TemporaryOwner, temporary_owners};
-pub(super) use shared_borrows::append_shared_borrow;
 
 pub(super) fn append_whole_affine_transfer(
     program: &dyn ::validation::CheckingInput,

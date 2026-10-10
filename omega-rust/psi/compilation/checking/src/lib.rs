@@ -42,10 +42,10 @@ pub use machine_calls::static_machine_call_contracts::{
 };
 pub use machine_calls::structural_call_custody::{
     DeclarationPredicateRow, StateScalarContractRow, StructuralResultContract,
-    declaration_facts_carried, finite_arrival_parameter, machine_declaration_predicates,
-    reconstruct_structural_parameter_return_claims, restates_structural_parameter_qualification,
-    shared_slice_view_result, state_declaration_predicates, state_finite_predicate,
-    structural_call_custody, structural_claim_path, structural_owned_path,
+    borrowed_slice_view_result, declaration_facts_carried, finite_arrival_parameter,
+    machine_declaration_predicates, reconstruct_structural_parameter_return_claims,
+    restates_structural_parameter_qualification, state_declaration_predicates,
+    state_finite_predicate, structural_call_custody, structural_claim_path, structural_owned_path,
     structural_qualification_contract, structural_result_contract,
     structural_result_projected_qualifications, structural_result_qualifications,
     structural_state_contract_scalar_predicates, view_result_carrier_qualifications,

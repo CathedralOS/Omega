@@ -223,6 +223,39 @@ pub(in crate::execution) fn build_call_operation(
                 program.primitive_type_reference(target_state.return_type) != Some(*expected)
             }
             Some(ExpectedCallValueResult::Structural(expected))
+                if crate::execution::terminal_unit::types::borrowed_slice_result(
+                    program,
+                    target_state.return_type,
+                ) || crate::execution::terminal_unit::types::borrowed_named_view(
+                    program,
+                    target_state.return_type,
+                ) =>
+            {
+                // A slice result transports descriptor custody: unrestricted
+                // for shared access and affine for mutable access. Named
+                // references retain their separate affine permission carrier.
+                // Neither carrier owns or extends the lifetime of its backing.
+                let multiplicity = if crate::execution::terminal_unit::types::borrowed_slice_result(
+                    program,
+                    target_state.return_type,
+                ) {
+                    validation::reference_result_custody::binding_multiplicity(
+                        program,
+                        target_state.return_type,
+                    )
+                } else {
+                    Multiplicity::Affine
+                };
+                let peeled = crate::execution::terminal_unit::types::borrowed_view_result_identity(
+                    program,
+                    target_state.return_type,
+                );
+                let shelled = program.normalized_type_identity(target_state.return_type);
+                expected.multiplicity != multiplicity
+                    || (peeled.as_deref() != Some(expected.type_identity.as_str())
+                        && shelled.as_str() != expected.type_identity)
+            }
+            Some(ExpectedCallValueResult::Structural(expected))
                 if crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(
                     program,
                     target_state.return_type,
@@ -243,7 +276,7 @@ pub(in crate::execution) fn build_call_operation(
                         language_semantics::ReferenceAccess::Mutable,
                     ) =>
             {
-                // A `&mut R`/`&mut [T]` result is the exclusive loan the
+                // A named `&mut R` result is the exclusive loan the
                 // shared-view arm above names for shared borrows: affine
                 // custody against the callee's storage. Like the named
                 // views, the bound side keeps its `ref-mut` shell — the
@@ -257,35 +290,6 @@ pub(in crate::execution) fn build_call_operation(
                 let shelled = program.normalized_type_identity(target_state.return_type);
                 expected.multiplicity != Multiplicity::Affine
                     || (peeled.as_str() != expected.type_identity
-                        && shelled.as_str() != expected.type_identity)
-            }
-            Some(ExpectedCallValueResult::Structural(expected))
-                if crate::execution::terminal_unit::types::borrowed_slice_view(
-                    program,
-                    target_state.return_type,
-                ) || crate::execution::terminal_unit::types::borrowed_named_view(
-                    program,
-                    target_state.return_type,
-                ) =>
-            {
-                // A shared slice result transports a copyable descriptor;
-                // a named reference transports affine permission custody.
-                // Neither carrier owns or extends the lifetime of its backing.
-                let multiplicity = if crate::execution::terminal_unit::types::borrowed_slice_view(
-                    program,
-                    target_state.return_type,
-                ) {
-                    Multiplicity::Unrestricted
-                } else {
-                    Multiplicity::Affine
-                };
-                let peeled = crate::execution::terminal_unit::types::borrowed_view_result_identity(
-                    program,
-                    target_state.return_type,
-                );
-                let shelled = program.normalized_type_identity(target_state.return_type);
-                expected.multiplicity != multiplicity
-                    || (peeled.as_deref() != Some(expected.type_identity.as_str())
                         && shelled.as_str() != expected.type_identity)
             }
             Some(expected @ ExpectedCallValueResult::Structural(_)) => {

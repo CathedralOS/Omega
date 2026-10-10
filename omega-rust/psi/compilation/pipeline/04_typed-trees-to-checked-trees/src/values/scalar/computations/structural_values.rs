@@ -344,7 +344,7 @@ impl Builder<'_, '_> {
                 ) || validation::reference_result_custody::is_reference_record(
                     self.program,
                     returned,
-                ))
+                ) || validation::borrowed_slice_view_result(self.program, returned))
             {
                 return None;
             }

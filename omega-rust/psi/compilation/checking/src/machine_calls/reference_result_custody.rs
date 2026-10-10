@@ -2635,6 +2635,29 @@ pub fn result_loans(
     call: &checked_trees::FlowCallFact,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Option<arena::HandleSpan<checked_trees::BorrowLoanFact>> {
+    // An anonymous slice descriptor is retained by its enclosing operand,
+    // rather than installed in a named reference holder. Ordered call access
+    // and descriptor origins own that temporary lifetime; there is no local
+    // captured group for the reference-retirement scheduler to release.
+    if !result.local.is_named()
+        && call.authored_expression.is_valid()
+        && call.statement_index == result.statement_index as usize
+        && !program
+            .statement_table
+            .statement_at(state, call.statement_index)
+            .and_then(typed_trees::statement::StatementNode::as_local_data)
+            .is_some_and(|local| local.initial_value == call.authored_expression)
+        && program
+            .state_by_symbol(call.target_symbol)
+            .is_some_and(|target| {
+                super::structural_call_custody::borrowed_slice_view_result(
+                    program,
+                    target.return_type,
+                )
+            })
+    {
+        return Some(arena::HandleSpan::empty());
+    }
     let statement = program
         .statement_table
         .statements(state.statement_nodes)

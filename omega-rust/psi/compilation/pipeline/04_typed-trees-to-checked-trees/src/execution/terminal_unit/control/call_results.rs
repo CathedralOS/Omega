@@ -156,10 +156,10 @@ pub(crate) fn checked_structural_result_type(
             local: Default::default(),
         });
     }
-    // Shared descriptors are unrestricted; materialized reference carriers
-    // keep their separate loan-retirement obligation. Peeling the storage
-    // identity must not invent affine custody over the borrowed backing.
-    if crate::execution::terminal_unit::types::borrowed_slice_view(program, result_type) {
+    // Shared descriptors are unrestricted and mutable descriptors affine.
+    // Descriptor custody owns neither the borrowed backing nor a stored
+    // reference carrier; both view families keep their original geometry.
+    if crate::execution::terminal_unit::types::borrowed_slice_result(program, result_type) {
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
             binding_ordinal: 0,
@@ -171,7 +171,7 @@ pub(crate) fn checked_structural_result_type(
             local: Default::default(),
         });
     }
-    // A `&mut R`/`&mut [T]` exclusive structural view is the exclusive-loan
+    // A named `&mut R` exclusive structural view is the exclusive-loan
     // analog of the shared views above: affine custody against the callee's
     // storage. Like `parts` and the named views it keeps its reference shell
     // — the `Reference` shape is exactly the custody the result carries.

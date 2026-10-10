@@ -31,7 +31,7 @@ pub(super) fn validate(
                 structural_types.iter(),
                 declared.structural_type,
             ) {
-                if !super::byte_views::shared_return(function, *source, structural_types)
+                if !super::byte_views::descriptor_return(function, *source, structural_types)
                     || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()
                     || !super::aggregate_results::cleanup(

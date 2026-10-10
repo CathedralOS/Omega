@@ -74,7 +74,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         && validation::reference_result_custody::mutable_borrowed_parts(program, state.return_type)
             .is_none()
         && !validation::reference_result_custody::is_reference_record(program, state.return_type)
-        && !crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type)
+        && !crate::execution::terminal_unit::types::borrowed_slice_result(program, state.return_type)
         && !crate::execution::terminal_unit::types::borrowed_named_view(program, state.return_type)
         && !(matches!(
             crate::execution::terminal_unit::types::structural_access_for_type_reference(

@@ -33,8 +33,7 @@ pub(crate) fn borrowed_slice_view_element(
 
 /// A `&[T]` declared result type, either view family. The byte element's
 /// `BorrowedView` carrier and the non-byte element's identity share the same
-/// reference-peeling shape; an owned-view `&mut` result stays with the
-/// primitive reference-result custody family instead.
+/// reference-peeling shape. This shared-only query serves immutable view routes.
 pub(crate) fn borrowed_slice_view(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -42,6 +41,16 @@ pub(crate) fn borrowed_slice_view(
     structural_access_for_type_reference(program, type_reference)
         == Some(CheckedStructuralAccess::SharedBorrow)
         && slice_view_carrier(program, type_reference)
+}
+
+/// A readable borrowed slice result transports its descriptor and preserves
+/// the source access. Shared custody copies the descriptor; mutable custody is
+/// affine. A write-only result keeps its separate, unsupported result contract.
+pub(crate) fn borrowed_slice_result(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    validation::borrowed_slice_view_result(program, type_reference)
 }
 
 /// A `&[T]` or `&[u8]` descriptor carrier under either loan access; the
@@ -138,7 +147,7 @@ pub(crate) fn borrowed_view_result_identity(
         language_semantics::ReferenceAccess::Shared,
     )
     .is_some()
-        || borrowed_slice_view(program, type_reference))
+        || borrowed_slice_result(program, type_reference))
     .then(|| validation::structural_type_identity(program, type_reference, &[], &[]))
 }
 

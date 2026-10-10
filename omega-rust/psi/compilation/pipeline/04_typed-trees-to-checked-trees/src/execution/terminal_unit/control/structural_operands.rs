@@ -717,6 +717,7 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
                     structural_results,
                     &mut *operations,
                     &calls,
+                    root.root,
                 )?;
                 let multiplicity = program.type_multiplicity(root.type_reference);
                 let result = CheckedUnitStructuralResultBindingPlan {

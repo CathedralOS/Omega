@@ -726,7 +726,24 @@ impl TerminalExecution<'_> {
                 self.byte_sequence_values.insert(result.place, binding);
             }
             _ => {
-                let view = if element_scalar.is_none() {
+                // A borrowed fixed array already carries its original activation
+                // home. Forming a descriptor from that binding must retain the
+                // loan, rather than pinning the callee's temporary formal.
+                let view = if source.path.is_empty()
+                    && let Some(loan) = self.element_view_values.get(&source.place)
+                {
+                    let referent = self
+                        .structural_values
+                        .get(&source.place)
+                        .ok_or_else(malformed)?;
+                    if referent.structural_type != collection_type
+                        || !loan.matches_descriptor_home(referent)
+                        || loan.len() != extent
+                    {
+                        return Err(malformed());
+                    }
+                    loan.subslice(0, extent, access).ok_or_else(malformed)?
+                } else if element_scalar.is_none() {
                     let collection = crate::custody::resolve_single_structural_argument(
                         &self.program.structural_types(),
                         &self.structural_values,

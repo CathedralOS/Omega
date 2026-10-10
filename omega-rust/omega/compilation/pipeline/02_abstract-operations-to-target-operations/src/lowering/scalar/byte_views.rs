@@ -655,7 +655,7 @@ fn observes_length(
 }
 
 /// Authenticate the completed descriptor's storage identity: a structural
-/// call's shared descriptor result, or a declared descriptor local's home,
+/// call's readable descriptor result, or a declared descriptor local's home,
 /// whose descriptor its whole-slot stores install. Backing provenance is
 /// retained separately by call and descriptor custody; a result home never
 /// becomes a new independent allocation merely because it has a descriptor
@@ -688,7 +688,10 @@ pub(in crate::lowering) fn descriptor_result<'a>(
             if *psi_operation == operation)
     });
     (producers.next().is_none()
-        && result.multiplicity == StructuralMultiplicity::Unrestricted
+        && matches!(
+            result.multiplicity,
+            terminal_psi::nonlinear_multiplicity_pair_pattern!()
+        )
         && (home || result.qualifications.is_empty())
         && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()

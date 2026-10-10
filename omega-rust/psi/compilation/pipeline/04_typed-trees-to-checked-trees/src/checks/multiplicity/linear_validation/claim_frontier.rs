@@ -207,7 +207,8 @@ pub(crate) fn reserve_owner_places(
     let name = program.normalized_type_identity(type_reference).to_string();
     let claims = linear_claim_frontier(program, type_reference);
     if claims.is_empty()
-        && type_multiplicity(program, type_reference) == language_semantics::Multiplicity::Affine
+        && validation::reference_result_custody::binding_multiplicity(program, type_reference)
+            == language_semantics::Multiplicity::Affine
     {
         places.push(LinearPlace {
             root,

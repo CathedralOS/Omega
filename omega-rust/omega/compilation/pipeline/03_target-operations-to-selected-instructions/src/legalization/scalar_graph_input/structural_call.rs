@@ -287,8 +287,27 @@ fn view_argument(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use target_operations::TargetStructuralArgumentSource;
-    let access = optimization_unit_semantics::structural_place_access(caller, semantic.place)
-        .ok_or(LegalizationError::custody())?;
+    let completed = super::byte_views::descriptor_result(caller, semantic.place, structural_types)
+        .filter(|(producer, _)| {
+            caller.block_nodes().any(|node| {
+                matches!(&node.operation,
+                AbstractOperation::CallStructural { psi_operation, .. }
+                    if psi_operation == producer)
+            })
+        });
+    let access = if completed.is_some() {
+        let (_, result) = super::structural_case::source_result(caller, semantic.place)?;
+        match result.multiplicity {
+            terminal_psi::StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
+            terminal_psi::StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
+            terminal_psi::StructuralMultiplicity::Linear => {
+                return Err(LegalizationError::custody());
+            }
+        }
+    } else {
+        optimization_unit_semantics::structural_place_access(caller, semantic.place)
+            .ok_or(LegalizationError::custody())?
+    };
     // A descriptor view carries pointer and extent; a bounded view over a
     // fixed array (`&[u8; N]`) carries only the pointer, its extent static.
     let carrier = find_structural_type(structural_types, destination_parameter.structural_type)
@@ -314,7 +333,14 @@ fn view_argument(
     // Current-graph admission already replayed the exact argument's primitive
     // byte predicates. Reconstruct the original descriptor and placement here;
     // qualification rosters do not change that physical custody.
-    let (structural_type, source) = if let Some((producer, structural_type)) =
+    let (structural_type, source) = if let Some((producer, structural_type)) = completed {
+        (
+            structural_type,
+            TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            },
+        )
+    } else if let Some((producer, structural_type)) =
         established_view(caller, call_operation, semantic.place)
     {
         let shape = &find_structural_type(structural_types, structural_type)

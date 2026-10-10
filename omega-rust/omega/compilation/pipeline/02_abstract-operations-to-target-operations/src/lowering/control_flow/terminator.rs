@@ -386,12 +386,25 @@ pub(super) fn lower_terminator(
                     .structural_homes
                     .get(source)
                     .filter(|home| {
-                        home.multiplicity() == StructuralMultiplicity::Unrestricted
+                        home.multiplicity() == result.multiplicity
                             && home.qualifications() == result.qualifications
                             && home.projected_qualifications().is_empty()
                     })
                     .map(|home| home.structural_type())
-                    .or_else(|| live.views.get(source).map(|(_, identity)| *identity))
+                    .or_else(|| {
+                        live.views
+                            .get(source)
+                            .filter(|_| {
+                                result.multiplicity == StructuralMultiplicity::Unrestricted
+                                    || affine_view_carrier(
+                                        live,
+                                        function,
+                                        structural_types,
+                                        *source,
+                                    )
+                            })
+                            .map(|(_, identity)| *identity)
+                    })
                     .or_else(|| {
                         function
                             .arrival_parameter(*source)
@@ -403,17 +416,27 @@ pub(super) fn lower_terminator(
                                     || live.block_views.contains(source))
                                     && matches!(
                                         parameter.access,
-                                        StructuralAccess::Owned | StructuralAccess::SharedBorrow
+                                        StructuralAccess::Owned
+                                            | StructuralAccess::SharedBorrow
+                                            | StructuralAccess::MutableBorrow
                                     )
-                                    && parameter.multiplicity
-                                        == StructuralMultiplicity::Unrestricted
+                                    && (result.multiplicity != StructuralMultiplicity::Affine
+                                        || parameter.access != StructuralAccess::SharedBorrow)
+                                    && (parameter.multiplicity == result.multiplicity
+                                        || result.multiplicity == StructuralMultiplicity::Affine
+                                            && parameter.access == StructuralAccess::MutableBorrow
+                                            && parameter.multiplicity
+                                                == StructuralMultiplicity::Unrestricted)
                                     && parameter.qualifications == result.qualifications
                                     && parameter.projected_qualifications.is_empty()
                             })
                             .map(|parameter| parameter.structural_type)
                     });
                 if source_type != Some(result.structural_type)
-                    || result.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !matches!(
+                        result.multiplicity,
+                        terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                    )
                     || !result.projected_qualifications.is_empty()
                     || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()

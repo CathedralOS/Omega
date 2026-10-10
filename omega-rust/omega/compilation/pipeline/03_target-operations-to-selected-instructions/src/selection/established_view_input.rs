@@ -431,8 +431,10 @@ pub(super) fn descriptor_result(
 ) -> Option<(OperationId, &terminal_psi::StructuralOperationResult)> {
     let (operation, result) = super::aggregate_result_input::operation_result(source, place)?;
     let signature = source.structural.as_ref()?;
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
+    if !matches!(
+        result.multiplicity,
+        terminal_psi::nonlinear_multiplicity_pair_pattern!()
+    ) || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.qualification_establishments.is_empty()
         || !result.claims.is_empty()

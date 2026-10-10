@@ -199,7 +199,7 @@ pub(super) fn validate(
                     && match source {
                         target_operations::TargetStructuralReturnSource::SharedDescriptor { place } => {
                             place == expected_source
-                                && super::super::byte_views::shared_return(
+                                && super::super::byte_views::descriptor_return(
                                     optimized, *place, &plan.structural_types,
                                 )
                                 && graph.call_plan.result.as_ref().is_some_and(|result|

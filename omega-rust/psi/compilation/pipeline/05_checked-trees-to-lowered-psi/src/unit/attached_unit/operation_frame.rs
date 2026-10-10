@@ -482,16 +482,56 @@ impl OperationFrame<'_, '_> {
         else {
             unreachable!("dispatched release_reference")
         };
-        let (source, _) = self
-            .evaluation
-            .cleanup_storage(source, self.parameters, |binding| {
-                let value = self.results.repair_value(binding, self.operations)?;
-                Ok((value.place, value.structural_type))
-            })?;
-        self.push_unit(OperationKind::ReleaseReference {
-            source: self.evaluation.current_structural_place(source),
-            path: lower_structural_path(path)?,
-        });
+        let (source, root_type) =
+            self.evaluation
+                .cleanup_storage(source, self.parameters, |binding| {
+                    let value = self.results.repair_value(binding, self.operations)?;
+                    Ok((value.place, value.structural_type))
+                })?;
+        let path = lower_structural_path(path)?;
+        let types = self.structural_types.declarations();
+        let leaf = terminal_semantics::runtime_structural_path_tip(types.iter(), root_type, &path)
+            .ok_or(LoweringError::Unsupported(
+                "loan retirement lost its carrier",
+            ))?;
+        match &leaf.shape {
+            terminal_psi::StructuralTypeShape::Reference { .. } => {
+                self.push_unit(OperationKind::ReleaseReference {
+                    source: self.evaluation.current_structural_place(source),
+                    path: path.clone(),
+                });
+            }
+            terminal_psi::StructuralTypeShape::ElementView { .. }
+            | terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+            ) => {
+                // Slice descriptors retire through ordinary affine cleanup.
+                // Their captured loan boundary does not change their geometry
+                // into a stored reference or consume their borrowed backing.
+                self.evaluation.continue_cleanup_regions(
+                    vec![crate::unit::unit_cleanup::CleanupRegion {
+                        conditions: Vec::new(),
+                        action: if path.is_empty() {
+                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(source)
+                        } else {
+                            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                                terminal_psi::StructuralAffineDiscard {
+                                    place: source,
+                                    path: path.clone(),
+                                    structural_type: leaf.id,
+                                },
+                            )
+                        },
+                    }],
+                    self.values,
+                    self.next_value,
+                    self.next_block,
+                    self.next_edge,
+                    self.operations,
+                )?;
+            }
+            _ => return unsupported("loan retirement requires a descriptor carrier"),
+        }
         self.retire_selection_complements(selection_complements)?;
         if path.is_empty() {
             // A whole descriptor release ends this physical owner. Keeping it

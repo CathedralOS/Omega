@@ -50,7 +50,7 @@ pub(in crate::execution::terminal_unit) fn signature(
     // contents, so the owned-contents and nominal-drop gates do not apply.
     // `&'a V` named results are the same custody kind over a record carrier.
     let view_result = mutable_reference
-        || crate::execution::terminal_unit::types::borrowed_slice_view(program, reference)
+        || crate::execution::terminal_unit::types::borrowed_slice_result(program, reference)
         || crate::execution::terminal_unit::types::borrowed_named_view(program, reference)
         || crate::execution::terminal_unit::types::mutable_borrowed_view(program, reference);
     // A reference carrier transports a loan, not owned referent claims —
@@ -128,7 +128,15 @@ pub(in crate::execution::terminal_unit) fn signature(
     // `Reference` shape is admitted by `view_result` above like the shared
     // views' are.
     let (type_identity, multiplicity) =
-        if crate::execution::terminal_unit::types::borrowed_named_view(program, reference) {
+        if crate::execution::terminal_unit::types::borrowed_slice_result(program, reference) {
+            // A returned slice transports its descriptor, never a pointer to a
+            // callee descriptor home. Access determines its loan custody; the
+            // element/byte view declaration remains the same carrier.
+            (
+                shapes.add_type(reference, &[], &[])?,
+                validation::reference_result_custody::binding_multiplicity(program, reference),
+            )
+        } else if crate::execution::terminal_unit::types::borrowed_named_view(program, reference) {
             (
                 shapes.add_view_type(
                     reference,

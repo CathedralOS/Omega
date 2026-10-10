@@ -915,15 +915,19 @@ pub fn structural_owned_path(
     Ok((path, reference))
 }
 
-/// Shared slice descriptors borrow contents without inheriting owned claims.
-/// Their unrestricted multiplicity remains distinct from the affine lifetime
-/// obligation of a materialized named-reference carrier.
-pub fn shared_slice_view_result(
+/// Readable slice descriptors borrow contents without inheriting owned claims.
+/// Shared descriptors are unrestricted; mutable descriptors retain affine custody.
+pub fn borrowed_slice_view_result(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
-    crate::slice_view_shell(program, reference, &[])
-        .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared)
+    crate::slice_view_shell(program, reference, &[]).is_some_and(|view| {
+        matches!(
+            view.access,
+            language_semantics::ReferenceAccess::Shared
+                | language_semantics::ReferenceAccess::Mutable
+        )
+    })
 }
 
 /// Decide one ordinary structural call's custody from its exact call facts.
@@ -1050,8 +1054,8 @@ pub fn structural_call_custody(
     {
         return Err("structural call result differs from the callee contract");
     }
-    let result_qualifications = if shared_slice_view_result(program, destination.return_type) {
-        // A shared view's result type is its referent's carrier: the
+    let result_qualifications = if borrowed_slice_view_result(program, destination.return_type) {
+        // A slice view's result type is its referent's carrier: the
         // byte-predicate domains it declares ride the same structural
         // identity, so the callee's qualifications are the call result's own.
         view_result_carrier_qualifications(program, destination.return_type)?

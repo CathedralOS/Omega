@@ -1,4 +1,4 @@
-//! Shared access to an anonymous owner ends before that owner's call cleanup.
+//! Borrowed access to an anonymous owner ends before its call cleanup.
 //! Every contained linear obligation needs an authorized disposition on normal
 //! completion, including obligations outside a borrowed projection.
 use super::owners::{TemporaryConsumption, TemporaryOwner};
@@ -7,11 +7,10 @@ use super::{
     PermissionClaimIdentity, PermissionEventKind, PermissionProvenance,
 };
 use crate::checks::type_carries_linear_obligation;
-use crate::checks::type_multiplicity;
 use diagnostics::Diagnostic;
 use language_semantics::PermissionEventSource;
 
-pub(in crate::checks::multiplicity) fn append_shared_borrow(
+pub(in crate::checks::multiplicity) fn append_borrow(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     machine: symbols::SymbolHandle,
@@ -24,10 +23,10 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
     diagnostics: &mut Vec<Diagnostic>,
     dispositions: &mut checked_trees::ContextualCleanupFacts,
 ) {
-    for (owner, borrowed_path) in owners.iter().filter_map(|owner| match &owner.consumption {
-        TemporaryConsumption::SharedBorrow { borrowed_path } => Some((owner, borrowed_path)),
+    for (owner, access, borrowed_path) in owners.iter().filter_map(|owner| match &owner.consumption {
+        TemporaryConsumption::Borrow { access, borrowed_path } => Some((owner, *access, borrowed_path)),
         TemporaryConsumption::OwnedTransfer => None,
-    }).filter(|(owner, _)| {
+    }).filter(|(owner, _, _)| {
         matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } if index == statement_index)
             && owner.evaluation == evaluation
     }) {
@@ -42,7 +41,7 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
             )));
             continue;
         }
-        if type_multiplicity(program, owner.type_reference) == Multiplicity::Unrestricted {
+        if validation::reference_result_custody::binding_multiplicity(program, owner.type_reference) == Multiplicity::Unrestricted {
             continue;
         }
         if carries_claims {
@@ -59,7 +58,7 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
             expression: Default::default(),
             evaluation, machine_symbol: machine, state_symbol: state, source: owner.consumer,
             kind: PermissionEventKind::Establish,
-            multiplicity: Multiplicity::Unrestricted, access: PermissionAccess::Shared,
+            multiplicity: Multiplicity::Unrestricted, access,
             claim_identity: PermissionClaimIdentity::Unknown,
             provenance: PermissionProvenance::Established { machine_symbol: machine, state_symbol: state, source: owner.producer },
             root, segments: facts.flow.ownership.segments.insert_many(borrowed_path.iter().copied()),

@@ -454,7 +454,11 @@ pub(in crate::lowering) fn resolve_element_view(
                 structural_type: result.structural_type,
             },
             result.structural_type,
-            StructuralAccess::SharedBorrow,
+            match result.multiplicity {
+                StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
+                StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
+                StructuralMultiplicity::Linear => return Err(invalid()),
+            },
         ));
     }
     if let Some(AbstractOperation::EstablishElementView {

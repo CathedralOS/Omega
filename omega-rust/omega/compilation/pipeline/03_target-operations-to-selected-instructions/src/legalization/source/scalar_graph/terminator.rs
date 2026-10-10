@@ -74,7 +74,7 @@ pub(super) fn project(
         AbstractOperation::ReturnStructural {
             psi_edge, source, ..
         } => {
-            let value = if scalar_graph_input::byte_views::shared_return(
+            let value = if scalar_graph_input::byte_views::descriptor_return(
                 function,
                 *source,
                 &plan.structural_types,

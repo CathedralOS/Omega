@@ -174,23 +174,55 @@ pub(super) fn lower_owned_operand_claims(
             checked.facts.resolved_types.result(expression),
         )
     };
+    let transfers = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter_map(|(_, event)| {
+            (event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.root == root
+                && event.expression == expression
+                && event.kind == language_semantics::PermissionEventKind::Transfer
+                && event.access == language_semantics::PermissionAccess::Owned
+                && event.multiplicity == Multiplicity::Linear
+                && event.obligation_live)
+                .then_some(event)
+        })
+        .collect::<Vec<_>>();
+    let selection = checked
+        .facts
+        .flow
+        .ownership
+        .owned_selection_at(state, statement_index);
+    let has_selected_transfer = if let Some((_, receipt)) = selection {
+        checked
+            .facts
+            .flow
+            .ownership
+            .selection_transfers
+            .span(receipt.transfers)
+            .ok_or(LoweringError::Unsupported(
+                "owned operand selection transfers are stale",
+            ))?
+            .iter()
+            .any(|transfer| transfer.expression == expression)
+    } else {
+        false
+    };
+    // Borrowed carriers transport their loans, not an owned claim frontier.
+    // Selected operands carry their custody outside the ordinary event stream.
+    if transfers.is_empty() && !has_selected_transfer {
+        return Ok(Vec::new());
+    }
     let (prefix, _) = validation::structural_owned_path(&checked.typed, root_type, &prefix)
         .map_err(LoweringError::Unsupported)?;
     let mut claims = Vec::new();
     let mut consumer = expected_source;
     let mut evaluation = expected_evaluation;
-    for (_, event) in checked.facts.flow.ownership.permissions.iter() {
-        if event.machine_symbol != machine
-            || event.state_symbol != state
-            || event.root != root
-            || event.expression != expression
-            || event.kind != language_semantics::PermissionEventKind::Transfer
-            || event.access != language_semantics::PermissionAccess::Owned
-            || event.multiplicity != Multiplicity::Linear
-            || !event.obligation_live
-        {
-            continue;
-        }
+    for event in transfers {
         if event.evaluation == checked_trees::FlowPermissionEvaluation::Unknown
             || evaluation.is_some_and(|lane| lane != event.evaluation)
         {
@@ -227,12 +259,7 @@ pub(super) fn lower_owned_operand_claims(
             path: lower_static_argument_path(relative, structural_type, structural_types)?,
         });
     }
-    if let Some((_, receipt)) = checked
-        .facts
-        .flow
-        .ownership
-        .owned_selection_at(state, statement_index)
-    {
+    if let Some((_, receipt)) = selection {
         let transfers = checked
             .facts
             .flow

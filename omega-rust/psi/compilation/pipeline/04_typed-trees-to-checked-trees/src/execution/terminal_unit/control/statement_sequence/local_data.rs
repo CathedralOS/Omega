@@ -229,7 +229,13 @@ pub(super) fn plan(
                 trace,
                 windows,
             )?;
-            super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
+            super::consume_value_call_sources(
+                facts,
+                structural_results,
+                &mut *operations,
+                &calls,
+                root.root,
+            )?;
             let result = CheckedUnitStructuralResultBindingPlan {
                 statement_index,
                 binding_ordinal: u32::try_from(*structural_count).ok()?,
@@ -606,7 +612,13 @@ pub(super) fn plan(
         } else {
             consume_value_places(facts, root.root, structural_results, &mut *operations)?;
         }
-        super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
+        super::consume_value_call_sources(
+            facts,
+            structural_results,
+            &mut *operations,
+            &calls,
+            root.root,
+        )?;
         local_phase("statement sequence: local data: structural value: type shape");
         // A stored loan retains its reference shell, unlike argument
         // presentation of its referent. Slice views are different carriers:
@@ -655,7 +667,23 @@ pub(super) fn plan(
             discard_result_on_return,
             operations,
         )?;
+        let call_coordinate = establishment.call().map(|call| call.coordinate);
         operations.push(establishment);
+        if let Some(coordinate) = call_coordinate {
+            // A call-valued local owns the same normal operand continuation
+            // as a statement call. The result remains with the local; only
+            // the exact anonymous argument owners retire here.
+            super::super::super::cleanup::anonymous::append_continuation(
+                program,
+                facts,
+                shapes,
+                machine,
+                state,
+                coordinate,
+                structural_results,
+                operations,
+            )?;
+        }
         return Some(LocalPlan::Planned);
     }
     if validation::is_closed_primitive_array_type(program, local.type_reference)

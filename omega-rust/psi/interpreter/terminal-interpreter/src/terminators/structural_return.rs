@@ -67,6 +67,7 @@ impl TerminalExecution<'_> {
             Some(_) => return Err(malformed()),
             None => None,
         };
+        let mut identity_cursor = self.local_structural_identities.cursor();
         let mut completed = if terminal_semantics::scalar_array_leaf_shape(
             self.program.structural_types().values(),
             signature.structural_type,
@@ -136,13 +137,48 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
-            // The returned value leaves whole: its affine rows are exactly its
-            // root's complement of the linear regions it returns.
+            // A borrowed descriptor parameter has no owned debt in this
+            // activation. Returning its mutable view establishes a result
+            // descriptor while retaining the already admitted backing loan.
+            let borrowed_descriptor = signature.multiplicity == StructuralMultiplicity::Affine
+                && signature.qualifications.is_empty()
+                && signature.projected_qualifications.is_empty()
+                && active_returned_claims.is_empty()
+                && value.qualifications.is_empty()
+                && value.projected_qualifications.is_empty()
+                && self
+                    .program
+                    .machines()
+                    .get(&self.current_machine)
+                    .and_then(|machine| machine.structural_parameter(*source))
+                    .is_some_and(|parameter| {
+                        parameter.access == StructuralAccess::MutableBorrow
+                            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                            && parameter.structural_type == signature.structural_type
+                            && parameter.qualifications.is_empty()
+                            && parameter.projected_qualifications.is_empty()
+                    })
+                && (element_view
+                    .as_ref()
+                    .is_some_and(|view| view.access() == StructuralAccess::MutableBorrow)
+                    || (self
+                        .program
+                        .structural_types()
+                        .get(&signature.structural_type)
+                        .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+                        && matches!(byte_sequence, Some(ref binding) if !matches!(binding, ByteSequenceBinding::Immutable(_))
+                            && binding.validate_mutable_referent(&self.program.structural_types(), &value).is_ok())));
+            // Owned results leave with their exact affine complement. Borrowed
+            // ingress contributes no source frontier to transfer.
             let carried = crate::custody::whole_value_frontier(
                 &self.program.structural_types(),
                 *source,
                 signature.structural_type,
-                signature.multiplicity,
+                if borrowed_descriptor {
+                    StructuralMultiplicity::Unrestricted
+                } else {
+                    signature.multiplicity
+                },
                 self.live_claims
                     .values()
                     .filter(|live| live.place == Some(*source))
@@ -200,6 +236,12 @@ impl TerminalExecution<'_> {
                 }
                 binding => binding,
             });
+            if borrowed_descriptor && element_view.is_some() {
+                value.opaque_identity = self
+                    .local_structural_identities
+                    .allocate_staged(&mut identity_cursor)?;
+                value.path.clear();
+            }
             let element_view = element_view.map(|view| view.with_descriptor_home(value.clone()));
             let scalar_case = if self.call_stack.is_empty()
                 && signature.qualifications.is_empty()
@@ -234,6 +276,8 @@ impl TerminalExecution<'_> {
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
+        self.local_structural_identities
+            .commit_cursor(identity_cursor);
         self.structural_values.remove(source);
         self.scalar_array_values.remove(source);
         self.byte_sequence_values.remove(source);

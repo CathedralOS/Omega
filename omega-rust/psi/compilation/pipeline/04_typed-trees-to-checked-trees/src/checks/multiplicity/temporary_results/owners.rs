@@ -12,7 +12,8 @@ use language_semantics::PermissionEventSource;
 pub(crate) enum TemporaryConsumption {
     /// An evaluated loan retains the whole producing owner, even when its
     /// operand selects a child; the owner dies after the call.
-    SharedBorrow {
+    Borrow {
+        access: language_semantics::PermissionAccess,
         borrowed_path: Vec<facts::PlaceSegment>,
     },
     /// The call receives the completed owner whole, with every claim its
@@ -159,11 +160,27 @@ pub(crate) fn temporary_owners(
                 if parameter.is_const || parameter.is_mutable || parameter.relevance.is_erased() {
                     continue;
                 }
-                let Some((borrowed, _)) = crate::semantic::calls::shared_argument_referent(
+                let descriptor_access =
+                    validation::slice_view_shell(program, parameter.type_reference, &[]).and_then(
+                        |shell| match shell.access {
+                            language_semantics::ReferenceAccess::Shared => {
+                                Some(language_semantics::PermissionAccess::Shared)
+                            }
+                            language_semantics::ReferenceAccess::Mutable => {
+                                Some(language_semantics::PermissionAccess::Exclusive)
+                            }
+                            _ => None,
+                        },
+                    );
+                let (borrowed, access) = if let Some(access) = descriptor_access {
+                    (*argument, access)
+                } else if let Some((borrowed, _)) = crate::semantic::calls::shared_argument_referent(
                     program,
                     *argument,
                     parameter.type_reference,
-                ) else {
+                ) {
+                    (borrowed, language_semantics::PermissionAccess::Shared)
+                } else {
                     continue;
                 };
                 let Some(place) = validation::canonical_place_from_expression_in_state(
@@ -192,7 +209,8 @@ pub(crate) fn temporary_owners(
                 (
                     expression,
                     type_reference,
-                    TemporaryConsumption::SharedBorrow {
+                    TemporaryConsumption::Borrow {
+                        access,
                         borrowed_path: place.segments,
                     },
                 )

@@ -319,7 +319,7 @@ pub(crate) fn prepare_permission_events(
                             places,
                             &mut permission_events,
                         );
-                        temporary_results::append_shared_borrow(
+                        temporary_results::append_borrow(
                             program,
                             facts,
                             machine.symbol,

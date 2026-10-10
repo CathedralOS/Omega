@@ -80,7 +80,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         array_bindings,
         returned_call,
         mut returned_scalar_call,
-        structural_results,
+        mut structural_results,
         call_count,
     } = completion;
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -262,7 +262,13 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             } else {
                 consume_value_places(facts, root.root, &structural_results, &mut operations)?;
             }
-            super::consume_value_call_sources(facts, &structural_results, &mut operations, &calls)?;
+            super::consume_value_call_sources(
+                facts,
+                &mut structural_results,
+                &mut operations,
+                &calls,
+                root.root,
+            )?;
             // Completion owns the same stored result carrier as an ordinary
             // returning call, including reference shells and views. Argument
             // presentation (`add_type`) may name its referent and cannot
@@ -550,8 +556,12 @@ fn forwarded_parameter(
     let source_plan = CheckedUnitStructuralArgumentSourcePlan::Parameter {
         parameter_index: u32::try_from(parameter_index).ok()?,
     };
-    if crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type) {
-        if parameter.access != CheckedStructuralAccess::SharedBorrow
+    if crate::execution::terminal_unit::types::borrowed_slice_result(program, state.return_type) {
+        if Some(parameter.access)
+            != crate::execution::terminal_unit::types::structural_access_for_type_reference(
+                program,
+                state.return_type,
+            )
             || !parameter.qualifications.is_empty()
         {
             return None;
@@ -564,7 +574,10 @@ fn forwarded_parameter(
                 evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             },
             type_identity: parameter.type_identity.clone(),
-            multiplicity: parameter.multiplicity,
+            multiplicity: validation::reference_result_custody::binding_multiplicity(
+                program,
+                state.return_type,
+            ),
             reference_sources: Vec::new(),
         });
     }
