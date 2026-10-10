@@ -31,6 +31,10 @@
 //! carrier — the `u64::AtMost<N>` head and the `u64 in AtMost<N>` constraint
 //! name one application whose indices are the family's declared binders.
 //! Closed leaves still use `closed_argument_identity`.
+//! Name operands retain their complete path and authored selection span. Only
+//! bare names may capture template binders; qualification neither turns a type
+//! into a value nor grants type authority to a constant. Closed-name recovery
+//! checks the same selected type as matching before publishing a named binding.
 //! Borrow and singleton-array operands gain type role only opposite a declared
 //! type binder. They materialize into that same type tree; ordinary value-borrow
 //! equalities remain value facts, never parser guesses about identifier spelling.
@@ -54,6 +58,7 @@ use numerics::bignum::BigInt;
 use numerics::literals::{IntegerLiteral, IntegerRadix, LandedIntegerType};
 use source::SourceSpan;
 use std::collections::HashMap;
+use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
@@ -347,14 +352,27 @@ fn classify_side(
         }
         ExpressionNode::TypeExpression(reference) => Side::TypeStructure(*reference),
         ExpressionNode::Name(path) => {
-            let [member] = syntax.expressions.identifier_path_members(*path) else {
-                return Side::Other("a qualified name");
-            };
-            match binder_index(parameters, member.as_str()) {
-                Some((index, TypeParameterKind::Type)) => Side::TypeBinder(index),
-                Some((index, _)) => Side::ValueBinder(index),
-                None => Side::ClosedName(member.clone()),
+            let members = syntax.expressions.identifier_path_members(*path);
+            if let [member] = members
+                && let Some((index, kind)) = binder_index(parameters, member.as_str())
+            {
+                return if matches!(kind, TypeParameterKind::Type) {
+                    Side::TypeBinder(index)
+                } else {
+                    Side::ValueBinder(index)
+                };
             }
+            let Some(first) = members.first() else {
+                return Side::Other("an absent name");
+            };
+            let mut span = first.source_span();
+            span.span.end = members
+                .last()
+                .expect("name has a first member")
+                .source_span()
+                .span
+                .end;
+            Side::ClosedName(Identifier::new(members.joined_path(), span))
         }
         ExpressionNode::Indexed(indexed) => {
             let Some(carrier) = single_name(syntax, indexed.collection) else {
@@ -871,6 +889,9 @@ impl<'a, 's> Solver<'a, 's> {
                 structure,
                 span,
             } => {
+                if let Structure::Name { name, binder: None } = structure {
+                    self.require_closed_name_type(name, *span)?;
+                }
                 if structure
                     .binder_mentions(self.syntax, self.base_info.parameter_names)
                     .contains(binder)
@@ -912,6 +933,48 @@ impl<'a, 's> Solver<'a, 's> {
                 }
             }
         }
+    }
+
+    fn require_closed_name_type(
+        &self,
+        name: &Identifier,
+        span: SourceSpan,
+    ) -> Result<(), Diagnostic> {
+        let Some(identity) = closed_name_identity(self.syntax, self.selection, name) else {
+            return Err(self
+                .reject(format!(
+                    "where type equation operand `{}` does not name a closed type",
+                    name.as_str(),
+                ))
+                .with_source_span(span));
+        };
+        // Declaration selection is not argument formation. A bare generic head
+        // cannot become a closed argument merely because its owner is known.
+        let complete = match identity {
+            ClosedArgumentIdentity::Builtin(_) => true,
+            ClosedArgumentIdentity::Nominal(declaration) => self
+                .syntax
+                .root_item(declaration)
+                .as_data()
+                .is_some_and(|data| {
+                    data.type_parameters.is_empty() && data.lifetime_parameters.is_empty()
+                }),
+            ClosedArgumentIdentity::RetainedNominal(selected) => self
+                .selection
+                .and_then(|selection| selection.retained_data_header(selected))
+                .is_some_and(|data| {
+                    data.type_parameters.is_empty() && data.lifetime_parameters.is_empty()
+                }),
+            _ => false,
+        };
+        if !complete {
+            return Err(self
+                .reject(
+                    "where type equation requires a complete constructor argument tuple".to_owned(),
+                )
+                .with_source_span(span));
+        }
+        Ok(())
     }
 
     /// The binder side is unbound: a closed name, an already bound type
@@ -1198,6 +1261,7 @@ impl<'a, 's> Solver<'a, 's> {
             expression,
             self.const_values,
             &parameter_values,
+            self.selection,
             warnings,
         )
         .and_then(|value| match value {

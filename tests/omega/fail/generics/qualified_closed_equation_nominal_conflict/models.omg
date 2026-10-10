@@ -1,0 +1,3 @@
+module models;
+pub data Token [copy] { value: u64; }
+pub const COUNT: u64 = 4;

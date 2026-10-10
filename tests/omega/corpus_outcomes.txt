@@ -4597,3 +4597,16 @@ run/borrows/shared_runtime_index_borrow checked 3050ms check-target:macos_arm64 
 run/borrows/transition_shared_borrow checked 604ms check-target:macos_arm64 @4e4bfed13aee+wt
 run/contained_health_loop_command_branch checked 287ms @4e4bfed13aee+wt
 run/nested_mut_alias_assignment_return checked 783ms check-target:macos_arm64 @2d8ed253669f
+fail/generics/qualified_closed_equation_const_width rejected 12ms expected @8d6cc0f5fef7+wt
+	const fact for generic instance `Check<4>` is invalid: integer value `256` is outside the declared `u8` range
+fail/generics/qualified_closed_equation_false_const_fact rejected 12ms expected @8d6cc0f5fef7+wt
+	const fact for generic instance `Check<4>` is false
+fail/generics/qualified_closed_equation_nominal_conflict rejected 1241ms expected @8d6cc0f5fef7+wt
+	generic machine `capacity` where equation on `Payload` does not hold: the supplied `Payload` argument is not `models::Token`
+fail/generics/qualified_closed_equation_open_constructor rejected 1199ms expected @8d6cc0f5fef7+wt
+	generic machine `recovered` where type equation requires a complete constructor argument tuple
+fail/generics/qualified_closed_equation_value_operand rejected 1261ms expected @8d6cc0f5fef7+wt
+	generic machine `capacity` where type equation operand `models::COUNT` does not name a closed type
+fail/generics/qualified_closed_equation_value_reconstruction rejected 1243ms expected @8d6cc0f5fef7+wt
+	generic machine `recovered` where type equation operand `models::COUNT` does not name a closed type
+pass/generics/runtime_qualified_closed_equation_exit checked 5180ms check-target:linux_x86_64 @8d6cc0f5fef7+wt

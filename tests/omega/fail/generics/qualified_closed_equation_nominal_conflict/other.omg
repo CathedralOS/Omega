@@ -1,0 +1,2 @@
+module other;
+pub data Token [copy] { value: u64; }

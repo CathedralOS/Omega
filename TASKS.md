@@ -4973,7 +4973,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   integer finiteness.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Complete
-  [static type equality](wiki/spec/language/generics.md#static-type-equality),
+  [static type equality](wiki/spec/language/generics.md#static-type-equality)
+  beyond closed nominal name equations,
   [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference)
   and [canonical domain indices](wiki/spec/language/generics.md#canonical-domain-index-matching)
   through specialization, layout and execution. The running customer is

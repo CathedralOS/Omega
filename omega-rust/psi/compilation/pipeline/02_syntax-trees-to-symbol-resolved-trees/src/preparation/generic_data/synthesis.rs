@@ -609,6 +609,7 @@ fn synthesize_instance(
                 *expression,
                 const_values,
                 &const_parameter_scalars,
+                selection,
                 warnings,
             )
             .map(|value| match value {

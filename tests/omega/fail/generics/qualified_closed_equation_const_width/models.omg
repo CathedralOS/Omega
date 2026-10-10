@@ -1,0 +1,2 @@
+module models;
+pub const MAX: u8 = 255;

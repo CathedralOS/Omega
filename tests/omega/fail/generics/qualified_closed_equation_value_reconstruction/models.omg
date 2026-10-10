@@ -1,0 +1,2 @@
+module models;
+pub const COUNT: u64 = 4;

@@ -1,6 +1,9 @@
 //! Declaration-site domain discharge shares the closed fact evaluator used by
 //! generic data. Initializer probes determine values, not membership: ordinary
 //! constant validation still relies on this gate before publishing identity.
+//! Scalar replay carries declaration selection through every recursive operand;
+//! lexical subjects and binders precede selected constants, whose canonical
+//! values retain their carrier and policy before arithmetic.
 //! Exact declaration selection, complete index binding and establishment
 //! obligations therefore precede fact replay. A generic carrier does not supply
 //! a selected algebra for the subject; only carrier-independent facts can close here.
@@ -12,6 +15,7 @@ use super::super::{
 use arena::HandleSpan;
 use symbols::JoinedPath;
 use syntax_trees::expression::UnaryOperator;
+use syntax_trees::identifier::Identifier;
 
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
 use crate::preparation::generic_data::evaluate_const_fact_binary;
@@ -34,6 +38,7 @@ pub(crate) fn evaluate_const_fact_expression(
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, impl Copy + Into<ConstScalarValue>>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
     evaluate_const_fact_expression_at(
@@ -41,6 +46,7 @@ pub(crate) fn evaluate_const_fact_expression(
         expression,
         const_values,
         parameter_values,
+        selection,
         None,
         warnings,
     )
@@ -53,6 +59,7 @@ fn evaluate_const_fact_expression_at(
     expression: ExpressionHandle,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, impl Copy + Into<ConstScalarValue>>,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     subject: Option<ConstFactSubject<'_>>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
@@ -87,6 +94,40 @@ fn evaluate_const_fact_expression_at(
             }
             if let Some(value) = parameter_values.get(&name) {
                 return Ok(Some((*value).into().into_fact_value()));
+            }
+            if let Some(selection) = selection {
+                let Some(first) = members.first() else {
+                    return Ok(None);
+                };
+                let mut span = first.source_span();
+                span.span.end = members
+                    .last()
+                    .expect("name has a first member")
+                    .source_span()
+                    .span
+                    .end;
+                let identifier = Identifier::new(&name, span);
+                let Some(definition) = selection
+                    .select(syntax, &identifier)
+                    .map_err(|diagnostic| diagnostic.message)?
+                else {
+                    // Selected lookup is authoritative: an unresolved name
+                    // must remain a checked fact, never consult a spelling ledger.
+                    return Ok(None);
+                };
+                // Canonicalization preserves declared carrier and policy. An
+                // opaque declaration remains the ordinary validator's obligation;
+                // it supplies no scalar proof here, including on probe failure.
+                let Ok(value) = super::values::canonicalize_selected_declaration_value(
+                    syntax,
+                    &definition,
+                    Some(selection),
+                ) else {
+                    return Ok(None);
+                };
+                return Ok(
+                    ConstScalarValue::from_canonical(&value).map(ConstScalarValue::into_fact_value)
+                );
             }
             crate::preparation::generic_data::module_constants::reject_module_constant_selection(
                 syntax,
@@ -160,6 +201,7 @@ fn evaluate_const_fact_expression_at(
                 indexed.index,
                 const_values,
                 parameter_values,
+                selection,
                 subject,
                 warnings,
             )?
@@ -184,6 +226,7 @@ fn evaluate_const_fact_expression_at(
                 unary.operand,
                 const_values,
                 parameter_values,
+                selection,
                 subject,
                 warnings,
             )?
@@ -211,6 +254,7 @@ fn evaluate_const_fact_expression_at(
                 binary.left,
                 const_values,
                 parameter_values,
+                selection,
                 subject,
                 warnings,
             )?
@@ -222,6 +266,7 @@ fn evaluate_const_fact_expression_at(
                 binary.right,
                 const_values,
                 parameter_values,
+                selection,
                 subject,
                 warnings,
             )?
@@ -699,6 +744,7 @@ fn evaluate_selected_domain_facts(
                         membership.value,
                         const_values,
                         parameter_values,
+                        selection,
                         subject,
                         warnings,
                     )?
@@ -1564,6 +1610,7 @@ fn evaluate_const_domain_expression(
                 membership.value,
                 const_values,
                 parameter_values,
+                selection,
                 subject,
                 warnings,
             )?
@@ -1636,6 +1683,7 @@ fn evaluate_const_domain_expression(
             expression,
             const_values,
             parameter_values,
+            selection,
             subject,
             warnings,
         ),

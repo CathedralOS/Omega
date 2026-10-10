@@ -1,3 +1,7 @@
+//! Declaration-scoped facts bind lexical subjects before selecting remaining
+//! closed type names. Complete source-visible paths retain semantic namespace
+//! ancestry, including declarations physically stored at root, so authored
+//! selection custody survives generic equation discharge.
 use language_semantics::byte_predicates::ByteSequencePredicate;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
@@ -689,26 +693,52 @@ fn assign_proof_expression_symbols(
             }
         }
         symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
-            // Fact-position names the local pass could not bind are not
-            // fields or parameters: a case constraint's `T == i32` mentions
-            // a TYPE. Resolve single-segment leftovers against top-level type
-            // symbols so seeded-instance replay compares exact identities
-            // rather than spellings.
-            // A leftover bare `result` is a contract's reserved result binder,
-            // never a top-level declaration spelled the same way.
-            if !path.head_symbol.is_valid()
-                && !path.symbol.is_valid()
-                && let [member] = expression_table.name_path_members(path.members)
-                && !language_core::is_reserved_result(member.as_str())
+            // Local binders were assigned first. Remaining static type names
+            // select the complete authored path through source visibility;
+            // namespace prefixes retain the selected declaration's ancestry,
+            // never independent leaf or prefix lookups that lose narrow imports.
+            if path.head_symbol.is_valid() || path.symbol.is_valid() {
+                return;
+            }
+            let members = expression_table.name_path_members(path.members);
+            if members.is_empty()
+                || matches!(members, [member] if language_core::is_reserved_result(member.as_str()))
             {
-                let symbol = super::lookup::top_level_type_symbol_for_source(symbols, member);
-                if symbol.is_valid()
-                    && let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
-                        expression_table.expression_mut(expression)
-                {
-                    path.head_symbol = symbol;
-                    path.symbol = symbol;
+                return;
+            }
+            let name = symbol_resolved_trees::name::DiagnosticName::from_str(
+                &members.joined_path(),
+                diagnostic_path_source_span(members),
+            );
+            let symbol = super::lookup::top_level_type_symbol_for_source(symbols, &name);
+            if !symbol.is_valid() {
+                return;
+            }
+            let mut selected = symbol;
+            let mut member_symbols = Vec::with_capacity(members.len());
+            for _ in members {
+                if !selected.is_valid() || selected == symbols.root() {
+                    return;
                 }
+                member_symbols.push(selected);
+                // Authored module ownership differs from physical root
+                // storage for declarations; preserve semantic ancestry.
+                selected = symbols.namespace_parent(selected);
+            }
+            member_symbols.reverse();
+            let head = member_symbols[0];
+            for (offset, selected) in (0u32..).zip(member_symbols) {
+                expression_table.set_name_path_member_symbol_at_offset(
+                    path.member_symbols,
+                    offset,
+                    selected,
+                );
+            }
+            if let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+                expression_table.expression_mut(expression)
+            {
+                path.head_symbol = head;
+                path.symbol = symbol;
             }
         }
         symbol_resolved_trees::expression::ExpressionNode::Boolean(_)

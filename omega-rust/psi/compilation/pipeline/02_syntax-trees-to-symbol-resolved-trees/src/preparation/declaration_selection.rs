@@ -286,6 +286,22 @@ impl<'base> ConstantSelection<'base> {
         (retained.symbols.get(selected).kind == kind).then_some(selected)
     }
 
+    /// Rejoin an already selected nominal owner to one retained header. This
+    /// exposes its telescope without selecting again by spelling or deciding
+    /// whether a caller's type application is complete.
+    pub(super) fn retained_data_header(
+        &self,
+        selected: symbols::SymbolHandle,
+    ) -> Option<&'base symbol_resolved_trees::data::DataDefinition> {
+        let mut definitions = self
+            .retained?
+            .data_definitions
+            .iter()
+            .filter(|definition| definition.symbol == selected);
+        let definition = definitions.next()?;
+        definitions.next().is_none().then_some(definition)
+    }
+
     pub(super) fn retained_domain_identity(
         &self,
         carrier: &Identifier,

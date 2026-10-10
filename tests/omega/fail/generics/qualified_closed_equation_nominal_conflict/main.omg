@@ -1,0 +1,7 @@
+use models;
+use other;
+machine capacity<Payload>() -> u64
+where Payload == models::Token
+{ 7 }
+data Main { result: u64; }
+machine main(main: &mut Main) { main.result = capacity<other::Token>(); }
