@@ -521,7 +521,11 @@ impl TerminalExecution<'_> {
                                     terminal_psi::reading_borrow_pair_pattern!()
                                 )
                             })
-                            && parameter.admits_scalar_read_at(path.is_empty())
+                            // Reads select a copyable leaf below this declared
+                            // home; the complete path checks that type below.
+                            // Owner custody and domains remain on the owner,
+                            // not a restriction on observing another field.
+                            && (!writing || parameter.admits_scalar_read_at(path.is_empty()))
                     })
                     .map(|parameter| {
                         (
@@ -539,9 +543,10 @@ impl TerminalExecution<'_> {
                     .filter_map(|operation| operation.result.structural())
                     .find(|result| {
                         result.place == place
-                            && result.claims.is_empty()
-                            && result.qualifications.is_empty()
-                            && result.projected_qualifications.is_empty()
+                            && (!writing
+                                || (result.claims.is_empty()
+                                    && result.qualifications.is_empty()
+                                    && result.projected_qualifications.is_empty()))
                     })
                     .map(|result| (result.structural_type, false))
             })
