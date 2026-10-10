@@ -2864,20 +2864,6 @@ code and preserve check/native behavior for the named customer slices.
   for the callee's Unit-body exit. Coordinate operator returns with
   **OPERATOR-BOUNDARY-CALLS**.
 
-- **UNIT-PLAN-ASSEMBLY-ONCE.** (new-scope) Stage 04 still builds nominal
-  cleanup twice: the Unit candidates pass in
-  `execution/terminal_unit/mod.rs` builds free `drop<T>` consumers on the
-  shared shapes and keeps only their `.machine`, and
-  `build_checked_nominal_affine_unit_cleanup_plans` (finalize) rebuilds every
-  candidate. Stage 05 depends on the two builds agreeing (`admission.rs`
-  compares `nominal.machine == *machine`). The Unit-family rosters now share
-  one structural type namespace (`CheckedUnitEffectPlans::adopt_structural_types`),
-  and `UnitPlans::with_staged` stages only the cleanup dispatcher. Publish the
-  candidates pass's complete nominal plans and build only attached callers at
-  finalize, keeping its requirement diagnostics over every machine.
-  Acceptance: one nominal build per machine, no dispatcher staging outside
-  the published roster, corpus `--filter drops,ownership/,cleanup` unchanged.
-
 - **LOCAL-BINDINGS-GENERALIZED.** (new-scope) Local data bindings are split
   into `EstablishPrimitiveLocal`, `EstablishScalarLocal`,
   `EstablishStructuralLocal` and `TrivialAffineLocal`, plus byte-sequence,
