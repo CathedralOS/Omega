@@ -21,7 +21,8 @@ evidence.mkdir(exist_ok=True)
 compiler = arguments.omega.resolve()
 records = []
 revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repository, text=True).strip()
-commands = [("library-check", ["--check", "source/library/numerics/linalg/cholesky_spd_solve.omg"])]
+commands = [("baseline-float-check", ["--check", "tests/omega/pass/float/named_provider_min_max_sqrt_exit/main.omg"]),
+            ("library-check", ["--check", "source/library/numerics/linalg/cholesky_spd_solve.omg"])]
 for project in ("diagonal_readonly", "correlated_copied"):
     source = str((root / project / "main.omg").relative_to(repository))
     commands.extend([(project + "-check", ["--check", source]),
@@ -48,6 +49,7 @@ for route, suffix in commands:
     record = {"route": route, "command": command, "cwd": str(repository),
               "revision": revision, "exit_status": exit_status,
               "elapsed_seconds": round(time.monotonic() - started, 3),
+              "source_sha256": hashlib.sha256((repository / suffix[-1]).read_bytes()).hexdigest(),
               "environmental_cache_custody_failure": custody_failure}
     records.append(record)
     print(json.dumps(record), flush=True)
