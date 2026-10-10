@@ -137,8 +137,8 @@ fn type_graph_requires_nominal_drop_with_substitutions(
 }
 
 /// Check cleanup of an exact nominal owner, including its owned fields.
-/// An implicit `Self` type names its machine, so receiver provisioning uses
-/// the machine's resolved data declaration rather than inspecting the loan.
+/// The explicit parameter's exact data declaration owns the hook; a qualified
+/// machine name supplies no implicit receiver or `Self` type.
 pub fn data_requires_nominal_drop(
     program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
@@ -364,24 +364,21 @@ fn validate_cleanup_machine(
     let Some(_attached_name) = machine.attached_data.as_ref() else {
         return;
     };
-    // A receiver's synthesized type points at the machine, while a named
-    // parameter's `&mut Guard` points at the DATA the machine is attached to.
-    // Both denote the same storage, so the shape test accepts either target.
+    // The explicit exclusive parameter names the exact data owner. A qualified
+    // machine path contributes no receiver or alternative owner identity.
     let attached_symbol = machine.attached_data_symbol;
     let Some(entry) = program.machine_states(machine).first() else {
         diagnostics.push(Diagnostic::error(format!(
-            "cleanup machine `{}` has no entry state; reserved cleanup has shape `drop(&mut self) -> ()`",
+            "cleanup machine `{}` has no entry state; reserved cleanup takes one exclusive loan of its own data and returns Unit",
             machine.name
         )));
         return;
     };
     let parameters = program.state_parameters(entry);
     // The shape is one exclusive loan of the machine's own data and nothing
-    // else. A receiver and a named parameter spell that same shape, and under
-    // the static-machine contract a qualified path "contributes no argument or
-    // storage", so which spelling carries it is not cleanup's business. Every
-    // other condition is unchanged: exactly one parameter, mutable, not const,
-    // and a mutable reference to this machine's data.
+    // else. Owner applications keep the declaration's entire telescope in its
+    // original positions; a specialization or permuted region list cannot
+    // designate the universal cleanup role of the template.
     let shape_is_exact = matches!(parameters, [owner]
     if owner.is_mutable
         && !owner.is_const
@@ -461,25 +458,60 @@ fn mutable_reference_targets(
             referee,
             access: ReferenceAccess::Mutable,
             ..
-        } => named_type_matches(program, *referee, attached_symbol),
+        } => owner_type_matches(program, *referee, attached_symbol),
         _ => false,
     }
 }
 
-/// Whether a reference's referee names this cleanup machine's own data,
-/// written as `&mut Guard`. The symbol identifies the storage, so the
-/// spelling is not compared.
-fn named_type_matches(
+/// Match the nominal owner and its identity application, not just its spelling
+/// or generic head. Declaration binders are implicit inputs of the owner hook;
+/// method-local binders remain forbidden. Regions keep their erased binder
+/// coordinates while type, value and callable operands use resolved symbols.
+fn owner_type_matches(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     attached_symbol: symbols::SymbolHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            named_type_matches(program, *base_type, attached_symbol)
+            owner_type_matches(program, *base_type, attached_symbol)
         }
         TypeReferenceNode::Named { symbol, .. } => {
             attached_symbol.is_valid() && *symbol == attached_symbol
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            lifetime_arguments,
+            arguments,
+            ..
+        } => {
+            let Some(owner) = program.data_definition_by_symbol(attached_symbol) else {
+                return false;
+            };
+            let parameters = program.data_type_parameters(owner);
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            *base_symbol == attached_symbol
+                && lifetime_arguments == &owner.lifetime_parameters
+                && arguments.len() == parameters.len()
+                && arguments
+                    .iter()
+                    .zip(parameters)
+                    .all(|(argument, parameter)| {
+                        match program.type_reference_table.type_reference(*argument) {
+                            TypeReferenceNode::Named { symbol, .. } => *symbol == parameter.symbol,
+                            TypeReferenceNode::ConstExpression(expression)
+                                if parameter.kind.is_const_or_value() =>
+                            {
+                                program
+                                    .expression_table
+                                    .name_path_node(*expression)
+                                    .is_some_and(|name| name.symbol == parameter.symbol)
+                            }
+                            _ => false,
+                        }
+                    })
         }
         _ => false,
     }

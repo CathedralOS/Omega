@@ -172,6 +172,7 @@ pub(super) fn build(
             facts,
             machine.symbol,
             state.symbol,
+            trace,
             structural_custody_parts(
                 coordinate,
                 source_site,
@@ -230,17 +231,25 @@ pub(super) fn with_structural_custody(
     facts: &CheckFacts,
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
+    trace: &LocalConstructionTrace,
     parts: CheckedUnitCallParts,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let mut operation = CheckedUnitEffectOperationPlan::Call(CheckedUnitCallPlan::new(parts)?);
-    let custody = validation::structural_call_custody(
+    let custody = match validation::structural_call_custody(
         program,
         facts,
         caller_machine,
         caller_state,
         &operation,
-    )
-    .ok()?;
+    ) {
+        Ok(custody) => custody,
+        Err(reason) => {
+            // Keep the owning judgment's precise refusal on the demanded
+            // body's gap instead of losing it behind the call family label.
+            trace.phase(reason);
+            return None;
+        }
+    };
     *operation.call_mut()?.structural_custody_mut()? = custody;
     Some(operation)
 }

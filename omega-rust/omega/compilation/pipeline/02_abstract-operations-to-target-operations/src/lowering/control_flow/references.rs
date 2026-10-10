@@ -1540,12 +1540,13 @@ pub(super) fn call_results(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    // Stage the complete result before publication. Independent leaves cannot
-    // duplicate an exclusive origin, even through distinct actual argument
-    // spellings. Borrowing a result does not move its parent loan.
+    // Stage the complete declared result before publication. Psi has joined
+    // the result's claim and descriptor custody, including conditional case
+    // paths. Distinct result paths may describe mutually exclusive residences
+    // of the same incoming leaf; native metadata must retain that relationship
+    // rather than treating every signature slot as simultaneously resident.
+    // Borrowing a result does not move its parent loan.
     let mut established = Vec::new();
-    let mut roots = Vec::new();
-    let mut identities = BTreeSet::new();
     let mut reference_results = Vec::new();
     for mapping in &callee_result.reference_sources {
         if mapping.sources.is_empty() || mapping.sources.windows(2).any(|pair| pair[0] >= pair[1]) {
@@ -1643,16 +1644,6 @@ pub(super) fn call_results(
             leaf.identity = (result.place, mapping.path.clone());
             leaf.reform(psi_operation, result);
         }
-        if !identities.insert(leaf.identity.clone())
-            || roots.iter().any(|(root, prior_access)| {
-                roots_overlap(root, &leaf.root)
-                    && (result_access != StructuralAccess::SharedBorrow
-                        || *prior_access != StructuralAccess::SharedBorrow)
-            })
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        roots.push((leaf.root.clone(), result_access));
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             origins: leaf.root.origins(),
@@ -1724,22 +1715,10 @@ pub(super) fn entry(
         if !contains_reference(types, parameter.structural_type) {
             continue;
         }
-        // Borrowing lends the carrier roster without transferring its permissions.
-        if parameter.multiplicity
-            != if parameter.access == StructuralAccess::Owned {
-                StructuralMultiplicity::Affine
-            } else {
-                StructuralMultiplicity::Unrestricted
-            }
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || function
-                .entry_claims
-                .iter()
-                .any(|claim| claim.input == parameter.place)
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
+        // Parameter access describes carrier storage; each leaf retains its
+        // own descriptor permission. Owned claims, refinements and cleanup
+        // coexist with that roster and do not supply or erase any leaf loan.
+        // Borrowing lends the carrier without transferring its permissions.
         let paths = leaf_paths(
             types,
             parameter.structural_type,

@@ -805,7 +805,9 @@ impl TypedTrees {
     ///
     /// A data binding is spelled `&mut Main`, `&Main` or `Main`; the
     /// ownership mode decides borrow access, not which record the binding
-    /// names, so every mode answers this the same way.
+    /// names, so every mode answers this the same way. An application names
+    /// its resolved owner too; its arguments and regions are checked separately
+    /// and do not turn an explicit parameter into an implicit receiver.
     pub(crate) fn type_reference_names_attached_data(
         &self,
         type_reference: crate::types::TypeReferenceHandle,
@@ -821,9 +823,11 @@ impl TypedTrees {
             crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 self.type_reference_names_attached_data(*base_type, attached_data_symbol)
             }
-            crate::types::TypeReferenceNode::Named { symbol, .. } => {
-                *symbol == attached_data_symbol
-            }
+            crate::types::TypeReferenceNode::Named { symbol, .. }
+            | crate::types::TypeReferenceNode::Generic {
+                base_symbol: symbol,
+                ..
+            } => *symbol == attached_data_symbol,
             _ => false,
         }
     }

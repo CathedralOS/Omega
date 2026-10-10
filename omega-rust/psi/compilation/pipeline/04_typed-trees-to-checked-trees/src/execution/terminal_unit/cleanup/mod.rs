@@ -118,16 +118,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         .zip(&structural_parameters)
         .enumerate()
     {
-        let TypeReferenceNode::Named {
-            symbol: parameter_data_symbol,
-            ..
-        } = program
-            .type_reference_table
-            .type_reference(source_parameter.type_reference)
-        else {
-            return None;
-        };
-        let parameter_data = program.data_definition_by_symbol(*parameter_data_symbol)?;
+        let parameter_data = program.closed_data_definition(source_parameter.type_reference)?;
         let parameter_shape = shapes.types.get(&checked_parameter.type_identity)?;
         if (source_parameter.is_const)
             || source_parameter.is_mutable
@@ -306,9 +297,9 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
 }
 
 /// The nominal `::drop` machine selected for a parameter's data type and its
-/// sole receiver: the named type reference's data definition owns exactly one
-/// attached checked-body `::drop` machine whose first state takes one
-/// parameter.
+/// sole explicit parameter: the closed carrier owns exactly one designated
+/// checked-body cleanup machine. Regions do not alter its layout or replace
+/// the hook identity; type arguments must already have a closed definition.
 pub(crate) fn nominal_cleanup_shape<'a>(
     program: &'a dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
@@ -317,21 +308,14 @@ pub(crate) fn nominal_cleanup_shape<'a>(
     &'a typed_trees::state::State,
     &'a typed_trees::signature::StateParameter,
 )> {
-    let TypeReferenceNode::Named {
-        symbol: parameter_data_symbol,
-        ..
-    } = program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
-    let parameter_data = program.data_definition_by_symbol(*parameter_data_symbol)?;
+    let parameter_data = program.closed_data_definition(type_reference)?;
     let cleanup_machines = program
         .machines()
         .iter()
         .filter(|candidate| {
             candidate.supply_mode == MachineSupplyMode::CheckedBody
-                && candidate.name.as_str().ends_with("::drop")
-                && candidate.attached_data_symbol == parameter_data.symbol
+                && validation::nominal_cleanup_owner(program, candidate.symbol)
+                    == Some(parameter_data.symbol)
         })
         .collect::<Vec<_>>();
     let [cleanup_machine] = cleanup_machines.as_slice() else {

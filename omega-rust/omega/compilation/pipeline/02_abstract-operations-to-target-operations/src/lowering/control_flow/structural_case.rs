@@ -10,7 +10,7 @@ use target_operations::{
     TargetScalarBlockValue, TargetStructuralCaseSource, TargetStructuralParameter,
 };
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+use terminal_psi::StructuralAccess;
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
 pub(super) fn observe(
@@ -80,11 +80,10 @@ pub(super) fn parameter_root(
 
 /// Resolve the dispatched sum. A live home dispatches as before. Otherwise the
 /// root is the function's own parameter, resolved exactly as a tag observation
-/// resolves it, and then held to the owned-arrival contract a block parameter
-/// home already meets: payload bindings read the activation's value copy, so a
-/// linear value or a qualified root has no such copy. A readable borrow is the
-/// one exception: the referent stays a caller-owned home behind the borrow
-/// pointer, so the dispatch reads tag and payload leaves through it directly.
+/// resolves it. Payload bindings retain their checked transfer paths; reading
+/// the tag grants no whole-value copy regardless of the owner's claims or
+/// refinements. A readable borrow keeps the caller-owned home behind its
+/// pointer, so dispatch reads tag and payload leaves through it directly.
 fn case_source(
     function: &AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
@@ -104,11 +103,7 @@ fn case_source(
             parameter.access,
             terminal_psi::reading_borrow_pair_pattern!()
         );
-        if !borrowed
-            || parameter.multiplicity == StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
+        if !borrowed {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let layout = super::aggregate_results::value_home_layout(
@@ -130,13 +125,9 @@ fn case_source(
         terminal_psi::reading_borrow_pair_pattern!()
     );
     if (!borrowed && declaration.access != StructuralAccess::Owned)
-        || declaration.multiplicity == StructuralMultiplicity::Linear
-        || !declaration.qualifications.is_empty()
-        || !declaration.projected_qualifications.is_empty()
         || parameter.access != declaration.access
         || parameter.multiplicity != declaration.multiplicity
         || parameter.structural_type != declaration.structural_type
-        || !parameter.projected_qualifications.is_empty()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

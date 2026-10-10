@@ -115,6 +115,9 @@ fn reference_origin_expansion_is_bounded(
 /// Arrays and guarded case fields recurse through the same stored-value tree; the
 /// owned aggregate holds each loan descriptor, never the referent's bytes.
 /// This classifier grants neither an initializer origin nor a loan lifetime.
+/// Linear settlement and nominal cleanup belong to the carrier's owned custody,
+/// not its stored descriptors. Excluding those carriers here loses their input
+/// referent identities and makes descriptor copies appear to borrow the home.
 pub fn is_reference_record(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -143,16 +146,11 @@ pub fn is_reference_record(
             return visit(program, *element_type, seen);
         }
         let data = program.closed_data_definition(reference)?;
-        let symbol = data.symbol;
         if seen.contains(&reference) {
             return None;
         }
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-            || program.type_multiplicity(reference) == Multiplicity::Linear
             || !program.data_type_parameters(data).is_empty()
-            || program.machines().iter().any(|machine| {
-                machine.attached_data_symbol == symbol && machine.name.as_str().ends_with("::drop")
-            })
         {
             return None;
         }
@@ -698,7 +696,7 @@ fn aggregate_projection(
             return None;
         }
         match program.expression_table.expression(root) {
-            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+            ExpressionNode::Member(member) => {
                 projections.push(root);
                 root = member.receiver;
             }
@@ -747,10 +745,21 @@ fn aggregate_projection(
                     data,
                     member.member_symbol,
                     member.member.as_str(),
-                    None,
+                    member.case_variant.as_ref().map(|variant| variant.as_str()),
                 )?;
                 if field.relevance.is_erased() {
                     return None;
+                }
+                // A payload projection selects its declared case namespace,
+                // not a same-named sibling field. Keep that coordinate when
+                // stripping the selected prefix from transported loan paths.
+                if let Some(variant) = facts::payload_variant_for_field(program, field.symbol) {
+                    let case = program
+                        .data_members(data)
+                        .iter()
+                        .filter_map(|member| member.as_variant())
+                        .find(|case| case.symbol == variant)?;
+                    path.push(Segment::Case(case.path_identity()));
                 }
                 path.push(Segment::Field(field.path_identity()));
                 selected = field.type_reference;

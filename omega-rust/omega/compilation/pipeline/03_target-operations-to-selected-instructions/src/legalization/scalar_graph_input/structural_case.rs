@@ -76,11 +76,7 @@ pub(in crate::legalization) fn case_source(
         .iter()
         .filter(|parameter| parameter.place == place);
     if let Some(declaration) = parameters.next() {
-        if parameters.next().is_some()
-            || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !declaration.qualifications.is_empty()
-            || !declaration.projected_qualifications.is_empty()
-        {
+        if parameters.next().is_some() {
             return Err(LegalizationError::custody());
         }
         return match declaration.access {
@@ -114,9 +110,6 @@ pub(in crate::legalization) fn case_source(
             terminal_psi::StructuralAccess::SharedBorrow
                 | terminal_psi::StructuralAccess::MutableBorrow
         )
-        || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !declaration.qualifications.is_empty()
-        || !declaration.projected_qualifications.is_empty()
     {
         return Err(LegalizationError::custody());
     }
@@ -127,18 +120,14 @@ pub(in crate::legalization) fn case_source(
     )
 }
 
-/// The inspected root's structural type: a live result home under the
-/// same empty-custody contract, or a readable function/block parameter.
+/// The inspected root's structural type: an established result or a readable
+/// function/block parameter. Inspecting a tag retains the carrier's claims,
+/// cleanup and refinements; it does not copy or dispose of that carrier.
 fn source_identity(
     function: &PsiOptimizationFunction,
     source: PlaceId,
 ) -> Result<semantic_vocabulary::StructuralTypeId, LegalizationError> {
     if let Ok((_, result)) = source_result(function, source) {
-        if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !result.claims.is_empty()
-        {
-            return Err(LegalizationError::custody());
-        }
         return Ok(result.structural_type);
     }
     let parameter = function
@@ -147,9 +136,7 @@ fn source_identity(
         .chain(function.block_structural_parameters())
         .find(|parameter| parameter.place == source)
         .ok_or(LegalizationError::custody())?;
-    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-        || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-    {
+    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
         return Err(LegalizationError::custody());
     }
     Ok(parameter.structural_type)

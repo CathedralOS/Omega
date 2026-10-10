@@ -1,4 +1,7 @@
 //! Retain primitive storage identity separately from scalar observations.
+//! Reads reconstruct one declared primitive projection without transferring
+//! its owner's claims, cleanup or descriptor loans. Whole-carrier copy rules
+//! cannot classify that observation; Psi has already checked its availability.
 use std::collections::BTreeMap;
 
 use abstract_operations::{AbstractOperation, AbstractResult};
@@ -113,24 +116,8 @@ fn owned_result(
         return None;
     }
     let result = operation.result.structural()?;
-    (result.place == place
-        && result.structural_type == structural_type
-        && matches!(
-            result.multiplicity,
-            terminal_psi::nonlinear_multiplicity_pair_pattern!()
-        )
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty()
-        && machine
-            .entry_claims
-            .iter()
-            .all(|claim| claim.input != place)
-        && machine
-            .content_entry_claims
-            .iter()
-            .all(|claim| claim.input.root != place))
-    .then_some((operation, result))
+    (result.place == place && result.structural_type == structural_type)
+        .then_some((operation, result))
 }
 
 pub(super) fn scalar_type(
@@ -220,30 +207,18 @@ pub(super) fn lower(
                         .map(|(_, result)| result.structural_type)
                 })
                 .or_else(|| {
-                    (!path.is_empty())
-                        .then(|| owned_state_parameter(machine, source))
-                        .flatten()
-                        .map(|(_, parameter)| parameter.structural_type)
-                })
-                .or_else(|| {
                     parameter(machine, source)
                         .filter(|parameter| {
-                            // A projected read observes the owned aggregate's
-                            // existing storage. An empty path still requires
-                            // a primitive referent or established local.
-                            (matches!(
+                            // Observing a primitive leaf keeps the owner's
+                            // claims, cleanup and refinements at its home.
+                            // Neither linear ownership nor stored descriptor
+                            // loans turn a read into a whole-value copy. Psi
+                            // owns availability; this stage retains readable
+                            // access and reconstructs the exact leaf geometry.
+                            matches!(
                                 parameter.access,
                                 terminal_psi::reading_borrow_pair_pattern!()
-                            ) || (parameter.access == StructuralAccess::Owned && !path.is_empty()))
-                                && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                                    || (!path.is_empty()
-                                        && parameter.multiplicity
-                                            == StructuralMultiplicity::Affine))
-                                && parameter.qualifications.is_empty()
-                                && parameter.projected_qualifications.is_empty()
-                                && super::structural_scalar_fields::has_empty_structural_custody(
-                                    machine, source,
-                                )
+                            ) || parameter.access == StructuralAccess::Owned
                         })
                         .map(|parameter| parameter.structural_type)
                 })

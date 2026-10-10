@@ -38,23 +38,10 @@ fn affine_view_carrier(
             })
 }
 
-// Inline invocation values can remain in ABI fragments without an addressable
-// home. Their no-code discard keys on the exact owned affine declaration.
-// The checked edge already selected disposal after settling live claims: a
-// type's possible guarded claims (or another parameter's claims) cannot decide
-// whether this storage exists on the selected edge.
-fn owned_arrival(function: &AbstractFunction, place: PlaceId) -> bool {
-    function
-        .structural_parameters
-        .iter()
-        .chain(function.block_structural_parameters())
-        .any(|parameter| {
-            parameter.place == place
-                && parameter.access == StructuralAccess::Owned
-                && parameter.multiplicity == StructuralMultiplicity::Affine
-        })
-}
-
+/// Rejoin the selected cleanup action to existing owned storage. The checked
+/// action stream settles claims and orders nominal hooks before descendant
+/// disposal. A linear root may therefore contain a plain residual after its
+/// hook runs; root multiplicity cannot decide that subtree's disposition.
 fn owned_root_type(
     live: &LiveDefinitions,
     function: &AbstractFunction,
@@ -66,42 +53,20 @@ fn owned_root_type(
         return Some(*structural_type);
     }
     if let Some(home) = live.structural_homes.get(&place) {
-        return (home.multiplicity() == StructuralMultiplicity::Affine
-            && home.access() == StructuralAccess::Owned)
-            .then_some(home.structural_type());
+        return (home.access() == StructuralAccess::Owned).then_some(home.structural_type());
     }
-    if owned_arrival(function, place) {
-        return function
-            .structural_parameters
-            .iter()
-            .chain(function.block_structural_parameters())
-            .find(|parameter| parameter.place == place)
-            .map(|parameter| parameter.structural_type);
+    // Incoming values can remain in ABI fragments without a materialized
+    // home. Their exact arrival declaration still names the original storage.
+    if let Some(parameter) = function
+        .arrival_parameter(place)
+        .filter(|parameter| parameter.access == StructuralAccess::Owned)
+    {
+        return Some(parameter.structural_type);
     }
     live.references.get(&(place, Vec::new())).and_then(|leaf| {
         (leaf.contract.multiplicity() == StructuralMultiplicity::Affine)
             .then_some(leaf.contract.structural_type())
     })
-}
-
-/// A nominal disposition uses the exact established owner's storage. Unlike
-/// a no-code affine discard, its claim authority remains on the cleanup action
-/// and was selected by source checking; geometry grants no consumption rights.
-/// Qualifications stay on the exact owner declaration, but do not select its
-/// storage or change an already admitted disposition.
-fn nominal_owner_type(
-    live: &LiveDefinitions,
-    function: &AbstractFunction,
-    place: PlaceId,
-) -> Option<StructuralTypeId> {
-    if let Some(home) = live.structural_homes.get(&place) {
-        return (home.access() == StructuralAccess::Owned).then(|| home.structural_type());
-    }
-    function
-        .arrival_parameter(place)
-        .filter(|parameter| parameter.access == StructuralAccess::Owned)
-        .map(|parameter| parameter.structural_type)
-        .or_else(|| owned_root_type(live, function, place))
 }
 
 fn live_home_or_arrival(
@@ -151,13 +116,18 @@ pub(super) fn plain_home_cleanup(
                 // Dominating geometry remains available to sibling edges; this
                 // marker neither disposes reserved fields nor prunes backing
                 // captured by another carrier.
-                if (nominal_owner_type(live, function, *place).is_none()
+                if owned_root_type(live, function, *place).is_none()
                     && !live.drained_loan_roots.contains(place)
-                    && !affine_view_carrier(live, function, structural_types, *place))
-                    || live.references.keys().any(|(carrier, _)| carrier == place)
+                    && !affine_view_carrier(live, function, structural_types, *place)
                 {
                     return Ok(false);
                 }
+                // Retire the carrier's remaining metadata, not its pointees.
+                // A signature roster includes inactive alternatives after a
+                // selected payload has moved; only the checked edge decides
+                // which residents owed disposition. Moved leaves and copied
+                // descriptors retain their metadata at their own homes.
+                live.references.retain(|(carrier, _), _| carrier != place);
             }
             TerminalAffineCleanupAction::DiscardRoot(place) => {
                 if live.views.contains_key(place) {
@@ -204,7 +174,7 @@ pub(super) fn plain_home_cleanup(
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
                 // The selected owner remains intact when the hook borrows it;
                 // moving a disjoint sibling does not change its storage.
-                if nominal_owner_type(live, function, cleanup.place)
+                if owned_root_type(live, function, cleanup.place)
                     .and_then(|root| structural_types.subtree(root, &cleanup.path))
                     != Some(cleanup.structural_type)
                     || !cleanup.requirement_obligations.is_empty()

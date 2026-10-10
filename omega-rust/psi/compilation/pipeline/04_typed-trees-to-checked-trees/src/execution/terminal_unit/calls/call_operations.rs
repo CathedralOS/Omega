@@ -453,6 +453,7 @@ pub(in crate::execution) fn build_call_operation(
             facts,
             machine.symbol,
             state.symbol,
+            trace,
             super::structural_result_call::structural_custody_parts(
                 coordinate,
                 source_site,

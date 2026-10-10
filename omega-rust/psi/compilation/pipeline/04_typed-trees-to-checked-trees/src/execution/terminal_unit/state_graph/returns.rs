@@ -105,6 +105,9 @@ pub(in crate::execution::terminal_unit) fn signature(
             && ((!view_result && !qualifications.is_empty())
                 || (!view_result
                     && !represented_copy
+                    && !validation::reference_result_custody::is_reference_record(
+                        program, reference,
+                    )
                     && !validation::has_contents(
                         program,
                         reference,
@@ -152,8 +155,11 @@ pub(in crate::execution::terminal_unit) fn signature(
         } else {
             (shapes.add_type(reference, &[], &[])?, multiplicity)
         };
-    // The contents judgment above owns transfer authority; ShapeCollector owns
-    // finite runtime storage. A graph result carries that same established
+    // The contents judgments above establish storage, not transfer authority.
+    // Reference-record storage may also carry linear claims and nominal
+    // cleanup: the graph's result custody rejoins these independent obligations
+    // with the retained descriptor loans. ShapeCollector owns finite runtime
+    // storage. A graph result carries that same established
     // value, not another record/sum-only vocabulary. Reclassifying fields here
     // sent mixed values and arrays into sequence-only completion, which cannot
     // retain their distinct returning edges and cleanup obligations. Erased

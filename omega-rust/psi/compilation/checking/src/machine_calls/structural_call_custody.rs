@@ -5,6 +5,11 @@
 //! callee returns there. The binding is by path because the callee may return
 //! different claims at one path on different exits; a matching type or an
 //! empty producer record cannot establish custody either way.
+//! Stored descriptor loans and owned claims are orthogonal frontiers of that
+//! same value. Their shared call join retains exact referent origins as well
+//! as returned claim paths; nominal cleanup of the carrier never owns the
+//! backing storage. A result with both frontiers needs both ordinary joins,
+//! not a separate combined-result family or a loan-free linear shortcut.
 //!
 //! Stage 04 decides each ordinary structural call's custody here once and
 //! records it in the call plan; lowering reads that record and never decides
@@ -848,11 +853,11 @@ pub fn structural_owned_path(
         ) {
             (
                 facts::PlaceSegment::Field { symbol },
-                TypeReferenceNode::Named { symbol: owner, .. },
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. },
             ) => {
-                let definition =
-                    crate::declarations::data_queries::data_definition_by_symbol(program, *owner)
-                        .ok_or("structural claim field has no exact data owner")?;
+                let definition = program
+                    .closed_data_definition(reference)
+                    .ok_or("structural claim field has no exact data owner")?;
                 let field = if let Some(fields) = payload_fields.take() {
                     fields.iter().find(|field| field.symbol == *symbol)
                 } else {
@@ -872,10 +877,10 @@ pub fn structural_owned_path(
             }
             (
                 facts::PlaceSegment::Case { variant },
-                TypeReferenceNode::Named { symbol: owner, .. },
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. },
             ) if payload_fields.is_none() => {
                 let definition = program
-                    .data_definition_by_symbol(*owner)
+                    .closed_data_definition(reference)
                     .ok_or("structural claim case has no exact data owner")?;
                 let selected = program
                     .data_members(definition)
@@ -1152,110 +1157,13 @@ pub fn structural_call_custody(
         if !result_qualifications.is_empty() && !byte_predicated {
             return Err("claim-bearing structural call has no returned claim frontier");
         }
-        // Input claims consumed at this occurrence terminate inside the
-        // callee: its checked body already accounted for every claim it was
-        // admitted with, so a claim-free result owes no returned frontier.
-        let claim_transfers = owned_argument_claim_transfers(
-            program,
-            call,
-            source_state,
-            coordinate,
-            destination,
-            *target_state,
-            structural_arguments,
-            &transfers,
-            &facts.flow.ownership.segments,
-        )?;
-        // A bare `&'a V` shared-view result is itself counted a reference
-        // record for custody, but it is no construction — its loan is the
-        // shared-borrow join, not captured leaf loans. Only results that
-        // actually owe record loans must name exact captured leaves.
-        if crate::machine_calls::reference_result_custody::local_owes_record_loans(
-            program,
-            destination.return_type,
-        ) {
-            use crate::machine_calls::reference_result_custody::record_call_reception;
-            let reception = record_call_reception(
-                program,
-                facts,
-                caller_machine,
-                source_state,
-                u32::try_from(call.statement_index)
-                    .map_err(|_| "reference record call index exceeds u32")?,
-                call.authored_expression,
-            )
-            .ok_or("reference record result has no exact captured leaf loans")?;
-            // Received leaves consume checked formation groups. Unreceived
-            // projection siblings and anonymous operands stay in the call's
-            // temporary carrier until ordinary subtree/operand disposal.
-            if !reception.residual_paths.is_empty()
-                && !crate::machine_calls::reference_result_custody::transient_call_record_loans(
-                    program,
-                    facts,
-                    caller_machine,
-                    source_state,
-                    u32::try_from(call.statement_index)
-                        .map_err(|_| "reference record call index exceeds u32")?,
-                    call.authored_expression,
-                    structural_arguments,
-                    &reception.residual_paths,
-                )
-            {
-                return Err("reference record result has no exact captured leaf loans");
-            }
-        }
-        let forwarded_reference_sources =
-            crate::machine_calls::reference_result_custody::terminal_call_reference_sources(
-                program,
-                source_state,
-                call,
-                result,
-            )
-            .unwrap_or_default();
-        let reference_loans = if !forwarded_reference_sources.is_empty() {
-            arena::HandleSpan::empty()
-        } else if crate::machine_calls::reference_result_custody::has_borrowed_parts(
-            program,
-            destination.return_type,
-        ) {
-            crate::machine_calls::reference_result_custody::result_loans(
-                program,
-                facts,
-                caller_machine,
-                source_state,
-                call,
-                result,
-            )
-            .ok_or("reference result has no exact returned ingress and loan lifetime")?
-        } else {
-            arena::HandleSpan::empty()
-        };
-        return Ok(CheckedStructuralCallCustodyPlan {
-            reference_loans,
-            forwarded_reference_sources,
-            result_qualifications,
-            claim_transfers,
-            result_claims: Vec::new(),
-        });
     }
-
-    // The result carries linear claims. Every consumed input crosses at its
-    // owned argument; the callee's checked body decides which of them, or
-    // which claims it established itself, its returning edge leaves at each
-    // claim path of the declared result type. Different exits may place
-    // different claims there (checking publishes those alternatives as
-    // conditional claim joins), so the result binds by path rather than by
-    // one callee lineage: the callee's claim at a path continues as the
-    // caller's claim at the same path.
-    if crate::machine_calls::reference_result_custody::local_owes_record_loans(
-        program,
-        destination.return_type,
-    ) || crate::machine_calls::reference_result_custody::has_borrowed_parts(
-        program,
-        destination.return_type,
-    ) {
-        return Err("claim-bearing structural result also carries a loan");
-    }
+    // Owned claims and stored loans are independent parts of one returned
+    // value. Compose their existing exact joins: neither a linear carrier
+    // nor its nominal cleanup can discard its reference frontier.
+    // Every consumed input crosses once at its owned argument. The result
+    // frontier below accounts for claims returned by the checked callee;
+    // a claim-free result owes no returned frontier.
     let claim_transfers = owned_argument_claim_transfers(
         program,
         call,
@@ -1267,14 +1175,90 @@ pub fn structural_call_custody(
         &transfers,
         &facts.flow.ownership.segments,
     )?;
-    let received = received_result_claims(
+    // A bare `&'a V` shared-view result is itself counted a reference
+    // record for custody, but it is no construction — its loan is the
+    // shared-borrow join, not captured leaf loans. Only results that
+    // actually owe record loans must name exact captured leaves.
+    if crate::machine_calls::reference_result_custody::local_owes_record_loans(
         program,
-        facts,
-        caller_machine,
-        caller_state,
-        source_state,
-        call,
-    )?;
+        destination.return_type,
+    ) {
+        use crate::machine_calls::reference_result_custody::record_call_reception;
+        let reception = record_call_reception(
+            program,
+            facts,
+            caller_machine,
+            source_state,
+            u32::try_from(call.statement_index)
+                .map_err(|_| "reference record call index exceeds u32")?,
+            call.authored_expression,
+        )
+        .ok_or("reference record result has no exact captured leaf loans")?;
+        // Received leaves consume checked formation groups. Unreceived
+        // projection siblings and anonymous operands stay in the call's
+        // temporary carrier until ordinary subtree/operand disposal.
+        if !reception.residual_paths.is_empty()
+            && !crate::machine_calls::reference_result_custody::transient_call_record_loans(
+                program,
+                facts,
+                caller_machine,
+                source_state,
+                u32::try_from(call.statement_index)
+                    .map_err(|_| "reference record call index exceeds u32")?,
+                call.authored_expression,
+                structural_arguments,
+                &reception.residual_paths,
+            )
+        {
+            return Err("reference record result has no exact captured leaf loans");
+        }
+    }
+    let forwarded_reference_sources =
+        crate::machine_calls::reference_result_custody::terminal_call_reference_sources(
+            program,
+            source_state,
+            call,
+            result,
+        )
+        .unwrap_or_default();
+    let reference_loans = if !forwarded_reference_sources.is_empty() {
+        arena::HandleSpan::empty()
+    } else if crate::machine_calls::reference_result_custody::has_borrowed_parts(
+        program,
+        destination.return_type,
+    ) {
+        crate::machine_calls::reference_result_custody::result_loans(
+            program,
+            facts,
+            caller_machine,
+            source_state,
+            call,
+            result,
+        )
+        .ok_or("reference result has no exact returned ingress and loan lifetime")?
+    } else {
+        arena::HandleSpan::empty()
+    };
+    // The result carries linear claims. Every consumed input crosses at its
+    // owned argument; the callee's checked body decides which of them, or
+    // which claims it established itself, its returning edge leaves at each
+    // claim path of the declared result type. Different exits may place
+    // different claims there (checking publishes those alternatives as
+    // conditional claim joins), so the result binds by path rather than by
+    // one callee lineage: the callee's claim at a path continues as the
+    // caller's claim at the same path.
+    let received = if result_frontier.is_empty() {
+        Vec::new()
+    } else {
+        received_result_claims(
+            program,
+            facts,
+            caller_machine,
+            caller_state,
+            source_state,
+            call,
+        )?
+    };
     let mut result_claims = Vec::with_capacity(result_frontier.len());
     for claim in &result_frontier {
         let identity = if received.is_empty() {
@@ -1301,8 +1285,8 @@ pub fn structural_call_custody(
     }
     result_claims.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(CheckedStructuralCallCustodyPlan {
-        reference_loans: arena::HandleSpan::empty(),
-        forwarded_reference_sources: Vec::new(),
+        reference_loans,
+        forwarded_reference_sources,
         result_qualifications,
         claim_transfers,
         result_claims,

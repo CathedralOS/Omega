@@ -124,11 +124,14 @@ fn validate_type(
             }
         }
         // A residual loan ends its stored descriptor, never its referent.
+        // Stored-reference catalogs keep the exact referent identity without
+        // expanding its fields: requiring a referent storage row here would
+        // reject primitive backing and recursively borrowed type families.
         CheckedUnitStructuralTypeShape::Reference {
             referent_identity,
             access,
         } if *access != checked_trees::CheckedStructuralAccess::Owned
-            && types.contains_key(referent_identity.as_str()) => {}
+            && !referent_identity.is_empty() => {}
         CheckedUnitStructuralTypeShape::Sum { cases } => {
             validate_inline_alternatives(&[], cases)?;
         }

@@ -670,15 +670,10 @@ pub(super) fn lower(
                     }))
                     .find(|parameter| {
                         parameter.place == *source
-                            && parameter.multiplicity != StructuralMultiplicity::Linear
-                            && (!path.is_empty()
-                                || parameter.multiplicity == StructuralMultiplicity::Unrestricted)
-                            && parameter.projected_qualifications.is_empty()
                             && (matches!(
                                 parameter.access,
                                 terminal_psi::reading_borrow_pair_pattern!()
-                            ) || (parameter.access == StructuralAccess::Owned
-                                && !path.is_empty()))
+                            ) || parameter.access == StructuralAccess::Owned)
                     })
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                     .structural_type
