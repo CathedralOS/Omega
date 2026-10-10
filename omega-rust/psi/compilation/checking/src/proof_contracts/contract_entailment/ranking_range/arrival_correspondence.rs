@@ -393,50 +393,12 @@ fn completed_coordinates(
                 return None;
             }
             if source.parameters.contains(&symbol) {
-                let mut completed = Vec::new();
-                for correspondence in &source.coordinates {
-                    if correspondence.destination.parameter != symbol {
-                        continue;
-                    }
-                    if let Some(suffix) = place
-                        .segments
-                        .strip_prefix(correspondence.destination.path.as_slice())
-                    {
-                        let mut entry = correspondence.entry.clone();
-                        entry.path.extend_from_slice(suffix);
-                        let value = CompletedCoordinate {
-                            relative_path: Vec::new(),
-                            entry,
-                            producer: expression,
-                            source: RankSubjectCoordinate {
-                                parameter: symbol,
-                                path: place.segments.clone(),
-                            },
-                            derivation: RankValueDerivation::CapturedCoordinate,
-                            captures: Vec::new(),
-                        };
-                        if !completed.contains(&value) {
-                            completed.push(value);
-                        }
-                    } else if let Some(suffix) = correspondence
-                        .destination
-                        .path
-                        .strip_prefix(place.segments.as_slice())
-                    {
-                        let value = CompletedCoordinate {
-                            relative_path: suffix.to_vec(),
-                            entry: correspondence.entry.clone(),
-                            producer: expression,
-                            source: correspondence.destination.clone(),
-                            derivation: RankValueDerivation::CapturedCoordinate,
-                            captures: Vec::new(),
-                        };
-                        if !completed.contains(&value) {
-                            completed.push(value);
-                        }
-                    }
-                }
-                return Some(CompletedCoordinateInventory::complete(completed));
+                return Some(completed_parameter_coordinates(
+                    source,
+                    symbol,
+                    &place.segments,
+                    expression,
+                ));
             }
             let (binding_index, _) = program.state_local_declaration(state, symbol)?;
             if binding_index >= statement_index {
@@ -624,8 +586,130 @@ fn completed_coordinates(
         | ExpressionNode::Float(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_) => Some(CompletedCoordinateInventory::complete(Vec::new())),
-        _ => None,
+        _ => completed_projected_coordinates(
+            program,
+            machine,
+            state,
+            statement_index,
+            expression,
+            source,
+            depth,
+        ),
     }
+}
+
+fn completed_parameter_coordinates(
+    source: &StateEntryCorrespondence,
+    symbol: SymbolHandle,
+    path: &[PlaceSegment],
+    expression: ExpressionHandle,
+) -> CompletedCoordinateInventory {
+    let mut completed = Vec::new();
+    for correspondence in &source.coordinates {
+        if correspondence.destination.parameter != symbol {
+            continue;
+        }
+        if let Some(suffix) = path.strip_prefix(correspondence.destination.path.as_slice()) {
+            let mut entry = correspondence.entry.clone();
+            entry.path.extend_from_slice(suffix);
+            let value = CompletedCoordinate {
+                relative_path: Vec::new(),
+                entry,
+                producer: expression,
+                source: RankSubjectCoordinate {
+                    parameter: symbol,
+                    path: path.to_vec(),
+                },
+                derivation: RankValueDerivation::CapturedCoordinate,
+                captures: Vec::new(),
+            };
+            if !completed.contains(&value) {
+                completed.push(value);
+            }
+        } else if let Some(suffix) = correspondence.destination.path.strip_prefix(path) {
+            let value = CompletedCoordinate {
+                relative_path: suffix.to_vec(),
+                entry: correspondence.entry.clone(),
+                producer: expression,
+                source: correspondence.destination.clone(),
+                derivation: RankValueDerivation::CapturedCoordinate,
+                captures: Vec::new(),
+            };
+            if !completed.contains(&value) {
+                completed.push(value);
+            }
+        }
+    }
+    CompletedCoordinateInventory::complete(completed)
+}
+
+/// Produced values use the same demanded projection query as edge arithmetic.
+/// A known equation locates exact observations; a missing equation remains an
+/// incomplete inventory and cannot authorize a fresh receiving role.
+fn completed_projected_coordinates(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    source: &StateEntryCorrespondence,
+    depth: usize,
+) -> Option<CompletedCoordinateInventory> {
+    use super::super::completed_values::{
+        CompletedValueSource, completed_value_projections_sources, declared_value_projections,
+        expression_statement_index,
+    };
+    let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
+    let projections = declared_value_projections(program, reference);
+    let observations = completed_value_projections_sources(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        reference,
+        &projections,
+    )?;
+    let mut completed = CompletedCoordinateInventory::complete(Vec::new());
+    for (projection, observations) in projections.iter().zip(observations) {
+        let terminal = !projections.iter().any(|child| {
+            child.path.len() > projection.path.len() && child.path.starts_with(&projection.path)
+        });
+        let mut complete_projection = false;
+        for observation in observations {
+            let observed = match observation {
+                CompletedValueSource::Parameter { symbol, path } => Some(
+                    completed_parameter_coordinates(source, symbol, &path, expression),
+                ),
+                CompletedValueSource::Expression(operand) => completed_coordinates(
+                    program,
+                    machine,
+                    state,
+                    expression_statement_index(program, state, operand)?,
+                    operand,
+                    source,
+                    depth + 1,
+                ),
+            };
+            let Some(observed) = observed else {
+                continue;
+            };
+            complete_projection |= observed.complete;
+            for mut value in observed.coordinates {
+                let mut path = projection.path.clone();
+                path.extend(value.relative_path);
+                value.relative_path = path;
+                value.producer = expression;
+                if !completed.coordinates.contains(&value) {
+                    completed.coordinates.push(value);
+                }
+            }
+        }
+        if terminal {
+            completed.complete &= complete_projection;
+        }
+    }
+    Some(completed)
 }
 
 fn select_completed(
@@ -656,109 +740,21 @@ fn select_completed(
 }
 
 /// Retain receiving geometry independently of operand dependency lineage.
-/// Constructor children are selected through the ordinary construction owner;
-/// array children project the destination's declared extent. This traversal
-/// records occurrences only and never evaluates a leaf or proves formation.
+/// The ordinary declared projection geometry supplies every finite location,
+/// independently of source spelling. It never evaluates a leaf or proves
+/// formation, lineage or the active case of a receiving value.
 fn completed_receiving_coordinates(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
-    path: &mut Vec<PlaceSegment>,
     receiving: &mut Vec<(Vec<PlaceSegment>, TypeReferenceHandle, ExpressionHandle)>,
-    depth: usize,
 ) -> Option<()> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
-    receiving.push((path.clone(), reference, expression));
-    match node {
-        ExpressionNode::StructLiteral(literal) => {
-            let (owner, _) = super::fields::record_referent(program, reference)?;
-            if owner != literal.type_symbol {
-                return None;
-            }
-            let mut supplied = Vec::new();
-            for field in program.expression_table.struct_fields(literal.fields) {
-                if supplied.contains(&field.field_symbol) {
-                    return None;
-                }
-                let field_type =
-                    crate::value_custody::struct_literals::selected_construction_field_type(
-                        program,
-                        literal,
-                        field.field_symbol,
-                    )?;
-                supplied.push(field.field_symbol);
-                let previous = path.len();
-                crate::value_custody::places::push_field_place_segments(
-                    program,
-                    path,
-                    field.field_symbol,
-                );
-                completed_receiving_coordinates(
-                    program,
-                    field.value,
-                    field_type,
-                    path,
-                    receiving,
-                    depth + 1,
-                )?;
-                path.truncate(previous);
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for (index, value) in program
-                .expression_table
-                .expression_handles(*values)
-                .iter()
-                .enumerate()
-            {
-                let segment = PlaceSegment::FixedIndex { index };
-                let element_type =
-                    crate::value_custody::places::project_type_reference_from_segments(
-                        program,
-                        reference,
-                        std::slice::from_ref(&segment),
-                    )?;
-                path.push(segment);
-                completed_receiving_coordinates(
-                    program,
-                    *value,
-                    element_type,
-                    path,
-                    receiving,
-                    depth + 1,
-                )?;
-                path.pop();
-            }
-        }
-        ExpressionNode::Borrow(borrow)
-            if matches!(
-                borrow.access,
-                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
-            ) =>
-        {
-            let reference =
-                crate::value_custody::places::peel_declared_constraints(program, reference);
-            let TypeReferenceNode::Reference {
-                referee, access, ..
-            } = program.type_reference_table.type_reference(reference)
-            else {
-                return None;
-            };
-            if *access == language_core::ReferenceAccess::WriteOnly {
-                return None;
-            }
-            completed_receiving_coordinates(
-                program,
-                borrow.target,
-                *referee,
-                path,
-                receiving,
-                depth + 1,
-            )?;
-        }
-        _ => {}
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    for projection in super::super::completed_values::declared_value_projections(program, reference)
+    {
+        receiving.push((projection.path, projection.type_reference, expression));
     }
     Some(())
 }
@@ -807,9 +803,7 @@ pub(super) fn discover(
                     program,
                     *actual,
                     formal.type_reference,
-                    &mut Vec::new(),
                     &mut receiving,
-                    0,
                 )
                 .is_none()
                 {

@@ -78,12 +78,14 @@
 mod arithmetic_judgment;
 mod call_requirements;
 mod citations;
+mod completed_values;
 mod const_ranges;
 mod contract_refinement;
 mod exit_coverage;
 mod fact_mentions;
 mod inductive_judgment;
 mod law_conformance;
+mod observed_projections;
 mod proof_edges;
 mod proof_integer;
 mod quotient_congruence;
@@ -96,6 +98,7 @@ pub(crate) mod specification_calls;
 mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;
+mod structural_prefix;
 mod structural_terms;
 mod transparent_applications;
 

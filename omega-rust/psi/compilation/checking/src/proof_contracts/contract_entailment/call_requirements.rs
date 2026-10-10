@@ -22,7 +22,7 @@ use super::citations::{
 use super::refuted_requires::instantiated_fact_judgment;
 use super::self_induction::intake_available_self_induction_hypotheses;
 use super::structural_case_arms::{
-    recognize_structural_case_arms, recognize_structural_state_requirement, structural_arm_judge,
+    recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
 };
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use symbols::SymbolHandle;
@@ -231,7 +231,7 @@ fn structural_requirement_at_prefix(
     }
     let mut diagnostics = Vec::new();
     let recognized = if state_prefix {
-        recognize_structural_state_requirement(
+        recognize_structural_state_prefix(
             program,
             machine,
             caller_state,
@@ -267,9 +267,17 @@ pub(super) struct CallRequirement<'program> {
     proven: bool,
 }
 
-impl CallRequirement<'_> {
+impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
+    fn site(&self) -> super::structural_prefix::StructuralPrefixSite {
+        super::structural_prefix::StructuralPrefixSite {
+            state: self.state,
+            statement_index: self.statement_index,
+            in_transition_target: self.in_transition_target,
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn visit(
+    fn visit(
         &mut self,
         program: &dyn crate::CheckingInput,
         machine: &Machine,

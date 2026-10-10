@@ -562,13 +562,12 @@ pub(crate) fn prove_ranking_range_call(
                 .position(|parameter| {
                     parameter.symbol == destination_coordinate.parameter.symbol
                 })?;
-            destination_coordinate.arrived_field(
+            destination_coordinate.field_actual(
                 program,
                 caller.machine,
                 source,
                 &mut engine,
                 arguments[position],
-                destination_coordinate.borrowed,
             )?
         }
         _ => rank_coordinate(program, caller.machine, &mut engine, destination_measure)?,
@@ -818,14 +817,9 @@ fn bind_destination_fields(
                 ) && let Some(position) = typed_trees::signature::state_parameter_position(
                     program.state_parameters(destination),
                     coordinate.parameter.symbol,
-                ) && let Some(actual) = coordinate.arrived_field(
-                    program,
-                    machine,
-                    source,
-                    engine,
-                    arguments[position],
-                    coordinate.borrowed,
-                ) && !engine.bind_strict_projection(expression, actual)
+                ) && let Some(actual) =
+                    coordinate.field_actual(program, machine, source, engine, arguments[position])
+                    && !engine.bind_strict_projection(expression, actual)
                 {
                     return None;
                 }

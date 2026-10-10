@@ -407,72 +407,6 @@ impl<'program> Coordinate<'program> {
         comparisons
     }
 
-    /// The value this coordinate holds after `expression` arrives in its
-    /// formal: the formal itself forwarded, a record carrier behind the
-    /// destination's `&` or a member-target `p.f` whose projection prefix
-    /// lands on this coordinate's root, or the literal chain rebuilt
-    /// declaration by declaration down to the field. `arrival_borrowed` is
-    /// the destination formal's own reference boundary, so a borrowed arrival
-    /// unwraps one `&` no matter how the source slot stored its record. A
-    /// forward of the exact prefix projection at any depth keeps the
-    /// remaining chain's current value; a literal of another declaration, a
-    /// foreign record, or a missing step is not this coordinate.
-    pub(super) fn field_actual(
-        &self,
-        program: &dyn crate::CheckingInput,
-        machine: &Machine,
-        state: &State,
-        engine: &mut Engine<'_>,
-        expression: ExpressionHandle,
-        arrival_borrowed: bool,
-    ) -> Option<Polynomial> {
-        if let Some(coordinate) =
-            self.field_actual_coordinate(program, state, expression, arrival_borrowed)
-        {
-            return Some(coordinate.value());
-        }
-        let mut current = expression;
-        if arrival_borrowed {
-            // An owned actual into a borrowed formal has no reference boundary
-            // to read through; only a `&` spelling reaches the record the
-            // destination denotes.
-            let Some(borrow) = program.expression_table.borrow_expression(current) else {
-                return None;
-            };
-            current = borrow.target;
-        }
-        let mut owner = self.root;
-        for (depth, field) in self.steps.iter().chain([&self.field]).enumerate() {
-            if depth > 0
-                && let Some((carrier, prefix)) = rooted_carrier(program, state, current)
-            {
-                // `current` names the record this step reads through a
-                // carrier instead of a literal: a formal forward or a member
-                // projection inside the rebuilt record. Its prefix must land
-                // on the record the chain expects at this step; the remaining
-                // chain then resolves under the carrier's own declaration, so
-                // a forward of this coordinate's own prefix keeps this
-                // coordinate itself.
-                return self
-                    .through_carrier_at(program, carrier, &prefix, owner, depth)
-                    .map(|coordinate| coordinate.value());
-            }
-            current = unique_literal_field(program, current, owner, field.symbol, &field.name)?;
-            if let Some((next, _)) = record_referent(program, field.type_reference) {
-                owner = next;
-            }
-        }
-        // A literal's leaf may itself be a quotient, remainder, or exact
-        // shift over caller inputs: mint each non-polynomial operand-pair
-        // atom the same way a bare scalar actual's terms are bound, so the
-        // leaf normalization keeps both operands' identity instead of
-        // refusing the term.
-        super::meanings::install_nonpolynomial_terms(program, machine, state, engine, current, 0)?;
-        super::meanings::builtin(program, machine, state, current, 0)?;
-        let value = engine.normalize(current)?;
-        endpoint_lands_under(engine, program, machine, state, current, &value).then_some(value)
-    }
-
     /// The exact coordinate `expression` installs for this chain when the
     /// actual itself denotes a record carrier: this formal forwarded, a
     /// same-record sibling behind the destination's `&`, or a member-target
@@ -502,74 +436,69 @@ impl<'program> Coordinate<'program> {
         self.through_carrier(program, carrier, &prefix)
     }
 
-    /// The coordinate this chain reads through `carrier`'s member `prefix`:
-    /// `p.f` (or a bare formal) denotes a record, and this coordinate's chain
-    /// resumes there once the prefix lands on this coordinate's own root
-    /// record. Each prefix step must resolve to an exact record, directly
-    /// or through a readable reference; slices and primitives cannot carry it.
-    /// The value `expression` installs for this coordinate's chain when it
-    /// arrives at ANOTHER formal of the same record -- a cross-machine call
-    /// actual, where `self.parameter` is the callee's formal rather than the
-    /// carrier named here. A bare forward or a member actual re-resolves the
-    /// chain behind the actual's own resolved prefix; a borrow unwraps the
-    /// destination formal's `&`; a literal is rebuilt declaration by
-    /// declaration. Every carrier route still requires the exact record this
-    /// coordinate's chain starts at: a same-shaped record elsewhere in the
-    /// actual's projection is not its carrier.
-    /// Resolving a source coordinate also installs its store-enforced field
-    /// bounds. A caller may forward a whole record without spelling this leaf;
-    /// the callee's demanded projection must still read the source's bounded
-    /// value. These are caller declaration facts, never callee requirements.
-    pub(super) fn arrived_field(
+    /// Read this exact declared field from the completed actual. The shared
+    /// normal-return owner handles formals, constructors, saved values and
+    /// produced results. Source declaration bounds and arithmetic formation
+    /// are established here; the destination's requirements supply no facts.
+    pub(super) fn field_actual(
         &self,
-        program: &'program dyn crate::CheckingInput,
+        program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         engine: &mut Engine<'_>,
         expression: ExpressionHandle,
-        arrival_borrowed: bool,
     ) -> Option<Polynomial> {
-        let mut current = expression;
-        if arrival_borrowed
-            && let ExpressionNode::Borrow(borrow) = program.expression_table.expression(current)
-        {
-            // `&x` supplies the record `x` denotes; an actual already behind a
-            // reference arrives as its own carrier without a borrow node.
-            current = borrow.target;
-        }
-        if let Some((carrier, prefix)) = rooted_carrier(program, state, current) {
-            let coordinate = self.through_carrier(program, carrier, &prefix)?;
-            return engine
-                .install_hypotheses(coordinate.field_comparisons(program))
-                .then(|| coordinate.value());
-        }
-        let mut owner = self.root;
-        for (depth, field) in self.steps.iter().chain([&self.field]).enumerate() {
-            if depth > 0
-                && let Some((carrier, prefix)) = rooted_carrier(program, state, current)
-            {
-                // As in `actual`: a literal field value may itself name a
-                // record through a carrier's projection prefix; the prefix
-                // must land on the record this chain expects at this step
-                // before the remaining steps resume under its declaration.
-                let coordinate =
-                    self.through_carrier_at(program, carrier, &prefix, owner, depth)?;
-                return engine
-                    .install_hypotheses(coordinate.field_comparisons(program))
-                    .then(|| coordinate.value());
+        use super::super::completed_values::{
+            CompletedValueSource, completed_value_projection_sources, expression_statement_index,
+        };
+        let statement_index = expression_statement_index(program, state, expression)?;
+        let reference =
+            crate::expression_result_type_reference(program, machine, state, expression)?;
+        let path = self.location(program).path;
+        let sources = completed_value_projection_sources(
+            program,
+            machine,
+            state,
+            statement_index,
+            expression,
+            reference,
+            &path,
+        )?;
+        for source in sources {
+            match source {
+                CompletedValueSource::Parameter { symbol, path } => {
+                    let location = super::RankSubjectCoordinate {
+                        parameter: symbol,
+                        path,
+                    };
+                    let Some(coordinate) =
+                        Self::at_coordinate(program, state, &location, CoordinateKind::Field)
+                    else {
+                        continue;
+                    };
+                    if engine.install_hypotheses(coordinate.field_comparisons(program)) {
+                        return Some(coordinate.value());
+                    }
+                }
+                CompletedValueSource::Expression(source) => {
+                    if super::meanings::install_nonpolynomial_terms(
+                        program, machine, state, engine, source, 0,
+                    )
+                    .is_none()
+                        || super::meanings::builtin(program, machine, state, source, 0).is_none()
+                    {
+                        continue;
+                    }
+                    let Some(value) = engine.normalize(source) else {
+                        continue;
+                    };
+                    if endpoint_lands_under(engine, program, machine, state, source, &value) {
+                        return Some(value);
+                    }
+                }
             }
-            current = unique_literal_field(program, current, owner, field.symbol, &field.name)?;
-            if let Some((next, _)) = record_referent(program, field.type_reference) {
-                owner = next;
-            }
         }
-        // As in `actual`: a rebuilt literal's leaf may spell a runtime
-        // quotient, remainder, or exact shift, so each non-polynomial
-        // operand-pair atom is minted before the leaf normalizes.
-        super::meanings::install_nonpolynomial_terms(program, machine, state, engine, current, 0)?;
-        super::meanings::builtin(program, machine, state, current, 0)?;
-        let value = engine.normalize(current)?;
-        endpoint_lands_under(engine, program, machine, state, current, &value).then_some(value)
+        None
     }
 }
 

@@ -529,14 +529,9 @@ fn prove(
     for (field, argument, value) in field_actuals {
         let actual = match value {
             Some(value) => value,
-            None => field.field_actual(
-                program,
-                caller,
-                caller_state,
-                &mut source_engine,
-                argument,
-                field.borrowed,
-            )?,
+            None => {
+                field.field_actual(program, caller, caller_state, &mut source_engine, argument)?
+            }
         };
         substitutions.insert(field.identity.clone(), actual);
     }

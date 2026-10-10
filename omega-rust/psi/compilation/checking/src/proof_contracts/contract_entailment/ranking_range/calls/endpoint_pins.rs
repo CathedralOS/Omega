@@ -657,14 +657,7 @@ fn actual_value(
                 coordinate,
                 CoordinateKind::Field,
             )?;
-            field.arrived_field(
-                program,
-                source.machine,
-                source.state,
-                engine,
-                actual,
-                field.borrowed,
-            )
+            field.field_actual(program, source.machine, source.state, engine, actual)
         }
         ValueKind::Length => {
             let slice = lengths::SliceCoordinate::at_coordinate(

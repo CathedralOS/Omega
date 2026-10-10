@@ -629,6 +629,7 @@ impl<'program> StructuralJudge<'program> {
             (
                 StructuralTerm::Application { .. }
                 | StructuralTerm::CapturedValue { .. }
+                | StructuralTerm::Projection { .. }
                 | StructuralTerm::ScalarBinary { .. },
                 _,
             ) => {
@@ -640,6 +641,7 @@ impl<'program> StructuralJudge<'program> {
                 _,
                 StructuralTerm::Application { .. }
                 | StructuralTerm::CapturedValue { .. }
+                | StructuralTerm::Projection { .. }
                 | StructuralTerm::ScalarBinary { .. },
             ) => {
                 if !term_contains(&left, &right) {
@@ -828,10 +830,26 @@ impl<'program> StructuralJudge<'program> {
                     return resolved;
                 }
                 StructuralTerm::Projection { subject, path } => {
-                    return StructuralTerm::Projection {
-                        subject: Box::new(self.resolve_at(*subject, depth + 1)),
-                        path,
+                    let subject = self.resolve_at(*subject, depth + 1);
+                    let resolved = StructuralTerm::Projection {
+                        subject: Box::new(subject.clone()),
+                        path: path.clone(),
                     };
+                    if let Some((_, replacement)) =
+                        self.rewrites.iter().find(|(source, _)| *source == resolved)
+                    {
+                        term = replacement.clone();
+                        continue;
+                    }
+                    if let Some(value) = path
+                        .split('.')
+                        .try_fold(subject, super::observed_projections::project_field)
+                        && value != resolved
+                    {
+                        term = value;
+                        continue;
+                    }
+                    return resolved;
                 }
                 StructuralTerm::ScalarBinary {
                     references,
@@ -1196,43 +1214,10 @@ impl<'program> StructuralJudge<'program> {
         field_name: &str,
         depth: usize,
     ) -> Option<StructuralTerm> {
-        match self
-            .resolve_at(receiver_term, depth + 1)
-            .into_semantic_value()
-        {
-            StructuralTerm::Constructor { fields, .. } => fields
-                .iter()
-                .find(|(name, _)| name == field_name)
-                .map(|(_, term)| term.clone()),
-            // A field read off a SYMBOLIC receiver names the caller's
-            // possibly nested place in the shared Opaque vocabulary --
-            // exactly how the caller-side termifier spells `a.num.neg`
-            // (display name), so citations over the same place line up.
-            StructuralTerm::Variable(name) => {
-                Some(StructuralTerm::Opaque(format!("{name}.{}", field_name)))
-            }
-            StructuralTerm::Opaque(inner) => {
-                Some(StructuralTerm::Opaque(format!("{inner}.{}", field_name)))
-            }
-            StructuralTerm::BoundValue(subject) => Some(StructuralTerm::BoundProjection {
-                subject,
-                path: field_name.to_owned(),
-            }),
-            StructuralTerm::BoundProjection { subject, path } => {
-                Some(StructuralTerm::BoundProjection {
-                    subject,
-                    path: format!("{path}.{}", field_name),
-                })
-            }
-            StructuralTerm::Integer(_)
-            | StructuralTerm::Float(_)
-            | StructuralTerm::CapturedValue { .. }
-            | StructuralTerm::ObservedValue { .. }
-            | StructuralTerm::Projection { .. }
-            | StructuralTerm::ScalarBinary { .. }
-            | StructuralTerm::Application { .. }
-            | StructuralTerm::CallProjection { .. } => None,
-        }
+        super::observed_projections::project_field(
+            self.resolve_at(receiver_term, depth + 1),
+            field_name,
+        )
     }
 
     /// Form an expression under its actual declaring machine/state before
@@ -1298,10 +1283,8 @@ impl<'program> StructuralJudge<'program> {
                         || super::structural_terms::static_call_receiver(program, call))
                     && call.evidence_arguments.is_empty()
                     && call.static_requirement_dispatch.is_none()
+                    && !self.runtime_body_values
                 {
-                    if self.runtime_body_values {
-                        return None;
-                    }
                     let arguments = program
                         .expression_table
                         .expression_handles(call.arguments)

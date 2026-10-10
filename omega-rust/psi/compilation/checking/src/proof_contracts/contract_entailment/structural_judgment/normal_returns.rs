@@ -37,6 +37,12 @@ type ValueScope<'scope> = (
 );
 
 impl<'program> StructuralJudge<'program> {
+    pub(in crate::proof_contracts::contract_entailment) fn completed_expression_values(
+        &self,
+    ) -> &[(ExpressionHandle, StructuralTerm)] {
+        &self.normal_results
+    }
+
     /// Project normal outcomes under their own invocation facts. Every eager
     /// operand executes in order; selective operands fork the same path owner.
     /// No branch's hypotheses are donated to a different normal outcome.
@@ -283,12 +289,34 @@ impl<'program> StructuralJudge<'program> {
         });
         let mut contexts = vec![(self, Vec::new())];
         for child in children_to_evaluate {
+            // Constructor operands land in their selected field declaration,
+            // rather than inheriting the aggregate's carrier. This is the
+            // same qualification retained by the construction owner and lets
+            // anonymous arithmetic form under its actual receiving field.
+            let child_reference = if let ExpressionNode::StructLiteral(literal) = node {
+                program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .find(|field| field.value == child)
+                    .and_then(|field| {
+                        crate::value_custody::struct_literals::selected_construction_field_type(
+                            program,
+                            literal,
+                            field.field_symbol,
+                        )
+                    })
+                    .unwrap_or(scope.2)
+            } else {
+                scope.2
+            };
+            let child_scope = (scope.0, scope.1, child_reference);
             let mut next = Vec::new();
             for (context, inputs) in contexts {
                 for path in context.evaluate_normal_paths(
                     child,
                     environment,
-                    scope,
+                    child_scope,
                     depth + 1,
                     requested_call,
                     entries,

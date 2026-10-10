@@ -752,7 +752,7 @@ fn arrival_scalar_actual(
         destination,
         coordinate::CoordinateKind::Field,
     )?;
-    coordinate.field_actual(program, machine, state, engine, actual, coordinate.borrowed)
+    coordinate.field_actual(program, machine, state, engine, actual)
 }
 
 fn arrival_length_actual(

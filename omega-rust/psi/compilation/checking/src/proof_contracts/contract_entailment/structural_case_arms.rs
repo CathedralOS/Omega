@@ -4,7 +4,8 @@
 //! normal-return path. Earlier expressions only advance that path's facts;
 //! named state transfers retain their captured arguments and entry subjects.
 
-use super::call_requirements::{CallRequirement, establish_citation};
+use super::call_requirements::establish_citation;
+use super::structural_prefix::StructuralPrefixVisitor;
 use crate::proof_contracts::contract_entailment::citations::{
     CitationFacts, CitationTarget, citation_argument_types, citation_call_in_statement,
     instantiate_citation, is_citation_statement,
@@ -227,7 +228,7 @@ pub(crate) fn recognize_structural_case_arms(
     judge: &StructuralJudge<'_>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
-    mut requirement: Option<&mut CallRequirement<'_>>,
+    mut requirement: Option<&mut dyn StructuralPrefixVisitor>,
 ) -> Option<Vec<StructuralCaseArm>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
@@ -268,14 +269,14 @@ pub(crate) fn recognize_structural_case_arms(
 /// independently establish that state's Requires; only preceding statements
 /// and completed operands can contribute facts at this exact call occurrence.
 /// The same path walker stops there, so no recurrent successor is unrolled.
-pub(super) fn recognize_structural_state_requirement(
+pub(super) fn recognize_structural_state_prefix(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
     judge: &StructuralJudge<'_>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
-    requirement: &mut CallRequirement<'_>,
+    requirement: &mut dyn StructuralPrefixVisitor,
 ) -> Option<Vec<StructuralCaseArm>> {
     let parameters = program.state_parameters(state);
     let parameter_names = parameters
@@ -324,7 +325,7 @@ fn recognize_structural_state_leaves(
     collect_citations: bool,
     path: &mut Vec<SymbolHandle>,
     fresh: &mut usize,
-    requirement: &mut Option<&mut CallRequirement<'_>>,
+    requirement: &mut Option<&mut dyn StructuralPrefixVisitor>,
     established_guarantees: CitationFacts,
 ) -> Option<Vec<StructuralCaseArm>> {
     recognize_structural_state_leaves_from(
@@ -366,7 +367,7 @@ fn recognize_structural_state_leaves_from(
     collect_citations: bool,
     path: &mut Vec<SymbolHandle>,
     fresh: &mut usize,
-    requirement: &mut Option<&mut CallRequirement<'_>>,
+    requirement: &mut Option<&mut dyn StructuralPrefixVisitor>,
     mut established_guarantees: CitationFacts,
     start_index: usize,
 ) -> Option<Vec<StructuralCaseArm>> {
@@ -391,9 +392,9 @@ fn recognize_structural_state_leaves_from(
                 continue;
             }
             if let Some(requirement) = requirement.as_deref_mut()
-                && requirement.state == state.symbol
-                && requirement.statement_index == statement_index
-                && (!requirement.in_transition_target
+                && requirement.site().state == state.symbol
+                && requirement.site().statement_index == statement_index
+                && (!requirement.site().in_transition_target
                     || !matches!(statement, StatementNode::Transition(_)))
             {
                 requirement.visit(
@@ -709,9 +710,9 @@ fn recognize_structural_state_leaves_from(
             }
 
             if let Some(requirement) = requirement.as_deref_mut()
-                && requirement.state == state.symbol
-                && requirement.statement_index == statement_index
-                && requirement.in_transition_target
+                && requirement.site().state == state.symbol
+                && requirement.site().statement_index == statement_index
+                && requirement.site().in_transition_target
             {
                 requirement.visit(
                     program,

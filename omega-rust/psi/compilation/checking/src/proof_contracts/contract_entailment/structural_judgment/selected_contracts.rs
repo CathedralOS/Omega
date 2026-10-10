@@ -397,6 +397,42 @@ pub(super) fn bound_term(
             }
             None
         }
+        ExpressionNode::Member(member) => {
+            let reference = crate::parameter_expression_result_type_reference(
+                program,
+                scope,
+                parameters,
+                member.receiver,
+            )?;
+            let owner = crate::value_custody::type_shapes::head_data_symbol(program, reference)?;
+            let data = program.data_definition_by_symbol(owner)?;
+            let field = crate::value_custody::places::exact_data_member_field(
+                program,
+                data,
+                member.member_symbol,
+                member.member.as_str(),
+                member.case_variant.as_ref().map(|case| case.as_str()),
+            )?;
+            let value = bound_term(
+                program,
+                member.receiver,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                result,
+                depth + 1,
+            )?;
+            let mut path = Vec::new();
+            crate::value_custody::places::push_field_place_segments(
+                program,
+                &mut path,
+                field.symbol,
+            );
+            super::super::observed_projections::project_observed_value(
+                program, reference, value, &path,
+            )
+        }
         ExpressionNode::Call(call) => {
             let selected = selected_call_contract_for_parameters(program, call, scope, parameters)?;
             let arguments = program
