@@ -4924,3 +4924,6 @@ fail/ownership/generic_linear_constructor_second_transfer rejected 398ms expecte
 	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 pass/generics/runtime_linear_constructor_instances_exit checked 3941ms check-target:macos_arm64 @fa00de23974b+wt
 pass/ownership/runtime_generic_linear_case_restore_exit checked 3946ms check-target:macos_arm64 @fa00de23974b+wt
+pass/generics/runtime_borrowed_value_inference_exit checked 3960ms check-target:macos_arm64 @8303fccd7077
+fail/ownership/generic_borrowed_value_retains_backing_loan rejected 579ms expected @8303fccd7077
+	statement 2 mutates `backing` while local borrow `token` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)

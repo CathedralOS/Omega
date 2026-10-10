@@ -660,7 +660,7 @@ defines the complete product bar.
     `runtime_linear_constructor_instances_exit` (0) for fresh and forwarded
     conserved claims, applied-owner cleanup and scalar-leaf observation;
     `runtime_borrowed_value_inference_exit` (0) constrains direct borrowed
-    arguments through generic carriers without a result-type inference hint.
+    argument inference and lifetime-tagged reborrows through generic calls.
     Keep `fail/ownership/linear_case_result_second_transfer` and
     `generic_linear_constructor_{second_transfer,keeps_backing_loan}` for
     exact-once returned custody and retained backing loans, including
