@@ -4950,3 +4950,13 @@ pass/proofs/proposition_reference_operand_application checked 428ms @e93a3250858
 pass/targets/runtime_family_applied_nominal_visitor_exit checked 2549ms check-target:macos_arm64 @e93a32508581+wt
 pass/traits/applied_nominal_callback_proposition_contract checked 428ms @e93a32508581+wt
 pass/traits/applied_nominal_callback_scopes_exit checked 2458ms check-target:macos_arm64 @e93a32508581+wt
+fail/generics/static_callable_excess_local_type_argument rejected 252ms expected @f08249213499
+	call `Routine` has an invalid static type argument correspondence
+fail/generics/static_callable_local_type_argument_wrong_value rejected 252ms expected @f08249213499
+	argument `value` for state `Routine` expects `Context`, got `integer literal`
+fail/generics/static_callable_unused_local_type_argument_missing rejected 215ms expected @f08249213499
+	call `Routine` has an invalid static type argument correspondence
+fail/traits/nominal_invocation_type_argument_not_reselected rejected 187ms expected @f08249213499
+	machine argument `wrong_context` for `Routine` does not refine `Callback`: parameter 1 expects `Context`, got `bool`
+pass/generics/static_callable_local_type_argument_exit checked 2559ms check-target:macos_arm64 @f08249213499
+pass/traits/applied_nominal_callback_closed_local_types_exit checked 2563ms check-target:macos_arm64 @f08249213499
