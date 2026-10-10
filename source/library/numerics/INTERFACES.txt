@@ -1,0 +1,4 @@
+W100 shared numerics interface registry. NF01 owns package metadata.
+NF01 arrays::shape_layout_contract: Layout2, IndexResult, try_offset,
+valid_readonly, valid_mutable, transpose, read_checked, try_read, try_write.
+Other owners propose exports here; NF02 numeric policy is independently owned.
