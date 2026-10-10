@@ -8,6 +8,11 @@
 //! store may not introduce one that the value does not already carry. This
 //! checker operates on binding qualifications, not flow-proved membership, so
 //! stronger prover knowledge never changes expression meaning.
+//! Integer value delivery already checks carrier and arithmetic policy together
+//! in `check_narrowing_assignment`. Leave that atom to its single conversion
+//! diagnostic when both surfaces are integer values. References and other
+//! carriers still need this check; declared semantic and provenance atoms are
+//! independent obligations even at an integer delivery.
 
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
@@ -121,12 +126,26 @@ pub(crate) fn validate_argument_domain_weakening(
     }
     let mut target = Vec::new();
     append_type_atoms(program, target_type, &mut target, &mut Vec::new());
+    let integer_delivery = program
+        .primitive_type_reference(target_type)
+        .and_then(crate::proof_contracts::arithmetic_domains::integer_bit_width)
+        .is_some()
+        && state
+            .and_then(|state| {
+                crate::value_custody::expression_types::expression_result_type_reference(
+                    program, machine, state, value,
+                )
+            })
+            .and_then(|reference| program.primitive_type_reference(reference))
+            .and_then(crate::proof_contracts::arithmetic_domains::integer_bit_width)
+            .is_some();
     let premises = callee_parameter
         .map(|parameter| parameter_premise_atoms(program, parameter))
         .unwrap_or_default();
 
     let dropped = source
         .iter()
+        .filter(|atom| !(integer_delivery && matches!(atom, DomainAtom::Arithmetic(_))))
         .filter(|atom| !(retains_float_result_policy && matches!(atom, DomainAtom::Arithmetic(_))))
         .filter(|atom| atom_requires_explicit_removal(program, atom))
         // A domain the callee states as a `requires` premise about this exact

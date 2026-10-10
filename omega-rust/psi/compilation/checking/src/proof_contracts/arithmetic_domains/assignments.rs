@@ -164,8 +164,18 @@ pub(crate) fn check_narrowing_assignment(
             || source_domain.is_some_and(|domain| domain != target_domain))
     {
         let target_spelling = carrier_spelling(primitive, Some(target_domain));
+        // One carrier diagnostic owns integer policy removal as well. Retain
+        // its domain-weakening classification without a second report for the
+        // same conversion; semantic/provenance atoms remain separate checks.
+        let weakening = if source_domain
+            .is_some_and(|domain| domain != ArithmeticDomain::Exact && domain != target_domain)
+        {
+            " (implicit domain weakening)"
+        } else {
+            ""
+        };
         diagnostics.push(Diagnostic::error(format!(
-            "store in {owner} implicitly converts `{}` to `{target_spelling}`; a typed \
+            "store in {owner} implicitly converts `{}` to `{target_spelling}`{weakening}; a typed \
              value keeps its type and arithmetic policy -- spell the conversion with \
              `as` (for example `expr as {target_spelling}`)",
             carrier_spelling(source_primitive, source_domain),

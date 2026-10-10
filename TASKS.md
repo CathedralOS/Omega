@@ -4699,8 +4699,14 @@ wait for Cathedral's instruction coverage. The interpreter is
     value fits. Widening, signedness, float-format and policy add/drop all stay
     rejected; anonymous literal landing stays distinct. Exact `as` requires
     representability; diagnostics must not present it as unchecked truncation.
-  - Remaining defect: duplicate conversion/weakening reports and cascades after
-    a primary type, suffix or unresolved-name error. Coordinate
+  - Resolved fixed-integer value deliveries leave arithmetic-policy refusal to
+    the shared carrier check, including local/field/array stores, arguments and returns;
+    `fail/arithmetic/implicit_integer_policy_erasure_rejected` pins one
+    conversion report per occurrence. Semantic/provenance atoms, reference
+    qualifications and float policy still retain their own obligations.
+    Remaining: diagnostic cascades after a primary type, suffix or
+    unresolved-name error and duplicate non-integer or unresolved deliveries.
+    Coordinate
     `omega-rust/psi/compilation/checking/src/program_validation/statements/`,
     `omega-rust/psi/compilation/checking/src/machine_calls/calls/argument_bounds.rs`
     and `omega-rust/psi/compilation/checking/src/proof_contracts/domain_weakening.rs`.

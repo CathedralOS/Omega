@@ -106,9 +106,8 @@ fail/arithmetic/fractional_integer_operand rejected 256ms expected @2d8ed253669f
 	anonymous operand `4097/2` is not an integer in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	anonymous operand `4097/2` cannot land exactly in `i32` in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	exact arithmetic in machine `value` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/arithmetic/full_width_literal_requires_explicit_policy_conversion rejected 218ms expected @d0e40a213f35
-	store in machine `invalid` state `entry` argument `value` implicitly converts `u64 in Saturating` to `u64`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u64`)
-	implicit domain weakening in argument `value` for state `exact::entry` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/arithmetic/full_width_literal_requires_explicit_policy_conversion rejected 613ms expected @998724fc21b1+wt
+	store in machine `invalid` state `entry` argument `value` implicitly converts `u64 in Saturating` to `u64` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u64`)
 fail/arithmetic/full_width_literal_requires_representable_carrier rejected 217ms expected @d0e40a213f35
 	literal `18446744073709551615` does not fit its `i64` suffix -- a width suffix chooses the literal's type at the spelling, and the spelled value must fit that type's range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)
 	literal `18446744073709551615` does not fit its `u8` suffix -- a width suffix chooses the literal's type at the spelling, and the spelled value must fit that type's range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)
@@ -127,6 +126,13 @@ fail/arithmetic/implicit_call_result_policy_change_rejected rejected 604ms expec
 	store in machine `main` state `entry` local `saturating` implicitly converts `u32` to `u32 in Saturating`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Saturating`)
 	store in machine `main` state `entry` local `trapping` implicitly converts `u32` to `u32 in Trapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Trapping`)
 	store in machine `main` state `entry` local `guaranteed` implicitly converts `u32` to `u32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
+fail/arithmetic/implicit_integer_policy_erasure_rejected rejected 580ms expected @998724fc21b1+wt
+	store in construction of `Values` field `number` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+	store in machine `erase` state `entry` terminal expression implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+	store in machine `main` state `entry` local `plain` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+	store in machine `main` state `entry` argument `value` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+	store in array literal element of type `u32` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+	store in machine `main` state `entry` assignment implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 fail/arithmetic/implicit_store_call_result_conversion_rejected rejected 127ms expected @d9720a4fa49b+wt
 	state `roll` expects 1 argument(s), got 0
 	exact arithmetic in machine `Main::main` state `main` assignment may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `roll(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u32 in Wrapping`).
@@ -189,16 +195,14 @@ fail/arithmetic/transitive_bit_guard_missing_arrival rejected 233ms expected @04
 fail/arithmetic/transitive_bit_guard_nonstrict_count rejected 235ms expected @04ef5a694099+wt
 	exact arithmetic in machine `bit` state `calculate` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	shift count in machine `bit` state `calculate` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
-fail/arithmetic/undeclared_bare_name_rejected rejected 299ms expected @2d8ed253669f
+fail/arithmetic/undeclared_bare_name_rejected rejected 799ms expected @998724fc21b1+wt
 	machine `Main::main` state `main` uses `undeclared_var`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
-	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/arithmetic/unequal_observations_do_not_compose rejected 195ms expected @04ef5a694099+wt
 	partial exact division in machine `quotient` state `calculate` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-fail/arithmetic/unknown_field_write_rejected rejected 249ms expected @2d8ed253669f
+fail/arithmetic/unknown_field_write_rejected rejected 811ms expected @998724fc21b1+wt
 	machine `Main::main` state `main` assignment: data `Main` has no field `cont` (check the spelling of the field name)
-	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
-	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/arithmetic/unqualified_case_value_rejected rejected 39ms expected @2d8ed253669f
 	case value `On` requires its carrier-qualified `Type::On` path
 fail/arithmetic/wrapping_guard_does_not_bound_original rejected 264ms expected @cba4ef8c9ab1
@@ -213,9 +217,8 @@ fail/arithmetic/zii_range_excludes_zero_rejected rejected 283ms expected @693920
 fail/arrays/borrowed_array_call_argument_wrong_extent rejected 227ms expected @7a112c8923bd+wt
 	machine `main` state `entry` assigns an array literal with 1 element(s) to a `[_; 2]` place; a fixed-array literal must supply exactly 2 element(s)
 	argument `receipts` for state `entry` expects `&[Receipt; 2]`, got `array literal`
-fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 236ms expected @d0e40a213f35
-	implicit domain weakening in array literal element drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
+fail/arrays/qualified_array_literal_rejects_element_policy_conversion rejected 662ms expected @998724fc21b1+wt
+	store in array literal element of type `u32` implicitly converts `u32 in Saturating` to `u32 in Wrapping` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
 fail/atomics/atomic_compare_exchange_failure_stronger_rejected rejected 3ms expected @2d8ed253669f
 	tests/omega/fail/atomics/atomic_compare_exchange_failure_stronger_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
 fail/atomics/atomic_load_publish_ordering_rejected rejected 0ms expected @2d8ed253669f
@@ -742,10 +745,9 @@ fail/calls/float_bound_requires_argument_rejected rejected 395ms expected @2d8ed
 	machine `Main::main` state `main` value call to `Main::pick` violates required fact `d > 5.0`: the instantiated fact is structurally false
 fail/calls/free_machine_named_transition_rejected rejected 279ms expected @2d8ed253669f
 	unsupported transition target `scan`
-fail/calls/immutable_arg_for_mut_param_rejected rejected 332ms expected @2d8ed253669f
+fail/calls/immutable_arg_for_mut_param_rejected rejected 1199ms expected @998724fc21b1+wt
 	argument `c` for state `handle` is declared `&mut` (`&mut Counter`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
-	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `i32 in Wrapping` to `i32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/calls/immutable_local_requires_argument_rejected rejected 422ms expected @d1b87ec8b23e+wt
 	cannot prove requires contract for call scale from Main::main: d != 0 (needs fact `divisor != 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/member_literal_requires_argument_rejected rejected 333ms expected @2d8ed253669f
@@ -1448,18 +1450,21 @@ fail/float/mathematical_generic_ieee_equality_requires_non_nan rejected 495ms ex
 	cannot prove ensures contract for exit from invalid at statement 0: reflexive<f32>(value)
 fail/float/named_argument_format_rejected rejected 244ms expected @2d8ed253669f
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
-fail/float/named_call_computed_policy_erasure rejected 547ms expected @cba4ef8c9ab1
-	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+fail/float/named_call_computed_policy_erasure rejected 3105ms expected @998724fc21b1+wt
+	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `right` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `invalid` state `combine` argument `addend` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	store in machine `invalid` state `combine` argument `addend` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `addend` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/float/named_call_implicit_policy_erasure rejected 2060ms expected @cba4ef8c9ab1
-	store in machine `invalid` state `combine` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	machine `invalid` state `entry`: a value-call argument cannot itself be a machine call yet (`multiply(..)` nested in `combine(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
+	store in machine `invalid` state `entry` local `result` implicitly converts `f32` to `f32 in Saturating`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32 in Saturating`)
+fail/float/named_call_implicit_policy_erasure rejected 27041ms expected @998724fc21b1+wt
+	store in machine `invalid` state `combine` argument `left` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `left` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	store in machine `invalid` state `combine` argument `right` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `right` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `invalid` state `combine` argument `addend` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
+	store in machine `invalid` state `combine` argument `addend` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `addend` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+	store in machine `invalid` state `entry` local `result` implicitly converts `f32` to `f32 in Saturating`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32 in Saturating`)
 fail/float/named_float_to_integer_no_context_unproven rejected 431ms expected @c08960bee2b1+wt
 	machine `Main::main` state `main` cannot prove unqualified `I32::from_f64` operand `main.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/named_nan_runtime_materialization rejected 4324ms expected @2d8ed253669f
@@ -2326,9 +2331,8 @@ fail/slices/window_shrink_index_out_of_length rejected 693ms expected @2d8ed2536
 	cannot prove index `3` is within length 3
 fail/structs/affine_result_constructor_reuse rejected 416ms expected @41c7c3df5137+wt
 	cannot use `kind` in machine `Worker::wrap` state `wrap` (statement 1) after `kind` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `kind` first
-fail/structs/local_record_policy_erasure rejected 258ms expected @2d8ed253669f
-	implicit domain weakening in machine `observe` state `entry` local `value` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `observe` state `entry` local `value` implicitly converts `u8 in Wrapping` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
+fail/structs/local_record_policy_erasure rejected 627ms expected @998724fc21b1+wt
+	store in machine `observe` state `entry` local `value` implicitly converts `u8 in Wrapping` to `u8` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
 fail/structural/foreign_case_record_member rejected 119ms expected @ca8c127c90c5
 	machine `inspect` state `entry` reads a nested member `count`, but data `Scanned` has no field `count` (check the spelling of the field name)
 fail/targets/inactive_external_locator_target_rejected rejected 637ms expected @d54a6f89c75b+wt
