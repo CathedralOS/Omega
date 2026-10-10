@@ -174,7 +174,6 @@ pub(in crate::legalization) fn validate(
         || boundary != expected_boundary
         || *execution != expected_execution
         || !realization.supports_target(native)
-        || declaration.attachment.is_some()
         || !realization.signature_matches(&declaration.scalar_parameters, scalar)
         || !declaration.structural_parameters.is_empty()
         || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)

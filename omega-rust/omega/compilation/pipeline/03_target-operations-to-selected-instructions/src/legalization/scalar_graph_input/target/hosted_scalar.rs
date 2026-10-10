@@ -92,7 +92,6 @@ pub(super) fn validate(
         || !supported
         || psi_operation != expected_operation
         || boundary != expected_boundary
-        || declaration.attachment.is_some()
         || declaration.scalar_parameters != [expected_type]
         || !declaration.structural_parameters.is_empty()
         || !declaration.result.is_unit()
