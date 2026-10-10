@@ -634,6 +634,42 @@ impl IntegerType {
         }
     }
 
+    /// Bound exact right shifts over ordered value and independently typed
+    /// count ranges. Every endpoint must form under the exact value kernel.
+    /// Right shift is monotone in the value and monotone in the count within
+    /// each value sign region, so the four corners contain all results even
+    /// when the value range crosses zero. Invalid counts supply no bound.
+    pub fn exact_shift_right_bounds(
+        self,
+        value: (IntegerValue, IntegerValue),
+        count_type: IntegerType,
+        count: (IntegerValue, IntegerValue),
+    ) -> Option<(IntegerValue, IntegerValue)> {
+        if self.compare(value.0, value.1)? == Ordering::Greater
+            || count_type.compare(count.0, count.1)? == Ordering::Greater
+        {
+            return None;
+        }
+        let [Some(first), Some(second), Some(third), Some(fourth)] = [
+            self.exact_shift_right(value.0, count_type, count.0),
+            self.exact_shift_right(value.0, count_type, count.1),
+            self.exact_shift_right(value.1, count_type, count.0),
+            self.exact_shift_right(value.1, count_type, count.1),
+        ] else {
+            return None;
+        };
+        let (mut low, mut high) = (first, first);
+        for corner in [second, third, fourth] {
+            if self.compare(corner, low)? == Ordering::Less {
+                low = corner;
+            }
+            if self.compare(corner, high)? == Ordering::Greater {
+                high = corner;
+            }
+        }
+        Some((low, high))
+    }
+
     /// Shift an admitted value left by an independently typed count whose
     /// mathematical value is inside `[0, width)`, rejecting any mathematical
     /// result outside this value carrier.

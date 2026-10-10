@@ -2962,6 +2962,11 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   retaining exact unsigned snapshots; `arithmetic/runtime_full_width_unsigned_quotient_exit`
   and `arithmetic/{unsigned_quotient_underbound_rejected,unsigned_quotient_operand_overflow_rejected,unsigned_quotient_operand_landing_rejected,zero_dividend_quotient_requires_nonzero}`
   constrain result bounds independently of operand formation.
+  Keep immutable unsigned AND/right-shift queries on the shared carrier-aware
+  bitwise provider and selected exact right shifts on its integer value kernel,
+  retaining the count's own carrier; `arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit`
+  and `arithmetic/immutable_unsigned_{shift_underbound,mask_false_floor,shift_invalid_count,shift_operand_overflow}_rejected`
+  constrain full-width shift bounds independently of formation and false bounds.
   Preserve zero-product bounds for unbounded integer operands without erasing
   operand formation obligations; `arithmetic/runtime_unbounded_zero_product_exit`
   and `arithmetic/zero_product_operand_{overflow,division}_rejected` constrain

@@ -607,10 +607,6 @@ fn bounds(
     }
 }
 
-/// Unsigned `&` and `>>` have no selectable spelling, so their meaning is
-/// builtin. A mask keeps the smaller bounded operand's ceiling; a right shift
-/// by a count inside the carrier's width scales both endpoints down. Signed
-/// carriers and out-of-width counts stay unbounded here.
 /// Both operands' bounds, `?`-threaded — the binary arms share this pair.
 fn binary_operand_bounds(
     program: &dyn crate::CheckingInput,
@@ -636,6 +632,11 @@ fn binary_operand_bounds(
     Some((left, right))
 }
 
+/// Unsigned `&` and `>>` have builtin meaning. Preserve this immutable query's
+/// operand landing and count-formation fences before asking the same carrier
+/// provider as expression analysis. Its completed u64 ceiling and known-bit
+/// hull retain information the compatibility interval alone cannot express;
+/// they supply result bounds, never evidence that the operands can form.
 fn unsigned_bitwise_bounds(
     program: &dyn crate::CheckingInput,
     operator: BinaryOperator,
@@ -667,23 +668,26 @@ fn unsigned_bitwise_bounds(
         return None;
     }
     let interval = match operator {
-        BinaryOperator::BitwiseAnd => Interval {
-            low: Some(0),
-            high: match (left.interval.high, right.interval.high) {
-                (Some(left), Some(right)) => Some(left.min(right)),
-                (bounded, None) | (None, bounded) => bounded,
-            },
-        },
+        BinaryOperator::BitwiseAnd => super::bitwise::binary(
+            operator,
+            primitive,
+            left.interval,
+            right.interval,
+            left.constant_value.as_ref().and_then(BigInt::to_u64),
+            right.constant_value.as_ref().and_then(BigInt::to_u64),
+        ),
         BinaryOperator::ShiftRight => {
             let width = super::integer_bit_width(primitive)?;
-            let (low_count, high_count) = (right.interval.low?, right.interval.high?);
+            let high_count = right.interval.high?;
             if high_count >= width {
                 return None;
             }
-            Interval {
-                low: Some(left.interval.low? >> high_count),
-                high: left.interval.high.map(|high| high >> low_count),
-            }
+            super::bitwise::shift_right(
+                primitive,
+                left.interval,
+                right.interval,
+                left.constant_value.as_ref().and_then(BigInt::to_u64),
+            )
         }
         _ => return None,
     };

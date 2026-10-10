@@ -348,6 +348,55 @@ fn wrapping_shifts_reduce_counts_modulo_the_value_width() {
 }
 
 #[test]
+fn exact_right_shift_bounds_preserve_carriers_and_count_obligations() {
+    let unsigned = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let count_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+    let counts = (IntegerValue::Signed(1), IntegerValue::Signed(63));
+    assert_eq!(
+        unsigned.exact_shift_right_bounds(
+            (
+                IntegerValue::Unsigned(0),
+                IntegerValue::Unsigned(u64::MAX.into())
+            ),
+            count_type,
+            counts,
+        ),
+        Some((
+            IntegerValue::Unsigned(0),
+            IntegerValue::Unsigned(i64::MAX as u128)
+        ))
+    );
+    let values = (IntegerValue::Signed(-8), IntegerValue::Signed(7));
+    let counts = (IntegerValue::Signed(1), IntegerValue::Signed(3));
+    let expected = (-8_i128..=7)
+        .flat_map(|value| (1..=3).map(move |count| value >> count))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        signed.exact_shift_right_bounds(values, count_type, counts),
+        Some((
+            IntegerValue::Signed(*expected.iter().min().expect("results")),
+            IntegerValue::Signed(*expected.iter().max().expect("results")),
+        ))
+    );
+    for invalid in [
+        (IntegerValue::Signed(-1), IntegerValue::Signed(3)),
+        (IntegerValue::Signed(1), IntegerValue::Signed(8)),
+        (IntegerValue::Signed(3), IntegerValue::Signed(1)),
+        (IntegerValue::Unsigned(1), IntegerValue::Unsigned(3)),
+    ] {
+        assert_eq!(
+            signed.exact_shift_right_bounds(values, count_type, invalid),
+            None
+        );
+    }
+    assert_eq!(
+        signed.exact_shift_right_bounds((values.1, values.0), count_type, counts),
+        None
+    );
+}
+
+#[test]
 fn exact_right_shifts_require_an_in_range_nonnegative_count() {
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");

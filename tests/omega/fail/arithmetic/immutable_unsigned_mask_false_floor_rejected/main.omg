@@ -1,0 +1,4 @@
+machine invalid(value: u64 [16..=31]) -> u64
+    ensures (value & 16u64) >= 17
+{ value & 16u64 }
+machine main() {}

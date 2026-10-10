@@ -57,25 +57,25 @@ pub(super) fn shift_right(
     if count_low < 0 || count_low > count_high || count_high >= width {
         return complete;
     }
-    let (value_low, value_high) = known
-        .filter(|value| {
-            carrier.integer.sign() == IntegerSign::Unsigned
-                && carrier
-                    .integer
-                    .admits(IntegerValue::Unsigned(u128::from(*value)))
+    // The count interval is numeric evidence after the expression owner's
+    // source-carrier checks. Its nonnegative endpoints fit this shared kernel
+    // count carrier; no source count is reinterpreted or given a new policy.
+    let Ok(count_type) = IntegerType::new(IntegerSign::Unsigned, 64) else {
+        return complete;
+    };
+    carrier
+        .integer
+        .exact_shift_right_bounds(
+            carrier.value_bounds(value, known),
+            count_type,
+            (
+                IntegerValue::Unsigned(count_low as u128),
+                IntegerValue::Unsigned(count_high as u128),
+            ),
+        )
+        .map_or(complete, |(low, high)| {
+            project(value_number(low), value_number(high))
         })
-        .map(|value| (i128::from(value), i128::from(value)))
-        .unwrap_or_else(|| carrier.bounds(value));
-    let corners = [
-        value_low >> count_low,
-        value_low >> count_high,
-        value_high >> count_low,
-        value_high >> count_high,
-    ];
-    project(
-        *corners.iter().min().expect("four shift corners exist"),
-        *corners.iter().max().expect("four shift corners exist"),
-    )
 }
 
 pub(super) fn complement(

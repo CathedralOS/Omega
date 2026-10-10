@@ -178,12 +178,18 @@ fn integer(
             let right_eval = integer(right, source);
             let (left_type, left) = left_eval?;
             let (right_type, right) = right_eval?;
-            if left_type != *primitive_type || right_type != *primitive_type {
+            // A shift count has its own carrier; value arithmetic still requires
+            // matching operands. The selected Exact right-shift provider owns
+            // count landing and width validity independently of result bounds.
+            if left_type != *primitive_type
+                || (right_type != *primitive_type
+                    && *kind != CheckedIntegerBinaryKind::ExactShiftRight)
+            {
                 return None;
             }
             (
                 *primitive_type,
-                binary(*kind, *primitive_type, left, right)?,
+                binary(*kind, *primitive_type, right_type, left, right)?,
             )
         }
         Expression::IntegerWiden {
@@ -262,10 +268,30 @@ fn integer(
 fn binary(
     kind: CheckedIntegerBinaryKind,
     primitive: PrimitiveType,
+    right_primitive: PrimitiveType,
     left: IntegerRange,
     right: IntegerRange,
 ) -> Option<IntegerRange> {
     use CheckedIntegerBinaryKind as Kind;
+    if kind == Kind::ExactShiftRight {
+        let carrier = crate::values::integer_type(primitive)?;
+        let count_type = crate::values::integer_type(right_primitive)?;
+        let (low, high) = carrier.exact_shift_right_bounds(
+            (
+                crate::values::admitted_integer(carrier, &left.minimum)?,
+                crate::values::admitted_integer(carrier, &left.maximum)?,
+            ),
+            count_type,
+            (
+                crate::values::admitted_integer(count_type, &right.minimum)?,
+                crate::values::admitted_integer(count_type, &right.maximum)?,
+            ),
+        )?;
+        return Some(IntegerRange {
+            minimum: crate::values::integer_magnitude(low),
+            maximum: crate::values::integer_magnitude(high),
+        });
+    }
     if matches!(kind, Kind::BitwiseAnd | Kind::BitwiseOr | Kind::BitwiseXor) {
         let carrier = crate::values::integer_type(primitive)?;
         let left = (

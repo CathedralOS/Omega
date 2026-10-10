@@ -95,3 +95,4 @@ pass/modules/selected_constant_array_alias_named_extent_exit built 57137ms exit:
 pass/arithmetic/runtime_signed_minimum_remainder_postcondition_exit built 81297ms exit:0 interpreter-exit:0 interpreter:agrees @141e5d32a85a
 pass/generics/runtime_equation_constructor_selected_const_exit built 4828ms exit:0 interpreter-exit:0 interpreter:agrees @e86d47de16ba+wt
 pass/arithmetic/runtime_full_width_unsigned_quotient_exit built 72196ms exit:0 interpreter-exit:0 interpreter:agrees @0f6e9a51d1ff
+pass/arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit built 63216ms exit:0 interpreter-exit:0 interpreter:agrees @5f0d44e5d544
