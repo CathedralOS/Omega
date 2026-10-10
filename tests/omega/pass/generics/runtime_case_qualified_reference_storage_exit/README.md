@@ -19,3 +19,11 @@ the copied active payload still reads its original referent. Carrier disposal
 multiplicity does not determine whether Psi admits that shared copy.
 Repeating one unrestricted reference-bearing record in an array and copying
 the array preserves both destination descriptors and the readable source.
+
+The copyable mixed case also returns from a selector and passes through a
+forwarder as a named result, nested call result and direct constructor. Its
+common stamp and active descriptor survive array construction; the original
+named result remains readable after forwarding. The affine `Selection` and
+exclusive payload controls remain separate in the same program.
+Projecting the copyable case from an enclosing record forwards only that
+subtree and leaves the original record readable.

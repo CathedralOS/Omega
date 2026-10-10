@@ -1,6 +1,10 @@
 //! Result operands retain exact source access, ownership, and projected storage.
 //! Projection admission belongs to that source/formal correspondence and its
 //! custody, not whether the consuming call is a statement or a value operand.
+//! A completed producer has already established its declared contents. This
+//! planner preserves type, qualification, access and storage correspondence;
+//! it does not admit the value again through a contents whitelist. Source flow
+//! checks copyability and loans, and call_claim_transfers carries owned claims.
 use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
@@ -249,54 +253,6 @@ fn argument_contract(
         } else {
             None
         };
-    let owned_reference_record = access == CheckedStructuralAccess::Owned
-        && validation::reference_result_custody::is_reference_record(
-            program,
-            parameter.type_reference,
-        )
-        && if projected {
-            projected_path.as_deref().is_some_and(|path| {
-                u32::try_from(call.statement_index)
-                    .ok()
-                    .is_some_and(|index| {
-                        validation::reference_result_custody::projected_record_argument(
-                            program,
-                            facts,
-                            machine,
-                            source_state,
-                            index,
-                            result.statement_index,
-                            path,
-                        ) || match place.root {
-                            // The projected carrier may be a nested call's
-                            // anonymous result bound at this same statement;
-                            // its returned leaf roster replays the caller's
-                            // captured loans through the nested actuals.
-                            facts::PlaceRoot::Expression(source) => {
-                                validation::reference_result_custody::nested_call_record_argument(
-                                    program,
-                                    facts,
-                                    machine,
-                                    source_state,
-                                    index,
-                                    source,
-                                    path,
-                                )
-                            }
-                            _ => false,
-                        }
-                    })
-            })
-        } else {
-            validation::reference_result_custody::owned_record_argument(
-                program,
-                facts,
-                machine,
-                source_state,
-                u32::try_from(call.statement_index).ok()?,
-                result.statement_index,
-            )
-        };
     // A whole view argument reads its established carrier. Check the current
     // call's exact access, not the presence of a loan owned by this local:
     // image-backed results have no caller-owned backing to loan. The producer
@@ -419,22 +375,6 @@ fn argument_contract(
     if linear && projected && access == CheckedStructuralAccess::Owned {
         return None;
     }
-    // A completed value's represented contents do not depend on whether a
-    // call, constructor or copy produced it. Exact source contracts rejoin
-    // below; this classification grants no predicates at the consuming call.
-    if unrestricted
-        && access == CheckedStructuralAccess::Owned
-        && (projected
-            || !(validation::is_closed_primitive_array_type(program, formal_type)
-                || validation::has_contents(
-                    program,
-                    formal_type,
-                    &[],
-                    validation::ContentsRequirement::RepresentedOwned,
-                )))
-    {
-        return None;
-    }
     let path = if projected {
         projected_path?
     } else {
@@ -550,50 +490,7 @@ fn argument_contract(
             // the projected path's identity check, and the binding stores
             // only the unrestricted descriptor.
             && !(access == CheckedStructuralAccess::SharedBorrow
-                && result.multiplicity == Multiplicity::Unrestricted)
-        )
-        // Only an owned transfer needs an owned-content classification here.
-        // A loan keeps the established source home and its declared member
-        // predicates; exact access was rejoined above and the source/result
-        // declaration correspondence is checked below for whole and projected
-        // places alike.
-        || (access == CheckedStructuralAccess::Owned
-            && !unrestricted
-            && !linear
-            && !owned_reference_record
-            && !validation::has_contents(
-        program,
-        referent,
-        &[],
-        validation::ContentsRequirement::LinearOwned
-    )
-            // A nominal-cleanup result is discharged by the consuming call's
-            // own transfer edge, replayed below through its exact permission
-            // event, so cleanup-owned contents admit the same whole move.
-            && !validation::has_contents(
-        program,
-        referent,
-        &[],
-        validation::ContentsRequirement::CleanupOwned
-    )
-            // Moving a record that carries shared view descriptors preserves
-            // those views' independently retained referent loans.
-            && !validation::has_contents(
-        program,
-        referent,
-        &[],
-        validation::ContentsRequirement::OwnedOrSharedView
-    )
-            // The value is already established. Finite owned storage retains
-            // its member predicates regardless of its producer; this query
-            // grants no construction authority. Exact type correspondence and
-            // the consuming call's custody plan carry those obligations.
-            && !validation::has_contents(
-        program,
-        referent,
-        &[],
-        validation::ContentsRequirement::BorrowFree
-    ))
+                && result.multiplicity == Multiplicity::Unrestricted))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
@@ -606,95 +503,47 @@ fn argument_contract(
             {
                 return None;
             }
-            if access != CheckedStructuralAccess::Owned
-                || projected
-                || unrestricted
-                || linear
-                || owned_reference_record
-            {
-                let source_state = program.state_by_symbol(state)?;
-                let local = program
-                    .statement_table
-                    .statements(source_state.statement_nodes)
-                    .get(usize::try_from(result.statement_index).ok()?)?
-                    .as_local_data()?;
-                // Moves consume the checked ownership of the current value;
-                // binding mutability only permits its later reestablishment.
-                // Loans, whole or projected, use the exact captured access
-                // checked above. Borrow formation owns writability and access
-                // rules (including write-only authority); a binding's `mut`
-                // marker is not a substitute for that evidence.
-                //
-                // A loan leaves the value in the local's own storage and
-                // presents the declared type itself (both identities were
-                // matched above), so a field's represented domain or range is
-                // carried by that declaration rather than copied: the callee
-                // is checked against the same field constraints. An owned
-                // move needs finite owned storage, not claim-free storage:
-                // descendant claims cross through the call's custody plan.
-                // Exact source/formal correspondence retains qualifications.
-                let owned_contents = validation::has_contents(
-                    program,
-                    local.type_reference,
-                    &[],
-                    validation::ContentsRequirement::BorrowFree,
+            let source_state = program.state_by_symbol(state)?;
+            let local = program
+                .statement_table
+                .statements(source_state.statement_nodes)
+                .get(usize::try_from(result.statement_index).ok()?)?
+                .as_local_data()?;
+            // Authenticate the containing local independently of the selected
+            // subtree. Loans use the captured access checked above and leave
+            // its claims intact; owned arguments use call claim transfers.
+            // A slice-view local lends its descriptor's element storage, not
+            // the reference shell, so the projected path owns that geometry.
+            let view_binding = projected_borrow
+                && local.symbol == symbol
+                && matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(local.type_reference),
+                    typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+                        if matches!(
+                            program.type_reference_table.type_reference(*referee),
+                            typed_trees::types::TypeReferenceNode::Slice { .. }
+                        )
                 );
-                // A loan retains the complete owner's claims and disposal debt.
-                // Captured access authorizes this observation, and the exact
-                // declaration below authenticates its home. Only an owned
-                // argument reaches claim-transfer planning after this query.
-                // A borrowed-view binding lends elements through its
-                // descriptor, not through owned contents on its reference
-                // shell: the projected borrow's evidence is the exact
-                // access rejoined above, so only the binding's identity
-                // must match — the owned-local fences do not apply.
-                let view_binding = projected_borrow
-                    && local.symbol == symbol
-                    && matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(local.type_reference),
-                        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-                            if matches!(
-                                program.type_reference_table.type_reference(*referee),
-                                typed_trees::types::TypeReferenceNode::Slice { .. }
-                            )
-                    );
-                if !view_binding
-                    && (local.symbol != symbol
-                        || (access == CheckedStructuralAccess::Owned
-                            && !unrestricted
-                            && !linear
-                            && !owned_reference_record
-                            && !owned_contents)
-                        || validation::reference_result_custody::result_multiplicity(
-                            program,
-                            local.type_reference,
-                        ) != result.multiplicity
-                        || (access == CheckedStructuralAccess::Owned
-                            && unrestricted
-                            && !(validation::is_closed_primitive_array_type(
-                                program,
-                                local.type_reference,
-                            ) || validation::has_contents(
-                                program,
-                                local.type_reference,
-                                &[],
-                                validation::ContentsRequirement::RepresentedOwned,
-                            )))
-                        || base_type_identity(program, local.type_reference, &[], &[])?
-                            != result.type_identity)
-                {
-                    return None;
-                }
-                if access == CheckedStructuralAccess::Owned
-                    && (linear || unrestricted)
-                    && validation::structural_result_qualifications(program, local.type_reference)
-                        .ok()?
-                        != validation::structural_result_qualifications(program, referent).ok()?
-                {
-                    return None;
-                }
+            if !view_binding
+                && (local.symbol != symbol
+                    || validation::reference_result_custody::result_multiplicity(
+                        program,
+                        local.type_reference,
+                    ) != result.multiplicity
+                    || base_type_identity(program, local.type_reference, &[], &[])?
+                        != result.type_identity)
+            {
+                return None;
+            }
+            if access == CheckedStructuralAccess::Owned
+                && (linear || unrestricted)
+                && validation::structural_result_qualifications(program, local.type_reference)
+                    .ok()?
+                    != validation::structural_result_qualifications(program, referent).ok()?
+            {
+                return None;
             }
         }
         // Anonymous values are admitted by their already sequenced producer,

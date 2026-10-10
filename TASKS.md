@@ -3076,14 +3076,16 @@ of a check the same flow already performed, not the check itself.
   and mixed-case execution controls. Keep independent custody auditing in the
   qualification; do not restore native permission replay or a whole-operation
   borrow preflight.
-  Unrestricted mixed-case call results remain an integration frontier: on
-  macOS arm64, declaring `Selection [copy]` in that fixture reaches stage 05's
-  `caller structural result` refusal (CLI 202). Close that prepared-result
-  transport; native permission replay is not a remedy.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete
-  returned-loan frontiers. Keep
+  returned-loan frontiers. Body escape checking must distinguish borrowed inputs
+  from callee-owned parameter storage: returning `&owned` from a by-value
+  `[copy]` parameter alongside an unrelated lifetime-compatible borrowed input
+  checks on macOS arm64 at `64c2ee97421`, but `omega run --both` refuses the
+  reference-result plan (CLI 202). Repair the blanket parameter exemption in
+  `checks/borrows/escape.rs`; an input lifetime is not the returned body's origin.
+  Keep
   `omega run tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg`
   and conflicting-mutation/distinct-region controls in that qualification;
   the bounded operator, algebra-law and returned-loan cohort does not replace it.

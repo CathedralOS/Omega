@@ -65,18 +65,39 @@ machine read_selection<'storage>(selection: &Selection<'storage>) -> i32 {
 // A join carries one active payload, not simultaneous permissions for both
 // alternatives. Copying conditional storage also preserves an empty payload.
 data SharedSelection<'storage> [copy] {
+    stamp: i32;
     case Left(target: &'storage Cell);
     case Right(target: &'storage Cell);
     case Empty;
 }
 data SharedHolder<'storage> [copy] { target: &'storage Cell; }
+data SharedEnvelope<'storage> [copy] { selection: SharedSelection<'storage>; }
+machine select_shared<'storage>(
+    choice: i32, left: &'storage Cell, right: &'storage Cell
+) -> SharedSelection<'storage> {
+    transition choice {
+        0 -> SharedSelection::Left { stamp: 3, target: left }
+        1 -> SharedSelection::Right { stamp: 5, target: right }
+        _ -> SharedSelection::Empty { stamp: 7 }
+    }
+}
+machine forward_shared<'storage>(value: SharedSelection<'storage>) -> SharedSelection<'storage> {
+    value
+}
+machine read_shared<'storage>(selection: &SharedSelection<'storage>) -> i32 {
+    transition selection {
+        SharedSelection::Left { target } -> target.value
+        SharedSelection::Right { target } -> target.value
+        SharedSelection::Empty -> 0
+    }
+}
 machine read_joined_selection<'storage>(
     choice: i32, left: &'storage Cell, right: &'storage Cell
 ) -> i32 {
     transition choice {
-        0 -> joined(SharedSelection::Left { target: left })
-        1 -> joined(SharedSelection::Right { target: right })
-        _ -> joined(SharedSelection::Empty)
+        0 -> joined(SharedSelection::Left { stamp: 3, target: left })
+        1 -> joined(SharedSelection::Right { stamp: 5, target: right })
+        _ -> joined(SharedSelection::Empty { stamp: 7 })
     }
     state joined(selection: SharedSelection<'storage>) -> i32 {
         let copied: SharedSelection<'storage> = selection;
@@ -96,6 +117,16 @@ machine exercise_selections<'storage>(source: &'storage Cell, other: &'storage C
     let holder: SharedHolder<'storage> = SharedHolder { target: source };
     let holders: [SharedHolder<'storage>; 2] = [holder, holder];
     let copied_holders: [SharedHolder<'storage>; 2] = holders;
+    let shared: SharedSelection<'storage> = select_shared(0, source, other);
+    let shared_copy: SharedSelection<'storage> = forward_shared(shared);
+    let shared_right: SharedSelection<'storage> = forward_shared(select_shared(1, source, other));
+    let shared_empty: SharedSelection<'storage> = forward_shared(select_shared(2, source, other));
+    let shared_direct: SharedSelection<'storage> = forward_shared(
+        SharedSelection::Left { stamp: 11, target: source }
+    );
+    let shared_array: [SharedSelection<'storage>; 2] = [shared_copy, shared_right];
+    let shared_envelope: SharedEnvelope<'storage> = SharedEnvelope { selection: shared };
+    let shared_projected: SharedSelection<'storage> = forward_shared(shared_envelope.selection);
     read_selection(&selections[0]) == 17 && read_selection(&selections[1]) == 19
         && read_selection(&vacant) == 0 && read_selection(&direct) == 17
         && read_joined_selection(0, source, other) == 17
@@ -104,6 +135,11 @@ machine exercise_selections<'storage>(source: &'storage Cell, other: &'storage C
         && copied_holders[0].target.value == 17
         && copied_holders[1].target.value == 17
         && holder.target.value == 17 && holders[0].target.value == 17
+        && read_shared(&shared_array[0]) == 17 && read_shared(&shared_array[1]) == 19
+        && read_shared(&shared) == 17 && shared.stamp == 3
+        && read_shared(&shared_empty) == 0 && shared_empty.stamp == 7
+        && read_shared(&shared_direct) == 17 && shared_direct.stamp == 11
+        && read_shared(&shared_projected) == 17 && read_shared(&shared_envelope.selection) == 17
 }
 
 // Exclusive payloads establish descriptors, not copies of their referents.

@@ -708,6 +708,17 @@ pub(in crate::execution::terminal_unit) fn consume_result(
     ) {
         return (access != CheckedStructuralAccess::Owned || !projected).then_some(());
     }
+    // Copying a whole value or a selected subtree leaves the producer's
+    // storage and disposal schedule intact. That follows its checked result
+    // multiplicity, not whether a call, constructor or boundary produced it.
+    // Do this before descriptor retirement: a copyable aggregate may carry
+    // shared loans without transferring its original descriptor occurrences.
+    if producer
+        .structural_result_binding()
+        .is_some_and(|result| result.multiplicity == Multiplicity::Unrestricted)
+    {
+        return Some(());
+    }
     let reference_carrier = matches!(
         producer,
         CheckedUnitEffectOperationPlan::EstablishReference { .. }
@@ -733,30 +744,6 @@ pub(in crate::execution::terminal_unit) fn consume_result(
             | CheckedStructuralAccess::WriteOnlyBorrow => true,
         }
         .then_some(());
-    }
-    // Unrestricted whole-value arguments copy their payload. They retain
-    // a live producer without acquiring an affine disposal obligation. A
-    // boundary structural result is not such a copy.
-    let unrestricted_copy = match &*producer {
-        CheckedUnitEffectOperationPlan::Call(call) => {
-            call.is_module()
-                && call
-                    .structural_result()
-                    .is_some_and(|result| result.multiplicity == Multiplicity::Unrestricted)
-        }
-        CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
-            result.multiplicity == Multiplicity::Unrestricted
-        }
-        _ => false,
-    };
-    if unrestricted_copy {
-        if access == CheckedStructuralAccess::Owned && projected {
-            return None;
-        }
-        return Some(());
     }
     if matches!(
         access,

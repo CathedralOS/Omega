@@ -1,7 +1,9 @@
 //! Prepared arguments enter one saved-frame transition for every result form.
 //! Argument preparation owns readable storage, aliasing and domain admission;
 //! a structural result does not introduce another input-path/shape policy.
-//! Owned argument copies precede captured reference-return backing, and the
+//! Capture returned referents from the caller's resident argument storage before
+//! preparing owned copies. Copies create independent descriptor homes, not new
+//! referents; their staged cells are not resident until the call commits. The
 //! completion owner publishes the result only after the callee returns.
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
@@ -229,11 +231,6 @@ impl TerminalExecution<'_> {
         prepared_arguments.validate_carrier_partition(&callee.structural_parameters)?;
         let mut structural_values = prepared_arguments.values;
         let mut identity_cursor = prepared_arguments.local_identity_cursor;
-        let aggregate_payload = self.stage_owned_aggregate_arguments(
-            &prepared_arguments.descriptor_parameters,
-            &mut structural_values,
-            &mut identity_cursor,
-        )?;
         if let SuspendedCallResult::Structural {
             expected_reference_backings,
             ..
@@ -245,6 +242,11 @@ impl TerminalExecution<'_> {
                 &structural_values,
             )?;
         }
+        let aggregate_payload = self.stage_owned_aggregate_arguments(
+            &prepared_arguments.descriptor_parameters,
+            &mut structural_values,
+            &mut identity_cursor,
+        )?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let mut callee_affine_frontier = crate::custody::bind_affine_frontier(
             &callee.structural_parameters,
