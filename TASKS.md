@@ -2997,14 +2997,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   variant family with one parameterized query. Acceptance: no `*_supported`
   function remains in `omega-rust/psi/compilation/checking/src/` or `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`; corpus unchanged.
 
-- **VALUES-SCALAR-PLANS-MERGED.** (new-scope) `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/values/scalar` (about 17k
-  lines) builds scalar and computation plans for lowering and checks nothing
-  ("Independent lowering replays that occurrence…"). It likely overlaps the
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit` plan routes (unverified). Merge it into the
-  single plan builder that **ONE-CALL-LOWERING** and
-  **ONE-TRANSITION-LOWERING** establish, deleting duplicated plan
-  construction. Depends on those two items. Acceptance: one plan builder
-  produces scalar and Unit computations; native corpus unchanged.
 
 ## Data-flow defects
 
