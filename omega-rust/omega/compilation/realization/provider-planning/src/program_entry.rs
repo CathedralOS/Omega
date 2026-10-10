@@ -635,6 +635,73 @@ impl SelectedCompilerProgramEntry {
     }
 }
 
+/// Shared checking for bound rows the request does not realize. One Build
+/// produces checked rows for every target it names, so an authored binding
+/// carries the same source obligations whether or not its target is selected:
+/// the bound machine must exist, own an executable entry state, and satisfy
+/// its slot's source compatibility. What stays per target is absence, not
+/// malformation — a family with no body for an unselected target and an
+/// unbound required slot wait for that target's own selection.
+fn check_unrequested_program_entry_rows(
+    typed: &TypedTrees,
+    root_bindings: &[RootBinding],
+    selected_profile: Option<target::TargetProfile>,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    for binding in root_bindings {
+        let Some((owner, slot_name)) = binding.slot.rsplit_once("::") else {
+            continue;
+        };
+        let Ok(profile) = target::TargetProfile::from_root_slot_owner(owner) else {
+            continue;
+        };
+        if Some(profile) == selected_profile {
+            continue;
+        }
+        let Some(required_slot) = profile.required_root_slot(slot_name) else {
+            continue;
+        };
+        let Some(slot) = required_slot.program_entry() else {
+            continue;
+        };
+        // Mirror the selected path's family resolution: the binding names the
+        // family, and only the body authored for its own target answers the
+        // source-shape check.
+        let mut machine_symbol = binding.implementation_symbol;
+        if let Some(family) = typed.target_machine_families.iter().find(|family| {
+            family.canonical == machine_symbol
+                || family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == machine_symbol)
+        }) {
+            let Some(member) = family
+                .members
+                .iter()
+                .find(|member| member.target.as_str() == profile.target_name())
+            else {
+                continue;
+            };
+            machine_symbol = member.machine;
+        }
+        if let Err(mut rejected) = validate_selected_program_entry_shape(
+            typed,
+            SelectedProgramEntry {
+                machine_name: binding.implementation.as_str(),
+                machine_symbol,
+                slot,
+            },
+        ) {
+            diagnostics.append(&mut rejected);
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 /// Resolve and validate the complete realization-owned `ProgramEntry` input.
 /// Diagnostic order is intentional: exact target-slot selection precedes
 /// source-shape validation, which precedes optional physical/semantic calling-
@@ -646,8 +713,9 @@ pub fn select_compiler_program_entry(
     realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
-    let Some(mut selected) = selected_program_entry_machine(root_bindings, selected_profile)?
-    else {
+    let selected = selected_program_entry_machine(root_bindings, selected_profile)?;
+    check_unrequested_program_entry_rows(typed, root_bindings, selected_profile)?;
+    let Some(mut selected) = selected else {
         return Ok(None);
     };
     // A root binding names the family, not the body that happens to own its
