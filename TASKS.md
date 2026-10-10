@@ -663,6 +663,10 @@ defines the complete product bar.
     an alias write; keep `borrowed_window_selector_alias_write` and
     `borrowed_window_mutable_selector_observes_hole` for changed versions and
     observing an absent selected element. Keep
+    `runtime_referent_replacement_fact_transport_exit` (0) for nested computed
+    replacement facts through a retained alias after the source changes, and
+    `fail/contracts/referent_replacement_false_guarantee` for retiring old and
+    overwritten referent facts; qualify the remaining native hosts. Keep
     `pass/drops/runtime_narrowed_cleanup_receiver_exit` (0) for authored
     prerequisites at a captured local subslice receiver, exact replacement
     result guarantees and untouched siblings; keep

@@ -116,18 +116,17 @@ pub(super) fn propagate_statement_transfers(
     } = write;
 
     if let Some(source_place) = source_place {
-        let destination_type = match statement {
-            StatementNode::LocalData(local) => Some(local.type_reference),
-            StatementNode::Assignment(assignment) => {
-                validation::expression_type_reference_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    assignment.target,
-                )
-            }
-            _ => None,
-        };
+        // Expression flow already captured the declaration of the installed
+        // value, distinguishing a referent store from reference rebinding.
+        // Qualification transport uses that same type rather than rebuilding
+        // the destination's access carrier after evaluation.
+        let stored_value = build.control.statements.get(statement_fact).stored_value;
+        let destination_type = build
+            .control
+            .operands
+            .is_valid(stored_value)
+            .then(|| build.control.operands.get(stored_value).type_reference)
+            .filter(|reference| reference.is_valid());
         if let Some(destination_type) = destination_type {
             owned_qualifications::append_owned_qualification_transfer(
                 program,

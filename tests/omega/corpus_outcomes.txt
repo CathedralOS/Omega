@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 17.07, "load1_start": 17.07, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "1", "load1_end": 13.21, "load1_start": 13.31, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -4742,3 +4742,7 @@ fail/arithmetic/immutable_unsigned_shift_operand_overflow_rejected rejected 4916
 fail/arithmetic/immutable_unsigned_shift_underbound_rejected rejected 9378ms expected @5f0d44e5d544
 	cannot prove ensures contract for exit from invalid at statement 0: value >> 1 <= 9223372036854775806
 pass/arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit checked 67542ms check-target:macos_arm64 @5f0d44e5d544
+fail/contracts/referent_replacement_false_guarantee rejected 468ms expected @b4e03c503cb3+wt
+	cannot prove ensures contract for exit from replace at statement 2: pair.first.value == 7
+	cannot prove ensures contract for exit from overwrite at statement 2: pair.first.value == 7
+pass/ownership/runtime_referent_replacement_fact_transport_exit checked 3450ms check-target:macos_arm64 @b4e03c503cb3+wt

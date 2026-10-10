@@ -123,6 +123,22 @@ pub(super) fn append_statement_calls<'plans>(
                 assignment.target,
             )
             .unwrap_or_default();
+            // The captured RHS describes the value installed by this store,
+            // not the loan used to reach it. Keep a reference descriptor only
+            // for actual binding replacement; a storage write captures its
+            // referent with its own field qualifications and child geometry.
+            let destination = execution
+                .context
+                .call_frames
+                .and_then(|frames| frames.assignment_write_target(machine, statement))
+                .map_or_else(TypeReferenceHandle::invalid, |target| match target {
+                    validation::AssignmentWriteTarget::Storage { .. } => {
+                        validation::assignment_value_type(program, destination)
+                    }
+                    validation::AssignmentWriteTarget::LocalBindingReplacement { .. } => {
+                        destination
+                    }
+                });
             let evaluated = execution.evaluated_operand_as(
                 assignment.value,
                 destination,

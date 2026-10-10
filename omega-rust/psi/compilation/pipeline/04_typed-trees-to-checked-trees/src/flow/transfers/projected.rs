@@ -41,16 +41,16 @@ pub(super) fn append_copied_field_predicates(
 ) {
     let source_place = *semantic.places.get(source);
     let destination_place = *semantic.places.get(destination);
-    // The source is the value read at this statement: storage, or the exact
-    // call-expression occurrence whose checked ensures published result-field
-    // facts (flow/calls.rs). Other expression roots carry no such evidence, so
-    // a non-call expression source still stops here.
+    // Storage and completed expression occurrences share the same evidence
+    // namespace. Calls publish checked result guarantees; constructors publish
+    // completed child snapshots. The active facts below establish what may be
+    // transported, not the source expression's spelling. No initializer or
+    // expression is evaluated again to recover a value here.
     let valid_source_root = match source_place.root {
         facts::PlaceRoot::Symbol(symbol) => symbol.is_valid(),
-        facts::PlaceRoot::Expression(expression) => matches!(
-            program.expression_table.expression(expression),
-            checked_trees::expression::ExpressionNode::Call(_)
-        ),
+        facts::PlaceRoot::Expression(expression) => {
+            program.expression_table.expression_is_valid(expression)
+        }
         _ => false,
     };
     if !valid_source_root
