@@ -4771,3 +4771,9 @@ fail/arithmetic/exact_left_shift_value_overflow_rejected rejected 7087ms expecte
 	exact arithmetic in machine `invalid` ensures contract may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `invalid` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 pass/arithmetic/runtime_exact_left_shift_bounds_exit checked 81393ms check-target:macos_arm64 @19ed612e063b
+pass/modules/public_constant_array_computed_extent checked 10795ms @af9b942fa09e+wt
+pass/modules/public_constant_array_computed_extent_body_exit checked 91135ms check-target:linux_x86_64 @af9b942fa09e+wt
+pass/modules/selected_constant_array_alias_computed_extent checked 9404ms @af9b942fa09e+wt
+pass/modules/selected_constant_array_alias_computed_extent_exit checked 45136ms check-target:linux_x86_64 @af9b942fa09e+wt
+fail/modules/selected_constant_computed_extent_roster rejected 145ms expected @af9b942fa09e+wt
+	constant initializer: fixed-array const value requires 2 elements but has 1

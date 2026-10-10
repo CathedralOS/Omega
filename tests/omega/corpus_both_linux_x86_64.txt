@@ -99,3 +99,5 @@ pass/generics/runtime_equation_constructor_selected_const_exit built 4828ms exit
 pass/arithmetic/runtime_full_width_unsigned_quotient_exit built 72196ms exit:0 interpreter-exit:0 interpreter:agrees @0f6e9a51d1ff
 pass/arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit built 63216ms exit:0 interpreter-exit:0 interpreter:agrees @5f0d44e5d544
 pass/arithmetic/runtime_exact_left_shift_bounds_exit built 67394ms exit:0 interpreter-exit:0 interpreter:agrees @19ed612e063b
+pass/modules/public_constant_array_computed_extent_body_exit built 92483ms exit:7 interpreter-exit:7 interpreter:agrees @af9b942fa09e+wt
+pass/modules/selected_constant_array_alias_computed_extent_exit built 50076ms exit:7 interpreter-exit:7 interpreter:agrees @af9b942fa09e+wt

@@ -253,7 +253,10 @@ fn lower_item_with_exposure(
                 // Preparation retains a real unevaluated expression, never a
                 // placeholder value or manufactured public declaration identity.
                 None
-            } else if definition.is_public {
+            } else if definition.is_public
+                && lowerer.const_resolution_mode
+                    != crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
+            {
                 Some(
                     crate::constant::evaluated_declaration_value(
                         syntax_trees,
@@ -269,6 +272,10 @@ fn lower_item_with_exposure(
                     })?,
                 )
             } else {
+                // Preparation discovers dependencies before their declared
+                // geometry is complete. A public literal may therefore lack an
+                // encoding here, just like a private literal. Complete resolution
+                // still requires its canonical public identity after evaluation.
                 crate::constant::evaluated_declaration_value(
                     syntax_trees,
                     definition,

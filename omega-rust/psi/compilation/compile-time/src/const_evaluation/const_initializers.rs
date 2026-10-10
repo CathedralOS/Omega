@@ -32,6 +32,14 @@
 //! Deep dependency chains still require one frontend pass per dependency layer.
 //! That is a performance limitation, not a reason to erase declared landings or
 //! promote a provisional value into a public constant identity.
+//!
+//! A literal initializer can still wait for its declared geometry: a named
+//! array extent may be computed by another declaration. Its lack of pending
+//! leaves does not supply a completed value. Before a ready probe reads any
+//! selected dependency, complete missing literal values against the current
+//! syntax and the original declaration selector. The dependency graph already
+//! orders that extent's evaluation; neither a probe stand-in nor a provisional
+//! layout may provide the encoded value.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -208,7 +216,46 @@ pub(crate) fn evaluate(
                 "constant initializer dependency cycle",
             ));
         }
+        let ready_dependencies = ready
+            .iter()
+            .flat_map(|ordinal| &declarations[*ordinal].leaves)
+            .flat_map(|leaf| leaf.dependencies.iter().map(|(_, dependency)| *dependency))
+            .collect::<Vec<_>>();
+        for dependency in ready_dependencies {
+            if declarations[dependency].evaluated_value.is_none() {
+                // All transitive initializer and type dependencies have left
+                // the pending frontier before this probe becomes ready. A
+                // retained literal whose extent was pending can now encode its
+                // actual children under that completed declared geometry.
+                let value = preparation
+                    .canonicalize_value(&syntax, &declarations[dependency].definition)
+                    .map_err(|reason| {
+                        failure(
+                            declarations[dependency].definition.name.source_span(),
+                            reason,
+                        )
+                    })?;
+                declarations[dependency].evaluated_value = Some(value.encoding.into());
+            }
+        }
         let mut probe = syntax.clone();
+        for declaration in declarations.iter().filter(|declaration| {
+            declaration.definition.is_public
+                && declaration.leaves.is_empty()
+                && declaration.evaluated_value.is_none()
+        }) {
+            // This private forest cannot publish an identity for a literal
+            // whose declared geometry is still pending. Keep its real value
+            // and type, but defer the public encoding demand here. Dependency
+            // ordering prevents any ready computation from selecting it until
+            // its actual value completes; the returned syntax keeps visibility
+            // and complete resolution still requires the authored public identity.
+            let mut definition = declaration.definition.clone();
+            definition.is_public = false;
+            probe
+                .items
+                .replace_item(declaration.item, Item::Const(definition));
+        }
         for declaration in declarations
             .iter()
             .filter(|declaration| !declaration.leaves.is_empty())
