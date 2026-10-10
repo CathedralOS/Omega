@@ -1,0 +1,4 @@
+owner: z13
+provenance: model=devin z13 CHECKED-IDENTITY-IDS: all *identity fields on checked plans/facts are interned handles (CallableIdentityId/TypeIdentityId/CheckedMemberIdentity/symbols); wire renders via *_text accessors at Terminal Psi boundary; source-scanning guard forbids String identity fields in checked-trees; 239 files
+ticket: 8bec1f654dc2424aa1ce27b83294003e
+published_utc: 2026-10-10T13:20:25.181970+00:00
