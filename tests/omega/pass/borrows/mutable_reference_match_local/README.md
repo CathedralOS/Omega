@@ -1,3 +1,3 @@
-A mutable reference local receives a Match result whose two alternatives each independently supply mutable source access. The selected result retains the same source frame and lifetime. A shared alternative must not gain mutable access from its sibling.
+A mutable reference local receives a Match result whose alternatives each independently supply mutable source access. The selected result retains the original source frame and lifetime.
 
-This fixture currently pins source admission only. The original witnessed program is retained byte for byte; public runtime acceptance is pending.
+Two sequential calls choose opposite alternatives and read the original values 7 and 9. Both calls must restore caller loans after their selected reference ends. The program returns normally with exit 0 only when both reads match. The companion invalid control rejects a shared alternative instead of donating access from its exclusive sibling.
