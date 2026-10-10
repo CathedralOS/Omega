@@ -226,12 +226,16 @@ provider settlement before checking. Package batch callers still need to use
 that shared invocation. Build staging is invocation-owned; artifact publication
 chooses per-target output directories separately. The compiler no longer rewrites
 source roles or calls to select a target body: providers and roots select exact
-member handles. Portable direct family references currently reject with an
-`unimplemented:` diagnostic, including references from contracts or static
-arguments. They need a family-wide callable contract, not the canonical member's
-body-derived guarantees. Explicit boundary requirements and target-local calls
-remain supported. Portable family-call binding and complete family transport
-through the remaining entry routes are unfinished. The
+member handles. Portable runtime calls use an independent bodyless family head:
+callers meet every member's premises and the joined conservative effect/crash
+envelope without importing a member's private result guarantees. Native and
+Terminal execution select the exact deployment-tag member and preserve ordinary
+call custody. Closed generic applications retain the whole specialized cohort;
+unsupported generic demand conjunctions reject rather than adopt a lexical
+prototype. Explicit boundary requirements and target-local calls retain their
+own contracts. Complete generic/named conformance transport, all entry/result
+routes, source-free target-default effects and one-artifact multi-target
+realization remain unfinished. The
 [pipeline route items](../../../TASKS.md#pipeline-route) own the repair.
 
 ## Directional wire compatibility

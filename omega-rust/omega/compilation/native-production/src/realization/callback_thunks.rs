@@ -48,6 +48,7 @@ fn lower_callback_thunk(
         terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(artifact, &[])
             .map_err(artifact_lowering_error)?
             .select_target_execution(
+                artifact,
                 request
                     .admission
                     .providers

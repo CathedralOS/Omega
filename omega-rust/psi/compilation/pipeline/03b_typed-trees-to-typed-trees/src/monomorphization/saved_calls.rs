@@ -92,22 +92,31 @@ pub(super) fn selected_instance<'program>(
     candidate: &Candidate,
     selection: &CallSelection,
 ) -> Option<&'program MachineSpecialization> {
-    let type_arguments = selection
+    let concrete = super::candidate_for_selection(source, candidate, selection);
+    candidate_instance(source, program, &concrete)
+}
+
+pub(super) fn candidate_instance<'program>(
+    source: &dyn ::validation::CheckingInput,
+    program: &'program dyn ::validation::CheckingInput,
+    candidate: &Candidate,
+) -> Option<&'program MachineSpecialization> {
+    let type_arguments = candidate
         .type_bindings
         .iter()
         .map(|binding| binding.map(|binding| source.normalized_type_identity_text(binding)))
         .collect::<Option<Vec<_>>>()?;
-    let const_arguments = selection
+    let const_arguments = candidate
         .const_bindings
         .iter()
         .map(|binding| binding.map(|binding| source.normalized_type_identity_text(binding)))
         .collect::<Option<Vec<_>>>()?;
-    let machine_arguments = selection
+    let machine_arguments = candidate
         .machine_bindings
         .iter()
         .map(|binding| binding.as_ref().map(|binding| binding.symbol))
         .collect::<Option<Vec<_>>>()?;
-    let evidence_arguments = selection
+    let evidence_arguments = candidate
         .evidence_bindings
         .iter()
         .map(|binding| binding.as_ref())

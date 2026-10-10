@@ -305,6 +305,7 @@ fn substitute_installed_provider_unit_scalar_call(
                 .push(CompletionReceipt {
                     claim: ClaimId::new(9).unwrap(),
                     argument_index: 0,
+                    path: Vec::new(),
                 });
         }
         Field::OperationOrdinal => {

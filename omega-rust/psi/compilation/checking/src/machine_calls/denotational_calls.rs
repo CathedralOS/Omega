@@ -354,6 +354,17 @@ fn push_checked_machine_call_targets(
     current: symbols::SymbolHandle,
     pending: &mut Vec<symbols::SymbolHandle>,
 ) -> bool {
+    let Some(machine) = program.machine(current) else {
+        return false;
+    };
+    if machine.target_family_interface {
+        let Some(members) = complete_family_members(program, machine) else {
+            return false;
+        };
+        // A family dependency is not an executable call row. Its portable
+        // source judgments nevertheless owe every retained member's closure.
+        pending.extend(members.iter().map(|member| member.machine));
+    }
     let summaries = operational
         .machines()
         .iter()
@@ -414,8 +425,53 @@ pub(crate) fn has_no_crash_routes(
     operational: &flow_effects::OperationalPlan,
 ) -> bool {
     each_reachable_checked_machine(program, machine_symbol, operational, |program, machine| {
-        !program.machine_declares_crash(machine)
+        if program.machine_declares_crash(machine) {
+            return false;
+        }
+        if !machine.target_family_interface {
+            return true;
+        }
+        // A private member's omitted clause is inference still owed by body
+        // checking, not a published negative guarantee. Source denotation has
+        // no checked body-crash fixed point to substitute for that obligation.
+        complete_family_members(program, machine).is_some_and(|members| {
+            members.iter().all(|member| {
+                program
+                    .machine(member.machine)
+                    .is_some_and(|machine| program.machine_publishes_crash_ceiling(machine))
+            })
+        })
     })
+}
+
+fn complete_family_members<'program>(
+    program: &'program dyn crate::CheckingInput,
+    interface: &typed_trees::machine::Machine,
+) -> Option<&'program [typed_trees::machine::TargetMachineFamilyMember]> {
+    let mut families = program
+        .target_machine_families
+        .iter()
+        .filter(|family| family.canonical == interface.symbol);
+    let family = families.next()?;
+    if families.next().is_some() || family.members.is_empty() {
+        return None;
+    }
+    let mut visited = Vec::with_capacity(family.members.len());
+    for member in &family.members {
+        let machine = program.machine(member.machine)?;
+        if machine.target_family_interface
+            || !machine.supplies_checked_body()
+            || !machine.body_is_present
+            || machine.body_status != typed_trees::machine::MachineBodyStatus::Complete
+            || machine.structural_type_equations_pending
+            || program.machine_states(machine).is_empty()
+            || visited.contains(&member.machine)
+        {
+            return None;
+        }
+        visited.push(member.machine);
+    }
+    Some(&family.members)
 }
 
 /// Rejoin a selected public operator with its exact authored implementation.

@@ -26,35 +26,31 @@ mod terminal_authority_policy;
 mod terminal_authority_review;
 
 pub(crate) use callback_arguments::project_native_callback_arguments;
-pub use compiler_builtins::{
-    CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal,
+pub use compiler_builtins::{CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal};
+pub(crate) use compiler_builtins::{
+    demanded_boundary_identities, derive_selected_intrinsic_settlement_proposals,
+    prepare_retained_compiler_builtins,
 };
-pub(crate) use compiler_builtins::{ demanded_boundary_identities,
-    derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins};
 pub use diagnostics::realization_error;
 
-pub use source_evaluated_bindings::{ SourceEvaluatedImportSettlement,
-};
-pub(crate) use source_evaluated_bindings::{
-    prepare_source_evaluated_bindings};
-pub(crate) use source_evaluated_bindings::{
-    PreparedSourceEvaluatedBindings};
+pub(crate) use source_evaluated_bindings::PreparedSourceEvaluatedBindings;
+pub use source_evaluated_bindings::SourceEvaluatedImportSettlement;
+pub(crate) use source_evaluated_bindings::prepare_source_evaluated_bindings;
 
-pub use request::{
-    NativeBoundaryRealization, NativeCompilerBuiltinSettlement};
-pub use request::{ NativeProviderSettlement,
-    ProviderAdmissionRequest};
+pub use request::{NativeBoundaryRealization, NativeCompilerBuiltinSettlement};
+pub use request::{NativeProviderSettlement, ProviderAdmissionRequest};
 pub use terminal_authority_permission_policy::{
-    TerminalAuthorityPermissionPolicy,
-    TerminalAuthorityPermissionPolicyRow,
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyRow,
     terminal_authority_permission_policy_with_rows,
 };
-pub use terminal_authority_policy::{ TerminalAuthorityPolicy,
-    current_terminal_authority_policy,
-    filesystem_host_permission_rows, terminal_authority_policy_with_rows, time_host_permission_rows,
+pub use terminal_authority_policy::{
+    TerminalAuthorityPolicy, current_terminal_authority_policy, filesystem_host_permission_rows,
+    terminal_authority_policy_with_rows, time_host_permission_rows,
 };
-pub(crate) use terminal_authority_policy::{ normalized_foreign_terminal_mechanism,
-    normalized_foreign_terminal_mechanism_with_callback_materializations};
+pub(crate) use terminal_authority_policy::{
+    normalized_foreign_terminal_mechanism,
+    normalized_foreign_terminal_mechanism_with_callback_materializations,
+};
 mod model;
 use crate::AdmittedProviderInstallation;
 use crate::VerifiedNativeArtifactInput as NativeRealizationInput;
@@ -135,7 +131,7 @@ pub(crate) fn admit_native_providers<'request>(
         terminal_authority_review::review_terminal_authority_closure(
             terminal_artifact_identity,
             request.program_entry.source().target_slot().owner,
-            input.plan(),
+            input.optimization_input(),
             request.selected_provider_plans,
             effective_policy,
             request.terminal_authority_permission_policy.as_ref(),

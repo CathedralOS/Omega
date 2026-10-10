@@ -7,6 +7,88 @@ use validation::contract_structure::{
     callable_binders, declared_callable, declared_contracts, declared_termination, generic_binders,
 };
 
+/// Normalization scratch retained until every generated contract's envelope
+/// settles. Publishing a head before its member graph closes would commit an
+/// empty crash permission set and then silently change that public contract.
+struct ContractPublication {
+    supply: language_semantics::MachineSupplyMode,
+    services: Vec<String>,
+    invocations: language_semantics::SynchronousInvocationInterface,
+    published_invocations: Vec<String>,
+    suspension: language_semantics::SuspensionInterface,
+    blocking: language_semantics::BlockingInterface,
+    termination: checked_trees::DeclaredTermination,
+    declaration: checked_trees::DeclaredContractStructure,
+}
+
+impl ContractPublication {
+    fn identity(
+        &self,
+        crashes: checked_trees::CrashInterface,
+    ) -> checked_trees::MachineContractIdentity {
+        checked_trees::contract_identity(
+            self.supply,
+            &self.services,
+            self.invocations,
+            &self.published_invocations,
+            self.suspension,
+            self.blocking,
+            crashes,
+            &self.termination,
+            &self.declaration,
+        )
+    }
+}
+
+/// Add only causes inferred from private members, leaving authored head routes
+/// guarded. The prepared graph excludes proof pruning: a stronger prover must
+/// not narrow the published interface. Invocation-specific refinement happens
+/// later against this finalized ceiling, never against a lexical body.
+fn publish_family_crash_envelopes(
+    contracts: &mut [checked_trees::MachineContractPlan],
+    publications: &mut [ContractPublication],
+    additions: &[(symbols::SymbolHandle, Vec<checked_trees::CrashCause>)],
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    for (head, causes) in additions {
+        let position = contracts
+            .iter()
+            .position(|contract| contract.machine == *head)
+            .ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "target-family crash envelope has no owning contract",
+                )]
+            })?;
+        let publication = publications.get_mut(position).ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "target-family crash envelope has no declaration publication",
+            )]
+        })?;
+        let contract = &mut contracts[position];
+        let mut published = contract.crash.published().to_vec();
+        for cause in causes {
+            // An inferred unconditional permission subsumes authored guards
+            // for this cause; both the runtime row and commitment normalize
+            // that same complete contract rather than hashing redundant facts.
+            published.retain(|bucket| bucket.cause() != *cause);
+            published.push(checked_trees::CrashRouteBucket::unconditional(*cause));
+            publication.declaration.clauses.retain(|clause| {
+                clause.kind != checked_trees::DeclaredContractKind::Crashes(*cause)
+            });
+            publication
+                .declaration
+                .clauses
+                .push(checked_trees::DeclaredContractClause {
+                    kind: checked_trees::DeclaredContractKind::Crashes(*cause),
+                    fact: None,
+                });
+        }
+        publication.declaration.clauses.sort();
+        publication.declaration.clauses.dedup();
+        contract.crash = contract.crash.clone().with_published_ceiling(published);
+    }
+    Ok(())
+}
+
 /// STR4 checked plans (wiki/spec/language/machines.md): assemble each machine's
 /// normalized contract plan from the published halves already carried on
 /// the records (supply mode, service/operational ceilings, published termination),
@@ -31,6 +113,7 @@ pub(crate) fn build_contract_plans(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
     let mut machines = Vec::new();
+    let mut publications = Vec::new();
     let content_conservation = validation::content_conservation_plans(program);
     for machine in program.machines() {
         let service_fact = service_reaches.for_machine(machine.symbol);
@@ -120,23 +203,24 @@ pub(crate) fn build_contract_plans(
         let published_termination = declared_termination(program, &termination.interface, &binders);
         let closed_scalar_values =
             build_closed_scalar_value_contract_plan(program, machine, operators);
-        let identity = checked_trees::contract_identity(
-            machine.supply_mode,
-            &published_service_names,
-            synchronous_invocation.interface,
-            &synchronous_invocation.published,
-            suspension.interface,
-            blocking.interface,
-            crash.interface(),
-            &published_termination,
-            &declaration,
-        );
+        publications.push(ContractPublication {
+            supply: machine.supply_mode,
+            services: published_service_names,
+            invocations: synchronous_invocation.interface,
+            published_invocations: synchronous_invocation.published.clone(),
+            suspension: suspension.interface,
+            blocking: blocking.interface,
+            termination: published_termination,
+            declaration,
+        });
         machines.push(checked_trees::MachineContractPlan {
             machine: machine.symbol,
             closed_scalar_values,
             crash,
-            report_fingerprint: identity.report_fingerprint,
-            commitment: identity.commitment,
+            // No consumer observes these construction coordinates. Family
+            // envelopes settle before each final contract identity is minted.
+            report_fingerprint: 0,
+            commitment: checked_trees::MachineContractCommitment::from_digest([0; 32]),
         });
     }
     let mut operator_crashes = operator_crashes::build(program, operators, flow, semantic)?;
@@ -167,6 +251,23 @@ pub(crate) fn build_contract_plans(
         )]);
     }
     let crash_capsules = build_crash_contract_capsules(program, &content_conservation, operators);
+    let summary_graph = crash_calls::prepare_crash_summary_graph(
+        program,
+        operators,
+        flow,
+        &crash_capsules,
+        &machines,
+    )?;
+    publish_family_crash_envelopes(
+        &mut machines,
+        &mut publications,
+        summary_graph.family_potential_crash_causes(),
+    )?;
+    for (contract, publication) in machines.iter_mut().zip(&publications) {
+        let identity = publication.identity(contract.crash.interface());
+        contract.report_fingerprint = identity.report_fingerprint;
+        contract.commitment = identity.commitment;
+    }
     crash_calls::attach_checked_crash_calls(
         program,
         operators,
@@ -177,6 +278,7 @@ pub(crate) fn build_contract_plans(
         &crash_capsules,
         &mut machines,
         call_frames,
+        &summary_graph,
     );
     let realized_envelopes =
         machines

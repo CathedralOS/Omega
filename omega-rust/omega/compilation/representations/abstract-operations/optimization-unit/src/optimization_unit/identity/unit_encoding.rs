@@ -22,7 +22,7 @@ use crate::optimization_unit::identity::structural_encoding::{
     encode_structural_type,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v40\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v41\0";
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
 ) -> OptimizationUnitIdentity {
@@ -536,9 +536,13 @@ fn encode_ownership(bytes: &mut CanonicalBytes, event: &OwnershipEvent) {
             bytes.u8(1);
             encode_ids(bytes, claims);
         }
-        OwnershipEvent::ClaimCompletion(claims) => {
+        OwnershipEvent::ClaimCompletion(receipts) => {
             bytes.u8(2);
-            encode_ids(bytes, claims);
+            bytes.slice(receipts, |bytes, receipt| {
+                bytes.id(receipt.claim);
+                bytes.u32(receipt.argument_index);
+                bytes.slice(&receipt.path, encode_structural_path_segment);
+            });
         }
         OwnershipEvent::Cleanup(actions) => {
             bytes.u8(3);

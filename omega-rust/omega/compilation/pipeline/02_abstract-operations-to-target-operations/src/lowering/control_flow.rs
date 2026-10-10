@@ -5,11 +5,11 @@
 //! fixed point over current predecessor exits before publishing the graph.
 use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
+use crate::lowering::selected_boundary_calls::SelectedBoundaryCall;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
 };
-use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
@@ -33,7 +33,6 @@ mod calls;
 mod dominance;
 mod element_view_write;
 mod ieee_float_arithmetic;
-mod installed_calls;
 mod leaf_copy;
 mod observations;
 mod operations;
@@ -43,6 +42,7 @@ mod records;
 pub(super) mod references;
 pub(super) mod scalar_arrays;
 pub(super) mod scalar_sources;
+mod selected_boundary_calls;
 mod structural_case;
 mod terminator;
 mod transfers;
@@ -210,10 +210,7 @@ pub(super) fn lower(
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    installed_calls: &BTreeMap<
-        (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderCallEvidence,
-    >,
+    selected_calls: &BTreeMap<(MachineId, OperationId, BoundaryMachineId), SelectedBoundaryCall>,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
 ) -> Result<TargetFunction, LoweringError> {
@@ -646,7 +643,7 @@ pub(super) fn lower(
                     structural_types,
                     boundary_machines,
                     settlements,
-                    installed_calls,
+                    selected_calls,
                     scalar_abis,
                     native_callbacks,
                     &prepared,

@@ -340,16 +340,16 @@ pub(crate) fn nested_structural_call_return_type(
                                 == language_semantics::MachineSupplyMode::CheckedBody
                                 && target.return_type.is_valid()
                                 && validation::has_contents(
-        program,
-        target.return_type,
-        &[],
-        validation::ContentsRequirement::RepresentedOwned)))
+                                    program,
+                                    target.return_type,
+                                    &[],
+                                    validation::ContentsRequirement::RepresentedOwned,
+                                )))
                 }))
             .then_some(())
         };
         if targets.next().is_some()
-            || (owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                && !owner.supply_mode.is_boundary_declaration())
+            || !(owner.supplies_checked_body() || owner.has_bodyless_signature())
             || (!program.call_has_no_runtime_receiver(call, owner, target)
                 && own_self_receiver().is_none())
         {

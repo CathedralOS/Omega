@@ -29,21 +29,27 @@ pub(super) fn discover(
     let mut family_scalar_roots = Vec::new();
     let mut retained_boundary_roots = Vec::new();
     // Target families are portable product surface, not entry reachability.
-    // Discover every implementation before allocating the shared namespaces;
-    // independently lowered modules cannot be merged without changing IDs.
-    for member in checked
-        .typed
-        .target_machine_families
-        .iter()
-        .filter(|family| family.purpose == typed_trees::machine::MachinePurpose::Runtime)
-        .flat_map(|family| &family.members)
+    // Discover each contract head and implementation before allocating shared
+    // namespaces. An independent head retains its opaque checked plan even
+    // when no call demands it; it supplies no implementation or authority.
+    for callable in super::target_families::runtime_families(checked)?
+        .into_iter()
+        .flat_map(|family| {
+            std::iter::once(family.canonical).chain(
+                family
+                    .members
+                    .iter()
+                    .filter(|member| member.machine != family.canonical)
+                    .map(|member| member.machine),
+            )
+        })
     {
         let machine =
             checked
                 .typed
-                .machine_by_symbol(member.machine)
+                .machine_by_symbol(callable)
                 .ok_or(LoweringError::Unsupported(
-                    "target-family body is absent from checked input",
+                    "target-family callable is absent from checked input",
                 ))?;
         // A retained body's satisfaction edges are interface roots even
         // when no operation invokes those requirements. The checked planner
@@ -62,30 +68,30 @@ pub(super) fn discover(
             }
         }
         if !machine.supplies_checked_body() {
-            super::unique_unit_boundary(plans, member.machine).map_err(
+            super::unique_unit_boundary(plans, callable).map_err(
                 crate::lowering_error::unit_machine_plan_error(
                     checked,
                     machine.name.as_str(),
-                    member.machine,
+                    callable,
                 ),
             )?;
-            if !retained_boundary_roots.contains(&member.machine) {
-                retained_boundary_roots.push(member.machine);
+            if !retained_boundary_roots.contains(&callable) {
+                retained_boundary_roots.push(callable);
             }
             continue;
         }
-        if UnitBody::contains(plans, member.machine)
-            && UnitBody::find(plans, member.machine)?
+        if UnitBody::contains(plans, callable)
+            && UnitBody::find(plans, callable)?
                 .scalar_result_type()
                 .is_none()
         {
-            if !retained_roots.contains(&member.machine) {
-                retained_roots.push(member.machine);
+            if !retained_roots.contains(&callable) {
+                retained_roots.push(callable);
             }
         } else {
-            CheckedScalarCallee::find_for_unit_call(checked, member.machine)?;
-            if !family_scalar_roots.contains(&member.machine) {
-                family_scalar_roots.push(member.machine);
+            CheckedScalarCallee::find_for_unit_call(checked, callable)?;
+            if !family_scalar_roots.contains(&callable) {
+                family_scalar_roots.push(callable);
             }
         }
     }

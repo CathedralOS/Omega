@@ -56,6 +56,24 @@ pub(super) fn clone_specialized_machine(
     normalized_template_identity: String,
     accepted_template_commitment: Option<String>,
 ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Vec<Diagnostic>> {
+    super::target_families::clone_specialization(
+        source,
+        program,
+        candidate,
+        ordinal,
+        normalized_template_identity,
+        accepted_template_commitment,
+    )
+}
+
+pub(super) fn clone_single_specialized_machine(
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &mut TypedTrees,
+    candidate: &Candidate,
+    ordinal: usize,
+    normalized_template_identity: String,
+    accepted_template_commitment: Option<String>,
+) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Vec<Diagnostic>> {
     // Closure derives the record needed by executable substitution. Fitting
     // that record to the original binder is immutable checking's judgment.
     // Fail before allocating a clone, not through a prior-validator assumption.

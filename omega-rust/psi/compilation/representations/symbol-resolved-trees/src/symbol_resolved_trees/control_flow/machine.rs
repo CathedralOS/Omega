@@ -46,18 +46,22 @@ pub struct Machine {
     /// semantic consumers must not reconstruct supply from source spelling or
     /// body presence.
     pub supply_mode: language_semantics::MachineSupplyMode,
-    /// The target this body belongs to when it is a sibling of the selected
-    /// target's declaration (`<target> machine ...`): retained so every
-    /// target's bodies are checked, never selected by conformance or
-    /// attachment lookups, and pruned once checking has committed. `None`
-    /// for the selected declaration and every ordinary machine.
+    /// Exact authored implementation target. Every product member retains
+    /// this identity; its independent portable interface and ordinary machines
+    /// have no target. Psi checks all members without choosing a deployment.
     pub target: Option<DiagnosticName>,
     /// Authored target head, independent of the transitional sibling marker.
     pub authored_target: Option<DiagnosticName>,
-    /// Exact canonical declaration of this product-scope target family.
-    /// Invalid for ordinary/Build declarations, synthesized generic-data
-    /// clones, and inert families without an admitted canonical body.
+    /// Exact independent interface of this product-scope target family,
+    /// including closed generic attachments. Invalid for ordinary and Build
+    /// declarations. This handle supplies no executable implementation.
     pub target_family: SymbolHandle,
+    /// Generated Requirement owning the portable callable identity. Target
+    /// implementations refine this head; none is its executable definition.
+    pub target_family_interface: bool,
+    /// Declaration preparation checkpoint. Completing authored bodies must
+    /// preserve these already resolved interface clauses and their handles.
+    pub target_family_contracts_prepared: bool,
     /// A sibling's symbol spelling, `<path>::<target>`, so the symbol table
     /// keeps one root machine per authored path for name lookups while the
     /// record's `name` stays the authored family path. Empty for every other
@@ -266,6 +270,8 @@ pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
         target_symbol_name: Default::default(),
         authored_target: None,
         target_family: SymbolHandle::invalid(),
+        target_family_interface: false,
+        target_family_contracts_prepared: false,
         body_is_present: true,
         body_status: crate::machine::MachineBodyStatus::Complete,
         has_structural_type_equations: false,

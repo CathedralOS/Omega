@@ -57,7 +57,7 @@ pub fn derive_completion_provider_custody(
                 .find(|source| source.claim() == receipt.claim)?;
             Some(CompletionProviderCustodyBinding {
                 source: source.clone(),
-                receipt: *receipt,
+                receipt: receipt.clone(),
                 provider_execution,
             })
         })

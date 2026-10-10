@@ -7,6 +7,7 @@
 
 pub(crate) mod arguments;
 pub(crate) mod frames;
+pub(crate) mod target_families;
 
 use crate::custody::{
     bind_arguments, bind_boundary_arguments, bind_structural_arguments, complete_claims,
@@ -277,6 +278,13 @@ impl TerminalExecution<'_> {
             .map(|argument| self.scalar_value(*argument))
             .collect::<Result<Vec<_>, _>>()?;
         bind_boundary_arguments(&boundary_declaration.scalar_parameters, &scalar_arguments)?;
+        if program.is_target_family_head(boundary) {
+            return self.execute_target_family_call(
+                operation,
+                boundary_declaration,
+                &scalar_arguments,
+            );
+        }
         let supply = self.boundary_supplies.get(&boundary).copied();
         if matches!(
             supply,
@@ -384,7 +392,7 @@ impl TerminalExecution<'_> {
                 .map(|receipt| ClaimTransfer {
                     claim: receipt.claim,
                     argument_index: receipt.argument_index,
-                    path: Vec::new(),
+                    path: receipt.path.clone(),
                 })
                 .collect::<Vec<_>>();
             match &operation.result {

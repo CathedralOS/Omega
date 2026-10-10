@@ -20,6 +20,10 @@ pub fn retain_provider_defaults(
     let mut rows: Vec<crate::TargetProviderDefaults> = Vec::new();
     for machine in context.typed.machines().iter().filter(|machine| {
         machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+            // A generated interface contributes no authored declarations.
+            // Harvest the complete member bodies, not a spurious targetless
+            // defaults row for their shared callable head.
+            && !machine.target_family_interface
             && context.contains(machine.symbol)
             && (context.scope == source::DependencyScope::Product || machine.target.is_none())
     }) {
@@ -212,7 +216,11 @@ pub(crate) fn realizes_machine(
     machine: &typed_trees::machine::Machine,
     target: Option<&str>,
 ) -> bool {
-    if !context.contains(machine.symbol) {
+    // A portable family interface has no implementation or satisfies edges.
+    // Sharing the members' callable signature does not make it a second
+    // checked adapter. Entry/family dispatch selects a retained member through
+    // the explicit family catalog instead of this provider-candidate query.
+    if machine.target_family_interface || !context.contains(machine.symbol) {
         return false;
     }
     if context.scope == source::DependencyScope::Build {

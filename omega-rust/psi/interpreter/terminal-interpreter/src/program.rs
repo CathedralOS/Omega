@@ -91,13 +91,29 @@ impl AdmittedTerminalProgram<'_> {
             .is_ok()
     }
 
+    /// Independent heads are contract-only declarations. Legacy rows whose
+    /// canonical callable is an actual member retain ordinary call identity.
+    pub(crate) fn is_target_family_head(&self, boundary: BoundaryMachineId) -> bool {
+        let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
+        self.catalogs
+            .target_machine_families
+            .binary_search_by_key(&head, |family| family.canonical)
+            .ok()
+            .is_some_and(|position| {
+                !self.catalogs.target_machine_families[position]
+                    .members
+                    .iter()
+                    .any(|member| member.callable == head)
+            })
+    }
+
     /// The declared boundary a demanded import slot names, when `slot` is a
     /// host-bindable import of this program.
     pub(crate) fn import_declaration(
         &self,
         slot: BoundaryMachineId,
     ) -> Option<&BoundaryMachineDeclaration> {
-        if self.has_provider(&slot) {
+        if self.has_provider(&slot) || self.is_target_family_head(slot) {
             return None;
         }
         self.boundary_machines().get(&slot)
@@ -233,6 +249,12 @@ impl<'artifact> TerminalProgram<'artifact> {
         {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
+        if request
+            .target_machines
+            .is_some_and(|selected| selected.terminal_psi() != self.program.identity)
+        {
+            return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
+        }
         let mut installation = request
             .installation
             .map(TerminalRuntimeSupplies::from)
@@ -240,7 +262,9 @@ impl<'artifact> TerminalProgram<'artifact> {
                 terminal_psi: self.program.identity,
                 supplies: BTreeMap::new(),
                 assumed_bindings: Vec::new(),
+                target_machines: None,
             });
+        installation.target_machines = request.target_machines.cloned();
         for &boundary in request.host_imports {
             let rejected = |reason| TerminalInterpretError::RuntimeSupplySelectionRejected {
                 boundary,
@@ -251,6 +275,11 @@ impl<'artifact> TerminalProgram<'artifact> {
                 .boundary_machines()
                 .get(&boundary)
                 .ok_or_else(|| rejected("host import names no declared boundary"))?;
+            if self.program.is_target_family_head(boundary) {
+                return Err(rejected(
+                    "family contract head requires exact target member selection",
+                ));
+            }
             if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
                 return Err(rejected(
                     "external completion requires separate domain admission",
@@ -283,7 +312,10 @@ impl<'artifact> TerminalProgram<'artifact> {
         self.program
             .boundary_machines()
             .values()
-            .filter(move |declaration| !self.program.has_provider(&declaration.id))
+            .filter(move |declaration| {
+                !self.program.has_provider(&declaration.id)
+                    && !self.program.is_target_family_head(declaration.id)
+            })
     }
 
     /// The exact import description for one demanded slot, absent when `slot`

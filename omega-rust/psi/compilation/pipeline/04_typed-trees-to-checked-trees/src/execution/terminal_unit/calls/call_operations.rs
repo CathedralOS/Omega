@@ -200,11 +200,11 @@ pub(in crate::execution) fn build_call_operation(
         contract_report_fingerprint: target_contract.report_fingerprint,
         service_reach: call.service_reach,
     };
-    // A bodied `boundary machine` is a checked adapter: callers reach its
-    // authored body as an ordinary callee; only the bodyless declaration is
-    // a boundary edge.
-    let boundary =
-        target_machine.supply_mode.is_boundary_declaration() && !target_machine.body_is_present;
+    // Executable ownership, not supply/trust tier, selects call transport.
+    // A bodied boundary adapter is ordinary; a bodyless Requirement carries
+    // its opaque checked signature through the same boundary-call lane.
+    // Selection and authority remain independent realization obligations.
+    let boundary = target_machine.has_bodyless_signature();
     // Boundary and ordinary results retain the same structural carrier.
     // Installation supplies the checked provider body and its exact return
     // custody; a boundary declaration does not authorize fabricated payloads.

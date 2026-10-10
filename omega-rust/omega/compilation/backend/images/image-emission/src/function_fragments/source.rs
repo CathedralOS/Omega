@@ -72,7 +72,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::PrimitiveScalarRead { .. }
                 | AbstractOperation::StructuralScalarFieldRead { .. }
                 | abstract_operations::byte_len_or_field_read_pattern!(..)
-                | abstract_operations::byte_sequence_store_pair_pattern!( .. )
+                | abstract_operations::byte_sequence_store_pair_pattern!(..)
                 | AbstractOperation::StructuralByteViewFieldStore { .. }
                 | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
                 | AbstractOperation::StructuralCaseMembership { .. }
@@ -153,7 +153,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         let (abstracted, targeted) = function(source, fragment.machine)?;
         let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);
         let selected = current
-            .selected_plan().function(fragment.machine)
+            .selected_plan()
+            .function(fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
         let structural = selected.structural.as_ref();
         let graph_result = aggregate_results::header(abstracted, targeted, selected);
@@ -437,7 +438,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
                     || ieee_float_arithmetic_retained(operation, targeted, selected)
-                    || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. }))
+                    || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation)),
                 AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
                 AbstractOperation::ExternalCompletion { psi_edge, boundary, .. } => {

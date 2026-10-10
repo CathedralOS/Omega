@@ -234,18 +234,6 @@ pub(crate) fn specialize_operator_candidates(
             ) {
                 Ok(_) => {
                     materialized += 1;
-                    let instance = program
-                        .machine_specializations
-                        .last()
-                        .expect("clone retained specialization")
-                        .instance;
-                    if let Some(machine) = program
-                        .machines_mut()
-                        .iter_mut()
-                        .find(|machine| machine.symbol == instance)
-                    {
-                        machine.is_public = false;
-                    }
                 }
                 Err(errors) => diagnostics.extend(errors),
             }

@@ -106,6 +106,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.slice(completion_receipts, |bytes, receipt| {
                 bytes.id(receipt.claim);
                 bytes.u32(receipt.argument_index);
+                bytes.slice(&receipt.path, encode_structural_path_segment);
             });
         }
         O::PortWrite {

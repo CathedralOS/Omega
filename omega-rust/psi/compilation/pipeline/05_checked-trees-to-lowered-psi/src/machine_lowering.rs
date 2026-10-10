@@ -154,12 +154,7 @@ fn lower_terminal_selection(
         source_machine_ids,
     } = lower_selected_machine(checked, selection)?;
     if lowered.semantic_module.target_machine_families.len()
-        != checked
-            .typed
-            .target_machine_families
-            .iter()
-            .filter(|family| family.purpose == typed_trees::machine::MachinePurpose::Runtime)
-            .count()
+        != crate::unit::attached_unit::target_families::runtime_families(checked)?.len()
     {
         return unsupported("entry lowering did not retain the complete target-family catalog");
     }

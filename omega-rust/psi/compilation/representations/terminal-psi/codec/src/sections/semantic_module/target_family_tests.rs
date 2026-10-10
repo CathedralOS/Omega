@@ -99,6 +99,7 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
     }
     module.target_machine_families.push(TargetMachineFamily {
         canonical: members[0].callable,
+        head_contract: [1; 32],
         members,
     });
     let owner = semantic_vocabulary::ServiceId::new(1).unwrap();
@@ -168,6 +169,7 @@ fn target_family_wire_rejects_duplicate_tags_and_missing_callables() {
         let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
         module.target_machine_families.push(TargetMachineFamily {
             canonical: members[0].callable,
+            head_contract: [1; 32],
             members,
         });
         assert_eq!(

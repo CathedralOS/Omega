@@ -32,6 +32,7 @@ pub(super) fn encode_family(
     family: &TargetMachineFamily,
 ) -> Result<(), CodecError> {
     encode_callable(writer, family.canonical);
+    writer.bytes(&family.head_contract);
     writer.len("target-family members", family.members.len())?;
     for member in &family.members {
         writer.string("target-family deployment tag", &member.target)?;
@@ -51,6 +52,7 @@ pub(super) fn encode_family(
 pub(super) fn decode_family(reader: &mut Reader<'_>) -> Result<TargetMachineFamily, CodecError> {
     Ok(TargetMachineFamily {
         canonical: decode_callable(reader)?,
+        head_contract: reader.array()?,
         members: decode_counted(reader, |reader| {
             Ok(TargetMachineFamilyMember {
                 target: reader.string("target-family deployment tag")?,

@@ -492,7 +492,9 @@ impl Expansion<'_> {
                 )?,
                 arguments: scalar_actuals,
                 structural_arguments,
-                completion_receipts: crate::emission::claim_bindings::prepare_completion_receipts(&claim_transfers),
+                completion_receipts: crate::emission::claim_bindings::prepare_checked_claim_transfers(
+                    &claim_transfers, parameters, self.structural_types,
+                )?,
             })
         } else {
             LoweredScalarBinding::DirectCall(lower_scalar_call(

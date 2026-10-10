@@ -1472,18 +1472,24 @@ pub(crate) fn complete_claims(
         .enumerate()
         .flat_map(|(index, argument)| {
             caller_claims.iter().filter_map(move |(claim, live)| {
-                (live.place == Some(argument.place)
-                    && (argument.path.is_empty() || live.path == argument.path))
-                    .then_some((index as u32, *claim))
+                if live.place != Some(argument.place) {
+                    return None;
+                }
+                live.path
+                    .strip_prefix(argument.path.as_slice())
+                    .map(|path| (index as u32, *claim, path))
             })
         })
         .collect::<BTreeSet<_>>();
     let mut remaining = caller_claims.clone();
     let mut actual = BTreeSet::new();
     for receipt in receipts {
-        if !actual.insert((receipt.argument_index, receipt.claim))
-            || !expected.contains(&(receipt.argument_index, receipt.claim))
-        {
+        let occurrence = (
+            receipt.argument_index,
+            receipt.claim,
+            receipt.path.as_slice(),
+        );
+        if !actual.insert(occurrence) || !expected.contains(&occurrence) {
             return Err(TerminalInterpretError::CompletionReceiptMismatch);
         }
         let argument = caller_arguments
@@ -1493,7 +1499,7 @@ pub(crate) fn complete_claims(
             .remove(&receipt.claim)
             .ok_or(TerminalInterpretError::CompletionReceiptMismatch)?;
         if claim.place != Some(argument.place)
-            || (!argument.path.is_empty() && claim.path != argument.path)
+            || claim.path.strip_prefix(argument.path.as_slice()) != Some(receipt.path.as_slice())
         {
             return Err(TerminalInterpretError::CompletionReceiptMismatch);
         }

@@ -45,7 +45,6 @@ pub(crate) struct CallTarget<'program> {
     pub(crate) parameters: &'program [typed_trees::signature::StateParameter],
     pub(crate) return_type: typed_trees::types::TypeReferenceHandle,
     pub(crate) supply_mode: language_semantics::MachineSupplyMode,
-    pub(crate) body_is_present: bool,
     /// The target's own declaration, when it has one a caller can inspect.
     pub(crate) declaration: Option<(
         &'program typed_trees::machine::Machine,
@@ -54,6 +53,13 @@ pub(crate) struct CallTarget<'program> {
 }
 
 impl<'program> CallTarget<'program> {
+    /// Signature-only transport is independent of the declaration's trust tier.
+    /// A missing checked body is not permission to pretend it is an opaque one.
+    pub(crate) fn has_bodyless_signature(self) -> bool {
+        self.declaration
+            .is_some_and(|(machine, _)| machine.has_bodyless_signature())
+    }
+
     pub(crate) fn declared(
         program: &'program dyn ::validation::CheckingInput,
         machine: &'program typed_trees::machine::Machine,
@@ -63,7 +69,6 @@ impl<'program> CallTarget<'program> {
             parameters: program.state_parameters(state),
             return_type: state.return_type,
             supply_mode: machine.supply_mode,
-            body_is_present: machine.body_is_present,
             declaration: Some((machine, state)),
         }
     }
@@ -75,7 +80,6 @@ impl<'program> CallTarget<'program> {
             parameters: &slot.parameters,
             return_type: slot.return_type,
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
-            body_is_present: true,
             declaration: None,
         }
     }

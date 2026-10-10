@@ -17,13 +17,10 @@ pub(crate) fn expected_ownership(
         O::BoundaryCall {
             completion_receipts,
             ..
-        } => vec![OwnershipEvent::ClaimCompletion(
-            completion_receipts
-                .iter()
-                .map(|receipt| receipt.claim)
-                .collect(),
-        )],
-        abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) => vec![OwnershipEvent::Cleanup(cleanup_actions.clone())],
+        } => vec![OwnershipEvent::ClaimCompletion(completion_receipts.clone())],
+        abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) => {
+            vec![OwnershipEvent::Cleanup(cleanup_actions.clone())]
+        }
         O::ReturnStructural {
             returned_claims,
             cleanup_actions,

@@ -104,6 +104,17 @@ impl CrashPlan {
         }
     }
 
+    /// Publish a completed ceiling without discarding its requirement custody
+    /// or implementation sites. Generated family contracts settle their
+    /// conservative member envelope before the owning contract is committed.
+    pub fn with_published_ceiling(mut self, mut published: Vec<CrashRouteBucket>) -> Self {
+        published.sort();
+        published.dedup();
+        self.interface = CrashInterface::PublishedCeiling;
+        self.published = published;
+        self
+    }
+
     /// Attach the canonical (state, statement) roster of Trapping sites.
     pub fn with_trapping_sites(mut self, mut sites: Vec<CrashSiteLocation>) -> Self {
         sites.sort_by_key(|site| {

@@ -54,6 +54,10 @@ impl TerminalExecution<'_> {
             }) if result.structural_type == signature.structural_type
                 && result.multiplicity == signature.multiplicity
                 && claim_origin.result_qualifications_match(result, &signature.qualifications)
+                && claim_origin.result_projected_qualifications_match(
+                    result,
+                    &signature.projected_qualifications,
+                )
                 && !structural_values.contains_key(&result.place)
                 && !scalar_array_values.contains_key(&result.place)
                 && !element_view_values.contains_key(&result.place)
@@ -204,7 +208,8 @@ impl TerminalExecution<'_> {
                     crate::execution::ResultClaimOrigin::BoundaryIssuance => {
                         self.mint_boundary_result_claims(live_claims, *source, result)?
                     }
-                    crate::execution::ResultClaimOrigin::CalleeReturn => {
+                    crate::execution::ResultClaimOrigin::CalleeReturn
+                    | crate::execution::ResultClaimOrigin::TargetFamilyReturn { .. } => {
                         let mut active_result = result.clone();
                         active_result.claims =
                             self.active_structural_claims(*source, &result.claims)?;
@@ -220,6 +225,37 @@ impl TerminalExecution<'_> {
                 Some(_) => return Err(malformed()),
                 None => None,
             };
+            // The member's returning edge authenticated these domains and
+            // claims. Weakening reveals only the head contract; it changes no
+            // placed identity, reference backing, ownership path or debt.
+            if let Some(SuspendedCall {
+                result:
+                    SuspendedCallResult::Structural {
+                        result,
+                        claim_origin:
+                            crate::execution::ResultClaimOrigin::TargetFamilyReturn { head, member },
+                        ..
+                    },
+                ..
+            }) = self.call_stack.last()
+            {
+                if *member != self.current_machine || !self.program.is_target_family_head(*head) {
+                    return Err(malformed());
+                }
+                if result
+                    .projected_qualifications
+                    .iter()
+                    .any(|row| !value.projected_qualifications.contains(row))
+                {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "family result projected qualification lacks transported member evidence",
+                    ));
+                }
+                value.qualifications.clone_from(&result.qualifications);
+                value
+                    .projected_qualifications
+                    .clone_from(&result.projected_qualifications);
+            }
             let byte_sequence = byte_sequence.map(|binding| match binding {
                 ByteSequenceBinding::Immutable(view) => {
                     ByteSequenceBinding::Immutable(view.with_descriptor_home(value.clone()))

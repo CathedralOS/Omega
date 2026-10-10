@@ -115,6 +115,9 @@ pub enum TerminalInterpretError {
     ClaimTransferMismatch,
     CompletionReceiptMismatch,
     ProviderInstallationIdentityMismatch,
+    TargetMachineSelectionIdentityMismatch,
+    TargetMachineSelectionMissing(terminal_psi::TargetMachineCallable),
+    TargetMachineSelection(terminal_installation::TargetMachineSelectionError),
     RuntimeSupplySelectionRejected {
         boundary: BoundaryMachineId,
         reason: &'static str,

@@ -3,7 +3,7 @@ use legalized_operations::{
     LegalizedBoundarySettlement, NativeCallOrigin, encode_provider_execution,
 };
 use optimization_unit::{EffectLink, OwnershipEvent};
-use selected_instructions::effects::program::identity::encode_ownership;
+use selected_instructions::effects::program::identity::{encode_ownership, encode_path};
 use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
@@ -102,7 +102,7 @@ pub(super) fn encode_boundary_settlement(
     }
     length(bytes, settlement.completion_receipts.len());
     for receipt in &settlement.completion_receipts {
-        encode_completion_receipt(bytes, *receipt);
+        encode_completion_receipt(bytes, receipt);
     }
     encode_fuel(bytes, &settlement.fuel);
     encode_effect(bytes, settlement.effect);
@@ -194,6 +194,26 @@ pub(super) fn encode_call_source(
 ) {
     match source {
         NativeCallOrigin::Authored => bytes.push(1),
+        NativeCallOrigin::TargetFamily {
+            boundary,
+            member,
+            target,
+            completion_claim_sources,
+            completion_receipts,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            bytes.extend_from_slice(&member.get().to_le_bytes());
+            encode_string(bytes, target);
+            length(bytes, completion_claim_sources.len());
+            for source in completion_claim_sources {
+                encode_completion_claim_source(bytes, source);
+            }
+            length(bytes, completion_receipts.len());
+            for receipt in completion_receipts {
+                encode_completion_receipt(bytes, receipt);
+            }
+        }
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
@@ -209,7 +229,7 @@ pub(super) fn encode_call_source(
             }
             length(bytes, completion_receipts.len());
             for receipt in completion_receipts {
-                encode_completion_receipt(bytes, *receipt);
+                encode_completion_receipt(bytes, receipt);
             }
         }
     }
@@ -221,6 +241,20 @@ pub(super) fn decode_call_source(
 ) -> Result<NativeCallOrigin, FixedViewCopyDecodeError> {
     match cursor.byte()? {
         1 => Ok(NativeCallOrigin::Authored),
+        3 => {
+            let boundary = decode_id(cursor, BoundaryMachineId::new)?;
+            let member = decode_id(cursor, MachineId::new)?;
+            let target = decode_string(cursor)?;
+            let completion_claim_sources = decode_list(cursor, decode_completion_claim_source)?;
+            let completion_receipts = decode_list(cursor, decode_completion_receipt)?;
+            Ok(NativeCallOrigin::TargetFamily {
+                boundary,
+                member,
+                target,
+                completion_claim_sources,
+                completion_receipts,
+            })
+        }
         2 => {
             let boundary = decode_id(cursor, BoundaryMachineId::new)?;
             let provider = provider::decode(cursor, retain_projected_qualifications)?;
@@ -408,9 +442,10 @@ fn decode_content_algebra(
     })
 }
 
-fn encode_completion_receipt(bytes: &mut Vec<u8>, receipt: CompletionReceipt) {
+fn encode_completion_receipt(bytes: &mut Vec<u8>, receipt: &CompletionReceipt) {
     crate::codec_bytes::push_encoded(bytes, receipt.claim.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, receipt.argument_index.to_le_bytes());
+    encode_path(bytes, &receipt.path);
 }
 
 fn decode_completion_receipt(
@@ -419,6 +454,7 @@ fn decode_completion_receipt(
     Ok(CompletionReceipt {
         claim: decode_id(cursor, ClaimId::new)?,
         argument_index: cursor.u32()?,
+        path: decode_path(cursor)?,
     })
 }
 
@@ -444,7 +480,7 @@ pub(super) fn decode_ownership(
     for _ in 0..count {
         ownership.push(match cursor.byte()? {
             1 => OwnershipEvent::ClaimTransfer(decode_ids(cursor, ClaimId::new)?),
-            2 => OwnershipEvent::ClaimCompletion(decode_ids(cursor, ClaimId::new)?),
+            2 => OwnershipEvent::ClaimCompletion(decode_list(cursor, decode_completion_receipt)?),
             3 => {
                 let actions = decode_list(cursor, decode_cleanup)?;
                 OwnershipEvent::Cleanup(actions)

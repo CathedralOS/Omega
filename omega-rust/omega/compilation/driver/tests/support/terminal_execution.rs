@@ -34,6 +34,7 @@ impl Observation {
 pub(super) fn interpret(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     provisions: Option<&compilation_products::TerminalRuntimeProvisions>,
+    target: Option<&str>,
     fixture_dir: &std::path::Path,
     fuel_allowance: u64,
     standard_input: Box<dyn std::io::Read + Send>,
@@ -44,6 +45,7 @@ pub(super) fn interpret(
     };
     let result = match compiler::runtime::execute(TerminalRuntimeRequest {
         artifact,
+        target,
         provisions,
         fuel_allowance,
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,

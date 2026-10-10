@@ -10,7 +10,20 @@ pub fn decode_ownership(
     for _ in 0..count {
         let event = match cursor.byte()? {
             1 => OwnershipEvent::ClaimTransfer(decode_claim_ids(cursor)?),
-            2 => OwnershipEvent::ClaimCompletion(decode_claim_ids(cursor)?),
+            2 => {
+                let count = cursor.length()?;
+                let mut receipts = Vec::with_capacity(count.min(cursor.remaining()));
+                for _ in 0..count {
+                    let claim = ClaimId::new(cursor.u64()?)
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?;
+                    receipts.push(terminal_psi::CompletionReceipt {
+                        claim,
+                        argument_index: cursor.u32()?,
+                        path: decode_path(cursor)?,
+                    });
+                }
+                OwnershipEvent::ClaimCompletion(receipts)
+            }
             3 => {
                 let action_count = cursor.length()?;
                 let mut actions = Vec::with_capacity(action_count.min(cursor.remaining()));

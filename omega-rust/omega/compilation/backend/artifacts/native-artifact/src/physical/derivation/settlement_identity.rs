@@ -5,12 +5,11 @@ use crate::NativeSelectedProviderPlanDigest;
 pub(crate) use crate::OptimizedBoundaryOccurrence;
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_boundary_settlement_record, hash_boundary_structural_result, hash_bytes,
-    hash_internal_scalar_argument_source, hash_port_effect_record, hash_structural_argument,
-    hash_structural_parameter_declaration, hash_target,
+    hash_claim_source, hash_internal_scalar_argument_source, hash_port_effect_record,
+    hash_structural_argument, hash_structural_parameter_declaration, hash_structural_path,
+    hash_target,
 };
-use crate::{
-    CompilerBuiltinResult, CompilerBuiltinScalarArgument, InstalledProviderInternalCallCustody,
-};
+use crate::{BoundaryInternalCallCustody, CompilerBuiltinResult, CompilerBuiltinScalarArgument};
 use machine_code::PortEffectRecord;
 use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
@@ -229,7 +228,7 @@ pub(crate) fn installed_provider_internal_call_identity(
     boundary: BoundaryMachineId,
     provider_identity: &str,
     candidate_identity: &str,
-    call: &InstalledProviderInternalCallCustody,
+    call: &BoundaryInternalCallCustody,
 ) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
         b"omega.d41-boundary-trait-settlement.sha256.v5\0",
@@ -242,9 +241,18 @@ pub(crate) fn installed_provider_internal_call_identity(
     digest.raw(&boundary.get().to_le_bytes());
     hash_bytes(&mut digest, provider_identity.as_bytes());
     hash_bytes(&mut digest, candidate_identity.as_bytes());
+    hash_internal_call_custody(&mut digest, call);
+    digest.finish()
+}
+
+/// Encode physical call-stack custody independently from its selection authority.
+pub(super) fn hash_internal_call_custody(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    call: &BoundaryInternalCallCustody,
+) {
     let (family_tag, owner, call_target, call_field_offset, frame_terms, caller_live_bytes) =
         match call {
-            InstalledProviderInternalCallCustody::Unit {
+            BoundaryInternalCallCustody::Unit {
                 owner,
                 target,
                 call_field_offset,
@@ -259,7 +267,7 @@ pub(crate) fn installed_provider_internal_call_identity(
                 Some((*active_frame_bytes, *transient_bytes)),
                 *caller_live_bytes,
             ),
-            InstalledProviderInternalCallCustody::Scalar {
+            BoundaryInternalCallCustody::Scalar {
                 owner,
                 target,
                 call_field_offset,
@@ -305,5 +313,54 @@ pub(crate) fn installed_provider_internal_call_identity(
         }
     }
     digest.raw(&caller_live_bytes.to_le_bytes());
-    digest.finish()
+}
+
+/// Bind family selection to the authentic portable head and the same emitted
+/// internal-call custody used by provider calls, without a provider plan.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn target_family_internal_call_identity(
+    terminal: terminal_psi::TerminalPsiIdentity,
+    occurrence: &OptimizedBoundaryOccurrence,
+    head_identity: &str,
+    head_contract: &[u8; 32],
+    member: &terminal_psi::TargetMachineFamilyMember,
+    target: NativeTarget,
+    completion_claim_sources: &[target_operations::CompletionClaimSource],
+    completion_receipts: &[terminal_psi::CompletionReceipt],
+    call: &BoundaryInternalCallCustody,
+) -> Result<[u8; 32], &'static str> {
+    let terminal_psi::TargetMachineCallable::Machine(machine) = member.callable else {
+        return Err("target-family internal-call identity requires a checked machine");
+    };
+    let supply_tag = match member.supply {
+        terminal_psi::TargetMachineSupply::CheckedBody => 1,
+        terminal_psi::TargetMachineSupply::Boundary => 2,
+        _ => return Err("target-family internal-call identity requires executable supply"),
+    };
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.d41-target-family-internal-call.sha256.v1\0",
+    );
+    digest.raw(&crate::physical::identity_bytes::terminal_identity_bytes(
+        terminal,
+    ));
+    digest.raw(&occurrence.identity().bytes());
+    hash_bytes(&mut digest, head_identity.as_bytes());
+    digest.raw(head_contract);
+    hash_target(&mut digest, target);
+    digest.raw(&occurrence.boundary().get().to_le_bytes());
+    hash_bytes(&mut digest, member.target.as_bytes());
+    digest.raw(&machine.get().to_le_bytes());
+    digest.byte(supply_tag);
+    digest.u64(completion_claim_sources.len() as u64);
+    for source in completion_claim_sources {
+        hash_claim_source(&mut digest, source);
+    }
+    digest.u64(completion_receipts.len() as u64);
+    for receipt in completion_receipts {
+        digest.raw(&receipt.claim.get().to_le_bytes());
+        digest.raw(&receipt.argument_index.to_le_bytes());
+        hash_structural_path(&mut digest, &receipt.path);
+    }
+    hash_internal_call_custody(&mut digest, call);
+    Ok(digest.finish())
 }

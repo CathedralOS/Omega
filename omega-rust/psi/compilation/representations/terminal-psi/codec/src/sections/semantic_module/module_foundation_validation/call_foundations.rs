@@ -571,6 +571,15 @@ pub(super) fn validate_boundary_call(
             .iter()
             .map(|settlement| (settlement.claim, settlement.argument_index)),
     )?;
+    for receipt in completion_receipts {
+        let parameter = boundary
+            .structural_parameters
+            .get(receipt.argument_index as usize)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "completion receipt has no structural formal",
+            ))?;
+        validate_structural_path(module, parameter.structural_type, &receipt.path)?;
+    }
     Ok(())
 }
 

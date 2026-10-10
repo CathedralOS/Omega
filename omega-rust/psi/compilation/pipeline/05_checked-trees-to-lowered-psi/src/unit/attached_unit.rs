@@ -59,7 +59,7 @@ mod claims;
 mod entry_requirements;
 mod providers;
 pub(crate) mod signatures;
-mod target_families;
+pub(crate) mod target_families;
 
 // Body emission: each ordinary body and each composed state graph, through
 // one operation frame and one argument schedule over borrowed body views,

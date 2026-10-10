@@ -1,11 +1,14 @@
 //! Give product families stable source identities before assigning symbols.
 //!
-//! Every authored body survives. The first target in lexical order occupies
-//! the family path; siblings get distinct symbols during ordinary resolution.
-//! This choice is not an executable selection or a family-wide guarantee.
+//! Every authored body keeps its exact target identity. A separate bodyless
+//! Requirement occupies the portable path, so a portable call and a private
+//! same-target call can never accidentally share an executable identity.
+//! Ordinary resolution gives the interface its own telescope; the resolved
+//! family owner joins contracts after member symbols have settled.
 //! Build helpers arrive with a separately admitted execution selection and
 //! are not changed here. No native target catalog participates in this pass.
 
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use source::{DependencyScope, SourceFile, SourceMap};
 use std::cmp::Ordering;
@@ -108,6 +111,7 @@ pub(super) fn normalize(
             .then_with(|| left.target.as_str().cmp(right.target.as_str()))
     });
     let mut declarations = Vec::with_capacity(members.len());
+    let mut interfaces = Vec::new();
     for family in members.chunk_by(|left, right| left.compare_family(right).is_eq()) {
         for same_target in
             family.chunk_by(|left, right| left.target.as_str() == right.target.as_str())
@@ -122,16 +126,78 @@ pub(super) fn normalize(
         if family[0].is_build() {
             continue;
         }
-        declarations.extend(family.iter().enumerate().map(|(position, member)| {
-            (
-                member.handle,
-                (position != 0).then(|| member.target.clone()),
-            )
-        }));
+        interfaces.push(family[0].handle);
+        declarations.extend(
+            family
+                .iter()
+                .map(|member| (member.handle, Some(member.target.clone()))),
+        );
     }
     // Release syntax borrows before changing the selected symbol spellings.
     // Only these immediate handles are needed; no source-name roster escapes.
     drop(members);
+    for prototype in interfaces {
+        let Some(machine) = syntax.root_item(prototype).as_machine() else {
+            continue;
+        };
+        // Preparation can run again while type equations settle. The generated
+        // head is stable syntax, not another authored target member. Closed
+        // carrier attachments retain their template span but have distinct
+        // prepared names; neither provenance nor spelling alone identifies
+        // the declaration before symbols are assigned.
+        if syntax.root_items().any(|item| {
+            item.as_machine().is_some_and(|candidate| {
+                candidate.target_family_interface
+                    && candidate.name.source_span() == machine.name.source_span()
+                    && candidate.name.as_str() == machine.name.as_str()
+            })
+        }) {
+            continue;
+        }
+        let mut interface = machine.clone();
+        let Some(&entry) = syntax.items.state_handles(interface.states).first() else {
+            return Err(vec![
+                Diagnostic::error("target family has no entry signature")
+                    .with_source_span(interface.name.source_span()),
+            ]);
+        };
+        let signature = syntax.items.state(entry);
+        let entry = syntax_trees::item::State {
+            name: signature.name.clone(),
+            parameters: signature.parameters,
+            return_type: signature.return_type,
+            statements: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
+        };
+        let entry = syntax.items.insert_state(&entry);
+        let entry = syntax.items.append_state_handle(entry);
+        interface.states = HandleSpan::from_parts(entry, 1);
+        interface.target_family_interface = true;
+        interface.bodyless = true;
+        interface.target = None;
+        interface.authored_target = None;
+        interface.boundary = false;
+        interface.is_top_level_boundary_requirement = false;
+        interface.satisfies = HandleSpan::empty();
+        interface.contracts = HandleSpan::empty();
+        interface.terminates_guarantee = false;
+        // A lexical prototype supplies the shared carrier telescope, never
+        // one deployment's operational contract. Checking joins all retained
+        // members, including private transitive effects, for this head.
+        interface.service_reach_keyword_source_spans.clear();
+        interface.service_reaches = HandleSpan::empty();
+        interface.service_reach_is_installation_bound = false;
+        interface.invokes = HandleSpan::empty();
+        interface.suspends_keyword_source_spans.clear();
+        interface.blocks_keyword_source_spans.clear();
+        interface.suspends = false;
+        interface.blocks = false;
+        interface.ranking_subjects = HandleSpan::empty();
+        interface.ranking_view = HandleSpan::empty();
+        interface.ranking_view_arguments = HandleSpan::empty();
+        interface.ranking_range = syntax_trees::expression::ExpressionHandle::invalid();
+        syntax.push_root_item(Item::Machine(interface));
+    }
     for (handle, target) in declarations {
         let Some(machine) = syntax.root_item(handle).as_machine() else {
             continue;

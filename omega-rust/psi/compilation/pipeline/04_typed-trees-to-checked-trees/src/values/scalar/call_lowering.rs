@@ -51,7 +51,7 @@ pub(crate) fn call_is_boundary(
         .machine_parameter_signature(target_symbol)
         .map_or(target_symbol, |(_, signature)| signature.symbol);
     program.machines().iter().any(|machine| {
-        machine.supply_mode.is_boundary_declaration()
+        machine.has_bodyless_signature()
             && program
                 .machine_states(machine)
                 .iter()

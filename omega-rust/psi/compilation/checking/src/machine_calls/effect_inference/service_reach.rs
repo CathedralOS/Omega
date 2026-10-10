@@ -18,6 +18,7 @@ use flow_effects::{
 #[derive(Debug, Clone)]
 struct MachineReachWork {
     symbol: SymbolHandle,
+    family_members: Vec<FamilyMemberReach>,
     declared: Vec<ServiceReachId>,
     published: Vec<ServiceReachId>,
     checked_body: bool,
@@ -33,6 +34,13 @@ struct MachineReachWork {
     dependency: DependencyWork,
     cleanup_contribution: Vec<ServiceReachId>,
     calls: Vec<MachineReachCall>,
+}
+
+#[derive(Debug, Clone)]
+struct FamilyMemberReach {
+    machine: SymbolHandle,
+    /// Member telescopes have independent symbols under one family signature.
+    parameters: Vec<(SymbolHandle, SymbolHandle)>,
 }
 
 #[derive(Debug, Clone)]
@@ -95,12 +103,35 @@ pub(crate) fn infer_service_reaches_uncached(
 ) -> ServiceReachInferencePlan {
     let mut work = Vec::new();
     for machine in program.machines() {
+        let family_members = super::family_interface_members(program, machine)
+            .iter()
+            .map(|member| FamilyMemberReach {
+                machine: member.machine,
+                parameters: program
+                    .machine_by_symbol(member.machine)
+                    .map(|member| {
+                        program
+                            .machine_type_parameters(member)
+                            .iter()
+                            .zip(program.machine_type_parameters(machine))
+                            .map(|(member, interface)| (member.symbol, interface.symbol))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            })
+            .collect::<Vec<_>>();
         let checked_body =
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
-        let mut published = program
-            .service_reach_rows
-            .services(machine.service_reach_row)
-            .to_vec();
+        let mut published = if family_members.is_empty() {
+            program
+                .service_reach_rows
+                .services(machine.service_reach_row)
+                .to_vec()
+        } else {
+            // The prototype's row has no authority over other target bodies.
+            // The complete member union supplies this interface below.
+            Vec::new()
+        };
         let mut concrete_declared = if machine.service_reach_is_installation_bound {
             Vec::new()
         } else {
@@ -172,20 +203,21 @@ pub(crate) fn infer_service_reaches_uncached(
         }
         work.push(MachineReachWork {
             symbol: machine.symbol,
+            uses_published: family_members.is_empty()
+                && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                    || machine.is_public
+                    || program
+                        .authored_service_reach_rows_for(machine.symbol)
+                        .next()
+                        .is_some()
+                    || !program
+                        .service_reach_rows
+                        .services(machine.service_reach_row)
+                        .is_empty()),
+            family_members,
             declared: published.clone(),
             published: published.clone(),
             checked_body,
-            uses_published: machine.supply_mode
-                != language_semantics::MachineSupplyMode::CheckedBody
-                || machine.is_public
-                || program
-                    .authored_service_reach_rows_for(machine.symbol)
-                    .next()
-                    .is_some()
-                || !program
-                    .service_reach_rows
-                    .services(machine.service_reach_row)
-                    .is_empty(),
             concrete_declared: concrete_declared.clone(),
             direct: direct.clone(),
             transitive: direct,
@@ -244,6 +276,31 @@ pub(crate) fn infer_service_reaches_uncached(
             let mut unresolved = work[machine_index].unresolved_installation_reaches.clone();
             let mut dependency = work[machine_index].dependency_direct.clone();
             let mut cleanup_contribution = Vec::new();
+            for member in &work[machine_index].family_members {
+                let Some(target) = work_index.get(&member.machine).map(|index| &work[*index])
+                else {
+                    continue;
+                };
+                extend_service_set(&mut transitive, effective_services(target));
+                extend_service_set(
+                    &mut concrete_transitive,
+                    concrete_effective_services(target),
+                );
+                extend_installation_reaches(
+                    &mut unresolved,
+                    &target.unresolved_installation_reaches,
+                );
+                extend_service_set(&mut dependency.concrete, &target.dependency.concrete);
+                for parameter in &target.dependency.parameters {
+                    let interface_parameter = member
+                        .parameters
+                        .iter()
+                        .find(|(member_parameter, _)| member_parameter == parameter)
+                        .map_or(*parameter, |(_, interface_parameter)| *interface_parameter);
+                    extend_parameter_set(&mut dependency.parameters, &[interface_parameter]);
+                }
+                extend_service_set(&mut cleanup_contribution, &target.cleanup_contribution);
+            }
             for call in &work[machine_index].calls {
                 extend_service_set(&mut transitive, &call.direct.services);
                 extend_service_set(&mut concrete_transitive, &call.direct.concrete_services);
@@ -298,7 +355,7 @@ pub(crate) fn infer_service_reaches_uncached(
                 extend_service_set(&mut machine.published, &machine.transitive);
             }
             machine.concrete_effective = machine.concrete_declared.clone();
-            if machine.checked_body {
+            if machine.checked_body || !machine.family_members.is_empty() {
                 extend_service_set(
                     &mut machine.concrete_effective,
                     &machine.concrete_transitive,
@@ -315,6 +372,15 @@ pub(crate) fn infer_service_reaches_uncached(
                 && machine.cleanup_contribution == previous.6
         }) {
             break;
+        }
+    }
+
+    // A virtual head publishes its completed portable union once. Authored
+    // members keep their own ceilings and concrete dependency summaries.
+    for machine in &mut work {
+        if !machine.family_members.is_empty() {
+            machine.published = machine.transitive.clone();
+            machine.uses_published = true;
         }
     }
 

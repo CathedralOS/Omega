@@ -17,10 +17,13 @@ use typed_trees::type_identity::TypeIdentityRequest;
 /// Capture it from the retained authored declaration, not a selected clone.
 /// This encoding is binder-positional:
 /// renaming a type, machine, or value parameter does not change the identity.
+/// Virtual family heads consume the completed member envelope supplied by the
+/// caller; encoding never infers another effect graph.
 pub fn canonical_template_contract_bytes(
     program: &dyn crate::CheckingInput,
     machine_index: usize,
     reach_inference: &flow_effects::ServiceReachInferencePlan,
+    operational: &flow_effects::OperationalPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     let machine = &program.machines()[machine_index];
     let parameters = program.machine_type_parameters(machine);
@@ -49,69 +52,13 @@ pub fn canonical_template_contract_bytes(
         });
         bytes.extend((index as u32).to_le_bytes());
         encode_data_properties(parameter.bounds, &mut bytes);
-        match &parameter.kind {
-            TypeParameterKind::Const { type_reference }
-            | TypeParameterKind::Value { type_reference } => encode_identity_text(
-                &program.type_identity_request_text(TypeIdentityRequest {
-                    binders: &binders,
-                    ..TypeIdentityRequest::ordinary(*type_reference)
-                }),
-                &mut bytes,
-            ),
-            TypeParameterKind::Machine { contract } => match program
-                .machine_parameter_contract_view(contract)
-                .expect("typed machine-parameter contract must retain a valid requirement identity")
-            {
-                typed_trees::data::MachineParameterContractView::Structural(signature) => {
-                    bytes.push(1);
-                    encode_state_signature(
-                        program,
-                        signature,
-                        &binders,
-                        &content_conservation,
-                        &mut bytes,
-                    );
-                }
-                typed_trees::data::MachineParameterContractView::Nominal {
-                    trait_definition,
-                    requirement,
-                } => {
-                    bytes.push(2);
-                    let identity = program
-                        .trait_requirement_callable_identity_text(trait_definition, requirement);
-                    encode_identity_text(&identity, &mut bytes);
-                    let requirement_binders = type_parameter_binders(
-                        program.trait_type_parameters(trait_definition),
-                        &binders,
-                    );
-                    encode_state_signature(
-                        program,
-                        requirement,
-                        &requirement_binders,
-                        &content_conservation,
-                        &mut bytes,
-                    );
-                }
-            },
-            TypeParameterKind::Proposition { contract } => {
-                bytes.extend((contract.parameters.len() as u32).to_le_bytes());
-                let proposition_parameters =
-                    program.state_parameters.span_or_empty(contract.parameters);
-                let proposition_binders =
-                    formal_parameter_binders(proposition_parameters, &binders);
-                for parameter in proposition_parameters {
-                    bytes.push(u8::from(parameter.is_mutable));
-                    encode_identity_text(
-                        &program.type_identity_request_text(TypeIdentityRequest {
-                            binders: &proposition_binders,
-                            ..TypeIdentityRequest::ordinary(parameter.type_reference)
-                        }),
-                        &mut bytes,
-                    );
-                }
-            }
-            TypeParameterKind::Type | TypeParameterKind::Implementation => {}
-        }
+        encode_generic_parameter_contract(
+            program,
+            &parameter.kind,
+            &binders,
+            &content_conservation,
+            &mut bytes,
+        )?;
         bytes.push(0xfe);
     }
     let mut conformance_bounds = Vec::new();
@@ -147,9 +94,30 @@ pub fn canonical_template_contract_bytes(
         bytes.extend(shape);
         bytes.push(0xfd);
     }
-    let mut service_reaches: Vec<_> = program
-        .service_reach_rows
-        .services(machine.service_reach_row)
+    let (service_row, may_suspend, may_block) = if machine.target_family_interface {
+        let reach = reach_inference.for_machine(machine.symbol).ok_or_else(|| {
+            Diagnostic::error("target-family template has no published service-reach summary")
+        })?;
+        let operational = operational
+            .machine_by_symbol(machine.symbol)
+            .ok_or_else(|| {
+                Diagnostic::error("target-family template has no completed operational summary")
+            })?;
+        (
+            reach_inference.services(reach.published),
+            operational.transitive_may_suspend,
+            operational.transitive_may_block,
+        )
+    } else {
+        (
+            program
+                .service_reach_rows
+                .services(machine.service_reach_row),
+            machine.suspends,
+            machine.blocks,
+        )
+    };
+    let mut service_reaches: Vec<_> = service_row
         .iter()
         .map(|service| {
             program
@@ -172,14 +140,11 @@ pub fn canonical_template_contract_bytes(
                 .authored_service_reach_rows_for(machine.symbol)
                 .next()
                 .is_some()
-            || !program
-                .service_reach_rows
-                .services(machine.service_reach_row)
-                .is_empty(),
+            || !service_row.is_empty(),
     ));
     bytes.push(u8::from(machine.service_reach_is_installation_bound));
-    bytes.push(u8::from(machine.suspends));
-    bytes.push(u8::from(machine.blocks));
+    bytes.push(u8::from(may_suspend));
+    bytes.push(u8::from(may_block));
     let contract_binders = program
         .machine_states(machine)
         .first()
@@ -219,7 +184,7 @@ pub fn machine_template_commitment(
 ) -> typed_trees::typed_trees::MachineTemplateCommitment {
     let mut strong =
         crate::digest_encoder::DomainDigestEncoder::new(b"omega.machine-template.v2\0");
-    strong.raw(&canonical_template_contract_bytes);
+    strong.raw(canonical_template_contract_bytes);
     typed_trees::typed_trees::MachineTemplateCommitment::from_digest(strong.finish())
 }
 
@@ -245,7 +210,7 @@ fn canonical_template_bytes_for_symbol(
     let machine_index = generic_machine_index(program, machine_symbol)?;
     let operational = crate::infer_operational_may(program);
     let service_reaches = crate::infer_service_reaches(program, &operational);
-    canonical_template_contract_bytes(program, machine_index, &service_reaches).ok()
+    canonical_template_contract_bytes(program, machine_index, &service_reaches, &operational).ok()
 }
 
 /// Index of `machine_symbol` when the machine declares type parameters —
@@ -315,6 +280,7 @@ pub fn prepare_specialization_contract_identities(
                     program,
                     machine_index,
                     &effects.service_reaches,
+                    &effects.operational,
                 )
                 .map_err(|diagnostic| vec![diagnostic])?;
                 let commitment = machine_template_commitment(&bytes);
@@ -455,6 +421,88 @@ fn encode_identity_texts(values: &[String], bytes: &mut Vec<u8>) {
     for value in values {
         encode_identity_text(value, bytes);
     }
+}
+
+/// Alpha-normalized contract payload of one generic binder. Property demands
+/// are deliberately separate: providers may weaken those rather than match
+/// them. Callers must compare binder categories before comparing payloads.
+pub fn generic_parameter_contract_bytes(
+    program: &dyn crate::CheckingInput,
+    parameter: &typed_trees::data::TypeParameter,
+    binders: &[(SymbolHandle, String)],
+    content_conservation: &[crate::ContentConservationSourcePlan],
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::new();
+    encode_generic_parameter_contract(
+        program,
+        &parameter.kind,
+        binders,
+        content_conservation,
+        &mut bytes,
+    )?;
+    Ok(bytes)
+}
+
+fn encode_generic_parameter_contract(
+    program: &dyn crate::CheckingInput,
+    kind: &TypeParameterKind,
+    binders: &[(SymbolHandle, String)],
+    content_conservation: &[crate::ContentConservationSourcePlan],
+    bytes: &mut Vec<u8>,
+) -> Result<(), Diagnostic> {
+    match kind {
+        TypeParameterKind::Const { type_reference }
+        | TypeParameterKind::Value { type_reference } => encode_identity_text(
+            &program.type_identity_request_text(TypeIdentityRequest {
+                binders,
+                ..TypeIdentityRequest::ordinary(*type_reference)
+            }),
+            bytes,
+        ),
+        TypeParameterKind::Machine { contract } => match program
+            .machine_parameter_contract_view(contract)
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "typed machine-parameter contract has no retained requirement identity",
+                )
+            })? {
+            typed_trees::data::MachineParameterContractView::Structural(signature) => {
+                bytes.push(1);
+                encode_state_signature(program, signature, binders, content_conservation, bytes);
+            }
+            typed_trees::data::MachineParameterContractView::Nominal {
+                trait_definition,
+                requirement,
+            } => {
+                bytes.push(2);
+                let identity =
+                    program.trait_requirement_callable_identity_text(trait_definition, requirement);
+                encode_identity_text(&identity, bytes);
+                let requirement_binders = type_parameter_binders(
+                    program.trait_type_parameters(trait_definition),
+                    binders,
+                );
+                encode_state_signature(
+                    program,
+                    requirement,
+                    &requirement_binders,
+                    content_conservation,
+                    bytes,
+                );
+            }
+        },
+        TypeParameterKind::Proposition { contract } => {
+            bytes.extend((contract.parameters.len() as u32).to_le_bytes());
+            let proposition_parameters =
+                program.state_parameters.span_or_empty(contract.parameters);
+            let proposition_binders = formal_parameter_binders(proposition_parameters, binders);
+            for parameter in proposition_parameters {
+                encode_parameter(program, parameter, &proposition_binders, bytes);
+            }
+        }
+        TypeParameterKind::Type | TypeParameterKind::Implementation => {}
+    }
+    Ok(())
 }
 
 fn encode_data_properties(properties: typed_trees::data::DataProperties, output: &mut Vec<u8>) {

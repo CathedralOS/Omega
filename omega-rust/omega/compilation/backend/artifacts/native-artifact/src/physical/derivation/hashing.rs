@@ -62,7 +62,10 @@ pub(crate) fn hash_sum_layout(
     }
 }
 
-fn hash_packed_fields(digest: &mut crate::digest_encoder::DomainDigestEncoder, fields: &[calling_conventions::PackedFieldLayout]) {
+fn hash_packed_fields(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    fields: &[calling_conventions::PackedFieldLayout],
+) {
     digest.u64(fields.len() as u64);
     for field in fields {
         digest.raw(&field.byte_offset.to_le_bytes());
@@ -70,14 +73,20 @@ fn hash_packed_fields(digest: &mut crate::digest_encoder::DomainDigestEncoder, f
     }
 }
 
-fn hash_integer_shape(digest: &mut crate::digest_encoder::DomainDigestEncoder, shape: calling_conventions::ValueShape) {
+fn hash_integer_shape(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    shape: calling_conventions::ValueShape,
+) {
     debug_assert_eq!(shape.class, calling_conventions::ValueClass::Integer);
     digest.byte(1);
     digest.raw(&shape.byte_size.to_le_bytes());
     digest.raw(&shape.alignment.to_le_bytes());
 }
 
-pub(crate) fn hash_port_effect_record(digest: &mut crate::digest_encoder::DomainDigestEncoder, effect: &PortEffectRecord) {
+pub(crate) fn hash_port_effect_record(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    effect: &PortEffectRecord,
+) {
     digest.raw(&effect.psi_operation.get().to_le_bytes());
     digest.raw(&effect.service.get().to_le_bytes());
     digest.raw(&effect.port.to_le_bytes());
@@ -162,6 +171,7 @@ pub(crate) fn hash_boundary_settlement_record(
     for receipt in &settlement.completion_receipts {
         digest.raw(&receipt.claim.get().to_le_bytes());
         digest.raw(&receipt.argument_index.to_le_bytes());
+        hash_structural_path(digest, &receipt.path);
     }
     digest.raw(&canonical_usize(
         settlement.completion_provider_custody.len(),
@@ -173,7 +183,11 @@ pub(crate) fn hash_boundary_settlement_record(
         let execution = binding.provider_execution;
         digest.raw(&execution.provider_plan_report_identity.to_le_bytes());
         digest.raw(&execution.provider_execution_report_identity.to_le_bytes());
-        digest.raw(&execution .provider_execution_report_fingerprint .to_le_bytes(),);
+        digest.raw(
+            &execution
+                .provider_execution_report_fingerprint
+                .to_le_bytes(),
+        );
         digest.raw(&execution.normalized_root_report_identity.to_le_bytes());
         digest.raw(&execution.boundary_contract_report_fingerprint.to_le_bytes());
     }
@@ -207,7 +221,10 @@ const fn float_format_tag(format: semantic_vocabulary::IeeeFloatFormat) -> u8 {
     }
 }
 
-fn hash_boundary_realization(digest: &mut crate::digest_encoder::DomainDigestEncoder, realization: &BoundaryRealization) {
+fn hash_boundary_realization(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    realization: &BoundaryRealization,
+) {
     match realization {
         BoundaryRealization::MetadataOnlyPort(realization) => {
             digest.byte(1);
@@ -296,7 +313,10 @@ pub(super) fn hash_boundary_structural_result(
     Ok(())
 }
 
-fn hash_scalar_type(digest: &mut crate::digest_encoder::DomainDigestEncoder, scalar_type: ScalarType) {
+fn hash_scalar_type(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    scalar_type: ScalarType,
+) {
     match scalar_type {
         ScalarType::Boolean => digest.byte(1),
         ScalarType::Integer(integer) => {
@@ -321,7 +341,10 @@ fn hash_scalar_type(digest: &mut crate::digest_encoder::DomainDigestEncoder, sca
     }
 }
 
-fn hash_integer_value(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: semantic_vocabulary::IntegerValue) {
+fn hash_integer_value(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    value: semantic_vocabulary::IntegerValue,
+) {
     match value {
         semantic_vocabulary::IntegerValue::Signed(value) => {
             digest.byte(1);
@@ -334,7 +357,10 @@ fn hash_integer_value(digest: &mut crate::digest_encoder::DomainDigestEncoder, v
     }
 }
 
-fn hash_machine_register(digest: &mut crate::digest_encoder::DomainDigestEncoder, register: calling_conventions::MachineRegister) {
+fn hash_machine_register(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    register: calling_conventions::MachineRegister,
+) {
     pub(crate) use calling_conventions::MachineRegister;
     match register {
         MachineRegister::X86Rax => digest.byte(1),
@@ -368,7 +394,10 @@ fn hash_machine_register(digest: &mut crate::digest_encoder::DomainDigestEncoder
     }
 }
 
-fn hash_value_placement(digest: &mut crate::digest_encoder::DomainDigestEncoder, placement: &calling_conventions::ValuePlacement) {
+fn hash_value_placement(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    placement: &calling_conventions::ValuePlacement,
+) {
     hash_value_shape(digest, placement.shape);
     digest.raw(&canonical_usize(placement.locations.len()));
     for location in &placement.locations {
@@ -430,7 +459,10 @@ fn hash_value_placement(digest: &mut crate::digest_encoder::DomainDigestEncoder,
     }
 }
 
-fn hash_value_shape(digest: &mut crate::digest_encoder::DomainDigestEncoder, shape: calling_conventions::ValueShape) {
+fn hash_value_shape(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    shape: calling_conventions::ValueShape,
+) {
     match shape.class {
         calling_conventions::ValueClass::Integer => digest.byte(1),
         calling_conventions::ValueClass::Float => digest.byte(2),
@@ -500,7 +532,10 @@ pub(crate) fn hash_structural_parameter_declaration(
     }
 }
 
-fn hash_claim_source(digest: &mut crate::digest_encoder::DomainDigestEncoder, source: &CompletionClaimSource) {
+pub(super) fn hash_claim_source(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    source: &CompletionClaimSource,
+) {
     digest.raw(&source.claim.get().to_le_bytes());
     match &source.entry {
         None => digest.byte(0),
@@ -541,7 +576,12 @@ fn hash_claim_source(digest: &mut crate::digest_encoder::DomainDigestEncoder, so
             digest.raw(&canonical_usize(content.projections.len()));
             for projection in &content.projections {
                 digest.raw(&projection.projection.domain.get().to_le_bytes());
-                digest.raw(&projection .projection .projection_report_fingerprint .to_le_bytes(),);
+                digest.raw(
+                    &projection
+                        .projection
+                        .projection_report_fingerprint
+                        .to_le_bytes(),
+                );
                 digest.byte(match projection.algebra.kind {
                     semantic_vocabulary::ContentAlgebraKind::IntervalSet => 1,
                     semantic_vocabulary::ContentAlgebraKind::CountedQuantity => 2,
@@ -623,7 +663,11 @@ pub(super) fn hash_internal_scalar_argument_source(
             digest.raw(&defining_operation.get().to_le_bytes());
             digest.raw(&source_value.get().to_le_bytes());
             digest.byte(u8::from(*value));
-            digest.raw(&u64::try_from(*definition_ordinal) .expect("validated definition ordinal is u64-representable") .to_le_bytes(),);
+            digest.raw(
+                &u64::try_from(*definition_ordinal)
+                    .expect("validated definition ordinal is u64-representable")
+                    .to_le_bytes(),
+            );
         }
         machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
             digest.byte(2);
@@ -638,7 +682,10 @@ pub(crate) fn sha256(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
 }
 
-pub(crate) fn hash_target(digest: &mut crate::digest_encoder::DomainDigestEncoder, target: NativeTarget) {
+pub(crate) fn hash_target(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    target: NativeTarget,
+) {
     digest.byte(match target.architecture {
         Architecture::Aarch64 => 1,
         Architecture::X86_64 => 2,
@@ -652,7 +699,10 @@ pub(crate) fn hash_target(digest: &mut crate::digest_encoder::DomainDigestEncode
     digest.raw(&canonical_usize(target.pointer_alignment));
 }
 
-pub(crate) fn hash_object_symbol(digest: &mut crate::digest_encoder::DomainDigestEncoder, symbol: object_file::ObjectSymbolHandle) {
+pub(crate) fn hash_object_symbol(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    symbol: object_file::ObjectSymbolHandle,
+) {
     digest.byte(u8::from(symbol.is_valid()));
     digest.u64(u64::from(symbol.arena_index()));
     digest.u64(u64::from(symbol.generation()));
@@ -677,7 +727,10 @@ pub(crate) fn hash_callback_relocation(
     digest.byte(relocation_kind_tag(relocation.kind()));
 }
 
-pub(crate) fn hash_relocation_origin(digest: &mut crate::digest_encoder::DomainDigestEncoder, origin: RelocationOrigin) {
+pub(crate) fn hash_relocation_origin(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    origin: RelocationOrigin,
+) {
     hash_object_symbol(digest, origin.symbol_handle());
     let (tag, coordinate) = match origin {
         RelocationOrigin::Instruction {
@@ -712,7 +765,9 @@ pub(crate) fn canonical_usize(value: usize) -> [u8; 8] {
 pub(crate) fn physical_evidence_gap_identity(
     subject: &NativePhysicalEvidenceGapSubject,
 ) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-physical-evidence-gap.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.native-physical-evidence-gap.sha256.v1\0",
+    );
     match subject {
         NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { machine, owner } => {
             digest.byte(2);

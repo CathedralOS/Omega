@@ -1234,8 +1234,8 @@ defines the complete product bar.
 
   Runtime qualification still needs package preparation and
   `omega run --both tests/omega/pass/collections/runtime_vec_u32_growth_exit/main.omg`.
-  Std resolves again, but its package check stops on 15 `unimplemented:
-  portable target-family contract` refusals (**PSI-TARGET-FAMILIES**), so
+  Std resolves again, but its package check stops at the Console loop-ranking
+  dependency recorded under **PSI-TARGET-FAMILIES**, so
   `omega update` cannot accept std before entry binding review.
   Normal `omega update --project
   tests/omega/pass/collections/runtime_vec_u32_growth_exit --target linux_x86_64`
@@ -2312,9 +2312,8 @@ crash and native exit behavior.
     lifetime relation; an unrelated-lifetime input is not a fallback candidate.
     Retirement separately retains possible transfers and
     proves which source paths transfer on every arm.
-    Remaining: **PSI-TARGET-FAMILIES**, integrated by
-    **PIPELINE-ARCHITECTURE-ENFORCEMENT**, blocks ordinary std package admission
-    with its missing portable family contract; this prevents the public helper
+    Remaining: the Console loop-ranking dependency under **PSI-TARGET-FAMILIES**
+    blocks ordinary std package admission; this prevents the public helper
     and descriptor sample commands before their own compilation. Runtime-indexed
     shared constrained-field reads still require cross-host execution coverage
     under **PLACED-ACCESS-NATIVE-OPS**; preserve the
@@ -2536,17 +2535,22 @@ crash and native exit behavior.
     canonical Terminal storage stays complete. Its concrete provider catalog
     includes foreign checked members and their uncalled satisfied requirements;
     execution matches candidate IDs present in the selected deployment scope.
-  - The frontier: portable direct family references reject `unimplemented:`.
-    Source body/name/call rewriting is removed; provider and root selection
-    read exact member handles without changing the shared source graph. Carry
-    a family-wide callable contract through checking and Terminal dispatch;
-    checking must not import one member's private return-range or proof facts.
-    This also blocks std's portable Console adapters and their consumers.
-    Existing missing-target rejection fixtures retain their original expected
-    diagnostics but currently stop at the missing-contract refusal; restore
-    those checks as part of the same outcome. Finish generic and named per-member
-    conformance transport, and publish target-default effects in the source-free
-    Build companion. Ensure
+  - Direct portable calls, closed generic attachments, same-target sibling
+    calls and family entries now dispatch in native and Terminal execution
+    through the complete catalog. The independent head carries all members'
+    premises and conservative effects/crashes, not their private result facts.
+    Exact member selection shares ordinary internal-call and current receipt
+    custody; it supplies no provider grant or boundary issuance.
+    The frontier is complete generic/named per-member conformance transport
+    and std's exit-70 Console canary. Its current first failure is
+    `cannot prove the terminates by ranking for machine console_write_bytes`
+    (**TERMINATION-RANKING-CHECKS**); the import-only baseline reproduces it.
+    Provider-default declaration operations must remain distinct from runtime
+    invocation dependencies. Existing std-dependent missing-target rejection
+    fixtures stop at that same ranking failure; restore their authored checks
+    after the shared dependency is repaired. Publish target-default effects in
+    the source-free Build companion and prove distinct tagged realizations
+    consume one unchanged Terminal artifact. Ensure
     every entry/result lowering route uses the same complete family catalog;
     entry-only producers currently refuse rather than omit retained members.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
@@ -3081,7 +3085,8 @@ of a check the same flow already performed, not the check itself.
   the bounded operator, algebra-law and returned-loan cohort does not replace it.
   Full check qualification remains red on macOS arm64 at `d749f2f8697`
   (`python3 tools/corpus_gate.py`): the dominant positive-fixture refusal is
-  the portable Console target-family contract. Attribute remaining non-family
+  the portable Console target-family contract at that revision. Its current
+  shared dependency is recorded under **PSI-TARGET-FAMILIES**. Attribute other
   moves before claiming qualification; do not repin these refusals. The
   std-dependent setter and const-container gates share the
   **PSI-TARGET-FAMILIES** dependency under **PIPELINE-ARCHITECTURE-ENFORCEMENT**.
@@ -4983,7 +4988,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   through specialization, layout and execution. The Std-backed customer is
   `tests/omega/pass/generics/omitted_data_binder_range_equation` (infers
   Capacity = 256 from `u64::AtMost<256>`, authored native/interpreted exit 92);
-  its portable Console-family checking remains blocked below. Reuse
+  its std checking shares the Console loop-ranking dependency under
+  **PSI-TARGET-FAMILIES**. Reuse
   `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/type_equations/`
   and `.../preparation/machine_equations.rs`; array, anonymous reference/slice
   and integer/Boolean application matching exist, including source-selected
@@ -5029,8 +5035,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   exceeded the measured 600-second bound before emitting a review document.
   Preserve entry-review authority. The Std-backed
   `omitted_data_binder_range_equation` also rejects during source checking on
-  Linux: Console byte operations lack portable target-family contracts.
-  These refusals depend on **PIPELINE-ARCHITECTURE-ENFORCEMENT**.
+  Linux: it shares the Console loop-ranking dependency under
+  **PSI-TARGET-FAMILIES**. Preserve ordinary std package admission.
   The bounded package-free
   carrier repair does not satisfy this original Std-backed acceptance.
 
@@ -5781,8 +5787,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Remaining: run that fixture on Linux x86-64 hardware; run
     `x86_fma_plan_association`, `named_provider_fused_multiply_add_exit` and
     `admitted_numeric_imports_preserve_semantics` (all admit AvxFma3) once std
-    checks again; std now stops only at the **PSI-TARGET-FAMILIES** portable
-    contract refusals.
+    checks again; std shares the Console loop-ranking dependency under
+    **PSI-TARGET-FAMILIES**.
   - The never-populated image custody (constant-operand
     `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd`, machine-code FMA
     fragments/occurrences, `object_artifact/replay/x86_fma.rs`) waits on
@@ -6025,8 +6031,9 @@ report a missing runtime leg explicitly.
 - **RC-NATIVE-MATRIX-WINDOWS-X64.** Pass the shared gates with PE execution on
   Windows x86-64, including the hosted receiver.
   `tests/omega/corpus_native_windows_x86_64.txt` predates 00e62d483f, whose
-  portable Console cutoff (**PSI-TARGET-FAMILIES**) rejects every std consumer
-  on every host; re-record after it lifts. At bff9578e24 Windows built every
+  portable Console cutoff rejected every std consumer on every host. Its
+  current shared dependency is recorded under **PSI-TARGET-FAMILIES**;
+  re-record after it lifts. At bff9578e24 Windows built every
   fixture a macOS cross-build built except
   `pass/float/{admitted_numeric_imports_preserve_semantics,named_provider_fused_multiply_add_exit}`
   (x86 FMA, now admitted with AvxFma3; **X86-FMA-PROVIDER-TRANSPORT** runs

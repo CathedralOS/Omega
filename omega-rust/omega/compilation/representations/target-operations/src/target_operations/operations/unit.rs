@@ -24,6 +24,16 @@ use terminal_psi::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeCallOrigin {
     Authored,
+    /// Exact internal deployment selection, not a provider installation.
+    /// The receiving owner rejoins this record with the immutable Terminal
+    /// catalog and the invocation's sealed target selection.
+    TargetFamily {
+        boundary: BoundaryMachineId,
+        member: MachineId,
+        target: String,
+        completion_claim_sources: Vec<CompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
+    },
     InstalledProvider {
         boundary: BoundaryMachineId,
         provider: ProviderCandidateConformance,

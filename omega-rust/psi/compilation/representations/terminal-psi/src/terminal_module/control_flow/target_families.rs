@@ -32,6 +32,9 @@ pub struct TargetMachineFamilyMember {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetMachineFamily {
     pub canonical: TargetMachineCallable,
+    /// Exact checked commitment of the published head contract, independent
+    /// of the executable member selected by an Omega invocation.
+    pub head_contract: [u8; 32],
     /// Strictly ordered by target; neither reachability nor realization prunes it.
     pub members: Vec<TargetMachineFamilyMember>,
 }

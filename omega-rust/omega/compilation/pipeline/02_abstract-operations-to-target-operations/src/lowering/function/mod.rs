@@ -1,9 +1,9 @@
 //! Optimizer module role: executable entrance. Every function lowers through its explicit control graph.
 
 use crate::LoweringError;
+use crate::lowering::selected_boundary_calls::SelectedBoundaryCall;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
-use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use std::collections::BTreeMap;
 use target::NativeTarget;
@@ -21,14 +21,11 @@ pub(super) fn lower_function(
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    installed_calls: &BTreeMap<
-        (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderCallEvidence,
-    >,
+    selected_calls: &BTreeMap<(MachineId, OperationId, BoundaryMachineId), SelectedBoundaryCall>,
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
 ) -> Result<TargetFunction, LoweringError> {
     if let Some((operation, boundary)) =
-        native_boundaries::unsupported_scalar_call(function, settlements, installed_calls)
+        native_boundaries::unsupported_scalar_call(function, settlements, selected_calls)
     {
         return Err(
             LoweringError::ScalarBoundaryArgumentsRequireNativeRealization {
@@ -47,7 +44,7 @@ pub(super) fn lower_function(
         structural_types,
         boundary_machines,
         settlements,
-        installed_calls,
+        selected_calls,
         scalar_abis,
         native_callbacks,
     )

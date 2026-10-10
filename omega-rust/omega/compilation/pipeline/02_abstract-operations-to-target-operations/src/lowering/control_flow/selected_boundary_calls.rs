@@ -1,6 +1,6 @@
 //! Selected boundary calls use ordinary call transport, retaining their origin.
 //!
-//! Coordination has joined each installed occurrence to the exact independently
+//! Coordination has joined each selected occurrence to the exact independently
 //! admitted Terminal artifact. Selection changes the callee, not the caller's
 //! operands, result place or completion receipts. This temporary call projection
 //! is only an input to shared ABI/storage lowering; it never replaces the
@@ -8,17 +8,17 @@
 //! distinction available to independent legalization and physical replay.
 
 use crate::LoweringError;
+use crate::lowering::selected_boundary_calls::SelectedBoundaryCall;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
 };
-use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
 use target_operations::TargetUnitOperation;
 
 pub(super) fn resolve(
     operation: &AbstractOperation,
-    installed: &InstalledProviderCallEvidence,
+    installed: &SelectedBoundaryCall,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
 ) -> Result<(AbstractOperation, target_operations::NativeCallOrigin), LoweringError> {
     let AbstractOperation::BoundaryCall {
@@ -27,31 +27,34 @@ pub(super) fn resolve(
         boundary,
         arguments,
         structural_arguments,
-        completion_claim_sources,
+        completion_claim_sources: _,
         completion_receipts,
     } = operation
     else {
-        return Err(LoweringError::InstalledProviderCallEvidenceMismatch {
+        return Err(LoweringError::SelectedBoundaryCallEvidenceMismatch {
             machine: installed.caller,
             operation: installed.psi_operation,
             boundary: installed.boundary,
         });
     };
-    let invalid = || LoweringError::InstalledProviderCallShapeMismatch {
+    let invalid = || LoweringError::SelectedBoundaryCallShapeMismatch {
         machine: installed.caller,
         operation: *psi_operation,
         boundary: *boundary,
     };
-    let callee = installed.provider.candidate;
+    if result != &installed.result {
+        return Err(invalid());
+    }
+    let callee = installed.callee;
     let candidate = functions.get(&callee).copied().ok_or_else(invalid)?;
     let claim_transfers = completion_receipts
         .iter()
         .map(|receipt| terminal_psi::ClaimTransfer {
             claim: receipt.claim,
             argument_index: receipt.argument_index,
-            path: Vec::new(),
+            path: receipt.path.clone(),
         })
-        .collect();
+        .collect::<Vec<_>>();
     let resolved = match (result, &candidate.result) {
         (abstract_operations::AbstractBoundaryResult::Unit, AbstractFunctionResult::Unit) => {
             AbstractOperation::CallStructural {
@@ -69,20 +72,14 @@ pub(super) fn resolve(
             abstract_operations::AbstractBoundaryResult::Structural(result),
             AbstractFunctionResult::Structural(candidate_result),
         ) if result.structural_type == candidate_result.structural_type
-            && result.multiplicity == candidate_result.multiplicity
-            && result.claims.is_empty()
-            && matches!(
-                &installed.result,
-                terminal_psi::OperationResult::Structural(admitted)
-                    if admitted == result
-            ) =>
+            && result.multiplicity == candidate_result.multiplicity =>
         {
             // The caller-visible occurrence joins the exact admitted
-            // caller-local result, not the candidate's declared roster: the
-            // provider's ensured qualifications mint at its return and are
-            // covered by the verifier-admitted conformance in
-            // `installed.provider`, while this projection only needs the same
-            // carrier shape and multiplicity for ABI compatibility.
+            // caller-local result, not the candidate's declared roster.
+            // Provider conformance or the checked whole-family interface
+            // owns the semantic refinement. This shared projection transports
+            // the same carrier and multiplicity; it creates no result domain,
+            // private guarantee, provider grant or completion authority.
             AbstractOperation::CallStructural {
                 psi_operation: *psi_operation,
                 result: AbstractStructuralCallResult::Structural {
@@ -97,7 +94,7 @@ pub(super) fn resolve(
                 crash_continuations: Vec::new(),
             }
         }
-        // A scalar provider is an ordinary scalar-result call. Without
+        // A selected scalar callee is an ordinary scalar-result call. Without
         // structural operands it is the scalar-only `Call`, whose callee must
         // publish a standalone scalar ABI; otherwise a scalar-result
         // `CallStructural` carries its borrowed operands. Both lower through
@@ -105,13 +102,7 @@ pub(super) fn resolve(
         (
             abstract_operations::AbstractBoundaryResult::Scalar(result),
             AbstractFunctionResult::Scalar(candidate_result),
-        ) if result.scalar_type == candidate_result.scalar_type
-            && matches!(
-                &installed.result,
-                terminal_psi::OperationResult::Scalar(admitted)
-                    if admitted.id == result.value && admitted.scalar_type == result.scalar_type
-            ) =>
-        {
+        ) if result.scalar_type == candidate_result.scalar_type => {
             if structural_arguments.is_empty() && claim_transfers.is_empty() {
                 AbstractOperation::Call {
                     psi_operation: *psi_operation,
@@ -137,18 +128,13 @@ pub(super) fn resolve(
         }
         _ => return Err(invalid()),
     };
-    let origin = target_operations::NativeCallOrigin::InstalledProvider {
-        boundary: *boundary,
-        provider: installed.provider.clone(),
-        completion_claim_sources: completion_claim_sources.clone(),
-        completion_receipts: completion_receipts.clone(),
-    };
+    let origin = installed.origin.clone();
     Ok((resolved, origin))
 }
 
 pub(super) fn retain_origin(
     operations: &mut [TargetUnitOperation],
-    installed: &InstalledProviderCallEvidence,
+    installed: &SelectedBoundaryCall,
     origin: target_operations::NativeCallOrigin,
 ) -> Result<(), LoweringError> {
     let [
@@ -160,17 +146,17 @@ pub(super) fn retain_origin(
         },
     ] = operations
     else {
-        return Err(LoweringError::InstalledProviderCallShapeMismatch {
+        return Err(LoweringError::SelectedBoundaryCallShapeMismatch {
             machine: installed.caller,
             operation: installed.psi_operation,
             boundary: installed.boundary,
         });
     };
     if *psi_operation != installed.psi_operation
-        || *target != target_operations::NativeCallTarget::Machine(installed.provider.candidate)
+        || *target != target_operations::NativeCallTarget::Machine(installed.callee)
         || *actual != target_operations::NativeCallOrigin::Authored
     {
-        return Err(LoweringError::InstalledProviderCallEvidenceMismatch {
+        return Err(LoweringError::SelectedBoundaryCallEvidenceMismatch {
             machine: installed.caller,
             operation: installed.psi_operation,
             boundary: installed.boundary,

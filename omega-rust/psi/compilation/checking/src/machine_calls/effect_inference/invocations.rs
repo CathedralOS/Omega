@@ -22,6 +22,7 @@ use crate::proof_contracts::default_domains::call_summaries::{
 #[derive(Debug, Clone)]
 struct MachineWork {
     symbol: SymbolHandle,
+    family_members: Vec<SymbolHandle>,
     published: Vec<InvocationTarget>,
     uses_published: bool,
     direct: Vec<InvocationTarget>,
@@ -69,6 +70,18 @@ pub fn infer_synchronous_invocations(
             .collect::<Vec<_>>();
         for index in 0..work.len() {
             let mut transitive = work[index].direct.clone();
+            for member in &work[index].family_members {
+                if let Some(callee) = work.iter().find(|candidate| candidate.symbol == *member) {
+                    let effective = if callee.uses_published {
+                        &callee.published
+                    } else {
+                        &callee.transitive
+                    };
+                    // Invocation parameters are positional, so the family
+                    // signature already supplies their shared identity.
+                    extend_targets(&mut transitive, effective);
+                }
+            }
             for call in work[index].calls.clone() {
                 extend_targets(&mut transitive, &call.declared);
                 let Some(callee) = work
@@ -96,6 +109,15 @@ pub fn infer_synchronous_invocations(
             .eq(previous.iter())
         {
             break;
+        }
+    }
+
+    // Publish virtual interfaces only after the shared fixed point completes.
+    // Member contracts remain unchanged, and membership adds no call edges.
+    for machine in &mut work {
+        if !machine.family_members.is_empty() {
+            machine.published = machine.transitive.clone();
+            machine.uses_published = true;
         }
     }
 
@@ -226,7 +248,15 @@ fn build_machine_work(
     machine: &Machine,
     state_to_machine: &StateToMachine,
 ) -> MachineWork {
-    let published = declared_machine_invocations(program, machine);
+    let family_members = super::family_interface_members(program, machine)
+        .iter()
+        .map(|member| member.machine)
+        .collect::<Vec<_>>();
+    let published = if family_members.is_empty() {
+        declared_machine_invocations(program, machine)
+    } else {
+        Vec::new()
+    };
     let mut direct = Vec::new();
     let mut calls = Vec::new();
     for state in program.machine_states(machine) {
@@ -244,10 +274,12 @@ fn build_machine_work(
     }
     MachineWork {
         symbol: machine.symbol,
+        uses_published: family_members.is_empty()
+            && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || machine.is_public
+                || !program.machine_invokes(machine).is_empty()),
+        family_members,
         published: published.clone(),
-        uses_published: machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-            || machine.is_public
-            || !program.machine_invokes(machine).is_empty(),
         direct: direct.clone(),
         transitive: direct,
         calls,

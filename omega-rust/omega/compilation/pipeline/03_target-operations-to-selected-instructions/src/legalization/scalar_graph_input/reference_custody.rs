@@ -1480,7 +1480,7 @@ pub(in crate::legalization) fn apply(
     // reference carriers. Reuse the exact retained-origin join used by row
     // validation; a boundary declaration or candidate roster alone cannot
     // turn a foreign ABI call into an in-module ownership transfer.
-    let installed = super::call_origin::installed_operation(node, function, native, plan)?;
+    let installed = super::call_origin::selected_boundary_operation(node, function, native, plan)?;
     let operation = installed
         .as_ref()
         .map(|(operation, _)| operation)

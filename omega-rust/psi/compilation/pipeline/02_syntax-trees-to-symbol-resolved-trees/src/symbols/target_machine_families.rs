@@ -5,6 +5,10 @@ use diagnostics::Diagnostic;
 use source::DependencyScope;
 use symbol_resolved_trees::SymbolResolvedTrees;
 
+mod contracts;
+
+pub(crate) use contracts::prepare_premises;
+
 pub(crate) fn bind(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut declarations = program
         .machines
@@ -12,11 +16,6 @@ pub(crate) fn bind(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnost
         .enumerate()
         .filter(|(_, machine)| {
             machine.authored_target.is_some()
-                && machine
-                    .generic_data_origin
-                    .template_source
-                    .as_str()
-                    .is_empty()
                 && program
                     .symbols
                     .source_file(machine.name.source_span())
@@ -39,10 +38,10 @@ pub(crate) fn bind(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnost
             })
             .count();
         let (family, rest) = remaining.split_at(family_length);
-        // Admission retains every sibling but clears only the canonical
-        // body's marker. Do not import Omega's target catalog to choose one
-        // here. An unknown-only family still owns its complete portable
-        // roster; choosing its contract head grants no physical implementation.
+        // Every authored member, including a closed generic attachment, joins
+        // its independent interface. Exact carrier symbols distinguish closed
+        // applications; template provenance is not a reason to omit bodies.
+        // No target catalog participates in this portable declaration join.
         // Equal spellings in distinct modules or packages are not one
         // family. Resolve that association here once; sibling calls and
         // typing consume the canonical symbol, not a second name search.
@@ -54,6 +53,7 @@ pub(crate) fn bind(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnost
                 .filter(|candidate| {
                     program.symbols.symbol_module(candidate.symbol)
                         == program.symbols.symbol_module(declaration.symbol)
+                        && candidate.attached_data_symbol == declaration.attached_data_symbol
                         && program.symbols.same_source_package(
                             candidate.name.source_span(),
                             declaration.name.source_span(),
@@ -83,24 +83,60 @@ pub(crate) fn bind(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnost
                     declaration.authored_target.as_ref().map_or("", |target| target.as_str()),
                 )).with_source_span(declaration.name.source_span())]);
             }
-            let canonical = members
-                .min_by(|left, right| {
-                    left.target
-                        .is_some()
-                        .cmp(&right.target.is_some())
-                        .then_with(|| {
-                            left.authored_target
-                                .as_ref()
-                                .map(|target| target.as_str())
-                                .cmp(&right.authored_target.as_ref().map(|target| target.as_str()))
-                        })
-                })
-                .map(|machine| machine.symbol);
-            if let Some(canonical) = canonical {
-                program.machines[member].target_family = canonical;
+            let mut interfaces = program.machines.iter().filter(|candidate| {
+                candidate.target_family_interface
+                    && candidate.name.as_str() == declaration.name.as_str()
+                    && program.symbols.symbol_module(candidate.symbol)
+                        == program.symbols.symbol_module(declaration.symbol)
+                    && candidate.attached_data_symbol == declaration.attached_data_symbol
+                    && program.symbols.same_source_package(
+                        candidate.name.source_span(),
+                        declaration.name.source_span(),
+                    )
+            });
+            let Some(interface) = interfaces.next() else {
+                return Err(vec![
+                    Diagnostic::error(format!(
+                        "target machine `{}` has no portable family interface",
+                        declaration.name,
+                    ))
+                    .with_source_span(declaration.name.source_span()),
+                ]);
+            };
+            let canonical = interface.symbol;
+            if interfaces.next().is_some() {
+                return Err(vec![
+                    Diagnostic::error(format!(
+                        "target machine `{}` has multiple portable family interfaces",
+                        declaration.name,
+                    ))
+                    .with_source_span(declaration.name.source_span()),
+                ]);
             }
+            if declaration.target_family.is_valid() && declaration.target_family != canonical {
+                return Err(vec![
+                    Diagnostic::error("resolution changed a retained target-machine family")
+                        .with_source_span(declaration.name.source_span()),
+                ]);
+            }
+            program.machines[member].target_family = canonical;
         }
         remaining = rest;
     }
+    if let Some(machine) = program.machines.iter().find(|machine| {
+        machine.target_family_interface
+            && machine.target_family.is_valid()
+            && machine.target_family != machine.symbol
+    }) {
+        return Err(vec![
+            Diagnostic::error("resolution changed a retained target-machine interface")
+                .with_source_span(machine.name.source_span()),
+        ]);
+    }
+    program.machines.for_each_mut(|machine| {
+        if machine.target_family_interface {
+            machine.target_family = machine.symbol;
+        }
+    });
     Ok(())
 }

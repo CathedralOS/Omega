@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::{AbstractFunction, AbstractOperationPlan};
+use abstract_operations::AbstractFunction;
 use effects::{
     CheckedPhysicalTerminalMechanismIdentity, SelectedProviderPlanFacts, TerminalMechanismIdentity,
     provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow},
@@ -21,6 +21,7 @@ pub(super) struct ReachableAuthorityEdges {
 }
 
 pub(super) struct ReviewContext<'a> {
+    input: &'a crate::VerifiedPsiOptimizationInput,
     functions: BTreeMap<MachineId, &'a AbstractFunction>,
     dynamic_dispatch: &'a terminal_psi::TerminalDynamicDispatchCatalog,
     pub(super) boundaries:
@@ -40,13 +41,14 @@ pub(super) struct ReviewContext<'a> {
 impl<'a> ReviewContext<'a> {
     pub(super) fn new(
         target_profile: target::TargetProfile,
-        plan: &'a AbstractOperationPlan,
+        input: &'a crate::VerifiedPsiOptimizationInput,
         selected: &'a SelectedProviderPlanFacts,
         physical_policy: &'a TerminalAuthorityPolicy,
         permission_policy: Option<&'a TerminalAuthorityPermissionPolicy>,
         mechanisms: &[AdmittedTerminalMechanism],
         installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
     ) -> Result<Self, String> {
+        let plan = input.plan();
         let mut functions = BTreeMap::new();
         for function in &plan.functions {
             if functions.insert(function.machine, function).is_some() {
@@ -87,6 +89,7 @@ impl<'a> ReviewContext<'a> {
             }
         }
         Ok(Self {
+            input,
             functions,
             dynamic_dispatch: &plan.dynamic_dispatch,
             boundaries,
@@ -240,7 +243,11 @@ impl<'a> ReviewContext<'a> {
                         }
                     }
                     AuthorityEdge::Boundary(boundary) => {
-                        boundaries.insert(boundary);
+                        if let Some(member) = self.input.target_family_member(boundary)? {
+                            pending.push(member);
+                        } else {
+                            boundaries.insert(boundary);
+                        }
                     }
                     AuthorityEdge::CheckedPortWrite { port } => {
                         // Psi's `validate_port_write` already proved the write's

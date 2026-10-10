@@ -6,7 +6,6 @@ mod context;
 mod operations;
 mod reviewer;
 
-use abstract_operations::AbstractOperationPlan;
 use effects::{SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt};
 
 use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
@@ -22,7 +21,7 @@ use reviewer::Reviewer;
 pub(crate) fn review_terminal_authority_closure(
     terminal_artifact_identity: [u8; 32],
     target_profile: target::TargetProfile,
-    plan: &AbstractOperationPlan,
+    input: &crate::VerifiedPsiOptimizationInput,
     selected: &SelectedProviderPlanFacts,
     physical_policy: &TerminalAuthorityPolicy,
     permission_policy: Option<&TerminalAuthorityPermissionPolicy>,
@@ -31,14 +30,14 @@ pub(crate) fn review_terminal_authority_closure(
 ) -> Result<TerminalAuthorityClosureReviewReceipt, String> {
     let context = ReviewContext::new(
         target_profile,
-        plan,
+        input,
         selected,
         physical_policy,
         permission_policy,
         mechanisms,
         installed_candidates,
     )?;
-    let root_edges = context.reachable_authority_edges(plan.entry)?;
+    let root_edges = context.reachable_authority_edges(input.plan().entry)?;
     if !root_edges.checked_physical.is_empty() {
         return Err(
             "root-reachable checked physical operation has no selected provider requirement custody"

@@ -220,7 +220,7 @@ pub(crate) fn structural_call_arguments(
             // Result operands retain the same exact source, formal and
             // custody contract whether this call has a body or a selected
             // provider. The shared result planner below owns that admission.
-            if !callee.supply_mode.is_boundary_declaration()
+            if !callee.has_bodyless_signature()
                 && (callee.supply_mode != MachineSupplyMode::CheckedBody
                     || (!is_unit(program, callee.return_type)
                         && !validation::is_closed_primitive_array_type(
@@ -395,7 +395,7 @@ pub(crate) fn structural_call_arguments(
         // Bodyless nominal requirements use the same boundary presentation
         // as trait requirements. The declared supply owns this distinction;
         // placing a call in a selected arm does not change its argument ABI.
-        let path = if callee.supply_mode.is_boundary_declaration() && !callee.body_is_present {
+        let path = if callee.has_bodyless_signature() {
             boundary_parameter_path(argument, custody, &[])
         } else {
             ordinary_parameter_path(argument, custody, callee.supply_mode)

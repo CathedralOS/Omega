@@ -57,7 +57,8 @@ pub(super) fn compile(
         )
         .and_then(compiler::CompileOutcomes::into_single_report)?
     };
-    let interpretation = reference_input.map(|input| interpret_product(&report, input));
+    let interpretation =
+        reference_input.map(|input| interpret_product(&report, input, target.target_name()));
     Ok(ProbeCompilation {
         report,
         interpretation,
@@ -67,6 +68,7 @@ pub(super) fn compile(
 fn interpret_product(
     report: &CompileReport,
     input: std::fs::File,
+    target: &str,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let artifact = report
         .retained_native_artifact()
@@ -81,6 +83,7 @@ fn interpret_product(
         ))?;
     compiler::runtime::execute(TerminalRuntimeRequest {
         artifact,
+        target: Some(target),
         provisions: report.runtime_provisions(),
         fuel_allowance: REFERENCE_EXECUTION_FUEL_ALLOWANCE,
         // `run` sponsors one standalone private domain. Its death cannot end

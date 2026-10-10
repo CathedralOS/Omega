@@ -2,10 +2,10 @@
 use super::observations;
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::LoweringError;
+use crate::lowering::selected_boundary_calls::SelectedBoundaryCall;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
-use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
@@ -25,10 +25,7 @@ pub(super) fn lower_operation(
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    installed_calls: &BTreeMap<
-        (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderCallEvidence,
-    >,
+    selected_calls: &BTreeMap<(MachineId, OperationId, BoundaryMachineId), SelectedBoundaryCall>,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
@@ -37,18 +34,18 @@ pub(super) fn lower_operation(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let installed = if let AbstractOperation::BoundaryCall {
+    let selected = if let AbstractOperation::BoundaryCall {
         psi_operation,
         boundary,
         ..
     } = operation
     {
-        installed_calls.get(&(function.machine, *psi_operation, *boundary))
+        selected_calls.get(&(function.machine, *psi_operation, *boundary))
     } else {
         None
     };
-    let resolved = installed
-        .map(|installed| super::installed_calls::resolve(operation, installed, functions))
+    let resolved = selected
+        .map(|selected| super::selected_boundary_calls::resolve(operation, selected, functions))
         .transpose()?;
     let operation = resolved
         .as_ref()
@@ -686,8 +683,12 @@ pub(super) fn lower_operation(
         }
         _ => Err(LoweringError::unsupported_control_flow(function.machine)),
     }?;
-    if let (Some(installed), Some((_, origin))) = (installed, resolved) {
-        super::installed_calls::retain_origin(&mut operations[first_output..], installed, origin)?;
+    if let (Some(selected), Some((_, origin))) = (selected, resolved) {
+        super::selected_boundary_calls::retain_origin(
+            &mut operations[first_output..],
+            selected,
+            origin,
+        )?;
     }
     Ok(())
 }

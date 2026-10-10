@@ -1,0 +1,8 @@
+// Checking retains the portable bridge and the firmware-only member. Only
+// reached execution demands a body for the selected deployment tag.
+data Firmware {}
+uefi_x86_64 machine Firmware::read() -> u64 { 42 }
+machine Firmware::bridge() -> u64 { Firmware::read() }
+
+data Main {}
+machine Main::main(main: &mut Main) {}

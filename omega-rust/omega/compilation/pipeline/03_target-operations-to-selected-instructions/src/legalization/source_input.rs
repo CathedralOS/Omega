@@ -9,11 +9,16 @@ use optimization_unit::PsiOptimizationUnit;
 #[derive(Clone, Copy)]
 pub(crate) struct LegalizationSource<'source> {
     pub(super) unit: &'source PsiOptimizationUnit,
+    pub(super) verified_input:
+        Option<&'source terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 }
 
 impl<'source> From<&'source PsiOptimizationUnit> for LegalizationSource<'source> {
     fn from(unit: &'source PsiOptimizationUnit) -> Self {
-        Self { unit }
+        Self {
+            unit,
+            verified_input: None,
+        }
     }
 }
 
@@ -21,6 +26,7 @@ impl<'source> From<&'source ValidatedOptimizedAbstractPlan> for LegalizationSour
     fn from(source: &'source ValidatedOptimizedAbstractPlan) -> Self {
         Self {
             unit: source.unit(),
+            verified_input: Some(source.verified_input()),
         }
     }
 }

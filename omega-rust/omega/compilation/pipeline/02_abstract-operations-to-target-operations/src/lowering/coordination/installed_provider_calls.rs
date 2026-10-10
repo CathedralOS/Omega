@@ -44,7 +44,7 @@ pub(super) fn index_installed_provider_calls(
             installed.boundary,
         );
         if installed_by_call.insert(key, installed).is_some() {
-            return Err(LoweringError::DuplicateInstalledProviderCall {
+            return Err(LoweringError::DuplicateSelectedBoundaryCall {
                 machine: key.0,
                 operation: key.1,
                 boundary: key.2,
@@ -101,7 +101,7 @@ pub(super) fn validate_installed_provider_calls(
             ..
         }) = boundary_calls.get(&(key.0, key.1.into(), key.2)).copied()
         else {
-            return Err(LoweringError::UnknownInstalledProviderCall {
+            return Err(LoweringError::UnknownSelectedBoundaryCall {
                 machine: key.0,
                 operation: key.1,
                 boundary: key.2,
@@ -130,25 +130,27 @@ pub(super) fn validate_installed_provider_calls(
             ) => actual == expected,
             _ => false,
         };
-        let declared_result_matches = plan.boundary_machine(key.2)
-            .is_some_and(|declaration| match (result, &declaration.result) {
-                (
-                    abstract_operations::AbstractBoundaryResult::Unit,
-                    terminal_psi::BoundaryMachineResult::Unit,
-                ) => true,
-                (
-                    abstract_operations::AbstractBoundaryResult::Scalar(actual),
-                    terminal_psi::BoundaryMachineResult::Scalar(expected),
-                ) => actual.scalar_type == *expected,
-                (
-                    abstract_operations::AbstractBoundaryResult::Structural(actual),
-                    terminal_psi::BoundaryMachineResult::Structural(expected),
-                ) => {
-                    actual.structural_type == expected.structural_type
-                        && actual.multiplicity == expected.multiplicity
-                        && actual.qualifications == expected.qualifications
+        let declared_result_matches =
+            plan.boundary_machine(key.2).is_some_and(|declaration| {
+                match (result, &declaration.result) {
+                    (
+                        abstract_operations::AbstractBoundaryResult::Unit,
+                        terminal_psi::BoundaryMachineResult::Unit,
+                    ) => true,
+                    (
+                        abstract_operations::AbstractBoundaryResult::Scalar(actual),
+                        terminal_psi::BoundaryMachineResult::Scalar(expected),
+                    ) => actual.scalar_type == *expected,
+                    (
+                        abstract_operations::AbstractBoundaryResult::Structural(actual),
+                        terminal_psi::BoundaryMachineResult::Structural(expected),
+                    ) => {
+                        actual.structural_type == expected.structural_type
+                            && actual.multiplicity == expected.multiplicity
+                            && actual.qualifications == expected.qualifications
+                    }
+                    _ => false,
                 }
-                _ => false,
             });
         if !exact_result
             || !declared_result_matches
@@ -162,7 +164,7 @@ pub(super) fn validate_installed_provider_calls(
                 .iter()
                 .any(|candidate| candidate == &installed.provider)
         {
-            return Err(LoweringError::InstalledProviderCallEvidenceMismatch {
+            return Err(LoweringError::SelectedBoundaryCallEvidenceMismatch {
                 machine: key.0,
                 operation: key.1,
                 boundary: key.2,

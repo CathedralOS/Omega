@@ -26,6 +26,12 @@ use terminal_psi::{OperationKind, Terminator};
 /// Driver task names and display diagnostics belong to the driver, not Psi.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalUnsupportedCapability {
+    /// Opaque members require separately admitted execution and result custody.
+    TargetMachineMemberSupply {
+        head: terminal_psi::TargetMachineCallable,
+        callable: terminal_psi::TargetMachineCallable,
+        supply: terminal_psi::TargetMachineSupply,
+    },
     ExternalCompletionInvocation {
         boundary: BoundaryMachineId,
         kind: ExternalCompletionKind,
@@ -55,6 +61,12 @@ pub(crate) fn check(
 ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
     if installation.is_some_and(|installation| installation.terminal_psi != program.identity) {
         return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
+    }
+    if installation
+        .and_then(|installation| installation.target_machines.as_ref())
+        .is_some_and(|selected| selected.terminal_psi() != program.identity)
+    {
+        return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
     }
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
@@ -103,6 +115,20 @@ pub(crate) fn check(
                         None
                     }
                     OperationKind::BoundaryCall { boundary, .. } => {
+                        if program.is_target_family_head(*boundary) {
+                            let member = crate::calls::target_families::checked_member(
+                                program,
+                                installation
+                                    .and_then(|installation| installation.target_machines.as_ref()),
+                                *boundary,
+                            )?;
+                            crate::calls::target_families::validate_result_transport(
+                                operation,
+                                program.verified_machine(member)?,
+                            )?;
+                            pending.push(member);
+                            continue;
+                        }
                         let declaration = program.verified_boundary_machine(boundary)?;
                         if let terminal_psi::BoundaryCompletion::External(kind) =
                             declaration.completion
@@ -601,6 +627,7 @@ mod tests {
                 AdmittedBoundarySupply::CheckedProvider(provider),
             )]),
             assumed_bindings: Vec::new(),
+            target_machines: None,
         };
         assert_eq!(
             check(&program, Some(&installation)),
@@ -818,6 +845,7 @@ mod tests {
             terminal_psi: program.identity,
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),
             assumed_bindings: Vec::new(),
+            target_machines: None,
         };
         // Multi-source result transport no longer adds a capability demand.
         // Following the installed provider satisfies this graph's missing

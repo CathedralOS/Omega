@@ -5,8 +5,9 @@
 //! exactly once, none settled twice, none unused, and no overlap with an
 //! installed provider.
 
-use super::installed_provider_calls::{BoundaryCallsByKey, InstalledCallsByCall};
+use super::installed_provider_calls::BoundaryCallsByKey;
 use crate::LoweringError;
+use crate::lowering::selected_boundary_calls::SelectedCallsByCall;
 use abstract_operations::AbstractOperationPlan;
 use semantic_vocabulary::BoundaryMachineId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -45,7 +46,7 @@ pub(super) fn index_settlement_bindings(
 /// a settlement, and no settlement may go unused.
 pub(super) fn validate_settlement_roster(
     settlements_by_boundary: &SettlementsByBoundary,
-    installed_by_call: &InstalledCallsByCall,
+    installed_by_call: &SelectedCallsByCall,
     boundary_calls: &BoundaryCallsByKey<'_>,
 ) -> Result<(), LoweringError> {
     let installed_boundaries = installed_by_call

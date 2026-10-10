@@ -121,10 +121,9 @@ pub(crate) fn target_signature(
         return Ok(TargetSignature {
             parameters: program.state_parameters(state),
             return_type: state.return_type,
-            // A bodied `boundary machine` is a checked adapter: callers reach
-            // its authored body as an ordinary callee; only the bodyless
-            // declaration is a boundary edge.
-            boundary: machine.supply_mode.is_boundary_declaration() && !machine.body_is_present,
+            // Opaque Requirements and boundary declarations share signature
+            // transport, not provider authority. Authored bodies stay ordinary.
+            boundary: machine.has_bodyless_signature(),
             parameter_coordinates: ParameterCoordinates::Authored,
         });
     }

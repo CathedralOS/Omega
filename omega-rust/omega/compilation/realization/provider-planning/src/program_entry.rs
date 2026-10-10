@@ -656,19 +656,17 @@ pub fn select_compiler_program_entry(
     // canonical spelling. Select the exact entry handle without changing the
     // source graph; every body still undergoes the ordinary Psi checks.
     if let Some(family) = typed.target_machine_families.iter().find(|family| {
-        family
-            .members
-            .iter()
-            .any(|member| member.machine == selected.machine_symbol)
+        family.canonical == selected.machine_symbol
+            || family
+                .members
+                .iter()
+                .any(|member| member.machine == selected.machine_symbol)
     }) {
         let profile = selected.slot.owner;
         let member = family
             .members
             .iter()
-            .find(|member| {
-                target::TargetProfile::from_canonical_target_name(member.target.as_str())
-                    .is_ok_and(|target| target == profile)
-            })
+            .find(|member| member.target.as_str() == profile.target_name())
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "entry family `{}` has no body for target `{}`",

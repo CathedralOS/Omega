@@ -28,6 +28,7 @@ use flow_effects::{CallOperational, MachineOperational, OperationalPlan, StateOp
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MachineWork {
     symbol: SymbolHandle,
+    family_members: Vec<SymbolHandle>,
     uses_published_contract: bool,
     published_may_suspend: bool,
     published_may_block: bool,
@@ -102,8 +103,13 @@ fn build_machine_work(
     let mut machines = Vec::with_capacity(program.machines().len());
 
     for machine in program.machines() {
-        let uses_published_contract = machine.is_public
-            || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
+        let family_members = super::family_interface_members(program, machine)
+            .iter()
+            .map(|member| member.machine)
+            .collect::<Vec<_>>();
+        let uses_published_contract = family_members.is_empty()
+            && (machine.is_public
+                || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody);
         let states = program
             .machine_states(machine)
             .iter()
@@ -119,6 +125,7 @@ fn build_machine_work(
 
         machines.push(MachineWork {
             symbol: machine.symbol,
+            family_members,
             uses_published_contract,
             published_may_suspend: machine.suspends,
             published_may_block: machine.blocks,
@@ -685,13 +692,8 @@ fn propagate_operational_may(
                         .iter()
                         .find(|machine| machine.symbol == call.target_machine_symbol)
                     {
-                        if target.uses_published_contract {
-                            body_may_suspend |= target.published_may_suspend;
-                            body_may_block |= target.published_may_block;
-                        } else {
-                            body_may_suspend |= target.body_may_suspend;
-                            body_may_block |= target.body_may_block;
-                        }
+                        body_may_suspend |= target.transitive_may_suspend;
+                        body_may_block |= target.transitive_may_block;
                     }
                 }
             }
@@ -702,16 +704,19 @@ fn propagate_operational_may(
                     .iter()
                     .find(|machine| machine.symbol == dependency.target_machine)
                 {
-                    body_may_suspend |= if target.uses_published_contract {
-                        target.published_may_suspend
-                    } else {
-                        target.body_may_suspend
-                    };
-                    body_may_block |= if target.uses_published_contract {
-                        target.published_may_block
-                    } else {
-                        target.body_may_block
-                    };
+                    body_may_suspend |= target.transitive_may_suspend;
+                    body_may_block |= target.transitive_may_block;
+                }
+            }
+            // A family has no body to validate. Its callable envelope joins
+            // member summaries inside this same fixed point, including cycles
+            // from members through portable calls back into other families.
+            let mut family_may_suspend = false;
+            let mut family_may_block = false;
+            for member in &machines[machine_index].family_members {
+                if let Some(target) = machines.iter().find(|machine| machine.symbol == *member) {
+                    family_may_suspend |= target.transitive_may_suspend;
+                    family_may_block |= target.transitive_may_block;
                 }
             }
             machines[machine_index].body_may_suspend = body_may_suspend;
@@ -722,8 +727,9 @@ fn propagate_operational_may(
                 machines[machine_index].transitive_may_block =
                     machines[machine_index].published_may_block;
             } else {
-                machines[machine_index].transitive_may_suspend = body_may_suspend;
-                machines[machine_index].transitive_may_block = body_may_block;
+                machines[machine_index].transitive_may_suspend =
+                    body_may_suspend || family_may_suspend;
+                machines[machine_index].transitive_may_block = body_may_block || family_may_block;
             }
         }
 

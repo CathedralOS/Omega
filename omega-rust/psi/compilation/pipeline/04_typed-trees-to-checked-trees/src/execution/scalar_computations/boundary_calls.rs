@@ -230,7 +230,11 @@ pub(super) fn bodyless_boundary_target(
         return Some((requirement, requirement));
     }
     if let Some((machine, state)) = validation::find_machine_by_entry_state(program, target) {
-        return (machine.supply_mode.is_boundary_declaration() && !machine.body_is_present)
+        // Every bodyless callable owns an opaque signature, including a
+        // Requirement. Supply/trust classification is not executable ownership:
+        // lowering must not search an opaque requirement for a private body.
+        return machine
+            .has_bodyless_signature()
             .then_some((machine.symbol, state.symbol));
     }
     crate::values::scalar::call_lowering::call_is_boundary(program, target)

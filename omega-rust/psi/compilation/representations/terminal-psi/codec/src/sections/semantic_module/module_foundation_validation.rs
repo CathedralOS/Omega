@@ -203,16 +203,42 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
 
     let mut owners = BTreeSet::new();
     for family in &module.target_machine_families {
+        if family.head_contract == [0; 32] {
+            return malformed("target-family head has no checked contract commitment");
+        }
+        if family.members.is_empty() {
+            return malformed("target family has no members");
+        }
         if !family
             .members
             .iter()
             .any(|member| member.callable == family.canonical)
         {
-            return malformed("target family has no canonical member");
+            // An independent head describes the portable machine contract.
+            // A retained declaration grants neither supply nor selection.
+            let TargetMachineCallable::Boundary(head) = family.canonical else {
+                return malformed("independent target-family head is not a machine contract");
+            };
+            if module.boundary_machine(head).is_none_or(|declaration| {
+                declaration.kind != semantic_vocabulary::BoundaryRequirementKind::Machine
+            }) {
+                return malformed("independent target-family head has no machine declaration");
+            }
         }
         for member in &family.members {
             if member.target.is_empty() || !owners.insert(member.callable) {
                 return malformed("target-family member has an empty tag or repeated callable");
+            }
+            // Canonical order already owns unique heads and ordered target
+            // tags. A head may be its own legacy member, never another
+            // family's member, even when it names a valid declaration.
+            if member.callable != family.canonical
+                && module
+                    .target_machine_families
+                    .binary_search_by_key(&member.callable, |family| family.canonical)
+                    .is_ok()
+            {
+                return malformed("target-family head is a member of another family");
             }
             match member.callable {
                 TargetMachineCallable::Machine(machine) => {

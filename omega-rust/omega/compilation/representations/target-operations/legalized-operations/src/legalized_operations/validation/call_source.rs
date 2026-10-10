@@ -60,42 +60,78 @@ pub(super) fn validate(
             {
                 return Err(LegalizedCallSourceError::ArgumentSignatureMismatch);
             }
-            let transfers = completion_receipts
-                .iter()
-                .map(|receipt| ClaimTransfer {
-                    claim: receipt.claim,
-                    argument_index: receipt.argument_index,
-                    path: Vec::new(),
-                })
-                .collect::<Vec<_>>();
-            let unique_source_claims = completion_claim_sources
-                .iter()
-                .map(|source| source.claim)
-                .collect::<std::collections::BTreeSet<_>>();
-            // Installation already joined these receipts to candidate entry claims.
-            // Caller entry provenance describes historical ingress, not current
-            // custody: a fresh local or transferred result need not have an entry row.
-            // Preserve the installed transfers and ownership event instead of
-            // reconstructing a second, narrower entry-only custody judgement.
-            if unique_source_claims.len() != completion_claim_sources.len()
-                || transfers != call.claim_transfers
-                || completion_receipts
-                    .windows(2)
-                    .any(|pair| pair[0] >= pair[1])
-                || completion_receipts
-                    .iter()
-                    .any(|receipt| receipt.argument_index as usize >= structural_arguments.len())
-            {
-                return Err(LegalizedCallSourceError::CompletionEvidenceMismatch);
+            validate_completion(
+                call,
+                ownership,
+                completion_claim_sources,
+                completion_receipts,
+                structural_arguments.len(),
+            )
+        }
+        NativeCallOrigin::TargetFamily {
+            member,
+            target,
+            completion_claim_sources,
+            completion_receipts,
+            ..
+        } => {
+            if call.target.machine() != Some(*member) || target.is_empty() {
+                return Err(LegalizedCallSourceError::ProviderIdentityMismatch);
             }
-            let completed = completion_receipts
+            let structural_count = call
+                .arguments
                 .iter()
-                .map(|receipt| receipt.claim)
-                .collect::<Vec<_>>();
-            ((completed.is_empty() && ownership.is_empty())
-                || ownership == [OwnershipEvent::ClaimCompletion(completed)])
-            .then_some(())
-            .ok_or(LegalizedCallSourceError::OwnershipMismatch)
+                .filter(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
+                .count();
+            validate_completion(
+                call,
+                ownership,
+                completion_claim_sources,
+                completion_receipts,
+                structural_count,
+            )
         }
     }
+}
+
+fn validate_completion(
+    call: &LegalizedScalarCall,
+    ownership: &[OwnershipEvent],
+    completion_claim_sources: &[abstract_operations::CompletionClaimSource],
+    completion_receipts: &[terminal_psi::CompletionReceipt],
+    structural_count: usize,
+) -> Result<(), LegalizedCallSourceError> {
+    let transfers = completion_receipts
+        .iter()
+        .map(|receipt| ClaimTransfer {
+            claim: receipt.claim,
+            argument_index: receipt.argument_index,
+            path: receipt.path.clone(),
+        })
+        .collect::<Vec<_>>();
+    let unique_source_claims = completion_claim_sources
+        .iter()
+        .map(|source| source.claim)
+        .collect::<std::collections::BTreeSet<_>>();
+    // Installation already joined these receipts to candidate entry claims.
+    // Caller entry provenance describes historical ingress, not current
+    // custody: a fresh local or transferred result need not have an entry row.
+    // Preserve the installed transfers and ownership event instead of
+    // reconstructing a second, narrower entry-only custody judgement.
+    if unique_source_claims.len() != completion_claim_sources.len()
+        || transfers != call.claim_transfers
+        || completion_receipts
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        || completion_receipts
+            .iter()
+            .any(|receipt| receipt.argument_index as usize >= structural_count)
+    {
+        return Err(LegalizedCallSourceError::CompletionEvidenceMismatch);
+    }
+    let completed = completion_receipts.to_vec();
+    ((completed.is_empty() && ownership.is_empty())
+        || ownership == [OwnershipEvent::ClaimCompletion(completed)])
+    .then_some(())
+    .ok_or(LegalizedCallSourceError::OwnershipMismatch)
 }

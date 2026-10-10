@@ -47,8 +47,8 @@ pub use package_publication::{
 pub use runtime_provisions::{TerminalRuntimeHostProvision, TerminalRuntimeProvisions};
 
 pub(crate) use physical::{
-    BoundaryTraitSettlementParts, BoundaryTraitSettlementRole, CompilerBuiltinResult,
-    CompilerBuiltinScalarArgument, InstalledProviderInternalCallCustody, NativeByteSpan,
+    BoundaryInternalCallCustody, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
+    CompilerBuiltinResult, CompilerBuiltinScalarArgument, NativeByteSpan,
     NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
     NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalOccurrence,
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,

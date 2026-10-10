@@ -122,17 +122,27 @@ pub(crate) fn build_blocking_facts(
         .iter()
         .map(|machine| {
             let blocking_row = blocking.iter().find(|row| row.symbol == machine.symbol);
+            let checked_may_block = blocking_row.is_some_and(|row| row.transitive_may_block);
+            // A virtual family head publishes the completed member envelope,
+            // while every authored member retains its own operational contract.
+            let published_may_block = if machine.target_family_interface {
+                checked_may_block
+            } else {
+                machine.blocks
+            };
             let publishes_operational_contract = machine.is_public
                 || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
             checked_trees::MachineBlockingFact {
                 machine: machine.symbol,
                 plan: language_semantics::BlockingPlan {
                     interface: if publishes_operational_contract || machine.blocks {
-                        language_semantics::BlockingInterface::PublishedMayBlock(machine.blocks)
+                        language_semantics::BlockingInterface::PublishedMayBlock(
+                            published_may_block,
+                        )
                     } else {
                         language_semantics::BlockingInterface::InternalInferred
                     },
-                    checked_may_block: blocking_row.is_some_and(|row| row.transitive_may_block),
+                    checked_may_block,
                 },
             }
         })
@@ -149,6 +159,12 @@ pub(crate) fn build_suspension_facts(
         .iter()
         .map(|machine| {
             let suspension_row = suspensions.iter().find(|row| row.symbol == machine.symbol);
+            let checked_may_suspend = suspension_row.is_some_and(|row| row.transitive_may_suspend);
+            let published_may_suspend = if machine.target_family_interface {
+                checked_may_suspend
+            } else {
+                machine.suspends
+            };
             let publishes_operational_contract = machine.is_public
                 || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
             checked_trees::MachineSuspensionFact {
@@ -156,13 +172,12 @@ pub(crate) fn build_suspension_facts(
                 plan: language_semantics::SuspensionPlan {
                     interface: if publishes_operational_contract || machine.suspends {
                         language_semantics::SuspensionInterface::PublishedMaySuspend(
-                            machine.suspends,
+                            published_may_suspend,
                         )
                     } else {
                         language_semantics::SuspensionInterface::InternalInferred
                     },
-                    checked_may_suspend: suspension_row
-                        .is_some_and(|row| row.transitive_may_suspend),
+                    checked_may_suspend,
                 },
             }
         })

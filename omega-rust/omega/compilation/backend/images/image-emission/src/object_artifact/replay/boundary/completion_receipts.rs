@@ -247,6 +247,7 @@ mod tests {
         CompletionReceipt {
             claim: ClaimId::new(claim).expect("claim"),
             argument_index,
+            path: Vec::new(),
         }
     }
 

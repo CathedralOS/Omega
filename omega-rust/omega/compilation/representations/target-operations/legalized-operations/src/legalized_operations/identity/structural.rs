@@ -1,12 +1,14 @@
 use super::encoding::{encode_fuel, encode_ids, encode_len};
 use crate::legalized_operations::identity::structural_types::{
     encode_access, encode_entry_claim, encode_multiplicity, encode_string,
-    encode_structural_argument, encode_structural_path};
+    encode_structural_argument, encode_structural_path,
+};
 use crate::legalized_operations::{LegalizedBoundarySettlement, NativeCallOrigin};
 use abstract_operations::CompletionClaimSource;
 use optimization_unit::{EffectLink, OwnershipEvent};
 use semantic_vocabulary::{
-    ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion};
+    ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
+};
 use terminal_psi::{ClaimContentProjection, ProviderCandidateConformance};
 
 pub(super) fn encode_boundary_settlement(
@@ -29,6 +31,7 @@ pub(super) fn encode_boundary_settlement(
     for receipt in &settlement.completion_receipts {
         crate::codec_bytes::push_encoded(bytes, receipt.claim.get().to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, receipt.argument_index.to_le_bytes());
+        encode_structural_path(bytes, &receipt.path);
     }
     encode_fuel(bytes, &settlement.fuel);
     encode_effect(bytes, settlement.effect);
@@ -47,13 +50,19 @@ pub fn encode_provider_execution(
             .get()
             .to_le_bytes(),
     );
-    crate::codec_bytes::push_encoded(bytes, execution.provider_execution_report_identity().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        bytes,
+        execution.provider_execution_report_identity().to_le_bytes(),
+    );
     bytes.extend_from_slice(
         &execution
             .provider_execution_report_fingerprint()
             .to_le_bytes(),
     );
-    crate::codec_bytes::push_encoded(bytes, execution.normalized_root_report_identity().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        bytes,
+        execution.normalized_root_report_identity().to_le_bytes(),
+    );
     bytes.extend_from_slice(
         &execution
             .boundary_contract_report_fingerprint()
@@ -64,11 +73,34 @@ pub fn encode_provider_execution(
 pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin) {
     match source {
         NativeCallOrigin::Authored => bytes.push(1),
+        NativeCallOrigin::TargetFamily {
+            boundary,
+            member,
+            target,
+            completion_claim_sources,
+            completion_receipts,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            bytes.extend_from_slice(&member.get().to_le_bytes());
+            encode_string(bytes, target);
+            encode_len(bytes, completion_claim_sources.len());
+            for source in completion_claim_sources {
+                encode_completion_claim_source(bytes, source);
+            }
+            encode_len(bytes, completion_receipts.len());
+            for receipt in completion_receipts {
+                bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
+                bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
+                encode_structural_path(bytes, &receipt.path);
+            }
+        }
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
             completion_claim_sources,
-            completion_receipts} => {
+            completion_receipts,
+        } => {
             bytes.push(2);
             crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             encode_provider_candidate(bytes, provider);
@@ -80,6 +112,7 @@ pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin)
             for receipt in completion_receipts {
                 crate::codec_bytes::push_encoded(bytes, receipt.claim.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(bytes, receipt.argument_index.to_le_bytes());
+                encode_structural_path(bytes, &receipt.path);
             }
         }
     }
@@ -135,14 +168,16 @@ pub(super) fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &Compl
             bytes.push(1);
             encode_entry_claim(bytes, entry);
         }
-        None => bytes.push(0)}
+        None => bytes.push(0),
+    }
     match &source.content {
         Some(content) => {
             bytes.push(1);
             crate::codec_bytes::push_encoded(bytes, content.claim.get().to_le_bytes());
             bytes.push(match content.input.version {
                 ContentPlaceVersion::Entry => 1,
-                ContentPlaceVersion::Current => 2});
+                ContentPlaceVersion::Current => 2,
+            });
             crate::codec_bytes::push_encoded(bytes, content.input.root.get().to_le_bytes());
             encode_len(bytes, content.input.segments.len());
             for segment in &content.input.segments {
@@ -166,7 +201,8 @@ pub(super) fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &Compl
                 encode_claim_projection(bytes, projection);
             }
         }
-        None => bytes.push(0)}
+        None => bytes.push(0),
+    }
 }
 
 pub(super) fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimContentProjection) {
@@ -183,7 +219,8 @@ pub(super) fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimCon
 pub(super) fn encode_content_algebra(bytes: &mut Vec<u8>, algebra: &ContentAlgebra) {
     bytes.push(match algebra.kind {
         ContentAlgebraKind::IntervalSet => 1,
-        ContentAlgebraKind::CountedQuantity => 2});
+        ContentAlgebraKind::CountedQuantity => 2,
+    });
     encode_string(bytes, &algebra.parameter);
 }
 
@@ -200,9 +237,14 @@ pub(super) fn encode_ownership_roster(bytes: &mut Vec<u8>, ownership: &[Ownershi
                 bytes.push(1);
                 encode_ids(bytes, claims.iter().map(|claim| claim.get()));
             }
-            OwnershipEvent::ClaimCompletion(claims) => {
+            OwnershipEvent::ClaimCompletion(receipts) => {
                 bytes.push(2);
-                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
+                encode_len(bytes, receipts.len());
+                for receipt in receipts {
+                    bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
+                    bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
+                    encode_structural_path(bytes, &receipt.path);
+                }
             }
             OwnershipEvent::Cleanup(actions) => {
                 bytes.push(3);
@@ -256,7 +298,10 @@ pub(super) fn encode_cleanup_action(
                 bytes,
                 cleanup.consumed_claims.iter().map(|claim| claim.get()),
             );
-            optimization_core::encode_option_u64(bytes, cleanup.cleanup_receiver.map(|place| place.get()));
+            optimization_core::encode_option_u64(
+                bytes,
+                cleanup.cleanup_receiver.map(|place| place.get()),
+            );
             encode_ids(
                 bytes,
                 cleanup
@@ -293,7 +338,8 @@ mod tests {
                 cleanup_machine: MachineId::new(3).unwrap(),
                 consumed_claims: Vec::new(),
                 cleanup_receiver: None,
-                requirement_obligations: Vec::new()});
+                requirement_obligations: Vec::new(),
+            });
             let mut encoded = Vec::new();
             encode_cleanup_action(&mut encoded, &action);
             if let Some(previous) = previous_encoding {

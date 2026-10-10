@@ -142,17 +142,23 @@ fn validate_atomic_access(
     Ok(())
 }
 
-/// Whether each `(claim, argument index)` pair names a distinct live claim
+/// Whether each claim names a distinct live claim
 /// rooted at that owned argument's place, at or below its path. A call's
 /// claim transfers and a boundary's completion receipts both hand claims over
 /// this way.
-fn claims_sit_at_owned_arguments(
+fn claims_sit_at_owned_arguments<'path>(
     frontier: &CurrentOwnership,
     arguments: &[terminal_psi::StructuralArgument],
-    pairs: impl IntoIterator<Item = (semantic_vocabulary::ClaimId, u32)>,
+    pairs: impl IntoIterator<
+        Item = (
+            semantic_vocabulary::ClaimId,
+            u32,
+            &'path [StructuralPathSegment],
+        ),
+    >,
 ) -> bool {
     let mut seen = BTreeSet::new();
-    pairs.into_iter().all(|(claim, index)| {
+    pairs.into_iter().all(|(claim, index, path)| {
         let (Some(argument), Some(live)) =
             (arguments.get(index as usize), frontier.claims.get(&claim))
         else {
@@ -162,6 +168,7 @@ fn claims_sit_at_owned_arguments(
             && argument.access == StructuralAccess::Owned
             && live.input == Some(argument.place)
             && live.path.starts_with(&argument.path)
+            && path == &live.path[argument.path.len()..]
     })
 }
 
@@ -713,9 +720,13 @@ pub(super) fn validate_current_ownership_cfg(
                 if !claims_sit_at_owned_arguments(
                     &frontier,
                     structural_arguments,
-                    claim_transfers
-                        .iter()
-                        .map(|transfer| (transfer.claim, transfer.argument_index)),
+                    claim_transfers.iter().map(|transfer| {
+                        (
+                            transfer.claim,
+                            transfer.argument_index,
+                            transfer.path.as_slice(),
+                        )
+                    }),
                 ) {
                     return Err(invalid());
                 }
@@ -728,18 +739,48 @@ pub(super) fn validate_current_ownership_cfg(
                 completion_receipts,
                 ..
             } = &node.operation
-                && !claims_sit_at_owned_arguments(
+            {
+                let receipts_match = claims_sit_at_owned_arguments(
                     &frontier,
                     structural_arguments,
-                    completion_receipts
+                    completion_receipts.iter().map(|receipt| {
+                        (
+                            receipt.claim,
+                            receipt.argument_index,
+                            receipt.path.as_slice(),
+                        )
+                    }),
+                );
+                // Current custody, not historical entry provenance, identifies
+                // every claim the owned actual transfers to this completion.
+                let complete =
+                    structural_arguments
                         .iter()
-                        .map(|receipt| (receipt.claim, receipt.argument_index)),
-                )
-            {
-                return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
-                    machine: function.machine,
-                    block: block_id,
-                });
+                        .enumerate()
+                        .all(|(argument_index, argument)| {
+                            argument.access != StructuralAccess::Owned
+                                || frontier.claims.iter().all(|(identity, claim)| {
+                                    claim.input != Some(argument.place)
+                                        || !claim.path.starts_with(&argument.path)
+                                        || completion_receipts
+                                            .iter()
+                                            .filter(|receipt| {
+                                                receipt.claim == *identity
+                                                    && receipt.argument_index as usize
+                                                        == argument_index
+                                                    && receipt.path
+                                                        == claim.path[argument.path.len()..]
+                                            })
+                                            .count()
+                                            == 1
+                                })
+                        });
+                if !receipts_match || !complete {
+                    return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
+                        machine: function.machine,
+                        block: block_id,
+                    });
+                }
             }
             let transferred = match &node.operation {
                 O::CallStructural {

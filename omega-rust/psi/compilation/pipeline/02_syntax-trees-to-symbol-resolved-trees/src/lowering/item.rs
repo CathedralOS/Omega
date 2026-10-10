@@ -2,8 +2,9 @@
 //!
 //! `lower_item` records the item's authored-expression exposure, routes each
 //! syntax item kind to the module owning its carrier area, and pushes the
-//! result into the lowerer's trees. Target-marked machines the pre-resolution
-//! filter left inert are skipped; their call sites fail resolution loudly.
+//! result into the lowerer's trees. Every product target member and its
+//! independent portable interface lower together; requested realizations never
+//! decide which source bodies are retained or checked.
 
 use crate::lowering::data::lower_data_definition;
 use crate::lowering::domain::lower_domain_definition;
@@ -58,6 +59,7 @@ fn lower_item_with_exposure(
         // guidance.
         syntax::item::Item::Machine(machine)
             if machine.target.is_none()
+                && !machine.target_family_interface
                 && crate::lowering::operator::is_bare_bodyless_signature(machine) =>
         {
             let operator = crate::lowering::operator::lower_bare_bodyless_signature(
@@ -68,11 +70,9 @@ fn lower_item_with_exposure(
             lowerer.symbol_resolved_trees.operators.push(operator);
         }
         syntax::item::Item::Machine(machine) => {
-            // A machine still carrying a target marker is a sibling of the
-            // selected target's declaration: the coordinator's transitional
-            // pre-resolution selection cleared the selected marker, and every
-            // other body lowers as a checked sibling (symbol `<path>::<target>`)
-            // so a compile on one host reports every target's errors.
+            // Product members keep their exact authored target and separate
+            // symbols. The bodyless generated head owns the portable path;
+            // Build helpers instead retain their admitted execution selection.
             lower_machine_into(lowerer, syntax_trees, machine)?;
         }
         syntax::item::Item::Trait(trait_definition) => {

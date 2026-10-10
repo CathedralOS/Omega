@@ -1,4 +1,3 @@
-use crate::unit_validation::operation_contracts::claim_transfers::function_claim_input;
 use crate::unit_validation::operation_contracts::structural_access::structural_source_contract;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::StructuralDomainId;
@@ -65,44 +64,12 @@ pub(crate) fn boundary_completion_matches(
     {
         return false;
     }
-    let expected = arguments
-        .iter()
-        .enumerate()
-        .flat_map(|(index, argument)| {
-            caller
-                .entry_claim_declarations
-                .iter()
-                .filter_map(move |claim| {
-                    (claim.input == argument.place
-                        && (argument.path.is_empty() || claim.path == argument.path))
-                        .then_some((index as u32, claim.claim))
-                })
-                .chain(caller.content_entry_claims.iter().filter_map(move |claim| {
-                    (claim.input.root == argument.place).then_some((index as u32, claim.claim))
-                }))
-        })
-        .collect::<BTreeSet<_>>();
-    let actual = receipts
-        .iter()
-        .map(|receipt| (receipt.argument_index, receipt.claim))
-        .collect::<BTreeSet<_>>();
-    // Every entry or content claim an argument carries in is completed, at
-    // its own argument. A receipt may also complete a claim this function
-    // established itself; the ownership replay checks that claim is live at
-    // the argument's place.
-    actual.len() == receipts.len()
-        && expected.is_subset(&actual)
-        && receipts.iter().all(|receipt| {
-            let Some(argument) = arguments.get(receipt.argument_index as usize) else {
-                return false;
-            };
-            match function_claim_input(caller, receipt.claim) {
-                Some((input, path)) => {
-                    expected.contains(&(receipt.argument_index, receipt.claim))
-                        && input == argument.place
-                        && (argument.path.is_empty() || path == argument.path.as_slice())
-                }
-                None => argument.access == terminal_psi::StructuralAccess::Owned,
-            }
-        })
+    // Sources authenticate historical provenance only. The existing current
+    // ownership judgment checks the receipt's exact argument-relative path
+    // and the complete live claim roster after intervening moves.
+    receipts.iter().all(|receipt| {
+        arguments
+            .get(receipt.argument_index as usize)
+            .is_some_and(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
+    })
 }

@@ -511,6 +511,7 @@ impl SyntaxCopy<'_> {
 
     fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
         Machine {
+            target_family_interface: machine.target_family_interface,
             name: machine.name.clone(),
             generic_data_template: machine.generic_data_template.clone(),
             default_body_trait: machine.default_body_trait.clone(),

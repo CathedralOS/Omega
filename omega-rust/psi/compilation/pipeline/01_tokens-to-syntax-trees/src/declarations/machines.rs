@@ -125,6 +125,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     }
     Ok((
         Machine {
+            target_family_interface: false,
             name,
             generic_data_template: Default::default(),
             default_body_trait: Default::default(),

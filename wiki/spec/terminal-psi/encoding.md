@@ -164,7 +164,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | IEEE float format | `u8`: 1 binary32; 2 binary64 |
 | IEEE float relation | `u8`: 0 Equal, 1 NotEqual, 2 Less, 3 LessOrEqual, 4 Greater, 5 GreaterOrEqual |
 | IEEE float comparison kind | `u8`: 1 Equal, 2 NotEqual; propositions only — a distinct space from the relation byte |
-| structural path | counted segments, each `u8`: 1 + `string` field name; 2 + `u64` fixed index; 3 referent |
+| structural path | counted segments, each `u8`: 1 + `string` field name; 2 + `u64` fixed index; 3 referent; 4 + `u64` start + `u64` end for a fixed byte range; 6 + value id + obligation id for a runtime index; 7 + case id; retired tag 5 rejects |
 | canonical path segment | `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id |
 | canonical structural field | root place id + counted canonical path segments |
 | scalar field carrier path | counted segments, each `u8` 1 + field id or 2 + `u64` fixed index; record carriers only — other segment tags reject |
@@ -180,7 +180,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | proof term list | counted proof terms |
 | obligation id list | counted obligation ids |
 | claim transfer | claim id + `u32` argument index + structural path relative to the selected argument; Case segments retain conditional payload guards |
-| completion receipt | claim id + `u32` argument index |
+| completion receipt | claim id + `u32` argument index + structural path relative to the selected argument |
 | crash routes | counted buckets, each `u8` cause (1 Trap, 2 Abort) + counted guards; each guard `u8`: 0 truth, 1 + proposition |
 | successor edge | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted trivial discards |
 | trivial discard | place id; appears only inside a counted roster |
@@ -599,7 +599,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 137 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 138 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -682,18 +682,30 @@ Identities and commitments are nonempty; candidates are strictly ordered by
 their complete record and duplicates reject. Repeated calls share this catalog;
 target selection does not alter it.
 
-A family row carries its canonical callable and counted members ordered by
-the exact authored deployment tag. A callable is a `u8` tag (`1` machine,
+A family row carries its canonical callable, a nonzero 32-byte checked head
+contract commitment, and counted members ordered by the exact authored
+deployment tag. A callable is a `u8` tag (`1` machine,
 `2` boundary) followed by its nonzero id. Each member carries a counted UTF-8
 deployment tag, callable, and a `u8` supply tag: `1` checked body, `2`
 requirement, `3` top-level requirement, `4` boundary, `5` admission claim,
 `6` external realization. Families are ordered by canonical callable; each
-callable belongs to exactly one member, and every canonical callable appears
-in its family. Checked and opaque references must name their corresponding
+member callable belongs to exactly one member. An independent portable head
+names a requirement boundary outside the member roster; a retained executable
+canonical head instead names one of its members. Both forms retain the exact
+checked head commitment, never a selected member's private contract substituted
+for the portable head. Checked and opaque references must name their corresponding
 module rosters. Deployment tags are source identities, not native ISA names.
 Membership alone grants no call redirection or physical installation authority.
 Provider-default declaration programs produce Build-owned selections rather
 than executable members of this runtime roster.
+
+Marker 138 adds the head commitment and completion-receipt path. A receipt's
+path records current argument-relative custody, including conditional case
+payload guards. Historical claim provenance remains separate: a claim moved
+into a containing record need not still occupy its original entry path.
+The call must settle the complete current owned roster at the selected paths;
+the receipt neither recreates a claim nor grants boundary issuance. Earlier
+markers are not reinterpreted under this layout.
 
 The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by

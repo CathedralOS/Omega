@@ -16,22 +16,22 @@ pub enum LoweringError {
     PlacedViewInput(PlacedViewInputTranslationError),
     EntryFunctionMissing(MachineId),
     ProviderInstallationIdentityMismatch,
-    DuplicateInstalledProviderCall {
+    DuplicateSelectedBoundaryCall {
         machine: MachineId,
         operation: OperationId,
         boundary: BoundaryMachineId,
     },
-    UnknownInstalledProviderCall {
+    UnknownSelectedBoundaryCall {
         machine: MachineId,
         operation: OperationId,
         boundary: BoundaryMachineId,
     },
-    InstalledProviderCallEvidenceMismatch {
+    SelectedBoundaryCallEvidenceMismatch {
         machine: MachineId,
         operation: OperationId,
         boundary: BoundaryMachineId,
     },
-    InstalledProviderCallShapeMismatch {
+    SelectedBoundaryCallShapeMismatch {
         machine: MachineId,
         operation: OperationId,
         boundary: BoundaryMachineId,

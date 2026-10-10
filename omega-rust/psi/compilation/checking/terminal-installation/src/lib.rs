@@ -5,11 +5,15 @@
 //!
 //! `provider_installation` admits exact catalog selections and explicit assumed
 //! links; `entry_values` describes externally established structural backing.
+//! `target_families` selects exact tagged members without proving refinement or
+//! granting execution authority. Consumers still admit the portable contract
+//! and transport the selected member's authentic result evidence.
 //! This owner has no execution loop, host adapters, mutable guest storage, or
 //! target layout. Each consumer establishes its own invocation from these facts.
 
 mod entry_values;
 mod provider_installation;
+mod target_families;
 
 pub use entry_values::{TerminalPlacedViewEstablishment, TerminalStructuralValue};
 pub use provider_installation::{
@@ -17,4 +21,8 @@ pub use provider_installation::{
     AssumedBindingSelection, ProviderInstallationError, ProviderInstallationSelection,
     admit_provider_installation, admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,
+};
+pub use target_families::{
+    AdmittedTargetMachineSelections, TargetMachineSelection, TargetMachineSelectionError,
+    admit_target_machine_selections,
 };

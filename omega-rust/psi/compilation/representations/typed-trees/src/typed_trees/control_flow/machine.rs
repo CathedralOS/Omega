@@ -69,6 +69,9 @@ pub struct Machine {
     /// Authored target identity, independent of canonical family naming or
     /// Build execution selection. Consumers never reconstruct it from names.
     pub authored_target: Option<Identifier>,
+    /// Independent generated Requirement of a product target family. Its
+    /// callable contract has no executable body or provider authority.
+    pub target_family_interface: bool,
     /// Exact source-body presence copied from symbol-resolved trees. Boundary
     /// supply can be either bodyless or a checked adapter.
     pub body_is_present: bool,
@@ -123,6 +126,14 @@ impl Machine {
             language_semantics::MachineSupplyMode::Boundary => self.body_is_present,
             _ => false,
         }
+    }
+
+    /// An opaque callable carries its signature without supplying a body.
+    /// This includes Requirements, not just host-boundary trust tiers. An
+    /// unfinished CheckedBody never becomes opaque merely because its body
+    /// is absent; missing executable planning remains an error.
+    pub fn has_bodyless_signature(&self) -> bool {
+        !self.supplies_checked_body() && !self.body_is_present
     }
 
     /// The spelling of this machine's symbol in the symbol table: the
@@ -189,6 +200,7 @@ impl Default for Machine {
             purpose: MachinePurpose::Runtime,
             target: None,
             authored_target: None,
+            target_family_interface: false,
             body_is_present: true,
             body_status: MachineBodyStatus::Complete,
             structural_type_equations_pending: false,

@@ -19,8 +19,8 @@ use crate::physical::derivation::hashing::{
 use crate::physical::derivation::hosted_builtins::{
     derive_hosted_builtin_child, hosted_builtin_settlement,
 };
-use crate::physical::derivation::provider_calls::{
-    boundary_internal_call_exists, derive_installed_provider_internal_call_child,
+use crate::physical::derivation::internal_calls::{
+    boundary_internal_call_exists, derive_boundary_internal_call_child,
 };
 use crate::physical::derivation::provider_settlements::derive_admitted_provider_settlement_child;
 use crate::physical::native_optimization_projection;
@@ -216,6 +216,36 @@ pub(crate) fn derive_physical_evidence(
             .get(&occurrence.boundary())
             .copied()
             .ok_or("native physical evidence names an absent boundary requirement")?;
+        // A family is selected by its exact deployment row, not by a provider
+        // plan. Its unchanged boundary occurrence still owns this emitted call.
+        let family = module.target_machine_families.iter().any(|family| {
+            family.canonical == terminal_psi::TargetMachineCallable::Boundary(occurrence.boundary())
+                && !family
+                    .members
+                    .iter()
+                    .any(|member| member.callable == family.canonical)
+        });
+        if family && installed.is_none() && foreign.is_none() {
+            if let Some(child) = derive_boundary_internal_call_child(
+                module,
+                terminal_artifact.manifest().semantic(),
+                object,
+                image,
+                occurrence,
+                projection.identity(),
+                requirement,
+                None,
+                target,
+            )? {
+                children.push(child);
+                continue;
+            }
+            return Ok(blocked(
+                NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence {
+                    occurrence: *occurrence,
+                },
+            ));
+        }
         let matching_plans = selected_provider_plans
             .iter()
             .filter(|plan| {
@@ -292,14 +322,15 @@ pub(crate) fn derive_physical_evidence(
                 // retains neither a settlement nor a normalized foreign call:
                 // it emitted an ordinary resolved internal call, and that
                 // retained custody binds the occurrence here.
-                if let Some(child) = derive_installed_provider_internal_call_child(
+                if let Some(child) = derive_boundary_internal_call_child(
                     module,
+                    terminal_artifact.manifest().semantic(),
                     object,
                     image,
                     occurrence,
                     projection.identity(),
                     requirement,
-                    selected_plan,
+                    Some(selected_plan),
                     target,
                 )? {
                     children.push(child);
@@ -433,13 +464,19 @@ fn validate_exact_physical_children(
 ) -> Result<(), &'static str> {
     for child in children {
         validate_physical_child_spans(child)?;
+        if !child
+            .parent()
+            .owns_occurrence(projection.terminal(), child.occurrence())
+        {
+            return Err("native physical child is detached from its semantic parent occurrence");
+        }
     }
     validate_exact_physical_child_coordinates(
         projection,
         children.iter().map(|child| PhysicalChildCoordinate {
             projection: child.projection(),
             occurrence: child.occurrence(),
-            parent_role: child.parent().role_tag(),
+            parent_role: child.parent().occurrence_role_tag(),
         }),
     )
 }

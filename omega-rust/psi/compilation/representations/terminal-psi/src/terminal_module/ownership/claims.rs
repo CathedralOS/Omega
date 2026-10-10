@@ -47,8 +47,12 @@ pub struct ClaimTransfer {
 ///
 /// The receipt becomes effective only after the boundary effect succeeds. A
 /// rejected effect consumes no claim, so it cannot acknowledge completion.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CompletionReceipt {
     pub claim: ClaimId,
     pub argument_index: u32,
+    /// Current custody relative to this argument, not historical entry
+    /// provenance. Internal selected calls preserve it as a claim transfer;
+    /// successful opaque completion acknowledges this exact region.
+    pub path: Vec<StructuralPathSegment>,
 }

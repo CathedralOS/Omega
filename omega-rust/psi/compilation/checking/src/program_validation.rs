@@ -233,12 +233,7 @@ fn validate(
     } else {
         Vec::new()
     };
-    quotients::validate_quotients(
-        program,
-        &proof_only,
-        quotient_admission,
-        &mut diagnostics,
-    );
+    quotients::validate_quotients(program, &proof_only, quotient_admission, &mut diagnostics);
     let fact_call_projections = if effect_admission == EffectAdmission::Complete {
         fact_call_projections::validate_fact_call_projections(program, &mut diagnostics)
     } else {
@@ -454,22 +449,10 @@ fn validate(
                     specialization.template == machine.symbol
                         || specialization.instance == machine.symbol
                 })
-                // Bodyless boundary declarations have no Omega body by
-                // design. ACCEPTED declarations mean their ensures through
-                // the trust carrier; claim-free BOUNDARY declarations merely
-                // introduce a symbol and assert nothing.
-                && !matches!(
-                    machine.supply_mode,
-                    language_semantics::MachineSupplyMode::AdmissionClaim
-                        | language_semantics::MachineSupplyMode::TopLevelRequirement
-                        | language_semantics::MachineSupplyMode::Boundary
-                )
-                // PRV4: an EXTERNAL LEAF's body IS its binding -- the
-                // realization produces the value at the seam.
-                && !matches!(
-                    machine.supply_mode,
-                    language_semantics::MachineSupplyMode::ExternalRealization { .. }
-                )
+                // A signature-only callable declares a result contract, not
+                // an empty executable body. Requirement and external supply
+                // obey the same body-presence rule as boundary declarations.
+                && machine.supplies_checked_body()
                 && program
                     .statement_table
                     .statements(state.statement_nodes)

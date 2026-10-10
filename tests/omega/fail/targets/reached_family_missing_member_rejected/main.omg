@@ -1,0 +1,9 @@
+// The same checked portable interface is valid source, but every bound hosted
+// realization lacks its exact member. Never substitute the firmware body.
+data Firmware {}
+uefi_x86_64 machine Firmware::read() -> u64 { 42 }
+
+data Main {}
+machine Main::main(main: &mut Main) {
+    let value: u64 = Firmware::read();
+}

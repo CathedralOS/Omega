@@ -408,8 +408,8 @@ pub(super) fn populate(
             .iter()
             .find(|row| {
                 call_site_owner_semantic_site(&contract.owner)
-                        .map(|site| row.site == site)
-                        .unwrap_or(false)
+                    .map(|site| row.site == site)
+                    .unwrap_or(false)
             })
             .ok_or(Error::Mismatch("Unit call has no attributed span"))?;
         let call_span = fragment
@@ -529,6 +529,19 @@ pub(super) fn populate(
         }
         let call_source = match &call.source {
             NativeCallOrigin::Authored => InternalUnitCallSource::Authored,
+            NativeCallOrigin::TargetFamily {
+                boundary,
+                member,
+                target,
+                completion_claim_sources,
+                completion_receipts,
+            } => InternalUnitCallSource::TargetFamily {
+                boundary: *boundary,
+                member: *member,
+                target: target.clone(),
+                completion_claim_sources: completion_claim_sources.clone(),
+                completion_receipts: completion_receipts.clone(),
+            },
             NativeCallOrigin::InstalledProvider {
                 boundary,
                 provider,

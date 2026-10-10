@@ -118,6 +118,8 @@ fn source_checked_operation_facts(
 pub struct VerifiedPsiOptimizationInput {
     pub(crate) plan: AbstractOperationPlan,
     pub(crate) context: VerifiedPsiOptimizationContext,
+    pub(crate) target_machine_selections:
+        Option<terminal_installation::AdmittedTargetMachineSelections>,
 }
 
 impl VerifiedPsiOptimizationInput {
@@ -127,6 +129,52 @@ impl VerifiedPsiOptimizationInput {
 
     pub const fn context(&self) -> &VerifiedPsiOptimizationContext {
         &self.context
+    }
+
+    /// Invocation selection is catalog membership, never provider authority.
+    /// Optimizer-only preparation retains no execution selection.
+    pub fn target_machine_selections(
+        &self,
+    ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
+        self.target_machine_selections.as_ref()
+    }
+
+    /// Follow a portable family head as an internal execution edge. A missing
+    /// selected member refuses only when reached; retained, unused families
+    /// impose no deployment requirement. Opaque members still require their
+    /// own realization and cannot be promoted to executable checked bodies.
+    pub fn target_family_member(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<Option<semantic_vocabulary::MachineId>, String> {
+        let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
+        let families = &self.context.module.target_machine_families;
+        let Ok(position) = families.binary_search_by_key(&head, |family| family.canonical) else {
+            return Ok(None);
+        };
+        if families[position]
+            .members
+            .iter()
+            .any(|member| member.callable == head)
+        {
+            return Ok(None);
+        }
+        let selections = self.target_machine_selections().ok_or_else(|| {
+            format!("target-family head {boundary:?} has no invocation deployment selection")
+        })?;
+        let member = selections.member(head).map_err(|error| error.to_string())?;
+        match (member.callable(), member.supply()) {
+            (
+                terminal_psi::TargetMachineCallable::Machine(machine),
+                terminal_psi::TargetMachineSupply::CheckedBody
+                | terminal_psi::TargetMachineSupply::Boundary,
+            ) => Ok(Some(machine)),
+            _ => Err(format!(
+                "target-family head {boundary:?} selected opaque {:?} for `{}`; native member realization is unavailable",
+                member.callable(),
+                selections.target(),
+            )),
+        }
     }
 }
 

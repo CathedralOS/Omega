@@ -6,7 +6,7 @@
 //! each non-terminator row of each block in order, with the scalar sources
 //! available so far and the block's reference custody state, and applies
 //! the operation to that custody afterwards. A boundary call whose origin is
-//! an installed operation (`call_origin::installed_operation`) is first
+//! a selected ordinary operation (`call_origin::selected_boundary_operation`) is first
 //! rebound as an authored call and replayed against that operation.
 //! Otherwise `validate_operation` matches the target row with its abstract
 //! operation. It compares simple pairs field by field here (constants,
@@ -60,7 +60,7 @@ pub(super) fn validate_operation(
             .find(|node| &node.operation == abstracted)
             .ok_or(LegalizationError::custody())?;
         if let Some((operation, _)) =
-            super::super::call_origin::installed_operation(node, optimized, native, plan)?
+            super::super::call_origin::selected_boundary_operation(node, optimized, native, plan)?
         {
             let mut ordinary = target.clone();
             match &mut ordinary {

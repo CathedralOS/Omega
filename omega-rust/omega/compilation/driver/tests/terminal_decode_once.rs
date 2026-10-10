@@ -150,6 +150,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // root Binding does not delegate containing-domain death to an embedding.
     let denied = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
         artifact: artifact.psi_artifact(),
+        target: None,
         provisions: product.runtime_provisions.as_ref(),
         fuel_allowance: 100_000,
         domain_exit: compiler::runtime::TerminalDomainExitDelegation::default(),
@@ -168,6 +169,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     );
     let observation = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
         artifact: artifact.psi_artifact(),
+        target: None,
         provisions: product.runtime_provisions.as_ref(),
         fuel_allowance: 100_000,
         domain_exit: compiler::runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,

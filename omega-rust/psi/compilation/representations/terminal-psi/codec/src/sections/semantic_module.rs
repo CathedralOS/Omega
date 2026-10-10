@@ -62,7 +62,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Stored references retain identity-only targets without demanding storage.
 // Computed dispatch slots retain their public relative claim paths.
 // Captured call loans name the evaluated actual and its exact borrowed leaf.
-pub(crate) const FORMAT_MARKER: u16 = 137;
+// Target families retain their exact checked published-head commitment.
+pub(crate) const FORMAT_MARKER: u16 = 138;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

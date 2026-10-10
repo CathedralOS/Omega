@@ -1,9 +1,12 @@
-//! Refuse portable uses until a family-wide callable contract owns them.
+//! Portable references name a family contract, never an authored member.
 //!
-//! The canonical member is a declaration identity, not a portable implementation.
-//! In particular its private return-range inference cannot justify a call that
-//! another deployment executes using a different body. No checked product may
-//! escape with such references, even when they occur only in proofs or types.
+//! Resolution gives each product family a separate bodyless Requirement whose
+//! fresh telescope conjoins member premises. Typing checks every retained
+//! member's complete callable shape; checking publishes their joined operational
+//! and crash ceilings before reaching this gate. That Requirement has no private
+//! body or return-range guarantee to import. Exact member references remain
+//! confined to target-scoped bodies, including references in proofs and types.
+//! Execution selection is a later consumer obligation, not source authority.
 
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
@@ -11,7 +14,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::references::{StaticArgumentCall, StaticArgumentRole, TypedReferences};
 
-pub(super) fn reject_unbound_family_references(
+pub(super) fn validate_portable_references(
     checked: &checked_trees::CheckedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let program = &checked.typed;

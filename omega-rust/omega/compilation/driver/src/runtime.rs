@@ -53,6 +53,9 @@ use terminal_interpreter::{
 
 pub struct TerminalRuntimeRequest<'program> {
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
+    /// Exact deployment tag admitted by this invocation. Absence permits only
+    /// execution scopes that do not demand a portable target-family head.
+    pub target: Option<&'program str>,
     pub provisions: Option<&'program TerminalRuntimeProvisions>,
     pub fuel_allowance: u64,
     /// Explicit host acceptance of domain death through the driver's private
@@ -135,6 +138,9 @@ pub fn execute(
     let checked_installation = request
         .provisions
         .and_then(TerminalRuntimeProvisions::installation);
+    let target_machines = request
+        .target
+        .map(|target| terminal_interpreter::admit_target_machine_selections(artifact, target));
     // These are this native request's admitted external settlements, not every
     // boundary with a retained checked alternative. Completion authority is
     // established separately below, never selected as a normal import.
@@ -153,6 +159,7 @@ pub fn execute(
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             installation: checked_installation,
             host_imports: &host_imports,
+            target_machines: target_machines.as_ref(),
         })
         .map_err(TerminalRuntimeError::Requirements)?;
     let requirements = program

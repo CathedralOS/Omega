@@ -418,5 +418,6 @@ fn finish_resolved_tables(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> 
     );
     crate::symbols::target_machine_families::bind(&mut lowerer.symbol_resolved_trees)?;
     crate::symbols::target_siblings::bind_sibling_calls(&mut lowerer.symbol_resolved_trees);
+    crate::symbols::target_machine_families::prepare_premises(&mut lowerer.symbol_resolved_trees)?;
     Ok(())
 }

@@ -15,11 +15,13 @@
 //! inside this program; their registrar calls remain ordinary boundary edges.
 
 use crate::SelectedProviderAdapter;
-use abstract_operations::{AbstractCallTarget, AbstractOperation, AbstractOperationPlan};
+use abstract_operations::{AbstractCallTarget, AbstractOperation};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
 #[derive(Debug)]
 pub enum NativeExecutionScopeError {
+    TerminalIdentityMismatch,
+    TargetFamily(String),
     MissingMachine(MachineId),
     MissingSelectedCheckedProvider(BoundaryMachineId),
     CompetingSelectedCheckedProviders(BoundaryMachineId),
@@ -28,6 +30,11 @@ pub enum NativeExecutionScopeError {
 impl std::fmt::Display for NativeExecutionScopeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::TerminalIdentityMismatch => write!(
+                formatter,
+                "native deployment selection names a different Terminal artifact"
+            ),
+            Self::TargetFamily(error) => formatter.write_str(error),
             Self::MissingMachine(machine) => write!(
                 formatter,
                 "native execution scope reaches absent machine {machine:?}"
@@ -56,9 +63,10 @@ pub(crate) struct NativeExecutionScope {
 
 impl NativeExecutionScope {
     pub(crate) fn derive(
-        plan: &AbstractOperationPlan,
+        input: &crate::VerifiedPsiOptimizationInput,
         selected: &[SelectedProviderAdapter],
     ) -> Result<Self, NativeExecutionScopeError> {
+        let plan = input.plan();
         let mut function_positions = plan
             .functions
             .iter()
@@ -117,6 +125,13 @@ impl NativeExecutionScope {
                             continue;
                         }
                         scope.boundaries.push(*boundary);
+                        if let Some(member) = input
+                            .target_family_member(*boundary)
+                            .map_err(NativeExecutionScopeError::TargetFamily)?
+                        {
+                            pending.push(member);
+                            continue;
+                        }
                         let candidates = plan
                             .provider_candidates
                             .iter()

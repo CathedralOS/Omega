@@ -54,6 +54,7 @@ pub fn admit_native_realization<'request>(
     .map_err(|error| realization_error("selected checked-provider projection", error))?;
     let input = input
         .select_target_execution(
+            artifact,
             request.providers.program_entry.source().target_slot().owner,
             &adapters,
         )

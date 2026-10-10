@@ -48,6 +48,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     settlement_bindings: &[BoundarySettlementBinding],
     installation: Option<&dyn ProviderInstallationEvidence>,
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
+    verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<TargetOperationPlan, LoweringError> {
     // Root and projected memberships are target-neutral source judgments.
     // They stay on the retained abstract contracts; field paths select the
@@ -112,6 +113,8 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         &installed_by_call,
         &boundary_calls,
     )?;
+    let installed_by_call =
+        super::selected_boundary_calls::index(plan, installed_by_call, verified_input)?;
     settlement_roster::validate_settlement_roster(
         &settlements_by_boundary,
         &installed_by_call,

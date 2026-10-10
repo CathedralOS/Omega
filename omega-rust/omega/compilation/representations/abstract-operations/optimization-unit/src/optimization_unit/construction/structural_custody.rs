@@ -227,12 +227,7 @@ pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<Ownershi
         O::BoundaryCall {
             completion_receipts,
             ..
-        } => vec![OwnershipEvent::ClaimCompletion(
-            completion_receipts
-                .iter()
-                .map(|receipt| receipt.claim)
-                .collect(),
-        )],
+        } => vec![OwnershipEvent::ClaimCompletion(completion_receipts.clone())],
         abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) => {
             vec![OwnershipEvent::Cleanup(cleanup_actions.clone())]
         }

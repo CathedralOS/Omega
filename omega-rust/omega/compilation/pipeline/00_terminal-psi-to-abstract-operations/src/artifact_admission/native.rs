@@ -41,12 +41,23 @@ impl VerifiedNativeArtifactInput {
     /// an empty adapter roster and still requires ordinary target lowering.
     pub fn select_target_execution(
         self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
         selected: &[crate::SelectedProviderAdapter],
     ) -> Result<Self, crate::NativeExecutionScopeError> {
+        if artifact.view().identity() != self.plan().psi {
+            return Err(crate::NativeExecutionScopeError::TerminalIdentityMismatch);
+        }
         let mut input = self.select_target_families(profile);
-        let scope =
-            crate::native_execution_scope::NativeExecutionScope::derive(input.plan(), selected)?;
+        input.optimization_input.target_machine_selections =
+            Some(terminal_installation::admit_target_machine_selections(
+                artifact.view(),
+                profile.target_name(),
+            ));
+        let scope = crate::native_execution_scope::NativeExecutionScope::derive(
+            &input.optimization_input,
+            selected,
+        )?;
         input.retain_execution_scope(&scope);
         Ok(input)
     }
@@ -55,8 +66,8 @@ impl VerifiedNativeArtifactInput {
     /// Canonical Terminal storage and actual member identities remain intact;
     /// this does not redirect calls or substitute a body at a family head.
     /// A surviving call to an excluded member still fails ordinary closure
-    /// admission. Portable family-call binding is a separate pending producer
-    /// change: source checking refuses such uses until that contract exists.
+    /// admission. Portable head calls keep their original occurrence and bind
+    /// to the exact selected member through separate internal call custody.
     fn select_target_families(mut self, profile: target::TargetProfile) -> Self {
         let members = self
             .optimization_input
@@ -108,6 +119,10 @@ impl VerifiedNativeArtifactInput {
 
     pub const fn context(&self) -> &VerifiedPsiOptimizationContext {
         self.optimization_input.context()
+    }
+
+    pub const fn optimization_input(&self) -> &VerifiedPsiOptimizationInput {
+        &self.optimization_input
     }
 
     /// The provider establishments bound to this input's direct-entry roster
@@ -191,6 +206,10 @@ pub(super) fn lower_decoded_native_module(
     let plan = lower_decoded_module(module).map_err(ArtifactLoweringError::Lowering)?;
     let context = retain_optimization_context(module);
     Ok(AdmittedNativeArtifact {
-        optimization_input: VerifiedPsiOptimizationInput { plan, context },
+        optimization_input: VerifiedPsiOptimizationInput {
+            plan,
+            context,
+            target_machine_selections: None,
+        },
     })
 }

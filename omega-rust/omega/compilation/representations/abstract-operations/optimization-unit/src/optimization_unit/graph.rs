@@ -106,7 +106,7 @@ pub struct OptimizationEdge {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OwnershipEvent {
     ClaimTransfer(Vec<ClaimId>),
-    ClaimCompletion(Vec<ClaimId>),
+    ClaimCompletion(Vec<terminal_psi::CompletionReceipt>),
     Cleanup(Vec<TerminalAffineCleanupAction>),
     StructuralReturn(Vec<ClaimId>),
     CrashFrontier(Vec<ClaimId>),

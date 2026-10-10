@@ -103,9 +103,9 @@ pub(crate) fn lower_machine_into(
     lowerer.current_state_name = None;
     lowerer.current_evidence_term_names.clear();
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
-    // A sibling keeps its own conformances (its `via` locators are its
-    // target's); consumers that select implementers skip sibling machines,
-    // and per-target selection promotes the realized target's body with them.
+    // Each member keeps its own conformances and target-owned `via` locators.
+    // Provider selection joins an exact member without promoting it into the
+    // portable head or rewriting other members' declarations.
     let sibling_target = machine
         .target
         .as_ref()
@@ -133,9 +133,9 @@ pub(crate) fn lower_machine_into(
     let contracts =
         lower_machine_signature_contracts(lowerer, syntax_trees, machine.contracts, states)?;
     let machine_name = crate::lowering::name::lower_name(&machine.name);
-    // A sibling keeps its authored name (its family) and spells its symbol
-    // `<path>::<target>` so name lookups keep selecting the realized target's
-    // one declaration.
+    // A member keeps its authored family path and has a distinct
+    // `<path>::<target>` symbol. The independent head occupies the portable
+    // path; same-target calls bind exact member symbols during resolution.
     let target_symbol_name = match &sibling_target {
         Some(target) => symbol_resolved_trees::name::DiagnosticName::new(
             format!("{}::{}", machine.name.as_str(), target.as_str()),
@@ -170,7 +170,9 @@ pub(crate) fn lower_machine_into(
             .satisfies_clauses(machine.satisfies)
             .iter()
             .any(|clause| clause.via_expression.is_valid());
-        if machine.is_top_level_boundary_requirement
+        if machine.target_family_interface {
+            language_semantics::MachineSupplyMode::Requirement
+        } else if machine.is_top_level_boundary_requirement
             || crate::lowering::operator::is_token_bearing_boundary_signature(machine)
         {
             language_semantics::MachineSupplyMode::TopLevelRequirement
@@ -250,6 +252,8 @@ pub(crate) fn lower_machine_into(
             .as_ref()
             .map(crate::lowering::name::lower_name),
         target_family: SymbolHandle::invalid(),
+        target_family_interface: machine.target_family_interface,
+        target_family_contracts_prepared: false,
         target_symbol_name,
         has_structural_type_equations: !machine.where_facts.is_empty(),
         structural_type_equations_pending: !machine.where_facts.is_empty()

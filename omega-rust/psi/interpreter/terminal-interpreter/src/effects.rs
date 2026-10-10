@@ -123,7 +123,8 @@ pub struct TerminalEffectRejection {
 }
 
 pub use terminal_installation::{
-    AdmittedAssumedBinding, AssumedBindingSelection, ProviderInstallationSelection,
+    AdmittedAssumedBinding, AdmittedTargetMachineSelections, AssumedBindingSelection,
+    ProviderInstallationSelection, admit_target_machine_selections,
 };
 
 /// Admitted supply selection bound to one exact Terminal-Psi identity.
@@ -137,6 +138,7 @@ pub struct TerminalRuntimeSupplies {
     pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
+    pub(crate) target_machines: Option<AdmittedTargetMachineSelections>,
 }
 
 /// One receiving host's selected execution route, never catalog availability.
@@ -154,6 +156,8 @@ pub(crate) enum AdmittedBoundarySupply {
 pub struct TerminalRuntimeSupplyRequest<'installation> {
     pub installation: Option<&'installation terminal_installation::AdmittedProviderSelections>,
     pub host_imports: &'installation [BoundaryMachineId],
+    /// Exact catalog selections, independently of provider or host authority.
+    pub target_machines: Option<&'installation AdmittedTargetMachineSelections>,
 }
 
 impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntimeSupplies {
@@ -167,6 +171,7 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
                 })
                 .collect(),
             assumed_bindings: selected.assumed_bindings().to_vec(),
+            target_machines: None,
         }
     }
 }

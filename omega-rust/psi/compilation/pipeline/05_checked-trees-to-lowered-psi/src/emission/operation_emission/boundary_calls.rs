@@ -33,7 +33,7 @@ pub(crate) struct LoweredBoundaryCallBinding {
     pub(crate) result_policy: BoundaryResultPolicy,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
     pub(crate) structural_arguments: Vec<PreparedStructuralArgument>,
-    pub(crate) completion_receipts: Vec<crate::emission::claim_bindings::PreparedCompletionReceipt>,
+    pub(crate) completion_receipts: Vec<crate::emission::claim_bindings::PreparedClaimTransfer>,
 }
 
 pub(super) fn emit_boundary_call_binding(

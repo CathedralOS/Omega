@@ -12,6 +12,7 @@ pub mod placed_view_inputs;
 mod provider_evidence;
 mod scalar;
 mod scalar_abi;
+pub(crate) mod selected_boundary_calls;
 pub(super) mod structural_layout;
 pub(crate) mod structural_signature;
 mod structural_type_lookup;
@@ -28,6 +29,8 @@ use coordination::lower_to_target_operations_with_settlements_and_installation;
 /// The admitted settlements a target lowering consumes beyond the plan and
 /// its target. A source-free plan carries none; every roster is fail-closed.
 pub(crate) struct TargetLoweringRequest<'a> {
+    pub verified_input:
+        Option<&'a terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
     pub target: NativeTarget,
     /// Exact provider executions already admitted by the external-root ledger.
     pub settlements: &'a [AdmittedBoundarySettlement<'a>],
@@ -46,6 +49,7 @@ pub(crate) fn lower_to_target_operations(
     request: TargetLoweringRequest<'_>,
 ) -> Result<TargetOperationPlan, LoweringError> {
     let TargetLoweringRequest {
+        verified_input,
         target,
         settlements,
         installation,
@@ -58,5 +62,6 @@ pub(crate) fn lower_to_target_operations(
         &bindings,
         installation,
         native_callbacks,
+        verified_input,
     )
 }

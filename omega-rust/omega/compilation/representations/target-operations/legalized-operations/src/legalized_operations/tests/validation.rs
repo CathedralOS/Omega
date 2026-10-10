@@ -3,6 +3,21 @@ use super::{
     CompletionClaimSource, EntryClaim, LegalizedScalarArgument, OwnershipEvent, call_aware_plan,
     id, installed_provider_plan, structural_call_mut,
 };
+
+fn completion_receipts() -> Vec<terminal_psi::CompletionReceipt> {
+    vec![
+        terminal_psi::CompletionReceipt {
+            claim: id(1),
+            argument_index: 0,
+            path: Vec::new(),
+        },
+        terminal_psi::CompletionReceipt {
+            claim: id(2),
+            argument_index: 1,
+            path: Vec::new(),
+        },
+    ]
+}
 #[test]
 fn empty_call_ownership_events_remain_bound_to_the_original_call_origin() {
     let mut installed = installed_provider_plan();
@@ -67,7 +82,7 @@ fn installed_call_origin_retains_projected_operands_and_structural_receipt_ordin
             placement,
         },
     );
-    let ownership = [OwnershipEvent::ClaimCompletion(vec![id(1), id(2)])];
+    let ownership = [OwnershipEvent::ClaimCompletion(completion_receipts())];
     call.validate_source(&ownership)
         .expect("projected structural receipt survives a scalar prefix");
 
@@ -110,7 +125,7 @@ fn structural_call_source_validation_preserves_installed_completion_custody() {
 
     let mut installed = installed_provider_plan();
     let call = structural_call_mut(&mut installed);
-    call.validate_source(&[OwnershipEvent::ClaimCompletion(vec![id(1), id(2)])])
+    call.validate_source(&[OwnershipEvent::ClaimCompletion(completion_receipts())])
         .expect("installed provider source");
     assert_ne!(
         legalized_operation_plan_identity(&authored),
@@ -135,7 +150,7 @@ fn structural_call_source_validation_preserves_installed_completion_custody() {
         }),
         content: None,
     });
-    call.validate_source(&[OwnershipEvent::ClaimCompletion(vec![id(1), id(2)])])
+    call.validate_source(&[OwnershipEvent::ClaimCompletion(completion_receipts())])
         .expect("unrelated retained caller source is permitted");
     assert_ne!(
         legalized_operation_plan_identity(&installed),
@@ -153,7 +168,7 @@ fn structural_call_source_validation_preserves_installed_completion_custody() {
     };
     completion_claim_sources.push(completion_claim_sources[0].clone());
     assert_eq!(
-        call.validate_source(&[OwnershipEvent::ClaimCompletion(vec![id(1), id(2)])]),
+        call.validate_source(&[OwnershipEvent::ClaimCompletion(completion_receipts())]),
         Err(LegalizedCallSourceError::CompletionEvidenceMismatch)
     );
 
@@ -171,7 +186,7 @@ fn structural_call_source_validation_preserves_installed_completion_custody() {
     };
     provider.candidate = id(3);
     assert_eq!(
-        call.validate_source(&[OwnershipEvent::ClaimCompletion(vec![id(1), id(2)])]),
+        call.validate_source(&[OwnershipEvent::ClaimCompletion(completion_receipts())]),
         Err(LegalizedCallSourceError::ProviderIdentityMismatch)
     );
 }

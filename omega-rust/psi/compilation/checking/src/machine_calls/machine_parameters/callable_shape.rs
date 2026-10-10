@@ -189,6 +189,7 @@ fn validate_callable_formation(
     binder_bindings: &mut Vec<BinderBinding>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let formation_diagnostic_count = diagnostics.len();
     let actual_parameters = actual.parameters;
     validate_callable_type_parameters(
         program,
@@ -213,25 +214,36 @@ fn validate_callable_formation(
         return;
     }
 
+    let mut formation_binders = binder_bindings.clone();
+    formation_binders.extend(required_parameters.iter().zip(actual_parameters).map(
+        |(required, actual)| BinderBinding {
+            required: required.symbol,
+            actual: actual.symbol,
+        },
+    ));
+
     for (index, (required, actual)) in required_parameters
         .iter()
         .zip(actual_parameters)
         .enumerate()
     {
-        if required.is_mutable != actual.is_mutable || required.is_const != actual.is_const {
+        if required.is_mutable != actual.is_mutable
+            || required.is_const != actual.is_const
+            || required.relevance != actual.relevance
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: parameter {} has a different calling mode",
                 parameter.name, index
             )));
             continue;
         }
-        if !required_type_matches(
+        if !complete_callable_type_matches(
             program,
             actual.type_reference,
             required.type_reference,
             generic_types,
             bindings,
-            binder_bindings,
+            &formation_binders,
         ) {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: parameter {} expects `{}`, got `{}`",
@@ -243,13 +255,13 @@ fn validate_callable_formation(
         }
     }
 
-    if !required_type_matches(
+    if !complete_callable_type_matches(
         program,
         actual.return_type,
         requirement.return_type,
         generic_types,
         bindings,
-        binder_bindings,
+        &formation_binders,
     ) {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: expected return `{}`, got `{}`",
@@ -257,6 +269,13 @@ fn validate_callable_formation(
             program.display_type_reference(requirement.return_type),
             program.display_type_reference(actual.return_type)
         )));
+    }
+
+    // Complete formation precedes implication. Carrier-only matching can
+    // infer generic substitutions, but cannot erase declared qualifications
+    // and then use contract refinement to legitimize a different signature.
+    if diagnostics.len() != formation_diagnostic_count {
+        return;
     }
 
     if requirement.termination_guarantee.promises_termination() && !actual.terminates {
@@ -276,6 +295,97 @@ fn validate_callable_formation(
         actual_parameters,
         diagnostics,
     );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn complete_callable_type_matches(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    binder_bindings: &[BinderBinding],
+) -> bool {
+    if !required_type_matches(
+        program,
+        actual,
+        required,
+        generic_types,
+        bindings,
+        binder_bindings,
+    ) {
+        return false;
+    }
+    if !actual.is_valid() || !required.is_valid() {
+        return actual.is_valid() == required.is_valid();
+    }
+    let mut positional = Vec::with_capacity(binder_bindings.len() * 2);
+    for (position, binding) in binder_bindings.iter().enumerate() {
+        let label = format!("$formation{position}");
+        positional.push((binding.required, label.clone()));
+        positional.push((binding.actual, label));
+    }
+    let substitutions = bindings
+        .iter()
+        .map(|binding| (binding.symbol, binding.actual))
+        .collect::<Vec<_>>();
+    let identity = |reference| {
+        program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
+            binders: &positional,
+            substitutions: &substitutions,
+            ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
+        })
+    };
+    identity(required) == identity(actual)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_proposition_parameter_formation(
+    program: &dyn crate::CheckingInput,
+    label: &str,
+    required: &typed_trees::data::PropositionParameterSignature,
+    actual: &typed_trees::data::PropositionParameterSignature,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    binder_bindings: &[BinderBinding],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let required = program.state_parameters.span_or_empty(required.parameters);
+    let actual = program.state_parameters.span_or_empty(actual.parameters);
+    if required.len() != actual.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label}: proposition parameter signatures have different arity"
+        )));
+        return;
+    }
+    let mut formation_binders = binder_bindings.to_vec();
+    formation_binders.extend(
+        required
+            .iter()
+            .zip(actual)
+            .map(|(required, actual)| BinderBinding {
+                required: required.symbol,
+                actual: actual.symbol,
+            }),
+    );
+    for (position, (required, actual)) in required.iter().zip(actual).enumerate() {
+        if required.is_mutable != actual.is_mutable
+            || required.is_const != actual.is_const
+            || required.relevance != actual.relevance
+            || !complete_callable_type_matches(
+                program,
+                actual.type_reference,
+                required.type_reference,
+                generic_types,
+                bindings,
+                &formation_binders,
+            )
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label}: proposition parameter {position} has a different complete calling shape"
+            )));
+        }
+    }
 }
 
 /// Only this judgment needs the cleanup-complete concrete dependency graph.
@@ -374,8 +484,7 @@ fn validate_callable_effects(
         }
         let name = match invocation {
             flow_effects::InvocationTarget::Parameter(index) => actual_parameters
-                .iter()
-                .nth(*index as usize)
+                .get(*index as usize)
                 .map(|parameter| parameter.name.as_str())
                 .unwrap_or("<unknown binding>"),
             flow_effects::InvocationTarget::Service(symbol) => program
@@ -408,7 +517,10 @@ fn validate_callable_effects(
 /// judgment as a concrete static selection; a kind-only comparison would let
 /// a provider silently change `machine Target(...)` beneath an otherwise
 /// matching requirement.
-pub(crate) fn validate_trait_callable_parameter_refinement(
+/// Compare nested machine contracts under an exact positional binder mapping.
+/// This is callable telescope formation, not trait supply or implementation
+/// selection; callers separately establish roster shape and binder categories.
+pub fn validate_trait_callable_parameter_refinement(
     program: &dyn crate::CheckingInput,
     label: &str,
     requirement_parameters: &[TypeParameter],
@@ -531,6 +643,29 @@ fn validate_callable_type_parameters(
         .enumerate()
     {
         match (&required.kind, &actual.kind) {
+            (TypeParameterKind::Implementation, TypeParameterKind::Implementation) => {
+                // The binder selects code; its owner separately carries the
+                // exact conformance obligations. It has no nested signature.
+            }
+            (
+                TypeParameterKind::Proposition {
+                    contract: required_contract,
+                },
+                TypeParameterKind::Proposition {
+                    contract: actual_contract,
+                },
+            ) => {
+                validate_proposition_parameter_formation(
+                    program,
+                    label,
+                    required_contract,
+                    actual_contract,
+                    generic_types,
+                    bindings,
+                    binder_bindings,
+                    diagnostics,
+                );
+            }
             (TypeParameterKind::Type, TypeParameterKind::Type) => {
                 if typed_trees::data::type_parameter_demands_stronger_properties(required, actual) {
                     diagnostics.push(Diagnostic::error(format!(
@@ -570,7 +705,7 @@ fn validate_callable_type_parameters(
                         &actual.kind,
                     )
                 {
-                    if !required_type_matches(
+                    if !complete_callable_type_matches(
                         program,
                         actual_type,
                         required_type,

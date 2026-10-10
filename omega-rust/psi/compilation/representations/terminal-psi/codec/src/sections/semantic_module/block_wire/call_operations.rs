@@ -446,6 +446,7 @@ pub(super) fn encode_boundary_call(
     for settlement in completion_receipts {
         writer.id(settlement.claim);
         writer.u32(settlement.argument_index);
+        encode_structural_path(writer, "boundary completion path", &settlement.path)?;
     }
     encode_obligation_ids(writer, &requirement_obligations)
 }
@@ -459,6 +460,7 @@ pub(super) fn decode_boundary_call(reader: &mut Reader<'_>) -> Result<OperationK
             Ok(CompletionReceipt {
                 claim: reader.id("ClaimId")?,
                 argument_index: reader.u32()?,
+                path: decode_structural_path(reader)?,
             })
         })?,
         requirement_obligations: decode_ids(reader, "ObligationId")?,

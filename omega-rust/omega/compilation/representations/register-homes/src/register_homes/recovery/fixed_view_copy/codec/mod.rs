@@ -21,7 +21,9 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 56 retains typed claim-transfer paths and their Case guards.
 // Version 57 uses source-free Terminal-scoped callback function identities.
 // Version 58 retains identity-only reference targets separately from storage.
-const VERSION: u32 = 58;
+// Version 59 retains complete boundary-completion paths and family-call origins.
+// Older envelopes are not decoded under the new receipt/event vocabulary.
+const VERSION: u32 = 59;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.

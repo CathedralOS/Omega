@@ -76,9 +76,10 @@ pub use effects::storage_loans::{
     TerminalStorageContents,
 };
 pub use effects::{
-    AcceptTerminalEffects, AdmittedAssumedBinding, AssumedBindingSelection,
-    ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
-    TerminalRuntimeSupplies, TerminalRuntimeSupplyRequest,
+    AcceptTerminalEffects, AdmittedAssumedBinding, AdmittedTargetMachineSelections,
+    AssumedBindingSelection, ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler,
+    TerminalEffectRejection, TerminalRuntimeSupplies, TerminalRuntimeSupplyRequest,
+    admit_target_machine_selections,
 };
 pub use errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,

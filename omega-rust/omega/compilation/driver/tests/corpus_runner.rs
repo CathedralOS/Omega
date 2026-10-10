@@ -712,7 +712,8 @@ fn interpret_fixture(
     if checked_interpreter_leg() {
         return interpret_checked_fixture(root_path, fixture_dir, build_dir, &target, rollback);
     }
-    let leg = match produce_terminal_semantic(root_path, build_dir, Some(target), rollback) {
+    let leg = match produce_terminal_semantic(root_path, build_dir, Some(target.clone()), rollback)
+    {
         Ok(leg) => leg,
         Err(errors) => {
             return terminal_execution::Observation {
@@ -728,7 +729,14 @@ fn interpret_fixture(
         Ok(input) => input,
         Err(error) => return terminal_execution::Observation::failure(error),
     };
-    terminal_execution::interpret(leg.artifact.artifact(), None, fixture_dir, 1_000_000, input)
+    terminal_execution::interpret(
+        leg.artifact.artifact(),
+        None,
+        Some(&target),
+        fixture_dir,
+        1_000_000,
+        input,
+    )
 }
 
 /// Run the source-shaped oracle only when the caller explicitly selects it.
@@ -837,6 +845,7 @@ fn interpret_checked_fixture(
 fn interpret_native_report(
     report: &compilation_products::CompileReport,
     fixture_dir: &Path,
+    target: &str,
 ) -> terminal_execution::Observation {
     let artifact = report
         .retained_native_artifact()
@@ -858,6 +867,7 @@ fn interpret_native_report(
     terminal_execution::interpret(
         artifact,
         report.runtime_provisions(),
+        Some(target),
         fixture_dir,
         1_000_000,
         input,
@@ -924,7 +934,7 @@ fn build_native_fixture(
             .map_err(|diagnostic| vec![diagnostic])?;
     }
     if let Some((fixture_dir, observation)) = interpretation {
-        *observation = Some(interpret_native_report(&report, fixture_dir));
+        *observation = Some(interpret_native_report(&report, fixture_dir, target));
     }
     let receipt = report
         .optimization_rollback_receipt()
@@ -1256,6 +1266,9 @@ fn realize_fixture(
     rollback: Option<&OptimizationRollback>,
     interpretation: Option<(&Path, &mut Option<terminal_execution::Observation>)>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let runtime_target = target::TargetProfile::from_omega_target_name(target_name.as_deref())
+        .map_err(|diagnostic| vec![diagnostic])?
+        .target_name();
     let prepared = reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let options = CompileOptions {
@@ -1278,7 +1291,11 @@ fn realize_fixture(
         .and_then(compiler::CompileOutcomes::into_single_report)
         .map(|report| {
             if let Some((fixture_dir, observation)) = interpretation {
-                *observation = Some(interpret_native_report(&report, fixture_dir));
+                *observation = Some(interpret_native_report(
+                    &report,
+                    fixture_dir,
+                    runtime_target,
+                ));
             }
         });
     let _ = fs::remove_dir_all(&build_dir);

@@ -377,6 +377,7 @@ pub(super) fn append_probe(
         spelling: None,
         is_public: false,
         bodyless: false,
+        target_family_interface: false,
         target: None,
         authored_target: None,
         boundary: false,

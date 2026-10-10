@@ -286,19 +286,20 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
         .map(|(argument_index, claim)| CompletionReceipt {
             claim: claim.claim,
             argument_index: argument_index as u32,
+            path: claim.path.clone(),
         })
         .collect::<Vec<_>>();
     let node = &mut function.blocks[0].instructions[0];
     let LegalizedScalarInstructionKind::Call(call) = &mut node.kind else {
         panic!("call fixture");
     };
+    node.ownership = vec![OwnershipEvent::ClaimCompletion(completion_receipts.clone())];
     call.source = NativeCallOrigin::InstalledProvider {
         boundary,
         provider,
         completion_claim_sources,
         completion_receipts,
     };
-    node.ownership = vec![OwnershipEvent::ClaimCompletion(vec![id(1), id(2)])];
     plan
 }
 

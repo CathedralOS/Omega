@@ -19,6 +19,22 @@ pub use operational::{infer_operational_may, infer_operational_may_for_cleanup_d
 pub(crate) use service_reach::required_boundary_services;
 pub use service_reach::{fixed_installation_boundary_service_reach, infer_service_reaches};
 
+/// Family interfaces derive effects from every member without adding executable
+/// call edges. Build families still have an ordinary canonical body.
+fn family_interface_members<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> &'program [typed_trees::machine::TargetMachineFamilyMember] {
+    if machine.body_is_present {
+        return &[];
+    }
+    program
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == machine.symbol)
+        .map_or(&[], |family| family.members.as_slice())
+}
+
 /// The service a call-target roster entry names: a parameter's exact bound
 /// service requirement, falling back to its type's head symbol; a service
 /// target names itself.

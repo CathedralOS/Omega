@@ -1,18 +1,15 @@
 //! Scalar native-boundary route classification before result-shape dispatch.
 
 use super::{
-    AbstractFunction, BTreeMap, BoundaryMachineId, BoundarySettlementBinding,
-    InstalledProviderCallEvidence, MachineId, OperationId,
+    AbstractFunction, BTreeMap, BoundaryMachineId, BoundarySettlementBinding, MachineId,
+    OperationId, SelectedBoundaryCall,
 };
 use abstract_operations::AbstractOperation;
 use target_operations::BoundaryRealization;
 pub(super) fn unsupported_scalar_call(
     function: &AbstractFunction,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    installed_calls: &BTreeMap<
-        (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderCallEvidence,
-    >,
+    selected_calls: &BTreeMap<(MachineId, OperationId, BoundaryMachineId), SelectedBoundaryCall>,
 ) -> Option<(OperationId, BoundaryMachineId)> {
     function.operations.iter().find_map(|operation| {
         let AbstractOperation::BoundaryCall {
@@ -25,7 +22,7 @@ pub(super) fn unsupported_scalar_call(
             return None;
         };
         (!arguments.is_empty()
-            && !installed_calls.contains_key(&(function.machine, *psi_operation, *boundary))
+            && !selected_calls.contains_key(&(function.machine, *psi_operation, *boundary))
             && !matches!(
                 settlements
                     .get(boundary)

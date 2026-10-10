@@ -152,30 +152,12 @@ pub(crate) struct PreparedClaimTransfer {
     pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
 }
 
-/// A boundary's normal-completion disposition names caller custody, not a
-/// provider-private ingress identity. Its argument supplies the selected path.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PreparedCompletionReceipt {
-    identity: PermissionClaimIdentity,
-    argument_index: u32,
-}
-
-pub(crate) fn prepare_completion_receipts(
-    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
-) -> Vec<PreparedCompletionReceipt> {
-    transfers
-        .iter()
-        .map(|transfer| PreparedCompletionReceipt {
-            identity: transfer.claim_identity,
-            argument_index: transfer.argument_index,
-        })
-        .collect()
-}
-
 /// Statement and computed boundary calls resolve the same captured caller
-/// occurrences. Lookup cannot manufacture a missing disposal obligation.
+/// occurrences and prepared current paths as ordinary calls. A boundary's
+/// completion disposition differs from transfer, not from custody geometry.
+/// Lookup cannot manufacture a missing disposal obligation.
 pub(crate) fn emit_completion_receipts(
-    prepared: &[PreparedCompletionReceipt],
+    prepared: &[PreparedClaimTransfer],
     bindings: &[(PermissionClaimIdentity, ClaimId)],
 ) -> Result<Vec<terminal_psi::CompletionReceipt>, LoweringError> {
     prepared
@@ -184,6 +166,7 @@ pub(crate) fn emit_completion_receipts(
             Ok(terminal_psi::CompletionReceipt {
                 claim: lookup_claim_id(bindings, receipt.identity)?,
                 argument_index: receipt.argument_index,
+                path: receipt.path.clone(),
             })
         })
         .collect()
@@ -257,7 +240,7 @@ pub(crate) fn prepare_checked_claim_transfers(
     })
 }
 
-fn prepare_claim_transfers(
+pub(crate) fn prepare_claim_transfers(
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
     types: &[terminal_psi::StructuralTypeDeclaration],
     argument_type: impl Fn(u32) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError>,

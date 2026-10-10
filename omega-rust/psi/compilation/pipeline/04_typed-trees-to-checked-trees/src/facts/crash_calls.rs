@@ -11,6 +11,7 @@
 //! routes and `private_summaries.rs` solves private body summaries;
 //! `tests.rs` holds the crash call tests.
 
+mod potential_causes;
 mod private_summaries;
 mod route_substitution;
 mod summary_predicates;
@@ -25,6 +26,7 @@ use crate::facts::crash_calls::summary_predicates::{
     SummaryCrashBucket, normalize_summary_buckets,
 };
 use checked_trees::CrashPredicateExpression;
+pub(crate) use private_summaries::{PreparedCrashSummaryGraph, prepare_crash_summary_graph};
 use symbols::SymbolHandle;
 
 pub(super) fn crash_predicate_from_expression(
@@ -189,6 +191,7 @@ pub(super) fn attach_checked_crash_calls(
     crash_capsules: &[checked_trees::CrashContractCapsule],
     plans: &mut [checked_trees::MachineContractPlan],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    summary_graph: &PreparedCrashSummaryGraph,
 ) {
     let inferred_body_summaries = infer_private_body_summaries(
         program,
@@ -200,6 +203,7 @@ pub(super) fn attach_checked_crash_calls(
         crash_capsules,
         plans,
         call_frames,
+        Some(summary_graph),
     );
     let mut calls_by_caller =
         Vec::<(SymbolHandle, Vec<checked_trees::CheckedCrashCallSite>)>::new();
@@ -224,7 +228,17 @@ pub(super) fn attach_checked_crash_calls(
                 else {
                     continue;
                 };
-                let target_routes = if !target_plan.crash.published().is_empty() {
+                let target_routes = if target_machine.target_family_interface {
+                    let Some((_, summary)) = inferred_body_summaries
+                        .iter()
+                        .find(|(machine, _)| *machine == target_machine_symbol)
+                    else {
+                        // Authored clauses alone do not close a family's private
+                        // inferred body causes or unresolved member dependencies.
+                        continue;
+                    };
+                    SelectedTargetCrashRoutes::Private(summary)
+                } else if !target_plan.crash.published().is_empty() {
                     SelectedTargetCrashRoutes::Published {
                         buckets: target_plan.crash.published(),
                         contracts: program.machine_contracts(target_machine),
@@ -374,10 +388,7 @@ pub(super) fn attach_checked_crash_calls(
                         summary
                             .iter()
                             .map(|bucket| {
-                                bucket.substitute(
-                                    &substitution,
-                                    Some(&mut resolve_entry),
-                                )
+                                bucket.substitute(&substitution, Some(&mut resolve_entry))
                             })
                             .collect(),
                     )
@@ -460,6 +471,7 @@ pub(crate) fn infer_checked_crash_causes(
         &content_conservation,
         &facts.contract_plans.crash_capsules,
         &facts.contract_plans.machines,
+        None,
         None,
     );
     summaries

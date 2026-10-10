@@ -27,6 +27,7 @@ pub(crate) fn legalize_target_operations<'source>(
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     let source = source.into();
     let unit = source.unit;
+    scalar_graph_input::call_origin::validate_family_origins(target, unit, source.verified_input)?;
     let rosters = derive_source_function_rosters(target, abstract_plan, unit)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
@@ -60,6 +61,27 @@ pub(crate) use scalar_graph_input::exact_cast_has_native_carriers;
 /// This is an audit entrypoint for corpus and foreign-artifact review, not
 /// another phase of instruction construction in the producing compile.
 pub fn verify_target_operation_plan(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+) -> Result<(), LegalizationError> {
+    scalar_graph_input::call_origin::validate_family_origins(target, unit, None)?;
+    audit_target_operation_plan(target, abstract_plan, unit)
+}
+
+/// Audit selected family calls with their immutable portable catalog and
+/// admitted deployment-tag selection, rather than reconstructing installation.
+pub fn verify_target_operation_plan_with_context(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
+) -> Result<(), LegalizationError> {
+    scalar_graph_input::call_origin::validate_family_origins(target, unit, Some(input))?;
+    audit_target_operation_plan(target, abstract_plan, unit)
+}
+
+fn audit_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,

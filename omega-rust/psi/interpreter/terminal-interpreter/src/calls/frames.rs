@@ -407,6 +407,13 @@ impl TerminalExecution<'_> {
         let Some(callee_result) = callee.result.structural() else {
             return Err(malformed());
         };
+        if let crate::execution::ResultClaimOrigin::TargetFamilyReturn { head, member } =
+            claim_origin
+        {
+            if member != callee_id || !program.is_target_family_head(head) {
+                return Err(malformed());
+            }
+        }
         // Argument preparation owns projection, access, qualification and alias
         // checks. Returning a value does not impose a second argument-path or
         // result-shape language. Completion checks the produced carrier against
@@ -414,7 +421,10 @@ impl TerminalExecution<'_> {
         if result.structural_type != callee_result.structural_type
             || result.multiplicity != callee_result.multiplicity
             || !claim_origin.result_qualifications_match(&result, &callee_result.qualifications)
-            || result.projected_qualifications != callee_result.projected_qualifications
+            || !claim_origin.result_projected_qualifications_match(
+                &result,
+                &callee_result.projected_qualifications,
+            )
             || self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
         {

@@ -101,22 +101,28 @@ pub(super) fn replay_installed_provider_calls(
 
             let mut expected_claims = Vec::new();
             for claim in &terminal_candidate.entry_claims {
-                if !claim.path.is_empty() {
-                    return Err(malformed());
-                }
                 let argument_index = terminal_psi::structural_parameter_position(
                     &terminal_candidate.structural_parameters,
                     claim.input,
                 )
                 .ok_or_else(malformed)? as u32;
-                expected_claims.push((argument_index, claim.claim));
+                expected_claims.push((argument_index, claim.path.as_slice(), claim.claim));
             }
             if completion_receipts.len() != expected_claims.len() {
                 return Err(malformed());
             }
-            for (receipt, (argument_index, candidate_claim)) in
-                completion_receipts.iter().zip(&expected_claims)
-            {
+            for receipt in completion_receipts {
+                // Claim IDs belong to different machine namespaces and their
+                // numeric order is not correspondence. The checked current
+                // argument-relative region joins the caller's receipt to the
+                // candidate's formal, including projected owned children.
+                let mut matches = expected_claims.iter().filter(|(position, path, _)| {
+                    *position == receipt.argument_index && *path == receipt.path.as_slice()
+                });
+                let (argument_index, _, candidate_claim) = matches.next().ok_or_else(malformed)?;
+                if matches.next().is_some() {
+                    return Err(malformed());
+                }
                 let argument = structural_arguments
                     .get(*argument_index as usize)
                     .ok_or_else(malformed)?;
@@ -129,9 +135,6 @@ pub(super) fn replay_installed_provider_calls(
                 // or a relocated value need not still occupy an entry home.
                 // Installation joins that receipt to the candidate's formal;
                 // it does not reconstruct the caller's ownership judgment.
-                if receipt.argument_index != *argument_index {
-                    return Err(malformed());
-                }
                 if let Some(candidate_content) = terminal_candidate
                     .content_entry_claims
                     .iter()
@@ -152,6 +155,17 @@ pub(super) fn replay_installed_provider_calls(
                 } else if source.is_some_and(|source| source.content.is_some()) {
                     return Err(malformed());
                 }
+            }
+            if expected_claims.iter().any(|(position, path, _)| {
+                completion_receipts
+                    .iter()
+                    .filter(|receipt| {
+                        receipt.argument_index == *position && receipt.path.as_slice() == *path
+                    })
+                    .count()
+                    != 1
+            }) {
+                return Err(malformed());
             }
             if terminal_candidate
                 .content_entry_claims

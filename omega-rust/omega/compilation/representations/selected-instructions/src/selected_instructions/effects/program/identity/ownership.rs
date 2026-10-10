@@ -12,9 +12,14 @@ pub fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
                 bytes.push(1);
                 encode_ids(bytes, claims.iter().map(|id| id.get()));
             }
-            OwnershipEvent::ClaimCompletion(claims) => {
+            OwnershipEvent::ClaimCompletion(receipts) => {
                 bytes.push(2);
-                encode_ids(bytes, claims.iter().map(|id| id.get()));
+                encode_len(bytes, receipts.len());
+                for receipt in receipts {
+                    bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
+                    bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
+                    encode_path(bytes, &receipt.path);
+                }
             }
             OwnershipEvent::Cleanup(actions) => {
                 bytes.push(3);

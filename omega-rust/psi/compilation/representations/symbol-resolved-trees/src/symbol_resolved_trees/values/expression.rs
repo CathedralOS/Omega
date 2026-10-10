@@ -4,6 +4,7 @@
 //! expressions between tables.
 
 mod display;
+mod symbol_copies;
 mod table_copies;
 #[cfg(test)]
 mod tests;

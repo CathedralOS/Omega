@@ -7,6 +7,8 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees::TypedTrees;
 use typed_trees::machine::{TargetMachineFamily, TargetMachineFamilyMember};
 
+mod telescopes;
+
 pub(super) fn append(
     source: &SymbolResolvedTrees,
     typed: &mut TypedTrees,
@@ -25,8 +27,9 @@ pub(super) fn append(
     {
         let canonical = declarations[0].target_family;
         let Some(machine) = typed.machine_by_symbol(canonical) else {
-            // Provider defaults may disappear during pre-check evaluation.
-            continue;
+            return Err(Diagnostic::error(
+                "target-machine family interface did not survive typing",
+            ));
         };
         if typed
             .target_machine_families
@@ -37,16 +40,26 @@ pub(super) fn append(
                 "seeded typing cannot append a body to a retained target-machine family",
             ));
         }
-        let mut members = declarations
-            .iter()
-            .filter_map(|declaration| {
-                typed.machine_by_symbol(declaration.symbol)?;
-                Some(TargetMachineFamilyMember {
-                    target: lower_name(declaration.authored_target.as_ref()?),
-                    machine: declaration.symbol,
-                })
-            })
-            .collect::<Vec<_>>();
+        let mut members = Vec::new();
+        for declaration in declarations {
+            let Some(target) = declaration.authored_target.as_ref() else {
+                continue;
+            };
+            if typed.machine_by_symbol(declaration.symbol).is_none() {
+                return Err(Diagnostic::error(
+                    "target-machine family member did not survive typing",
+                ));
+            }
+            members.push(TargetMachineFamilyMember {
+                target: lower_name(target),
+                machine: declaration.symbol,
+            });
+        }
+        if members.is_empty() {
+            return Err(Diagnostic::error(
+                "target-machine family has no retained members",
+            ));
+        }
         members.sort_by(|left, right| left.target.as_str().cmp(right.target.as_str()));
         let canonical_identity = typed.machine_callable_identity(machine);
         let canonical_result = typed.machine_entry_result_type_identity(machine);
@@ -55,6 +68,7 @@ pub(super) fn append(
                 Diagnostic::error("target-machine family member did not survive typing")
             })?;
             let member_identity = typed.machine_callable_identity(member_machine);
+            telescopes::validate(typed, machine, member_machine)?;
             if !canonical_identity.is_valid()
                 || !member_identity.is_valid()
                 || member_identity != canonical_identity

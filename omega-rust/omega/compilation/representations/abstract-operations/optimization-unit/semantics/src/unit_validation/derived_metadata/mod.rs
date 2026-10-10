@@ -38,11 +38,21 @@ pub(crate) fn validate_places_and_claims(
         for event in &node.ownership {
             let claims: &[ClaimId] = match event {
                 optimization_unit::OwnershipEvent::ClaimTransfer(claims)
-                | optimization_unit::OwnershipEvent::ClaimCompletion(claims)
                 | optimization_unit::OwnershipEvent::StructuralReturn(claims)
                 | optimization_unit::OwnershipEvent::CrashFrontier(claims) => claims,
                 optimization_unit::OwnershipEvent::ExternalCompletionFrontier(claims) => claims,
                 optimization_unit::OwnershipEvent::Cleanup(_) => continue,
+                optimization_unit::OwnershipEvent::ClaimCompletion(receipts) => {
+                    for receipt in receipts {
+                        if !function_has_claim(function, receipt.claim) {
+                            return Err(OptimizationUnitValidationError::UnknownClaim {
+                                machine: function.machine,
+                                claim: receipt.claim,
+                            });
+                        }
+                    }
+                    continue;
+                }
             };
             for claim in claims {
                 if !function_has_claim(function, *claim) {

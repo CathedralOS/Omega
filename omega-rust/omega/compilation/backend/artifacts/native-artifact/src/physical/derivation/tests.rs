@@ -343,6 +343,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
     let receipt = CompletionReceipt {
         claim,
         argument_index: 0,
+        path: Vec::new(),
     };
     let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
     let byte_sequence = machine_code::BoundaryByteSequenceArgumentRecord {
@@ -392,7 +393,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         arguments: vec![argument.clone()],
         byte_sequence_arguments: vec![byte_sequence],
         completion_claim_sources: vec![source.clone()],
-        completion_receipts: vec![receipt],
+        completion_receipts: vec![receipt.clone()],
         completion_provider_custody: vec![machine_code::CompletionProviderCustodyBinding {
             source: source.clone(),
             receipt,
@@ -485,6 +486,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
             14 => changed.completion_receipts.push(CompletionReceipt {
                 claim: ClaimId::new(61).unwrap(),
                 argument_index: 1,
+                path: Vec::new(),
             }),
             15 => {
                 changed.completion_provider_custody[0]

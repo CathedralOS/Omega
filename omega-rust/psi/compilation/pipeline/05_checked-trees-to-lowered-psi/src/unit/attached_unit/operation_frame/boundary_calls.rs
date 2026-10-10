@@ -243,6 +243,7 @@ impl OperationFrame<'_, '_> {
         let BoundaryParameters {
             id: boundary,
             scalar: target_scalar_parameters,
+            structural: target_structural_parameters,
             requirement_count,
             ..
         } = self
@@ -274,8 +275,20 @@ impl OperationFrame<'_, '_> {
             inputs.byte_places,
             inputs.evaluated_selectors,
         )?;
+        let prepared = crate::emission::claim_bindings::prepare_claim_transfers(
+            completion_receipts,
+            self.structural_types.declarations(),
+            |position| {
+                target_structural_parameters
+                    .get(position as usize)
+                    .map(|parameter| parameter.structural_type)
+                    .ok_or(LoweringError::Unsupported(
+                        "boundary receipt has no structural formal",
+                    ))
+            },
+        )?;
         let completion_receipts = crate::emission::claim_bindings::emit_completion_receipts(
-            &crate::emission::claim_bindings::prepare_completion_receipts(completion_receipts),
+            &prepared,
             self.calls.claims.bindings(),
         )?;
         // One obligation per declared scalar `requires` row, in row order;

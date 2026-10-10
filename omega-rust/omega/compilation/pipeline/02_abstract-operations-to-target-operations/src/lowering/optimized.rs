@@ -69,6 +69,7 @@ fn lower_validated_abstract_to_target_operations(
     let program = crate::lower_to_target_operations(
         optimized.plan(),
         crate::TargetLoweringRequest {
+            verified_input: Some(optimized.verified_input()),
             target,
             settlements,
             installation: installed,
@@ -78,7 +79,12 @@ fn lower_validated_abstract_to_target_operations(
     // Semantic replay can establish that a candidate implements a boundary, but
     // cannot establish which candidate the caller selected. Join against the
     // independently supplied admitted installation before sealing this owner.
-    crate::validation::installed_calls::validate(&program, installed)?;
+    crate::validation::selected_boundary_calls::validate(
+        &program,
+        installed,
+        optimized.plan(),
+        Some(optimized.verified_input()),
+    )?;
     crate::validation::whole_plan::reject_raw_ieee_float_fma(optimized.plan())?;
     Ok(ValidatedOptimizedTargetOperations {
         borrowed_storage_layouts: super::borrowed_storage::capture(optimized.plan()),

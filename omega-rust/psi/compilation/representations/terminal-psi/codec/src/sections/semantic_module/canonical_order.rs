@@ -692,7 +692,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 OperationKind::BoundaryCall {
                     completion_receipts,
                     ..
-                } if !strictly_increasing(completion_receipts.iter().copied()) => {
+                } if !strictly_increasing(completion_receipts.iter()) => {
                     return Err(CodecError::NonCanonicalOrder(
                         "boundary claim settlements by claim and argument index",
                     ));

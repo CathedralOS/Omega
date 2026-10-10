@@ -702,6 +702,7 @@ fn machine_from_signature(
         HandleSpan::from_parts(clause, 1)
     });
     Machine {
+        target_family_interface: false,
         name: machine_name,
         default_body_trait,
         // The member belongs to its implementation's map, not to any data
