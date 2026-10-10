@@ -3107,15 +3107,14 @@ of a check the same flow already performed, not the check itself.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete
-  returned-loan frontiers. Complete execution of replaced returned carriers:
-  after a local holder's reference is replaced with an external reference,
-  source checking must retain only the current loan, and `omega run --both`
-  must read the external backing. The source route now reaches the executable
-  call's `reference record result has no exact captured leaf loans` refusal
-  (CLI 202 on macOS arm64). `reference_result_custody/call_reception.rs` still
-  reconstructs typed initializers and cannot retain a mutable local's result.
-  Consume the checked normal-return/actual-capture relation; preserve inactive
-  cases, anonymous operands and the complete-versus-unavailable distinction.
+  returned-loan frontiers. Qualify caller-side mutable-holder forwarding:
+  construct a holder, replace it with a returned record, then pass the holder
+  by value to a forwarding helper. This still reaches
+  `state graph: structural result has no selected disposition`
+  (CLI 202 on macOS arm64). Join current storage occurrences in
+  `execution/terminal_unit/state_graph/result_custody.rs`, not original
+  initializer bindings. Preserve inactive cases, anonymous operands and the
+  complete-versus-unavailable distinction.
   Keep
   `omega run tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg`
   and conflicting-mutation/distinct-region controls in that qualification;

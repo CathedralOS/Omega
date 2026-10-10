@@ -202,9 +202,39 @@ fn select(
                 path: selection.to_vec(),
             });
         }
-        // These form rather than transport a descriptor. Their admitted
-        // formation/call lineage remains the independent parent authority.
-        _ => {}
+        CheckedStructuralValueKind::Case(case) => {
+            // A scalar-only case can establish that another case's descriptor
+            // is inactive. Validate the requested nominal slot first; an
+            // unsupported value kind must not masquerade as empty storage.
+            let [CheckedUnitStructuralPathSegment::Case(requested), ..] = selection else {
+                return None;
+            };
+            let data = program.closed_data_definition(case.type_reference)?;
+            let selected = program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Variant(variant) if variant.symbol == case.case => Some(variant),
+                    _ => None,
+                })?;
+            if checked_trees::CheckedMemberIdentity::of_member(
+                selected.identity,
+                selected.name.clone(),
+            ) == *requested
+                || !super::record_carrier_sources(
+                    program,
+                    case.type_reference,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol: values.nodes.get(value).state,
+                    },
+                )?
+                .iter()
+                .any(|leaf| leaf.path == selection)
+            {
+                return None;
+            }
+        }
+        _ => return None,
     }
     active.pop();
     Some(())

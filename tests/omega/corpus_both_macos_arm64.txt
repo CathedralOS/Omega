@@ -108,6 +108,7 @@ pass/borrows/runtime_reference_record_array_field_read_exit built 2479ms exit:70
 pass/borrows/runtime_reference_record_call_completion_exit built 1929ms exit:70 interpreter-exit:70 interpreter:agrees @b5d8c6882a8b+wt
 pass/borrows/runtime_reference_record_call_payload_restoration_exit built 1672ms exit:70 interpreter-exit:70 interpreter:agrees @b5d8c6882a8b+wt
 pass/borrows/runtime_reference_record_direct_payload_restoration_exit built 2397ms exit:70 interpreter-exit:70 interpreter:agrees @681c48c0cebc+wt
+pass/borrows/runtime_replaced_reference_record_return_exit built 2486ms exit:0 interpreter-exit:0 interpreter:agrees @098d6c3730a4+wt
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit built 2100ms exit:70 interpreter-exit:70 interpreter:agrees @6ba9c43af356+wt
 pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit built 2174ms exit:70 interpreter-exit:70 interpreter:agrees @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_bounded_read_exit built 1855ms exit:70 interpreter-exit:70 interpreter:agrees @6ba9c43af356+wt

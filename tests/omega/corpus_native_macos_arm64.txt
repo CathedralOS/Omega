@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 1.88, "load1_start": 1.88, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 2.26, "load1_start": 2.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -188,6 +188,7 @@ pass/borrows/runtime_reference_record_call_completion_exit built 1159ms exit:70 
 pass/borrows/runtime_reference_record_call_payload_restoration_exit built 1146ms exit:70 @104c2da31081
 pass/borrows/runtime_reference_record_direct_payload_restoration_exit built 1157ms exit:70 @104c2da31081
 pass/borrows/runtime_released_loan_with_forwarded_view_exit built 1743ms exit:70 @ba014724095f+wt
+pass/borrows/runtime_replaced_reference_record_return_exit built 2417ms exit:0 @098d6c3730a4+wt
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit built 2110ms exit:70 @6ba9c43af356+wt
 pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit built 2357ms exit:70 @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_bounded_read_exit built 1712ms exit:70 @6ba9c43af356+wt

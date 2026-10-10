@@ -29,6 +29,8 @@ mod stored_carrier_sources;
 pub use stored_carrier_sources::{StoredCarrierSource, stored_carrier_sources};
 mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
+mod captured_returns;
+pub use captured_returns::returned_sources as captured_return_sources;
 
 // An owned formal has a compact type DAG but its returned-origin roster is
 // materialized by path. Bound that expansion before semantic classification or
@@ -527,19 +529,6 @@ fn nominal_member_owner_type<'p>(
             _ => return None,
         }
     }
-}
-
-/// Completion and call substitution share the complete normal-edge origin
-/// relation. Internal state ordinals are substituted through their actuals;
-/// a record result is not restricted to a single state's tail expression.
-pub fn returned_record_sources(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    if !is_reference_record(program, state.return_type) {
-        return None;
-    }
-    returned_reference_sources(program, state, None)
 }
 
 /// The expression producing a state's returned value: the tail expression
@@ -1980,80 +1969,6 @@ pub fn loan_owner_path(
         .collect()
 }
 
-/// Join one leaf of a call's returned-leaf roster through the call's exact
-/// actual to a caller-side local's captured loan group. This is the operand form of
-/// construction's holder join: the producing call is named by its authored
-/// expression rather than a `let` statement's initializer, and the consuming
-/// statement's activity or last-use discipline is checked by the caller.
-fn call_actual_leaf_loans(
-    program: &dyn crate::CheckingInput,
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    call: &typed_trees::expression::TableCallExpression,
-    destination: &typed_trees::state::State,
-    source: &checked_trees::CheckedReferenceResultSourcePlan,
-) -> Option<arena::HandleSpan<checked_trees::BorrowLoanFact>> {
-    let [
-        path @ ..,
-        checked_trees::CheckedUnitStructuralPathSegment::Referent,
-    ] = source.source.path.as_slice()
-    else {
-        return None;
-    };
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-        source.source.source
-    else {
-        return None;
-    };
-    let (position, parameter) = program
-        .state_parameters(destination)
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| is_mutable_structural_parameter(program, parameter))
-        .nth(parameter_index as usize)?;
-    if !is_reference_record(program, parameter.type_reference) {
-        return None;
-    }
-    let actual = *program
-        .expression_table
-        .expression_handles(call.arguments)
-        .get(position)?;
-    let name = program.expression_table.name_path_node(actual)?;
-    if name.head_symbol != name.symbol
-        || program
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
-    let (prior_index, prior_local) = program
-        .state_local_declaration(state, name.symbol)
-        .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
-    if program.normalized_type_identity(prior_local.type_reference)
-        != program.normalized_type_identity(parameter.type_reference)
-    {
-        return None;
-    }
-    let prior = active_record_loans(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        u32::try_from(prior_index).ok()?,
-    )?;
-    let mut matching = prior.iter().filter(|(source, _)| source.path == path);
-    let (_, handle) = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
-    Some(*handle)
-}
-
 /// The checked loan constraints available before this exact statement.
 fn statement_entry_constraints(
     facts: &CheckFacts,
@@ -2133,6 +2048,7 @@ fn active_record_loans(
 /// Callers then require each source's complete active leaf group, filtered per site.
 fn reference_record_call_sources<'program>(
     program: &'program dyn crate::CheckingInput,
+    facts: &CheckFacts,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<(
     &'program typed_trees::state::State,
@@ -2142,7 +2058,7 @@ fn reference_record_call_sources<'program>(
     if !is_reference_record(program, destination.return_type) {
         return None;
     }
-    let sources = returned_record_sources(program, destination)?;
+    let sources = captured_returns::returned_sources(program, facts, destination)?;
     Some((destination, sources))
 }
 
@@ -2163,13 +2079,27 @@ pub fn transient_call_record_loans(
     let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
-    let Some((destination, sources)) = reference_record_call_sources(program, call) else {
+    let Some((destination, sources)) = reference_record_call_sources(program, facts, call) else {
+        return false;
+    };
+    let Some(flow) = state_flow(facts, machine, state.symbol) else {
+        return false;
+    };
+    let Some(calls) = facts.flow.control.calls.span(flow.calls) else {
+        return false;
+    };
+    let Some(occurrence) = calls.iter().find(|occurrence| {
+        occurrence.authored_expression == expression
+            && occurrence.statement_index == statement_index as usize
+            && occurrence.target_symbol == destination.symbol
+    }) else {
+        return false;
+    };
+    let Some(paths) = captured_returns::call_result_paths(program, facts, occurrence) else {
         return false;
     };
     !sources.is_empty()
-        && residual_paths
-            .iter()
-            .all(|path| sources.iter().any(|source| &source.path == path))
+        && residual_paths.iter().all(|path| paths.contains(path))
         && sources
             .iter()
             .filter(|source| residual_paths.contains(&source.path))
@@ -2205,17 +2135,17 @@ pub fn transient_call_record_loans(
                     };
                     parent.direct_reborrow_effect(&child).is_some()
                 } else {
-                    call_actual_leaf_loans(
-                        program,
-                        facts,
-                        machine,
-                        state,
-                        statement_index,
-                        call,
-                        destination,
-                        source,
-                    )
-                    .is_some()
+                    // The retained operand/value graph supplies this exact
+                    // capture, including anonymous constructors and projected
+                    // values. Source admission owns its lifetime obligations;
+                    // requiring a bare-name local here replayed only one
+                    // producer family and rejected ordinary composition.
+                    arguments
+                        .get(parameter_index as usize)
+                        .is_some_and(|actual| {
+                            actual.type_identity
+                                == program.normalized_type_identity(parameter.type_reference)
+                        })
                 }
             })
 }

@@ -2,9 +2,8 @@
 //!
 //! The exit owner receives exact borrowed-window debt and requires closure on
 //! normal paths; this prefix cannot presume every terminator returns.
-//! The body's structural result is
-//! chosen from its final statement: a returned local, the final expression's
-//! checked value, a returned call's result, or a returned array. The checked
+//! The body's structural result is chosen from its final statement's checked
+//! value, a returned call's result, or a returned array. The checked
 //! value plans the completion the same way whatever its spelling: an existing
 //! whole formal is forwarded and any other value is established by its value
 //! operation, references and views included. A transition tail completes at
@@ -23,7 +22,7 @@ use super::{
     CheckedUnitStructuralResultBindingPlan, LocalConstructionTrace, Multiplicity,
     ScalarCalleeClosure, ShapeCollector, StatementNode, StatementSequence, SymbolHandle,
     append_exit_reference_releases, append_reference_releases, consume_value_places,
-    parameter_qualifications, retain_selected_sources, structural_operands,
+    retain_selected_sources, structural_operands,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
 
@@ -131,80 +130,10 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             binding, exit?,
         ))
     };
-    let returned_local = statements.last().and_then(|statement| {
-        // A scalar result observes a reference local's value; it does not
-        // return that local's permission carrier. Keep the establishment and
-        // let scalar completion replay the exact checked observation below.
-        if program
-            .primitive_type_reference(state.return_type)
-            .is_some()
-        {
-            return None;
-        }
-        let expression = statement.as_expression()?;
-        let path = program.expression_table.name_path_node(*expression)?;
-        if path.head_symbol != path.symbol
-            || program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
-        {
-            return None;
-        }
-        structural_results
-            .iter()
-            .find(|(_, source)| *source == facts::PlaceRoot::Symbol(path.symbol))
-            .map(|(binding, _)| binding.clone())
-    });
-    let mut structural_result = if let Some(binding) = returned_local {
-        trace.phase("statement sequence: structural result: returned local");
-        // A returned local transports the same materialized carrier as an
-        // ordinary call result. Peeling the reference shell here compares its
-        // referent storage against the returned permission carrier.
-        let expected = super::super::call_results::checked_structural_result_type(
-            program,
-            shapes,
-            state.return_type,
-            binders,
-        )?;
-        if binding.type_identity != expected.type_identity
-            || binding.multiplicity != expected.multiplicity
-        {
-            return None;
-        }
-        let qualifications = parameter_qualifications(program, shapes, state.return_type, binders)?;
-        for operation in &mut operations {
-            // An ordinary structural call's custody carries its qualifications.
-            if let Some(call) = operation.call()
-                && let Some(result) = call.structural_result()
-                && let Some(custody) = call.structural_custody()
-                && result.binding_ordinal == binding.binding_ordinal
-                && custody.result_qualifications != qualifications
-            {
-                return None;
-            }
-            if let Some((result, discard_result_on_return)) =
-                operation.discardable_structural_result_mut()
-                && result.binding_ordinal == binding.binding_ordinal
-            {
-                // Only affine results have automatic disposal debt.
-                // Linear results retain the call's checked claim frontier.
-                if binding.multiplicity == Multiplicity::Affine
-                    && !*discard_result_on_return
-                    && super::super::super::reference_results::stored_loan_parts(
-                        program,
-                        state.return_type,
-                    )
-                    .is_none()
-                {
-                    return None;
-                }
-                *discard_result_on_return = false;
-            }
-        }
-        return_binding(binding)
-    } else if let Some(root) = returned_value {
+    // Completion consumes the current value graph, including a local's
+    // current storage. A name-to-initial-binding shortcut returned an already
+    // moved initializer after replacement and bypassed ordinary transfer.
+    let mut structural_result = if let Some(root) = returned_value {
         // The checked expression owns its value operation. In particular,
         // selecting an owned reference field transfers that descriptor through
         // the ordinary projection receipt; it does not reborrow its referent.
@@ -392,10 +321,18 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 state.return_type,
             ))
     {
-        result.reference_sources =
+        result.reference_sources = if super::super::super::reference_results::stored_loan_parts(
+            program,
+            state.return_type,
+        )
+        .is_some()
+        {
             super::super::super::reference_results::returned_reference_sources(
                 program, state, None,
-            )?;
+            )?
+        } else {
+            validation::reference_result_custody::captured_return_sources(program, facts, state)?
+        };
     }
     // Release each returned carrier at its actual checked weakening boundary,
     // before any scalar completion or following statement can reuse the parent.
@@ -622,7 +559,7 @@ fn forwarded_parameter(
             program,
             state.return_type,
         ) {
-            validation::reference_result_custody::returned_record_sources(program, state)?
+            validation::reference_result_custody::captured_return_sources(program, facts, state)?
         } else {
             Vec::new()
         },

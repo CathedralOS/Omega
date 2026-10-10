@@ -29,42 +29,18 @@ pub fn record_call_reception(
 ) -> Option<RecordCallReception> {
     let call = program.expression_table.call_node(expression)?;
     let destination = program.state_by_symbol(call.target_symbol)?;
-    // Compose the existing origin relation through this invocation before
-    // joining captured receiver loans. The type lists possible slots; an
-    // empty actual or a payload-free callee return need not supply them.
-    // This selects storage, not another judgment of input loan authority.
-    let origins = super::expression_sources(
-        program,
-        state,
-        expression,
-        destination.return_type,
-        &mut vec![state.symbol],
-        None,
-    )?;
-    let returned: Vec<_> = record_carrier_sources(
-        program,
-        destination.return_type,
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-            symbol: state.symbol,
-        },
-    )?
-    .into_iter()
-    .filter(|leaf| origins.iter().any(|origin| origin.path == leaf.path))
-    .collect();
-    let anonymous = || RecordCallReception {
-        residual_paths: returned.iter().map(|leaf| leaf.path.clone()).collect(),
-    };
     // The checked call row carries this occurrence's actual capture: which
     // authored construct receives the result. Replaying the typed
     // `local.initial_value` re-derives a node preparation may already have
     // rewritten (substituted specialization arguments, folded constructors),
     // so a mutable holder's genuine receiver can never join its own call.
+    let flow = super::state_flow(facts, machine, state.symbol)?;
     let Some(occurrence) = facts
         .flow
         .control
         .calls
+        .span(flow.calls)?
         .iter()
-        .map(|(_, occurrence)| occurrence)
         .find(|occurrence| {
             occurrence.authored_expression == expression
                 && occurrence.statement_index == statement_index as usize
@@ -75,6 +51,20 @@ pub fn record_call_reception(
         // missing row is an incomplete relation, not an anonymous receiver.
         return None;
     };
+    let paths = super::captured_returns::call_result_paths(program, facts, occurrence)?;
+    let returned: Vec<_> = record_carrier_sources(
+        program,
+        destination.return_type,
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            symbol: state.symbol,
+        },
+    )?
+    .into_iter()
+    .filter(|leaf| paths.contains(&leaf.path))
+    .collect();
+    let anonymous = || RecordCallReception {
+        residual_paths: returned.iter().map(|leaf| leaf.path.clone()).collect(),
+    };
     let Some(local) = program
         .statement_table
         .statement_at(state, statement_index as usize)
@@ -82,18 +72,35 @@ pub fn record_call_reception(
     else {
         return Some(anonymous());
     };
-    // Only a binding the checked relation names as receiving the whole
-    // result installs leaves here: the immutable local that names the call,
-    // or the mutable local an `Operand` capture feeds as its whole
-    // initializer. Everything else — enclosing expressions, assignments,
-    // discarded calls — owns no slot.
-    let receives = match occurrence.authored_result {
-        FlowCallResult::ImmutableLocal => !local.is_mutable,
-        FlowCallResult::Operand => {
-            local.is_mutable && local.initial_value == expression
-        }
-        FlowCallResult::Discarded => false,
-    };
+    // The completed store, not a local's typed initializer, identifies its
+    // whole receiving value. Immutable and mutable bindings share this
+    // capture operation; nested calls remain anonymous operands.
+    let statement = facts
+        .flow
+        .control
+        .statements
+        .span(flow.statements)?
+        .iter()
+        .find(|statement| statement.statement_index == statement_index as usize)?;
+    let receives = occurrence.authored_result != FlowCallResult::Discarded
+        && facts.flow.control.operands.is_valid(statement.stored_value)
+        && facts
+            .flow
+            .control
+            .operands
+            .get(statement.stored_value)
+            .expression
+            == expression
+        && facts.semantic.places.is_valid(statement.stored_destination)
+        && {
+            let destination = facts.semantic.places.get(statement.stored_destination);
+            destination.root == facts::PlaceRoot::Symbol(local.symbol)
+                && facts
+                    .semantic
+                    .place_segments
+                    .span(destination.segments)?
+                    .is_empty()
+        };
     if !receives {
         return Some(anonymous());
     }

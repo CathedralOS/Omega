@@ -821,8 +821,8 @@ pub(super) fn build_traced(
         // origin relation. Comparing returning states' parameter ordinals loses
         // edge substitution; a one-state record gate loses ordinary control.
         plan.result_reference_sources =
-            validation::reference_result_custody::returned_reference_sources(
-                program, &states[0], None,
+            validation::reference_result_custody::captured_return_sources(
+                program, facts, &states[0],
             )?;
     }
     plan.result = result;
