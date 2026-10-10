@@ -1,0 +1,180 @@
+// Allocation-free scalar Welford statistics. M2 is the unnormalized sum of
+// squared deviations, never the raw sum-of-squares subtraction. Merge uses
+// Chan's cross-chunk correction and preserves empty chunks as identities.
+// Counts above 2^53 are refused: conversion to f64 must remain exact.
+// Mutation commits only after finite-result checks; errors preserve the state.
+// Rank-two descriptor traversal belongs to NF01/NF07; accuracy policy to NF02.
+
+pub data Moments {
+    count: u64 in Wrapping;
+    mean: f64;
+    m2: f64;
+}
+
+pub data MomentsStatus {
+    case Ok;
+    case InvalidState;
+    case NonFinite;
+    case CountLimit;
+}
+
+pub data MomentValue {
+    case Value(value: f64);
+    case Empty;
+    case InsufficientSample;
+    case InvalidState;
+    case NonFinite;
+}
+
+pub machine Moments::reset(moments: &mut Moments) {
+    moments.count = 0;
+    moments.mean = 0.0;
+    moments.m2 = 0.0;
+}
+
+machine valid(moments: &Moments) -> bool {
+    moments.count <= 9007199254740992
+        && F64::is_finite(moments.mean) && F64::is_finite(moments.m2)
+        && moments.m2 >= 0.0
+        && (moments.count != 0 || (moments.mean == 0.0 && moments.m2 == 0.0))
+        && (moments.count != 1 || moments.m2 == 0.0)
+}
+
+pub machine Moments::try_push(moments: &mut Moments, value: f64) -> MomentsStatus {
+    transition valid(moments) {
+        true -> input(moments, value)
+        _ -> invalid()
+    }
+    state invalid() -> MomentsStatus { MomentsStatus::InvalidState }
+    state input(moments: &mut Moments, value: f64) -> MomentsStatus {
+        transition F64::is_finite(value) {
+            true -> count(moments, value)
+            _ -> nonfinite()
+        }
+    }
+    state nonfinite() -> MomentsStatus { MomentsStatus::NonFinite }
+    state count(moments: &mut Moments, value: f64) -> MomentsStatus {
+        transition moments.count < 9007199254740992 {
+            true -> compute(moments, value)
+            _ -> limit()
+        }
+    }
+    state limit() -> MomentsStatus { MomentsStatus::CountLimit }
+    state compute(moments: &mut Moments, value: f64) -> MomentsStatus {
+        let next_count: u64 in Wrapping = moments.count + 1;
+        let delta: f64 = value - moments.mean;
+        let next_mean: f64 = moments.mean + delta / F64::from_u64(next_count);
+        let next_m2: f64 = moments.m2 + delta * (value - next_mean);
+        transition F64::is_finite(next_mean) && F64::is_finite(next_m2) && next_m2 >= 0.0 {
+            true -> commit(moments, next_count, next_mean, next_m2)
+            _ -> nonfinite()
+        }
+    }
+    state commit(moments: &mut Moments, count: u64 in Wrapping, mean: f64, m2: f64) -> MomentsStatus {
+        moments.count = count;
+        moments.mean = mean;
+        moments.m2 = m2;
+        MomentsStatus::Ok
+    }
+}
+
+// The source is borrowed; copying its scalar summary is explicit on the
+// empty-destination edge. No backing elements are allocated or copied.
+pub machine Moments::try_merge(destination: &mut Moments, source: &Moments) -> MomentsStatus {
+    transition valid(destination) && valid(source) {
+        true -> empty_source(destination, source)
+        _ -> invalid()
+    }
+    state invalid() -> MomentsStatus { MomentsStatus::InvalidState }
+    state empty_source(destination: &mut Moments, source: &Moments) -> MomentsStatus {
+        transition source.count == 0 {
+            true -> ok()
+            _ -> empty_destination(destination, source)
+        }
+    }
+    state ok() -> MomentsStatus { MomentsStatus::Ok }
+    state empty_destination(destination: &mut Moments, source: &Moments) -> MomentsStatus {
+        transition destination.count == 0 {
+            true -> commit(destination, source.count, source.mean, source.m2)
+            _ -> count(destination, source)
+        }
+    }
+    state count(destination: &mut Moments, source: &Moments) -> MomentsStatus {
+        transition source.count <= 9007199254740992 - destination.count {
+            true -> compute(destination, source)
+            _ -> limit()
+        }
+    }
+    state limit() -> MomentsStatus { MomentsStatus::CountLimit }
+    state compute(destination: &mut Moments, source: &Moments) -> MomentsStatus {
+        let combined: u64 in Wrapping = destination.count + source.count;
+        let delta: f64 = source.mean - destination.mean;
+        let source_weight: f64 = F64::from_u64(source.count) / F64::from_u64(combined);
+        let next_mean: f64 = destination.mean + delta * source_weight;
+        let correction: f64 = delta * (delta * source_weight) * F64::from_u64(destination.count);
+        let next_m2: f64 = destination.m2 + source.m2 + correction;
+        transition F64::is_finite(next_mean) && F64::is_finite(next_m2) && next_m2 >= 0.0 {
+            true -> commit(destination, combined, next_mean, next_m2)
+            _ -> nonfinite()
+        }
+    }
+    state nonfinite() -> MomentsStatus { MomentsStatus::NonFinite }
+    state commit(destination: &mut Moments, count: u64 in Wrapping, mean: f64, m2: f64) -> MomentsStatus {
+        destination.count = count;
+        destination.mean = mean;
+        destination.m2 = m2;
+        MomentsStatus::Ok
+    }
+}
+
+pub machine Moments::try_mean(moments: &Moments) -> MomentValue {
+    transition valid(moments) {
+        true -> count(moments)
+        _ -> invalid()
+    }
+    state invalid() -> MomentValue { MomentValue::InvalidState }
+    state count(moments: &Moments) -> MomentValue {
+        transition moments.count > 0 {
+            true -> value(moments)
+            _ -> empty()
+        }
+    }
+    state empty() -> MomentValue { MomentValue::Empty }
+    state value(moments: &Moments) -> MomentValue { MomentValue::Value { value: moments.mean } }
+}
+
+pub machine Moments::try_population_variance(moments: &Moments) -> MomentValue {
+    transition valid(moments) {
+        true -> count(moments)
+        _ -> invalid()
+    }
+    state invalid() -> MomentValue { MomentValue::InvalidState }
+    state count(moments: &Moments) -> MomentValue {
+        transition moments.count > 0 {
+            true -> value(moments)
+            _ -> empty()
+        }
+    }
+    state empty() -> MomentValue { MomentValue::Empty }
+    state value(moments: &Moments) -> MomentValue {
+        MomentValue::Value { value: moments.m2 / F64::from_u64(moments.count) }
+    }
+}
+
+pub machine Moments::try_sample_variance(moments: &Moments) -> MomentValue {
+    transition valid(moments) {
+        true -> count(moments)
+        _ -> invalid()
+    }
+    state invalid() -> MomentValue { MomentValue::InvalidState }
+    state count(moments: &Moments) -> MomentValue {
+        transition moments.count > 1 {
+            true -> value(moments)
+            _ -> insufficient()
+        }
+    }
+    state insufficient() -> MomentValue { MomentValue::InsufficientSample }
+    state value(moments: &Moments) -> MomentValue {
+        MomentValue::Value { value: moments.m2 / F64::from_u64(moments.count - 1) }
+    }
+}

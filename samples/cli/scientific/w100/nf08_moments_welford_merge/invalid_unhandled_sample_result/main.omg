@@ -1,0 +1,8 @@
+use numerics::statistics::moments_welford_merge;
+data Main { moments: Moments; variance: f64; }
+machine Main::main(main: &mut Main) {
+    Moments::reset(&mut main.moments);
+    let status: MomentsStatus = Moments::try_push(&mut main.moments, 42.0);
+    // Intended rejection: callers must handle the result's error cases.
+    main.variance = Moments::try_sample_variance(&main.moments);
+}

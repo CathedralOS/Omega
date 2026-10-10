@@ -1,0 +1,59 @@
+use numerics::statistics::moments_welford_merge;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine succeeded(status: MomentsStatus) -> bool {
+    match status { MomentsStatus::Ok -> true, _ -> false }
+}
+machine near(result: MomentValue, expected: f64, tolerance: f64) -> bool {
+    match result {
+        MomentValue::Value { value } -> value >= expected - tolerance && value <= expected + tolerance,
+        _ -> false
+    }
+}
+machine insufficient(result: MomentValue) -> bool {
+    match result { MomentValue::InsufficientSample -> true, _ -> false }
+}
+
+data Main {
+    console: Binding<Console>;
+    observations: [f64; 8];
+    moments: Moments;
+    singleton: Moments;
+    position: u64 in Wrapping;
+    good: bool;
+}
+machine Main::main(main: &mut Main) reaches Console {
+    Moments::reset(&mut main.moments);
+    Moments::reset(&mut main.singleton);
+    main.observations = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0];
+    main.good = succeeded(Moments::try_push(&mut main.singleton, 42.0));
+    main.position = 0;
+    transition { _ -> next(main) }
+    state next(main: &mut Main) reaches Console {
+        transition main.position < 8 {
+            true -> observe(main)
+            _ -> finish(main)
+        }
+    }
+    state observe(main: &mut Main) reaches Console {
+        main.good = succeeded(Moments::try_push(&mut main.moments, main.observations[main.position])) && main.good;
+        main.position = main.position + 1;
+        transition { _ -> next(main) }
+    }
+    state finish(main: &mut Main) reaches Console {
+        transition main.good && main.moments.count == 8
+            && main.moments.m2 >= 31.999999999999 && main.moments.m2 <= 32.000000000001
+            && near(Moments::try_mean(&main.singleton), 42.0, 0.0)
+            && near(Moments::try_mean(&main.moments), 5.0, 0.000000000001)
+            && near(Moments::try_population_variance(&main.moments), 4.0, 0.000000000001)
+            && near(Moments::try_sample_variance(&main.moments), 4.571428571428571, 0.000000000001)
+            && insufficient(Moments::try_sample_variance(&main.singleton))
+            && near(Moments::try_population_variance(&main.singleton), 0.0, 0.0) {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    state pass(main: &mut Main) reaches Console { main.console.exit_process(0); }
+    state fail(main: &mut Main) reaches Console { main.console.exit_process(81); }
+}

@@ -1,0 +1,2 @@
+Exact rational fixtures verified; streaming and 12 merge trees plus 4 two-chunk splits satisfy frozen tolerances.
+Cancellation control raw E[x^2]-E[x]^2 = 0.0; exact population variance = 2.

@@ -1,0 +1,73 @@
+NF08 — scalar Welford central moments and chunk merge
+Candidate API checkpoint; not source-checked or runtime-qualified on this executor.
+
+Data:
+  Moments { count: u64 in Wrapping, mean: f64, m2: f64 }
+  MomentsStatus = Ok | InvalidState | NonFinite | CountLimit
+  MomentValue = Value(value: f64) | Empty | InsufficientSample |
+                InvalidState | NonFinite
+
+Public signatures:
+  Moments::reset(moments: &mut Moments)
+  Moments::try_push(moments: &mut Moments, value: f64) -> MomentsStatus
+  Moments::try_merge(destination: &mut Moments, source: &Moments) -> MomentsStatus
+  Moments::try_mean(moments: &Moments) -> MomentValue
+  Moments::try_population_variance(moments: &Moments) -> MomentValue
+  Moments::try_sample_variance(moments: &Moments) -> MomentValue
+
+Contract:
+  reset makes the canonical empty state (0,0,0). No allocation or backing copy.
+  m2 is sum((x-mean)^2), maintained by Welford, not E[x^2]-E[x]^2.
+  push: delta=x-mean; n'=n+1; mean'=mean+delta/n';
+        m2'=m2+delta*(x-mean').
+  merge: delta=source.mean-destination.mean; n'=nA+nB;
+         weight=nB/n'; mean'=meanA+delta*weight;
+         m2'=m2A+m2B+delta*(delta*weight)*nA.
+  Source is immutable, destination is exclusive. Self-merge requires an
+  explicit scalar snapshot; simultaneous aliasing borrows are not allowed.
+  Empty source is identity. Empty destination explicitly copies three scalars.
+  There is no hidden heap allocation, source element copy, or matrix ownership.
+  Exact integer-to-f64 counts stop at 2^53. Checked count guards precede all
+  Wrapping arithmetic; no count rollover is intended to be accepted.
+  Nonfinite observations/intermediates are refused; finite-range overflow may
+  return NonFinite even when a rearranged mathematical formula is finite.
+  Every mutation error leaves destination unchanged. No silent NaN output.
+  Malformed state returns InvalidState first. Fields cannot prove historical
+  provenance; callers must initialize/reset and mutate through this API.
+  m2 must be nonnegative and finite; count=0 requires mean=m2=0;
+  count=1 requires m2=0. No silent clipping of negative m2.
+  Empty mean/population variance => Empty.
+  Sample variance for count<2 => InsufficientSample, including singleton.
+  Population variance divides m2/n; sample variance divides m2/(n-1).
+  These normalization names are explicit; there is no default ddof.
+  Scalar outputs are returned inside MomentValue and must be matched.
+  NonFinite is reserved on MomentValue for future policy/adapters; current
+  validated scalar query division cannot overflow and does not emit it.
+
+Dependency checkpoint at main 9d4451128dd05885e7b9c591796b2760189851db:
+  No NF01, NF02, NF07 library interfaces exist in the inspected revision.
+  NF01 must confirm the declared package name and sample requester alias.
+  Samples propose `numerics::statistics::moments_welford_merge` with a
+  Source::Path dependency on source/library/numerics; metadata belongs to NF01.
+  NF01/NF07 must publish the owned descriptor/access APIs before traversal:
+    validated descriptor fields/accessors for rows, columns, offset,
+    row_stride, column_stride, plus checked logical-index-to-backing-index;
+    read adapter accepting explicit &[f64] backing, descriptor, row and column,
+    returning checked/try value or a concrete shared error type.
+  These are required semantics, not asserted existing owner signatures.
+  NF07's exact assignment was not supplied: parent must confirm whether mean
+  is expected to reuse an NF07 reduction API and publish that exact signature.
+  NF02 must publish finite admission and comparison-policy types/machines,
+  including NaN/Inf handling and count precision limits. Local acceptance
+  tolerances in ORACLES.md do not establish shared accuracy policy.
+  No competing descriptor, layout validation, accuracy policy, allocation
+  implementation, or dependency metadata is introduced by this candidate.
+
+Qualification:
+  Two complete source projects and a separate invalid source control exist in
+  samples/cli/scientific/w100/nf08_moments_welford_merge/.
+  Package graph closure and descriptor integration await dependency interfaces.
+  Each check/native/Terminal/rejection attempt is separately recorded in
+  evidence/routes.json. All stop before source at executor cache custody.
+  Intended invalid diagnostic: MomentValue assigned to f64. Cache/package
+  rejection never counts as successful invalid-source qualification.

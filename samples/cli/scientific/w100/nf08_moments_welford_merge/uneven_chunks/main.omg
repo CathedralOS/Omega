@@ -1,0 +1,74 @@
+use numerics::statistics::moments_welford_merge;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine succeeded(status: MomentsStatus) -> bool {
+    match status { MomentsStatus::Ok -> true, _ -> false }
+}
+machine near(result: MomentValue, expected: f64, tolerance: f64) -> bool {
+    match result {
+        MomentValue::Value { value } -> value >= expected - tolerance && value <= expected + tolerance,
+        _ -> false
+    }
+}
+machine insufficient(result: MomentValue) -> bool {
+    match result { MomentValue::InsufficientSample -> true, _ -> false }
+}
+
+data Main {
+    console: Binding<Console>;
+    first: Moments;
+    second: Moments;
+    third: Moments;
+    left: Moments;
+    right: Moments;
+    sequential: Moments;
+    empty: Moments;
+    good: bool;
+}
+machine Main::main(main: &mut Main) reaches Console {
+    Moments::reset(&mut main.first);
+    Moments::reset(&mut main.second);
+    Moments::reset(&mut main.third);
+    Moments::reset(&mut main.left);
+    Moments::reset(&mut main.right);
+    Moments::reset(&mut main.sequential);
+    Moments::reset(&mut main.empty);
+    main.good = true;
+    main.good = succeeded(Moments::try_push(&mut main.first, 1000000001.0)) && main.good;
+    main.good = succeeded(Moments::try_push(&mut main.first, 1000000002.0)) && main.good;
+    main.good = succeeded(Moments::try_push(&mut main.second, 1000000003.0)) && main.good;
+    main.good = succeeded(Moments::try_push(&mut main.third, 1000000004.0)) && main.good;
+    main.good = succeeded(Moments::try_push(&mut main.third, 1000000005.0)) && main.good;
+    main.good = succeeded(Moments::try_push(&mut main.sequential, 1000000001.0)) && main.good;
+    main.good = succeeded(Moments::try_push(&mut main.sequential, 1000000002.0)) && main.good;
+    main.good = succeeded(Moments::try_push(&mut main.sequential, 1000000003.0)) && main.good;
+    main.good = succeeded(Moments::try_push(&mut main.sequential, 1000000004.0)) && main.good;
+    main.good = succeeded(Moments::try_push(&mut main.sequential, 1000000005.0)) && main.good;
+    main.good = succeeded(Moments::try_merge(&mut main.left, &main.first)) && main.good;
+    main.good = succeeded(Moments::try_merge(&mut main.left, &main.second)) && main.good;
+    main.good = succeeded(Moments::try_merge(&mut main.left, &main.third)) && main.good;
+    main.good = succeeded(Moments::try_merge(&mut main.left, &main.empty)) && main.good;
+    main.good = succeeded(Moments::try_merge(&mut main.right, &main.second)) && main.good;
+    main.good = succeeded(Moments::try_merge(&mut main.right, &main.third)) && main.good;
+    main.good = succeeded(Moments::try_merge(&mut main.right, &main.first)) && main.good;
+    transition main.good && main.left.count == 5 && main.right.count == 5
+        && main.first.count == 2 && main.second.count == 1 && main.third.count == 2
+        && main.first.mean == 1000000001.5 && main.first.m2 == 0.5
+        && main.second.mean == 1000000003.0 && main.second.m2 == 0.0
+        && main.third.mean == 1000000004.5 && main.third.m2 == 0.5
+        && main.left.m2 >= 9.999999 && main.left.m2 <= 10.000001
+        && main.right.m2 >= 9.999999 && main.right.m2 <= 10.000001
+        && near(Moments::try_mean(&main.left), 1000000003.0, 0.000001)
+        && near(Moments::try_mean(&main.right), 1000000003.0, 0.000001)
+        && near(Moments::try_population_variance(&main.left), 2.0, 0.000001)
+        && near(Moments::try_sample_variance(&main.left), 2.5, 0.000001)
+        && near(Moments::try_population_variance(&main.right), 2.0, 0.000001)
+        && near(Moments::try_sample_variance(&main.right), 2.5, 0.000001)
+        && near(Moments::try_population_variance(&main.sequential), 2.0, 0.000001) {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) reaches Console { main.console.exit_process(0); }
+    state fail(main: &mut Main) reaches Console { main.console.exit_process(82); }
+}

@@ -1,0 +1,128 @@
+{
+  "base_revision": "9d4451128dd05885e7b9c591796b2760189851db",
+  "starting_revision": "6e4f0c37ecd6dbb26d228b3045d40bc6b243d0bb",
+  "cli_sha256": "03416e30f94b5ce5b44a983f61911ed88ebd2ddda41287ab4430fcb35a119af0",
+  "cli_build_revision": "unknown; preinstalled binary, not rebuilt from candidate",
+  "environment_overrides": {
+    "OMEGA_LIBRARY_ROOT": "/workspace/Omega/.codex/worktrees/nf08/source/library",
+    "XDG_CACHE_HOME": "/workspace/cloud-setup/cache",
+    "XDG_CONFIG_HOME": "/workspace/cloud-setup/config",
+    "XDG_DATA_HOME": "/workspace/cloud-setup/data"
+  },
+  "results": [
+    {
+      "sample": "streaming",
+      "route": "check",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf08_moments_welford_merge/streaming/main.omg"
+      ],
+      "exit": 1,
+      "seconds": 0.0036,
+      "log": "streaming.check.log",
+      "reached_source": false
+    },
+    {
+      "sample": "streaming",
+      "route": "native",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "run",
+        "--target",
+        "linux_x86_64",
+        "samples/cli/scientific/w100/nf08_moments_welford_merge/streaming/main.omg"
+      ],
+      "exit": 200,
+      "seconds": 0.0103,
+      "log": "streaming.native.log",
+      "reached_source": false
+    },
+    {
+      "sample": "streaming",
+      "route": "terminal",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "inspect-terminal",
+        "--machine",
+        "Main::main",
+        "--target",
+        "linux_x86_64",
+        "samples/cli/scientific/w100/nf08_moments_welford_merge/streaming/main.omg"
+      ],
+      "exit": 1,
+      "seconds": 0.0052,
+      "log": "streaming.terminal.log",
+      "reached_source": false
+    },
+    {
+      "sample": "uneven_chunks",
+      "route": "check",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf08_moments_welford_merge/uneven_chunks/main.omg"
+      ],
+      "exit": 1,
+      "seconds": 0.0026,
+      "log": "uneven_chunks.check.log",
+      "reached_source": false
+    },
+    {
+      "sample": "uneven_chunks",
+      "route": "native",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "run",
+        "--target",
+        "linux_x86_64",
+        "samples/cli/scientific/w100/nf08_moments_welford_merge/uneven_chunks/main.omg"
+      ],
+      "exit": 200,
+      "seconds": 0.0033,
+      "log": "uneven_chunks.native.log",
+      "reached_source": false
+    },
+    {
+      "sample": "uneven_chunks",
+      "route": "terminal",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "inspect-terminal",
+        "--machine",
+        "Main::main",
+        "--target",
+        "linux_x86_64",
+        "samples/cli/scientific/w100/nf08_moments_welford_merge/uneven_chunks/main.omg"
+      ],
+      "exit": 1,
+      "seconds": 0.0027,
+      "log": "uneven_chunks.terminal.log",
+      "reached_source": false
+    },
+    {
+      "sample": "invalid_unhandled_sample_result",
+      "route": "rejection",
+      "command": [
+        "/workspace/Omega/target/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf08_moments_welford_merge/invalid_unhandled_sample_result/main.omg"
+      ],
+      "exit": 1,
+      "seconds": 0.0027,
+      "log": "invalid_unhandled_sample_result.rejection.log",
+      "reached_source": false
+    }
+  ],
+  "source_sha256": {
+    "samples/cli/scientific/w100/nf08_moments_welford_merge/invalid_unhandled_sample_result/main.omg": "8c59f012339f5d469dcdf9c3d9e884b957f3c8c994c8048be1835b2f64f0cffe",
+    "samples/cli/scientific/w100/nf08_moments_welford_merge/streaming/main.omg": "1a62de765216b3b0150f0db6794c9c027362999ac1d5c4e1ba51a5007c35073c",
+    "samples/cli/scientific/w100/nf08_moments_welford_merge/uneven_chunks/main.omg": "f3ca9cf0951f08497d58d6b859c126f89c5548b0c91371fa2250b29af625565f",
+    "source/library/numerics/statistics/moments_welford_merge.omg": "59b3a9e04586ae9c86d051445c6f70023955c25dabae600a6d96af0b086008af"
+  },
+  "independent_math_command": [
+    "python",
+    "samples/cli/scientific/w100/nf08_moments_welford_merge/validate_math.py"
+  ],
+  "independent_math_exit": 0
+}
