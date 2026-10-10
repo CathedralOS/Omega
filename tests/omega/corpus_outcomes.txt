@@ -4923,3 +4923,13 @@ fail/termination/rank_arrival_missing_public_result_field_equation rejected 489m
 pass/termination/rank_arrival_unobserved_array_extent_compile checked 580ms @09715a326eee
 pass/termination/runtime_public_result_field_rank_arrivals_exit checked 3424ms check-target:macos_arm64 @09715a326eee
 # context: {"cpus": 5, "jobs": "2", "load1_end": 0.78, "load1_start": 0.4, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 14.16, "load1_start": 14.16, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+fail/generics/empty_attached_value_body rejected 308ms expected @fa00de23974b+wt
+	machine `Box::read` state `read` declares a return type but its body is empty -- it can never produce the value (callers would silently bind 0). Return a value or drop the `-> T`.
+	machine `Box<i32>::read` state `read` declares a return type but its body is empty -- it can never produce the value (callers would silently bind 0). Return a value or drop the `-> T`.
+fail/ownership/generic_linear_constructor_keeps_backing_loan rejected 589ms expected @fa00de23974b+wt
+	statement 2 mutates `backing` while local borrow `token` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+fail/ownership/generic_linear_constructor_second_transfer rejected 398ms expected @fa00de23974b+wt
+	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
+pass/generics/runtime_linear_constructor_instances_exit checked 3941ms check-target:macos_arm64 @fa00de23974b+wt
+pass/ownership/runtime_generic_linear_case_restore_exit checked 3946ms check-target:macos_arm64 @fa00de23974b+wt

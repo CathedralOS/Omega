@@ -656,11 +656,13 @@ defines the complete product bar.
     `pass/drops/runtime_owner_scoped_generic_cleanup_exit` (0) for universal
     owner hooks across distinct static argument tuples and observable writes
     through retained borrowed fields; qualify its remaining bound hosts.
-    Generic linear construction still needs its ordinary conserved-claim
-    producer at state-call results; do not infer a claim from constructor syntax.
-    Keep
-    `fail/ownership/linear_case_result_second_transfer` for exact-once returned
-    payload custody. The result programs still need Windows x86-64 and
+    Keep `runtime_generic_linear_case_restore_exit` and
+    `runtime_linear_constructor_instances_exit` (0) for fresh and forwarded
+    conserved claims, applied-owner cleanup and scalar-leaf observation.
+    Keep `fail/ownership/linear_case_result_second_transfer` and
+    `generic_linear_constructor_{second_transfer,keeps_backing_loan}` for
+    exact-once returned custody and retained backing loans.
+    The result programs still need Windows x86-64 and
     matching-host Linux x86-64 execution; inactive cases owe no fabricated
     claims. Suspension/resume/cancellation qualification depends on the
     selected runtime's **TR3-TR8** execution and retained-frontier joins.
