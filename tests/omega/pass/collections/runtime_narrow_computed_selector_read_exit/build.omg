@@ -1,0 +1,1 @@
+machine build(builder:&mut Build){Build::application(builder,"computed_u32_selector_projection");Build::bind(builder,linux_x86_64::ProgramEntry,main);}

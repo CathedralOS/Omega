@@ -1,0 +1,16 @@
+data Cell [copy] { value:u32 in Wrapping; }
+data Cursor { position:u32[0..2]; calls:u32 in Wrapping; }
+machine select(cursor:&mut Cursor)->u32[0..2] {
+ let chosen:u32[0..2]=cursor.position;
+ cursor.calls=cursor.calls+1;
+ cursor.position=1;
+ chosen
+}
+machine keep(value:u32 in Wrapping)->u32 in Wrapping {value}
+machine main() crashes Trap {
+ let cells:[Cell;2]=[Cell{value:7},Cell{value:3}];
+ let mut cursor:Cursor=Cursor{position:0,calls:0};
+ let observed:u32 in Wrapping=keep(cells[select(&mut cursor)].value);
+ transition observed==7 && cursor.calls==1 && cursor.position==1 {true->done() _->bad()}
+ state done(){} state bad(){crash Trap;}
+}

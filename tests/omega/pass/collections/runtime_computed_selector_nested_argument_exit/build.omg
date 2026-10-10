@@ -1,0 +1,4 @@
+machine build(builder:&mut Build){
+ Build::application(builder,"nested_computed_selector_projection_once");
+ Build::bind(builder,linux_x86_64::ProgramEntry,main);
+}

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "1", "load1_end": 3.96, "load1_start": 2.29, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "1", "load1_end": 1.02, "load1_start": 1.85, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -304,6 +304,8 @@ pass/collections/runtime_computed_borrow_selector_once_exit built 4265ms exit:0 
 pass/collections/runtime_computed_borrow_selector_order_exit built 4164ms exit:0 @a4b3d5fb0060+wt
 pass/collections/runtime_computed_index_direct_exit built 1249ms exit:1 @2d8ed253669f+wt
 pass/collections/runtime_computed_nested_borrow_call_exit built 4136ms exit:0 @a4b3d5fb0060+wt
+pass/collections/runtime_computed_scalar_selector_argument_exit built 78156ms exit:0 @1b00d3e3ab8b
+pass/collections/runtime_computed_selector_nested_argument_exit built 69707ms exit:0 @1b00d3e3ab8b
 pass/collections/runtime_computed_signed_shared_borrow_exit built 3839ms exit:0 @a4b3d5fb0060+wt
 pass/collections/runtime_declared_range_index_write_exit built 921ms exit:30 @2d8ed253669f+wt
 pass/collections/runtime_double_indexed_rmw_exit rejected 2139ms regressed-from:built+exit:1 @faca6c5c7f5
@@ -327,8 +329,11 @@ pass/collections/runtime_indexed_record_field_read_exit built 1085ms exit:70 @2d
 pass/collections/runtime_indexed_struct_field_rmw_exit built 1305ms exit:1 @a3bac00e54bb+wt
 pass/collections/runtime_indexed_successor_argument_exit built 1434ms exit:70 @2d8ed253669f+wt
 pass/collections/runtime_maze_pathfind_exit built 3324ms exit:70 @2d8ed253669f+wt
+pass/collections/runtime_narrow_computed_selector_read_exit built 61827ms exit:0 @1b00d3e3ab8b
 pass/collections/runtime_nested_const_row_indexed_read_exit built 1178ms exit:1 @2d8ed253669f+wt
 pass/collections/runtime_nested_fixed_array_projected_write_exit built 3248ms exit:70 @74a22511782
+pass/collections/runtime_ordered_computed_selector_reads_exit built 74631ms exit:0 @1b00d3e3ab8b
+pass/collections/runtime_parameter_computed_selector_wrapping_exit built 80583ms exit:0 @1b00d3e3ab8b
 pass/collections/runtime_signed_element_offset_read_exit built 924ms exit:70 @2d8ed253669f+wt
 pass/collections/runtime_vec_u32_growth_exit built 26440ms exit:70 @2d8ed253669f+wt
 pass/collections/runtime_whole_array_value_copy_exit built 1075ms exit:70 @9baafc0ace88

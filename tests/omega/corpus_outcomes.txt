@@ -8,6 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "2", "load1_end": 1.7, "load1_start": 1.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "1", "load1_end": 2.56, "load1_start": 2.71, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -870,6 +871,8 @@ fail/collections/computed_nested_borrow_selected_extent rejected 671ms expected 
 	cannot prove index `index + 0` is within length 2 in visit::entry
 fail/collections/computed_nested_borrow_shared_authority rejected 422ms expected @a4b3d5fb0060+wt
 	mutable argument `rows` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/collections/computed_selector_read_requires_bounds rejected 37185ms expected @1b00d3e3ab8b
+	cannot prove index `select(&mut cursor)` is within length 2 in main::entry
 fail/collections/declared_range_index_too_wide rejected 291ms expected @c08960bee2b1+wt
 	cannot prove index `main.i` is within length 5 in Main::main::read
 fail/collections/element_view_descendant_uses_selected_extent rejected 364ms expected @9b554b6a9397+wt
