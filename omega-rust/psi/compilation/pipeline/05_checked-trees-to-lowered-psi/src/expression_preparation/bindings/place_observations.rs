@@ -262,9 +262,13 @@ pub(crate) fn byte_record_observation(
             selector,
             coordinate_literal(index.stride),
         );
+        // The recast admission proved `coordinate + footprint <= region` for
+        // this captured (or literal) coordinate, and `scaled` is a byte offset
+        // inside that footprint: `coordinate + scaled` stays below the
+        // region's end, so the add is representable already.
         coordinate = integer_coordinate_binary(
             crate::emission::operation_emission::integer::LoweredIntegerBinaryKind::ExactAdd,
-            false,
+            true,
             coordinate,
             scaled,
         );

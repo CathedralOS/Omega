@@ -292,7 +292,11 @@ impl ByteStoreDestination {
                 position: 1,
                 scalar_type,
             }),
-            formation_decided: false,
+            // The recast admission proved `base + footprint <= capacity` for
+            // this coordinate, and `scaled` is a byte offset inside that
+            // footprint: `base + scaled` stays below capacity, so the add is
+            // representable already.
+            formation_decided: true,
         };
         self.index = ByteStoreIndex::Runtime(emit_direct_expression(
             &sum,
