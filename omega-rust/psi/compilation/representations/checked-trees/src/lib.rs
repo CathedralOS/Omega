@@ -18,6 +18,10 @@ pub use checked_trees::{
 };
 
 pub use checked_trees::{
+    CheckedAcceptedTemplateClassification, CheckedAcceptedTemplateIdentities,
+    CheckedAcceptedTemplateIdentity,
+};
+pub use checked_trees::{
     AcceptanceCheck, AcceptanceCheckProvenance, AcceptanceCheckVerdict, AcceptanceDimension,
     AcceptanceSummary, AcceptanceVerdict, AcceptanceView, BlockingFacts, BorrowAccessKind,
     BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowLoanFact, BorrowLoanLineage,

@@ -42,6 +42,7 @@ mod requirement_call_specializations;
 // facts, index compatibility conditions, placed view inputs, each type
 // reference's borrow custody and content classification, each state's
 // reference-result custody, and frozen expression/place/carrier types.
+mod accepted_template_identities;
 mod carry;
 mod content_classes;
 mod domains;
@@ -50,6 +51,10 @@ mod placement;
 mod reference_custody;
 mod resolved_types;
 mod specialization_identities;
+pub use accepted_template_identities::{
+    CheckedAcceptedTemplateClassification, CheckedAcceptedTemplateIdentities,
+    CheckedAcceptedTemplateIdentity,
+};
 pub use specialization_identities::{
     CheckedMachineSpecializationIdentity, CheckedSpecializationIdentities,
 };

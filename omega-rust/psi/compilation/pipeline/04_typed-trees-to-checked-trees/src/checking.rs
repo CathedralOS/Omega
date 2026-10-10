@@ -233,6 +233,35 @@ fn check_program(
     crate::authored_selections::bind_checked_intrinsic_call_facts(&program, &mut facts)
         .map_err(|diagnostic| vec![diagnostic])?;
     facts.specialization_identities = specialization_identities;
+    // One retained identity row per admission-claim template, specialized or
+    // not: consumers read the classification checking computed instead of
+    // rerunning operational and service-reach inference for canonical bytes.
+    facts.accepted_template_identities = checked_trees::CheckedAcceptedTemplateIdentities::with_rows(
+        program
+            .machines()
+            .iter()
+            .filter(|machine| {
+                machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
+            })
+            .map(|machine| checked_trees::CheckedAcceptedTemplateClassification {
+                machine: machine.symbol,
+                identity: validation::contract_identities::generic_machine_template_report_fingerprint(
+                    &program,
+                    machine.symbol,
+                )
+                .zip(validation::contract_identities::generic_machine_template_commitment(
+                    &program,
+                    machine.symbol,
+                ))
+                .map(|(report_fingerprint, commitment)| {
+                    checked_trees::CheckedAcceptedTemplateIdentity {
+                        report_fingerprint,
+                        commitment,
+                    }
+                }),
+            })
+            .collect(),
+    );
     drop(program);
     let program = typed_program;
     facts.finalized_selections =

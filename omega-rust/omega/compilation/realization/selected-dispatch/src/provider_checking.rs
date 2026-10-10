@@ -40,7 +40,6 @@ pub struct ProviderCheckingRequest<'a> {
 /// authored review records captured before specialization changes the trees.
 pub struct ProviderCheckingInputs {
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
-    accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
 }
 
 impl ProviderCheckingInputs {
@@ -58,8 +57,6 @@ impl ProviderCheckingInputs {
                 &settlement.selected_provider_plan_facts,
             )?;
         }
-        let accepted_template_classifications =
-            trust_model::AcceptedTemplateClassifications::capture(typed);
         let rederived_opaque_representation_selections =
             representation_planning::rederive_opaque_representation_selections(
                 typed,
@@ -75,7 +72,6 @@ impl ProviderCheckingInputs {
 
         Ok(Self {
             opaque_property_receipts,
-            accepted_template_classifications,
         })
     }
 
@@ -118,11 +114,12 @@ impl ProviderCheckingInputs {
             selected_provider_binding.into_parts();
 
         Ok(CheckedProviderProgram {
+            accepted_template_classifications:
+                trust_model::AcceptedTemplateClassifications::capture(&program),
             program,
             selected_provider_plan_facts,
             selected_provider_grants,
             callback_placements,
-            accepted_template_classifications: self.accepted_template_classifications,
         })
     }
 }

@@ -2,7 +2,6 @@
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 /// Accepted-machine template identities captured before specialization can
 /// clone a template under fresh concrete symbols.
@@ -34,35 +33,22 @@ impl AcceptedTemplateIdentity {
 }
 
 impl AcceptedTemplateClassifications {
-    pub fn capture(typed: &TypedTrees) -> Self {
+    /// Read the identities checking published per accepted template. Checking
+    /// already committed the same canonical bytes on its specialization rows;
+    /// no operational or service-reach inference replays here.
+    pub fn capture(checked: &checked_trees::CheckedTrees) -> Self {
         Self {
-            rows: typed
-                .machines()
+            rows: checked
+                .facts
+                .accepted_template_identities
+                .rows()
                 .iter()
-                .filter(|machine| {
-                    machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
-                })
-                .map(|machine| {
-                    let report_fingerprint =
-                        validation::contract_identities::generic_machine_template_report_fingerprint(
-                            typed,
-                            machine.symbol,
-                        );
-                    let commitment =
-                        validation::contract_identities::generic_machine_template_commitment(
-                            typed,
-                            machine.symbol,
-                        );
-                    let identity = report_fingerprint.zip(commitment).map(
-                        |(report_fingerprint, commitment)| AcceptedTemplateIdentity {
-                            report_fingerprint,
-                            commitment,
-                        },
-                    );
-                    AcceptedTemplateClassification {
-                        machine: machine.symbol,
-                        identity,
-                    }
+                .map(|row| AcceptedTemplateClassification {
+                    machine: row.machine,
+                    identity: row.identity.map(|identity| AcceptedTemplateIdentity {
+                        report_fingerprint: identity.report_fingerprint,
+                        commitment: identity.commitment,
+                    }),
                 })
                 .collect(),
         }

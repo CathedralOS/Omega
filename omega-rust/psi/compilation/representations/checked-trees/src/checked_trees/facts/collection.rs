@@ -12,6 +12,10 @@ use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedVi
 pub struct CheckFacts {
     /// Portable specialization identities derived from checked machine contracts.
     pub specialization_identities: crate::CheckedSpecializationIdentities,
+    /// One identity row per admission-claim template machine, including
+    /// unspecialized ones no specialization row could carry. Consumers read
+    /// these instead of rederiving the canonical template commitment.
+    pub accepted_template_identities: crate::CheckedAcceptedTemplateIdentities,
     /// Authored declaration choices finalized by checking. The typed ledger
     /// retains resolution data; checked consumers read this ledger exclusively.
     pub finalized_selections:
