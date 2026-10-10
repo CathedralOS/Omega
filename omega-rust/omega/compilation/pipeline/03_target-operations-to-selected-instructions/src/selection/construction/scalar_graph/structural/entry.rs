@@ -276,19 +276,7 @@ fn retain_owned_home(
         shape.byte_size,
         selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
     )?;
-    builder.emit(
-        SelectedInstructionKind::FrameAddress {
-            slot: selected_instructions::FrameStorageSlotId::Local(slot),
-            byte_offset: 0,
-        },
-        builder
-            .constraints
-            .keys
-            .frame_address
-            .ok_or_else(|| invalid())?,
-        &[pointer],
-        Default::default(),
-    )?;
+    builder.emit_local_frame_address(slot, pointer, Default::default())?;
     for location in &parameter.target.placement.locations {
         let (offset, width) = match location {
             calling_conventions::register_or_stack_pair_pattern!(

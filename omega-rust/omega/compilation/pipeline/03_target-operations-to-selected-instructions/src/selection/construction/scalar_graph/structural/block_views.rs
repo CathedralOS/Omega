@@ -15,7 +15,7 @@ use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
+    LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
 };
 
 pub(in crate::selection::construction) fn block_entry(
@@ -63,17 +63,9 @@ pub(in crate::selection::construction) fn block_entry(
             byte_count: shape.byte_size,
             role: SelectedMemoryAccessRole::AddressLocal { slot },
         });
-        builder.emit(
-            SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Local(slot),
-                byte_offset: 0,
-            },
-            builder
-                .constraints
-                .keys
-                .frame_address
-                .ok_or_else(|| invalid())?,
-            &[pointer],
+        builder.emit_local_frame_address(
+            slot,
+            pointer,
             SelectedInstructionProvenance::default(),
         )?;
         let pointer = if joined && shape.byte_size == 8 {

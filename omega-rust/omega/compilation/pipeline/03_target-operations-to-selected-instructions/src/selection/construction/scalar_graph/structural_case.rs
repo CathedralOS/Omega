@@ -10,9 +10,9 @@ use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarTerminator, LegalizedStructuralCaseSuccessor,
 };
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedCasePayloadBinding,
-    SelectedCasePayloadTransport, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
-    SelectedMemoryAccessRole, SelectedStructuralCaseEdge,
+    LocalStorageSlotId, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
+    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
+    SelectedStructuralCaseEdge,
 };
 use selected_instructions::{SelectedSuccessor, SelectedTerminator};
 use semantic_vocabulary::{IntegerType, PlaceId};
@@ -422,19 +422,7 @@ pub(super) fn frame_address_pointer(
         byte_size,
         SelectedMemoryAccessRole::AddressLocal { slot },
     )?;
-    builder.emit(
-        SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: 0,
-        },
-        builder
-            .constraints
-            .keys
-            .frame_address
-            .ok_or_else(|| invalid())?,
-        &[pointer],
-        Default::default(),
-    )?;
+    builder.emit_local_frame_address(slot, pointer, Default::default())?;
     Ok(pointer)
 }
 

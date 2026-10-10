@@ -277,15 +277,7 @@ pub(super) fn place_pointer_at_site(
             byte_count: home.byte_size,
             role: SelectedMemoryAccessRole::AddressLocal { slot: home.id },
         });
-        builder.emit(
-            SelectedInstructionKind::FrameAddress {
-                slot: selected_instructions::FrameStorageSlotId::Local(home.id),
-                byte_offset: 0,
-            },
-            builder.constraints.keys.frame_address.ok_or(invalid())?,
-            &[pointer],
-            provenance.clone(),
-        )?;
+        builder.emit_local_frame_address(home.id, pointer, provenance.clone())?;
         pointer
     };
     let output = transport_register(builder, place, byte_offset)?;

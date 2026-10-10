@@ -6,9 +6,8 @@ use super::{
 use crate::SelectedInstructionError;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
-    FrameStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
-    SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
-    SelectedMemoryAccessRole,
+    SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedInstructionId,
+    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
 
 pub(super) fn emit(
@@ -91,19 +90,7 @@ pub(super) fn emit(
         byte_count: layout.shape.byte_size,
         role: SelectedMemoryAccessRole::AddressLocal { slot },
     });
-    builder.emit(
-        SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: 0,
-        },
-        builder
-            .constraints
-            .keys
-            .frame_address
-            .ok_or_else(|| SelectedInstructionError::custody())?,
-        &[pointer],
-        Default::default(),
-    )?;
+    builder.emit_local_frame_address(slot, pointer, Default::default())?;
     builder.transport.pointers.push((result.place, pointer));
     Ok(true)
 }

@@ -14,10 +14,10 @@ use register_model::{
     ValidatedRegisterConstraintCatalog,
 };
 use selected_instructions::{
-    MachineSemanticKind, SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    FrameStorageSlotId, LocalStorageSlotId, MachineSemanticKind, SelectedBlock, SelectedBlockId,
+    SelectedConstraintKeys, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedSelectionConstraints,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType, ValueId};
 
@@ -646,6 +646,28 @@ impl Builder<'_> {
         });
         self.pending_result_origins.push(id);
         Ok(id)
+    }
+
+    /// Every zero-offset `Local(slot)` frame-address emission shares the kind
+    /// and its constraint-key lookup.
+    fn emit_local_frame_address(
+        &mut self,
+        slot: LocalStorageSlotId,
+        pointer: VirtualRegisterId,
+        provenance: SelectedInstructionProvenance,
+    ) -> Result<(), SelectedInstructionError> {
+        self.emit(
+            SelectedInstructionKind::FrameAddress {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            },
+            self.constraints
+                .keys
+                .frame_address
+                .ok_or_else(|| SelectedInstructionError::custody())?,
+            &[pointer],
+            provenance,
+        )
     }
 
     fn emit(

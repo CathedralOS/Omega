@@ -394,10 +394,9 @@ fn successor(
                         )?,
                     });
                 }
-                let parameter = source.block(next.target)
-                    .and_then(|block| {
-                        block.structural_parameter(semantic.parameter)
-                    })
+                let parameter = source
+                    .block(next.target)
+                    .and_then(|block| block.structural_parameter(semantic.parameter))
                     .ok_or(SelectedInstructionError::custody())?;
                 let transport =
                     crate::selection::aggregate_result_input::block_parameter_transport(
@@ -475,19 +474,7 @@ fn project_join_address(
         SelectedAddressBase::Register(pointer) => pointer,
         SelectedAddressBase::Local(slot) => {
             let pointer = super::structural::transport_register(builder, place, 0)?;
-            builder.emit(
-                SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Local(slot),
-                    byte_offset: 0,
-                },
-                builder
-                    .constraints
-                    .keys
-                    .frame_address
-                    .ok_or(SelectedInstructionError::custody())?,
-                &[pointer],
-                provenance.clone(),
-            )?;
+            builder.emit_local_frame_address(slot, pointer, provenance.clone())?;
             pointer
         }
     };

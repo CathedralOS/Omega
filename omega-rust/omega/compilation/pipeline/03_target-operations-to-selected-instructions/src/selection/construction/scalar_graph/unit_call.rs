@@ -150,24 +150,14 @@ pub(super) fn retain_result(
         if crate::selection::scalar_call_abi::empty_aggregate_placement(placement) {
             return Ok(());
         }
-        use selected_instructions::{
-            FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot,
-            SelectedMemoryAccessRole,
-        };
-        let slot = LocalStorageSlotId::Structural {
-            operation: operation.operation,
-            place: result.place,
-        };
-        builder
-            .transport
-            .local_slots
-            .push(SelectedLocalStorageSlot {
-                id: slot,
-                byte_size: placement.shape.byte_size,
-                alignment: placement.shape.alignment,
-            });
-        let block =
-        super::block_containing_operation(source, operation.operation)?;
+        use selected_instructions::SelectedMemoryAccessRole;
+        let slot = builder.transport.push_structural_local_slot(
+            operation.operation,
+            result.place,
+            placement.shape.byte_size,
+            placement.shape.alignment,
+        );
+        let block = super::block_containing_operation(source, operation.operation)?;
         let pointer = super::structural_case::register(builder, result.place, 0, 64, false)?;
         super::structural_case::memory(
             builder,
@@ -177,19 +167,7 @@ pub(super) fn retain_result(
             placement.shape.byte_size,
             SelectedMemoryAccessRole::AddressLocal { slot },
         )?;
-        builder.emit(
-            SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Local(slot),
-                byte_offset: 0,
-            },
-            builder
-                .constraints
-                .keys
-                .frame_address
-                .ok_or_else(|| SelectedInstructionError::custody())?,
-            &[pointer],
-            Default::default(),
-        )?;
+        builder.emit_local_frame_address(slot, pointer, Default::default())?;
         if placement.locations.len() != result_registers.len() {
             return Err(SelectedInstructionError::custody());
         }

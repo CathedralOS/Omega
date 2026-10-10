@@ -45,8 +45,7 @@ pub(super) fn argument(
     {
         return Err(SelectedInstructionError::custody());
     }
-    let block =
-        super::block_containing_operation(source, operation.operation)?;
+    let block = super::block_containing_operation(source, operation.operation)?;
     let pointer = if let Some(slot) = slot {
         // Only an owned whole-home slot needs the root's aggregate
         // geometry: a placement source reaches the subtree through its
