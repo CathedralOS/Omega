@@ -144,7 +144,7 @@ pub(crate) fn decode_proof_formals(
     for _ in 0..count {
         let source_position = reader.u32()?;
         let type_identity = reader.string("erased proof formal type")?;
-        if type_identity.is_empty() {
+        if type_identity.is_absent() {
             return Err(CodecError::MalformedStructuralFoundation(
                 "empty erased proof formal type",
             ));

@@ -281,7 +281,7 @@ pub(super) fn decode_candidate(
         None
     };
     let body = super::super::machine_declaration_wire::decode(reader)?;
-    if selection_identity.is_empty() || target.as_ref().is_some_and(String::is_empty) {
+    if selection_identity.is_absent() || target.as_ref().is_some_and(String::is_empty) {
         return Err(CodecError::MalformedStructuralFoundation(
             "empty boundary candidate identity or commitment",
         ));

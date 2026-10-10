@@ -169,7 +169,7 @@ pub(super) fn validate_type_shape(
                     {
                         return malformed("structural field references an unknown structural type");
                     }
-                    StructuralFieldType::Erased { type_identity } if type_identity.is_empty() => {
+                    StructuralFieldType::Erased { type_identity } if type_identity.is_absent() => {
                         return malformed(
                             "opaque structural field type must have a nonempty type identity",
                         );
@@ -230,7 +230,7 @@ pub(super) fn validate_type_shape(
                             );
                         }
                         StructuralFieldType::Erased { type_identity }
-                            if !field.relevance.is_erased() || type_identity.is_empty() =>
+                            if !field.relevance.is_erased() || type_identity.is_absent() =>
                         {
                             return malformed(
                                 "opaque structural case payload must have erased relevance and a nonempty type identity",
@@ -280,7 +280,7 @@ pub(super) fn validate_type_shape(
                         );
                     }
                     StructuralFieldType::Erased { type_identity }
-                        if !field.relevance.is_erased() || type_identity.is_empty() =>
+                        if !field.relevance.is_erased() || type_identity.is_absent() =>
                     {
                         return malformed(
                             "opaque mixed structural field must have erased relevance and a nonempty type identity",

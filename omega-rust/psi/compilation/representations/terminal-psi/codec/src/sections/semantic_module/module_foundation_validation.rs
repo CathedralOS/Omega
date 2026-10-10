@@ -420,7 +420,7 @@ pub(crate) fn validate_structural_path(
                         }
                     },
                 };
-                if identity.is_empty() {
+                if identity.is_absent() {
                     return malformed("structural path field identity cannot be empty");
                 }
                 let Some(field) = terminal_psi::field_by_identity(fields, identity) else {
@@ -1466,7 +1466,7 @@ fn require_unique_nonempty_identities<'a>(
 ) -> Result<(), CodecError> {
     let mut seen = BTreeSet::new();
     for identity in identities {
-        if identity.is_empty() || !seen.insert(identity) {
+        if identity.is_absent() || !seen.insert(identity) {
             return Err(CodecError::MalformedStructuralFoundation(label));
         }
     }
