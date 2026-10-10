@@ -29,7 +29,9 @@ binder of an earlier contract. The clauses are `reaches`, `invokes`,
 value]` exact requirement edges (a bare trait rejects: whole-trait
 satisfaction is a named conformance), and `terminates [by subjects [->
 View]];`, whose subjects are one expression or a parenthesized list and whose
-view is a path or an argumented view call. Bodies hold entry statements and
+view is a path or an argumented view call; a bare `terminates` may end at
+the body's `{`. A machine's return type may follow its clauses, further
+clauses continuing the same run. Bodies hold entry statements and
 then `state name [(parameters)] [-> Type] [requires fact]* { ... }` members. A
 bodyless machine ends at `;`; a `;` that ends a contract fact, a
 satisfaction, a termination or an operational clause belongs to the clause

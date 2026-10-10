@@ -166,14 +166,46 @@ crashes Trap
     state own_clauses(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         Parser::parse_clauses(parser, input, owner);
         transition parser.output.accepted {
-            true -> body(parser, input)
+            true -> body(parser, input, owner)
             _ -> done()
         }
     }
 
-    state body(parser: &mut Parser, input: &TokenStream) {
+    // The return type may follow clauses (`terminates by n; -> u64`), more
+    // clauses after it continuing the same contiguous run.
+    state body(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         parser.machine_first_clause = parser.clause_first;
-        parser.machine_clause_count = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
+        let late_return: bool = !parser.machine_has_return_type
+            && Parser::at_punctuation(parser, input, PunctuationKind::Arrow);
+        transition late_return {
+            true -> late_return_type(parser, input, owner)
+            _ -> header_end(parser, input)
+        }
+    }
+
+    state late_return_type(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+        let first_clause: u64 in Trapping = parser.machine_first_clause;
+        Parser::take_current(parser, input);
+        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedMachineReturnType);
+        parser.machine_has_return_type = true;
+        parser.machine_return_type = parser.type_result;
+        transition parser.output.accepted {
+            true -> late_clauses(parser, input, owner, first_clause)
+            _ -> done()
+        }
+    }
+
+    state late_clauses(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, first_clause: u64 in Trapping) {
+        Parser::parse_clauses(parser, input, owner);
+        parser.machine_first_clause = first_clause;
+        transition parser.output.accepted {
+            true -> header_end(parser, input)
+            _ -> done()
+        }
+    }
+
+    state header_end(parser: &mut Parser, input: &TokenStream) {
+        parser.machine_clause_count = (parser.output.clause_count as u64 in Trapping) - parser.machine_first_clause;
         let bodyless: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition bodyless {
             true -> signature_end(parser, input)

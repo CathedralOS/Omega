@@ -1056,6 +1056,15 @@ def root_declaration_cases(program: str) -> None:
                           container=1, generics=(1, 0)),),
         traits=((*span(source, b"Clock"), 0, 1, 0, 3, 0, 1, 1, 1, *whole(source)),),
     )
+    # A machine's return type may follow its clauses, more clauses after it
+    # continuing one run, and `terminates` may end at the body's `{`.
+    source = b"machine f(n: u64)\nterminates by n;\n-> u64\nrequires n < 9\n{ n }"
+    actual = declaration_accepted(program, "return-type-after-clauses", source)
+    assert len(actual.clauses) == 2 and len(actual.type_references) == 2, (actual.clauses, actual.type_references)
+    source = b"machine f(n: u64) -> u64 terminates { n }"
+    actual = declaration_accepted(program, "terminates-before-body", source)
+    assert len(actual.clauses) == 1, actual.clauses
+
     # A trait member without a body is a requirement; one with a body is
     # its default.
     source = b"pub boundary trait Clock { machine now() -> u64 reaches Clock; machine later(value: u64) -> u64 { value } }"

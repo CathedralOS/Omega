@@ -301,7 +301,17 @@ crashes Trap
         let ranked: bool = Parser::at_word(parser, input, "by");
         transition ranked {
             true -> ranked_witness(parser, input, owner)
-            _ -> termination_end(parser, input, owner, Parser::termination_clause(parser, false, 0))
+            _ -> bare_end(parser, input, owner, Parser::termination_clause(parser, false, 0))
+        }
+    }
+
+    // A bare `terminates` may end at its body's `{`; a ranking witness keeps
+    // its `;`, since a `{` after a subject would continue the subject.
+    state bare_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
+        let body: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
+        transition body {
+            true -> store(parser, input, owner, clause)
+            _ -> termination_end(parser, input, owner, clause)
         }
     }
 
@@ -765,10 +775,13 @@ crashes Trap
         }
     }
 
+    // A body, another clause, or a machine's return type written after its
+    // clauses continues the declaration.
     state body(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping) {
         let open: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
         let clause: bool = Parser::at_clause_word(parser, input);
-        transition open || clause {
+        let returned: bool = Parser::at_punctuation(parser, input, PunctuationKind::Arrow);
+        transition open || clause || returned {
             true -> restore(parser, input, cursor, ClauseContinuation::Clause)
             _ -> closing(parser, input, cursor)
         }
