@@ -195,6 +195,7 @@ fn owner_segments(segments: Vec<facts::PlaceSegment>) -> Option<Vec<BorrowOwnerS
             facts::PlaceSegment::FixedIndex { index } => {
                 Some(BorrowOwnerSegment::FixedIndex(index))
             }
+            facts::PlaceSegment::Case { variant } => Some(BorrowOwnerSegment::Case(variant)),
             _ => None,
         })
         .collect()

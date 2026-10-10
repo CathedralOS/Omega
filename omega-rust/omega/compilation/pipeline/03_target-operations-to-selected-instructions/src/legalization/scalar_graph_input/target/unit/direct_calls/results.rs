@@ -66,6 +66,7 @@ pub(super) fn validate(
                 reference_results,
             },
             AbstractOperation::CallStructural {
+                psi_operation,
                 result:
                     AbstractStructuralCallResult::Structural {
                         result: expected_result,
@@ -86,10 +87,12 @@ pub(super) fn validate(
                 caller,
                 callee,
                 structural_arguments,
-                expected_result.structural_type,
+                expected_result,
+                *psi_operation,
                 custody,
                 &plan.structural_types,
-            )?;
+            )
+            .map_err(|error| error.attributed(caller.machine, Some(*psi_operation)))?;
             if result != expected_result
                 || callee.result.structural() != Some(callee_result)
                 || result.structural_type != callee_result.structural_type

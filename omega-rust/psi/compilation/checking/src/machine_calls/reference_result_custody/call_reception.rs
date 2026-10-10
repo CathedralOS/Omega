@@ -29,13 +29,28 @@ pub fn record_call_reception(
 ) -> Option<RecordCallReception> {
     let call = program.expression_table.call_node(expression)?;
     let destination = program.state_by_symbol(call.target_symbol)?;
-    let returned = record_carrier_sources(
+    // Compose the existing origin relation through this invocation before
+    // joining captured receiver loans. The type lists possible slots; an
+    // empty actual or a payload-free callee return need not supply them.
+    // This selects storage, not another judgment of input loan authority.
+    let origins = super::expression_sources_with_calls(
+        program,
+        state,
+        expression,
+        destination.return_type,
+        &mut vec![state.symbol],
+        None,
+    )?;
+    let returned: Vec<_> = record_carrier_sources(
         program,
         destination.return_type,
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
             symbol: state.symbol,
         },
-    )?;
+    )?
+    .into_iter()
+    .filter(|leaf| origins.iter().any(|origin| origin.path == leaf.path))
+    .collect();
     let anonymous = || RecordCallReception {
         residual_paths: returned.iter().map(|leaf| leaf.path.clone()).collect(),
     };
@@ -91,7 +106,9 @@ pub fn record_call_reception(
                 {
                     return None;
                 }
-                received.push((leaf.path.clone(), path));
+                if returned.iter().any(|leaf| leaf.path == path) {
+                    received.push((leaf.path.clone(), path));
+                }
             }
         }
     }

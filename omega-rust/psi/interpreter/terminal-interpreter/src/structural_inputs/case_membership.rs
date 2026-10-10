@@ -414,7 +414,7 @@ pub(crate) fn case_projection_is_active(
     case_projection_in_value_is_active(types, root, cases, path)
 }
 
-fn case_projection_in_value_is_active(
+pub(crate) fn case_projection_in_value_is_active(
     types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: &TerminalStructuralValue,
     cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,

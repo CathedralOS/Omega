@@ -1153,6 +1153,7 @@ fn lower_structural_result_declaration(
         projected_qualifications: Vec::new(),
         reference_sources: parameters::lower_reference_result_sources(
             &result.reference_sources,
+            structural_type,
             structural_types,
             parameters,
         )?,

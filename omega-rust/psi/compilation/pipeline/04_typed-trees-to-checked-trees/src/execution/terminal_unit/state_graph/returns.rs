@@ -2,9 +2,8 @@
 //! primitive scalar result completes each returning state with the same
 //! binding or exit roster an ordinary single-state body retains.
 use super::super::{
-    CheckedStructuralResultPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralResultBindingPlan,
-    CheckedUnitStructuralTypeShape, TypeReferenceHandle,
+    CheckedStructuralResultPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralResultBindingPlan,
+    TypeReferenceHandle,
 };
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan,
@@ -18,9 +17,9 @@ use crate::execution::terminal_unit::types::{
 
 use crate::execution::terminal_unit::is_reference;
 
-use crate::execution::terminal_unit::{CheckedStructuralAccess, PrimitiveType};
+use crate::execution::terminal_unit::PrimitiveType;
 
-use checked_trees::{CheckedByteSequenceCarrier, CheckedControlResultPlan};
+use checked_trees::CheckedControlResultPlan;
 
 pub(in crate::execution::terminal_unit) fn signature(
     program: &dyn ::validation::CheckingInput,
@@ -150,59 +149,12 @@ pub(in crate::execution::terminal_unit) fn signature(
         } else {
             (shapes.add_type(reference, &[], &[])?, multiplicity)
         };
-    // Nested named carriers carry as one structural member: their own fields
-    // stay inside the member's identity, so the result plan admits the member
-    // by identity alone.
-    let valid_fields = |fields: &[CheckedUnitStructuralFieldPlan]| {
-        fields.iter().all(|field| {
-            !field.relevance.is_erased()
-                && matches!(
-                    field.field_type,
-                    CheckedUnitStructuralFieldType::Scalar(_)
-                        | CheckedUnitStructuralFieldType::BoundedInteger(_)
-                        | CheckedUnitStructuralFieldType::RefinedScalar { .. }
-                        | CheckedUnitStructuralFieldType::Structural { .. }
-                        | CheckedUnitStructuralFieldType::ByteSequence(
-                            CheckedByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                        | CheckedUnitStructuralFieldType::PredicateByteSequence {
-                            carrier: CheckedByteSequenceCarrier::BoundedOwned { .. },
-                            ..
-                        }
-                        | CheckedUnitStructuralFieldType::ByteSequence(
-                            CheckedByteSequenceCarrier::BorrowedView {
-                                access: Some(CheckedStructuralAccess::SharedBorrow),
-                            }
-                        )
-                )
-        })
-    };
-    // A borrowed named view (`&'a V`) carries the peeled record shape, but the
-    // result borrows the referent rather than establishing field custody — the
-    // owned-contents field-kind check does not apply to it.
-    let valid = view_result
-        || owned_bytes
-        || match &shapes.types.get(&type_identity)?.shape {
-            CheckedUnitStructuralTypeShape::Record { fields, .. } => valid_fields(fields),
-            CheckedUnitStructuralTypeShape::Sum { cases } => {
-                !cases.is_empty() && cases.iter().all(|case| valid_fields(&case.fields))
-            }
-            // Borrowed view results carry no payload fields; the reference's
-            // stored extent is their whole runtime shape.
-            CheckedUnitStructuralTypeShape::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
-            )
-            | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => view_result,
-            // Primitive scalars returned above as `Scalar`. Other by-value
-            // carriers (fixed arrays, owned byte buffers) have no admitted
-            // whole-result custody on this route.
-            _ => false,
-        };
-    // Whole linear forwarding does not inspect or construct payload fields.
-    // Its exact input-origin claims are admitted by the completion/call joins.
-    if !valid && multiplicity != Multiplicity::Linear {
-        return None;
-    }
+    // The contents judgment above owns transfer authority; ShapeCollector owns
+    // finite runtime storage. A graph result carries that same established
+    // value, not another record/sum-only vocabulary. Reclassifying fields here
+    // sent mixed values and arrays into sequence-only completion, which cannot
+    // retain their distinct returning edges and cleanup obligations. Erased
+    // members remain semantic fields, never runtime result operands.
     Some(CheckedControlResultPlan::Structural(
         CheckedStructuralResultPlan {
             type_identity,

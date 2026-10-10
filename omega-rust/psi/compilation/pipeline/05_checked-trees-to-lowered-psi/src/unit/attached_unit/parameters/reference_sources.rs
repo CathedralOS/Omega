@@ -93,7 +93,8 @@ pub(crate) fn lower_reference_source(
                     .filter(|row| row.id == argument.place)?;
                 match declaration.kind {
                     semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                        structural_type, ..
+                        structural_type,
+                        ..
                     }
                     | semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
                         structural_type,
@@ -150,6 +151,7 @@ pub(crate) fn lower_reference_source(
 /// distinct source places, projections, or access permissions.
 pub(crate) fn lower_reference_result_sources(
     references: &[checked_trees::CheckedReferenceResultSourcePlan],
+    result_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
 ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, LoweringError> {
@@ -167,7 +169,11 @@ pub(crate) fn lower_reference_result_sources(
                 None,
             )?;
             Ok(terminal_psi::StructuralReferenceResultSource {
-                path: super::lower_structural_path(&reference.path)?,
+                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                    &reference.path,
+                    result_type,
+                    structural_types,
+                )?,
                 sources: vec![source],
             })
         })

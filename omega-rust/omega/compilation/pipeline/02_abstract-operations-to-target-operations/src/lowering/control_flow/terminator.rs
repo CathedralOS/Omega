@@ -462,8 +462,6 @@ pub(super) fn lower_terminator(
                     cleanup_actions,
                 });
             }
-            let reference_bearing =
-                super::references::contains_reference(structural_types, result.structural_type);
             if let Some(parameter) = function.structural_parameter(*source) {
                 let actual = prepared
                     .parameter(*source)
@@ -487,15 +485,6 @@ pub(super) fn lower_terminator(
                 // Returning the same value does not require identical input and
                 // result registers, nor a direct-register ABI on either side.
                 // Selection realizes the transfer from captured input storage.
-                if reference_bearing {
-                    super::references::return_custody(
-                        function,
-                        live,
-                        structural_types,
-                        *source,
-                        result,
-                    )?;
-                }
                 provenance.edges.push(*psi_edge);
                 return Ok(TargetControlTerminator::ReturnStructural {
                     psi_edge: *psi_edge,
@@ -516,8 +505,11 @@ pub(super) fn lower_terminator(
             // source home names the physical value, not that proof's roster:
             // a field snapshot can establish the result through its field
             // predicate without carrying a root qualification itself. Return
-            // preparation rejoins type, custody and ABI extent, irrespective
+            // preparation rejoins type and ABI extent, irrespective
             // of whether a parameter, call or field copy supplied the value.
+            // The descriptor bytes travel with this home. Psi already admitted
+            // returned loans; replaying their origins cannot choose storage or
+            // emit code and belongs only to the independent corpus audit.
             if result.structural_type != home.structural_type()
                 || result.multiplicity != home.multiplicity()
                 || prepared
@@ -528,15 +520,6 @@ pub(super) fn lower_terminator(
                 || !trivial_affine_locals.is_empty()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-            if reference_bearing {
-                super::references::return_custody(
-                    function,
-                    live,
-                    structural_types,
-                    *source,
-                    result,
-                )?;
             }
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::ReturnStructural {

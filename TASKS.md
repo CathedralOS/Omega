@@ -3082,13 +3082,14 @@ of a check the same flow already performed, not the check itself.
   case operands consume prepared member types without checking-side substitution;
   borrowed array payload observations retain their indexed scalar endpoints.
   Case-qualified descriptor storage now composes through ingress, construction,
-  copies, arrays and joins without granting permissions to inactive payloads;
+  copies, arrays, joins and returns without granting permissions to inactive
+  payloads;
   `runtime_case_qualified_reference_storage_exit` retains the growing `Chain`
   and mixed-case execution controls. Exclusive sum construction still stops in
   source-to-Terminal local structural call binding; integrate the completed-child
   construction contract owned by **STATE-LOCAL-VALUE-FRONTIER** before claiming
-  that qualification. Native formation, release and returned-loan custody still
-  retain local replay restrictions; replace their necessary storage relationships
+  that qualification. Native formation, release, edge and call-result custody
+  still retain local replay restrictions; replace their necessary storage relationships
   rather than restoring a whole-operation borrow preflight.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable

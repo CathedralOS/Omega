@@ -449,6 +449,9 @@ fail/borrows/reference_record_mutable_shared_overlap rejected 2207ms expected @c
 	`view` holds `main.first` as both mutable and read-only
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 386ms expected @ecd601af92fb
 	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/returned_case_reference_live_source_write rejected 352ms expected @cf45037ff267
+	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
 	cannot prove index `main.off` is within length 48 in Main::main::main
 fail/borrows/same_initializer_reference_live_source_move rejected 538ms expected @e477ee0294de+wt

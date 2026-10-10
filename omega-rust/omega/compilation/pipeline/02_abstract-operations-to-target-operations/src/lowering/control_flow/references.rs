@@ -9,7 +9,7 @@
 //! Calls transport the existing metadata for owned carrier storage, without
 //! replaying alias and suspension judgments across the argument roster. This
 //! metadata still supplies returned-reference origins; it never selects the
-//! runtime pointer. Formation, release and edge/return lowering retain local
+//! runtime pointer. Formation, release and edge lowering retain local
 //! custody restrictions until their storage relationships can replace them.
 use super::LiveDefinitions;
 use crate::LoweringError;
@@ -1597,10 +1597,19 @@ pub(super) fn call_results(
                 else {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 };
-                moved
-                    .get(&(source.place, carrier_path.to_vec()))
-                    .cloned()
-                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+                let Some(leaf) = moved.get(&(source.place, carrier_path.to_vec())) else {
+                    // The declared slot may be guarded by an inactive input
+                    // case. Compose resident storage with declared origins;
+                    // type geometry alone cannot supply its descriptor.
+                    if !carrier_path
+                        .iter()
+                        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    continue;
+                };
+                leaf.clone()
             } else {
                 let (root, parents) = normalized_source(function, live, types, &source)?;
                 ReferenceCustody {
@@ -1622,6 +1631,9 @@ pub(super) fn call_results(
                 }
             };
             candidates.push(leaf);
+        }
+        if candidates.is_empty() {
+            continue;
         }
         let joining = candidates.len() > 1;
         let mut leaf = combine_alternatives(function, candidates)?;
@@ -1698,67 +1710,6 @@ fn combine_candidate_origins(
     immediate_parents.sort();
     immediate_parents.dedup();
     Ok((ReferenceRoot::Alternatives(origins), immediate_parents))
-}
-
-/// A structural return whose source carries reference leaves must match the
-/// declared result roster exactly: every returned leaf still sits at its
-/// declared carrier path and descends directly from a checked formal origin.
-/// The referent itself is not storage the return transports.
-pub(super) fn return_custody(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    source: PlaceId,
-    result: &terminal_psi::StructuralResultDeclaration,
-) -> Result<(), LoweringError> {
-    if !contains_reference(types, result.structural_type) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    let contract = source_contract(function, live, source)
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    if contract != result.structural_type
-        || live
-            .references
-            .keys()
-            .filter(|(carrier, _)| *carrier == source)
-            .count()
-            != result.reference_sources.len()
-    {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    for mapping in &result.reference_sources {
-        let leaf = live
-            .references
-            .get(&(source, mapping.path.clone()))
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        let declared = |root: &ReferenceRoot| {
-            mapping
-                .sources
-                .iter()
-                .any(|formal| formal_origin(function, types, formal).as_ref() == Some(root))
-        };
-        let admitted = match &leaf.root {
-            ReferenceRoot::Alternatives(origins) => origins.iter().all(|origin| {
-                let root = if origin.path.is_empty() {
-                    ReferenceRoot::Place(origin.root)
-                } else {
-                    ReferenceRoot::Ingress(origin.root, origin.path.clone())
-                };
-                declared(&root)
-            }),
-            root => declared(root),
-        };
-        if !admitted
-            || !leaf.parents.is_empty()
-            || live
-                .references
-                .values()
-                .any(|child| child.parents.contains(&leaf.identity))
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-    }
-    Ok(())
 }
 
 /// Retain possible incoming descriptor storage, not a type-wide permission

@@ -18,8 +18,9 @@
 //! the existing descriptor leaves of owned operands rather than reconstructing
 //! their permissions from types. Storage owners still join current homes,
 //! ordered pointer crossings and ABI placements; the stage 03 corpus audit
-//! independently exercises custody. Reference formation, release, edge and
-//! return lowering still contain local custody restrictions, so this is not
+//! independently exercises custody. Returns transport the current value home
+//! without replaying returned-loan admission. Reference formation, release and
+//! edge lowering still contain local custody restrictions, so this is not
 //! yet a claim that every native borrow replay has been removed. Source
 //! permission belongs to Psi, not a second source checker in native lowering.
 

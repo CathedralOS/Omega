@@ -1197,10 +1197,19 @@ fn call_results(
                 else {
                     return Err(invalid());
                 };
-                moved
-                    .get(&(source.place, carrier_path.to_vec()))
-                    .cloned()
-                    .ok_or_else(|| invalid())?
+                let Some(leaf) = moved.get(&(source.place, carrier_path.to_vec())) else {
+                    // A guarded formal slot need not be resident in this
+                    // actual. Only reconstructed input custody contributes
+                    // an origin to the returned descriptor relation.
+                    if !carrier_path
+                        .iter()
+                        .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+                    {
+                        return Err(invalid());
+                    }
+                    continue;
+                };
+                leaf.clone()
             } else {
                 let (root, parents) = normalized_source(function, custody, types, &source)?;
                 Leaf::formed(
@@ -1213,6 +1222,9 @@ fn call_results(
                 )
             };
             candidates.push(leaf);
+        }
+        if candidates.is_empty() {
+            continue;
         }
         let joining = candidates.len() > 1;
         let mut leaf = combine_alternatives(candidates)?;
@@ -1833,9 +1845,10 @@ pub(in crate::legalization) fn apply(
 }
 
 /// A structural return whose source carries reference leaves must match the
-/// declared result roster exactly: every returned leaf still sits at its
-/// declared carrier path and descends directly from a checked formal origin.
-/// The referent itself is not storage the return transports.
+/// declared result paths: every resident leaf descends directly from a checked
+/// formal origin. The declaration lists possible case slots, not simultaneous
+/// permissions; inactive payloads owe no descriptor. Establishment and transfer
+/// reconstruct the resident roster before this independent return audit.
 pub(in crate::legalization) fn return_custody(
     custody: &Custody,
     function: &PsiOptimizationFunction,
@@ -1847,19 +1860,17 @@ pub(in crate::legalization) fn return_custody(
         return Err(invalid());
     }
     let contract = source_contract(function, custody, source).ok_or_else(|| invalid())?;
-    if contract != result.structural_type
-        || custody
-            .leaves
-            .keys()
-            .filter(|(carrier, _)| *carrier == source)
-            .count()
-            != result.reference_sources.len()
-    {
+    if contract != result.structural_type {
         return Err(invalid());
     }
-    for mapping in &result.reference_sources {
-        let leaf = custody
-            .leaf(source, &mapping.path)
+    for ((carrier, path), leaf) in &custody.leaves {
+        if *carrier != source {
+            continue;
+        }
+        let mapping = result
+            .reference_sources
+            .iter()
+            .find(|mapping| mapping.path == *path)
             .ok_or_else(|| invalid())?;
         let declared = |root: &Root| {
             mapping
@@ -2149,7 +2160,9 @@ pub(in crate::legalization) fn block_entry_states(
             ) {
                 apply_terminator(&mut custody, &node.operation, function, plan)?;
             } else {
-                apply(&mut custody, &node.operation, function, plan, unit)?;
+                apply(&mut custody, &node.operation, function, plan, unit).map_err(|error| {
+                    error.attributed(function.machine, node.operation.psi_operation())
+                })?;
             }
         }
         let terminator = block.nodes.last().ok_or_else(invalid)?;
@@ -2452,57 +2465,31 @@ pub(in crate::legalization) fn referent_argument(
     })
 }
 
-/// Recompute the ordered reference-result roster a structural-result
-/// `CallStructural` row must carry: each callee-declared leaf resolved to its
-/// caller-visible referent root place through the pre-call custody state.
-/// Read-only — `apply` owns the corresponding mutation.
+/// Compare a retained call row against the audit's independently reconstructed
+/// custody transition. The state update and row comparison use the same join:
+/// a second origin-only algorithm lost inactive input slots and could disagree
+/// with the exact transfer it was supposed to audit. Caller storage stays
+/// unchanged; the scratch transition never uses producer-owned target rows.
 pub(in crate::legalization) fn reference_results(
     caller: &PsiOptimizationFunction,
     callee: &PsiOptimizationFunction,
     arguments: &[StructuralArgument],
-    result_type: StructuralTypeId,
+    result: &StructuralOperationResult,
+    psi_operation: OperationId,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<target_operations::TargetReferenceResult>, LegalizationError> {
-    let callee_result = callee.result.structural().ok_or_else(|| invalid())?;
-    let mut roots = Vec::new();
-    let mut expected = Vec::new();
-    for mapping in &callee_result.reference_sources {
-        let expected_referent =
-            leaf_referent(types, result_type, &mapping.path).ok_or_else(|| invalid())?;
-        let result_access = validate_result_sources(mapping, result_type, types)?;
-        let mut candidates = Vec::with_capacity(mapping.sources.len());
-        for formal in &mapping.sources {
-            let source =
-                call_source(&callee.structural_parameters, arguments, formal).ok_or(invalid())?;
-            if reference_source_type(caller, custody, types, &source) != Some(expected_referent) {
-                return Err(invalid());
-            }
-            let (root, _) = normalized_source(caller, custody, types, &source)?;
-            candidates.push(root);
-        }
-        // This read-only roster describes storage alternatives, not a new
-        // child loan. The cursor's parent identifies how to find each source;
-        // apply/call_results separately transfers or retains actual lineage.
-        let mut origins = candidates
-            .into_iter()
-            .flat_map(|root| root.origins())
-            .collect::<Vec<_>>();
-        origins.sort();
-        origins.dedup();
-        let root = Root::Alternatives(origins);
-        if roots.iter().any(|(other, prior_access)| {
-            roots_overlap(other, &root)
-                && (result_access != StructuralAccess::SharedBorrow
-                    || *prior_access != StructuralAccess::SharedBorrow)
-        }) {
-            return Err(invalid());
-        }
-        roots.push((root.clone(), result_access));
-        expected.push(target_operations::TargetReferenceResult {
-            path: mapping.path.clone(),
-            origins: root.origins(),
-        });
-    }
-    Ok(expected)
+    let moved = call_arguments(caller, types, custody, arguments)?;
+    let mut returned = custody.clone();
+    commit_argument_moves(&mut returned, &moved);
+    call_results(
+        caller,
+        callee,
+        types,
+        result,
+        psi_operation,
+        arguments,
+        &mut returned,
+        &moved,
+    )
 }

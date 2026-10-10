@@ -37,18 +37,39 @@ data Selection<'storage> {
     stamp: i32;
     case Left(target: &'storage Cell);
     case Right(target: &'storage Cell);
+    case Empty;
+}
+// Returning and forwarding preserve the active descriptor, not a grant for
+// every possible payload. Empty results retain no descriptor at all.
+machine select<'storage>(
+    left: bool, first: &'storage Cell, second: &'storage Cell
+) -> Selection<'storage> {
+    transition left {
+        true -> Selection::Left { stamp: 3, target: first }
+        false -> Selection::Right { stamp: 5, target: second }
+    }
+}
+machine forward_selection<'storage>(value: Selection<'storage>) -> Selection<'storage> {
+    value
+}
+machine empty_selection<'storage>(source: &'storage Cell) -> Selection<'storage> {
+    Selection::Empty { stamp: 7 }
 }
 machine read_selection<'storage>(selection: &Selection<'storage>) -> i32 {
     transition selection {
         Selection::Left { target } -> target.value
         Selection::Right { target } -> target.value
+        Selection::Empty -> 0
     }
 }
 machine exercise_selections<'storage>(source: &'storage Cell, other: &'storage Cell) -> bool {
-    let left: Selection<'storage> = Selection::Left { stamp: 3, target: source };
-    let right: Selection<'storage> = Selection::Right { stamp: 5, target: other };
+    let left: Selection<'storage> = select(true, source, other);
+    let right: Selection<'storage> = forward_selection(select(false, source, other));
+    let vacant: Selection<'storage> = forward_selection(empty_selection(source));
+    let direct: Selection<'storage> = forward_selection(Selection::Left { stamp: 11, target: source });
     let selections: [Selection<'storage>; 2] = [left, right];
     read_selection(&selections[0]) == 17 && read_selection(&selections[1]) == 19
+        && read_selection(&vacant) == 0 && read_selection(&direct) == 17
 }
 
 machine main() crashes Trap {

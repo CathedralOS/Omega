@@ -49,8 +49,10 @@ pub(super) fn result(
         id: place,
         kind: StructuralPlaceKind::Result,
     });
+    let structural_type = lookup_type_id(&catalogs.type_ids, &result.type_identity)?;
     let reference_sources = crate::unit::attached_unit::parameters::lower_reference_result_sources(
         reference_sources,
+        structural_type,
         &catalogs.structural_types,
         parameters,
     )?;
@@ -58,24 +60,20 @@ pub(super) fn result(
         StructuralResultDeclaration {
             reference_sources,
             place,
-            structural_type: lookup_type_id(&catalogs.type_ids, &result.type_identity)?,
+            structural_type,
             multiplicity: terminal_multiplicity(result.multiplicity),
             qualifications: result
                 .qualifications
                 .iter()
                 .map(|domain| {
-                    lookup_domain_id_for_carrier(
-                        &catalogs.domain_ids,
-                        *domain,
-                        lookup_type_id(&catalogs.type_ids, &result.type_identity)?,
-                    )
+                    lookup_domain_id_for_carrier(&catalogs.domain_ids, *domain, structural_type)
                 })
                 .collect::<Result<Vec<_>, _>>()?,
             projected_qualifications:
                 crate::unit::attached_unit::parameters::lower_projected_qualifications(
                     &result.projected_qualifications,
                     &catalogs.domain_ids,
-                    lookup_type_id(&catalogs.type_ids, &result.type_identity)?,
+                    structural_type,
                     &catalogs.structural_types,
                 )?,
         },

@@ -100,8 +100,8 @@ fn reference_origin_expansion_is_bounded(
         // The closed receiver owns substituted children. Walking the generic
         // head here would miss loans carried by its type arguments.
         if let Some(data) = program.closed_data_definition(reference) {
-            for member in program.data_members(data) {
-                if let Some(field) = member.as_field() {
+            for field in program.data_member_fields(program.data_members(data)) {
+                if !field.relevance.is_erased() {
                     visit(program, field.type_reference, depth + 1, visits, leaves)?;
                 }
             }
@@ -112,7 +112,7 @@ fn reference_origin_expansion_is_bounded(
 }
 
 /// Closed aggregate construction can contain real reference carriers.
-/// Arrays recurse through the same stored-value tree as record fields; the
+/// Arrays and guarded case fields recurse through the same stored-value tree; the
 /// owned aggregate holds each loan descriptor, never the referent's bytes.
 /// This classifier grants neither an initializer origin nor a loan lifetime.
 pub fn is_reference_record(
@@ -148,7 +148,7 @@ pub fn is_reference_record(
             return None;
         }
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-            || program.type_multiplicity(reference) != Multiplicity::Affine
+            || program.type_multiplicity(reference) == Multiplicity::Linear
             || !program.data_type_parameters(data).is_empty()
             || program.machines().iter().any(|machine| {
                 machine.attached_data_symbol == symbol && machine.name.as_str().ends_with("::drop")
@@ -158,10 +158,9 @@ pub fn is_reference_record(
         }
         seen.push(reference);
         let mut contains_reference = false;
-        for member in program.data_members(data) {
-            let field = member.as_field()?;
+        for field in program.data_member_fields(program.data_members(data)) {
             if field.relevance.is_erased() {
-                return None;
+                continue;
             }
             contains_reference |= visit(program, field.type_reference, seen)?;
         }
@@ -583,6 +582,16 @@ fn expression_sources_with_calls(
     if stored_loan_parts(program, reference).is_none() && !is_reference_record(program, reference) {
         return None;
     }
+    if crate::exact_case_reference_owner(program, expression).is_some() {
+        return aggregate_construction_sources(
+            program,
+            state,
+            expression,
+            reference,
+            active_origins,
+            call_frames,
+        );
+    }
     if let Some(name) = program.expression_table.name_path_node(expression) {
         let [spelling] = program.expression_table.name_path_members(name.members) else {
             return None;
@@ -913,7 +922,10 @@ fn call_sources_with_calls(
             // an address projection to append to that captured origin.
             path
         };
-        let before = output.len();
+        // Compose the retained origin relation by selected carrier path. A
+        // closed actual may not contain a formal's guarded case slot; that
+        // contributes no origin, not a missing permission to manufacture.
+        // Whole-reference actuals independently require a nonempty origin.
         for mut actual in actual_sources
             .into_iter()
             .filter(|actual| actual.path == selected_path)
@@ -933,9 +945,6 @@ fn call_sources_with_calls(
             if output.len() > MAX_REFERENCE_ORIGIN_LEAVES {
                 return None;
             }
-        }
-        if output.len() == before {
-            return None;
         }
     }
     Some(output)
@@ -1099,6 +1108,7 @@ fn returned_sources_with_calls(
         return whole_reference_sources(program, state, call_frames);
     }
     let mut sources = Vec::new();
+    let mut has_normal_completion = false;
     for statement in program.statement_table.statements(state.statement_nodes) {
         let Some(transition) = statement.as_transition() else {
             continue;
@@ -1133,6 +1143,7 @@ fn returned_sources_with_calls(
             )?,
             TransitionTargetNode::Terminal => return None,
         };
+        has_normal_completion = true;
         for source in returned {
             if !sources.iter().any(
                 |existing: &checked_trees::CheckedReferenceResultSourcePlan| existing == &source,
@@ -1146,6 +1157,7 @@ fn returned_sources_with_calls(
         .statements(state.statement_nodes)
         .last()
     {
+        has_normal_completion = true;
         for source in expression_sources_with_calls(
             program,
             state,
@@ -1159,7 +1171,10 @@ fn returned_sources_with_calls(
             }
         }
     }
-    (!sources.is_empty()).then_some(sources)
+    // A normal completion can return a payload-free alternative of a type
+    // whose other cases store references. Its complete origin relation is
+    // empty; absence of a supported completion remains a different failure.
+    has_normal_completion.then_some(sources)
 }
 
 /// Every normal completion contributes its exact caller-relative origin.
@@ -1290,12 +1305,28 @@ pub fn record_carrier_sources(
         }
         let data = program.closed_data_definition(reference)?;
         for member in program.data_members(data) {
-            let field = member.as_field()?;
-            path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                field.path_identity(),
-            ));
-            visit(program, field.type_reference, carrier, path, output)?;
-            path.pop();
+            let fields = match member {
+                typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+                typed_trees::data::DataMember::Variant(case) => {
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
+                        case.path_identity(),
+                    ));
+                    program.data_payload_fields(case)
+                }
+            };
+            for field in fields {
+                if field.relevance.is_erased() {
+                    continue;
+                }
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                    field.path_identity(),
+                ));
+                visit(program, field.type_reference, carrier, path, output)?;
+                path.pop();
+            }
+            if matches!(member, typed_trees::data::DataMember::Variant(_)) {
+                path.pop();
+            }
         }
         Some(())
     }
@@ -1346,12 +1377,54 @@ fn aggregate_construction_sources(
         }
         for (index, expression) in elements.iter().enumerate() {
             children.push((
-                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                vec![checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                     u64::try_from(index).ok()?,
-                ),
+                )],
                 *expression,
                 *element_type,
             ));
+        }
+    } else if let Some(constructor) =
+        crate::structural_case_constructor(program, expression, reference)
+    {
+        let data = program.closed_data_definition(constructor.type_reference)?;
+        let case = program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Variant(case) if case.symbol == constructor.case => {
+                    Some(case)
+                }
+                _ => None,
+            })?;
+        for (symbol, expression, reference) in constructor.fields {
+            let (field, mut path) = if let Some(field) = program
+                .data_payload_fields(case)
+                .iter()
+                .find(|field| field.symbol == symbol)
+            {
+                (
+                    field,
+                    vec![checked_trees::CheckedUnitStructuralPathSegment::Case(
+                        case.path_identity(),
+                    )],
+                )
+            } else {
+                let field = program
+                    .data_members(data)
+                    .iter()
+                    .find_map(|member| match member {
+                        typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                            Some(field)
+                        }
+                        _ => None,
+                    })?;
+                (field, Vec::new())
+            };
+            path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                field.path_identity(),
+            ));
+            children.push((path, expression, reference));
         }
     } else {
         let data = program.closed_data_definition(reference)?;
@@ -1374,14 +1447,16 @@ fn aggregate_construction_sources(
                 return None;
             }
             children.push((
-                checked_trees::CheckedUnitStructuralPathSegment::Field(field.path_identity()),
+                vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
+                    field.path_identity(),
+                )],
                 initializer.value,
                 field.type_reference,
             ));
         }
     }
     let mut output = Vec::new();
-    for (segment, expression, reference) in children {
+    for (path, expression, reference) in children {
         for mut source in expression_sources_with_calls(
             program,
             state,
@@ -1390,7 +1465,7 @@ fn aggregate_construction_sources(
             active_origins,
             call_frames,
         )? {
-            source.path.insert(0, segment.clone());
+            source.path.splice(0..0, path.iter().cloned());
             output.push(source);
         }
     }
@@ -1510,9 +1585,10 @@ pub fn local_place_loans(
 }
 
 /// Loan rows for one descriptor are contiguous in the producer's arena, even
-/// when that descriptor retains several possible origins. Every captured row
-/// belongs to one declared leaf; neither an omitted leaf nor an extra path is
-/// permission to dispose of only a convenient subset of the custody.
+/// when that descriptor retains several possible origins. The checked captured
+/// roster owns residency: declarations enumerate possible slots, not loans for
+/// inactive cases. Every captured row must join one declared slot exactly once;
+/// enumerating all declared slots must never manufacture extra permissions.
 fn record_leaf_loan_groups(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
@@ -1558,7 +1634,7 @@ fn record_leaf_loan_groups(
             grouped_count = grouped_count.checked_add(1)?;
         }
         if group.is_empty() {
-            return None;
+            continue;
         }
         output.push((source, group));
     }
@@ -1569,36 +1645,69 @@ fn record_leaf_loan_groups(
 /// parameter's declared type, spelled in the ownership vocabulary the
 /// ledger records. Field hops resolve through the nominal owner exactly as
 /// the owner-path walk does; literal fixed-array hops keep their ordinal.
-/// Runtime-indexed, case and referent hops are not direct backing geometry.
-/// Transfers through a stored descriptor use its captured loan instead.
+/// Case hops retain the declaration guard and select its own payload namespace;
+/// they are not a claim that inactive payload storage is live. Runtime-indexed
+/// and referent hops use captured loans instead of direct backing geometry.
 pub fn loan_place_segments(
     program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<facts::PlaceSegment>> {
     let mut selected = root;
+    let mut payload = None;
     let mut segments = Vec::with_capacity(path.len());
     for segment in path {
         match segment {
-            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
+            checked_trees::CheckedUnitStructuralPathSegment::Case(identity) => {
+                if payload.is_some() {
+                    return None;
+                }
                 let data = nominal_member_owner_type(program, selected)?;
-                let field = program
+                let case = program
                     .data_members(data)
                     .iter()
                     .find_map(|member| match member {
-                        typed_trees::data::DataMember::Field(field)
-                            if field.path_identity() == *identity =>
+                        typed_trees::data::DataMember::Variant(case)
+                            if case.path_identity() == *identity =>
                         {
-                            Some(field)
+                            Some(case)
                         }
                         _ => None,
                     })?;
+                segments.push(facts::PlaceSegment::Case {
+                    variant: case.symbol,
+                });
+                payload = Some(case);
+            }
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
+                let field = if let Some(case) = payload.take() {
+                    program
+                        .data_payload_fields(case)
+                        .iter()
+                        .find(|field| field.path_identity() == *identity)?
+                } else {
+                    let data = nominal_member_owner_type(program, selected)?;
+                    program
+                        .data_members(data)
+                        .iter()
+                        .find_map(|member| match member {
+                            typed_trees::data::DataMember::Field(field)
+                                if field.path_identity() == *identity =>
+                            {
+                                Some(field)
+                            }
+                            _ => None,
+                        })?
+                };
                 segments.push(facts::PlaceSegment::Field {
                     symbol: field.symbol,
                 });
                 selected = field.type_reference;
             }
             checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                if payload.is_some() {
+                    return None;
+                }
                 let mut carrier = selected;
                 loop {
                     match program.type_reference_table.type_reference(carrier) {
@@ -1634,6 +1743,9 @@ pub fn loan_owner_path(
             }
             facts::PlaceSegment::FixedIndex { index } => {
                 Some(checked_trees::BorrowLoanOwnerSegment::FixedIndex(index))
+            }
+            facts::PlaceSegment::Case { variant } => {
+                Some(checked_trees::BorrowLoanOwnerSegment::Case(variant))
             }
             _ => None,
         })

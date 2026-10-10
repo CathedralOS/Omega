@@ -737,7 +737,9 @@ impl TerminalExecution<'_> {
             }
             let (collection, selected) =
                 view.structural_projection(path, access != StructuralAccess::SharedBorrow)?;
-            return self.resolve_reference_view_path(&collection, &selected, access);
+            return self
+                .resolve_reference_view_path(&collection, &selected, access)?
+                .ok_or_else(malformed);
         }
         if path.contains(&StructuralPathSegment::Referent) {
             let authority = self.reference_carrier_access(place, owner, path)?;
@@ -745,7 +747,8 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
-        self.resolve_reference_view_path(owner, path, access)
+        self.resolve_reference_view_path(owner, path, access)?
+            .ok_or_else(malformed)
     }
 
     /// Project storage, crossing each reference boundary through its captured
@@ -755,20 +758,22 @@ impl TerminalExecution<'_> {
         owner: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
         access: StructuralAccess,
-    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+    ) -> Result<Option<TerminalStructuralValue>, TerminalInterpretError> {
         self.resolve_reference_view_path(owner, path, access)
-            .map(|(value, _)| value)
+            .map(|selected| selected.map(|(value, _)| value))
     }
 
     /// Project like `resolve_reference_path`, and also name where a final
     /// run written against an aggregate re-view ends in both declarations.
-    /// The returned value then carries the backing's declaration.
+    /// The returned value then carries the backing's declaration. A contrary
+    /// stored case guard is an absent candidate, not a descriptor to read.
     pub(crate) fn resolve_reference_view_path(
         &self,
         owner: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
         access: StructuralAccess,
-    ) -> Result<(TerminalStructuralValue, Option<AggregateViewTip>), TerminalInterpretError> {
+    ) -> Result<Option<(TerminalStructuralValue, Option<AggregateViewTip>)>, TerminalInterpretError>
+    {
         let types = self.program.structural_types();
         let mut value = owner.clone();
         let mut remaining = path;
@@ -793,6 +798,14 @@ impl TerminalExecution<'_> {
             };
             // Keep case selection and its payload field together. The ordinary
             // projection owner strips declaration-only case steps from storage.
+            if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
+                &types,
+                &value,
+                &self.structural_cases,
+                prefix,
+            )? {
+                return Ok(None);
+            }
             value = if access == StructuralAccess::SharedBorrow {
                 crate::custody::project_shared_structural_observation(&types, &value, prefix)?
             } else {
@@ -845,7 +858,7 @@ impl TerminalExecution<'_> {
                         backing: value.structural_type,
                     })
                 });
-                return Ok((value, tip));
+                return Ok(Some((value, tip)));
             }
         }
     }
@@ -895,35 +908,36 @@ impl TerminalExecution<'_> {
                     &origin.path,
                 )?;
                 let (referent_type, access) = self.reference_contract(leaf_type)?;
-                origin
-                    .sources
-                    .iter()
-                    .map(|source| {
-                        let parameter = parameters
-                            .iter()
-                            .find(|parameter| parameter.place == source.place)
-                            .ok_or_else(malformed)?;
-                        if !access_covers(parameter.access, source.access)
-                            || !access_covers(source.access, access)
-                        {
-                            return Err(malformed());
-                        }
-                        let expected = self.resolve_reference_path(
-                            arguments.get(&parameter.place).ok_or_else(malformed)?,
-                            &source.path,
-                            source.access,
-                        )?;
-                        if expected.structural_type != referent_type
-                            || !expected.qualifications.is_empty()
-                        {
-                            return Err(malformed());
-                        }
-                        // Capture every admitted alternative before the callee moves
-                        // or repacks ingress storage. These are backing identities,
-                        // not another owner and not a choice of the runtime address.
-                        Ok(expected)
-                    })
-                    .collect()
+                let mut backings = Vec::with_capacity(origin.sources.len());
+                for source in &origin.sources {
+                    let parameter = parameters
+                        .iter()
+                        .find(|parameter| parameter.place == source.place)
+                        .ok_or_else(malformed)?;
+                    if !access_covers(parameter.access, source.access)
+                        || !access_covers(source.access, access)
+                    {
+                        return Err(malformed());
+                    }
+                    let Some(expected) = self.resolve_reference_path(
+                        arguments.get(&parameter.place).ok_or_else(malformed)?,
+                        &source.path,
+                        source.access,
+                    )?
+                    else {
+                        continue;
+                    };
+                    if expected.structural_type != referent_type
+                        || !expected.qualifications.is_empty()
+                    {
+                        return Err(malformed());
+                    }
+                    // Capture every resident alternative before the callee
+                    // moves or repacks ingress storage. These are backing
+                    // identities, not another owner or a runtime address choice.
+                    backings.push(expected);
+                }
+                Ok(backings)
             })
             .collect()
     }
@@ -933,14 +947,26 @@ impl TerminalExecution<'_> {
         signature: &StructuralResultDeclaration,
         carrier: &TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
+        // A projected return keeps its original backing prefix. Count only
+        // that subtree; the stored tags below select which declared slots owe
+        // descriptors. A possible inactive payload is not resident storage.
+        let resident_count = self
+            .reference_referents
+            .keys()
+            .filter(|key| {
+                key.opaque_identity == carrier.opaque_identity
+                    && key.path.starts_with(&carrier.path)
+            })
+            .count();
         if signature.reference_sources.is_empty() {
-            return if matches!(
-                self.program
-                    .structural_types()
-                    .get(&signature.structural_type)
-                    .map(|declaration| &declaration.shape),
-                Some(StructuralTypeShape::Reference { .. })
-            ) {
+            return if resident_count != 0
+                || matches!(
+                    self.program
+                        .structural_types()
+                        .get(&signature.structural_type)
+                        .map(|declaration| &declaration.shape),
+                    Some(StructuralTypeShape::Reference { .. })
+                ) {
                 Err(malformed())
             } else {
                 Ok(())
@@ -950,23 +976,6 @@ impl TerminalExecution<'_> {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "host reference results require an explicit loan carrier interface",
             ));
-        }
-        // The returned place owns its whole logical carrier. A projected
-        // transfer may retain that carrier at a nonempty backing path under
-        // its original runtime identity; moving it does not require copying
-        // descriptor storage. Count only this exact stored subtree, then
-        // compare every captured referent with the admitted ingress below.
-        if self
-            .reference_referents
-            .keys()
-            .filter(|key| {
-                key.opaque_identity == carrier.opaque_identity
-                    && key.path.starts_with(&carrier.path)
-            })
-            .count()
-            != signature.reference_sources.len()
-        {
-            return Err(malformed());
         }
         let Some(SuspendedCall {
             result:
@@ -982,10 +991,11 @@ impl TerminalExecution<'_> {
         if expected_reference_backings.len() != signature.reference_sources.len() {
             return Err(malformed());
         }
-        // The verifier reconstructs the complete typed result roster. Runtime
-        // preflight compares each captured backing against the callee's actual
-        // bound ingress before the return charge. The ordinary return then moves
-        // this same owner identity; its descriptor subtree is never discarded.
+        // Authenticate case guards before resolving the physical descriptor
+        // path (which omits Case). Every active slot must have its captured
+        // backing, and every resident descriptor must be accounted for. The
+        // ordinary return moves this owner identity without copying referents.
+        let mut active_count = 0usize;
         for (ordinal, origin) in signature.reference_sources.iter().enumerate() {
             if signature.reference_sources[..ordinal]
                 .iter()
@@ -993,6 +1003,15 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
+            if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
+                &self.program.structural_types(),
+                carrier,
+                &self.structural_cases,
+                &origin.path,
+            )? {
+                continue;
+            }
+            active_count += 1;
             let leaf_type = resolve_structural_path_type(
                 &self.program.structural_types(),
                 signature.structural_type,
@@ -1000,15 +1019,15 @@ impl TerminalExecution<'_> {
             )?;
             let (referent_type, access) = self.reference_contract(leaf_type)?;
             let expected = &expected_reference_backings[ordinal];
-            let mut key = StructuralRuntimePlace::from(carrier);
-            key.path.extend_from_slice(&origin.path);
+            let descriptor =
+                project_structural_value(&self.program.structural_types(), carrier, &origin.path)?;
+            let key = StructuralRuntimePlace::from(&descriptor);
             let actual = self.reference_referents.get(&key).ok_or_else(malformed)?;
             if origin.sources.is_empty()
                 || origin
                     .sources
                     .iter()
                     .any(|source| !access_covers(source.access, access))
-                || expected.len() != origin.sources.len()
                 || expected
                     .iter()
                     .any(|backing| backing.structural_type != referent_type)
@@ -1016,6 +1035,9 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
+        }
+        if active_count != resident_count {
+            return Err(malformed());
         }
         Ok(())
     }
