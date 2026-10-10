@@ -1812,6 +1812,12 @@ then independent claimed restoration slices -> final closure.
   Product description queries do not execute product bodies. Preserve
   **BUILD-EVALUATES-ONCE**, pre-effect admission and all-target authored rows;
   do not retain a feature/fixture-specific Build evaluator.
+  Discovery/default-source phase selection is **OWNER-BLOCKED** on
+  [build-discovery-entry-phase](OWNER_QUESTIONS.md#q10---how-does-a-build-select-its-core-only-discovery-entry):
+  the same free Build entry mixes discovery with work needing the resolved
+  graph, with no defined entry/phase boundary. This blocks that subfrontier
+  only; Terminal/mutable-slot/accounting and immutable resolver joins remain
+  engineering. Preserve the seed and invalid acceptance below.
   Owners: `omega-rust/omega/compilation/build-evaluation/src/`, Psi compile-time
   admission, exact Build catalog contracts and Terminal lowering/adapters.
   Acceptance on Windows and macOS: `mbx check -p omega`; ordinary source check
@@ -4879,6 +4885,9 @@ wait for Cathedral's instruction coverage. The interpreter is
 
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
+    The interpreted discovery/default-source prerequisite references
+    [build-discovery-entry-phase](OWNER_QUESTIONS.md#q10---how-does-a-build-select-its-core-only-discovery-entry);
+    other owner/identity/resolution joins remain engineering.
     `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
     leaves loose roots without package identity. Derive the versioned anonymous
     content record before build execution; keep supplied package/core owners;
