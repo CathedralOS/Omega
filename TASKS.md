@@ -3007,19 +3007,6 @@ slice unchanged (check plus `--native` where the code is backend-visible).
 Re-checking stays allowed at trust boundaries; these items remove repetition
 of a check the same flow already performed, not the check itself.
 
-- **CHECKED-IDENTITY-IDS.** (new-scope) Depends on **TYPE-IDENTITY-INTERNED**;
-  reuse the existing program-owned `CallableIdentityId` interner in
-  `omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/type_identity/callable_identity.rs`
-  for callable identities.
-  `checked-trees` declares many `*identity: String` fields, concentrated in
-  `omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/flow/terminal/structural_type_plans.rs`,
-  with others in
-  composed-unit, affine-cleanup, result-binding, termination and
-  service-parameter plans. Replace each with the callable or type identity
-  handle (or the existing symbol handle). Acceptance: no
-  `String`-typed identity field remains in `checked-trees`, enforced by a
-  source-scanning guard in that crate; full check corpus unchanged.
-
 - **TERMINAL-IDENTITY-TABLE.** (new-scope) Depends on **CHECKED-IDENTITY-IDS**.
   Terminal Psi is the persisted boundary, so its identities stay
   content-derived, but they should be stored once. `terminal-psi`'s module
