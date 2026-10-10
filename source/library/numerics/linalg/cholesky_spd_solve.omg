@@ -1,0 +1,37 @@
+// NF14 independent pivot kernel. The descriptor-based factor/solve entrypoints
+// depend on NF01/NF02/NF11/NF12 contracts; see the adjacent API checkpoint.
+// This module creates no replacement descriptor, allocator, copy or solver.
+// A pivot must be finite and strictly positive before sqrt. Positive but tiny
+// pivots are accepted: a condition-number cutoff belongs to numerical policy.
+// Failed pivot checks carry their input and never manufacture a factor.
+use omega::language::core::float_operations;
+
+pub data CholeskyPivotResult {
+    case NonFinite(pivot: f64);
+    case NonPositive(pivot: f64);
+    case Positive(root: f64);
+}
+
+pub machine try_cholesky_pivot(pivot: f64) -> CholeskyPivotResult {
+    let finite: bool = F64::is_finite(pivot);
+    transition finite {
+        false -> nonfinite(pivot)
+        _ -> positive(pivot)
+    }
+    state nonfinite(pivot: f64) -> CholeskyPivotResult {
+        CholeskyPivotResult::NonFinite { pivot: pivot }
+    }
+    state positive(pivot: f64) {
+        transition pivot > 0.0 {
+            true -> root(pivot)
+            _ -> nonpositive(pivot)
+        }
+    }
+    state nonpositive(pivot: f64) -> CholeskyPivotResult {
+        CholeskyPivotResult::NonPositive { pivot: pivot }
+    }
+    state root(pivot: f64) -> CholeskyPivotResult {
+        let root: f64 = F64::square_root(pivot);
+        CholeskyPivotResult::Positive { root: root }
+    }
+}

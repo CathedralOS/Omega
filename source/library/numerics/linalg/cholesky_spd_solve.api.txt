@@ -1,0 +1,75 @@
+NF14 SPD Cholesky/solve interface checkpoint (2026-10-10)
+Base: 26c92c17b8f4b21f39e14a5be57c85cfdec601de
+
+AVAILABLE OWNED KERNEL
+  try_cholesky_pivot(pivot: f64) -> CholeskyPivotResult
+  CholeskyPivotResult = NonFinite(pivot: f64) |
+                        NonPositive(pivot: f64) | Positive(root: f64)
+  Existing core: F64::is_finite(f64) -> bool;
+                 F64::square_root(f64) -> f64.
+  IEEE signed zeros fail strict positivity. NaN and infinities fail finiteness.
+  No allocation, mutation, implicit copy, epsilon cutoff, or tolerance policy.
+
+EXACT REQUESTS TO DEPENDENCY OWNERS (not invented available interfaces)
+NF01:
+  Provide the module/package import and actual rank-two descriptor type D.
+  Needed descriptor fields/accessors: rows(D)->u64, columns(D)->u64,
+  leading_dimension(D)->u64, offset(D)->u64; checked backing validation.
+  Needed signatures, substitute your canonical names:
+    try_validate(descriptor: &D, backing_length: u64) -> LayoutResult
+    try_index(descriptor: &D, row: u64, column: u64,
+              backing_length: u64) -> IndexResult
+  IndexResult must expose a checked offset and proof sufficient to read/write
+  backing[offset] with the explicit backing slice. State empty-matrix semantics,
+  overflow policy, padding rules and alias/overlap requirements.
+NF02:
+  Provide actual tolerance/policy type P and finite/near/symmetry signatures:
+    try_validate_policy(policy: &P) -> PolicyResult
+    finite(value: f64) -> bool
+    near(left: f64, right: f64, policy: &P) -> bool
+  Needed symmetry rule and nonfinite intermediate policy. Factorization must
+  use strict positive finite Schur pivots, not an implicit epsilon cutoff.
+  Request confirmation: permitted scalar arithmetic spelling/domain, and
+  whether exact symmetry or policy-based comparison is the shared API default.
+NF11/NF12 (parent confirm allocation of copy vs triangular solve ownership):
+  Provide actual canonical names and result types for:
+    try_copy(source_descriptor: &D, source: &[f64],
+             destination_descriptor: &D, destination: &mut [f64]) -> CopyResult
+    try_solve_lower(factor_descriptor: &D, factor: &[f64],
+                    rhs_descriptor: &D, rhs: &[f64],
+                    solution_descriptor: &D, solution: &mut [f64]) -> SolveResult
+    try_solve_lower_transpose(factor_descriptor: &D, factor: &[f64],
+                    rhs_descriptor: &D, rhs: &[f64],
+                    solution_descriptor: &D, solution: &mut [f64]) -> SolveResult
+  Need diagonal singular/nonfinite outcomes, multiple RHS semantics, stride
+  support, mutation frontier on error, and permitted explicit in-place aliasing.
+
+REQUIRED NF14 PUBLIC CONTRACT AFTER THOSE SIGNATURES ARE SUPPLIED
+  try_factor(source_descriptor: &D, source: &[f64],
+             factor_descriptor: &D, factor: &mut [f64], policy: &P)
+      -> CholeskyResult
+  try_solve(factor_descriptor: &D, factor: &[f64],
+            rhs_descriptor: &D, rhs: &[f64],
+            scratch_descriptor: &D, scratch: &mut [f64],
+            solution_descriptor: &D, solution: &mut [f64]) -> CholeskyResult
+  No allocation in either operation. Caller provides distinct admitted backing.
+  An in-place/copy operation must be separately named and explicitly requested;
+  never silently consume or mutate readonly source. RHS is rank-two n-by-k.
+  Solve composition is L*y=b, then transpose(L)*x=y, using NF12 primitives.
+  Result needs success, layout, nonsquare, shape mismatch, nonsymmetry(row,col),
+  nonfinite input(row,col), nonfinite intermediate(pivot), nonpositive pivot
+  (index,value), and dependency solve errors. Preflight before mutation;
+  an arithmetic failure may leave the explicitly documented completed prefix.
+  Invalid factor upper entries must not influence triangular solves.
+
+ALGORITHM AND VALIDATION REQUIREMENTS
+  Validate descriptors/backing, square n-by-n shape and matching output shape.
+  Check all input elements finite and both triangles symmetric before writes.
+  For columns j=0..n-1, compute p=A[j,j]-sum(k<j,L[j,k]^2).
+  Fail before sqrt when p is nonfinite or p<=0; set L[j,j]=sqrt(p).
+  For rows i>j, L[i,j]=(A[i,j]-sum(k<j,L[i,k]*L[j,k]))/L[j,j].
+  Validate finite computed values, explicitly zero output upper triangle.
+  Reconstruct A=L*transpose(L), check x oracle and residual infinity norm.
+  Sample oracles/tolerances frozen in commit 0f6ccf05b5 before Omega runs.
+  Independent fixed-size samples pressure existing float/borrow/copy routes;
+  they do not establish descriptor API integration, policy, or shared solvers.
