@@ -11,7 +11,7 @@ pub(crate) fn validate_constant_conditional_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::contract::validate(
+    super::super::contract::validate(
         input,
         candidate,
         b"omega.psi-rule.constant-conditional-fold.v5",

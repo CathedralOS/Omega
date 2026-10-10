@@ -1,7 +1,7 @@
 use crate::candidates::provenance_realized_at;
 use optimization_unit::{
     AdjacentBlockMergeRewrite, NodeLocation, OwnershipFrontierSite, OwnershipFrontierWitness,
-    OwnershipFrontierWitnessRow, ProvenanceDisposition, PsiOptimizationFunction,
+    OwnershipFrontierWitnessRow, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, ScalarSubstitution,
 };
 use semantic_vocabulary::{BlockId, EdgeId};

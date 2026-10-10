@@ -15,7 +15,7 @@ use optimization_core::{
     OptimizationSafetyClass, OptimizationValidatorIdentity,
 };
 use optimization_unit::{
-    ObservationKnowledge, OptimizationFact, ProvenanceDisposition, ProvenanceRewrite,
+    ObservationKnowledge, OptimizationFact,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
     ScalarConstantValue, ValueDefinition, ValueDefinitionSite,
     literal_scalar_constant_fact_identity, recompute_psi_optimization_unit_identity,

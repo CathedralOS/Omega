@@ -11,7 +11,7 @@ pub(crate) fn validate_shared_jump_fusion_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::contract::validate(
+    super::super::contract::validate(
         input,
         candidate,
         b"omega.psi-rule.shared-terminal-jump-fusion.v2",

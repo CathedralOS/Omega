@@ -14,7 +14,7 @@ pub(crate) fn validate_path_qualified_empty_block_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::super::contract::validate(
+    super::super::super::contract::validate(
         input,
         candidate,
         b"omega.psi-rule.path-qualified-empty-block-thread.v1",

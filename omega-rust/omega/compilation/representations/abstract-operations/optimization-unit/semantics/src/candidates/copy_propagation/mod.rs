@@ -3,9 +3,9 @@
 //! This entrance admits candidate custody and the structural-identity analysis
 //! contract. Witness reconstruction, closed-region observation, and exhaustive
 //! operation rewriting descend into named leaves.
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleIdentity,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
     OptimizationSafetyClass,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
@@ -29,28 +29,22 @@ fn validate_candidate_contract(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<(), OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(input)?;
-    if candidate.input() != input.identity {
-        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
-    }
-    if candidate.rule()
-        != OptimizationRuleIdentity::from_canonical_bytes(
-            b"omega.psi-rule.redundant-block-parameter.v1",
-        )
-        || candidate.required_analyses()
-            != AnalysisSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::Dominators,
-                AnalysisKind::UseDefinition,
-            ])
-        || candidate.invalidated_analyses()
-            != AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ])
-        || candidate.safety_class() != OptimizationSafetyClass::StructuralIdentity
-        || candidate.predicted_cost_delta() != -1
-    {
+    super::contract::validate(
+        input,
+        candidate,
+        b"omega.psi-rule.redundant-block-parameter.v1",
+        AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::Dominators,
+            AnalysisKind::UseDefinition,
+        ]),
+        AnalysisInvalidationSet::new([
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+        OptimizationSafetyClass::StructuralIdentity,
+    )?;
+    if candidate.predicted_cost_delta() != -1 {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
     Ok(())

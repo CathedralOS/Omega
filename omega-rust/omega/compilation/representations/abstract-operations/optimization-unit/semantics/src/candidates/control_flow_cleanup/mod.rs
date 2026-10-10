@@ -2,7 +2,6 @@
 
 mod block_merging;
 mod constant_conditionals;
-mod contract;
 mod empty_block_threading;
 mod shared_jump_fusion;
 mod unreachable_private_machines;

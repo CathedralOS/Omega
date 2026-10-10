@@ -9,8 +9,7 @@
 use crate::candidates::provenance_realized_at;
 use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
 use optimization_unit::{
-    DeadScalarNodeRewrite, NodeLocation, ProofCertifiedScalarIdentityRewrite,
-    ProvenanceDisposition, PsiOptimizationFunction, PsiRealizationSite, TotalScalarIdentityRewrite,
+    DeadScalarNodeRewrite, NodeLocation, ProofCertifiedScalarIdentityRewrite, PsiOptimizationFunction, PsiRealizationSite, TotalScalarIdentityRewrite,
 };
 use semantic_vocabulary::{BlockId, OperationId, ScalarType, ValueId};
 

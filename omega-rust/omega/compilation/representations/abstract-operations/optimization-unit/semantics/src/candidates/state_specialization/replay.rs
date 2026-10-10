@@ -15,7 +15,7 @@ use abstract_operations::AbstractOperation as O;
 use abstract_operations::binding_arguments;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    DispatchCondition, NodeLocation, OptimizationEdge, OptimizationNode, ProvenanceDisposition,
+    DispatchCondition, NodeLocation, OptimizationEdge, OptimizationNode,
     ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ScalarConstantValue,
     SpecializedStateEdgeRow, ValueUse, integer_comparison_condition,

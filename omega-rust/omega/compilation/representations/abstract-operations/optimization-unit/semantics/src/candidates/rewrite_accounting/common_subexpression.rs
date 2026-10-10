@@ -2,7 +2,7 @@ use crate::candidates::provenance_realized_at;
 use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
 use optimization_unit::{
     DeadScalarNodeRewrite, LocalScalarCommonSubexpressionRewrite, NodeLocation,
-    PhiTranslatedScalarGvnRewrite, ProvenanceDisposition, PsiOptimizationFunction,
+    PhiTranslatedScalarGvnRewrite, PsiOptimizationFunction,
     PsiRealizationSite,
 };
 use semantic_vocabulary::BlockId;

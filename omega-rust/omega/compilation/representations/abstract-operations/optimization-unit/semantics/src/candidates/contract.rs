@@ -7,7 +7,7 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 
-pub(super) fn validate(
+pub(crate) fn validate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
     rule_domain: &'static [u8],

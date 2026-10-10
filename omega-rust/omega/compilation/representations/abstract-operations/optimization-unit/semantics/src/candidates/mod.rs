@@ -21,6 +21,7 @@ use crate::OptimizationUnitValidationError;
 
 pub(crate) mod case_membership_specialization;
 pub(crate) mod control_flow_cleanup;
+pub(crate) mod contract;
 pub(crate) mod copy_propagation;
 pub(crate) mod dead_scalar_elimination;
 pub(crate) mod field_value_specialization;

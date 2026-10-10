@@ -36,7 +36,7 @@ use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     FieldEvidence, FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue,
-    FunctionAnalysis, OptimizationNode, ProvenanceDisposition, ProvenanceRewrite,
+    FunctionAnalysis, OptimizationNode, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
     PsiRewritePatch, ScalarSubstitution, ValueDefinition, ValueDefinitionSite, field_evidence,
     function_analysis, recompute_psi_optimization_unit_identity,

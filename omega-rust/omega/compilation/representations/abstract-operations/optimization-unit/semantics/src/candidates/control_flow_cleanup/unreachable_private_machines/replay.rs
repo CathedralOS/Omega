@@ -3,7 +3,7 @@ use crate::candidates::provenance_proven_unreachable_at;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    NodeLocation, ProvenanceDisposition, PsiOptimizationFunction, PsiOptimizationUnit,
+    NodeLocation, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };

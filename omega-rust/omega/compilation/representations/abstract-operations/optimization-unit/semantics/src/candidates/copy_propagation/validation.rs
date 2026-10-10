@@ -7,7 +7,7 @@ use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    BlockParameterIncomingBinding, NodeLocation, ProvenanceDisposition, PsiOptimizationUnit,
+    BlockParameterIncomingBinding, NodeLocation, PsiOptimizationUnit,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity, reconstruct_psi_closed_region_observation,
 };

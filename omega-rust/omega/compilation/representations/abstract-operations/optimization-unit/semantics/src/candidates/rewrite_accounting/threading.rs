@@ -1,6 +1,6 @@
 use crate::candidates::provenance_realized_at;
 use optimization_unit::{
-    NodeLocation, OwnershipFrontierSite, ProvenanceDisposition, PsiOptimizationFunction,
+    NodeLocation, OwnershipFrontierSite, PsiOptimizationFunction,
     PsiOptimizationUnit, PsiRealizationSite, ValueDefinition,
 };
 use semantic_vocabulary::{BlockId, EdgeId};

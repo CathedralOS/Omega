@@ -26,7 +26,7 @@ use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_o
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    FoldedCaseMembershipRow, OptimizationFact, OptimizationNode, ProvenanceDisposition,
+    FoldedCaseMembershipRow, OptimizationFact, OptimizationNode,
     ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, declared_structural_type,
     recompute_psi_optimization_unit_identity, resolved_sole_case, sole_case_at_path,

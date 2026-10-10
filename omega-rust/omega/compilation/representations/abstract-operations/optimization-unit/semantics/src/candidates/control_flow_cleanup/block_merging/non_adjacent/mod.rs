@@ -15,7 +15,7 @@ pub(crate) fn validate_non_adjacent_block_merge_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::super::contract::validate(
+    super::super::super::contract::validate(
         input,
         candidate,
         b"omega.psi-rule.non-adjacent-unique-predecessor-block-merge.v1",

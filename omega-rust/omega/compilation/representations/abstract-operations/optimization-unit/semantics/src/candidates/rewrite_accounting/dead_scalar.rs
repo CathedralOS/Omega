@@ -1,6 +1,6 @@
 use crate::candidates::provenance_realized_at;
 use optimization_unit::{
-    DeadScalarNodeRewrite, NodeLocation, ProvenanceDisposition, PsiOptimizationFunction,
+    DeadScalarNodeRewrite, NodeLocation, PsiOptimizationFunction,
     PsiRealizationSite,
 };
 use semantic_vocabulary::BlockId;

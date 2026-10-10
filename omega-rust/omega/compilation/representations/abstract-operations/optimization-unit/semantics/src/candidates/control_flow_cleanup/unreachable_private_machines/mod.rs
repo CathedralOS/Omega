@@ -11,7 +11,7 @@ pub(crate) fn validate_unreachable_private_machines_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::contract::validate(
+    super::super::contract::validate(
         input,
         candidate,
         b"omega.psi-rule.unreachable-private-machine-pruning.v1",

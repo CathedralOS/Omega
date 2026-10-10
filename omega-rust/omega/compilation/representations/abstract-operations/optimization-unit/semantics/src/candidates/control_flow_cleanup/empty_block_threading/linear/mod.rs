@@ -11,7 +11,7 @@ pub(crate) fn validate_linear_empty_block_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    super::super::contract::validate(
+    super::super::super::contract::validate(
         input,
         candidate,
         b"omega.psi-rule.linear-empty-block-thread.v2",
