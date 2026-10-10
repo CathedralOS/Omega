@@ -1,0 +1,24 @@
+trait Equatable<T> { machine equals(left: &T, right: &T) -> bool; }
+data Command { case None; case Move(dx: i32); }
+CommandEquality satisfies Equatable<Command> { }
+data Main { cmd: Command; }
+machine Main::main(main: &mut Main) {
+    main.cmd = Command::Move { dx: 7 };
+    let mut hit: bool = main.cmd == Command::None;
+    transition (main.cmd != Command::None) {
+        (true) -> held(main, hit)
+        _ -> swapped(main)
+    }
+    state held(main: &mut Main, was_none: bool) -> i32 {
+        main.cmd = Command::None;
+        let now_none: bool = main.cmd == Command::None;
+        match now_none {
+            (true) -> 10
+            _ -> 20
+        } + match was_none {
+            (true) -> 3
+            _ -> 4
+        }
+    }
+    state swapped(main: &mut Main) -> i32 { 0 }
+}

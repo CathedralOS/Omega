@@ -1,0 +1,20 @@
+data Command { case None; case Quit; case Move(dx: i32); case Say(volume: i32); }
+domain Command::Interactive(command)
+requires
+    command in Command::Move | Command::Say;
+data Main { cmd: Command; }
+machine Main::main(main: &mut Main) {
+    main.cmd = Command::Say { volume: 9 };
+    transition {
+        _ -> route(main)
+    }
+    state route(main: &mut Main) {
+        transition main.cmd {
+            Command::None -> missed(main)
+            Command::Quit -> missed(main)
+            Command::Interactive -> matched(main)
+        }
+    }
+    state matched(main: &mut Main) -> i32 { 40 }
+    state missed(main: &mut Main) -> i32 { 0 }
+}

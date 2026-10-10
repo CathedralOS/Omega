@@ -1,0 +1,18 @@
+data Command { case None; case Quit; case Move(dx: i32); case Say(volume: i32); }
+data Main { cmd: Command; hits: i32 in Wrapping; }
+machine Main::main(main: &mut Main) {
+    main.cmd = Command::Move { dx: 2 };
+    transition (main.cmd in Command::Quit | Command::Move) {
+        (true) -> moving(main)
+        _ -> silent(main)
+    }
+    state moving(main: &mut Main) -> i32 {
+        main.hits = main.hits + 1;
+        transition (main.cmd in Command::None | Command::Say) {
+            (true) -> silent(main)
+            _ -> checked(main)
+        }
+    }
+    state checked(main: &mut Main) -> i32 { (main.hits + 11) as i32 }
+    state silent(main: &mut Main) -> i32 { 0 }
+}
