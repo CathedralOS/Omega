@@ -1,0 +1,19 @@
+// A proof-only data family indexed by a compile-time machine symbol.
+pub data Index {
+    case Zero;
+    case Next(previous: Index);
+}
+data Stream<machine S>
+where machine S(index: Index) -> Index;
+{
+    case Empty;
+    case More(sample: Index, tail: Stream<S>);
+}
+boundary machine sample(index: Index) -> Index;
+boundary machine alternate(index: Index) -> Index;
+machine accepts_concrete_stream(value: Stream<sample>) { }
+machine accepts_other_stream(value: Stream<alternate>) { }
+data Main { hits: i32 in Wrapping; }
+machine Main::main(main: &mut Main) {
+    main.hits = main.hits + 1;
+}
