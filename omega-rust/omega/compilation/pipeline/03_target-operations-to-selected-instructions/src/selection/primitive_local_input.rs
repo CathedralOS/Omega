@@ -1,4 +1,10 @@
 //! Primitive referent geometry and original local producer identity.
+//!
+//! Observation copies the selected primitive leaf, not its containing owner.
+//! The original place declaration and complete projection determine access and
+//! layout. An owner's claims, linearity or domains do not turn an admitted
+//! scalar read into a whole-owner copy. Keep those records on the owner; do not
+//! impose the retired claim-free carrier restriction during physical selection.
 use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind as Instruction,
@@ -51,55 +57,6 @@ pub(crate) fn local(
     }
     Some((row.operation, result, value.scalar_type, *shape))
 }
-pub(super) fn readable(
-    source: &LegalizedScalarFunction,
-    place: PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-    scalar: ScalarType,
-) -> bool {
-    if super::scalar_call_abi::scalar_shape(scalar).is_none() {
-        return false;
-    }
-    if let Some((_, _, actual, _)) = local(source, place) {
-        return path.is_empty() && actual == scalar;
-    }
-    if let Some((_, result)) = super::aggregate_result_input::home(source, place) {
-        return !path.is_empty()
-            && matches!(
-                result.multiplicity,
-                terminal_psi::nonlinear_multiplicity_pair_pattern!()
-            )
-            && source.structural.as_ref().is_some_and(|signature| {
-                crate::structural_inputs::structural_reference_input::primitive_read_geometry(
-                    result.structural_type,
-                    path,
-                    scalar,
-                    &signature.structural_types,
-                )
-                .is_some()
-            });
-    }
-    source.structural.as_ref().is_some_and(|signature| {
-        signature.entry_claims.is_empty()
-            && read_parameter(source, place).is_some_and(|parameter| {
-                (matches!(
-                    parameter.access,terminal_psi::reading_borrow_pair_pattern!()) || (parameter.access == StructuralAccess::Owned && !path.is_empty()))
-                    && parameter.multiplicity != StructuralMultiplicity::Linear
-                    && (!path.is_empty()
-                        || parameter.multiplicity == StructuralMultiplicity::Unrestricted)
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
-                    && crate::structural_inputs::structural_reference_input::primitive_read_geometry(
-                        parameter.structural_type,
-                        path,
-                        scalar,
-                        &signature.structural_types,
-                    )
-                    .is_some()
-            })
-    })
-}
-
 /// Entry and state parameters retain their declared referent type regardless
 /// of native carrier. The state lookup rejoins the exact block/place identity;
 /// callers independently check access, multiplicity and projection geometry.
@@ -365,18 +322,32 @@ pub(super) fn read_geometry(
             path,
             indices,
         } => {
-            if !readable(source, *place, path, scalar) {
-                return None;
-            }
-            if local(source, *place).is_some() {
-                return indices.is_empty().then_some((*place, 0, Vec::new()));
+            super::scalar_call_abi::scalar_shape(scalar)?;
+            if let Some((_, _, actual, _)) = local(source, *place) {
+                return (path.is_empty() && indices.is_empty() && actual == scalar).then_some((
+                    *place,
+                    0,
+                    Vec::new(),
+                ));
             }
             let signature = source.structural.as_ref()?;
-            let structural_type = super::aggregate_result_input::home(source, *place)
-                .map(|(_, result)| result.structural_type)
-                .or_else(|| {
-                    read_parameter(source, *place).map(|parameter| parameter.structural_type)
-                })?;
+            let structural_type =
+                if let Some((_, result)) = super::aggregate_result_input::home(source, *place) {
+                    if path.is_empty() {
+                        return None;
+                    }
+                    result.structural_type
+                } else {
+                    let parameter = read_parameter(source, *place)?;
+                    if !(matches!(
+                        parameter.access,
+                        terminal_psi::reading_borrow_pair_pattern!()
+                    ) || parameter.access == StructuralAccess::Owned)
+                    {
+                        return None;
+                    }
+                    parameter.structural_type
+                };
             let geometry =
                 crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                     structural_type,

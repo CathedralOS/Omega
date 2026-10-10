@@ -138,7 +138,38 @@ fn access_coordinates(
         .ok_or(SelectedInstructionError::custody())?;
     let coordinates = match &row.kind {
         I::ByteSequenceRead { source, .. } => vec![whole(*source)],
-        I::ElementViewRead { source, path, .. } | I::PrimitiveScalarRead { source, path, .. } => {
+        I::PrimitiveScalarRead { source, path, .. } => {
+            let signature = function
+                .structural
+                .as_ref()
+                .ok_or(SelectedInstructionError::custody())?;
+            let root = super::reference_input::root_type(function, *source)
+                .ok_or(SelectedInstructionError::custody())?;
+            let geometry =
+                crate::structural_inputs::structural_reference_input::primitive_read_geometry(
+                    root,
+                    path,
+                    row.result
+                        .ok_or(SelectedInstructionError::custody())?
+                        .scalar_type,
+                    &signature.structural_types,
+                )
+                .ok_or(SelectedInstructionError::custody())?;
+            // A scalar path staying in the original home reads owned bytes,
+            // even if another field carries a returned loan. Only pointer
+            // crossings or indexed byte descriptors need backing-origin reach;
+            // the read's original footprint still bounds the inline access.
+            if !geometry.uses_borrowed_backing {
+                Vec::new()
+            } else {
+                vec![StructuralArgument {
+                    place: *source,
+                    path: path.clone(),
+                    access: StructuralAccess::SharedBorrow,
+                }]
+            }
+        }
+        I::ElementViewRead { source, path, .. } => {
             vec![StructuralArgument {
                 place: *source,
                 path: path.clone(),

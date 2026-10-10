@@ -245,6 +245,7 @@ struct StorageProjectionRegions {
     elements: Vec<RuntimeElement>,
     pointer_slots: Vec<PointerSlot>,
     readable: bool,
+    uses_borrowed_backing: bool,
 }
 
 /// A stored reference and an indexed view both cross a pointer word. Keep
@@ -259,6 +260,9 @@ fn storage_projection_regions(
     let mut elements = Vec::new();
     let mut pointer_slots = Vec::new();
     let mut readable = true;
+    let mut uses_borrowed_backing = find_structural_type(declarations, root)?
+        .shape
+        .is_borrowed_byte_carrier();
     for (position, segment) in path.iter().enumerate() {
         if !matches!(
             segment,
@@ -280,8 +284,14 @@ fn storage_projection_regions(
             }
             continue;
         };
+        let carrier_shape = &find_structural_type(declarations, carrier)?.shape;
+        // Byte-view indexing uses the descriptor's backing even when native
+        // address formation does not split it into another pointer region.
+        // Preserve this distinction for origin inventory, including a byte
+        // view selected below an otherwise inline record or array.
+        uses_borrowed_backing |= carrier_shape.is_borrowed_byte_carrier();
         let (next_root, next_start, scalar_descriptor, descriptor_size) =
-            match (segment, &find_structural_type(declarations, carrier)?.shape) {
+            match (segment, carrier_shape) {
                 (
                     StructuralPathSegment::Referent,
                     StructuralTypeShape::Reference { referent, access },
@@ -332,6 +342,7 @@ fn storage_projection_regions(
         root,
         segment_start,
         elements,
+        uses_borrowed_backing: uses_borrowed_backing || !pointer_slots.is_empty(),
         pointer_slots,
         readable,
     })
@@ -345,6 +356,9 @@ pub(crate) struct PrimitiveAccessGeometry {
     pub(crate) byte_size: u32,
     pub(crate) elements: Vec<RuntimeElement>,
     pub(crate) pointer_slots: Vec<PointerSlot>,
+    /// The selected path crosses a descriptor, not merely an owner containing
+    /// an unrelated borrowed field. This is geometry, never loan authority.
+    pub(crate) uses_borrowed_backing: bool,
 }
 
 /// Reconstruct a primitive write without inventing a carrier record or field.
@@ -432,6 +446,7 @@ fn primitive_access_geometry(
         byte_size,
         elements,
         pointer_slots: regions.pointer_slots,
+        uses_borrowed_backing: regions.uses_borrowed_backing,
     })
 }
 
