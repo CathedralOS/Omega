@@ -1,6 +1,7 @@
 use psi::checking::checker;
 use psi::checking::contracts;
 use psi::checking::evaluation;
+use psi::checking::flow;
 use psi::checking::obligations;
 use psi::checking::places;
 use psi::checks::checks;
@@ -80,13 +81,93 @@ crashes Trap
         let previous: Value = checker.subject;
         checker.subjecting = true;
         checker.subject = subject;
-        let held: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Requires, proving);
+        let held: bool = Checker::decide_predicates(checker, syntax, resolution, typing, item.first_clause, item.clause_count, proving);
         checker.subjecting = subjecting;
         checker.subject = previous;
         held
     }
 
     state routed() -> bool {
+        false
+    }
+}
+
+// A whole fact `value in Domain` (wiki/spec/language/domains.md#refinement-and-tests)
+// is the domain's predicates with its subject binder standing for the
+// value: assumed as they are, or proved, unless the value already carries
+// the qualification (an unadapted value of a type it qualifies); a routed
+// domain is proved only by carrying it. A case membership
+// `value in Type::Case` establishes nothing assumed and, needing case
+// knowledge checking does not keep, rejects as unsupported where it must
+// hold.
+pub machine Checker::decide_membership(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    root: u64 in Trapping,
+    proving: bool
+) -> bool
+crashes Trap
+{
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    let path: PathBinding = NameResolution::path_binding_at(resolution, tree.first);
+    transition path {
+        PathBinding::Domain { item } -> declared(checker, syntax, resolution, typing, root, tree, item, proving)
+        _ -> undecided(checker, tree, proving)
+    }
+
+    state declared(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        root: u64 in Trapping,
+        tree: Expression,
+        item: u64 in Trapping,
+        proving: bool
+    ) -> bool {
+        let value_type: u64 in Trapping = Typing::expression_type(typing, tree.left);
+        let carried: u64 in Trapping = Checker::qualifying_domain(typing, value_type);
+        let adaptation: Adaptation = Typing::adaptation(typing, tree.left);
+        transition carried == item + 1 && adaptation == Adaptation::None {
+            true -> held()
+            _ -> valued(checker, syntax, resolution, typing, root, tree, item, proving)
+        }
+    }
+
+    state valued(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        root: u64 in Trapping,
+        tree: Expression,
+        item: u64 in Trapping,
+        proving: bool
+    ) -> bool {
+        let value: Value = Checker::fact_operand(checker, syntax, resolution, typing, root, tree.left);
+        let decided: bool = Checker::decide_domain(checker, syntax, resolution, typing, item, value, proving);
+        decided
+    }
+
+    state undecided(checker: &mut Checker, tree: Expression, proving: bool) -> bool {
+        transition proving {
+            true -> unsupported(checker, tree)
+            _ -> held()
+        }
+    }
+
+    state unsupported(checker: &mut Checker, tree: Expression) -> bool {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedFact, tree.source_span);
+        transition { _ -> refused() }
+    }
+
+    state held() -> bool {
+        true
+    }
+
+    state refused() -> bool {
         false
     }
 }

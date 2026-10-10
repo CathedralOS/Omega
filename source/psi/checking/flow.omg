@@ -75,14 +75,44 @@ crashes Trap
     }
 }
 
+// Decide a whole fact: a membership through its domain
+// (`Checker::decide_membership`), any other fact as a tree.
+pub machine Checker::decide_fact(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    root: u64 in Trapping,
+    proving: bool
+) -> bool
+crashes Trap
+{
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    transition tree.kind == ExpressionKind::Membership {
+        true -> membership(checker, syntax, resolution, typing, root, proving)
+        _ -> tree_fact(checker, syntax, resolution, typing, root, proving)
+    }
+
+    state membership(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, proving: bool) -> bool {
+        let decided: bool = Checker::decide_membership(checker, syntax, resolution, typing, root, proving);
+        decided
+    }
+
+    state tree_fact(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping, proving: bool) -> bool {
+        let decided: bool = Checker::decide_tree(checker, syntax, resolution, typing, root, proving);
+        decided
+    }
+}
+
 // Evaluate a fact tree while another may be open, then assume it or, when
 // `proving`, report whether the facts prove it. Its values sit above the
 // open tree's and are gone when it returns. A fact is a proof expression:
 // evaluating it executes nothing, so it adds no crash route and its calls
 // have no effects (fact_values.omg). A proposition application states
 // what no zone fact expresses: assuming it establishes nothing, and where
-// it must hold, checking cannot decide it and rejects it as unsupported.
-pub machine Checker::decide_fact(
+// it must hold, checking cannot decide it and rejects it as unsupported. A
+// membership inside a larger fact is an unknown Boolean.
+pub machine Checker::decide_tree(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -166,6 +196,59 @@ crashes Trap
     // Too deep to evaluate: nothing is assumed and nothing is proved.
     state undecided(proving: bool) -> bool {
         !proving
+    }
+}
+
+// The value of `operand` in the fact tree rooted at `root`, evaluated like
+// any fact tree above the open one; unknown when too deep to evaluate.
+pub machine Checker::fact_operand(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    root: u64 in Trapping,
+    operand: u64 in Trapping
+) -> Value
+crashes Trap
+{
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    let low: u64 in Trapping = tree.first_row;
+    let size: u64 in Trapping = root - low + 1;
+    let base: u64 in Trapping = Checker::next_base(checker);
+    transition base + size <= 4096 && checker.frame_count < 8 {
+        true -> framed(checker, syntax, resolution, typing, root, operand, low, size, base)
+        _ -> unknown()
+    }
+
+    state framed(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        root: u64 in Trapping,
+        operand: u64 in Trapping,
+        low: u64 in Trapping,
+        size: u64 in Trapping,
+        base: u64 in Trapping
+    ) -> Value {
+        let trap_route: bool = checker.trap_route;
+        let abort_route: bool = checker.abort_route;
+        Checker::push_frame(checker);
+        checker.tree_base = base;
+        checker.tree_low = low;
+        checker.tree_size = size;
+        checker.context_first = checker.context_count;
+        Checker::evaluate_fact_run(checker, syntax, resolution, typing, root, low);
+        let value: Value = Checker::value_at(checker, operand);
+        checker.trap_route = trap_route;
+        checker.abort_route = abort_route;
+        Checker::pop_frame(checker);
+        value
+    }
+
+    state unknown() -> Value {
+        let value: Value = Value::unknown();
+        value
     }
 }
 

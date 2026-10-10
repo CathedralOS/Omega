@@ -9,6 +9,7 @@ use psi::typing::calls;
 use psi::typing::generics;
 use psi::typing::literals;
 use psi::typing::matches;
+use psi::typing::memberships;
 use psi::typing::operators;
 use psi::typing::references;
 use psi::typing::typer;
@@ -81,11 +82,15 @@ crashes Trap
         ExpressionKind::Call -> call(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Construct -> construct(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Apply -> application()
-        ExpressionKind::Membership -> unsupported(typer, expression)
+        ExpressionKind::Membership -> membership(typer, syntax, resolution, index, expression)
         ExpressionKind::Match -> matched(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Float -> float_literal(typer, index)
         ExpressionKind::Range -> range(typer, syntax, index, expression)
         ExpressionKind::Array -> array(typer, syntax, index, expression)
+    }
+
+    state membership(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+        Typer::type_membership(typer, syntax, resolution, index, expression);
     }
 
     state array(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {

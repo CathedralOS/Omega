@@ -6101,8 +6101,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   assignment to a name holding an exclusive loan writes its referent. Anonymous floats land once at `f32` or `f64` and formats never
   mix; a generic machine call binds its parameters from explicit static
   arguments and by unifying parameter and argument types, and a generic
-  construction infers its data's arguments from its fields; memberships,
-  trait requirement calls, generic conformance members,
+  construction infers its data's arguments from its fields; trait
+  requirement calls, generic conformance members,
   target-scoped family calls, case domain qualifiers and equality
   needing a declared conformance reject as unsupported (core's theorems over
   `Nat`, `Seq` and record values wait on owner decision
@@ -6131,7 +6131,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   at a destination of the literal's shape. An assignment writes a `let mut`
   local, a `mut` parameter or a place behind an exclusive reference, and
   checking walks every state, an unreached one from its own `requires`
-  facts. A machine binder's
+  facts. A membership is a Boolean, and a whole membership fact decides as
+  its domain's predicates of the value; a case membership that must hold
+  rejects as unsupported. A machine binder's
   call is typed through its contract, and a generic call's static machine
   arguments bind its machine binders, each argument's signature refining its
   contract under the call's bindings and binding the callee's other generic
@@ -6222,9 +6224,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   the resolver gate's source sets.
   Next: the proof-only `embed`
   ([contracts](wiki/spec/proofs/contracts.md)), which the library's device
-  files stop at; memberships (`x in D`), whose checking needs fact
-  decisions over a worklist, since deciding a domain's predicates from a
-  fact would close a call cycle; `clamp` waits on
+  files stop at; `clamp` waits on
   **Q4: executable-numeric-builtins** in `OWNER_QUESTIONS.md`; typing's declared
   equality, which needs
   `Equatable` named conformances

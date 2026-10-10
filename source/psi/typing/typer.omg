@@ -15,6 +15,7 @@ use psi::typing::joins;
 use psi::typing::landing;
 use psi::typing::literals;
 use psi::typing::matches;
+use psi::typing::memberships;
 use psi::typing::references;
 use psi::typing::statements;
 

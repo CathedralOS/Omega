@@ -331,9 +331,10 @@ joins its arm values ([`typing/joins.omg`](typing/joins.omg)), its extent
 its element count; unlanded elements make an anonymous array, and any
 unlanded match or array lands at a destination of its shape, every
 anonymous number at the innermost element type
-([`typing/landing.omg`](typing/landing.omg)). Memberships and equality
-needing a declared conformance reject as unsupported rather than typing
-partially. Carrier facts beyond the qualifier
+([`typing/landing.omg`](typing/landing.omg)). A membership is a Boolean:
+a case of the value's data or a declared domain of its carrier
+([`typing/memberships.omg`](typing/memberships.omg)). Equality needing a
+declared conformance rejects as unsupported rather than typing partially. Carrier facts beyond the qualifier
 (unbounded `UInt`/`Int` storage, ranges) belong to checking. A constant is a
 value of its declared type, and each constant's value types against that type
 like a `let` initializer. A trait application's row takes no type. A call
@@ -464,7 +465,12 @@ least fixed point (a bodyless machine as it promises, a body once acyclic
 or ranked, calling no machine binder and only terminating machines besides
 itself), so a promising body reaching a non-terminating callee or a call
 cycle rejects; a witness on a bodyless declaration ranks nothing and
-rejects. Declared domains ([`checking/qualification.omg`](checking/qualification.omg)):
+rejects. A whole membership fact `value in Domain` decides as the domain's
+predicates of the value, proved unless the value carries the
+qualification; a case membership that must hold rejects as unsupported,
+and a membership inside a larger fact is an unknown Boolean. A domain's
+predicates decide as trees, so deciding a membership never recurs.
+Declared domains ([`checking/qualification.omg`](checking/qualification.omg)):
 a parameter's qualification holds from its body's entry, decided as the
 domain's predicates with its subject binder standing for the value; a
 call or jump argument, a returned value, a qualified local's initializer, a

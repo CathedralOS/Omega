@@ -1248,6 +1248,33 @@ def main() -> None:
     )
     # Every state is checked: one no walk reaches from its parameters' carrier
     # ranges and its own `requires` facts.
+    # A whole membership fact is its domain's predicates of the value; a
+    # case membership must hold only where checking keeps case knowledge.
+    member = b"domain u64::Small(value)\nrequires value < 4;\n"
+    accepted(
+        program,
+        "membership-requires-assumes-its-domain",
+        member + b"machine at(a: &[u8; 4], i: u64) -> u8\nrequires i in Small\n{ a[i] }",
+    )
+    rejected(
+        program,
+        "membership-requires-is-proved-at-calls",
+        member + b"machine take(i: u64) -> u64\nrequires i in Small\n{ i }\nmachine caller(c: u64) -> u64 { take(c) }",
+        "RequirementUnproven",
+        b"take(c)",
+    )
+    accepted(
+        program,
+        "membership-carried-by-the-argument",
+        member + b"machine take(i: u64) -> u64\nrequires i in Small\n{ i }\nmachine caller(c: u64 in Small) -> u64 { take(c) }",
+    )
+    rejected(
+        program,
+        "case-membership-must-hold-unsupported",
+        b"data K { case A; case B; }\nmachine f(k: K) -> u8\nrequires k in K::A\n{ 0 }\nmachine g(k: K) -> u8 { f(k) }",
+        "UnsupportedFact",
+        b"k in K::A",
+    )
     rejected(
         program,
         "unreached-state-is-checked",

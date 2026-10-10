@@ -1124,15 +1124,33 @@ def main() -> None:
         f"transition-equalities-of-other-sides-do-not-cover: {status} {observation.diagnostic} at {observation.diagnostic_span}"
     )
 
-    # Expression forms typing does not judge yet reject at the expression
-    # rather than leaving it untyped: a case membership resolves. A renamed
-    # pattern field types as its field.
+    # A membership is a Boolean: a case of the value's data, or a declared
+    # domain of its carrier. A renamed pattern field types as its field.
+    accepted(
+        program,
+        "case-membership",
+        b"data O { case None; case Some(value: u8); }\nmachine f(o: &O) -> bool { o in O::None }",
+        ((b"o in O::None", "bool"),),
+    )
+    accepted(
+        program,
+        "domain-membership-fact",
+        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(x: u64) -> u64\nrequires x in Small\n{ x }",
+        ((b"x in Small", "bool"),),
+    )
     rejected(
         program,
-        "membership-is-unsupported",
-        b"data O { case None; case Some(value: u8); }\nmachine f(o: O) -> bool { o in O::None }",
-        "UnsupportedExpression",
-        b"o in O::None",
+        "membership-of-another-carrier",
+        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(x: u8) -> bool\nrequires x in Small\n{ true }",
+        "MismatchedTypes",
+        b"x!2",
+    )
+    rejected(
+        program,
+        "case-membership-of-other-data",
+        b"data K { case A; }\ndata L { case B; }\nmachine f(k: K) -> bool { k in L::B }",
+        "CaseOfOtherData",
+        b"k!2",
     )
     accepted(
         program,

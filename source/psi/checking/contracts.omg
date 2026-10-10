@@ -310,6 +310,40 @@ crashes Trap
     }
 }
 
+// The next fact clause of `kind` at or after `index` in a clause run ending
+// at `end` (`index` is `end` when none is left), and whether it typed.
+pub data FactClause [copy] {
+    index: u64 in Trapping;
+    fact: u64 in Trapping;
+    typed: bool;
+}
+
+machine Checker::fact_clause(syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) -> FactClause
+crashes Trap
+{
+    transition { _ -> next(syntax, typing, index, end, kind) }
+
+    state next(syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) -> FactClause {
+        transition index < end {
+            true -> clause(syntax, typing, index, end, kind)
+            _ -> found(end, 0, false)
+        }
+    }
+
+    state clause(syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) -> FactClause {
+        let clause: Clause = SyntaxTrees::clause(syntax, index);
+        let typed: bool = Checker::typed_fact(typing, clause);
+        transition clause.kind == kind && clause.has_expression {
+            true -> found(index, clause.expression, typed)
+            _ -> next(syntax, typing, index + 1, end, kind)
+        }
+    }
+
+    state found(index: u64 in Trapping, fact: u64 in Trapping, typed: bool) -> FactClause {
+        FactClause { index: index, fact: fact, typed: typed }
+    }
+}
+
 // Decide each fact of `kind` in a clause run: assume it, or, when
 // `proving`, report whether every one is proved. An untyped fact is not
 // assumed and is never proved.
@@ -337,27 +371,10 @@ crashes Trap
         kind: ClauseKind,
         proving: bool
     ) -> bool {
-        transition index < end {
-            true -> clause(checker, syntax, resolution, typing, index, end, kind, proving)
-            _ -> held()
-        }
-    }
-
-    state clause(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
-        index: u64 in Trapping,
-        end: u64 in Trapping,
-        kind: ClauseKind,
-        proving: bool
-    ) -> bool {
-        let clause: Clause = SyntaxTrees::clause(syntax, index);
-        let typed: bool = Checker::typed_fact(typing, clause);
-        transition clause.kind == kind && clause.has_expression {
-            true -> fact(checker, syntax, resolution, typing, index, end, kind, proving, clause.expression, typed)
-            _ -> next(checker, syntax, resolution, typing, index + 1, end, kind, proving)
+        let clause: FactClause = Checker::fact_clause(syntax, typing, index, end, kind);
+        transition clause.index < end {
+            true -> fact(checker, syntax, resolution, typing, clause, end, kind, proving)
+            _ -> answer(true)
         }
     }
 
@@ -366,59 +383,73 @@ crashes Trap
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
-        index: u64 in Trapping,
-        end: u64 in Trapping,
-        kind: ClauseKind,
-        proving: bool,
-        fact: u64 in Trapping,
-        typed: bool
-    ) -> bool {
-        transition typed {
-            true -> decided(checker, syntax, resolution, typing, index, end, kind, proving, fact)
-            _ -> untyped(checker, syntax, resolution, typing, index, end, kind, proving)
-        }
-    }
-
-    state untyped(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
-        index: u64 in Trapping,
+        clause: FactClause,
         end: u64 in Trapping,
         kind: ClauseKind,
         proving: bool
     ) -> bool {
-        transition proving {
-            true -> failed()
-            _ -> next(checker, syntax, resolution, typing, index + 1, end, kind, proving)
+        let holds: bool = clause.typed && Checker::decide_fact(checker, syntax, resolution, typing, clause.fact, proving);
+        transition holds || !proving {
+            true -> next(checker, syntax, resolution, typing, clause.index + 1, end, kind, proving)
+            _ -> answer(false)
         }
     }
 
-    state decided(
+    state answer(held: bool) -> bool {
+        held
+    }
+}
+
+// Decide a declared domain's predicates, its `requires` facts, as trees: a
+// membership inside them is an unknown Boolean, so deciding a membership
+// through its domain never recurs.
+pub machine Checker::decide_predicates(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    first_clause: u64 in Trapping,
+    clause_count: u64 in Trapping,
+    proving: bool
+) -> bool
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, resolution, typing, first_clause, first_clause + clause_count, proving) }
+
+    state next(
         checker: &mut Checker,
         syntax: &SyntaxTrees,
         resolution: &NameResolution,
         typing: &Typing,
         index: u64 in Trapping,
         end: u64 in Trapping,
-        kind: ClauseKind,
-        proving: bool,
-        fact: u64 in Trapping
+        proving: bool
     ) -> bool {
-        let holds: bool = Checker::decide_fact(checker, syntax, resolution, typing, fact, proving);
-        transition holds || !proving {
-            true -> next(checker, syntax, resolution, typing, index + 1, end, kind, proving)
-            _ -> failed()
+        let clause: FactClause = Checker::fact_clause(syntax, typing, index, end, ClauseKind::Requires);
+        transition clause.index < end {
+            true -> fact(checker, syntax, resolution, typing, clause, end, proving)
+            _ -> answer(true)
         }
     }
 
-    state held() -> bool {
-        true
+    state fact(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        clause: FactClause,
+        end: u64 in Trapping,
+        proving: bool
+    ) -> bool {
+        let holds: bool = clause.typed && Checker::decide_tree(checker, syntax, resolution, typing, clause.fact, proving);
+        transition holds || !proving {
+            true -> next(checker, syntax, resolution, typing, clause.index + 1, end, proving)
+            _ -> answer(false)
+        }
     }
 
-    state failed() -> bool {
-        false
+    state answer(held: bool) -> bool {
+        held
     }
 }
 
