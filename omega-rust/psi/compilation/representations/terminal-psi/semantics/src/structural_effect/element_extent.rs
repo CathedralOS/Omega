@@ -85,10 +85,10 @@ pub fn element_establishment_length_equation(
 /// structural child or array element whose declaration is a primitive scalar.
 /// Runtime selectors carry separate operation obligations. Referents and byte
 /// windows require their own storage/custody operations, not an inline leaf.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ElementViewLeaf {
     pub scalar_type: ScalarType,
-    pub bounds: Option<semantic_vocabulary::BoundedIntegerType>,
+    pub restriction: Option<terminal_psi::StructuralFieldType>,
 }
 pub fn element_view_leaf(
     types: &[StructuralTypeDeclaration],
@@ -107,7 +107,7 @@ pub fn element_view_leaf(
     }
     let plain = |scalar_type| ElementViewLeaf {
         scalar_type,
-        bounds: None,
+        restriction: None,
     };
     let primitive = |identity: StructuralTypeId| {
         types
@@ -119,11 +119,19 @@ pub fn element_view_leaf(
                     Some(terminal_psi::StructuralFieldType::BoundedInteger(bounds)) => {
                         Some(ElementViewLeaf {
                             scalar_type: scalar,
-                            bounds: Some(*bounds),
+                            restriction: Some(terminal_psi::StructuralFieldType::BoundedInteger(
+                                *bounds,
+                            )),
                         })
                     }
-                    // Arbitrary scalar predicates need the full leaf proposition,
-                    // never a carrier-only element read or write goal.
+                    Some(restriction @ terminal_psi::StructuralFieldType::RefinedScalar(_))
+                        if restriction.scalar_type() == Some(scalar) =>
+                    {
+                        Some(ElementViewLeaf {
+                            scalar_type: scalar,
+                            restriction: Some(restriction.clone()),
+                        })
+                    }
                     _ => None,
                 },
                 _ => None,
@@ -141,7 +149,17 @@ pub fn element_view_leaf(
                 terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
                     Some(ElementViewLeaf {
                         scalar_type: ScalarType::Integer(bounds.integer_type()),
-                        bounds: Some(bounds),
+                        restriction: Some(terminal_psi::StructuralFieldType::BoundedInteger(
+                            bounds,
+                        )),
+                    })
+                }
+                terminal_psi::StructuralFieldType::RefinedScalar(ref restriction) => {
+                    Some(ElementViewLeaf {
+                        scalar_type: restriction.carrier(),
+                        restriction: Some(terminal_psi::StructuralFieldType::RefinedScalar(
+                            restriction.clone(),
+                        )),
                     })
                 }
                 terminal_psi::StructuralFieldType::Scalar(scalar) => Some(plain(scalar)),
@@ -190,19 +208,11 @@ pub fn element_view_write_goal(
         ScalarTerm::value(index, count),
         ScalarTerm::value(length, count),
     );
-    let Some(bounds) = leaf.bounds else {
-        return Some(index);
-    };
-    let stored = ScalarTerm::value(value, leaf.scalar_type);
-    Some(Proposition::Conjunction(vec![
-        index,
-        Proposition::LessOrEqual(
-            ScalarTerm::integer(bounds.integer_type(), bounds.minimum()).ok()?,
-            stored.clone(),
-        ),
-        Proposition::LessOrEqual(
-            stored,
-            ScalarTerm::integer(bounds.integer_type(), bounds.maximum()).ok()?,
-        ),
-    ]))
+    match leaf.restriction {
+        None => Some(index),
+        Some(restriction) => Some(Proposition::Conjunction(vec![
+            index,
+            crate::scalar_field_requirement(&restriction, value)?,
+        ])),
+    }
 }

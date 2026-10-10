@@ -105,7 +105,12 @@ fn scalar_type_refinements(
                         ) {
                             bounds
                         } else if domain.predicate_body.is_present() {
-                            return None;
+                            predicates.push(crate::scalar_domain_predicate(
+                                program,
+                                domain,
+                                subject.clone(),
+                            )?);
+                            continue;
                         } else {
                             semantic_atoms.push((domain.symbol, domain.semantic_id));
                             continue;

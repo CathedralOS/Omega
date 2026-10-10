@@ -4340,9 +4340,13 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   - nonempty restricted scalar array and primitive-local construction still
     lack an initializer-obligation roster when zero does not satisfy the
     declared predicate. Terminal refuses these constructors; empty arrays
-    instantiate no element. Arbitrary refined scalar element views also need
-    their predicate read requirement consumed beyond bounded intervals.
-    Preserve the bounded copy and replacement controls with
+    instantiate no element. Refined scalar parameter/state-arrival contracts
+    still decline non-interval memberships in
+    `checking/src/machine_calls/structural_call_custody.rs`; source checking of
+    record-element slice arguments still lacks their default-domain window
+    restoration. Preserve the complete predicate copy/replacement control
+    `slices/runtime_predicate_qualified_scalar_copy_exit` and the bounded
+    copy and replacement controls with
     `omega run --both tests/omega/pass/slices/runtime_range_qualified_scalar_copy_exit/main.omg`,
     its local and fixed-array snapshot variants, and
     `slices/runtime_range_qualified_scalar_dynamic_store_exit` (Linux x86-64,

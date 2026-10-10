@@ -4799,3 +4799,8 @@ fail/contracts/replacement_call_child_false_snapshot rejected 479ms expected @3c
 	cannot prove ensures contract for exit from overwrite at statement 2: pair.first.value == 9
 	cannot prove ensures contract for exit from install_interval at statement 1: pair.first.value == 9
 pass/ownership/runtime_replacement_call_child_snapshot_exit checked 3501ms check-target:macos_arm64 @3c27bc9c6110+wt
+fail/slices/predicate_scalar_result_invalid_membership rejected 21182ms expected @846ed632561f+wt
+	cannot prove scalar result domain for return from bad at statement 0: i32::Selected
+fail/slices/predicate_scalar_store_invalid_membership rejected 21611ms expected @846ed632561f+wt
+	cannot prove the value assigned to `items[1]` in main is in domain `i32::Selected`; a place declared `in i32::Selected` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+pass/slices/runtime_predicate_qualified_scalar_copy_exit checked 45756ms check-target:macos_arm64 @846ed632561f+wt

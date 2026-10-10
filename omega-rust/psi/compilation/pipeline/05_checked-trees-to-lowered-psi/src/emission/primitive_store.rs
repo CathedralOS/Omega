@@ -96,23 +96,34 @@ pub(crate) fn emit_assignment(
         calls,
     )?;
     let range_obligation = if let Some(restriction) = &destination.scalar_restriction {
-        let StructuralFieldType::BoundedInteger(integer) = restriction else {
-            return unsupported("primitive store has no retained predicate judgment");
+        let decided = match restriction {
+            StructuralFieldType::BoundedInteger(integer) => {
+                let Some(range) = receiving_range else {
+                    return unsupported("primitive store lost its receiving-range judgment");
+                };
+                if !super::structural_scalar_store::source_range_decided(
+                    checked,
+                    range.primitive,
+                    range.decision,
+                    Some(*integer),
+                )? {
+                    return unsupported(
+                        "primitive store receiving range differs from its declaration",
+                    );
+                }
+                true
+            }
+            StructuralFieldType::RefinedScalar(_) if receiving_range.is_none() => false,
+            _ => return unsupported("primitive store has an incompatible receiving judgment"),
         };
-        let Some(range) = receiving_range else {
-            return unsupported("primitive store lost its receiving-range judgment");
-        };
-        if !super::structural_scalar_store::source_range_decided(
-            checked,
-            range.primitive,
-            range.decision,
-            Some(*integer),
-        )? {
-            return unsupported("primitive store receiving range differs from its declaration");
-        }
         let obligation =
             super::obligation_id(super::allocate_dense(&mut calls.next_obligation_identity)?);
-        operations.source_checked_obligations.push(obligation);
+        // An interval judgment retains its numeric shortcut. General predicates
+        // retain their complete receiving goal; original operations obtain source
+        // authority only at the completed immutable source-check cut.
+        if decided {
+            operations.source_checked_obligations.push(obligation);
+        }
         Some(obligation)
     } else {
         if receiving_range.is_some() {

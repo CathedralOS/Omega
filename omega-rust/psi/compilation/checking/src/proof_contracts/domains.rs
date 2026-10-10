@@ -1,7 +1,7 @@
 mod runtime_predicates;
 pub use runtime_predicates::{
-    scalar_field_domain_predicate, scalar_field_restriction, scalar_membership_carrier,
-    scalar_membership_predicates,
+    scalar_domain_predicate, scalar_field_domain_predicate, scalar_field_restriction,
+    scalar_membership_carrier, scalar_membership_predicates,
 };
 mod scalar_tags;
 pub use scalar_tags::{

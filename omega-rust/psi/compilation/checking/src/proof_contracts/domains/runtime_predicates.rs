@@ -235,10 +235,24 @@ pub fn scalar_field_domain_predicate(
     constraint: &typed_trees::types::DomainConstraint,
     primitive: PrimitiveType,
 ) -> Option<Boolean> {
-    let subject = Scalar::Parameter {
-        position: 0,
-        primitive_type: primitive,
-    };
+    scalar_domain_predicate(
+        program,
+        constraint,
+        Scalar::Parameter {
+            position: 0,
+            primitive_type: primitive,
+        },
+    )
+}
+
+/// Project the complete declaration onto the caller's exact scalar subject.
+/// Fields and value contracts share this decoder; projection grants no membership.
+pub fn scalar_domain_predicate(
+    program: &dyn crate::CheckingInput,
+    constraint: &typed_trees::types::DomainConstraint,
+    subject: Scalar,
+) -> Option<Boolean> {
+    let primitive = subject.primitive_type()?;
     if let typed_trees::types::DomainConstraintSubject::Value(domain) = constraint.subject {
         return crate::scalar_value_domain_predicate(domain, subject);
     }

@@ -1541,13 +1541,20 @@ impl TerminalExecution<'_> {
                 *stored = scalar;
             }
             PrimitiveStorageEndpoint::Scalar(storage) => {
-                let stored = self.structural_primitive_storage.get_mut(&storage).ok_or(
-                    TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
-                )?;
-                if stored.scalar_type() != scalar_type {
-                    return Err(malformed());
+                // The resolved live owner and exact leaf carrier authorize a
+                // content-independent store. A structural local establishes a
+                // home before its first stores establish payload, so this
+                // operation must not require the previous scalar to exist.
+                // Reads still require an initialized cell; this creates no
+                // owner, loan, predicate membership, or implicit zero value.
+                if let Some(stored) = self.structural_primitive_storage.get_mut(&storage) {
+                    if stored.scalar_type() != scalar_type {
+                        return Err(malformed());
+                    }
+                    *stored = scalar;
+                } else {
+                    self.structural_primitive_storage.insert(storage, scalar);
                 }
-                *stored = scalar;
             }
             PrimitiveStorageEndpoint::ScalarField(field) => {
                 let stored = self.structural_scalar_fields.get_mut(&field).ok_or(

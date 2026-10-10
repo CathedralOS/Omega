@@ -1,13 +1,12 @@
 //! Primitive leaves: whole primitive storage and primitive elements.
 //!
-//! A bounded receiving type retains the exact source assignment judgment and
-//! its declaration-selected interval on this checked store. That receipt owns
-//! source checking only: it is not a Terminal restriction or an independent
-//! certificate. Qualified array storage still declines in shape collection
-//! until its element declaration and every construction/replacement retain the
-//! corresponding Terminal obligations. Carrier normalization cannot erase them.
-//! Declared record-field restrictions remain field operations, whose Terminal
-//! declarations own independent range/predicate obligations.
+//! Restricted primitive stores retain their complete declaration and the exact
+//! source assignment judgment. Bounded declarations additionally retain the
+//! declaration-selected interval; general scalar predicates use the same
+//! completed source-check cut without manufacturing a numeric receipt.
+//! Terminal obligations keep the original restriction and assignment identity,
+//! so carrier normalization cannot erase the receiving domain. Declared record
+//! fields remain field operations with their own retained restrictions.
 //!
 //! A primitive leaf is the `Primitive` store leaf over one checked
 //! path from the shared destination resolver's borrowed or owned storage.
@@ -16,20 +15,15 @@
 //! `[cells, RuntimeIndex(AssignmentIndex { depth: 0 })]` and
 //! `self.grid[i][j] = v` the store over `[grid, RuntimeIndex(depth 1),
 //! RuntimeIndex(depth 0)]`, not a separate indexed store with a selector as
-//! an operand. The planner proves no bound for a runtime element: each
-//! selector is the statement's retained `AssignmentIndex { depth }` scalar,
-//! and Terminal re-proves `index < extent` for the segment's obligation from
-//! the facts that hold at the store (entry requires, dominating guards,
-//! stored-field snapshots), so a selector the planner cannot bound
-//! syntactically still composes and an unproven one still fails
-//! verification rather than being trusted here.
+//! an operand. Each runtime selector retains the statement's exact
+//! `AssignmentIndex { depth }` scalar and its separate bounds obligation.
+//! The planner creates no bound from the selector's syntactic shape.
 //!
-//! A closed array literal stored into a primitive-array field is the same
-//! store once per element, over the field's path plus that element's
-//! literal indices (`array_literal_stores`). An indexed row destination
-//! (`self.grid[i] = [1, 2, 3]`) is that store over the same leaf roster with
-//! the runtime element already in the path: the selector's bound is re-proven
-//! exactly as for an element store.
+//! A closed array literal stored into a primitive-array field uses the same
+//! store once per element, over the field's path plus its literal indices
+//! (`array_literal_stores`). An indexed row destination (`self.grid[i] =
+//! [1, 2, 3]`) uses the same leaf roster with the runtime element already
+//! in the path; it retains the corresponding selector obligation.
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, DataMember, Multiplicity,
@@ -109,6 +103,10 @@ pub(super) fn store_at(
                     decision,
                 })
             }
+            // The declaration retains the complete predicate. Unlike an
+            // interval it has no integer-assignment shortcut. The completed
+            // source-check cut owns the full receiving predicate for this RHS.
+            checked_trees::CheckedUnitStructuralFieldType::RefinedScalar { .. } => None,
             // Membership domains such as Finite deliberately remain plain scalar
             // fields under their invariant-window custody. That field judgment
             // cannot authorize a primitive store that discarded the membership.

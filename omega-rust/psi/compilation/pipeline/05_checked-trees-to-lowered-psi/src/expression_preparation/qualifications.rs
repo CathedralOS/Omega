@@ -439,6 +439,20 @@ pub(crate) fn type_atoms(
                             )
                             .filter(|(minimum, maximum)| minimum <= maximum)
                             .is_some() => {}
+                        // A complete declared predicate belongs to value
+                        // contracts, just like an interval. It is never a
+                        // predicate-free membership atom in this catalog.
+                        TypeConstraintNode::Domain(domain)
+                            if domain.predicate_body.is_present()
+                                && validation::scalar_domain_predicate(
+                                    &checked.typed,
+                                    domain,
+                                    checked_trees::CheckedScalarExpression::Parameter {
+                                        position: 0,
+                                        primitive_type: primitive,
+                                    },
+                                )
+                                .is_some() => {}
                         TypeConstraintNode::Domain(domain)
                             if domain.subject == DomainConstraintSubject::Declared
                                 && !domain.predicate_body.is_present() =>
@@ -452,9 +466,7 @@ pub(crate) fn type_atoms(
                                 &mut Vec::new(),
                                 &mut atoms,
                             )?;
-                            if !checked
-                                .domain_definition(domain.symbol).is_some()
-                            {
+                            if !checked.domain_definition(domain.symbol).is_some() {
                                 return unsupported("scalar qualification lost its declaration");
                             }
                         }

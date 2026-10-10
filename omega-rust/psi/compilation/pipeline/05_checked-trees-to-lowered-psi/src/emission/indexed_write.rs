@@ -382,14 +382,19 @@ impl Destination {
             (leaf.element, &self.shape)
         {
             decisions.write = decisions.index
-                && match leaf.bounds {
+                && match &leaf.restriction {
                     None => true,
-                    Some(bounds) => super::structural_scalar_store::source_range_decided(
-                        checked,
-                        element,
-                        range_decision,
-                        Some(bounds),
-                    )?,
+                    Some(terminal_psi::StructuralFieldType::BoundedInteger(bounds)) => {
+                        super::structural_scalar_store::source_range_decided(
+                            checked,
+                            element,
+                            range_decision,
+                            Some(*bounds),
+                        )?
+                    }
+                    // A numeric source receipt cannot authorize an arbitrary
+                    // predicate, even when the index leg has been decided.
+                    Some(_) => false,
                 };
         }
         Ok(decisions)
