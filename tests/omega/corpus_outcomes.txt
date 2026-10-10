@@ -5103,3 +5103,6 @@ fail/operators/declared_index_named_call_requires_explicit_borrow rejected 291ms
 fail/operators/declared_index_shared_collection_cannot_mutate rejected 290ms expected @809b88c4b692
 	mutable argument `main` for state `at` is not writable in this state; the source cannot lend the requested exclusive access
 pass/operators/runtime_declared_index_collection_loans_exit checked 3896ms check-target:macos_arm64 @809b88c4b692
+pass/operators/runtime_declared_range_guarded_collection_exit checked 3809ms check-target:macos_arm64 @65af6dcedabd
+fail/borrows/guarded_structural_producer_shared_argument_cannot_mutate rejected 276ms expected @65af6dcedabd
+	mutable argument `envelope` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
