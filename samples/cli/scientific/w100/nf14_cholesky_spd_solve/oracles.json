@@ -1,0 +1,165 @@
+{
+  "schema": "nf14-independent-oracles-v1",
+  "frozen_before_execution": true,
+  "base_revision": "26c92c17b8f4b21f39e14a5be57c85cfdec601de",
+  "layout": "rank-two column-major; index = row + column * leading_dimension",
+  "tolerances": {
+    "factor_absolute": 1e-12,
+    "factor_relative": 1e-12,
+    "solution_absolute": 1e-12,
+    "solution_relative": 1e-12,
+    "residual_infinity_absolute": 1e-12,
+    "symmetry_for_these_exact_inputs": 0.0
+  },
+  "fixtures": [
+    {
+      "name": "diagonal",
+      "rows": 3,
+      "columns": 3,
+      "leading_dimension": 3,
+      "a": [
+        4,
+        0,
+        0,
+        0,
+        9,
+        0,
+        0,
+        0,
+        16
+      ],
+      "l": [
+        2,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        4
+      ],
+      "b": [
+        4,
+        -18,
+        48
+      ],
+      "y": [
+        2,
+        -6,
+        12
+      ],
+      "x": [
+        1,
+        -2,
+        3
+      ],
+      "source_mode": "readonly; explicitly separate output"
+    },
+    {
+      "name": "correlated",
+      "rows": 3,
+      "columns": 3,
+      "leading_dimension": 3,
+      "a": [
+        4,
+        2,
+        4,
+        2,
+        10,
+        -1,
+        4,
+        -1,
+        9
+      ],
+      "l": [
+        2,
+        1,
+        2,
+        0,
+        3,
+        -1,
+        0,
+        0,
+        2
+      ],
+      "b": [
+        12,
+        -21,
+        33
+      ],
+      "y": [
+        6,
+        -9,
+        6
+      ],
+      "x": [
+        1,
+        -2,
+        3
+      ],
+      "source_mode": "explicit copied work backing; original remains readonly"
+    },
+    {
+      "name": "nonsymmetric",
+      "rows": 2,
+      "columns": 2,
+      "leading_dimension": 2,
+      "a": [
+        4,
+        1,
+        2,
+        3
+      ],
+      "expected": "NotSymmetric(row=1,column=0); preflight before writes"
+    },
+    {
+      "name": "indefinite",
+      "rows": 2,
+      "columns": 2,
+      "leading_dimension": 2,
+      "a": [
+        1,
+        2,
+        2,
+        1
+      ],
+      "expected": "NonPositivePivot(index=1,value=-3)"
+    },
+    {
+      "name": "semidefinite",
+      "rows": 2,
+      "columns": 2,
+      "leading_dimension": 2,
+      "a": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "expected": "NonPositivePivot(index=1,value=0)"
+    },
+    {
+      "name": "nonsquare",
+      "rows": 2,
+      "columns": 3,
+      "leading_dimension": 2,
+      "a": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "expected": "NotSquare; preflight before writes"
+    },
+    {
+      "name": "nonfinite",
+      "a": [
+        "NaN"
+      ],
+      "expected": "NonFiniteInput; preflight before writes"
+    }
+  ]
+}
