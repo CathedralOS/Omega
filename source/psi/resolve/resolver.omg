@@ -1099,7 +1099,7 @@ crashes Trap
         type_reference: TypeReference,
         binding: TypeBinding
     ) {
-        transition row < 32768 {
+        transition row < 65536 {
             true -> store(resolver, sources, syntax, scope, row, type_reference, binding)
             _ -> invalid()
         }
@@ -1306,7 +1306,7 @@ machine Resolver::bind_domain(
     type_reference: TypeReference
 )
 // The caller binds only references it has bounded by the syntax table.
-requires reference < 32768
+requires reference < 65536
 crashes Trap
 {
     let whole: SourceSpan = TypeReference::qualifier_span(type_reference);
@@ -2215,7 +2215,7 @@ crashes Trap
     }
 
     state bounded(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) {
-        transition left < 32768 && right < 32768 {
+        transition left < 65536 && right < 65536 {
             true -> compare(resolver, left_scope, left, right_scope, right)
             _ -> different()
         }

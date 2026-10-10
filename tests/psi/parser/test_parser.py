@@ -2461,13 +2461,13 @@ def main() -> None:
     )
 
     exact_cases = b"data Cases { " + b"".join(
-        f"case C{index}; ".encode() for index in range(768)
+        f"case C{index}; ".encode() for index in range(1536)
     ) + b"}"
     exact_case_status, exact_case_payload = run(program, exact_cases)
     assert exact_case_status == 0
     exact_case_observation = decode(exact_case_payload)
-    assert len(exact_case_observation.data_members) == 768
-    assert len(exact_case_observation.cases) == 768
+    assert len(exact_case_observation.data_members) == 1536
+    assert len(exact_case_observation.cases) == 1536
     overflowing_case_name_start = len(exact_cases) - 1 + len("case ")
     rejected(
         program,
@@ -2475,8 +2475,8 @@ def main() -> None:
         exact_cases[:-1] + b"case Overflow; }",
         23,
         (overflowing_case_name_start, overflowing_case_name_start + 8),
-        data_member_count=768,
-        case_count=768,
+        data_member_count=1536,
+        case_count=1536,
     )
 
     payload_prefix = b"data Payloads { case Many("
@@ -2503,26 +2503,28 @@ def main() -> None:
         type_reference_count=1024,
     )
 
+    # The shared member table, 2,048 rows, fills before the field and case
+    # tables do: 1,024 fields and 1,024 cases, then one more case.
     exact_mixed = b"data Mixed { " + b"".join(
-        f"f{index}: T; case C{index}; ".encode() for index in range(768)
+        f"f{index}: T; case C{index}; ".encode() for index in range(1024)
     ) + b"}"
     exact_mixed_status, exact_mixed_payload = run(program, exact_mixed)
     assert exact_mixed_status == 0
     exact_mixed_observation = decode(exact_mixed_payload)
-    assert len(exact_mixed_observation.data_members) == 1536
-    assert len(exact_mixed_observation.fields) == 768
-    assert len(exact_mixed_observation.cases) == 768
-    overflowing_mixed_member_start = len(exact_mixed) - 1
+    assert len(exact_mixed_observation.data_members) == 2048
+    assert len(exact_mixed_observation.fields) == 1024
+    assert len(exact_mixed_observation.cases) == 1024
+    overflowing_mixed_member_start = len(exact_mixed) - 1 + len("case ")
     rejected(
         program,
         "mixed-member-capacity-plus-one",
-        exact_mixed[:-1] + b"overflow: T; }",
+        exact_mixed[:-1] + b"case Overflow; }",
         22,
         (overflowing_mixed_member_start, overflowing_mixed_member_start + 8),
-        data_member_count=1536,
-        field_count=768,
-        case_count=768,
-        type_reference_count=768,
+        data_member_count=2048,
+        field_count=1024,
+        case_count=1024,
+        type_reference_count=1024,
     )
 
     # Machine declarations. Spans are derived from the authored source: `at`
@@ -2730,7 +2732,7 @@ def main() -> None:
         root_count=2048,
         machine_count=2048,
     )
-    # The parameter table's 16,384 rows take at least 65,539 tokens, more
+    # The parameter table's 32,768 rows take at least 131,075 tokens, more
     # than one unit holds; the resolver gate's source sets reach that edge.
     exact_states = b"machine f() { " + b"".join(
         f"state s{index} {{}} ".encode() for index in range(8192)

@@ -32,14 +32,14 @@ crashes Trap
     transition { _ -> clear_parameter(checker, syntax, resolution, typing, 0) }
 
     state clear_parameter(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
-        transition index < syntax.parameter_count && index < 16384 {
+        transition index < syntax.parameter_count && index < 32768 {
             true -> parameter_cleared(checker, syntax, resolution, typing, index)
             _ -> clear_machine(checker, syntax, resolution, typing, 0)
         }
     }
 
     state parameter_cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping)
-    requires index < 16384
+    requires index < 32768
     {
         checker.whole_writes[index] = false;
         transition { _ -> clear_parameter(checker, syntax, resolution, typing, index + 1) }
@@ -531,13 +531,13 @@ machine Checker::mark_unknown(checker: &mut Checker, machine: u64 in Trapping, u
 }
 
 pub machine Checker::writes_whole(checker: &Checker, parameter: u64 in Trapping) -> bool {
-    transition parameter < 16384 {
+    transition parameter < 32768 {
         true -> read(checker, parameter)
         _ -> whole()
     }
 
     state read(checker: &Checker, parameter: u64 in Trapping) -> bool
-    requires parameter < 16384
+    requires parameter < 32768
     {
         checker.whole_writes[parameter]
     }
@@ -549,13 +549,13 @@ pub machine Checker::writes_whole(checker: &Checker, parameter: u64 in Trapping)
 
 machine Checker::mark_whole(checker: &mut Checker, parameter: u64 in Trapping) -> bool {
     let marked: bool = Checker::writes_whole(checker, parameter);
-    transition !marked && parameter < 16384 {
+    transition !marked && parameter < 32768 {
         true -> mark(checker, parameter)
         _ -> unchanged()
     }
 
     state mark(checker: &mut Checker, parameter: u64 in Trapping) -> bool
-    requires parameter < 16384
+    requires parameter < 32768
     {
         checker.whole_writes[parameter] = true;
         true

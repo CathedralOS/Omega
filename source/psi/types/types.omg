@@ -170,13 +170,13 @@ pub data MemberTarget [copy] {
 // handles of those types in `types`.
 pub data Typing
 where
-    reference_count <= 32768,
+    reference_count <= 65536,
     expression_count <= 131072,
     binder_count <= 2048,
-    construct_count <= 2048,
+    construct_count <= 4096,
 {
     types: TypeTable;
-    reference_types: [u64; 32768];
+    reference_types: [u64; 65536];
     reference_count: u64;
     expression_types: [u64; 131072];
     selections: [Selection; 131072];
@@ -188,7 +188,7 @@ where
     binder_members: [MemberTarget; 2048];
     binder_count: u64;
     // Each construction field's member.
-    construct_targets: [MemberTarget; 2048];
+    construct_targets: [MemberTarget; 4096];
     construct_count: u64;
     unit: u64 in Trapping;
     boolean: u64 in Trapping;

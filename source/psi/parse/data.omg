@@ -160,14 +160,14 @@ crashes Trap
         parser.member_has_identity = false;
         parser.member_identity_start = 0;
         parser.member_identity_end = 0;
-        transition parser.output.field_count < 1024 && parser.output.data_member_count < 1536 {
+        transition parser.output.field_count < 1024 && parser.output.data_member_count < 2048 {
             true -> field_colon(parser, input)
             _ -> field_full(parser, input)
         }
     }
 
     state field_capacity(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.field_count < 1024 && parser.output.data_member_count < 1536 {
+        transition parser.output.field_count < 1024 && parser.output.data_member_count < 2048 {
             true -> field_identity(parser, input)
             _ -> field_full(parser, input)
         }
@@ -227,7 +227,7 @@ crashes Trap
     }
 
     state field_retained(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
-        transition parser.output.field_count < 1024 && parser.output.data_member_count < 1536 {
+        transition parser.output.field_count < 1024 && parser.output.data_member_count < 2048 {
             true -> field_stored(parser, input, type_reference)
             _ -> field_full(parser, input)
         }
@@ -254,14 +254,14 @@ crashes Trap
     }
 
     state case_capacity(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.case_count < 768 && parser.output.data_member_count < 1536 {
+        transition parser.output.case_count < 1536 && parser.output.data_member_count < 2048 {
             true -> case_name(parser, input)
             _ -> case_full(parser, input)
         }
     }
 
     state case_full(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.case_count < 768 {
+        transition parser.output.case_count < 1536 {
             true -> reject(parser, input, ParseDiagnosticCode::DataMemberCapacityExceeded)
             _ -> reject(parser, input, ParseDiagnosticCode::DataCaseCapacityExceeded)
         }
@@ -473,7 +473,7 @@ crashes Trap
         first_clause: u64 in Trapping,
         clause_count: u64 in Trapping
     ) {
-        transition parser.output.case_count < 768 && parser.output.data_member_count < 1536 {
+        transition parser.output.case_count < 1536 && parser.output.data_member_count < 2048 {
             true -> case_stored(parser, input, first_clause, clause_count)
             _ -> case_full(parser, input)
         }

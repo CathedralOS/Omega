@@ -2147,38 +2147,38 @@ def main() -> None:
     phase_rejected_units(program, "expression-capacity-plus-one",
                          exact_expressions + ((b"e3", sum_constant("E", 1)),), 250)
 
-    # 16,384 parameters, 128 to a machine, each typed `u8` or `&u8`: the
-    # second fills the type-reference table's 32,768 rows as well.
+    # 32,768 parameters, 128 to a machine, each typed `u8` or `&u8`: the
+    # second fills the type-reference table's 65,536 rows as well.
     def parameter_units(parameter_type: bytes) -> tuple[tuple[bytes, bytes], ...]:
         signature = b", ".join(f"p{index}: ".encode() + parameter_type for index in range(128))
         unit = b"".join(f"machine f{index}(".encode() + signature + b") {}\n" for index in range(64))
-        return ((b"p0", unit), (b"p1", unit))
+        return tuple((f"p{index}".encode(), unit) for index in range(4))
 
     exact_parameters = parameter_units(b"u8")
     status, payload = run_units(program, exact_parameters)
     assert status == 0, f"parameter-capacity: status {status}"
-    assert len(decode(payload).bindings) == 16384, "parameter-capacity"
+    assert len(decode(payload).bindings) == 32768, "parameter-capacity"
     phase_rejected_units(program, "parameter-capacity-plus-one",
-                         exact_parameters + ((b"p2", b"machine g(q: u8) {}"),), 250)
+                         exact_parameters + ((b"p4", b"machine g(q: u8) {}"),), 250)
     exact_type_references = parameter_units(b"&u8")
     status, payload = run_units(program, exact_type_references)
     assert status == 0, f"type-reference-capacity: status {status}"
-    assert len(decode(payload).bindings) == 32768, "type-reference-capacity"
+    assert len(decode(payload).bindings) == 65536, "type-reference-capacity"
     phase_rejected_units(program, "type-reference-capacity-plus-one",
-                         exact_type_references + ((b"p2", b"const X: u8 = 1;"),), 250)
+                         exact_type_references + ((b"p4", b"const X: u8 = 1;"),), 250)
 
-    # 32,768 call arguments: a call stages at most 256, and 64 such calls
+    # 65,536 call arguments: a call stages at most 256, and 64 such calls
     # fill one unit.
     call = b"f(" + b",".join(b"1" for _ in range(256)) + b");\n"
     argument_unit = b"machine f() {\n" + call * 64 + b"}\n"
-    exact_arguments = ((b"a0", argument_unit), (b"a1", argument_unit))
+    exact_arguments = tuple((f"a{index}".encode(), argument_unit) for index in range(4))
     status, payload = run_units(program, exact_arguments)
     assert status == 0, f"argument-capacity: status {status}"
     argument_bindings = decode(payload).value_bindings
-    assert len(argument_bindings) == 2 * 64 * 258, "argument-capacity"
-    assert sum(1 for row in argument_bindings if row[0] == 6) == 128, "argument-capacity callees"
+    assert len(argument_bindings) == 4 * 64 * 258, "argument-capacity"
+    assert sum(1 for row in argument_bindings if row[0] == 6) == 256, "argument-capacity callees"
     phase_rejected_units(program, "argument-capacity-plus-one",
-                         exact_arguments + ((b"a2", b"machine g() { g(1); }"),), 250)
+                         exact_arguments + ((b"a4", b"machine g() { g(1); }"),), 250)
 
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)

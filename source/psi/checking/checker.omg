@@ -143,7 +143,7 @@ pub data Checker {
     // an exclusive parameter's whole referent; per machine, whether its
     // writes are unknown, and the data fields it may write, a row of 1,024
     // per machine.
-    whole_writes: [bool; 16384];
+    whole_writes: [bool; 32768];
     unknown_writes: [bool; 2048];
     field_writes: [bool; 2097152];
     // The body's local control graph (termination.omg): node 0 its entry

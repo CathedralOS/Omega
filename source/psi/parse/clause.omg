@@ -634,7 +634,7 @@ crashes Trap
     }
 
     state store(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
-        transition parser.output.clause_count < 1024 {
+        transition parser.output.clause_count < 2048 {
             true -> stored(parser, input, owner, clause)
             _ -> reject(parser, input, ParseDiagnosticCode::ClauseCapacityExceeded)
         }
@@ -1066,7 +1066,7 @@ crashes Trap
     }
 
     state capacity(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping) {
-        transition parser.output.argument_count < 32768 {
+        transition parser.output.argument_count < 65536 {
             true -> copy(parser, input, cursor)
             _ -> full(parser, input)
         }

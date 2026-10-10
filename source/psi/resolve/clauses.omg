@@ -448,13 +448,13 @@ crashes Trap
 machine Resolver::set_requirement(resolver: &mut Resolver, clause: u64 in Trapping, binding: ValueBinding)
 crashes Trap
 {
-    transition clause < 1024 {
+    transition clause < 2048 {
         true -> store(resolver, clause, binding)
         _ -> invalid()
     }
 
     state store(resolver: &mut Resolver, clause: u64 in Trapping, binding: ValueBinding)
-    requires clause < 1024
+    requires clause < 2048
     {
         resolver.output.requirements[clause] = binding;
     }

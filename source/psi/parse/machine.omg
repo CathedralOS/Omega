@@ -769,7 +769,7 @@ crashes Trap
     }
 
     state parameter(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        transition parser.output.parameter_count < 16384 {
+        transition parser.output.parameter_count < 32768 {
             true -> parameter_name(parser, input, code)
             _ -> parameter_full(parser, input)
         }
@@ -825,7 +825,7 @@ crashes Trap
     }
 
     state retain_capacity(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.parameter_count < 16384 {
+        transition parser.output.parameter_count < 32768 {
             true -> retain(parser, input)
             _ -> parameter_full(parser, input)
         }

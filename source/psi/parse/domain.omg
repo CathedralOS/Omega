@@ -80,7 +80,7 @@ crashes Trap
     }
 
     state carrier_capacity(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.type_reference_count < 32768 {
+        transition parser.output.type_reference_count < 65536 {
             true -> carrier_row(parser, input)
             _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)
         }

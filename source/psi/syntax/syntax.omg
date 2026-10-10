@@ -866,21 +866,21 @@ where
     data_count <= 256,
     generic_parameter_count <= 256,
     field_count <= 1024,
-    data_member_count <= 1536,
-    case_count <= 768,
+    data_member_count <= 2048,
+    case_count <= 1536,
     payload_field_count <= 1024,
-    type_reference_count <= 32768,
+    type_reference_count <= 65536,
     type_argument_count <= 1024,
     machine_count <= 2048,
-    parameter_count <= 16384,
+    parameter_count <= 32768,
     state_count <= 8192,
     expression_count <= 131072,
-    argument_count <= 32768,
-    construct_field_count <= 2048,
+    argument_count <= 65536,
+    construct_field_count <= 4096,
     statement_count <= 16384,
     arm_count <= 8192,
     pattern_field_count <= 2048,
-    clause_count <= 1024,
+    clause_count <= 2048,
     name_path_count <= 2048,
     trait_count <= 256,
     trait_parent_count <= 512,
@@ -905,27 +905,27 @@ where
     generic_parameter_count: u64;
     fields: [DataField; 1024] in Trapping;
     field_count: u64;
-    data_members: [DataMember; 1536] in Trapping;
+    data_members: [DataMember; 2048] in Trapping;
     data_member_count: u64;
-    cases: [DataCase; 768] in Trapping;
+    cases: [DataCase; 1536] in Trapping;
     case_count: u64;
     payload_fields: [DataField; 1024] in Trapping;
     payload_field_count: u64;
-    type_references: [TypeReference; 32768] in Trapping;
+    type_references: [TypeReference; 65536] in Trapping;
     type_reference_count: u64;
     type_arguments: [u64; 1024] in Trapping;
     type_argument_count: u64;
     machines: [MachineItem; 2048] in Trapping;
     machine_count: u64;
-    parameters: [Parameter; 16384] in Trapping;
+    parameters: [Parameter; 32768] in Trapping;
     parameter_count: u64;
     states: [StateItem; 8192] in Trapping;
     state_count: u64;
     expressions: [Expression; 131072] in Trapping;
     expression_count: u64;
-    arguments: [u64; 32768] in Trapping;
+    arguments: [u64; 65536] in Trapping;
     argument_count: u64;
-    construct_fields: [ConstructField; 2048] in Trapping;
+    construct_fields: [ConstructField; 4096] in Trapping;
     construct_field_count: u64;
     statements: [Statement; 16384] in Trapping;
     statement_count: u64;
@@ -933,7 +933,7 @@ where
     arm_count: u64;
     pattern_fields: [PatternField; 2048] in Trapping;
     pattern_field_count: u64;
-    clauses: [Clause; 1024] in Trapping;
+    clauses: [Clause; 2048] in Trapping;
     clause_count: u64;
     name_paths: [NamePath; 2048] in Trapping;
     name_path_count: u64;

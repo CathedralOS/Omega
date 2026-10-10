@@ -124,10 +124,11 @@ Name resolution follows parsing over the compilation's source set
 requester-local dependency edges and 128 units, each unit belonging to a
 package and to the module its path names there (`a::b`), parsed into the
 shared syntax tables, with its position as its source id. Those tables are
-whole-program, sized at about twice what the psi package fills: 4,096
-roots, 1,024 uses, 2,048 machines, 16,384 parameters and statements, 8,192
-states and transition arms, 32,768 type references and call arguments, and
-131,072 expressions; resolution's and
+whole-program, sized above what the psi package fills: 4,096 roots, 1,024
+uses, 2,048 machines, 1,024 fields, 1,536 cases and 2,048 data members,
+2,048 clauses, 4,096 construction fields, 32,768 parameters, 16,384
+statements, 8,192 states and transition arms, 65,536 type references and
+call arguments, and 131,072 expressions; resolution's and
 typing's rows indexed by machine, type-reference and expression handles share
 those bounds. A `use` path's first member selects a package
 ([`resolve/imports.omg`](resolve/imports.omg)): the toolchain mount

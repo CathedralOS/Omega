@@ -6299,9 +6299,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   The resolver gate resolves the whole psi package, its 58
   units, as one package `psi`; the shared syntax tables hold
   4,096 roots, 1,024 uses, 32,000 path members (under a third used by psi; a
-  single name stores none, its expression row holding it), 32,768 type references
-  and call arguments, 1,536 data members, 768 cases, 2,048 machines, 16,384
-  parameters and statements, 8,192 states and transition arms and 131,072
+  single name stores none, its expression row holding it), 65,536 type references
+  and call arguments, 2,048 data members, 1,024 fields, 1,536 cases, 2,048
+  clauses, 4,096 construction fields, 2,048 machines, 32,768
+  parameters, 16,384 statements, 8,192 states and transition arms and 131,072
   expressions, over a 65,536-token unit; edges one unit cannot reach run in
   the resolver gate's source sets.
   Next: the proof-only `embed`
