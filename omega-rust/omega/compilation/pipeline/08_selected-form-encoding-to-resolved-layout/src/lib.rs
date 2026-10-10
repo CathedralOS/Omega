@@ -15,7 +15,6 @@ pub use resolved_selected_form_layout::{
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
     ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
     ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
-    StagedOptimizedResolvedSelectedFormLayout,
-    stage_optimized_resolved_selected_form_layout,
+    StagedOptimizedResolvedSelectedFormLayout, stage_optimized_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout,
 };

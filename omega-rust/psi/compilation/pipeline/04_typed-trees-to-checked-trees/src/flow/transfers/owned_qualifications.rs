@@ -92,11 +92,7 @@ pub(super) fn append_owned_qualification_transfer(
         }
         let mut rebased = destination_segments.clone();
         rebased.extend_from_slice(relative_path);
-        let place = crate::semantic::places::append_place(
-            semantic,
-            destination.root,
-            &rebased,
-        );
+        let place = crate::semantic::places::append_place(semantic, destination.root, &rebased);
         // The exact-place lane may already have moved this same fact and
         // recorded its qualification correspondence. Do not duplicate it
         // when the structural traversal has an empty relative path.

@@ -27,7 +27,11 @@ pub(super) fn validate_terminal_rows(
     };
     let eligibility =
         eligibility.ok_or(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift)?;
-    if receiver_identity != eligibility.source_receiver_type_identity() {
+    if module
+        .identities
+        .text(eligibility.source_receiver_type_identity())
+        != Some(receiver_identity)
+    {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
     }
     let attachment = eligibility.terminal_receiver_type();
@@ -79,12 +83,16 @@ pub(super) fn validate_terminal_rows(
     // retained Terminal structure. Each rejoins the row independently; they
     // are not required to share one spelling across package compilation.
     if attachment_type.identity != eligibility.owned_receiver_type_identity()
-        || attachment_type.identity != rows[0].attachment_type_identity()
+        || Some(attachment_type.identity)
+            != module
+                .identities
+                .index_of(rows[0].attachment_type_identity())
         || rows.iter().any(|row| {
             row.source_signature_identity() != settlement.source().identity()
                 || row.target_slot() != settlement.source().target_slot()
                 || row.receiver_type_identity() != receiver_identity
-                || row.attachment_type_identity() != attachment_type.identity
+                || module.identities.text(attachment_type.identity)
+                    != Some(row.attachment_type_identity())
         })
     {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
@@ -97,17 +105,23 @@ pub(super) fn validate_terminal_rows(
         for (index, segment) in row.field_path().iter().enumerate() {
             let matching_fields = current_fields
                 .iter()
-                .filter(|field| field.identity == *segment)
+                .filter(|field| module.identities.text(field.identity) == Some(segment.as_str()))
                 .collect::<Vec<_>>();
             let [field] = matching_fields.as_slice() else {
                 return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
             };
             if index + 1 == row.field_path().len() {
-                if !terminal_semantics::fused_service_field_matches(
-                    &module.structural_types,
-                    field,
-                    row.carrier_type_identity(),
-                ) {
+                if !module
+                    .identities
+                    .index_of(row.carrier_type_identity())
+                    .is_some_and(|carrier| {
+                        terminal_semantics::fused_service_field_matches(
+                            &module.structural_types,
+                            field,
+                            carrier,
+                        )
+                    })
+                {
                     return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
                 }
                 break;

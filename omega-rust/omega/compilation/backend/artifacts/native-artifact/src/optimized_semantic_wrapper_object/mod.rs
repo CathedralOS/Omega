@@ -25,10 +25,9 @@ mod error;
 mod object;
 mod validation;
 
-pub(crate) use error::{
-    OptimizedProgramStorageSemanticWrapperObjectError};
-pub use validation::{ receiver_layout};
-pub(crate) use validation::{bind_semantic_contract};
+pub(crate) use error::OptimizedProgramStorageSemanticWrapperObjectError;
+pub(crate) use validation::bind_semantic_contract;
+pub use validation::receiver_layout;
 
 use object::construct_object;
 use validation::validate_entry_shape;

@@ -23,8 +23,8 @@
 //! replay also recomputes the substitution set, the exact use-site roster,
 //! initializer dominance, and the shifted-custody provenance ledger.
 
-use crate::candidates::provenance_realized_at;
 use crate::candidates::outside_region::validate_outside_region;
+use crate::candidates::provenance_realized_at;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
@@ -36,10 +36,10 @@ use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     FieldEvidence, FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue,
-    FunctionAnalysis, OptimizationNode, ProvenanceRewrite,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
-    PsiRewritePatch, ScalarSubstitution, ValueDefinition, ValueDefinitionSite, field_evidence,
-    function_analysis, recompute_psi_optimization_unit_identity,
+    FunctionAnalysis, OptimizationNode, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
+    ScalarSubstitution, ValueDefinition, ValueDefinitionSite, field_evidence, function_analysis,
+    recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -378,7 +378,12 @@ fn expected_accounting(
                 block: block.id,
                 node: output_index,
             });
-            provenance.push(provenance_realized_at(input_site, output_site, &node.provenance, &node.fuel));
+            provenance.push(provenance_realized_at(
+                input_site,
+                output_site,
+                &node.provenance,
+                &node.fuel,
+            ));
         }
         if block_affected {
             affected.insert(block.id);

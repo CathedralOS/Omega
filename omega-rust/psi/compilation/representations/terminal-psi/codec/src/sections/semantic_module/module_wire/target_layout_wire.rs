@@ -16,7 +16,7 @@ pub(super) fn encode(
     writer.u32(application.id.0);
     writer.id(application.record);
     writer.id(application.schema);
-    writer.string("layout policy identity", &application.policy_identity)?;
+    writer.u32(application.policy_identity.0);
     encode_callable(writer, application.family);
     writer.u16(application.schema_argument.abi_version);
     writer.len(
@@ -58,7 +58,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TargetLayoutApplication,
         id: LayoutApplicationId(reader.u32()?),
         record: reader.id("StructuralTypeId")?,
         schema: reader.id("StructuralTypeId")?,
-        policy_identity: reader.string("layout policy identity")?,
+        policy_identity: TerminalIdentityIndex(reader.u32()?),
         family: decode_callable(reader)?,
         schema_argument: TargetLayoutSchemaArgument {
             abi_version: reader.u16()?,

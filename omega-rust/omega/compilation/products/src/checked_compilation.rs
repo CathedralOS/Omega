@@ -21,7 +21,7 @@ use std::sync::Arc;
 mod report;
 mod terminal;
 
-pub use report::{CheckedProductReport};
+pub use report::CheckedProductReport;
 
 /// Invocation-local language judgments retained for the next review pass of
 /// this occurrence. Build and Product are independent checked programs; neither

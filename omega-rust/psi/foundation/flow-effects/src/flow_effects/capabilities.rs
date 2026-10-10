@@ -45,8 +45,7 @@ pub struct CapabilityFlowFact {
     pub via_state_symbol: SymbolHandle,
 }
 
-impl CapabilityFlowFact {
-}
+impl CapabilityFlowFact {}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CapabilityFlowPlan {

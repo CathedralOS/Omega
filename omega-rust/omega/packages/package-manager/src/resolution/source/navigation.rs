@@ -12,5 +12,4 @@ pub(crate) enum PackageSourceNavigation {
     Member(SourceRelativePath),
 }
 
-impl PackageSourceNavigation {
-}
+impl PackageSourceNavigation {}

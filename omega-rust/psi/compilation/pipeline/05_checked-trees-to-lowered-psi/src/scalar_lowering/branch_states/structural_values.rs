@@ -177,6 +177,7 @@ enum Field {
 /// completed value. This schedule does not grant a name or extend its lifetime.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_value(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
     state: symbols::SymbolHandle,
@@ -191,11 +192,12 @@ pub(crate) fn prepare_value(
     reserved: &Storage,
 ) -> Result<PreparedValue, LoweringError> {
     let (machine, _) = crate::declarations::state_declaration(checked, state)?;
-    let structural_type = carrier_declaration(checked, types, reference)?.id;
+    let structural_type = carrier_declaration(identities, checked, types, reference)?.id;
     let claims = prepare_establishment_claims(
+        identities,
         checked,
-        machine.symbol,
         state,
+        machine.symbol,
         statement as usize,
         owner,
         reference,
@@ -216,7 +218,7 @@ pub(crate) fn prepare_value(
         consumed: Vec::new(),
         claims,
     };
-    let argument = preparation.operand(value, reference, &[])?;
+    let argument = preparation.operand(identities, value, reference, &[])?;
     let mut place = argument.place;
     if preparation.consumed_calls.len() != calls.len() {
         return unsupported("structural value contains unconsumed call producers");
@@ -256,6 +258,7 @@ fn whole_argument(place: PlaceId) -> StructuralArgument {
 /// qualifications, access and ownership throughout the value schedule. A
 /// reference carrier remains a reference, rather than becoming an owned value.
 fn carrier_declaration<'types>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     types: &'types [StructuralTypeDeclaration],
     reference: checked_trees::types::TypeReferenceHandle,
@@ -270,7 +273,7 @@ fn carrier_declaration<'types>(
         .unwrap_or_default();
     let mut declarations = types
         .iter()
-        .filter(|declaration| declaration.identity == identity);
+        .filter(|declaration| declaration.identity == identities.intern(&identity));
     let declaration = declarations.next().ok_or(LoweringError::Unsupported(
         "structural value lost its declared carrier",
     ))?;
@@ -300,18 +303,20 @@ impl Preparation<'_> {
     /// a projection must not first consume the whole root that carries it.
     fn operand(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
         claim_path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<StructuralArgument, LoweringError> {
-        let source = self.source(value, reference, claim_path)?;
+        let source = self.source(identities, value, reference, claim_path)?;
         let node = self.checked.facts.values.structural_values.nodes.get(value);
         if matches!(
             node.kind,
             CheckedStructuralValueKind::Place(_) | CheckedStructuralValueKind::Projection { .. }
         ) {
             if self.checked.type_multiplicity(reference) == Multiplicity::Unrestricted {
-                let structural_type = carrier_declaration(self.checked, self.types, reference)?.id;
+                let structural_type =
+                    carrier_declaration(identities, self.checked, self.types, reference)?.id;
                 let place = self.bind_place(
                     value,
                     source,
@@ -335,13 +340,16 @@ impl Preparation<'_> {
     /// established aliases retain their original root and accumulated path.
     fn source(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
         claim_path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<StructuralArgument, LoweringError> {
         let node = self.checked.facts.values.structural_values.nodes.get(value);
         match &node.kind {
-            CheckedStructuralValueKind::Place(argument) => self.bindings.owned_argument(argument),
+            CheckedStructuralValueKind::Place(argument) => {
+                self.bindings.owned_argument(identities, argument)
+            }
             CheckedStructuralValueKind::Projection { source, path, .. } => {
                 let source_node = self
                     .checked
@@ -356,9 +364,12 @@ impl Preparation<'_> {
                     .resolved_types
                     .result(source_node.expression);
                 let source_type =
-                    carrier_declaration(self.checked, self.types, source_reference)?.id;
+                    carrier_declaration(identities, self.checked, self.types, source_reference)?.id;
                 let selected_path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                    path, source_type, self.types,
+                    identities,
+                    path,
+                    source_type,
+                    self.types,
                 )?;
                 let selected = terminal_semantics::runtime_structural_path_tip(
                     self.types.iter(),
@@ -368,26 +379,32 @@ impl Preparation<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "constructor projection lost its structural carrier",
                 ))?;
-                if selected.id != carrier_declaration(self.checked, self.types, reference)?.id {
+                if selected.id
+                    != carrier_declaration(identities, self.checked, self.types, reference)?.id
+                {
                     return unsupported("constructor projection changes its selected carrier");
                 }
-                let mut argument = self.source(*source, source_reference, claim_path)?;
+                let mut argument =
+                    self.source(identities, *source, source_reference, claim_path)?;
                 argument.path.extend(selected_path);
                 Ok(argument)
             }
-            _ => self.value(value, reference, claim_path).map(whole_argument),
+            _ => self
+                .value(identities, value, reference, claim_path)
+                .map(whole_argument),
         }
     }
 
     fn value(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
         claim_path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<PlaceId, LoweringError> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
-        let declaration = carrier_declaration(self.checked, self.types, reference)?;
+        let declaration = carrier_declaration(identities, self.checked, self.types, reference)?;
         if let CheckedStructuralValueKind::Call { .. } = &node.kind {
             let mut producers = self.calls.iter().filter(|call| call.value == value);
             let producer = producers.next().ok_or(LoweringError::Unsupported(
@@ -396,7 +413,7 @@ impl Preparation<'_> {
             if producers.next().is_some() || self.consumed_calls.contains(&value) {
                 return unsupported("structural value call has duplicate producer custody");
             }
-            let place = self.prepare_calls(producer)?;
+            let place = self.prepare_calls(identities, producer)?;
             self.consumed_calls.push(value);
             let decisions = self
                 .checked
@@ -416,9 +433,9 @@ impl Preparation<'_> {
             if self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted {
                 return unsupported("affine operand must retain its checked membership roster");
             }
-            let mut source = self
-                .bindings
-                .structural_copy_source(place, &[], self.types)?;
+            let mut source =
+                self.bindings
+                    .structural_copy_source(identities, place, &[], self.types)?;
             source.formation_qualifications = decisions
                 .iter()
                 .map(|decision| decision.semantic_domain)
@@ -438,6 +455,7 @@ impl Preparation<'_> {
             let (machine, state) =
                 crate::declarations::state_declaration(self.checked, self.state)?;
             let mut source = self.bindings.copied_place_source(
+                identities,
                 source,
                 machine,
                 self.checked.state_parameters(state),
@@ -498,6 +516,7 @@ impl Preparation<'_> {
                 ))?;
             let place = self.reserved.place(value)?;
             let slot = computations::cases::reserve(
+                identities,
                 self.checked,
                 node.expression,
                 &source,
@@ -517,6 +536,7 @@ impl Preparation<'_> {
             let mut completed = Vec::new();
             for (ordinal, (field, reserved)) in fields.iter().zip(&slot.fields).enumerate() {
                 let result_type = computations::computation_value_type(
+                    identities,
                     self.checked,
                     self.qualifications,
                     field.value,
@@ -560,6 +580,7 @@ impl Preparation<'_> {
             let mut completed = Vec::with_capacity(elements.len());
             for (ordinal, element) in elements.iter().enumerate() {
                 let result_type = computations::computation_value_type(
+                    identities,
                     self.checked,
                     self.qualifications,
                     *element,
@@ -607,7 +628,8 @@ impl Preparation<'_> {
             };
             let element_reference = *element_type;
             if u64::try_from(elements.len()).ok() != Some(length)
-                || carrier_declaration(self.checked, self.types, element_reference)?.id != element
+                || carrier_declaration(identities, self.checked, self.types, element_reference)?.id
+                    != element
             {
                 return unsupported("structural array elements differ from their declared carrier");
             }
@@ -615,10 +637,11 @@ impl Preparation<'_> {
             for (element_index, child) in elements.iter().enumerate() {
                 let mut child_path = claim_path.to_vec();
                 child_path.push(terminal_psi::StructuralPathSegment::FixedIndex(
-                    u64::try_from(element_index)
-                        .map_err(|_| LoweringError::Unsupported("array claim index exceeds u64"))?,
+                    u64::try_from(element_index).map_err(|_| {
+                        LoweringError::Unsupported("structural value index exceeds u64")
+                    })?,
                 ));
-                completed.push(self.operand(*child, element_reference, &child_path)?);
+                completed.push(self.operand(identities, *child, element_reference, &child_path)?);
             }
             let place = self.reserved.place(value)?;
             let multiplicity = terminal_multiplicity(self.checked.type_multiplicity(reference));
@@ -672,11 +695,13 @@ impl Preparation<'_> {
                     ))?;
                 let selected = terminal_psi::structural_case_by_identity(
                     cases,
-                    &checked_trees::CheckedMemberIdentity::of_member(
-                        variant.identity,
-                        variant.name.clone(),
-                    )
-                    .spelling(),
+                    identities.intern(
+                        &checked_trees::CheckedMemberIdentity::of_member(
+                            variant.identity,
+                            variant.name.clone(),
+                        )
+                        .spelling(),
+                    ),
                 )
                 .ok_or(LoweringError::Unsupported(
                     "aggregate case declaration is absent",
@@ -708,7 +733,7 @@ impl Preparation<'_> {
                             field.name.clone(),
                         )
                         .spelling()
-                            == target.identity =>
+                            == identities.text(target.identity).unwrap_or_default() =>
                     {
                         Some(field)
                     }
@@ -735,7 +760,7 @@ impl Preparation<'_> {
                             field.name.clone(),
                         )
                         .spelling()
-                            == target.identity
+                            == identities.text(target.identity).unwrap_or_default()
                     })
                     .ok_or(LoweringError::Unsupported(
                         "aggregate payload field declaration is absent",
@@ -768,6 +793,7 @@ impl Preparation<'_> {
             let field_value = match field.value {
                 CheckedStructuralRecordFieldValue::Scalar(root) => {
                     let result_type = computations::computation_value_type(
+                        identities,
                         self.checked,
                         self.qualifications,
                         root,
@@ -833,7 +859,12 @@ impl Preparation<'_> {
                         child_path.push(terminal_psi::StructuralPathSegment::Field(
                             target.identity.clone(),
                         ));
-                        Field::Structural(self.operand(child, field.type_reference, &child_path)?)
+                        Field::Structural(self.operand(
+                            identities,
+                            child,
+                            field.type_reference,
+                            &child_path,
+                        )?)
                     }
                 }
             };
@@ -947,6 +978,7 @@ impl Preparation<'_> {
 impl PreparedValue {
     pub(crate) fn finish(
         self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         state: symbols::SymbolHandle,
         bindings: &storage::ScalarBindings,
         source_types: &[QualifiedScalarType],
@@ -987,6 +1019,7 @@ impl PreparedValue {
                     argument,
                     prefix,
                 } => computations.call_arguments(
+                    identities,
                     state,
                     coordinate,
                     std::slice::from_ref(&argument),
@@ -996,7 +1029,7 @@ impl PreparedValue {
                     target,
                 )?,
                 Step::Value { prepared, prefix } => {
-                    prepared.finish(state, bindings, &prefix, target, computations)?
+                    prepared.finish(identities, state, bindings, &prefix, target, computations)?
                 }
                 Step::Bind {
                     source,
@@ -1032,6 +1065,7 @@ impl PreparedValue {
                     result_type,
                     prefix,
                 } => computations.retained_value(
+                    identities,
                     state,
                     self.statement,
                     role,

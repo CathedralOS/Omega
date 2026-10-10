@@ -254,7 +254,9 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
                 values.push(value);
                 input = rest;
 
-                let Some(next) = input.take_comma()? else { break };
+                let Some(next) = input.take_comma()? else {
+                    break;
+                };
 
                 input = next;
 

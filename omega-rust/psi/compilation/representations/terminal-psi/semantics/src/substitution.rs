@@ -280,7 +280,7 @@ fn substitute_scalar_term_places(
         substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
     ) {
         match term {
-            semantic_vocabulary::scalar_term_predicate_quint_pattern!(root,path, ..) => {
+            semantic_vocabulary::scalar_term_predicate_quint_pattern!(root, path, ..) => {
                 if let Some((replacement, prefix)) = substitutions.get(root) {
                     *root = *replacement;
                     if !prefix.is_empty() {

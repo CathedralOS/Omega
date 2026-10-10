@@ -1,8 +1,7 @@
 use super::integer_signature;
 use crate::plans::{
-    CallSignature, CallingPolicy, EntryControl,
-    IndirectPointerLocation, MachineRegister, ValueLocation, ValueShape, evaluate_call_plan,
-    validate_call_plan,
+    CallSignature, CallingPolicy, EntryControl, IndirectPointerLocation, MachineRegister,
+    ValueLocation, ValueShape, evaluate_call_plan, validate_call_plan,
 };
 
 #[test]
@@ -159,7 +158,6 @@ fn system_v_and_aapcs_use_independent_float_register_banks() {
         }
     ));
 }
-
 
 #[test]
 fn system_v_small_integer_aggregates_use_consecutive_registers_and_results() {

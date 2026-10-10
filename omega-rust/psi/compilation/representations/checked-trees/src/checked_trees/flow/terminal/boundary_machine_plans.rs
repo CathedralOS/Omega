@@ -1,15 +1,15 @@
 //! Boundary machine plans: the boundary machine, its result and its
 //! provider attachment requirements.
 
+use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
     CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralParameterPlan,
 };
 use language_semantics::{Multiplicity, SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
-use typed_trees::types::PrimitiveType;
 use typed_trees::type_identity::TypeIdentityId;
-use crate::checked_trees::CheckedMemberIdentity;
+use typed_trees::types::PrimitiveType;
 
 /// Exact result role of one bodyless boundary declaration. Unit, primitive,
 /// and structural results are distinct identities; an absent result is never

@@ -353,7 +353,9 @@ impl<'program> Evaluator<'program> {
                             })
                     });
                     if matches!(segment, CheckedUnitStructuralPathSegment::Case(_)) {
-                        if !variant.is_some_and(|variant| variant.path_identity() == identity.spelling()) {
+                        if !variant
+                            .is_some_and(|variant| variant.path_identity() == identity.spelling())
+                        {
                             return trap(
                                 "cleanup case membership does not match its selected path",
                             );
@@ -370,7 +372,9 @@ impl<'program> Evaluator<'program> {
                             .data_members(data)
                             .iter()
                             .find_map(|member| match member {
-                                DataMember::Field(field) if field.path_identity() == identity.spelling() => {
+                                DataMember::Field(field)
+                                    if field.path_identity() == identity.spelling() =>
+                                {
                                     Some(field)
                                 }
                                 _ => None,

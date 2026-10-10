@@ -3,8 +3,8 @@
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 use semantic_vocabulary::ScalarType;
@@ -15,17 +15,17 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
     DeadScalarLiteralEliminationRule,
-    crate::rules::standard_rule_contract(b"omega.psi-rule.dead-unused-scalar-literal-elimination.v1", DEAD_PURE_SCALAR_PASS_NAME, 1,
-                AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-                OptimizationSafetyClass::ExactOperationSemantics),
+    crate::rules::standard_rule_contract(
+        b"omega.psi-rule.dead-unused-scalar-literal-elimination.v1",
+        DEAD_PURE_SCALAR_PASS_NAME,
+        1,
+        AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries,]),
+        OptimizationSafetyClass::ExactOperationSemantics
+    ),
     propose = propose_unproved_dead_scalar_nodes,
     classify,
 );
-
 
 pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
     match operation {

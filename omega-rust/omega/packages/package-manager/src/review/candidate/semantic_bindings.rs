@@ -481,10 +481,7 @@ pub(super) fn candidate_target_entry_binding(
             },
         )?;
     let service_schema = provider_planning::service_schema::from_typed(
-        provider_planning::ProviderPlanningContext::new(
-            checked,
-            source::DependencyScope::Product,
-        ),
+        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
         &checked.providers().boundary_calling_plan_realizations,
         definition,
     )

@@ -6,8 +6,8 @@
 //! to equal the replayed rows exactly, rebuilds the output itself, and
 //! reconstructs the exact edge custody the fused traversals carry.
 
-use crate::candidates::provenance_realized_at;
 use crate::candidates::outside_region::validate_outside_region;
+use crate::candidates::provenance_realized_at;
 use crate::candidates::sparse_conditional_constant_propagation::validator_scalar_constant_facts;
 use crate::candidates::{candidate_block, candidate_function};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
@@ -15,11 +15,10 @@ use abstract_operations::AbstractOperation as O;
 use abstract_operations::binding_arguments;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    DispatchCondition, NodeLocation, OptimizationEdge, OptimizationNode,
-    ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ScalarConstantValue,
-    SpecializedStateEdgeRow, ValueUse, integer_comparison_condition,
-    recompute_psi_optimization_unit_identity,
+    DispatchCondition, NodeLocation, OptimizationEdge, OptimizationNode, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewritePatch, ScalarConstantValue, SpecializedStateEdgeRow, ValueUse,
+    integer_comparison_condition, recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -614,8 +613,18 @@ fn accepted_provenance(
             machine,
             edge: row.taken_edge,
         };
-        provenance.push(provenance_realized_at(incoming_site, incoming_site, &incoming.provenance, &incoming.fuel));
-        provenance.push(provenance_realized_at(resolved_site, incoming_site, &resolved.provenance, &resolved.fuel));
+        provenance.push(provenance_realized_at(
+            incoming_site,
+            incoming_site,
+            &incoming.provenance,
+            &incoming.fuel,
+        ));
+        provenance.push(provenance_realized_at(
+            resolved_site,
+            incoming_site,
+            &resolved.provenance,
+            &resolved.fuel,
+        ));
         resolved_edges.insert(row.taken_edge);
     }
     for taken_edge in resolved_edges {
@@ -624,7 +633,12 @@ fn accepted_provenance(
             machine,
             edge: taken_edge,
         };
-        provenance.push(provenance_realized_at(resolved_site, resolved_site, &resolved.provenance, &resolved.fuel));
+        provenance.push(provenance_realized_at(
+            resolved_site,
+            resolved_site,
+            &resolved.provenance,
+            &resolved.fuel,
+        ));
     }
     provenance.sort_by_key(|row| {
         (

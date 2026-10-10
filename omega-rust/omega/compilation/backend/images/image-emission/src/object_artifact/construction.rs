@@ -5,8 +5,7 @@
 
 use crate::object_artifact::private_functions::validate_private_functions;
 use crate::object_artifact::{ObjectArtifact, ObjectError};
-use machine_code::{
-    CompilerPrivateMachineCodeFunction, MachineCodePlan};
+use machine_code::{CompilerPrivateMachineCodeFunction, MachineCodePlan};
 
 pub(crate) mod function_validation;
 mod layout;
@@ -53,7 +52,8 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
     let layout::ObjectLayout {
         mut object,
         text_size,
-        foreign_call_count} = layout::plan_object_layout(
+        foreign_call_count,
+    } = layout::plan_object_layout(
         plan,
         private_functions,
         &validated_private_functions,
@@ -81,7 +81,8 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         functions: &emitted.functions,
         symbols_by_machine: &emitted.symbols_by_machine,
         private_functions: &object_private_functions,
-        import_symbols: &import_symbols})?;
+        import_symbols: &import_symbols,
+    })?;
 
     let text_emission::EmittedFunctions {
         functions,
@@ -89,7 +90,8 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
-        foreign_calls} = emitted;
+        foreign_calls,
+    } = emitted;
     Ok(ObjectArtifact {
         hosted_receiver: None,
         requires_graph_storage_replay: false,
@@ -112,5 +114,6 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         foreign_calls,
         // The machine-code route carries no selected byte-literal addresses.
         byte_literal_pool: None,
-        implementation_table_pool: None})
+        implementation_table_pool: None,
+    })
 }

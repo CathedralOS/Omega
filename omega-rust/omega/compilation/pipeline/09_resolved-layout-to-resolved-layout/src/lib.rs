@@ -18,10 +18,12 @@ pub use phase::{
     ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
     execute_resolved_layout_optimization, validate_resolved_layout_optimization,
 };
+pub(crate) use x86_branch_relaxation::{
+    FunctionRelativeLayoutCatalogError, stage_optimized_x86_branch_relaxation,
+    validate_optimized_x86_branch_relaxation, x86_rel8_selected,
+};
 pub use x86_branch_relaxation::{
     OptimizedX86BranchRelaxationError, StagedOptimizedX86BranchRelaxation,
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
-pub(crate) use x86_branch_relaxation::{  FunctionRelativeLayoutCatalogError, stage_optimized_x86_branch_relaxation,
-    validate_optimized_x86_branch_relaxation, x86_rel8_selected};

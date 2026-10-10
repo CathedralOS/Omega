@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 pub(crate) fn validate_content_projection_scalar(
     value: &ContentProjectionScalar,
     carrier: StructuralTypeId,
+    identities: &terminal_psi::TerminalIdentityTable,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     depth: usize,
 ) -> bool {
@@ -25,7 +26,13 @@ pub(crate) fn validate_content_projection_scalar(
                 else {
                     return false;
                 };
-                let Some(field) = terminal_psi::field_by_identity(fields, segment) else {
+                // Source-spelled segments resolve through the module's sealed
+                // identity table; a spelling the producer never interned is
+                // rejected, never interned here.
+                let Some(identity) = identities.index_of(segment) else {
+                    return false;
+                };
+                let Some(field) = terminal_psi::field_by_identity(fields, identity) else {
                     return false;
                 };
                 let last = index + 1 == path.len();
@@ -45,13 +52,13 @@ pub(crate) fn validate_content_projection_scalar(
                 && (value == "0" || !value.starts_with('0'))
         }
         ContentProjectionScalar::Successor(inner) => {
-            validate_content_projection_scalar(inner, carrier, types, depth + 1)
+            validate_content_projection_scalar(inner, carrier, identities, types, depth + 1)
         }
         ContentProjectionScalar::Add(left, right)
         | ContentProjectionScalar::Subtract(left, right)
         | ContentProjectionScalar::Multiply(left, right) => {
-            validate_content_projection_scalar(left, carrier, types, depth + 1)
-                && validate_content_projection_scalar(right, carrier, types, depth + 1)
+            validate_content_projection_scalar(left, carrier, identities, types, depth + 1)
+                && validate_content_projection_scalar(right, carrier, identities, types, depth + 1)
         }
     }
 }
@@ -59,15 +66,16 @@ pub(crate) fn validate_content_projection_scalar(
 pub(crate) fn validate_content_projection_expression(
     expression: &ContentProjectionExpression,
     carrier: StructuralTypeId,
+    identities: &terminal_psi::TerminalIdentityTable,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     match expression {
         ContentProjectionExpression::IntervalSet(members) => members.iter().all(|(start, end)| {
-            validate_content_projection_scalar(start, carrier, types, 0)
-                && validate_content_projection_scalar(end, carrier, types, 0)
+            validate_content_projection_scalar(start, carrier, identities, types, 0)
+                && validate_content_projection_scalar(end, carrier, identities, types, 0)
         }),
         ContentProjectionExpression::CountedQuantity(magnitude) => {
-            validate_content_projection_scalar(magnitude, carrier, types, 0)
+            validate_content_projection_scalar(magnitude, carrier, identities, types, 0)
         }
     }
 }
@@ -76,6 +84,7 @@ pub(crate) fn validate_structural_content_projection(
     semantic_domain: semantic_vocabulary::DomainSemanticId,
     carrier: StructuralTypeId,
     projection: &terminal_psi::StructuralContentProjection,
+    identities: &terminal_psi::TerminalIdentityTable,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     let shape_matches_algebra = matches!(
@@ -92,7 +101,12 @@ pub(crate) fn validate_structural_content_projection(
         && projection.identity.projection_report_fingerprint != 0
         && !projection.algebra.parameter.is_empty()
         && shape_matches_algebra
-        && validate_content_projection_expression(&projection.expression, carrier, types)
+        && validate_content_projection_expression(
+            &projection.expression,
+            carrier,
+            identities,
+            types,
+        )
         && language_semantics::content::terminal_projection_report_fingerprint(
             &projection.algebra,
             &projection.expression,

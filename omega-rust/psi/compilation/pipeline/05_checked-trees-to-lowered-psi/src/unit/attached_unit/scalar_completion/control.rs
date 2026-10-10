@@ -12,15 +12,16 @@ pub(crate) fn returning_exits<'checked>(
     arms: arena::HandleSpan<checked_trees::CheckedScalarGuardedExit>,
     fallback: Option<&CheckedScalarBranchDestination>,
 ) -> Result<&'checked [checked_trees::CheckedScalarGuardedExit], LoweringError> {
-    let arms = checked
-        .facts
-        .flow
-        .guarded_exits
-        .exits
-        .span(arms)
-        .ok_or(LoweringError::Unsupported(
-            "ordered scalar guard roster is stale",
-        ))?;
+    let arms =
+        checked
+            .facts
+            .flow
+            .guarded_exits
+            .exits
+            .span(arms)
+            .ok_or(LoweringError::Unsupported(
+                "ordered scalar guard roster is stale",
+            ))?;
     if arms.is_empty() {
         return unsupported("ordered scalar guard roster is empty");
     }

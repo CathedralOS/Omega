@@ -9,7 +9,8 @@
 use crate::candidates::provenance_realized_at;
 use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
 use optimization_unit::{
-    DeadScalarNodeRewrite, NodeLocation, ProofCertifiedScalarIdentityRewrite, PsiOptimizationFunction, PsiRealizationSite, TotalScalarIdentityRewrite,
+    DeadScalarNodeRewrite, NodeLocation, ProofCertifiedScalarIdentityRewrite,
+    PsiOptimizationFunction, PsiRealizationSite, TotalScalarIdentityRewrite,
 };
 use semantic_vocabulary::{BlockId, OperationId, ScalarType, ValueId};
 
@@ -70,7 +71,12 @@ fn reconstruct_scalar_identity_accounting(
                 block: use_block.id,
                 node: u32::try_from(index).ok()?,
             });
-            provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+            provenance.push(provenance_realized_at(
+                site,
+                site,
+                &node.provenance,
+                &node.fuel,
+            ));
         }
     }
     blocks.sort();

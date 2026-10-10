@@ -33,10 +33,11 @@ struct BoundaryOperands {
 impl OperationFrame<'_, '_> {
     pub(super) fn boundary_call(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         call: &checked_trees::CheckedUnitCallPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
-        let operands = self.boundary_operands(call, inputs)?;
+        let operands = self.boundary_operands(identities, call, inputs)?;
         if let semantic_vocabulary::BoundaryCompletion::External(kind) = call.completion() {
             if self.operations.external_completion.is_some() {
                 return unsupported("one evaluation path cannot have two external completions");
@@ -78,6 +79,7 @@ impl OperationFrame<'_, '_> {
 
     pub(super) fn boundary_scalar_call(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         call: &checked_trees::CheckedUnitCallPlan,
         result: &checked_trees::CheckedUnitScalarResultBindingPlan,
         inputs: &CallInputs<'_>,
@@ -89,7 +91,7 @@ impl OperationFrame<'_, '_> {
             .iter()
             .map(|parameter| terminal_scalar_type(parameter.primitive_type))
             .collect::<Result<Vec<_>, _>>()?;
-        let operands = self.boundary_operands(call, inputs)?;
+        let operands = self.boundary_operands(identities, call, inputs)?;
         let value = ValueDeclaration {
             qualifications: Default::default(),
             id: value_id(allocate_dense(self.next_value)?),
@@ -132,6 +134,7 @@ impl OperationFrame<'_, '_> {
 
     pub(super) fn boundary_structural_call(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
         call: &checked_trees::CheckedUnitCallPlan,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
@@ -151,7 +154,7 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("Unit structural result target is not a structural boundary");
         };
-        let operands = self.boundary_operands(call, inputs)?;
+        let operands = self.boundary_operands(identities, call, inputs)?;
         let id = self.operations.allocate();
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
         let result_place = place_id(allocate_dense(self.next_place)?);
@@ -170,6 +173,7 @@ impl OperationFrame<'_, '_> {
         ))?;
         let result_claims = crate::emission::claim_bindings::emit_call_result_claims(
             &crate::emission::claim_bindings::prepare_call_result_claims(
+                identities,
                 &custody.result_claims,
                 structural_type,
                 self.structural_types.declarations(),
@@ -188,6 +192,7 @@ impl OperationFrame<'_, '_> {
         // through this call's CallEnsures evidence.
         let qualification_establishments =
             super::super::catalog::call_result_qualification_establishments(
+                identities,
                 checked,
                 self.state,
                 *coordinate,
@@ -210,6 +215,7 @@ impl OperationFrame<'_, '_> {
             // members cover them through ordinary return transport; this does
             // not issue membership or import member-private result facts.
             projected_qualifications: super::super::parameters::lower_projected_qualifications(
+                identities,
                 projected_qualifications,
                 self.callees.domain_ids,
                 structural_type,
@@ -243,6 +249,7 @@ impl OperationFrame<'_, '_> {
     /// boundary and lower its scalar, structural and receipt operands.
     fn boundary_operands(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         call: &checked_trees::CheckedUnitCallPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<BoundaryOperands, LoweringError> {
@@ -286,15 +293,17 @@ impl OperationFrame<'_, '_> {
         .map(|value| value.id)
         .collect();
         let structural_arguments = self.lower_runtime_structural_arguments(
+            identities,
             structural_arguments,
             &earlier,
             inputs.byte_places,
             inputs.evaluated_selectors,
         )?;
         let prepared = crate::emission::claim_bindings::prepare_claim_transfers(
+            identities,
             completion_receipts,
             self.structural_types.declarations(),
-            |position| {
+            |_identities, position| {
                 target_structural_parameters
                     .get(position as usize)
                     .map(|parameter| parameter.structural_type)

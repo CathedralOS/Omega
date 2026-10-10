@@ -45,7 +45,6 @@ impl<'program> Evaluator<'program> {
         &self,
         name: &str,
     ) -> Option<&'program DataDefinition> {
-        self.program
-            .data_definition_by_name_str(name)
+        self.program.data_definition_by_name_str(name)
     }
 }

@@ -157,6 +157,7 @@ pub(crate) struct PrimitiveObservation {
 }
 
 pub(crate) fn byte_record_observation(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     loans: &[PlaceObservation],
     bindings: &super::ScalarBindings,
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
@@ -184,14 +185,14 @@ pub(crate) fn byte_record_observation(
     // below stand for these ordered expressions, never emitted source evidence.
     let mut selectors = Vec::new();
     let mut leaf_path = Vec::new();
-    append_observation_path(bindings, path, &mut leaf_path, &mut selectors)?;
+    append_observation_path(identities, bindings, path, &mut leaf_path, &mut selectors)?;
     if let CheckedScalarExpression::IntegerLiteral { literal } = index {
         leaf_path.push(Projection::FixedIndex(literal.value_u64().ok_or(
             LoweringError::Unsupported("record byte observation has an invalid array index"),
         )?));
     } else {
         append_coordinate(
-            bindings.expression(proven_indexes, index)?,
+            bindings.expression(identities, proven_indexes, index)?,
             &mut leaf_path,
             &mut selectors,
         )?;
@@ -199,6 +200,7 @@ pub(crate) fn byte_record_observation(
     for step in element_path {
         match step {
             checked_trees::CheckedScalarReadProjection::Static(segment) => append_observation_path(
+                identities,
                 bindings,
                 std::slice::from_ref(segment),
                 &mut leaf_path,
@@ -206,7 +208,7 @@ pub(crate) fn byte_record_observation(
             )?,
             checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
                 append_coordinate(
-                    bindings.expression(proven_indexes, &selector.expression)?,
+                    bindings.expression(identities, proven_indexes, &selector.expression)?,
                     &mut leaf_path,
                     &mut selectors,
                 )?
@@ -408,6 +410,7 @@ fn append_coordinate(
 }
 
 fn append_observation_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     bindings: &super::ScalarBindings,
     supplied: &[checked_trees::CheckedStructuralPredicatePathSegment],
     path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
@@ -430,7 +433,7 @@ fn append_observation_path(
                         bindings.runtime_index_local(*position)?
                     }
                     CheckedRuntimeIndex::StructuralField(field) => {
-                        bindings.runtime_index_field(field)?
+                        bindings.runtime_index_field(identities, field)?
                     }
                     CheckedRuntimeIndex::AssignmentIndex { .. } => {
                         return unsupported(

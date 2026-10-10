@@ -7,8 +7,8 @@ mod identity;
 mod validation;
 
 use super::{PhysicalRegisterModelIdentity, RegisterUnitId, RegisterViewId};
-pub use identity::{PreservationStorageCatalogIdentity};
-pub(crate) use identity::{ preservation_storage_catalog_identity};
+pub use identity::PreservationStorageCatalogIdentity;
+pub(crate) use identity::preservation_storage_catalog_identity;
 pub use validation::{
     PreservationStorageCatalogValidationError, validate_preservation_storage_catalog,
 };

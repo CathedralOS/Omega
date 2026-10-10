@@ -169,13 +169,11 @@ fn resolve_path<'types>(
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,
                     None => match shape {
-                        terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-                            fields.as_slice()
-                        }
+                        terminal_psi::record_or_mixed_shape_pattern!(fields) => fields.as_slice(),
                         _ => return None,
                     },
                 };
-                let field = terminal_psi::live_field_by_identity(fields, identity)?;
+                let field = terminal_psi::live_field_by_identity(fields, *identity)?;
                 match &field.field_type {
                     terminal_psi::StructuralFieldType::Structural(next) => *next,
                     leaf => {

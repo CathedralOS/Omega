@@ -41,9 +41,7 @@ mod locator;
 mod resolution;
 
 pub use error::IdentityError;
-pub use git::{ GitTransport,
-    SourceLineage,
-};
+pub use git::{GitTransport, SourceLineage};
 pub use local::{
     ExternalLocalLineage, ExternalSourceContext, SourceContentDigest, SourceRelativePath,
     WorkspaceLineageIdentity, WorkspaceMemberLineage,

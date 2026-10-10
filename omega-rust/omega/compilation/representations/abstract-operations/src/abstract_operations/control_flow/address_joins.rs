@@ -337,8 +337,7 @@ fn plain_fields<'a>(
                 terminal_psi::byte_sequence_view_carrier_pattern!(),
             )
             | StructuralFieldType::PredicateByteSequence {
-                carrier:
-                    terminal_psi::byte_sequence_view_carrier_pattern!(),
+                carrier: terminal_psi::byte_sequence_view_carrier_pattern!(),
                 ..
             }
             | StructuralFieldType::Erased { .. } => false,

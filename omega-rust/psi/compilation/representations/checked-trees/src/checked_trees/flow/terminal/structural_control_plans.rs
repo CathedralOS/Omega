@@ -1,12 +1,12 @@
 //! Structural control plans: cleanup edges and control transfers.
 
+use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
     CheckedOperandSequence, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralPathSegment,
 };
 use crate::checked_trees::values::CheckedProofTerm;
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
-use crate::checked_trees::CheckedMemberIdentity;
 
 /// Source-handle-free no-code cleanup evidence for ordinary structural
 /// control edges. This is intentionally narrower than the language's complete

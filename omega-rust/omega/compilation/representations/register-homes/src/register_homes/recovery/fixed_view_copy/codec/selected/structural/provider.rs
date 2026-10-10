@@ -25,9 +25,9 @@ pub(super) fn encode(
     retain_projected_qualifications: bool,
 ) {
     crate::codec_bytes::push_encoded(bytes, provider.boundary.get().to_le_bytes());
-    encode_string(bytes, &provider.requirement_identity);
-    encode_string(bytes, &provider.provider_identity);
-    encode_string(bytes, &provider.candidate_identity);
+    crate::codec_bytes::push_encoded(bytes, provider.requirement_identity.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, provider.provider_identity.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, provider.candidate_identity.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, provider.candidate.get().to_le_bytes());
     length(bytes, provider.signature.parameters.len());
     for parameter in &provider.signature.parameters {
@@ -70,9 +70,9 @@ pub(super) fn decode(
     retain_projected_qualifications: bool,
 ) -> Result<ProviderCandidateConformance, FixedViewCopyDecodeError> {
     let boundary = decode_id(cursor, BoundaryMachineId::new)?;
-    let requirement_identity = decode_string(cursor)?;
-    let provider_identity = decode_string(cursor)?;
-    let candidate_identity = decode_string(cursor)?;
+    let requirement_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+    let provider_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+    let candidate_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let candidate = decode_id(cursor, MachineId::new)?;
     let parameters = decode_list(cursor, |cursor| {
         Ok(ProviderSignatureParameter {

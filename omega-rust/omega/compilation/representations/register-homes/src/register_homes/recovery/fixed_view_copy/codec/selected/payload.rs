@@ -2,7 +2,6 @@
 
 use selected_instructions::SelectedInstructionPlan;
 
-
 use crate::FixedViewCopyDecodeError;
 
 use super::{decode_ordinary_plan, encode_ordinary_plan};
@@ -18,7 +17,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn encode(
     plan: &SelectedInstructionPlan,
 ) -> Result<(), terminal_codec::CodecError> {
     let payload = canonical_bytes(plan)?;
-    bytes.extend_from_slice(&<[u8; 32]>::from(crate::digest_encoder::content_identity(&payload)));
+    bytes.extend_from_slice(&<[u8; 32]>::from(crate::digest_encoder::content_identity(
+        &payload,
+    )));
     length(bytes, payload.len());
     bytes.extend_from_slice(&payload);
     Ok(())
@@ -35,7 +36,8 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode(
     if payload_cursor.remaining() != 0 {
         return Err(FixedViewCopyDecodeError::TrailingBytes);
     }
-    let digest_matches = <[u8; 32]>::from(crate::digest_encoder::content_identity(payload)) == expected_digest;
+    let digest_matches =
+        <[u8; 32]>::from(crate::digest_encoder::content_identity(payload)) == expected_digest;
     let canonical_matches = canonical_bytes(&plan)
         .map_err(|_| FixedViewCopyDecodeError::InvalidScalarRefinement)?
         .as_slice()

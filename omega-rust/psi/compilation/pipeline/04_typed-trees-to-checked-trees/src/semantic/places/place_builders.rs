@@ -20,11 +20,7 @@ pub(crate) fn canonical_place_to_fact_place_in_state(
         statement_index,
         expression,
     )?;
-    Some(append_place(
-        facts,
-        canonical.root,
-        &canonical.segments,
-    ))
+    Some(append_place(facts, canonical.root, &canonical.segments))
 }
 
 pub(crate) fn append_place_segment(

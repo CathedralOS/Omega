@@ -8,11 +8,13 @@ use checked_trees::CheckedScalarExpression;
 /// runtime carrier; its exact value identity is resolved by the caller's same
 /// entry/result namespace used for ordinary scalar contracts.
 pub(super) fn lower(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &checked_trees::CheckedIntegerMathExpression,
     terms: &impl PredicateTerms,
     remaining: &mut usize,
 ) -> Result<IntegerMathTerm, LoweringError> {
     fn lower(
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &checked_trees::CheckedIntegerMathExpression,
         handle: arena::Handle<checked_trees::CheckedIntegerMathTerm>,
         terms: &impl PredicateTerms,
@@ -28,7 +30,7 @@ pub(super) fn lower(
         }
         match expression.terms.get(handle) {
             CheckedIntegerMathTerm::Embed { operand, .. } => {
-                let scalar = terms.scalar(operand)?;
+                let scalar = terms.scalar(identities, operand)?;
                 match scalar {
                     ScalarTerm::Value {
                         id,
@@ -55,8 +57,22 @@ pub(super) fn lower(
             CheckedIntegerMathTerm::Add { left, right }
             | CheckedIntegerMathTerm::Subtract { left, right }
             | CheckedIntegerMathTerm::Multiply { left, right } => {
-                let left = Box::new(lower(expression, *left, terms, remaining, depth + 1)?);
-                let right = Box::new(lower(expression, *right, terms, remaining, depth + 1)?);
+                let left = Box::new(lower(
+                    identities,
+                    expression,
+                    *left,
+                    terms,
+                    remaining,
+                    depth + 1,
+                )?);
+                let right = Box::new(lower(
+                    identities,
+                    expression,
+                    *right,
+                    terms,
+                    remaining,
+                    depth + 1,
+                )?);
                 Ok(match expression.terms.get(handle) {
                     CheckedIntegerMathTerm::Add { .. } => IntegerMathTerm::Add(left, right),
                     CheckedIntegerMathTerm::Subtract { .. } => {
@@ -67,7 +83,7 @@ pub(super) fn lower(
             }
         }
     }
-    lower(expression, expression.root, terms, remaining, 0)
+    lower(identities, expression, expression.root, terms, remaining, 0)
 }
 
 /// Apply the owning contract namespace to every embedded finite operand.

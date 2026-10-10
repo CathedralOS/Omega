@@ -92,7 +92,7 @@ pub(super) fn encode_boundary_machine(
     declaration: &BoundaryMachineDeclaration,
 ) {
     bytes.id(declaration.id);
-    bytes.string(&declaration.identity);
+    bytes.u32(declaration.identity.0);
     bytes.u8(match declaration.kind {
         terminal_psi::BoundaryRequirementKind::Machine => 0,
         terminal_psi::BoundaryRequirementKind::Trait => 1,
@@ -184,7 +184,7 @@ fn encode_retained_borrow_place(bytes: &mut CanonicalBytes, place: &RetainedBorr
         RetainedBorrowPlaceRoot::Parameter { position, identity } => {
             bytes.u8(1);
             bytes.u32(*position);
-            bytes.string(identity);
+            bytes.u32(identity.0);
         }
         RetainedBorrowPlaceRoot::Result => bytes.u8(2),
     }
@@ -209,7 +209,7 @@ fn encode_retained_borrow_projection(
     projection: &RetainedBorrowContentProjection,
 ) {
     bytes.id(projection.semantic_domain);
-    bytes.string(&projection.carrier_identity);
+    bytes.u32(projection.carrier_identity.0);
     bytes.id(projection.projection.identity.domain);
     bytes.u64(projection.projection.identity.projection_report_fingerprint);
     encode_content_algebra(bytes, &projection.projection.algebra);
@@ -220,13 +220,13 @@ fn encode_retained_borrow_projection(
 /// start at 1 so a zero byte stays a decoder's unwritten-field signal.
 
 fn encode_retained_borrow_custody(bytes: &mut CanonicalBytes, custody: &RetainedBorrowCustody) {
-    bytes.string(&custody.callable_identity);
+    bytes.u32(custody.callable_identity.0);
     encode_retained_borrow_place(bytes, &custody.source);
     encode_retained_borrow_place(bytes, &custody.result);
     super::carrier_encoding::encode_access(bytes, custody.access);
     bytes.u32(custody.callable_lifetime_parameter_count);
     bytes.u32(custody.callable_lifetime_parameter_ordinal);
-    bytes.string(&custody.result_nominal_identity);
+    bytes.u32(custody.result_nominal_identity.0);
     encode_multiplicity(bytes, custody.result_multiplicity);
     bytes.u32(custody.result_lifetime_argument_count);
     bytes.u32(custody.result_lifetime_argument_ordinal);
@@ -349,9 +349,9 @@ pub(super) fn encode_provider_candidate(
     candidate: &ProviderCandidateConformance,
 ) {
     bytes.id(candidate.boundary);
-    bytes.string(&candidate.requirement_identity);
-    bytes.string(&candidate.provider_identity);
-    bytes.string(&candidate.candidate_identity);
+    bytes.u32(candidate.requirement_identity.0);
+    bytes.u32(candidate.provider_identity.0);
+    bytes.u32(candidate.candidate_identity.0);
     bytes.id(candidate.candidate);
     bytes.slice(&candidate.signature.parameters, |bytes, parameter| {
         bytes.u32(parameter.position);
@@ -385,7 +385,7 @@ pub(super) fn encode_structural_type(
     declaration: &StructuralTypeDeclaration,
 ) {
     bytes.id(declaration.id);
-    bytes.string(&declaration.identity);
+    bytes.u32(declaration.identity.0);
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => bytes.u8(11),
         StructuralTypeShape::Reference { referent, access } => {
@@ -442,7 +442,7 @@ pub(super) fn encode_structural_type(
             bytes.len(cases.len());
             for case in cases {
                 bytes.id(case.id);
-                bytes.string(&case.identity);
+                bytes.u32(case.identity.0);
                 bytes.slice(&case.fields, encode_structural_field);
             }
         }
@@ -452,7 +452,7 @@ pub(super) fn encode_structural_type(
             bytes.len(cases.len());
             for case in cases {
                 bytes.id(case.id);
-                bytes.string(&case.identity);
+                bytes.u32(case.identity.0);
                 bytes.slice(&case.fields, encode_structural_field);
             }
         }
@@ -508,7 +508,7 @@ pub(super) fn encode_structural_domain(
 ) {
     bytes.id(declaration.id);
     bytes.id(declaration.semantic_domain);
-    bytes.string(&declaration.identity);
+    bytes.u32(declaration.identity.0);
     bytes.id(declaration.carrier);
     bytes.u8(declaration
         .byte_predicate
@@ -530,7 +530,7 @@ pub(super) fn encode_structural_field(
     field: &StructuralFieldDeclaration,
 ) {
     bytes.id(field.id);
-    bytes.string(&field.identity);
+    bytes.u32(field.identity.0);
     bytes.u8(match field.relevance {
         BindingRelevance::Relevant => 1,
         BindingRelevance::Erased => 2,
@@ -709,10 +709,15 @@ mod tests {
         for (path, retains_descendants) in [
             (Vec::new(), false),
             (Vec::new(), true),
-            (vec![StructuralPathSegment::Field("children".into())], false),
+            (
+                vec![StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(1),
+                )],
+                false,
+            ),
             (
                 vec![
-                    StructuralPathSegment::Field("children".into()),
+                    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1)),
                     StructuralPathSegment::FixedIndex(1),
                 ],
                 false,
@@ -785,7 +790,7 @@ pub(super) fn encode_scalar_restriction(
         }
         StructuralFieldType::Erased { type_identity } => {
             bytes.u8(5);
-            bytes.string(type_identity);
+            bytes.u32(type_identity.0);
         }
     }
 }

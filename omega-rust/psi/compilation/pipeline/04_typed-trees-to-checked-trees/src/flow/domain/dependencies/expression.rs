@@ -138,7 +138,7 @@ pub(super) fn collect_dependency_paths_from_expression(
                 );
             }
         }
-                typed_trees::spelled_literal_expression_pattern!() => {}
+        typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 

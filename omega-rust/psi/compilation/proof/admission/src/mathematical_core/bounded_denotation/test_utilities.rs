@@ -157,7 +157,14 @@ pub(super) fn verify_then_elaborate<'a>(
         &mut Budget::default(),
     )
     .unwrap();
-    elaborate_checked(context, goal, assumptions, &[], machine_parameter_values, proof)
+    elaborate_checked(
+        context,
+        goal,
+        assumptions,
+        &[],
+        machine_parameter_values,
+        proof,
+    )
 }
 
 /// Elaborate `proof` against `goal` under `assumptions`/`semantic_axioms`

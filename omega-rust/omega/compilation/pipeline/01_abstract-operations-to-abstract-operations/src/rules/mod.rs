@@ -47,15 +47,19 @@ fn standard_rule_contract(
 }
 
 fn representation_specialization_contract(identity: &'static [u8]) -> OptimizationRuleContract {
-    standard_rule_contract(identity, REPRESENTATION_SPECIALIZATION_PASS_NAME, 1,
-                AnalysisSet::new([AnalysisKind::StronglyConnectedComponents]),
-                AnalysisInvalidationSet::new([
+    standard_rule_contract(
+        identity,
+        REPRESENTATION_SPECIALIZATION_PASS_NAME,
+        1,
+        AnalysisSet::new([AnalysisKind::StronglyConnectedComponents]),
+        AnalysisInvalidationSet::new([
             AnalysisKind::UseDefinition,
             AnalysisKind::ScalarConstants,
             AnalysisKind::ValueRanges,
             AnalysisKind::EffectSummaries,
         ]),
-                OptimizationSafetyClass::StructuralIdentity)
+        OptimizationSafetyClass::StructuralIdentity,
+    )
 }
 
 /// The closed rule surface every classify-driven rule exposes: its

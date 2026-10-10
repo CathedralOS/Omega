@@ -308,7 +308,6 @@ fn edge_attribution_is_not_unique(
         != 1
 }
 
-
 fn bounded_nominal_receiver_shape(shape: calling_conventions::ValueShape) -> bool {
     shape == calling_conventions::ValueShape::integer(0, 1)
         || shape.class == calling_conventions::ValueClass::Integer

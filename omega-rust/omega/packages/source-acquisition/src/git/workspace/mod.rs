@@ -2,9 +2,8 @@
 
 mod workspace_declaration;
 
+pub(crate) use workspace_declaration::GitWorkspaceProjectionCustody;
 pub use workspace_declaration::{
-    GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits,
-    GitWorkspaceProjectionError, GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult,
-    GitWorkspaceSelection,
+    GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
+    GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult, GitWorkspaceSelection,
 };
-pub(crate) use workspace_declaration::{ GitWorkspaceProjectionCustody};

@@ -118,6 +118,7 @@ pub fn receiver_layout(
     };
     let mut erased = 0;
     if !validate_receiver_fields(
+        &source.terminal().semantic_module().identities,
         structural.structural_types.as_slice(),
         fields,
         settlement.fused_service_establishments(),
@@ -142,6 +143,7 @@ pub fn receiver_layout(
 /// array elements and sum cases cannot name one and keep their nested-erased
 /// rejection.
 fn validate_receiver_fields(
+    identities: &terminal_psi::TerminalIdentityTable,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     fields: &[terminal_psi::StructuralFieldDeclaration],
     rows: &[program_entry_plan::ProgramEntryFusedServiceEstablishment],
@@ -159,12 +161,18 @@ fn validate_receiver_fields(
             let Some(type_identity) = service_carrier else {
                 return false;
             };
-            field_path.push(field.identity.clone());
+            field_path.push(
+                identities
+                    .text(field.identity)
+                    .unwrap_or_default()
+                    .to_string(),
+            );
             let joined = rows
                 .iter()
                 .filter(|row| {
                     row.field_path() == field_path.as_slice()
-                        && row.carrier_type_identity() == type_identity
+                        && row.carrier_type_identity()
+                            == identities.text(type_identity).unwrap_or_default()
                 })
                 .count()
                 == 1;
@@ -198,8 +206,14 @@ fn validate_receiver_fields(
                     match &nested_declaration.shape {
                         terminal_psi::record_or_mixed_shape_pattern!(nested_fields) => {
                             visiting.push(child);
-                            field_path.push(field.identity.clone());
+                            field_path.push(
+                                identities
+                                    .text(field.identity)
+                                    .unwrap_or_default()
+                                    .to_string(),
+                            );
                             let valid = validate_receiver_fields(
+                                identities,
                                 declarations,
                                 nested_fields,
                                 rows,
@@ -240,13 +254,13 @@ mod service_tests {
         let declaration = StructuralTypeDeclaration {
             scalar_restriction: None,
             id: service,
-            identity: "ConsoleCarrier".into(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
             shape: StructuralTypeShape::BindingCarrier,
         };
         let field = StructuralFieldDeclaration {
             storage: None,
             id: StructuralFieldId::new(1).unwrap(),
-            identity: "console".into(),
+            identity: terminal_psi::TerminalIdentityIndex(2),
             relevance: BindingRelevance::Relevant,
             field_type: StructuralFieldType::Structural(service),
         };
@@ -258,6 +272,7 @@ mod service_tests {
         ));
         let mut used = 0;
         assert!(!validate_receiver_fields(
+            &Default::default(),
             &[declaration],
             &[field],
             &[],
@@ -384,18 +399,21 @@ pub(crate) fn validate_entry_shape(
     };
     // The module names a domain row by its family on its exact carrier; the
     // bound contract names that family and carrier separately.
-    if domain.identity
-        != terminal_psi::StructuralDomainDeclaration::carrier_qualified_identity(
-            image_root.domain(),
-            image_root.carrier_identity(),
+    if module.identities.text(domain.identity)
+        != Some(
+            terminal_psi::StructuralDomainDeclaration::carrier_qualified_identity(
+                image_root.domain(),
+                image_root.carrier_identity(),
+            )
+            .as_str(),
         )
         || domain.carrier != carrier.id
-        || carrier.identity != image_root.carrier_identity()
+        || module.identities.text(carrier.identity) != Some(image_root.carrier_identity())
         || !matches!(fields, [base, length]
-            if base.identity == "base"
+            if module.identities.text(base.identity) == Some("base")
                 && base.relevance == BindingRelevance::Relevant
                 && matches!(base.field_type, StructuralFieldType::Scalar(ScalarType::Integer(integer)) if integer.is_address())
-                && length.identity == "length"
+                && module.identities.text(length.identity) == Some("length")
                 && length.relevance == BindingRelevance::Relevant
                 && matches!(length.field_type, StructuralFieldType::Scalar(ScalarType::Integer(integer)) if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64))
     {

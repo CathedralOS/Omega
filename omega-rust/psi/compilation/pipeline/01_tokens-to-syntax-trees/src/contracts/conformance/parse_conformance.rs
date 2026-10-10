@@ -93,7 +93,9 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
             .expect("machine satisfies span count overflow");
         input = rest;
 
-        let Some(next) = input.take_comma()? else { break };
+        let Some(next) = input.take_comma()? else {
+            break;
+        };
 
         input = next;
 

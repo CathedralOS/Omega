@@ -7,24 +7,21 @@ use super::{
     non_authoritative_layout_compatibility_fingerprint, plan_elf_dynamic_load_layout,
     retained_target, validate_candidate,
 };
+use crate::dynamic_executable::checked::{checked_product_u64, checked_sum_u64};
 use crate::dynamic_executable::load_placement::load_layout::abi_validation::{
     aarch64_page_delta_covers_extent, validate_abi, validate_deferred_constraint_envelope,
 };
-use crate::dynamic_executable::checked::{checked_product_u64, checked_sum_u64};
 use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::checked_align;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ElfProcedureLinkagePlacementConstraintKind;
 use crate::dynamic_executable::section_headers::relative_section_layout::ElfRelativeSectionPayloadRegion;
 use crate::plan_elf_relative_section_payload_layout;
 use arena::Handle;
 use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory,
-    FinalImageSection, FinalImageSymbol,
+    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageSection,
+    FinalImageSymbol,
 };
 use object_file::SymbolKind;
-use target::{
-    ForeignLocatorCandidate, TargetProfile,
-    normalize_foreign_locator,
-};
+use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
 
 fn relative(target: TargetProfile) -> ValidatedElfRelativeSectionPayloadLayout {
     relative_with_bss_alignment(target, 16)
@@ -68,11 +65,7 @@ fn relative_with_bss_alignment(
             .unwrap(),
         ),
     });
-    let payloads = crate::test_support::import_call_indexed_payloads(
-        image,
-        symbol_handle,
-        target,
-    );
+    let payloads = crate::test_support::import_call_indexed_payloads(image, symbol_handle, target);
     plan_elf_relative_section_payload_layout(payloads).unwrap()
 }
 

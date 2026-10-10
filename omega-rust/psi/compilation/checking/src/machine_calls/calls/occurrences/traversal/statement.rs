@@ -139,7 +139,5 @@ pub(crate) fn transition_call_target(
     }
     transition
         .targets()
-        .find(|&target| {
-            find_call_site_in_transition_target(traversal, target).is_some()
-        })
+        .find(|&target| find_call_site_in_transition_target(traversal, target).is_some())
 }

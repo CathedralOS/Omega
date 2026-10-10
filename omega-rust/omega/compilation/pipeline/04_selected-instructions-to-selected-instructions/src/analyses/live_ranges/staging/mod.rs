@@ -116,18 +116,9 @@ pub struct StagedOptimizedLiveRangeCustodyReceipt {
 impl StagedOptimizedLiveRangeCustodyReceipt {
     target_operations_to_selected_instructions::staging_custody_core_accessors!();
 
-
-
-
-
-
-
-
-
     pub const fn selected(self) -> SelectedInstructionPlanIdentity {
         self.selected
     }
-
 
     pub const fn liveness(self) -> selected_instructions::LivenessIdentity {
         self.liveness

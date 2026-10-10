@@ -120,7 +120,9 @@ pub fn verify_boundary_result_policies(
                 let declaration = module
                     .boundary_machine(*boundary)
                     .ok_or("float result policy lost its boundary declaration")?;
-                if declaration.identity != requirement_identity(checked, target)? {
+                if module.identities.text(declaration.identity)
+                    != Some(requirement_identity(checked, target)?.as_str())
+                {
                     return Err("float result policy changed its original boundary target");
                 }
                 let Some(format) = policy.float_format() else {

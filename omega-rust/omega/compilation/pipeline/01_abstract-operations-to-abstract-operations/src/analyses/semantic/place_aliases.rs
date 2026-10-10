@@ -54,11 +54,9 @@ pub(crate) struct PlaceAliasesAnalysis {
     pub functions: Vec<PlaceAliasFunction>,
 }
 
-impl PlaceAliasesAnalysis {
-}
+impl PlaceAliasesAnalysis {}
 
 impl PlaceAliasFunction {}
-
 
 pub(in crate::analyses) fn place_aliases(unit: &PsiOptimizationUnit) -> PlaceAliasesAnalysis {
     let mut claim_views: BTreeMap<MachineId, BTreeMap<PlaceView, BTreeSet<OwnershipFrontierSite>>> =

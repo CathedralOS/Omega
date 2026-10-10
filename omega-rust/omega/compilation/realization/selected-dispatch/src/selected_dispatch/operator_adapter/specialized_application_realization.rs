@@ -186,9 +186,7 @@ fn exact_authored_uses(
     origin: checked_trees::CheckedValueOrigin,
     requirement: SymbolHandle,
 ) -> Vec<CheckedOperatorAuthoredUseKind> {
-    let operator = checked
-        .typed
-        .operator_definition_by_symbol(requirement);
+    let operator = checked.typed.operator_definition_by_symbol(requirement);
     checked
         .facts
         .operators
@@ -238,9 +236,5 @@ pub(super) fn applications_match(
     demand_row: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
     realization: &typed_trees::operator::ClosedOperatorRealizationApplication,
 ) -> bool {
-    validation::checked_operator_application_matches_realization(
-        checked,
-        demand_row,
-        realization,
-    )
+    validation::checked_operator_application_matches_realization(checked, demand_row, realization)
 }

@@ -123,8 +123,7 @@ pub fn structural_window_projection<'types>(
     }
     let mut complete = path.to_vec();
     if let Some(identity) = field {
-        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &selected.shape
-        else {
+        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &selected.shape else {
             return None;
         };
         let mut matches = fields.iter().filter(|field| field.id == identity);

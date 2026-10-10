@@ -403,50 +403,47 @@ fn transition_may_overwrite(
     {
         return true;
     }
-    transition
-        .targets()
-        .any(
-            |target| match program.statement_table.transition_target(target) {
-                TransitionTargetNode::Named {
-                    path, arguments, ..
-                } => {
-                    let arguments = program.statement_table.expression_handles(*arguments);
-                    let internal =
-                        program
-                            .machine_by_symbol(machine_symbol)
-                            .is_some_and(|machine| {
-                                crate::checks::termination::named_transition_target_state_index(
-                                    program,
-                                    machine,
-                                    path.symbol,
-                                )
-                                .is_some()
-                            });
-                    (!internal
-                        && call_arguments_may_overwrite(
+    transition.targets().any(
+        |target| match program.statement_table.transition_target(target) {
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => {
+                let arguments = program.statement_table.expression_handles(*arguments);
+                let internal = program
+                    .machine_by_symbol(machine_symbol)
+                    .is_some_and(|machine| {
+                        crate::checks::termination::named_transition_target_state_index(
+                            program,
+                            machine,
+                            path.symbol,
+                        )
+                        .is_some()
+                    });
+                (!internal
+                    && call_arguments_may_overwrite(
+                        program,
+                        machine_symbol,
+                        path.symbol,
+                        arguments,
+                        symbol,
+                        read_path,
+                    ))
+                    || arguments.iter().any(|argument| {
+                        expression_may_overwrite(
                             program,
                             machine_symbol,
-                            path.symbol,
-                            arguments,
+                            *argument,
                             symbol,
                             read_path,
-                        ))
-                        || arguments.iter().any(|argument| {
-                            expression_may_overwrite(
-                                program,
-                                machine_symbol,
-                                *argument,
-                                symbol,
-                                read_path,
-                            )
-                        })
-                }
-                TransitionTargetNode::Value(value) => {
-                    expression_may_overwrite(program, machine_symbol, *value, symbol, read_path)
-                }
-                TransitionTargetNode::Terminal => false,
-            },
-        )
+                        )
+                    })
+            }
+            TransitionTargetNode::Value(value) => {
+                expression_may_overwrite(program, machine_symbol, *value, symbol, read_path)
+            }
+            TransitionTargetNode::Terminal => false,
+        },
+    )
 }
 
 /// `symbol`'s storage at `read_path` is reached by an exclusive borrow or by

@@ -50,7 +50,7 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
             declarations.len(),
         ));
     };
-    if declaration.identity.is_empty() {
+    if declaration.identity == terminal_psi::TerminalIdentityIndex::ABSENT {
         return Err("direct syscall boundary has an empty checked identity".to_owned());
     }
     if !declaration.requires.is_empty() {
@@ -139,13 +139,13 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
                 carriers.len(),
             ));
         };
-        if carrier.identity.is_empty() {
+        if carrier.identity == terminal_psi::TerminalIdentityIndex::ABSENT {
             return Err("direct syscall structural carrier has an empty identity".to_owned());
         }
         digest.raw(&parameter.position.to_be_bytes());
         digest.byte(multiplicity_tag(parameter.multiplicity));
         digest.byte(access_tag(parameter.access));
-        push_bytes(&mut digest, carrier.identity.as_bytes())?;
+        digest.raw(&carrier.identity.0.to_le_bytes());
     }
     let checked_argument_contract =
         CheckedSyscallArgumentContractIdentity::from_digest(digest.finish());

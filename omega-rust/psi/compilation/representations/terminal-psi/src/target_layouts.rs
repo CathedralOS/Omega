@@ -4,6 +4,7 @@
 //! retain the unclosed application and every checked member's result; selecting
 //! one row establishes neither policy evaluation nor permission to access bytes.
 use crate::TargetMachineCallable;
+use crate::TerminalIdentityIndex;
 use semantic_vocabulary::{
     AuthoredFieldStorage, AuthoredRecordStorage, MachineId, StructuralFieldId, StructuralTypeId,
 };
@@ -25,7 +26,7 @@ pub struct TargetLayoutApplication {
     pub id: LayoutApplicationId,
     pub record: StructuralTypeId,
     pub schema: StructuralTypeId,
-    pub policy_identity: String,
+    pub policy_identity: TerminalIdentityIndex,
     pub family: TargetMachineCallable,
     pub schema_argument: TargetLayoutSchemaArgument,
     pub realizations: Vec<TargetLayoutRealization>,

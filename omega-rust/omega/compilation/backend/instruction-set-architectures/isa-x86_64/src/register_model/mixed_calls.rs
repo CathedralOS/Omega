@@ -3,8 +3,8 @@
 use super::{x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys};
 use register_model::call_constraint_keys;
 use register_model::{
-    find_register_constraint,    RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+    RegisterOperandConstraint, ValidatedPhysicalRegisterModel, find_register_constraint,
 };
 /// System V rows ordered by GPR count (0–6), then IEEE register count (1–8).
 pub fn x86_64_system_v_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
@@ -15,7 +15,6 @@ pub fn x86_64_system_v_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
 pub fn x86_64_microsoft_mixed_unit_call_keys() -> Vec<RegisterConstraintKey> {
     call_constraint_keys(900..926)
 }
-
 
 fn append_row(
     constraints: &mut Vec<RegisterInstructionConstraint>,

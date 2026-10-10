@@ -1,4 +1,5 @@
 use crate::ClosedConformanceApplicationCommitment;
+use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::{EvidenceTermId, MachineId, OperationId, PropositionId, ScalarType};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -7,7 +8,7 @@ pub struct ProofOutputCall {
     /// Dense canonical order within the caller; source coordinates erase.
     pub ordinal: u32,
     /// Canonical checked callable identity, never a diagnostic display path.
-    pub target_machine_identity: String,
+    pub target_machine_identity: TerminalIdentityIndex,
     /// Exact private realization selected for a static trait-requirement call.
     /// The public target above remains the requirement callable identity; this
     /// row binds it to one closed conformance application and its emitted
@@ -34,14 +35,14 @@ pub struct StaticRequirementDispatch {
     pub conformance_application_commitment: ClosedConformanceApplicationCommitment,
     /// Canonical public requirement overload exposed to the caller. This is
     /// deliberately distinct from the selected row's declaration path.
-    pub public_requirement_identity: String,
+    pub public_requirement_identity: TerminalIdentityIndex,
     /// Exact selected row within that closed application.
-    pub declaring_trait_identity: String,
-    pub requirement_identity: String,
-    pub realization_identity: String,
+    pub declaring_trait_identity: TerminalIdentityIndex,
+    pub requirement_identity: TerminalIdentityIndex,
+    pub realization_identity: TerminalIdentityIndex,
     /// Canonical source callable independently joined through the selected
     /// closed-conformance row to `realization`.
-    pub realization_callable_identity: String,
+    pub realization_callable_identity: TerminalIdentityIndex,
     /// Artifact-local machine emitted for the selected realization.
     pub realization: MachineId,
 }

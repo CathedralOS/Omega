@@ -5,7 +5,6 @@ use super::projection::{
 use super::{BuildDependencyProjection, DependencyPurpose, DependencySourceRequest};
 use std::path::Path;
 
-
 /// Project the project role and direct dependencies together from one parse.
 pub(crate) fn extract_build_dependency_projection(
     package_root: impl AsRef<Path>,

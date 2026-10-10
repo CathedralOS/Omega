@@ -297,9 +297,8 @@ fn topology_identity(
     machine: &TerminalMachine,
     edges: impl IntoIterator<Item = (EdgeId, BlockId, BlockId)>,
 ) -> CycleComponentId {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"psi.control-cycle.topology.v1\0",
-    );
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"psi.control-cycle.topology.v1\0");
     digest.u64(machine.id.get());
     for (edge, source, target) in edges {
         digest.u64(edge.get());

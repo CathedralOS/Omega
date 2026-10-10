@@ -9,7 +9,7 @@ use terminal_psi::{
     EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence,
+    PropositionDeclaration, PropositionEvidence, TerminalIdentityIndex,
 };
 
 use super::CodecError;
@@ -29,7 +29,7 @@ pub(crate) fn encode_proposition_declaration(
             PropositionBinderKind::Type => writer.u8(1),
             PropositionBinderKind::Const { type_identity } => {
                 writer.u8(2);
-                writer.string("proposition const binder type", type_identity)?;
+                writer.u32(type_identity.0);
             }
             PropositionBinderKind::Machine => writer.u8(3),
         }
@@ -70,15 +70,12 @@ pub(crate) fn encode_proposition_application(
         match &argument.evidence_projection {
             None => {
                 writer.u8(0);
-                writer.string("proposition binder argument", &argument.identity)?;
+                writer.u32(argument.identity.0);
             }
             Some(projection) => {
                 writer.u8(1);
                 writer.id(projection.term);
-                writer.string(
-                    "evidence projection declaring trait",
-                    &projection.declaring_trait_identity,
-                )?;
+                writer.u32(projection.declaring_trait_identity.0);
                 writer.len(
                     "evidence projection declaring trait arguments",
                     projection.declaring_trait_arguments.len(),
@@ -86,10 +83,7 @@ pub(crate) fn encode_proposition_application(
                 for argument in &projection.declaring_trait_arguments {
                     writer.string("evidence projection declaring trait argument", argument)?;
                 }
-                writer.string(
-                    "evidence projection requirement",
-                    &projection.requirement_identity,
-                )?;
+                writer.u32(projection.requirement_identity.0);
             }
         }
     }
@@ -111,10 +105,7 @@ pub(crate) fn encode_evidence_interface(
     writer: &mut Writer,
     interface: &EvidenceInterfaceIdentity,
 ) -> Result<(), CodecError> {
-    writer.string(
-        "evidence interface trait identity",
-        &interface.trait_identity,
-    )?;
+    writer.u32(interface.trait_identity.0);
     writer.len("evidence interface arguments", interface.arguments.len())?;
     for argument in &interface.arguments {
         writer.string("evidence interface argument", argument)?;
@@ -124,10 +115,7 @@ pub(crate) fn encode_evidence_interface(
         interface.requirements.len(),
     )?;
     for requirement in &interface.requirements {
-        writer.string(
-            "evidence requirement declaring trait",
-            &requirement.declaring_trait_identity,
-        )?;
+        writer.u32(requirement.declaring_trait_identity.0);
         writer.len(
             "evidence requirement declaring trait arguments",
             requirement.declaring_trait_arguments.len(),
@@ -135,10 +123,7 @@ pub(crate) fn encode_evidence_interface(
         for argument in &requirement.declaring_trait_arguments {
             writer.string("evidence requirement declaring trait argument", argument)?;
         }
-        writer.string(
-            "evidence requirement identity",
-            &requirement.requirement_identity,
-        )?;
+        writer.u32(requirement.requirement_identity.0);
     }
     Ok(())
 }
@@ -155,7 +140,7 @@ pub(crate) fn decode_proposition_declaration(
         let kind = match reader.u8()? {
             1 => PropositionBinderKind::Type,
             2 => PropositionBinderKind::Const {
-                type_identity: reader.string("proposition const binder type")?,
+                type_identity: TerminalIdentityIndex(reader.u32()?), /* proposition const binder type */
             },
             3 => PropositionBinderKind::Machine,
             tag => return Err(CodecError::InvalidTag("PropositionBinderKind", tag)),
@@ -200,17 +185,16 @@ pub(crate) fn decode_proposition_application(
             }
         };
         let (identity, evidence_projection) = match reader.u8()? {
-            0 => (reader.string("proposition binder argument")?, None),
+            0 => (TerminalIdentityIndex(reader.u32()?), None),
             1 => (
-                String::new(),
+                TerminalIdentityIndex::ABSENT,
                 Some(EvidenceProjectionIdentity {
                     term: reader.id("EvidenceTermId")?,
-                    declaring_trait_identity: reader
-                        .string("evidence projection declaring trait")?,
+                    declaring_trait_identity: TerminalIdentityIndex(reader.u32()?), /* evidence projection declaring trait */
                     declaring_trait_arguments: decode_counted(reader, |reader| {
                         reader.string("evidence projection declaring trait argument")
                     })?,
-                    requirement_identity: reader.string("evidence projection requirement")?,
+                    requirement_identity: TerminalIdentityIndex(reader.u32()?),
                 }),
             ),
             tag => return Err(CodecError::InvalidTag("PropositionBinderArgument", tag)),
@@ -224,7 +208,7 @@ pub(crate) fn decode_proposition_application(
     let argument_count = reader.count()?;
     let mut arguments = Vec::with_capacity(argument_count as usize);
     for _ in 0..argument_count {
-        arguments.push(reader.string("proposition argument")?);
+        arguments.push(reader.string("proposition application argument")?);
     }
     let evidence_interface = match reader.u8()? {
         0 => None,
@@ -244,17 +228,17 @@ pub(crate) fn decode_evidence_interface(
     reader: &mut Reader<'_>,
 ) -> Result<EvidenceInterfaceIdentity, CodecError> {
     Ok(EvidenceInterfaceIdentity {
-        trait_identity: reader.string("evidence interface trait identity")?,
+        trait_identity: TerminalIdentityIndex(reader.u32()?),
         arguments: decode_counted(reader, |reader| {
             reader.string("evidence interface argument")
         })?,
         requirements: decode_counted(reader, |reader| {
             Ok(EvidenceRequirementIdentity {
-                declaring_trait_identity: reader.string("evidence requirement declaring trait")?,
+                declaring_trait_identity: TerminalIdentityIndex(reader.u32()?),
                 declaring_trait_arguments: decode_counted(reader, |reader| {
                     reader.string("evidence requirement declaring trait argument")
                 })?,
-                requirement_identity: reader.string("evidence requirement identity")?,
+                requirement_identity: TerminalIdentityIndex(reader.u32()?),
             })
         })?,
     })

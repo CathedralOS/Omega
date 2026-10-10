@@ -2,8 +2,7 @@
 
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
-    NodeLocation, PhiTranslatedScalarGvnRewrite, PsiOptimizationUnit,
-    PsiRewriteCandidate,
+    NodeLocation, PhiTranslatedScalarGvnRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
 };
 
 use super::expression_keys::proof_certified_scalar_expression;
@@ -16,9 +15,9 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 psi_rule_contract!(
     PhiTranslatedProofCertifiedScalarGvnRule,
     phi_translated_contract(
-                b"omega.psi-rule.phi-translated-proof-certified-total-scalar-gvn.v1",
-                OptimizationSafetyClass::ProofCertified,
-            ),
+        b"omega.psi-rule.phi-translated-proof-certified-total-scalar-gvn.v1",
+        OptimizationSafetyClass::ProofCertified,
+    ),
 );
 
 impl PsiOptimizationRule for PhiTranslatedProofCertifiedScalarGvnRule {

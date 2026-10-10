@@ -109,14 +109,14 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                 structural_types: vec![StructuralTypeDeclaration {
                     scalar_restriction: None,
                     id: extent_type,
-                    identity: "omega::core::Extent".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(1),
                     shape: StructuralTypeShape::Record {
                         storage: terminal_psi::StructuralRecordStorage::Packed,
                         fields: vec![
                             StructuralFieldDeclaration {
                                 storage: None,
                                 id: id::<StructuralFieldId>(1),
-                                identity: "base".into(),
+                                identity: terminal_psi::TerminalIdentityIndex(2),
                                 relevance: BindingRelevance::Relevant,
                                 field_type: StructuralFieldType::Scalar(
                                     semantic_vocabulary::ScalarType::Integer(
@@ -127,7 +127,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                             StructuralFieldDeclaration {
                                 storage: None,
                                 id: id::<StructuralFieldId>(2),
-                                identity: "length".into(),
+                                identity: terminal_psi::TerminalIdentityIndex(3),
                                 relevance: BindingRelevance::Relevant,
                                 field_type: StructuralFieldType::Scalar(
                                     semantic_vocabulary::ScalarType::Integer(
@@ -236,9 +236,9 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
     let boundary = id::<BoundaryMachineId>(1);
     let provider = ProviderCandidateConformance {
         boundary,
-        requirement_identity: "ProgramEntry::enter".into(),
-        provider_identity: "UefiProgramProvider".into(),
-        candidate_identity: "UefiProgramProvider::enter".into(),
+        requirement_identity: terminal_psi::TerminalIdentityIndex(4),
+        provider_identity: terminal_psi::TerminalIdentityIndex(5),
+        candidate_identity: terminal_psi::TerminalIdentityIndex(6),
         candidate: id(2),
         signature: terminal_psi::ProviderSignature {
             parameters: signature

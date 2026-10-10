@@ -144,20 +144,27 @@ impl<'a> UnitClosureRequest<'a> {
 /// program with its machine source map. `machine_lowering` selects this for
 /// attached and free Unit-effect machines.
 pub(crate) fn lower_unit_effect_closure(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    lower_unit_closure(checked, &UnitClosureRequest::unit(checked, entry, &[entry]))
+    lower_unit_closure(
+        identities,
+        checked,
+        &UnitClosureRequest::unit(checked, entry, &[entry]),
+    )
 }
 
 /// The dispatch-facing product of a scalar entry in the common callee catalog.
 /// The entrance finalizes proofs after the complete module's
 /// contracts and installation entries have been retained.
 pub(crate) fn lower_scalar_effect_closure(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_unit_closure(
+        identities,
         checked,
         &UnitClosureRequest {
             scalar_entry: true,
@@ -170,6 +177,7 @@ pub(crate) fn lower_scalar_effect_closure(
 /// admit and validate every body, allocate the shared type/domain/service
 /// namespaces, then emit each machine into one module.
 pub(crate) fn lower_unit_closure(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     request: &UnitClosureRequest<'_>,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
@@ -215,7 +223,7 @@ pub(crate) fn lower_unit_closure(
     // Shared namespaces: every emitted machine resolves types, domains, and
     // services against these one catalogs.
     let (mut structural_types, type_ids, structural_referents) =
-        catalog::lower_unit_structural_types(checked, plans, &closure, &boundaries)?;
+        catalog::lower_unit_structural_types(identities, checked, plans, &closure, &boundaries)?;
     // Callable composed bodies borrow a complete shared catalog. Retain the
     // generated immutable carrier before cloning it into any callee emitter.
     for machine_symbol in &closure {
@@ -231,12 +239,11 @@ pub(crate) fn lower_unit_closure(
                 operation,
                 &mut Vec::new(),
             )? {
-                crate::emission::structural_byte_sequence_store::literal_view_type(
-                    &mut structural_types,
-                )?;
+                crate::emission::structural_byte_sequence_store::literal_view_type(identities, &mut structural_types)?;
             }
             if let Some(value) = operation.stored_bytes() {
                 crate::emission::structural_byte_sequence_store::prepare_types(
+                    identities,
                     value,
                     &mut structural_types,
                 )?;
@@ -251,27 +258,36 @@ pub(crate) fn lower_unit_closure(
                 })
             {
                 crate::emission::structural_byte_sequence_store::prepare_types(
+                    identities,
                     value,
                     &mut structural_types,
                 )?;
             }
         }
     }
-    let (structural_domains, domain_ids) =
-        catalog::lower_unit_structural_domains(checked, plans, &closure, &boundaries, &type_ids)?;
+    let (structural_domains, domain_ids) = catalog::lower_unit_structural_domains(
+        identities,
+        checked,
+        plans,
+        &closure,
+        &boundaries,
+        &type_ids,
+    )?;
     let (services, service_ids) = catalog::lower_unit_services(
+        identities,
         checked,
         plans,
         &closure,
         &boundaries,
         &provider_candidate_plans,
     )?;
-    let root_service_reach = lower_root_service_reach(checked, entry, &service_ids)?;
+    let root_service_reach = lower_root_service_reach(identities, checked, entry, &service_ids)?;
 
     // Signatures: boundary declarations, then each admitted body's formals,
     // claims and requirements, then every machine's Terminal identity.
     let mut next_place = 1_u64;
     let (boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(
+        identities,
         checked,
         &boundaries,
         &type_ids,
@@ -284,12 +300,14 @@ pub(crate) fn lower_unit_closure(
     // emits; every body's signature declares against it.
     let qualifications =
         crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
+            identities,
             checked,
             &[],
             &closure,
         )?;
     let mut next_value = 1_u64;
     let machine_signatures = signatures::lower(
+        identities,
         checked,
         &admitted_bodies,
         &qualifications,
@@ -315,6 +333,7 @@ pub(crate) fn lower_unit_closure(
         })
         .map(|input| {
             lower_placed_view_input(
+                identities,
                 checked,
                 input,
                 lookup_machine_id(&machine_ids, input.machine)?,
@@ -375,6 +394,7 @@ pub(crate) fn lower_unit_closure(
         {
             let (machine, composed, mut invariants, mut coercions) =
                 composed_control::callable::emit(
+                    identities,
                     checked,
                     source_plan,
                     admitted,
@@ -418,6 +438,7 @@ pub(crate) fn lower_unit_closure(
         }
         let plan = body.ordinary()?;
         let emitted = ordinary_machine::emit(
+            identities,
             checked,
             signature,
             plan,
@@ -463,6 +484,7 @@ pub(crate) fn lower_unit_closure(
         &mut next_call_obligation,
     )?;
     let provider_candidates = providers::conformances(
+        identities,
         checked,
         &provider_candidate_plans,
         &lowered_boundary_parameters,
@@ -509,7 +531,7 @@ pub(crate) fn lower_unit_closure(
             scalar_block_invariants,
             operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
-            identities: Default::default(),
+            identities: identities.snapshot(),
             // Operation bodies are emitted first; a scalar entry may follow
             // its helpers. Preserve the selected source owner, not roster order.
             entry: lookup_machine_id(&machine_ids, entry)?,

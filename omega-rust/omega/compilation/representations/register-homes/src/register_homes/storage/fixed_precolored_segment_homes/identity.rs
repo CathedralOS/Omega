@@ -1,4 +1,3 @@
-
 use target::{Architecture, ObjectFormat};
 
 use crate::{
@@ -29,7 +28,10 @@ pub fn fixed_precolored_segment_home_plan_identity(
         ObjectFormat::Coff => 2,
     });
     crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_size as u64).to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_alignment as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        (plan.target.pointer_alignment as u64).to_le_bytes(),
+    );
     bytes.push(match plan.policy {
         FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1 => 0,
     });

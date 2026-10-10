@@ -142,16 +142,13 @@ impl ExitScalars<'_, '_> {
         impl Fn(facts::NormalizedWriteFrame) -> bool + 'a,
     )> {
         let frames = self.call_frames?;
-        Some((
-            frames,
-            move |frame: facts::NormalizedWriteFrame| {
-                frame.into_complete_paths().is_some_and(|paths| {
-                    paths
-                        .iter()
-                        .all(|written| !validation::frame_paths_overlap(written, local_name))
-                })
-            },
-        ))
+        Some((frames, move |frame: facts::NormalizedWriteFrame| {
+            frame.into_complete_paths().is_some_and(|paths| {
+                paths
+                    .iter()
+                    .all(|written| !validation::frame_paths_overlap(written, local_name))
+            })
+        }))
     }
 
     fn node_write_preserved(

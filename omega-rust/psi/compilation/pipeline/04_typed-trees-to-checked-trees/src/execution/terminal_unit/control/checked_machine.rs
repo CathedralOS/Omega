@@ -324,12 +324,12 @@ pub(crate) fn build_checked_machine_residual_parts(
         };
         *discard_result_on_return
             && matches!(
-                statements.get(result.statement_index as usize),
-                Some(StatementNode::LocalData(local))
-                    if type_graph_requires_nominal_drop(program, local.type_reference,
-        &[],
-        &mut BTreeSet::new())
-            )
+                    statements.get(result.statement_index as usize),
+                    Some(StatementNode::LocalData(local))
+                        if type_graph_requires_nominal_drop(program, local.type_reference,
+            &[],
+            &mut BTreeSet::new())
+                )
     }) {
         return None;
     }

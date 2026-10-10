@@ -2,11 +2,9 @@
 //! length framing, option tags, and length-prefixed element lists. Each call
 //! site names its own artifact so panic text stays authored at the domain.
 
-
-
-pub(crate) use optimization_core::codec_bytes::{push_encoded};
 #[cfg(test)]
-pub(crate) use optimization_core::codec_bytes::{patch_encoded};
+pub(crate) use optimization_core::codec_bytes::patch_encoded;
+pub(crate) use optimization_core::codec_bytes::push_encoded;
 /// u64 length prefix. `artifact` keeps each encoder's own panic text.
 pub(crate) fn length(bytes: &mut Vec<u8>, value: usize, artifact: &'static str) {
     bytes.extend_from_slice(
@@ -81,5 +79,3 @@ pub(crate) fn domain_identity(domain: &[u8], content: &[u8]) -> [u8; 32] {
     digest.raw(content);
     digest.finish().into()
 }
-
-

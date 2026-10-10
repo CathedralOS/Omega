@@ -587,4 +587,3 @@ macro_rules! checked_boolean_triple_pattern {
             | $crate::CheckedBooleanExpression::Or { $($fields)* }
     };
 }
-

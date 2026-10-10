@@ -7,13 +7,12 @@ mod budget;
 mod capture_contract;
 
 use crate::{BoundedProcessChild, BoundedProcessPrepared};
-pub use budget::{BoundedCaptureBudget};
-pub(crate) use budget::{ BoundedCaptureBudgetExceeded};
+pub use budget::BoundedCaptureBudget;
+pub(crate) use budget::BoundedCaptureBudgetExceeded;
+pub(crate) use capture_contract::BoundedProcessStream;
 pub use capture_contract::{
     BoundedCaptureLimits, BoundedProcessInput, BoundedProcessOutput, BoundedProcessRunError,
 };
-pub(crate) use capture_contract::{
-    BoundedProcessStream};
 use std::io::{Read, Write};
 use std::process::ChildStdin;
 use std::sync::mpsc::{self, RecvTimeoutError};

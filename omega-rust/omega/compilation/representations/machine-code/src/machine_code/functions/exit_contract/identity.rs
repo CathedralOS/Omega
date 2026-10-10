@@ -1,6 +1,5 @@
 //! Canonical version-9 exit-record identity; no producer or admission dependency.
 
-
 use super::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
     WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,

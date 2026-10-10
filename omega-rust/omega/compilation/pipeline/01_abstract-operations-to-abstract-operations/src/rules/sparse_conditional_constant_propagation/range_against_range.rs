@@ -7,14 +7,14 @@ use optimization_core::{
     AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    BooleanConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
-    ValueRangeSupport,
+    BooleanConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite,
+    PsiRewriteCandidate, ValueRangeSupport,
 };
 use semantic_vocabulary::{IntegerType, IntegerValue};
 
 use super::IntegerRangePairComparisonKind;
 use crate::rules::sparse_conditional_constant_propagation::{
-    integer_value_type, range_comparison_contract, node_location
+    integer_value_type, node_location, range_comparison_contract,
 };
 use crate::{
     AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError, ValueRangeAnalysis,

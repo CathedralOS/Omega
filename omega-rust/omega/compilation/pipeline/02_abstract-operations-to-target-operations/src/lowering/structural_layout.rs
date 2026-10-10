@@ -252,7 +252,7 @@ fn contiguous_primitive_projection(
         )
         .ok()?;
         if let Some(fields) = declarations.get(&carrier)?.shape.direct_fields() {
-            let field = terminal_psi::live_field_by_identity(fields, identity)?;
+            let field = terminal_psi::live_field_by_identity(fields, *identity)?;
             let scalar = match field.field_type {
                 StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => Some(scalar),
                 StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(format)),
@@ -325,7 +325,7 @@ fn contiguous_primitive_read_projection(
     )
     .ok()?;
     let fields = declarations.get(&carrier_type)?.shape.direct_fields()?;
-    let field = terminal_psi::live_field_by_identity(fields, identity)?;
+    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
     // Eligibility was checked on the complete read. This suffix supplies only
     // the scalar's storage layout, never store authority or a canonical fact.
     let scalar = field.field_type.scalar_type()?;
@@ -1129,7 +1129,7 @@ fn storage_projection_path(
                     return Err(invalid());
                 };
                 let (field_position, field) =
-                    terminal_psi::live_field_entry(&cases[case_position].fields, identity)
+                    terminal_psi::live_field_entry(&cases[case_position].fields, *identity)
                         .ok_or_else(invalid)?;
                 let Some(selected) = field.field_type.as_structural() else {
                     return Err(invalid());

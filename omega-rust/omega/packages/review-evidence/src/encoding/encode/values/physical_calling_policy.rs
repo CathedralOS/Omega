@@ -1,16 +1,15 @@
 //! Bounded physical-component bytes, never a complete boundary-policy record.
 
+use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::declarations::{
     calling_policy_tag, encode_machine_register, encode_value_placement,
 };
 use crate::encoding::encode::encoder::Encoder;
-use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     PackagePolicyEntryControl, PackagePolicyEntryStack, PackagePolicyMachineRegime,
     PackagePolicyMachineState, PackagePolicyMachineStateSet, PackagePolicyPhysicalCallingContract,
     PackagePolicyPreemption, PackagePolicyStatePlan, PackageReviewBoundaryCallingPolicy,
 };
-
 
 pub(crate) fn encode_physical(
     encoder: &mut Encoder,

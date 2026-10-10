@@ -1140,7 +1140,8 @@ impl FloatSemanticOperation {
     }
 
     pub fn contract_identity(&self) -> FloatSemanticContractIdentity {
-        let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(FLOAT_SEMANTICS_CONTRACT_DOMAIN);
+        let mut hasher =
+            crate::digest_encoder::DomainDigestEncoder::new(FLOAT_SEMANTICS_CONTRACT_DOMAIN);
         hasher.raw(&FLOAT_SEMANTICS_CATALOG_VERSION.to_le_bytes());
         hasher.raw(format!("toolchain::{}::{}", FLOAT_SEMANTICS_NAMESPACE, self.name).as_bytes());
         hasher.byte(0);

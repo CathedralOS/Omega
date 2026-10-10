@@ -11,7 +11,7 @@ use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 use semantic_vocabulary::ContentProjectionIdentity;
 use terminal_psi::{
     InstallationReachDependency, ServiceDeclaration, StructuralContentProjection,
-    StructuralDomainDeclaration, StructuralEstablishmentRoute,
+    StructuralDomainDeclaration, StructuralEstablishmentRoute, TerminalIdentityIndex,
 };
 
 fn encode_establishment_routes(
@@ -23,15 +23,15 @@ fn encode_establishment_routes(
         match route {
             StructuralEstablishmentRoute::Requirement { requirement } => {
                 writer.u8(1);
-                writer.string("route requirement identity", requirement)?;
+                writer.u32(requirement.0);
             }
             StructuralEstablishmentRoute::ExactMachine { machine } => {
                 writer.u8(2);
-                writer.string("route machine identity", machine)?;
+                writer.u32(machine.0);
             }
             StructuralEstablishmentRoute::BoundaryRequirement { requirement } => {
                 writer.u8(3);
-                writer.string("route boundary requirement identity", requirement)?;
+                writer.u32(requirement.0);
             }
         }
     }
@@ -44,13 +44,13 @@ fn decode_establishment_routes(
     decode_counted(reader, |reader| {
         Ok(match reader.u8()? {
             1 => StructuralEstablishmentRoute::Requirement {
-                requirement: reader.string("route requirement identity")?,
+                requirement: TerminalIdentityIndex(reader.u32()?),
             },
             2 => StructuralEstablishmentRoute::ExactMachine {
-                machine: reader.string("route machine identity")?,
+                machine: TerminalIdentityIndex(reader.u32()?),
             },
             3 => StructuralEstablishmentRoute::BoundaryRequirement {
-                requirement: reader.string("route boundary requirement identity")?,
+                requirement: TerminalIdentityIndex(reader.u32()?),
             },
             tag => return Err(CodecError::InvalidTag("StructuralEstablishmentRoute", tag)),
         })
@@ -63,7 +63,7 @@ pub(super) fn encode_structural_domain(
 ) -> Result<(), CodecError> {
     writer.id(declaration.id);
     writer.id(declaration.semantic_domain);
-    writer.string("structural domain identity", &declaration.identity)?;
+    writer.u32(declaration.identity.0);
     writer.id(declaration.carrier);
     writer.u8(declaration
         .byte_predicate
@@ -84,7 +84,7 @@ pub(super) fn encode_service(
     declaration: &ServiceDeclaration,
 ) -> Result<(), CodecError> {
     writer.id(declaration.id);
-    writer.string("service identity", &declaration.identity)?;
+    writer.u32(declaration.identity.0);
     writer.len("service parents", declaration.parents.len())?;
     for parent in &declaration.parents {
         writer.id(*parent);
@@ -96,10 +96,7 @@ pub(super) fn encode_installation_reach_dependency(
     writer: &mut Writer,
     dependency: &InstallationReachDependency,
 ) -> Result<(), CodecError> {
-    writer.string(
-        "installation reach requirement identity",
-        &dependency.requirement_identity,
-    )?;
+    writer.u32(dependency.requirement_identity.0);
     writer.len(
         "installation reach upper bound",
         dependency.upper_bound.len(),
@@ -116,7 +113,7 @@ pub(super) fn decode_structural_domain(
     Ok(StructuralDomainDeclaration {
         id: reader.id("StructuralDomainId")?,
         semantic_domain: reader.id("DomainSemanticId")?,
-        identity: reader.string("structural domain identity")?,
+        identity: TerminalIdentityIndex(reader.u32()?),
         carrier: reader.id("StructuralTypeId")?,
         byte_predicate: match reader.u8()? {
             0 => None,
@@ -145,7 +142,7 @@ pub(super) fn decode_structural_domain(
 pub(super) fn decode_service(reader: &mut Reader<'_>) -> Result<ServiceDeclaration, CodecError> {
     Ok(ServiceDeclaration {
         id: reader.id("ServiceId")?,
-        identity: reader.string("service identity")?,
+        identity: TerminalIdentityIndex(reader.u32()?),
         parents: decode_ids(reader, "ServiceId")?,
     })
 }
@@ -154,7 +151,7 @@ pub(super) fn decode_installation_reach_dependency(
     reader: &mut Reader<'_>,
 ) -> Result<InstallationReachDependency, CodecError> {
     Ok(InstallationReachDependency {
-        requirement_identity: reader.string("installation reach requirement identity")?,
+        requirement_identity: TerminalIdentityIndex(reader.u32()?),
         upper_bound: decode_ids(reader, "ServiceId")?,
     })
 }

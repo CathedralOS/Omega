@@ -118,7 +118,6 @@ pub struct InstalledCode {
 }
 
 impl InstalledCode {
-
     pub fn artifact(&self) -> ArtifactId {
         self.validated.frozen.artifact.artifact.0.identity
     }
@@ -252,7 +251,6 @@ impl InstalledCodeEvidence {
             wx: installed.wx,
         }
     }
-
 }
 
 fn installed_artifact_occurrence_digest(
@@ -356,4 +354,3 @@ impl std::fmt::Display for InstallationDiagnostic {
         formatter.write_str(&self.0)
     }
 }
-

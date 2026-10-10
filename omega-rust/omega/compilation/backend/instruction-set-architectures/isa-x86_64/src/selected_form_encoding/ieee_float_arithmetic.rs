@@ -1644,11 +1644,11 @@ mod tests {
                 operation: IeeeFloatArithmeticOperation::Add,
                 format,
             };
-            assert!(
-                !xmm3
-                    .iter()
-                    .any(|unit| super::effects(binary_form).implicit_unit_clobbers.contains(unit))
-            );
+            assert!(!xmm3.iter().any(|unit| {
+                super::effects(binary_form)
+                    .implicit_unit_clobbers
+                    .contains(unit)
+            }));
         }
     }
 

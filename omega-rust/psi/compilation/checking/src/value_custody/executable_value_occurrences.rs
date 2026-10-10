@@ -35,23 +35,27 @@ pub fn visit_executable_value_occurrences(
             typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
         {
             for (ordinal, expression) in subjects.into_iter().enumerate() {
-                visitor.collect_expression(expression,
+                visitor.collect_expression(
+                    expression,
                     CheckedValueOrigin::MachineDecrease {
                         machine_symbol: machine.symbol,
                         ordinal,
                     },
-        None);
+                    None,
+                );
             }
         }
 
         for owned_data in program.machine_owned_data(machine) {
             if owned_data.initial_value.is_valid() {
-                visitor.collect_expression(owned_data.initial_value,
+                visitor.collect_expression(
+                    owned_data.initial_value,
                     CheckedValueOrigin::MachineOwnedDataInitializer {
                         machine_symbol: machine.symbol,
                         data_symbol: owned_data.symbol,
                     },
-        None);
+                    None,
+                );
             }
         }
         for state in program.machine_states(machine) {
@@ -98,16 +102,17 @@ impl ValueOccurrenceVisitor<'_, '_> {
         expression: ExpressionHandle,
         role: CheckedValueStatementRole,
     ) {
-        self.collect_expression(expression,
+        self.collect_expression(
+            expression,
             CheckedValueOrigin::StateStatement {
                 machine_symbol,
                 state_symbol,
                 statement_index,
                 role,
             },
-        None);
+            None,
+        );
     }
-
 
     fn collect_expression(
         &mut self,
@@ -127,7 +132,10 @@ impl ValueOccurrenceVisitor<'_, '_> {
         parent: ExpressionHandle,
         expression: ExpressionHandle,
     ) {
-        self.collect_expression(expression, CheckedValueOrigin::NestedExpression { parent },
-        None);
+        self.collect_expression(
+            expression,
+            CheckedValueOrigin::NestedExpression { parent },
+            None,
+        );
     }
 }

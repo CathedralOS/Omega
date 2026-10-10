@@ -4,4 +4,5 @@ mod policy;
 
 pub(crate) use policy::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
-    PackagePolicyConformanceRow};
+    PackagePolicyConformanceRow,
+};

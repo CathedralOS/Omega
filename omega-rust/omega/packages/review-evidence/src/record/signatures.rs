@@ -10,24 +10,28 @@ mod traits;
 
 pub(crate) use callables::{
     PackageReviewCallableParameter, PackageReviewRequirementRealization,
-    PackageReviewTraitRequirementParameter};
+    PackageReviewTraitRequirementParameter,
+};
 
 pub(crate) use external_policy::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
     PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
-    PackagePolicyExternalRequirement};
+    PackagePolicyExternalRequirement,
+};
 
 pub(crate) use external_supply::{
-    PackageReviewEvaluatedImport,
-    PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
-    PackageReviewExternalCallableParameter, PackageReviewForeignLocator};
+    PackageReviewEvaluatedImport, PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
+    PackageReviewExternalCallableParameter, PackageReviewForeignLocator,
+};
 
 pub(crate) use signature_vocabulary::{
     PackageReviewConformanceBound, PackageReviewMachineParameterContract,
     PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
-    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind};
+    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
+};
 
 pub(crate) use traits::{
     PackageReviewConformanceShape, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
-    PackageReviewTraitRequirement, PackageReviewTraitShape};
+    PackageReviewTraitRequirement, PackageReviewTraitShape,
+};

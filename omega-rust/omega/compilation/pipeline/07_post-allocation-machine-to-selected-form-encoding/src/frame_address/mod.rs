@@ -28,8 +28,7 @@ fn local_slot_region<'function, 'frame>(
     Error,
 > {
     let geometry = function_geometry(function, frame)?;
-    let (start, size, limit, _) =
-        slot_region(function, geometry, FrameStorageSlotId::Local(slot))?;
+    let (start, size, limit, _) = slot_region(function, geometry, FrameStorageSlotId::Local(slot))?;
     let source = function
         .local_storage_slots
         .iter()
@@ -272,8 +271,7 @@ pub(super) fn resolve(
             ) {
                 return Err(Error::ArtifactMismatch);
             }
-            let (geometry, start, size, limit, source) =
-                local_slot_region(function, frame, slot)?;
+            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
             let displacement = frame_displacement(geometry, start)?;
             if size != 8
                 || source.alignment != 8
@@ -292,8 +290,7 @@ pub(super) fn resolve(
             ) {
                 return Err(Error::ArtifactMismatch);
             }
-            let (geometry, start, size, limit, source) =
-                local_slot_region(function, frame, slot)?;
+            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
             let displacement = frame_displacement(geometry, start)?;
             if size != 1
                 || source.alignment != 1
@@ -311,8 +308,7 @@ pub(super) fn resolve(
             ) {
                 return Err(Error::ArtifactMismatch);
             }
-            let (geometry, start, size, limit, source) =
-                local_slot_region(function, frame, slot)?;
+            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
             let displacement = frame_displacement(geometry, start)?;
             if size != 8
                 || source.alignment != 4
@@ -424,8 +420,7 @@ pub(super) fn validate_address(
             ) {
                 return Err(Error::ArtifactMismatch);
             }
-            let (geometry, start, size, limit, source) =
-                local_slot_region(function, frame, slot)?;
+            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
             if candidate.displacement != frame_displacement(geometry, start)?
                 || size != 8
                 || source.alignment != 8
@@ -444,8 +439,7 @@ pub(super) fn validate_address(
             ) {
                 return Err(Error::ArtifactMismatch);
             }
-            let (geometry, start, size, limit, source) =
-                local_slot_region(function, frame, slot)?;
+            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
             if candidate.displacement != frame_displacement(geometry, start)?
                 || size != 1
                 || source.alignment != 1
@@ -463,8 +457,7 @@ pub(super) fn validate_address(
             ) {
                 return Err(Error::ArtifactMismatch);
             }
-            let (geometry, start, size, limit, source) =
-                local_slot_region(function, frame, slot)?;
+            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
             if candidate.displacement != frame_displacement(geometry, start)?
                 || size != 8
                 || source.alignment != 4

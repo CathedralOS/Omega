@@ -2,7 +2,7 @@
 
 use super::{
     Aarch64SelectedFormEncodingError,
-        encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
+    encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     encode_aarch64_selected_form, encode_aarch64_selected_i64_less_than_branch_form,
     encode_aarch64_selected_i64_less_than_widened_branch_form,
     encode_aarch64_selected_nonzero_branch_form,

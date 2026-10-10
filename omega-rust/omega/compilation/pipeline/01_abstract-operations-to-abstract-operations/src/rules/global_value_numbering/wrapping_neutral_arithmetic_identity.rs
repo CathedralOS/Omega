@@ -20,7 +20,6 @@ psi_rule_contract!(
     classify,
 );
 
-
 /// Return the exact laws in canonical left-literal/right-literal tie order.
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     use TotalScalarIdentityKind as Kind;

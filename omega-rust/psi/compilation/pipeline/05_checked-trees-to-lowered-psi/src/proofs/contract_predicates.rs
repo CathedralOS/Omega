@@ -9,10 +9,19 @@ use semantic_vocabulary::{IntegerMathTerm, ScalarType};
 mod integer_math;
 pub(crate) use integer_math::validate_namespace as validate_math_namespace;
 pub(crate) trait PredicateTerms {
-    fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError>;
-    fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError>;
+    fn scalar(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError>;
+    fn boolean(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedBooleanExpression,
+    ) -> Result<ScalarTerm, LoweringError>;
     fn case_membership(
         &self,
+        _identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         _expression: &CheckedBooleanExpression,
     ) -> Result<Proposition, LoweringError> {
         unsupported("contract namespace has no structural case subject")
@@ -23,12 +32,13 @@ pub(crate) trait PredicateTerms {
 }
 
 pub(crate) fn proposition(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     predicate: &CheckedBooleanExpression,
     terms: &impl PredicateTerms,
 ) -> Result<Proposition, LoweringError> {
     // Scalar equations retain operation denotations; logical short-circuit
     // equivalences expand their polarities under one shared work budget.
-    proposition_with_polarity(predicate, terms, true, &mut 4096)
+    proposition_with_polarity(identities, predicate, terms, true, &mut 4096)
 }
 
 fn has_scalar_boolean_denotation(
@@ -61,6 +71,7 @@ fn has_scalar_boolean_denotation(
 }
 
 fn proposition_with_polarity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     predicate: &CheckedBooleanExpression,
     terms: &impl PredicateTerms,
     positive: bool,
@@ -71,7 +82,7 @@ fn proposition_with_polarity(
     ))?;
     match predicate {
         CheckedBooleanExpression::StructuralCaseMembership { .. } => {
-            let membership = terms.case_membership(predicate)?;
+            let membership = terms.case_membership(identities, predicate)?;
             Ok(if positive {
                 membership
             } else {
@@ -82,8 +93,8 @@ fn proposition_with_polarity(
             })
         }
         CheckedBooleanExpression::IntegerMathComparison { kind, left, right } => {
-            let left = integer_math::lower(left, terms, remaining)?;
-            let right = integer_math::lower(right, terms, remaining)?;
+            let left = integer_math::lower(identities, left, terms, remaining)?;
+            let right = integer_math::lower(identities, right, terms, remaining)?;
             Ok(match (kind, positive) {
                 (CheckedIntegerComparisonKind::Equal, true) => {
                     Proposition::IntegerMathEqual(left, right)
@@ -108,8 +119,8 @@ fn proposition_with_polarity(
             })
         }
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-            let left = terms.scalar(left)?;
-            let right = terms.scalar(right)?;
+            let left = terms.scalar(identities, left)?;
+            let right = terms.scalar(identities, right)?;
             if left.scalar_type() != right.scalar_type() {
                 let Some(left_type) = left.scalar_type().as_integer() else {
                     return unsupported("integer contract comparison has a noninteger operand");
@@ -153,14 +164,14 @@ fn proposition_with_polarity(
         CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
             ieee_float_proposition(
                 if positive { *kind } else { kind.negated() },
-                terms.scalar(left)?,
-                terms.scalar(right)?,
+                terms.scalar(identities, left)?,
+                terms.scalar(identities, right)?,
             )
         }
         CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } => {
-            let left = proposition_with_polarity(left, terms, positive, remaining)?;
-            let right = proposition_with_polarity(right, terms, positive, remaining)?;
+            let left = proposition_with_polarity(identities, left, terms, positive, remaining)?;
+            let right = proposition_with_polarity(identities, right, terms, positive, remaining)?;
             connective(
                 left,
                 right,
@@ -168,21 +179,34 @@ fn proposition_with_polarity(
             )
         }
         CheckedBooleanExpression::Not(operand) => {
-            proposition_with_polarity(operand, terms, !positive, remaining)
+            proposition_with_polarity(identities, operand, terms, !positive, remaining)
         }
         CheckedBooleanExpression::Constant(value) if *value == positive => Ok(Proposition::Truth),
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
-        | CheckedBooleanExpression::ByteSequencePredicate { .. } => {
-            canonical_equality(terms.boolean(predicate)?, ScalarTerm::boolean(positive))
-        }
+        | CheckedBooleanExpression::ByteSequencePredicate { .. } => canonical_equality(
+            terms.boolean(identities, predicate)?,
+            ScalarTerm::boolean(positive),
+        ),
         CheckedBooleanExpression::Equal { left, right } => {
             if let CheckedBooleanExpression::Constant(value) = left.as_ref() {
-                return proposition_with_polarity(right, terms, *value == positive, remaining);
+                return proposition_with_polarity(
+                    identities,
+                    right,
+                    terms,
+                    *value == positive,
+                    remaining,
+                );
             }
             if let CheckedBooleanExpression::Constant(value) = right.as_ref() {
-                return proposition_with_polarity(left, terms, *value == positive, remaining);
+                return proposition_with_polarity(
+                    identities,
+                    left,
+                    terms,
+                    *value == positive,
+                    remaining,
+                );
             }
             // Keep the same denotation as completed Boolean operations. Turning
             // `result == !input` into two truth-value cases discards the exact
@@ -191,7 +215,10 @@ fn proposition_with_polarity(
                 && has_scalar_boolean_denotation(left, remaining)?
                 && has_scalar_boolean_denotation(right, remaining)?
             {
-                return canonical_equality(terms.boolean(left)?, terms.boolean(right)?);
+                return canonical_equality(
+                    terms.boolean(identities, left)?,
+                    terms.boolean(identities, right)?,
+                );
             }
             // Equality selects equal polarities; inequality selects opposite
             // polarities. Keep logical facts in the proposition language so
@@ -202,7 +229,7 @@ fn proposition_with_polarity(
                 positive,
                 remaining,
                 |operand, polarity, budget| {
-                    proposition_with_polarity(operand, terms, polarity, budget)
+                    proposition_with_polarity(identities, operand, terms, polarity, budget)
                 },
             )
         }

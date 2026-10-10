@@ -187,6 +187,11 @@ pub struct TerminalProgramEntry<'program> {
 impl<'artifact> TerminalProgram<'artifact> {
     /// Describe the exact admitted entry instead of reconstructing it from
     /// source or provisioning values by a source-name convention.
+    /// The retained canonical module every public view derives from.
+    pub fn module(&self) -> &TerminalModule {
+        &self.program.catalogs
+    }
+
     pub fn entry(&self) -> Result<TerminalProgramEntry<'_>, TerminalInterpretError> {
         let machine = self
             .program

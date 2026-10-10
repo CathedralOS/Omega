@@ -14,27 +14,27 @@ mod package_selection;
 mod paths;
 mod project;
 
-pub(crate) use bindings::{PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings};
-pub(crate) use build_prelude::{ prepare_build_prelude};
+pub(crate) use bindings::{
+    PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings,
+};
+pub(crate) use build_prelude::prepare_build_prelude;
 pub(crate) use entry_contract_seed::EntryContractSource;
-pub(crate) use entry_contract_seed::{ entry_contract_seeds};
-pub use frontier::{
-    SourceFile,
+pub(crate) use entry_contract_seed::entry_contract_seeds;
+pub use frontier::SourceFile;
+pub(crate) use frontier::{
+    SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };
-pub(crate) use frontier::{ SourceStorage, ToolchainContractCustody, validate_package_source_frontier};
-pub use generated::{ GeneratedSourceExtension,
-    admit_generated_extension,
-};
-pub(crate) use generated::{
-    DependencyGeneratedSource, admit_dependency_generated_sources};
+pub(crate) use generated::{DependencyGeneratedSource, admit_dependency_generated_sources};
+pub use generated::{GeneratedSourceExtension, admit_generated_extension};
 
-pub(crate) use package_selection::{ ReconciledPackageImport, ReconciledPackageImportRequest,
-    reconciled_package_import, source_import_scope};
-pub use paths::{bundled_core_root};
-pub(crate) use paths::{ bundled_omega_root};
-pub use project::{ project_roots,
+pub(crate) use package_selection::{
+    ReconciledPackageImport, ReconciledPackageImportRequest, reconciled_package_import,
+    source_import_scope,
 };
-pub(crate) use project::{ ProjectSourceSelection, validate_selected_build_role};
+pub use paths::bundled_core_root;
+pub(crate) use paths::bundled_omega_root;
+pub use project::project_roots;
+pub(crate) use project::{ProjectSourceSelection, validate_selected_build_role};
 
 use crate::PackageCompilationInputs;
 use bindings::{ImportOccurrence, direct_source_import};

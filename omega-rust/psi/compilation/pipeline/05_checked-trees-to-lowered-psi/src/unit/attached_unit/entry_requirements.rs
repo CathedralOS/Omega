@@ -15,6 +15,7 @@ pub(crate) struct EntryRequirements {
 }
 
 pub(crate) fn lower(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source: SymbolHandle,
     scalar_parameters: &[ValueDeclaration],
@@ -47,6 +48,7 @@ pub(crate) fn lower(
             .iter()
             .map(|requirement| {
                 lower_structural_runtime_requirement(
+                    identities,
                     requirement,
                     scalar_parameters,
                     erased_scalar_parameters,
@@ -63,6 +65,7 @@ pub(crate) fn lower(
         }
         let expression = requirement.predicate();
         runtime_requirements.push(lower_structural_runtime_requirement(
+            identities,
             &expression,
             scalar_parameters,
             erased_scalar_parameters,
@@ -98,6 +101,7 @@ pub(crate) fn lower(
             .iter()
             .map(|clause| {
                 crate::scalar_lowering::contracts::clauses(
+                    identities,
                     std::slice::from_ref(clause),
                     scalar_parameters,
                     erased_scalar_parameters,

@@ -392,7 +392,7 @@ fn case_payload_codec_retains_every_semantic_and_transport_field() {
             TerminalAffineCleanupAction::DiscardResidual(terminal_psi::StructuralAffineDiscard {
                 place: PlaceId::new(12).unwrap(),
                 path: vec![terminal_psi::StructuralPathSegment::Field(
-                    "remaining".into(),
+                    terminal_psi::TerminalIdentityIndex(1),
                 )],
                 structural_type: semantic_vocabulary::StructuralTypeId::new(4).unwrap(),
             }),
@@ -560,7 +560,9 @@ fn address_transport_round_trips_both_bases_and_rejects_forged_carriers() {
                     argument: terminal_psi::StructuralArgument {
                         place: semantic_vocabulary::PlaceId::new(11).unwrap(),
                         access: terminal_psi::StructuralAccess::SharedBorrow,
-                        path: vec![terminal_psi::StructuralPathSegment::Field("left".into())],
+                        path: vec![terminal_psi::StructuralPathSegment::Field(
+                            terminal_psi::TerminalIdentityIndex(2),
+                        )],
                     },
                 },
                 transport: SelectedStructuralTransport::Address {
@@ -635,7 +637,7 @@ fn successor_case_round_trip_retains_ordered_cleanup_actions() {
                 retains_descendants: false,
                 place: PlaceId::new(14).unwrap(),
                 path: vec![
-                    StructuralPathSegment::Field("owned_children".into()),
+                    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(3)),
                     StructuralPathSegment::FixedIndex(1),
                 ],
                 structural_type: StructuralTypeId::new(15).unwrap(),
@@ -649,7 +651,7 @@ fn successor_case_round_trip_retains_ordered_cleanup_actions() {
                 structural_type: StructuralTypeId::new(21).unwrap(),
                 path: vec![
                     StructuralPathSegment::Case(StructuralCaseId::new(22).unwrap()),
-                    StructuralPathSegment::Field("payload".into()),
+                    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(4)),
                     StructuralPathSegment::Referent,
                     StructuralPathSegment::FixedIndex(1),
                     StructuralPathSegment::FixedByteRange { start: 2, end: 4 },

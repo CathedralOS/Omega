@@ -6,9 +6,8 @@ use crate::object_artifact::{ObjectCompilerPrivateFunction, ObjectError, ObjectF
 use machine_code::MachineCodeFunction;
 use machine_code::MachineCodePlan;
 use object_file::{
-    ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin,
-    RelocationPlan, RelocationRecord, SectionKind,
-    normalized_foreign_import_symbol_name,
+    ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
+    RelocationRecord, SectionKind, normalized_foreign_import_symbol_name,
 };
 use semantic_vocabulary::MachineId;
 use target_operations::CallSiteOwner;

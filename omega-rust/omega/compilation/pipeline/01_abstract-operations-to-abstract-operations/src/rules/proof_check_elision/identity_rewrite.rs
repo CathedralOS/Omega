@@ -62,7 +62,12 @@ pub(super) fn propose_proof_certified_integer_constants(
                         unit.identity,
                         contract,
                         vec![block.id],
-                        vec![provenance_realized_at(site, site, &node.provenance, &node.fuel)],
+                        vec![provenance_realized_at(
+                            site,
+                            site,
+                            &node.provenance,
+                            &node.fuel,
+                        )],
                         obligation_fact,
                         -1,
                         IntegerConstantRewrite {

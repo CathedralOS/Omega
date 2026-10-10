@@ -28,8 +28,8 @@ pub(super) fn excludes_values(
     let mut observations = Observations::default();
     let mut comparisons = Vec::new();
     for &(expression, value) in assignments {
-        let Some(operand) = super::ordered_values::operand(program, machine, state, expression,
-        None)
+        let Some(operand) =
+            super::ordered_values::operand(program, machine, state, expression, None)
         else {
             return false;
         };
@@ -58,8 +58,8 @@ pub(super) fn proves_range(
     minimum: Option<&BigInt>,
     maximum: Option<&BigInt>,
 ) -> bool {
-    let Some(operand) = super::ordered_values::operand(program, machine, state, expression,
-        None) else {
+    let Some(operand) = super::ordered_values::operand(program, machine, state, expression, None)
+    else {
         return false;
     };
     [

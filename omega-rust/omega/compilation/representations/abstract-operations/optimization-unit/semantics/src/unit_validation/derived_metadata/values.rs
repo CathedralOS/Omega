@@ -38,7 +38,9 @@ pub(crate) fn expected_uses(
                 terminal_psi::RecordFieldValue::Structural(_) => None,
             })
             .collect(),
-        abstract_operations::byte_read_or_field_read_pattern!(index, length, ..) => vec![*index, *length],
+        abstract_operations::byte_read_or_field_read_pattern!(index, length, ..) => {
+            vec![*index, *length]
+        }
         O::ElementViewRead { index, length, .. } => vec![*index, *length],
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.length(), right.length()]
@@ -47,10 +49,10 @@ pub(crate) fn expected_uses(
         O::ByteSequenceEqual { left, right, .. } => {
             vec![left.length(), right.length()]
         }
-        abstract_operations::byte_sequence_store_pair_pattern!( length, .. ) => vec![*length],
-        abstract_operations::byte_sequence_write_pair_pattern!(index,
-            value,
-            length, ..) => vec![*index, *value, *length],
+        abstract_operations::byte_sequence_store_pair_pattern!(length, ..) => vec![*length],
+        abstract_operations::byte_sequence_write_pair_pattern!(index, value, length, ..) => {
+            vec![*index, *value, *length]
+        }
         O::ByteSequenceSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],

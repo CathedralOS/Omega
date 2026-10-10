@@ -25,7 +25,15 @@ pub(crate) fn demanded_boundary_identities(
     let declarations = module
         .boundary_machines
         .iter()
-        .map(|boundary| (boundary.id, boundary.identity.as_str()))
+        .map(|boundary| {
+            (
+                boundary.id,
+                module
+                    .identities
+                    .text(boundary.identity)
+                    .unwrap_or_default(),
+            )
+        })
         .collect::<std::collections::BTreeMap<_, _>>();
     let mut demanded = BTreeSet::new();
     for boundary in module.blocks().flat_map(|block| {
@@ -58,6 +66,7 @@ pub(crate) fn demanded_boundary_identities(
 /// This is only a proposal; admission independently checks the complete
 /// signature, rejecting mixed carriers or a substituted result.
 fn boundary_float_formats(
+    identities: &terminal_psi::TerminalIdentityTable,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
 ) -> BTreeMap<String, semantic_vocabulary::IeeeFloatFormat> {
     boundaries
@@ -75,7 +84,13 @@ fn boundary_float_formats(
                         _ => None,
                     }),
             }?;
-            Some((boundary.identity.clone(), format))
+            Some((
+                identities
+                    .text(boundary.identity)
+                    .unwrap_or_default()
+                    .to_string(),
+                format,
+            ))
         })
         .collect()
 }
@@ -96,9 +111,10 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<Vec<super::TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
     let plans = selected.plans();
-    let float_formats = boundary_float_formats(boundaries);
+    let float_formats = boundary_float_formats(identities, boundaries);
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected provider plans are not aligned with compiler-intrinsic settlement provenance",
@@ -179,7 +195,7 @@ pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
         };
         let mut matching_boundaries = boundaries
             .iter()
-            .filter(|boundary| boundary.identity == *requirement);
+            .filter(|boundary| identities.text(boundary.identity) == Some(requirement.as_str()));
         let (Some(boundary), None) = (matching_boundaries.next(), matching_boundaries.next())
         else {
             diagnostics.push(Diagnostic::error(format!(

@@ -56,11 +56,6 @@ impl TargetFrameProtocolEncodingReceipt {
     pub const fn target(self) -> NativeTarget {
         self.target
     }
-    
-    
-    
-    
-    
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -179,7 +179,10 @@ pub(super) fn establish_parameter_storage(
     storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
     values: &[terminal_psi::ValueDeclaration],
-    type_ids: &[(typed_trees::type_identity::TypeIdentityId, semantic_vocabulary::StructuralTypeId)],
+    type_ids: &[(
+        typed_trees::type_identity::TypeIdentityId,
+        semantic_vocabulary::StructuralTypeId,
+    )],
     declarations: &[StructuralTypeDeclaration],
     next_place: &mut u64,
     next_obligation: &mut u64,
@@ -250,6 +253,7 @@ impl OperationFrame<'_, '_> {
     /// keeps the returned referent in its own roster and declares its place.
     pub(super) fn establish_primitive_local(
         self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<PrimitiveLocal, LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
@@ -283,6 +287,7 @@ impl OperationFrame<'_, '_> {
         // computation evaluates its calls and selections in authored order
         // before the storage exists, so it can never read its own local.
         let initializer = self.evaluation.source_value(
+            identities,
             self.checked,
             self.machine,
             self.state,
@@ -352,6 +357,7 @@ impl super::argument_evaluation::Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::unit::attached_unit) fn prepare_borrowed_argument(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -396,7 +402,9 @@ impl super::argument_evaluation::Evaluation {
             let identity = checked
                 .typed
                 .normalized_type_identity_text(parameter.type_reference);
-            let mut carriers = types.iter().filter(|actual| actual.identity == identity);
+            let mut carriers = types
+                .iter()
+                .filter(|actual| actual.identity == identities.intern(&identity));
             let carrier = carriers.next().ok_or(LoweringError::Unsupported(
                 "primitive ingress has no original storage carrier",
             ))?;

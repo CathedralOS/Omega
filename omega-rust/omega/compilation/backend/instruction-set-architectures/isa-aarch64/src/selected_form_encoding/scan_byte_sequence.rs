@@ -9,8 +9,8 @@
 //! with word-granularity immediates far inside their encodable ranges.
 
 use super::{
-    decode_all, Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    ValidatedAarch64SelectedFormEncoding,
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
+    ValidatedAarch64SelectedFormEncoding, decode_all,
 };
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterViewId;
@@ -623,7 +623,6 @@ fn assemble(
     Ok(bytes)
 }
 
-
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -722,7 +721,8 @@ mod tests {
             register_model::validate_physical_register_model(aarch64_physical_register_model())
                 .unwrap();
         let catalog = crate::aarch64_register_constraint_catalog(&physical);
-        let row = catalog.constraint(crate::AARCH64_SCAN_BYTE_SEQUENCE)
+        let row = catalog
+            .constraint(crate::AARCH64_SCAN_BYTE_SEQUENCE)
             .expect("catalog declares the scan constraint");
         assert_eq!(row.operands.len(), 5);
         assert!(row.operands[0].access == register_model::RegisterOperandAccess::Use);

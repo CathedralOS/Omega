@@ -55,14 +55,13 @@ fn proof_certified_integer_divide_by_one_shapes(
 psi_rule_contract!(
     LiveProofCertifiedIntegerDivideByOneEliminationRule,
     super::proof_check_elision_rule_contract(
-                b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1",
-                AnalysisSet::new([
-                    AnalysisKind::ScalarConstants,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-            ),
+        b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1",
+        AnalysisSet::new([
+            AnalysisKind::ScalarConstants,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+    ),
     propose = propose_proof_certified_scalar_identities,
     proof_certified_integer_divide_by_one_shapes,
 );
-

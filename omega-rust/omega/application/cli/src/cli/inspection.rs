@@ -52,9 +52,9 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             output,
             "provider_candidate boundary=boundary:{} requirement={} provider={} candidate={} callable=machine:{}",
             candidate.boundary.get(),
-            candidate.requirement_identity,
-            candidate.provider_identity,
-            candidate.candidate_identity,
+            module.identities.text(candidate.requirement_identity).unwrap_or_default(),
+            module.identities.text(candidate.provider_identity).unwrap_or_default(),
+            module.identities.text(candidate.candidate_identity).unwrap_or_default(),
             candidate.candidate.get(),
         )
         .expect("writing to a String cannot fail");
@@ -64,7 +64,10 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             output,
             "type id=type:{} identity={} shape={}",
             declaration.id.get(),
-            declaration.identity,
+            module
+                .identities
+                .text(declaration.identity)
+                .unwrap_or_default(),
             match &declaration.shape {
                 terminal_psi::StructuralTypeShape::BindingCarrier => {
                     "binding_carrier".to_owned()
@@ -116,7 +119,10 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             output,
             "domain id=domain:{} identity={} carrier=type:{}",
             declaration.id.get(),
-            declaration.identity,
+            module
+                .identities
+                .text(declaration.identity)
+                .unwrap_or_default(),
             declaration.carrier.get()
         )
         .expect("writing to a String cannot fail");
@@ -126,7 +132,10 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             output,
             "service id=service:{} identity={} parents={}",
             declaration.id.get(),
-            declaration.identity,
+            module
+                .identities
+                .text(declaration.identity)
+                .unwrap_or_default(),
             format_ids(
                 declaration
                     .parents
@@ -141,7 +150,10 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             output,
             "boundary id=boundary:{} identity={} attachment={} services={} requirements={}",
             boundary.id.get(),
-            boundary.identity,
+            module
+                .identities
+                .text(boundary.identity)
+                .unwrap_or_default(),
             attachment_identity(module, boundary.attachment),
             service_ceiling(module, &boundary.published_service_ceiling),
             format_ids(boundary.requires.iter().map(|requirement| format!(
@@ -279,7 +291,12 @@ fn write_operation_summary(
         } => {
             let identity =
                 terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
-                    .map(|boundary| boundary.identity.as_str())
+                    .map(|boundary| {
+                        module
+                            .identities
+                            .text(boundary.identity)
+                            .unwrap_or_default()
+                    })
                     .unwrap_or("unknown");
             writeln!(
                 output,
@@ -352,11 +369,11 @@ fn argument_places(arguments: &[StructuralArgument]) -> String {
 fn structural_type_identity(module: &TerminalModule, id: StructuralTypeId) -> Option<&str> {
     module
         .structural_type(id)
-        .map(|declaration| declaration.identity.as_str())
+        .and_then(|declaration| module.identities.text(declaration.identity))
 }
 
 fn service_identity(module: &TerminalModule, id: ServiceId) -> Option<&str> {
     module
         .service(id)
-        .map(|declaration| declaration.identity.as_str())
+        .and_then(|declaration| module.identities.text(declaration.identity))
 }

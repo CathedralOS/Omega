@@ -1,6 +1,6 @@
 //! Exact remainder-by-unit laws and candidate acceptance.
-use crate::candidates::provenance_realized_at;
 use crate::candidates::global_value_numbering::independently_accepted_operation_fact;
+use crate::candidates::provenance_realized_at;
 use crate::candidates::sparse_conditional_constant_propagation::{
     observation_at, same_closed_scalar_observation, scalar_value_definition,
 };
@@ -15,10 +15,10 @@ use optimization_core::{
     OptimizationSafetyClass, OptimizationValidatorIdentity,
 };
 use optimization_unit::{
-    ObservationKnowledge, OptimizationFact,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
-    ScalarConstantValue, ValueDefinition, ValueDefinitionSite,
-    literal_scalar_constant_fact_identity, recompute_psi_optimization_unit_identity,
+    ObservationKnowledge, OptimizationFact, PsiOptimizationUnit, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewritePatch, ScalarConstantValue, ValueDefinition,
+    ValueDefinitionSite, literal_scalar_constant_fact_identity,
+    recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
@@ -266,7 +266,12 @@ pub(crate) fn validate_proof_certified_integer_remainder_by_unit_candidate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let site = PsiRealizationSite::Node(patch.location);
-    let expected_provenance = [provenance_realized_at(site, site, &node.provenance, &node.fuel)];
+    let expected_provenance = [provenance_realized_at(
+        site,
+        site,
+        &node.provenance,
+        &node.fuel,
+    )];
     if candidate.provenance() != expected_provenance {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }

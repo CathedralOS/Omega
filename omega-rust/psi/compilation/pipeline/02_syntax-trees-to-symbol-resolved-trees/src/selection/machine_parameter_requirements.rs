@@ -82,9 +82,7 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
     let mut replacements = Vec::new();
 
     for conformance in &program.conformances {
-        let Some(trait_definition) = program
-            .trait_definition(conformance.trait_symbol)
-        else {
+        let Some(trait_definition) = program.trait_definition(conformance.trait_symbol) else {
             continue;
         };
         let parameters = program.trait_type_parameters(trait_definition);

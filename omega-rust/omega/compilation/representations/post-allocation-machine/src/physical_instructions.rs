@@ -14,8 +14,7 @@ pub mod operands;
 
 pub(crate) use codec::PostAllocationMachineDecodeError;
 pub use control_flow::{PostAllocationMachineBlock, PostAllocationMachineFunction};
-pub use costs::{ TargetCostModelIdentity, target_cost_model,
-};
+pub use costs::{TargetCostModelIdentity, target_cost_model};
 pub use evidence::{
     Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity,
     PostAllocationMachineOptimizationCustody,

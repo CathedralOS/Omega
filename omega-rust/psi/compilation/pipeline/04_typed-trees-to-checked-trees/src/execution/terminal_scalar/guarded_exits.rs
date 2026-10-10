@@ -212,9 +212,12 @@ fn tuple_rows_cover(
                     .data_members(definition)
                     .iter()
                     .filter_map(|member| match member {
-                        typed_trees::data::DataMember::Variant(variant) => {
-                            Some(TupleValue::Case(checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone())))
-                        }
+                        typed_trees::data::DataMember::Variant(variant) => Some(TupleValue::Case(
+                            checked_trees::CheckedMemberIdentity::of_member(
+                                variant.identity,
+                                variant.name.clone(),
+                            ),
+                        )),
                         typed_trees::data::DataMember::Field(_) => None,
                     })
                     .collect::<Vec<_>>();

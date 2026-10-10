@@ -24,13 +24,13 @@ fn utf8() -> ByteSequencePredicateSet {
 
 fn field(
     raw: u64,
-    identity: &str,
+    identity: terminal_psi::TerminalIdentityIndex,
     relevance: BindingRelevance,
     field_type: StructuralFieldType,
 ) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
         id: StructuralFieldId::new(raw).unwrap(),
-        identity: identity.to_string(),
+        identity,
         relevance,
         field_type,
         storage: None,
@@ -41,7 +41,7 @@ fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaratio
     StructuralTypeDeclaration {
         scalar_restriction: None,
         id: type_id(raw),
-        identity: format!("type{raw}"),
+        identity: terminal_psi::TerminalIdentityIndex(10 + raw as u32),
         shape,
     }
 }
@@ -58,11 +58,11 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
             1,
             StructuralTypeShape::Record {
                 fields: vec![
-                    field(1, "text", BindingRelevance::Relevant, qualified(OWNER)),
-                    field(2, "name", BindingRelevance::Relevant, qualified(VIEW)),
+                    field(1, idx("text"), BindingRelevance::Relevant, qualified(OWNER)),
+                    field(2, idx("name"), BindingRelevance::Relevant, qualified(VIEW)),
                     field(
                         3,
-                        "proof",
+                        idx("proof"),
                         BindingRelevance::Erased,
                         StructuralFieldType::ByteSequence(OWNER),
                     ),
@@ -76,15 +76,15 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
                 cases: vec![
                     StructuralCaseDeclaration {
                         id: StructuralCaseId::new(1).unwrap(),
-                        identity: "Empty".to_string(),
+                        identity: idx("Empty"),
                         fields: Vec::new(),
                     },
                     StructuralCaseDeclaration {
                         id: StructuralCaseId::new(2).unwrap(),
-                        identity: "Full".to_string(),
+                        identity: idx("Full"),
                         fields: vec![field(
                             4,
-                            "bytes",
+                            idx("bytes"),
                             BindingRelevance::Relevant,
                             StructuralFieldType::ByteSequence(OWNER),
                         )],
@@ -95,15 +95,30 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
     ]
 }
 
-fn named(identity: &str) -> StructuralPathSegment {
-    StructuralPathSegment::Field(identity.to_string())
+// Named path lookups compare by table index; fixture names map to fixed
+// positions rather than a shared module table.
+fn idx(name: &str) -> terminal_psi::TerminalIdentityIndex {
+    let index = match name {
+        "text" => 1,
+        "name" => 2,
+        "bytes" => 3,
+        "proof" => 4,
+        "Empty" => 5,
+        "Full" => 6,
+        _ => 0,
+    };
+    terminal_psi::TerminalIdentityIndex(index)
+}
+
+fn named(identity: terminal_psi::TerminalIdentityIndex) -> StructuralPathSegment {
+    StructuralPathSegment::Field(identity)
 }
 
 #[test]
 fn byte_fields_without_a_declared_carrier_name_their_field_storage() {
     let types = catalog();
-    let owner = structural_storage_projection(types.iter(), type_id(1), &[named("text")]);
-    let view = structural_storage_projection(types.iter(), type_id(1), &[named("name")]);
+    let owner = structural_storage_projection(types.iter(), type_id(1), &[named(idx("text"))]);
+    let view = structural_storage_projection(types.iter(), type_id(1), &[named(idx("name"))]);
     assert_eq!(
         owner,
         Some(StructuralStorageProjection::ByteField {
@@ -125,7 +140,7 @@ fn byte_fields_without_a_declared_carrier_name_their_field_storage() {
     assert!(!owner.matches(types.iter(), view));
     // An erased field has no storage.
     assert_eq!(
-        structural_storage_projection(types.iter(), type_id(1), &[named("proof")]),
+        structural_storage_projection(types.iter(), type_id(1), &[named(idx("proof"))]),
         None
     );
 }
@@ -135,7 +150,7 @@ fn a_selected_payload_byte_field_names_its_case_storage() {
     let types = catalog();
     let full = StructuralPathSegment::Case(StructuralCaseId::new(2).unwrap());
     assert_eq!(
-        structural_storage_projection(types.iter(), type_id(2), &[full, named("bytes")]),
+        structural_storage_projection(types.iter(), type_id(2), &[full, named(idx("bytes"))]),
         Some(StructuralStorageProjection::ByteField {
             carrier: OWNER,
             predicates: ByteSequencePredicateSet::EMPTY,
@@ -143,7 +158,7 @@ fn a_selected_payload_byte_field_names_its_case_storage() {
     );
     let empty = StructuralPathSegment::Case(StructuralCaseId::new(1).unwrap());
     assert_eq!(
-        structural_storage_projection(types.iter(), type_id(2), &[empty, named("bytes")]),
+        structural_storage_projection(types.iter(), type_id(2), &[empty, named(idx("bytes"))]),
         None
     );
 }
@@ -153,12 +168,12 @@ fn a_declared_owner_carrier_keeps_its_endpoint_spelling() {
     let mut types = catalog();
     types.push(declaration(3, StructuralTypeShape::ByteSequence(OWNER)));
     assert_eq!(
-        structural_storage_projection(types.iter(), type_id(1), &[named("text")]),
+        structural_storage_projection(types.iter(), type_id(1), &[named(idx("text"))]),
         Some(StructuralStorageProjection::Endpoint(type_id(3)))
     );
     // A stored view field still names its descriptor, never the referent.
     assert!(matches!(
-        structural_storage_projection(types.iter(), type_id(1), &[named("name")]),
+        structural_storage_projection(types.iter(), type_id(1), &[named(idx("name"))]),
         Some(StructuralStorageProjection::ByteField { carrier: VIEW, .. })
     ));
 }

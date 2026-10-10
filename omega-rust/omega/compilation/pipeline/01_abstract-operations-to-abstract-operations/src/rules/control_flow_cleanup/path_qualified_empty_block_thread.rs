@@ -5,36 +5,40 @@ use std::collections::BTreeSet;
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
-    NodeLocation, PathQualifiedEmptyBlockRewrite, ProvenanceRewrite,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    NodeLocation, PathQualifiedEmptyBlockRewrite, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
     compose_linear_thread_bindings, linear_thread_ownership_is_identity,
 };
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
     PathQualifiedEmptyBlockThreadRule,
-    crate::rules::standard_rule_contract(b"omega.psi-rule.path-qualified-empty-block-thread.v1", CONTROL_FLOW_CLEANUP_PASS_NAME, 1,
-                AnalysisSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::OwnershipFrontiers,
-                ]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-                OptimizationSafetyClass::StructuralIdentity),
+    crate::rules::standard_rule_contract(
+        b"omega.psi-rule.path-qualified-empty-block-thread.v1",
+        CONTROL_FLOW_CLEANUP_PASS_NAME,
+        1,
+        AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::OwnershipFrontiers,
+        ]),
+        AnalysisInvalidationSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+        OptimizationSafetyClass::StructuralIdentity
+    ),
 );
 
 impl PsiOptimizationRule for PathQualifiedEmptyBlockThreadRule {
@@ -189,8 +193,18 @@ pub(super) fn path_thread_accounting(
                     machine: function.machine,
                     edge: edge.psi_edge,
                 };
-                realized.push(provenance_realized_at(site, site, &edge.provenance, &edge.fuel));
-                realized.push(provenance_realized_at(outgoing_site, site, &outgoing.provenance, &outgoing.fuel));
+                realized.push(provenance_realized_at(
+                    site,
+                    site,
+                    &edge.provenance,
+                    &edge.fuel,
+                ));
+                realized.push(provenance_realized_at(
+                    outgoing_site,
+                    site,
+                    &outgoing.provenance,
+                    &outgoing.fuel,
+                ));
             }
         }
     }
@@ -214,7 +228,12 @@ pub(super) fn path_thread_accounting(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+                    realized.push(provenance_realized_at(
+                        site,
+                        site,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;

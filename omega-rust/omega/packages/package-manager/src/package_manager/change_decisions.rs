@@ -98,8 +98,7 @@ pub(super) fn prepare<'a>(
         ));
         for package in review.changes().packages() {
             if package.audit_recommended() {
-                let identity =
-                    crate::Hex(&package.key().identity().digest()[..6]).to_string();
+                let identity = crate::Hex(&package.key().identity().digest()[..6]).to_string();
                 result.report.push_str(&format!(
                     "Audit recommended: {} [{identity}].\n",
                     package.key().name().as_str(),

@@ -103,7 +103,8 @@ fn project_terminal_boundary_application_realizations(
                         .filter(|candidate| {
                             candidate.requirement == *requirement
                                 && candidate.application == *demand.application()
-                                && candidate.selection_identity == *machine_identity
+                                && module.identities.text(candidate.selection_identity)
+                                    == Some(machine_identity.as_str())
                                 && candidate.selection_package == *machine_package_identity
                                 && candidate
                                     .target

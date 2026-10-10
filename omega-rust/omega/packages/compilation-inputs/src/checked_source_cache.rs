@@ -612,7 +612,10 @@ fn record_name(canonical_root: &Path, fingerprint: &[u8; 32]) -> Result<String, 
     let root_bytes = os_str_bytes(canonical_root.as_os_str())?;
     digest.bytes(&root_bytes);
     digest.raw(fingerprint);
-    Ok(format!("{}.{RECORD_EXTENSION}", crate::digest_encoder::hex(&digest.finish())))
+    Ok(format!(
+        "{}.{RECORD_EXTENSION}",
+        crate::digest_encoder::hex(&digest.finish())
+    ))
 }
 
 /// Canonical record encoding: magic, framed root, embedded fingerprint,
@@ -683,7 +686,8 @@ fn decode_record(
         return Err("checked-source cache record names a different root".to_owned());
     }
     let stored_fingerprint: [u8; 32] = cursor
-        .take(32).map_err(truncated)?
+        .take(32)
+        .map_err(truncated)?
         .try_into()
         .map_err(|_| "checked-source cache record fingerprint is truncated".to_owned())?;
     if &stored_fingerprint != fingerprint {
@@ -720,15 +724,16 @@ fn decode_record(
         rows.push(CanonicalFilesystemMetadataRow::new(path.to_vec(), kind));
     }
     let commitment: [u8; 32] = cursor
-        .take(32).map_err(truncated)?
+        .take(32)
+        .map_err(truncated)?
         .try_into()
         .map_err(|_| "checked-source cache record commitment is truncated".to_owned())?;
-    let policy_version = u32::from_le_bytes(
-        cursor
-            .take(4).map_err(truncated)?
-            .try_into()
-            .map_err(|_| "checked-source cache record policy version is truncated".to_owned())?,
-    );
+    let policy_version =
+        u32::from_le_bytes(
+            cursor.take(4).map_err(truncated)?.try_into().map_err(|_| {
+                "checked-source cache record policy version is truncated".to_owned()
+            })?,
+        );
     if cursor.remaining() != 0 {
         return Err("checked-source cache record has trailing bytes".to_owned());
     }

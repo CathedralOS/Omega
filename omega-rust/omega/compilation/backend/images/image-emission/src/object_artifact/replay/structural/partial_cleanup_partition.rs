@@ -29,8 +29,8 @@ pub(crate) fn exact_partial_cleanup_partition(
     let mut by_id = BTreeMap::new();
     let mut identities = BTreeSet::new();
     for declaration in declarations {
-        if declaration.identity.is_empty()
-            || !identities.insert(declaration.identity.as_str())
+        if declaration.identity == terminal_psi::TerminalIdentityIndex::ABSENT
+            || !identities.insert(declaration.identity)
             || by_id.insert(declaration.id, declaration).is_some()
         {
             return false;
@@ -88,8 +88,8 @@ fn finite_cleanup_type(
             }
             for field in fields {
                 if field.relevance.is_erased()
-                    || field.identity.is_empty()
-                    || !identities.insert(field.identity.as_str())
+                    || field.identity == terminal_psi::TerminalIdentityIndex::ABSENT
+                    || !identities.insert(field.identity)
                 {
                     return None;
                 }

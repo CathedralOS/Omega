@@ -6,7 +6,9 @@ pub(crate) fn expected_provenance(
     operation: &abstract_operations::AbstractOperation,
 ) -> Vec<PsiProvenance> {
     match operation {
-        abstract_operations::jump_or_conditional_pattern!() | O::StructuralCase { .. } => Vec::new(),
+        abstract_operations::jump_or_conditional_pattern!() | O::StructuralCase { .. } => {
+            Vec::new()
+        }
         abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
         | O::ExternalCompletion { psi_edge, .. }
         | O::Crash { psi_edge, .. } => {
@@ -57,7 +59,7 @@ pub(crate) fn expected_provenance(
         | O::BooleanConstant { psi_operation, .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(psi_operation, ..)
         | O::ByteSequenceWrite { psi_operation, .. }
-        | abstract_operations::byte_sequence_store_pair_pattern!( psi_operation, .. )
+        | abstract_operations::byte_sequence_store_pair_pattern!(psi_operation, ..)
         | abstract_operations::byte_view_triple_pattern!(psi_operation, ..)
         | abstract_operations::byte_view_length_triple_pattern!(psi_operation, ..)
         | abstract_operations::element_view_read_write_pair_pattern!(psi_operation, ..)

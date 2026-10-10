@@ -6,7 +6,8 @@ use semantic_vocabulary::{BlockId, BoundaryMachineId, ContractId, EdgeId, Machin
 use terminal_psi::{
     Block, BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult,
     BoundaryRequirementKind, TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember,
-    TargetMachineSupply, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    TargetMachineSupply, TerminalIdentityIndex, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator,
 };
 
 #[test]
@@ -18,9 +19,8 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
         id: machine,
         attachment: None,
         declaration: Some(terminal_psi::CheckedMachineDeclaration {
-            machine: terminal_psi::NominalDeclarationIdentity::new("owner::entry".into()).unwrap(),
-            state: terminal_psi::NominalDeclarationIdentity::new("owner::entry::start".into())
-                .unwrap(),
+            machine: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+            state: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
             contract: [7; 32],
             specialization: None,
         }),
@@ -75,7 +75,9 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
             kind: BoundaryRequirementKind::Machine,
             completion: BoundaryCompletion::NormalReturn,
             unconditional_termination: false,
-            identity: format!("boundary_{}", boundary.get()),
+            identity: TerminalIdentityIndex(
+                u32::try_from(boundary.get()).expect("boundary identity"),
+            ),
             attachment: None,
             parameter_order: Vec::new(),
             scalar_parameters: Vec::new(),
@@ -105,7 +107,7 @@ fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
     let owner = semantic_vocabulary::ServiceId::new(1).unwrap();
     module.services.push(terminal_psi::ServiceDeclaration {
         id: owner,
-        identity: "service-owner".into(),
+        identity: TerminalIdentityIndex(10),
         parents: Vec::new(),
     });
     module.boundary_machines[0].kind = BoundaryRequirementKind::Trait;

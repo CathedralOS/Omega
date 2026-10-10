@@ -17,8 +17,8 @@
 pub(crate) use optimization_core::digest_encoder;
 pub mod boundary_applications;
 pub use boundary_applications::{
-    BoundaryApplication, BoundaryApplicationArgument,
-    BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion, BoundaryOpaqueRepresentationApplication,
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationRealization,
+    BoundaryApplicationRealizationCompanion, BoundaryOpaqueRepresentationApplication,
     BoundaryOpaqueRepresentationApplications, BoundaryOperatorRequirement, BoundaryTypeIdentity,
     NominalDeclarationIdentity, OperatorApplicationCoverageRef,
     TerminalBoundaryApplicationCoverage, TerminalBoundaryApplicationDemand,

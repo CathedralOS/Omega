@@ -85,7 +85,12 @@ fn coverage_identity(
     digest.u64(demand.terminal_operation().get());
     hash_bytes(
         &mut digest,
-        demand.requirement().declaration().canonical().as_bytes(),
+        &demand
+            .requirement()
+            .declaration()
+            .identity()
+            .0
+            .to_le_bytes(),
     );
     hash_bytes(&mut digest, demand.requirement().overload().as_bytes());
     encode_application(&mut digest, demand.application());
@@ -94,7 +99,10 @@ fn coverage_identity(
     BoundaryApplicationCoverageIdentity(digest.finish().into())
 }
 
-fn encode_application(digest: &mut crate::digest_encoder::DomainDigestEncoder, application: &BoundaryApplication) {
+fn encode_application(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    application: &BoundaryApplication,
+) {
     match application {
         BoundaryApplication::Empty => digest.byte(0),
         BoundaryApplication::Exact(arguments) => {
@@ -108,7 +116,7 @@ fn encode_application(digest: &mut crate::digest_encoder::DomainDigestEncoder, a
                     } => {
                         digest.byte(0);
                         digest.raw(&binder_ordinal.to_le_bytes());
-                        hash_bytes(digest, type_identity.canonical().as_bytes());
+                        hash_bytes(digest, &type_identity.identity().0.to_le_bytes());
                     }
                     BoundaryApplicationArgument::Const {
                         binder_ordinal,
@@ -118,7 +126,7 @@ fn encode_application(digest: &mut crate::digest_encoder::DomainDigestEncoder, a
                     } => {
                         digest.byte(1);
                         digest.raw(&binder_ordinal.to_le_bytes());
-                        hash_bytes(digest, declared_carrier.canonical().as_bytes());
+                        hash_bytes(digest, &declared_carrier.identity().0.to_le_bytes());
                         hash_bytes(digest, value_type.as_bytes());
                         hash_bytes(digest, value_encoding.as_bytes());
                     }
@@ -128,7 +136,10 @@ fn encode_application(digest: &mut crate::digest_encoder::DomainDigestEncoder, a
     }
 }
 
-fn encode_realization(digest: &mut crate::digest_encoder::DomainDigestEncoder, realization: &BoundaryApplicationRealization) {
+fn encode_realization(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    realization: &BoundaryApplicationRealization,
+) {
     match realization {
         BoundaryApplicationRealization::NongenericCheckedBody {
             realization_machine,
@@ -136,8 +147,8 @@ fn encode_realization(digest: &mut crate::digest_encoder::DomainDigestEncoder, r
             realization_contract_commitment,
         } => {
             digest.byte(0);
-            hash_bytes(digest, realization_machine.canonical().as_bytes());
-            hash_bytes(digest, realization_state.canonical().as_bytes());
+            hash_bytes(digest, &realization_machine.identity().0.to_le_bytes());
+            hash_bytes(digest, &realization_state.identity().0.to_le_bytes());
             digest.raw(realization_contract_commitment);
         }
         BoundaryApplicationRealization::SpecializedCheckedBody {
@@ -148,9 +159,9 @@ fn encode_realization(digest: &mut crate::digest_encoder::DomainDigestEncoder, r
             realization_contract_commitment,
         } => {
             digest.byte(1);
-            hash_bytes(digest, realization_template.canonical().as_bytes());
-            hash_bytes(digest, realization_machine.canonical().as_bytes());
-            hash_bytes(digest, realization_state.canonical().as_bytes());
+            hash_bytes(digest, &realization_template.identity().0.to_le_bytes());
+            hash_bytes(digest, &realization_machine.identity().0.to_le_bytes());
+            hash_bytes(digest, &realization_state.identity().0.to_le_bytes());
             digest.raw(specialization_commitment);
             digest.raw(realization_contract_commitment);
         }
@@ -191,7 +202,7 @@ mod tests {
         let demand = TerminalBoundaryApplicationDemand::new(
             operation,
             BoundaryOperatorRequirement::new(
-                NominalDeclarationIdentity::new("package:operator".to_owned()).unwrap(),
+                NominalDeclarationIdentity::new(terminal_psi::TerminalIdentityIndex(1)),
                 "operator::call()->unit".to_owned(),
                 None,
             )
@@ -204,10 +215,12 @@ mod tests {
                 operation,
                 plan,
                 BoundaryApplicationRealization::NongenericCheckedBody {
-                    realization_machine: NominalDeclarationIdentity::new("machine".to_owned())
-                        .unwrap(),
-                    realization_state: NominalDeclarationIdentity::new("machine::entry".to_owned())
-                        .unwrap(),
+                    realization_machine: NominalDeclarationIdentity::new(
+                        terminal_psi::TerminalIdentityIndex(2),
+                    ),
+                    realization_state: NominalDeclarationIdentity::new(
+                        terminal_psi::TerminalIdentityIndex(3),
+                    ),
                     realization_contract_commitment: [3; 32],
                 },
             )

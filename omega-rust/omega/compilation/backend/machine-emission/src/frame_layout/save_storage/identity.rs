@@ -1,4 +1,3 @@
-
 use crate::frame_layout::save_storage::encode_callee_saved_modification_witness_identity;
 
 use super::{
@@ -9,7 +8,9 @@ use super::{
 pub(crate) fn non_authoritative_callee_save_storage_identity(
     plan: &NonAuthoritativeCalleeSaveStoragePlan,
 ) -> NonAuthoritativeCalleeSaveStorageIdentity {
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"omega.non-authoritative-callee-save-storage.v2");
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.non-authoritative-callee-save-storage.v2",
+    );
     hasher.raw(&plan.callee_saved_requirements.bytes());
     hasher.raw(&plan.register_environment.bytes());
     hasher.raw(&plan.physical_register_model.bytes());

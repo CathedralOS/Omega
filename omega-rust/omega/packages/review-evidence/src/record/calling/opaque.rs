@@ -25,5 +25,4 @@ pub(crate) struct PackagePolicyCallingOpaqueUse {
 
 impl PackagePolicyCallingOpaqueUse {
     crate::record::accessors::opaque_representation_selection_accessors!();
-
 }

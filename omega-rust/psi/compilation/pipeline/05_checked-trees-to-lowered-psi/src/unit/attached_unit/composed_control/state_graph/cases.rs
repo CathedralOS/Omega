@@ -446,7 +446,12 @@ pub(super) fn validate(
         let variant = declared
             .iter()
             .find_map(|member| match member {
-                DataMember::Variant(variant) if checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()) == case.case_identity => {
+                DataMember::Variant(variant)
+                    if checked_trees::CheckedMemberIdentity::of_member(
+                        variant.identity,
+                        variant.name.clone(),
+                    ) == case.case_identity =>
+                {
                     Some(variant)
                 }
                 _ => None,
@@ -473,11 +478,10 @@ pub(super) fn validate(
             continue;
         };
         for payload in &case.payloads {
-            if !checked
-                .data_payload_fields(variant)
-                .iter()
-                .any(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == payload.field_identity)
-            {
+            if !checked.data_payload_fields(variant).iter().any(|field| {
+                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())
+                    == payload.field_identity
+            }) {
                 return unsupported("Unit case payload field missing");
             }
         }

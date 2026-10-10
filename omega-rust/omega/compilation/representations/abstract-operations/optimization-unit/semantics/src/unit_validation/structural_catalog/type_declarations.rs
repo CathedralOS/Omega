@@ -21,7 +21,9 @@ pub(crate) fn validate_structural_fields(
     // each used field's specialization roots to its exact boundary calls.
     let mut identities = BTreeSet::new();
     for field in fields {
-        if field.identity.is_empty() || !identities.insert(field.identity.as_str()) {
+        if field.identity == terminal_psi::TerminalIdentityIndex::ABSENT
+            || !identities.insert(field.identity)
+        {
             return Err(
                 OptimizationUnitValidationError::InvalidStructuralFieldIdentity {
                     structural_type,
@@ -55,7 +57,7 @@ pub(crate) fn validate_structural_fields(
                 return Err(invalid_erased());
             }
             (terminal_psi::StructuralFieldType::Erased { type_identity }, _)
-                if type_identity.is_empty() =>
+                if *type_identity == terminal_psi::TerminalIdentityIndex::ABSENT =>
             {
                 return Err(invalid_erased());
             }
@@ -115,7 +117,9 @@ pub(crate) fn validate_structural_cases(
     }
     let mut identities = BTreeSet::new();
     for case in cases {
-        if case.identity.is_empty() || !identities.insert(case.identity.as_str()) {
+        if case.identity == terminal_psi::TerminalIdentityIndex::ABSENT
+            || !identities.insert(case.identity)
+        {
             return Err(
                 OptimizationUnitValidationError::InvalidStructuralCaseIdentity {
                     structural_type,

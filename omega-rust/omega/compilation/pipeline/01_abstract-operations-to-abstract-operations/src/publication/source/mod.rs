@@ -24,6 +24,7 @@ pub(super) fn project_plan(
         boundary_machines: unit.boundary_machines.clone(),
         provider_candidates: unit.provider_candidates.clone(),
         dynamic_dispatch: unit.dynamic_dispatch.clone(),
+        identities: unit.identities.clone(),
         functions,
     })
 }

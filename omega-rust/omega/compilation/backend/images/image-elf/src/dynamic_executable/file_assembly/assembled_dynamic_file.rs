@@ -14,11 +14,11 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::constants::SECTION_COUNT;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{
     ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
     ValidatedElfResolvedProcedureLinkage,
 };
-use crate::constants::{SECTION_COUNT};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout, public_section_kind,
 };

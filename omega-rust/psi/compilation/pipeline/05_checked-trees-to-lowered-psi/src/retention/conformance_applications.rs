@@ -10,6 +10,7 @@ use terminal_psi::{
 use super::LoweringError;
 
 pub(crate) fn lower_closed_conformance_applications(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machines: &[symbols::SymbolHandle],
     module: &mut TerminalModule,
@@ -37,11 +38,12 @@ pub(crate) fn lower_closed_conformance_applications(
         .map(|(source, terminal)| (*source, terminal.id))
         .collect::<Vec<_>>();
     module.closed_conformance_applications =
-        collect_closed_conformance_applications(checked, &owners, &[])?;
+        collect_closed_conformance_applications(identities, checked, &owners, &[])?;
     Ok(())
 }
 
 fn collect_closed_conformance_applications(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     owners: &[(symbols::SymbolHandle, semantic_vocabulary::MachineId)],
     excluded_sources: &[symbols::SymbolHandle],
@@ -148,11 +150,12 @@ fn collect_closed_conformance_applications(
                         ));
                     }
                     Ok(ClosedConformanceRealizationCallable {
-                        source_callable_identity:
-                            super::evidence_lowering::checked_evidence_machine_identity(
+                        source_callable_identity: identities.intern(
+                            &super::evidence_lowering::checked_evidence_machine_identity(
                                 checked,
                                 selected_row.realization_machine,
                             )?,
+                        ),
                         machine,
                         result,
                     })
@@ -230,7 +233,7 @@ fn collect_closed_conformance_applications(
                             realization_callables
                                 .iter()
                                 .any(|callable| {
-                                    callable.source_callable_identity == identity
+                                    callable.source_callable_identity == identities.intern(&identity)
                                         && callable.machine == machine
                                 })
                                 .then_some(identity)
@@ -240,14 +243,24 @@ fn collect_closed_conformance_applications(
                         })
                         .transpose()?;
                     rows.push(ClosedConformanceRow {
-                        declaring_trait_identity: declaring_trait_identity.clone(),
-                        public_requirement_identity: public_requirement_identity.clone(),
-                        family_tuple: family_row.family_tuple,
-                        requirement_identity: requirement_identity.clone(),
-                        realization_identity: checked
-                            .symbols
-                            .display_path(family_row.realization_state, "::"),
-                        realization_callable_identity,
+                        declaring_trait_identity: identities
+                            .intern(&declaring_trait_identity.clone()),
+                        public_requirement_identity: identities
+                            .intern(&public_requirement_identity.clone()),
+                        family_tuple: family_row
+                            .family_tuple
+                            .iter()
+                            .map(|identity| identities.intern(identity))
+                            .collect(),
+                        requirement_identity: identities.intern(&requirement_identity.clone()),
+                        realization_identity: identities.intern(
+                            &checked
+                                .symbols
+                                .display_path(family_row.realization_state, "::"),
+                        ),
+                        realization_callable_identity: realization_callable_identity
+                            .as_ref()
+                            .map(|identity| identities.intern(identity)),
                     });
                 }
             }
@@ -336,11 +349,14 @@ fn collect_closed_conformance_applications(
             }
             let mut lowered = ClosedConformanceApplication {
                 owner: *owner,
-                declaration_identity: checked.symbols.display_path(application.declaration, "::"),
+                declaration_identity: identities
+                    .intern(&checked.symbols.display_path(application.declaration, "::")),
                 telescope,
-                trait_identity: checked
-                    .symbols
-                    .display_path(application.trait_definition, "::"),
+                trait_identity: identities.intern(
+                    &checked
+                        .symbols
+                        .display_path(application.trait_definition, "::"),
+                ),
                 trait_lifetime_arguments: application.trait_lifetime_arguments.clone(),
                 trait_arguments: application.trait_arguments.clone(),
                 realization_callables,
@@ -349,8 +365,9 @@ fn collect_closed_conformance_applications(
                 commitment: Default::default(),
             };
             lowered.report_fingerprint =
-                closed_conformance_application_report_fingerprint(&lowered);
-            lowered.commitment = closed_conformance_application_commitment(&lowered);
+                closed_conformance_application_report_fingerprint(&identities.snapshot(), &lowered);
+            lowered.commitment =
+                closed_conformance_application_commitment(&identities.snapshot(), &lowered);
             applications.push(lowered);
         }
     }

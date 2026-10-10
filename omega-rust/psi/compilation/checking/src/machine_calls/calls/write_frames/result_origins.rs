@@ -8,8 +8,7 @@
 //! origins; an internal backedge neither fabricates a result nor hides an unknown.
 
 use super::path_instantiation::aggregate_arguments::{
-    AggregateOrigins, AggregateResolver, ReferenceLeaf, ReferenceResolver,
-    reference_leaves,
+    AggregateOrigins, AggregateResolver, ReferenceLeaf, ReferenceResolver, reference_leaves,
 };
 use super::stored_origins::canonical_reference_origins;
 use super::{
@@ -237,15 +236,12 @@ fn state_equation<'program>(
                 StatementNode::Transition(transition)
                     if transition.exit == TransitionExit::Ordinary =>
                 {
-                    transition
-                        .targets()
-                        .any(|edge| {
-                            matches!(
-                                    program.statement_table.transition_target(edge),
-                                    TransitionTargetNode::Value(_)
-                                        | TransitionTargetNode::Named { .. }
-                                )
-                        })
+                    transition.targets().any(|edge| {
+                        matches!(
+                            program.statement_table.transition_target(edge),
+                            TransitionTargetNode::Value(_) | TransitionTargetNode::Named { .. }
+                        )
+                    })
                 }
                 _ => false,
             },

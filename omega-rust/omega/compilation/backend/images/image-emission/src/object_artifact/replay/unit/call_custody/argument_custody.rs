@@ -200,7 +200,7 @@ pub(crate) fn argument_path_is_malformed(
             if path.iter().all(|segment| {
                 matches!(segment,
                     terminal_psi::StructuralPathSegment::Field(identity)
-                        if !identity.is_empty())
+                        if *identity != terminal_psi::TerminalIdentityIndex::ABSENT)
             }) =>
         {
             path.is_empty()

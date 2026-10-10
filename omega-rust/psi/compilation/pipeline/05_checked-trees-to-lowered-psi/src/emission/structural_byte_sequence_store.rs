@@ -43,6 +43,7 @@ enum LiteralStorage {
 
 impl ByteLiteral {
     pub(crate) fn reserve(
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         bytes: &[u8],
         structural_type: StructuralTypeId,
         types: &[StructuralTypeDeclaration],
@@ -63,7 +64,7 @@ impl ByteLiteral {
                 LiteralStorage::Owned {
                     source: place_id(allocate_dense(next_place)?),
                     empty: place_id(allocate_dense(next_place)?),
-                    view_type: existing_literal_view_type(types)?,
+                    view_type: existing_literal_view_type(identities, types)?,
                 }
             }
             _ => return unsupported("byte literal has neither an owned nor a borrowed carrier"),
@@ -186,12 +187,14 @@ pub(crate) enum StoreRoot<'a> {
 
 /// Shared callees must use the closure's existing carrier, not allocate one.
 pub(crate) fn existing_literal_view_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     types: &[StructuralTypeDeclaration],
 ) -> Result<StructuralTypeId, LoweringError> {
-    let declaration = terminal_psi::structural_type_by_identity(types, LITERAL_VIEW_IDENTITY)
-        .ok_or(LoweringError::Unsupported(
-            "composed callable produced a type absent from the shared catalog",
-        ))?;
+    let declaration =
+        terminal_psi::structural_type_by_identity(types, identities.intern(LITERAL_VIEW_IDENTITY))
+            .ok_or(LoweringError::Unsupported(
+                "composed callable produced a type absent from the shared catalog",
+            ))?;
     if !declaration.shape.is_borrowed_byte_view() {
         return unsupported("generated literal-view identity has a different carrier");
     }
@@ -216,16 +219,17 @@ pub(crate) fn completed_call_result(
 
 /// Generated owned carriers are shared by capacity, independently of live extent.
 pub(crate) fn prepare_types(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     value: &CheckedByteSequenceValuePlan,
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<(), LoweringError> {
-    literal_view_type(types)?;
+    literal_view_type(identities, types)?;
     if value
         .nodes
         .iter()
         .any(|(_, node)| matches!(node, ByteValue::Descriptor { .. }))
     {
-        descriptor_value_type(types)?;
+        descriptor_value_type(identities, types)?;
     }
     for (identity, node) in value.nodes.iter() {
         let capacity = match node {
@@ -244,7 +248,9 @@ pub(crate) fn prepare_types(
                     capacity: *capacity,
                 },
             );
-            if let Some(existing) = terminal_psi::structural_type_by_identity(types, &identity) {
+            if let Some(existing) =
+                terminal_psi::structural_type_by_identity(types, identities.intern(&identity))
+            {
                 if existing.shape != shape {
                     return unsupported("generated owned byte carrier has a different shape");
                 }
@@ -261,7 +267,7 @@ pub(crate) fn prepare_types(
                 types.push(StructuralTypeDeclaration {
                     scalar_restriction: None,
                     id: structural_type_id(ordinal),
-                    identity,
+                    identity: identities.intern(&identity),
                     shape,
                 });
             }
@@ -272,6 +278,7 @@ pub(crate) fn prepare_types(
 
 /// A generated immutable carrier, not a nominal authored type or parameter.
 pub(crate) fn literal_view_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<StructuralTypeId, LoweringError> {
     let shape =
@@ -279,7 +286,7 @@ pub(crate) fn literal_view_type(
             access: Some(terminal_psi::StructuralAccess::SharedBorrow),
         });
     if let Some(declaration) =
-        terminal_psi::structural_type_by_identity(types, LITERAL_VIEW_IDENTITY)
+        terminal_psi::structural_type_by_identity(types, identities.intern(LITERAL_VIEW_IDENTITY))
     {
         return if declaration.shape == shape {
             Ok(declaration.id)
@@ -300,7 +307,7 @@ pub(crate) fn literal_view_type(
     types.push(StructuralTypeDeclaration {
         scalar_restriction: None,
         id,
-        identity: LITERAL_VIEW_IDENTITY.into(),
+        identity: identities.intern(LITERAL_VIEW_IDENTITY),
         shape,
     });
     Ok(id)
@@ -309,6 +316,7 @@ pub(crate) fn literal_view_type(
 /// Projected byte leaves copy to the canonical standalone descriptor shape.
 /// An inline shared field has no nominal standalone type identity of its own.
 pub(crate) fn descriptor_value_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<StructuralTypeId, LoweringError> {
     const IDENTITY: &str = "compiler(shared-byte-descriptor)";
@@ -324,7 +332,7 @@ pub(crate) fn descriptor_value_type(
         });
     if types
         .iter()
-        .any(|declaration| declaration.identity == IDENTITY)
+        .any(|declaration| declaration.identity == identities.intern(&IDENTITY))
     {
         return unsupported("descriptor carrier identity changed shape");
     }
@@ -342,7 +350,7 @@ pub(crate) fn descriptor_value_type(
     types.push(StructuralTypeDeclaration {
         scalar_restriction: None,
         id,
-        identity: IDENTITY.into(),
+        identity: identities.intern(IDENTITY),
         shape,
     });
     Ok(id)
@@ -373,6 +381,7 @@ fn descriptor_value_declaration(
 /// `path`) or the byte field `path` ends at.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_content_store(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
     value: &CheckedByteSequenceValuePlan,
     root: StoreRoot<'_>,
@@ -412,6 +421,7 @@ pub(crate) fn emit_content_store(
             let (path, field) = match &root {
                 StoreRoot::Parameter(parameter) => {
                     crate::emission::structural_scalar_store::lower_structural_field_place(
+                        identities,
                         carrier_path,
                         field_identity,
                         parameter,
@@ -436,6 +446,7 @@ pub(crate) fn emit_content_store(
                         );
                     }
                     crate::emission::structural_scalar_store::lower_structural_field_path(
+                        identities,
                         *structural_type,
                         carrier_path,
                         field_identity,
@@ -487,6 +498,7 @@ pub(crate) fn emit_content_store(
                         );
                     }
                     crate::emission::structural_scalar_store::lower_structural_field_path(
+                        identities,
                         *structural_type,
                         carrier_path,
                         field_identity,
@@ -519,7 +531,7 @@ pub(crate) fn emit_content_store(
             operations,
         },
     };
-    let (operand, capacity) = emitter.emit(value.root, 0)?;
+    let (operand, capacity) = emitter.emit(identities, value.root, 0)?;
     let (source, length) = match operand {
         ByteSequenceOperand::Whole { source, length }
             if !matches!(
@@ -538,8 +550,8 @@ pub(crate) fn emit_content_store(
             // Parameter sources retain the store's exact formal-access
             // contract; generated literals and concatenations are already
             // independent sources.
-            let (empty, _) = emitter.emission.literal(&[])?;
-            emitter.owned(source, empty, capacity)?
+            let (empty, _) = emitter.emission.literal(identities, &[])?;
+            emitter.owned(identities, source, empty, capacity)?
         }
     };
     let obligation = obligation_id(allocate_dense(next_obligation)?);
@@ -580,6 +592,7 @@ pub(crate) struct DescriptorStore {
 }
 
 pub(crate) fn prepare_descriptor_store(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     root: &StoreRoot<'_>,
     path: &[CheckedUnitStructuralPathSegment],
     structural_types: &[StructuralTypeDeclaration],
@@ -629,6 +642,7 @@ pub(crate) fn prepare_descriptor_store(
             parameter.place,
             parameter.structural_type,
             crate::emission::structural_scalar_store::lower_structural_field_place_steps(
+                identities,
                 carrier_path,
                 field_identity,
                 parameter,
@@ -646,6 +660,7 @@ pub(crate) fn prepare_descriptor_store(
             *place,
             *structural_type,
             crate::emission::structural_scalar_store::lower_structural_field_steps(
+                identities,
                 *structural_type,
                 carrier_path,
                 field_identity,
@@ -703,6 +718,7 @@ pub(crate) fn emit_descriptor_store(
 /// descriptor operands. Literal syntax changes backing residence, not the
 /// consuming store's lifetime or predicate rules.
 pub(crate) fn emit_literal_view(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     bytes: &[u8],
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     structural_types: &[StructuralTypeDeclaration],
@@ -710,7 +726,7 @@ pub(crate) fn emit_literal_view(
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<semantic_vocabulary::PlaceId, LoweringError> {
-    let structural_type = existing_literal_view_type(structural_types)?;
+    let structural_type = existing_literal_view_type(identities, structural_types)?;
     let source = place_id(allocate_dense(next_place)?);
     let declaration_ordinal = super::next_byte_sequence_literal_ordinal(places)?;
     places.push(StructuralPlaceDeclaration {
@@ -757,6 +773,7 @@ fn emit_literal(
 /// caller publishes the declaration in its own result roster.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_owned_value(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     value: &CheckedByteSequenceValuePlan,
     structural_type: StructuralTypeId,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
@@ -795,19 +812,20 @@ pub(crate) fn emit_owned_value(
             operations,
         },
     };
-    let (operand, maximum_length) = emitter.emit(value.root, 0)?;
+    let (operand, maximum_length) = emitter.emit(identities, value.root, 0)?;
     if maximum_length > *capacity {
         return unsupported("owned byte initializer exceeds its declared capacity");
     }
     // Snapshot into the declaration's carrier even when the operand is an
     // existing owner. The local is an independent value, never an alias.
-    let (empty, _) = emitter.emission.literal(&[])?;
+    let (empty, _) = emitter.emission.literal(identities, &[])?;
     emitter
         .emission
         .concatenate(operand, empty, structural_type, qualifications)
 }
 
 pub(crate) fn emit_owned_literal(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     bytes: &[u8],
     structural_type: StructuralTypeId,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
@@ -824,7 +842,13 @@ pub(crate) fn emit_owned_literal(
     ),
     LoweringError,
 > {
-    let literal = ByteLiteral::reserve(bytes, structural_type, structural_types, next_place)?;
+    let literal = ByteLiteral::reserve(
+        identities,
+        bytes,
+        structural_type,
+        structural_types,
+        next_place,
+    )?;
     if !matches!(literal.storage, LiteralStorage::Owned { .. }) {
         return unsupported("owned literal local carrier is not a bounded byte owner");
     }
@@ -853,6 +877,7 @@ pub(crate) fn emit_owned_literal(
 /// `places` retains every supporting declaration, including that place.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_call_literal(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     bytes: &[u8],
     structural_type: StructuralTypeId,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
@@ -863,7 +888,13 @@ pub(crate) fn emit_call_literal(
     next_obligation: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let literal = ByteLiteral::reserve(bytes, structural_type, structural_types, next_place)?;
+    let literal = ByteLiteral::reserve(
+        identities,
+        bytes,
+        structural_type,
+        structural_types,
+        next_place,
+    )?;
     let declaration_ordinal = super::next_byte_sequence_literal_ordinal(places)?;
     literal.declare_views(places)?;
     let (producer, result) =
@@ -917,8 +948,13 @@ impl ByteEmission<'_> {
         Ok(length)
     }
 
-    fn literal(&mut self, bytes: &[u8]) -> Result<(ByteSequenceOperand, u64), LoweringError> {
+    fn literal(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        bytes: &[u8],
+    ) -> Result<(ByteSequenceOperand, u64), LoweringError> {
         let source = emit_literal_view(
+            identities,
             bytes,
             Vec::new(),
             self.structural_types,
@@ -1118,6 +1154,7 @@ impl ValueEmitter<'_> {
 
     fn owned(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         left: ByteSequenceOperand,
         right: ByteSequenceOperand,
         capacity: u64,
@@ -1128,7 +1165,7 @@ impl ValueEmitter<'_> {
             .structural_types
             .iter()
             .find(|candidate| {
-                candidate.identity == identity
+                candidate.identity == identities.intern(&identity)
                     && candidate.shape
                         == StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
@@ -1153,6 +1190,8 @@ impl ValueEmitter<'_> {
 
     fn emit(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         node: arena::Handle<ByteValue>,
         depth: usize,
     ) -> Result<(ByteSequenceOperand, u64), LoweringError> {
@@ -1160,7 +1199,7 @@ impl ValueEmitter<'_> {
             return unsupported("byte value plan has an invalid child");
         }
         match self.plan.nodes.get(node) {
-            ByteValue::Literal(bytes) => self.emission.literal(bytes),
+            ByteValue::Literal(bytes) => self.emission.literal(identities, bytes),
             ByteValue::Descriptor { .. } => {
                 unsupported("descriptor value is not an owned byte-content snapshot")
             }
@@ -1259,6 +1298,7 @@ impl ValueEmitter<'_> {
                 let (source_place, source_type) = self.field_source(*root)?;
                 let (path, field) =
                     crate::emission::structural_scalar_store::lower_structural_field_path(
+                        identities,
                         source_type,
                         carrier_path,
                         field_identity,
@@ -1300,14 +1340,14 @@ impl ValueEmitter<'_> {
                 right,
                 capacity,
             } => {
-                let (left, left_capacity) = self.emit(*left, depth + 1)?;
-                let (right, right_capacity) = self.emit(*right, depth + 1)?;
+                let (left, left_capacity) = self.emit(identities, *left, depth + 1)?;
+                let (right, right_capacity) = self.emit(identities, *right, depth + 1)?;
                 if left_capacity.checked_add(right_capacity) != Some(*capacity) {
                     return unsupported(
                         "byte concatenation capacity differs from operand carriers",
                     );
                 }
-                let (source, length) = self.owned(left, right, *capacity)?;
+                let (source, length) = self.owned(identities, left, right, *capacity)?;
                 Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
             }
         }

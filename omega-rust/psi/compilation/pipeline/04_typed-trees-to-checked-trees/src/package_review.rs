@@ -194,6 +194,7 @@ pub fn infer_machine_termination_summary(
     machine_symbol: symbols::SymbolHandle,
 ) -> Option<language_semantics::TerminationGuarantee> {
     let machine = program.machine_by_symbol(machine_symbol)?;
-    Some(checks::termination::infer_machine_checked_summary(program, machine,
-        None))
+    Some(checks::termination::infer_machine_checked_summary(
+        program, machine, None,
+    ))
 }

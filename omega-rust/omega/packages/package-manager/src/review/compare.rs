@@ -9,7 +9,9 @@ use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 pub(crate) use policy::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
-    PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath, PackagePolicyReplacementSite, compare_package_policy_changes};
+    PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyDependencyPath,
+    PackagePolicyReplacementSite, compare_package_policy_changes,
+};
 
 /// Exact compatibility contract broken by changing the selected project root's
 /// authored role without changing its package identity.
@@ -54,5 +56,4 @@ impl ReviewOnlyRootRoleChange {
     pub const fn broken_contract(&self) -> ReviewOnlyRootRoleContract {
         self.broken_contract
     }
-
 }

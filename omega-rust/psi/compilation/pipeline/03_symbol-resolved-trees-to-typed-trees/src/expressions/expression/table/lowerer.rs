@@ -433,20 +433,20 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     // a compiler query's type, not a callee's type
                     // argument: no generic callee exists to bind it either.
                     Box::default()
-                    } else {
-                        call.machine_arguments
-                            .iter()
-                            .map(|argument| {
-                                crate::expressions::expression::lower_static_machine_argument(
-                                    self.program,
-                                    self.target_trees,
-                                    self.source.authored_expression_exposure(expression),
-                                    argument,
-                                )
-                            })
-                            .collect::<Result<Vec<_>, Diagnostic>>()?
-                            .into_boxed_slice()
-                    };
+                } else {
+                    call.machine_arguments
+                        .iter()
+                        .map(|argument| {
+                            crate::expressions::expression::lower_static_machine_argument(
+                                self.program,
+                                self.target_trees,
+                                self.source.authored_expression_exposure(expression),
+                                argument,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, Diagnostic>>()?
+                        .into_boxed_slice()
+                };
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Call(

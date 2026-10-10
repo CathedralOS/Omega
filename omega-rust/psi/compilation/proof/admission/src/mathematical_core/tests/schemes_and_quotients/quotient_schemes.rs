@@ -375,10 +375,7 @@ fn quotient_scheme_rejects_a_wrong_derived_body() {
         Declaration::definition(sound_arity, sound_ty, wrong_body);
     let error = check_signature(&mut arena, &declarations, &mut budget).unwrap_err();
     assert!(
-        matches!(
-            error,
-            crate::argument_error_pair_pattern!()
-        ),
+        matches!(error, crate::argument_error_pair_pattern!()),
         "a wrong body never passes as the law: {error:?}"
     );
 }

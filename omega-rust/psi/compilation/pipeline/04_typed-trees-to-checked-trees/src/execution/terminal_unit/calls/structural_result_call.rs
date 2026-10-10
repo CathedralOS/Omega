@@ -88,11 +88,11 @@ pub(super) fn build(
     // travels with the owned result without retaining an operand loan.
     let represented_copy_result = result.multiplicity == Multiplicity::Unrestricted
         && validation::has_contents(
-        program,
-        target_state.return_type,
-        &[],
-        validation::ContentsRequirement::RepresentedOwned
-    );
+            program,
+            target_state.return_type,
+            &[],
+            validation::ContentsRequirement::RepresentedOwned,
+        );
     // Operand preparation already admitted source identity, declared types,
     // projections and exact access. Do not apply a second source-family
     // whitelist here: a named home's current value is not its initializer.

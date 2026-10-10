@@ -602,7 +602,7 @@ fn constructed_fields(
         None => shape.direct_fields(),
     }
     .ok_or(SelectedInstructionError::custody())?;
-    let field = terminal_psi::live_field_by_identity(declared, name)
+    let field = terminal_psi::live_field_by_identity(declared, *name)
         .ok_or(SelectedInstructionError::custody())?;
     let mut initializers = fields
         .iter()

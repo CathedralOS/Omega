@@ -21,7 +21,7 @@ pub(super) struct ReachableAuthorityEdges {
 }
 
 pub(super) struct ReviewContext<'a> {
-    input: &'a crate::VerifiedPsiOptimizationInput,
+    pub(super) input: &'a crate::VerifiedPsiOptimizationInput,
     functions: BTreeMap<MachineId, &'a AbstractFunction>,
     dynamic_dispatch: &'a terminal_psi::TerminalDynamicDispatchCatalog,
     pub(super) boundaries:
@@ -67,9 +67,9 @@ impl<'a> ReviewContext<'a> {
         let mut boundaries = BTreeMap::new();
         let mut boundary_identities = BTreeSet::new();
         for boundary in &plan.boundary_machines {
-            if boundary.identity.is_empty()
+            if boundary.identity == terminal_psi::TerminalIdentityIndex::ABSENT
                 || boundaries.insert(boundary.id, boundary).is_some()
-                || !boundary_identities.insert(boundary.identity.as_str())
+                || !boundary_identities.insert(boundary.identity)
             {
                 return Err(
                     "abstract operation plan has duplicate or empty boundary identity".into(),

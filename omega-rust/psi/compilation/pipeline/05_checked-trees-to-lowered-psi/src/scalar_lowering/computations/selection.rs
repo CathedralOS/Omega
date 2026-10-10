@@ -18,6 +18,7 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn selection(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         condition: Computation,
         when_true: Computation,
         when_false: Computation,
@@ -27,12 +28,24 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
-        if self.argument_type(&Argument::Computation(condition), site, input_types)?
-            != ScalarType::Boolean.into()
-            || self.argument_type(&Argument::Computation(when_true), site, input_types)?
-                != result_type
-            || self.argument_type(&Argument::Computation(when_false), site, input_types)?
-                != result_type
+        if self.argument_type(
+            identities,
+            &Argument::Computation(condition),
+            site,
+            input_types,
+        )? != ScalarType::Boolean.into()
+            || self.argument_type(
+                identities,
+                &Argument::Computation(when_true),
+                site,
+                input_types,
+            )? != result_type
+            || self.argument_type(
+                identities,
+                &Argument::Computation(when_false),
+                site,
+                input_types,
+            )? != result_type
         {
             return unsupported("scalar computation selection carriers disagree");
         }
@@ -44,6 +57,7 @@ impl Expansion<'_> {
                 let mut next = prefixes.last().expect("selection input prefix").clone();
                 self.completed.push((*computation, next.len()));
                 next.push(self.argument_type(
+                    identities,
                     &Argument::Computation(*computation),
                     site,
                     input_types,
@@ -72,6 +86,7 @@ impl Expansion<'_> {
                 terminator: LoweredScalarBranchTerminator::jump(target, arguments),
             });
             let when_true_target = self.argument(
+                identities,
                 &Argument::Computation(when_true),
                 carried,
                 completion,
@@ -97,6 +112,7 @@ impl Expansion<'_> {
                 when_true_target
             } else {
                 let when_false_target = self.argument(
+                    identities,
                     &Argument::Computation(when_false),
                     carried,
                     completion,
@@ -130,6 +146,7 @@ impl Expansion<'_> {
                 // completed values are available while emitting this node.
                 self.completed.truncate(saved + position);
                 continuation = self.argument(
+                    identities,
                     &Argument::Computation(*computation),
                     &prefixes[position],
                     continuation,

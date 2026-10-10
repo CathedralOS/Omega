@@ -21,7 +21,12 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
     let field = |raw, identity: &str, field_type| StructuralFieldDeclaration {
         storage: None,
         id: StructuralFieldId::new(raw).unwrap(),
-        identity: identity.into(),
+        identity: terminal_psi::TerminalIdentityIndex(match identity {
+            "common" => 1,
+            "item" => 2,
+            "value" => 3,
+            _ => 0,
+        }),
         relevance: BindingRelevance::Relevant,
         field_type,
     };
@@ -30,12 +35,12 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
         let cases = vec![
             StructuralCaseDeclaration {
                 id: present,
-                identity: "Present".into(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
                 fields: vec![field(31, "item", StructuralFieldType::Structural(leaf))],
             },
             StructuralCaseDeclaration {
                 id: absent,
-                identity: "Absent".into(),
+                identity: terminal_psi::TerminalIdentityIndex(2),
                 fields: Vec::new(),
             },
         ];
@@ -43,7 +48,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: root,
-                identity: "Slots".into(),
+                identity: terminal_psi::TerminalIdentityIndex(3),
                 shape: StructuralTypeShape::FixedArray {
                     element: sum,
                     length: 2,
@@ -52,7 +57,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: sum,
-                identity: "Choice".into(),
+                identity: terminal_psi::TerminalIdentityIndex(4),
                 shape: if mixed {
                     StructuralTypeShape::Mixed {
                         fields: vec![field(33, "common", scalar.clone())],
@@ -65,7 +70,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: leaf,
-                identity: "Item".into(),
+                identity: terminal_psi::TerminalIdentityIndex(5),
                 shape: StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![field(32, "value", scalar.clone())],
@@ -75,7 +80,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
         let path = vec![
             StructuralPathSegment::FixedIndex(1),
             StructuralPathSegment::Case(present),
-            StructuralPathSegment::Field("item".into()),
+            StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
         ];
         assert_eq!(
             replay_structural_value_shape(root, &types),
@@ -103,17 +108,17 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
             vec![
                 StructuralPathSegment::FixedIndex(2),
                 StructuralPathSegment::Case(present),
-                StructuralPathSegment::Field("item".into()),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
             ],
             vec![
                 StructuralPathSegment::FixedIndex(1),
                 StructuralPathSegment::Case(absent),
-                StructuralPathSegment::Field("item".into()),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
             ],
             vec![
                 StructuralPathSegment::FixedIndex(1),
                 StructuralPathSegment::Case(StructuralCaseId::new(99).unwrap()),
-                StructuralPathSegment::Field("item".into()),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
             ],
             vec![
                 StructuralPathSegment::FixedIndex(1),
@@ -127,7 +132,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
             vec![
                 StructuralPathSegment::FixedIndex(1),
                 StructuralPathSegment::Case(present),
-                StructuralPathSegment::Field("missing".into()),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(7)),
             ],
         ] {
             assert!(replay_structural_projection(root, &invalid, &types).is_none());

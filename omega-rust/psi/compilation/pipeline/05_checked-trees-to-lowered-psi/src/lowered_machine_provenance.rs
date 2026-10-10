@@ -47,7 +47,12 @@ pub fn lowered_machine_provenance(
             })
             .collect();
         for candidate in &module.provider_candidates {
-            if let Some(symbol) = identities.get(&candidate.candidate_identity) {
+            if let Some(symbol) = identities.get(
+                module
+                    .identities
+                    .text(candidate.candidate_identity)
+                    .unwrap_or_default(),
+            ) {
                 name(&mut provenance, checked, candidate.candidate, *symbol);
             }
         }

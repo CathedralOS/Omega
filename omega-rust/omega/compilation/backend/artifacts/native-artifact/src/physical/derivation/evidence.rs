@@ -190,7 +190,15 @@ pub(crate) fn derive_physical_evidence(
     let boundary_identities = module
         .boundary_machines
         .iter()
-        .map(|boundary| (boundary.id, boundary.identity.as_str()))
+        .map(|boundary| {
+            (
+                boundary.id,
+                module
+                    .identities
+                    .text(boundary.identity)
+                    .unwrap_or_default(),
+            )
+        })
         .collect::<BTreeMap<_, _>>();
     let mut children = Vec::new();
     let mut consumed_port_effects = BTreeSet::new();

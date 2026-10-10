@@ -3,9 +3,9 @@
 mod policy;
 
 pub(crate) use policy::{
-    PackagePolicyDecisionSubject,
-    PackagePolicyResolution, PackagePolicyReviewError, recover_package_policy_review,
-    render_package_policy_review};
+    PackagePolicyDecisionSubject, PackagePolicyResolution, PackagePolicyReviewError,
+    recover_package_policy_review, render_package_policy_review,
+};
 
 /// Root-project policy for one exact blocking candidate change.
 ///

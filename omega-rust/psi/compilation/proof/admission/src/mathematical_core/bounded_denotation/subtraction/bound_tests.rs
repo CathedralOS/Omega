@@ -1,8 +1,7 @@
 use std::collections::BTreeSet;
 
 use super::super::test_utilities::{
-    direct_affine_proof, direct_fixture, elaborate_checked, mathematical,
-    verify_then_elaborate,
+    direct_affine_proof, direct_fixture, elaborate_checked, mathematical, verify_then_elaborate,
 };
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};

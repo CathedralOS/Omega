@@ -29,7 +29,6 @@ impl ValidatedAarch64SelectedFormEncoding {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Aarch64SelectedFormEncodingError {
     NonCanonicalPhysicalModel,

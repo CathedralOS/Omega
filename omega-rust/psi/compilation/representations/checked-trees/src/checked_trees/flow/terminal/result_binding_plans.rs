@@ -1,14 +1,14 @@
 //! Result binding plans for scalar and structural results and the byte
 //! values a local or store receives.
 
+use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
     CheckedStructuralAccess, CheckedUnitStructuralPathSegment,
 };
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 use typed_trees::type_identity::TypeIdentityId;
-use crate::checked_trees::CheckedMemberIdentity;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// Exact state-local coordinate receiving one primitive boundary result in a
 /// Unit-effect body. The local has no structural place or cleanup action; its

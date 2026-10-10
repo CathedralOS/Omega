@@ -316,7 +316,7 @@ pub fn shared_byte_field_copy_predicates<'a>(
     let Some(fields) = parent.shape.record_fields() else {
         return None;
     };
-    let field = terminal_psi::live_field_by_identity(fields, identity)?;
+    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
     if !field
         .field_type
         .byte_sequence_carrier()
@@ -419,7 +419,7 @@ pub fn byte_copied_field_predicates_at_transfer(
     let Some(fields) = parent.shape.record_fields() else {
         return None;
     };
-    let field = terminal_psi::live_field_by_identity(fields, identity)?;
+    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
     if field.field_type.byte_sequence_carrier()? != carrier {
         return None;
     }

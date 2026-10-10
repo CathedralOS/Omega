@@ -141,7 +141,8 @@ impl NativeExecutionScope {
                             .collect::<Vec<_>>();
                         if !selected.iter().any(|row| {
                             candidates.iter().any(|(_, candidate)| {
-                                row.requirement_identity == candidate.requirement_identity
+                                plan.identities.text(candidate.requirement_identity)
+                                    == Some(row.requirement_identity.as_str())
                             })
                         }) {
                             // A retained checked alternative does not choose
@@ -158,9 +159,12 @@ impl NativeExecutionScope {
                                 .binary_search_by_key(&candidate.candidate, |(machine, _)| *machine)
                                 .is_ok()
                                 && selected.iter().any(|row| {
-                                    row.requirement_identity == candidate.requirement_identity
-                                        && row.provider_identity == candidate.provider_identity
-                                        && row.machine_identity == candidate.candidate_identity
+                                    plan.identities.text(candidate.requirement_identity)
+                                        == Some(row.requirement_identity.as_str())
+                                        && plan.identities.text(candidate.provider_identity)
+                                            == Some(row.provider_identity.as_str())
+                                        && plan.identities.text(candidate.candidate_identity)
+                                            == Some(row.machine_identity.as_str())
                                 })
                         });
                         let candidate = matches.next().ok_or(

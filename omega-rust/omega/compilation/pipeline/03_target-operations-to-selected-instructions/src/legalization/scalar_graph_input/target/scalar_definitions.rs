@@ -228,7 +228,7 @@ pub(super) fn observation(
                 })
             };
             let operands_available = match *operation {
-                terminal_psi::trapping_arith_set_pattern!(left,right, ..) => {
+                terminal_psi::trapping_arith_set_pattern!(left, right, ..) => {
                     typed(left, *scalar_type) && typed(right, *scalar_type)
                 }
                 T::ShiftLeft { value, count } | T::ShiftRight { value, count } => {
@@ -285,11 +285,14 @@ pub(super) fn observation(
             left,
             right,
         }
-        | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
+        | abstract_operations::bitwise_or_xor_pair_pattern!(
+            psi_operation,
             result,
             scalar_type,
             left,
-            right, ..) => {
+            right,
+            ..
+        ) => {
             if checker.available.is_none_or(|sources| {
                 [left, right].iter().any(|operand| {
                     !sources.iter().any(|(value, source)| {
@@ -334,7 +337,7 @@ pub(super) fn observation(
             result,
             ..
         }
-        | abstract_operations::byte_read_predicate_equal_pattern!(psi_operation,result, ..)
+        | abstract_operations::byte_read_predicate_equal_pattern!(psi_operation, result, ..)
         | AbstractOperation::ElementViewLength {
             psi_operation,
             result,
@@ -345,15 +348,15 @@ pub(super) fn observation(
             result,
             ..
         } => (*psi_operation, result.value, result.scalar_type),
-        abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
-            result, ..)
+        abstract_operations::integer_equal_less_pair_pattern!(psi_operation, result, ..)
         | AbstractOperation::IntegerLessOrEqual {
             psi_operation,
             result,
             ..
         }
-        | abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation,
-            result, ..) => (*psi_operation, *result, ScalarType::Boolean),
+        | abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation, result, ..) => {
+            (*psi_operation, *result, ScalarType::Boolean)
+        }
         _ => return Err(LegalizationError::custody()),
     };
     if result_home.defining_operation != operation

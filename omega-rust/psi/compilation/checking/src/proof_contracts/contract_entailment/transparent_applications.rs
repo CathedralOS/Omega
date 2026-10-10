@@ -36,24 +36,24 @@ pub fn transparent_proposition_application_entailed(
         ) -> Option<StructuralTerm> {
             let Some(call) = program.expression_table.call_node(expression) else {
                 return structural_term(
-            program,
-            Some((caller_machine, caller_state, Default::default())),
-            None,
-            expression,
-            None
-        );
+                    program,
+                    Some((caller_machine, caller_state, Default::default())),
+                    None,
+                    expression,
+                    None,
+                );
             };
             if call.receiver.is_valid()
                 || !call.evidence_arguments.is_empty()
                 || call.static_requirement_dispatch.is_some()
             {
                 return structural_term(
-            program,
-            Some((caller_machine, caller_state, Default::default())),
-            None,
-            expression,
-            None
-        );
+                    program,
+                    Some((caller_machine, caller_state, Default::default())),
+                    None,
+                    expression,
+                    None,
+                );
             }
             let Some(state) =
                 crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
@@ -67,12 +67,12 @@ pub fn transparent_proposition_application_entailed(
                 crate::value_custody::type_shapes::head_data_symbol(program, state.return_type)
             else {
                 return structural_term(
-            program,
-            Some((caller_machine, caller_state, Default::default())),
-            None,
-            expression,
-            None
-        );
+                    program,
+                    Some((caller_machine, caller_state, Default::default())),
+                    None,
+                    expression,
+                    None,
+                );
             };
             let data =
                 crate::declarations::data_queries::data_definition_by_symbol(program, data_symbol)?;
@@ -84,12 +84,12 @@ pub fn transparent_proposition_application_entailed(
                 .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
             {
                 return structural_term(
-            program,
-            Some((caller_machine, caller_state, Default::default())),
-            None,
-            expression,
-            None
-        );
+                    program,
+                    Some((caller_machine, caller_state, Default::default())),
+                    None,
+                    expression,
+                    None,
+                );
             }
             let arguments = program
                 .expression_table
@@ -97,12 +97,12 @@ pub fn transparent_proposition_application_entailed(
                 .iter()
                 .map(|argument| {
                     structural_term(
-            program,
-            Some((caller_machine, caller_state, Default::default())),
-            None,
-            *argument,
-            None
-        )
+                        program,
+                        Some((caller_machine, caller_state, Default::default())),
+                        None,
+                        *argument,
+                        None,
+                    )
                 })
                 .collect::<Option<Vec<_>>>()?;
             let machine =

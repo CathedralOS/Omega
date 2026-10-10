@@ -4,8 +4,8 @@
 use std::collections::BTreeSet;
 
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
     BlockParameterIncomingBinding, NodeLocation, PsiOptimizationUnit, PsiRealizationSite,
@@ -18,20 +18,20 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 
 psi_rule_contract!(
     RedundantBlockParameterRule,
-    crate::rules::standard_rule_contract(b"omega.psi-rule.redundant-block-parameter.v1", COPY_PROPAGATION_PASS_NAME, 1,
-                AnalysisSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::Dominators,
-                    AnalysisKind::UseDefinition,
-                ]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-                OptimizationSafetyClass::StructuralIdentity),
+    crate::rules::standard_rule_contract(
+        b"omega.psi-rule.redundant-block-parameter.v1",
+        COPY_PROPAGATION_PASS_NAME,
+        1,
+        AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::Dominators,
+            AnalysisKind::UseDefinition,
+        ]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries,]),
+        OptimizationSafetyClass::StructuralIdentity
+    ),
     propose = propose,
 );
-
 
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,

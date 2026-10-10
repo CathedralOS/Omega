@@ -2,8 +2,7 @@ use crate::candidates::provenance_realized_at;
 use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
 use optimization_unit::{
     DeadScalarNodeRewrite, LocalScalarCommonSubexpressionRewrite, NodeLocation,
-    PhiTranslatedScalarGvnRewrite, PsiOptimizationFunction,
-    PsiRealizationSite,
+    PhiTranslatedScalarGvnRewrite, PsiOptimizationFunction, PsiRealizationSite,
 };
 use semantic_vocabulary::BlockId;
 
@@ -36,7 +35,12 @@ pub(crate) fn reconstruct_local_cse_accounting(
                 block: use_block.id,
                 node: u32::try_from(index).ok()?,
             });
-            provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+            provenance.push(provenance_realized_at(
+                site,
+                site,
+                &node.provenance,
+                &node.fuel,
+            ));
         }
     }
     blocks.sort();
@@ -71,7 +75,12 @@ pub(crate) fn reconstruct_phi_translated_cse_accounting(
             machine: function.machine,
             edge: incoming.edge,
         };
-        provenance.push(provenance_realized_at(site, site, &edge.provenance, &edge.fuel));
+        provenance.push(provenance_realized_at(
+            site,
+            site,
+            &edge.provenance,
+            &edge.fuel,
+        ));
     }
     blocks.sort();
     blocks.dedup();

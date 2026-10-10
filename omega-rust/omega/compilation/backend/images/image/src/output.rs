@@ -115,7 +115,6 @@ pub struct CompilerEntryRegionBindingEvidence {
     pub evidence_report_fingerprint: u64,
 }
 
-
 /// Receipt for the sole authorized inventory mutation performed after final
 /// region validation: attaching the checked boundary footprint to the exact
 /// compiler entry row.
@@ -142,9 +141,10 @@ pub struct CompilerEntryFootprintBindingEvidence {
 }
 
 impl CompilerEntryFootprintBindingEvidence {
-
     pub fn recomputed_evidence_digest(self) -> CompilerEntryFootprintBindingDigest {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.compiler-entry-footprint-binding.sha256.v1\0");
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+            b"omega.compiler-entry-footprint-binding.sha256.v1\0",
+        );
         digest.raw(self.entry_region_evidence_digest.as_bytes());
         digest.raw(&self.final_region_binding_report_fingerprint.to_le_bytes());
         digest.raw(self.prior_inventory_digest.as_bytes());
@@ -217,7 +217,9 @@ impl CompilerFunctionValidationEvidence {
     /// Publication and replay also retain the exact text and region-inventory
     /// commitments described above.
     pub fn evidence_digest(self) -> CompilerFunctionValidationDigest {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.compiler-function-validation.sha256.v2\0");
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+            b"omega.compiler-function-validation.sha256.v2\0",
+        );
         for value in [
             self.function_count,
             self.instruction_count,
@@ -295,15 +297,25 @@ pub struct CompilerTextValidationEvidence {
 
 impl CompilerTextValidationEvidence {
     pub fn recomputed_derivation_digest(&self) -> CompilerTextDerivationDigest {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.compiler-text-derivation.sha256.v1\0");
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+            b"omega.compiler-text-derivation.sha256.v1\0",
+        );
         digest.raw(self.encoded_text_digest.as_bytes());
         digest.raw(self.final_compiler_text_digest.as_bytes());
         digest.raw(self.relocation_envelope_digest.as_bytes());
         digest.raw(&self.encoded_text_report_fingerprint.to_le_bytes());
         digest.raw(&self.final_compiler_text_report_fingerprint.to_le_bytes());
         digest.raw(&self.relocation_envelope_report_fingerprint.to_le_bytes());
-        digest.raw(&self.checked_instruction_validation_report_fingerprint .to_le_bytes(),);
-        digest.raw(&self.checked_instruction_footprint_report_fingerprint .to_le_bytes(),);
+        digest.raw(
+            &self
+                .checked_instruction_validation_report_fingerprint
+                .to_le_bytes(),
+        );
+        digest.raw(
+            &self
+                .checked_instruction_footprint_report_fingerprint
+                .to_le_bytes(),
+        );
         digest.u64(self.text_relocation_count as u64);
         digest.u64(self.checked_instruction_validation_count as u64);
         CompilerTextDerivationDigest::from_digest(digest.finish())

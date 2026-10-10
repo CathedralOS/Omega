@@ -69,10 +69,10 @@ pub(crate) fn hosted_read_byte_declaration_is_valid(
         return false;
     };
     empty.fields.is_empty()
-        && !declaration.identity.is_empty()
-        && !empty.identity.is_empty()
-        && !byte.identity.is_empty()
-        && !field.identity.is_empty()
+        && declaration.identity != terminal_psi::TerminalIdentityIndex::ABSENT
+        && empty.identity != terminal_psi::TerminalIdentityIndex::ABSENT
+        && byte.identity != terminal_psi::TerminalIdentityIndex::ABSENT
+        && field.identity != terminal_psi::TerminalIdentityIndex::ABSENT
         && empty.id < byte.id
         && empty.identity != byte.identity
         && !field.relevance.is_erased()
@@ -101,21 +101,21 @@ pub(crate) fn test_byte_read_declaration(
     terminal_psi::StructuralTypeDeclaration {
         scalar_restriction: None,
         id,
-        identity: "ByteRead".into(),
+        identity: terminal_psi::TerminalIdentityIndex(1),
         shape: terminal_psi::StructuralTypeShape::Sum {
             cases: vec![
                 terminal_psi::StructuralCaseDeclaration {
                     id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
-                    identity: "Eof".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(2),
                     fields: vec![],
                 },
                 terminal_psi::StructuralCaseDeclaration {
                     id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
-                    identity: "Byte".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(3),
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
                         storage: None,
                         id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
-                        identity: "value".into(),
+                        identity: terminal_psi::TerminalIdentityIndex(4),
                         relevance: terminal_psi::BindingRelevance::Relevant,
                         field_type: terminal_psi::StructuralFieldType::BoundedInteger(
                             semantic_vocabulary::BoundedIntegerType::new(
@@ -149,10 +149,10 @@ mod tests {
                 unreachable!()
             };
             match mutation {
-                0 => changed.identity.clear(),
-                1 => cases[0].identity.clear(),
-                2 => cases[1].identity.clear(),
-                3 => cases[1].fields[0].identity.clear(),
+                0 => changed.identity = terminal_psi::TerminalIdentityIndex(0),
+                1 => cases[0].identity = terminal_psi::TerminalIdentityIndex(0),
+                2 => cases[1].identity = terminal_psi::TerminalIdentityIndex(0),
+                3 => cases[1].fields[0].identity = terminal_psi::TerminalIdentityIndex(0),
                 4 => cases[1].id = cases[0].id,
                 5 => cases[0].id = semantic_vocabulary::StructuralCaseId::new(3).unwrap(),
                 6 => cases[1].identity = cases[0].identity.clone(),

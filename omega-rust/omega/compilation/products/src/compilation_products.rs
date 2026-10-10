@@ -10,9 +10,7 @@
 
 use target::NativeApplicationMetadata;
 
-use crate::{
-    OptimizationRollbackReceipt, RetainedNativeArtifact, RetainedTerminalArtifact,
-};
+use crate::{OptimizationRollbackReceipt, RetainedNativeArtifact, RetainedTerminalArtifact};
 use artifacts::compile_timings::PhaseTiming;
 use native_artifact::{
     DynamicElfNativeArtifact, DynamicElfPublicationReceipt, ExecutablePublicationReceipt,

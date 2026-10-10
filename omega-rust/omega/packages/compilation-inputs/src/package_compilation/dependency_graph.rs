@@ -169,7 +169,10 @@ impl PackageCompilationInputs {
     /// its product-reachable packages and the product edges between them.
     /// Generated-source bundle custody compares against exactly this shape.
     #[doc(hidden)]
-    pub(crate) fn dependency_closure_for(&self, root: PackageKeyIdentity) -> PackageDependencyClosure {
+    pub(crate) fn dependency_closure_for(
+        &self,
+        root: PackageKeyIdentity,
+    ) -> PackageDependencyClosure {
         let reachable = reachable_packages(root, |package| {
             self.source
                 .packages

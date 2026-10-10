@@ -19,18 +19,17 @@ pub mod view;
 
 pub use codec::RegisterHomeDecodeError;
 pub use constraints::{
-    AllocationLegalityIdentity, AllocationLegalityPlan,
-    AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
-    EntryFixedViewTransition, FixedPrecoloredInterval, FixedPrecoloredIntervalPlan,
-    FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
-    FixedPrecoloredRegisterSplitRequirements, FixedPrecoloredSourceFragmentRequirements,
-    FixedPrecoloredSourceSegment, FixedPrecoloredSourceSegmentId,
-    FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
-    FixedPrecoloredSplitRequirementPlanIdentity, FixedPrecoloredSplitRequirementPolicy,
-    FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
-    FunctionFixedPrecoloredSplitRequirements, RegisterClassAvailability,
-    VirtualEarlyClobberPointLegality, VirtualPointLegality, VirtualRegisterAllocationLegality,
-    allocation_legality, allocation_legality_function_digest,
+    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, EntryFixedViewTransition,
+    FixedPrecoloredInterval, FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPlanIdentity,
+    FixedPrecoloredIntervalPolicy, FixedPrecoloredRegisterSplitRequirements,
+    FixedPrecoloredSourceFragmentRequirements, FixedPrecoloredSourceSegment,
+    FixedPrecoloredSourceSegmentId, FixedPrecoloredSourceSegmentOpening,
+    FixedPrecoloredSplitRequirementPlan, FixedPrecoloredSplitRequirementPlanIdentity,
+    FixedPrecoloredSplitRequirementPolicy, FunctionAllocationLegality,
+    FunctionFixedPrecoloredIntervals, FunctionFixedPrecoloredSplitRequirements,
+    RegisterClassAvailability, VirtualEarlyClobberPointLegality, VirtualPointLegality,
+    VirtualRegisterAllocationLegality, allocation_legality, allocation_legality_function_digest,
     allocation_legality_identity_from_digests, allocator_availability,
     allocator_availability_identity, fixed_precolored_interval_plan_identity,
     fixed_precolored_intervals, fixed_precolored_split_requirement_plan_identity,
@@ -52,16 +51,16 @@ pub use preservation::{
     encode_callee_saved_modification_witness_identity,
 };
 pub use recovery::{
-    FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan,
-    FixedViewCopyPolicy, FixedViewCopySourceEvidence, FunctionRecoveryClassification,
-    FunctionSpillChoices, NoAdmittedRecoveryReason, PressureContender,
-    PressureRecoveryClassification, PressureResident, RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
-    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-    classification, fixed_view_copy, fixed_view_copy_identity, recovery_classification_identity,
-    spill_choice, spill_choice_identity,
+    FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
+    FixedViewCopySourceEvidence, FunctionRecoveryClassification, FunctionSpillChoices,
+    NoAdmittedRecoveryReason, PressureContender, PressureRecoveryClassification, PressureResident,
+    RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
+    SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy, classification, fixed_view_copy,
+    fixed_view_copy_identity, recovery_classification_identity, spill_choice,
+    spill_choice_identity,
 };
-pub(crate) use recovery::{ FixedViewCopyDecodeError,
-    RecoveryClassificationDecodeError};
+pub(crate) use recovery::{FixedViewCopyDecodeError, RecoveryClassificationDecodeError};
 pub use storage::{
     FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomePlan,
     FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSegmentHomePolicy,

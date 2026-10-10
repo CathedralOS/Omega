@@ -74,7 +74,6 @@ impl SourceFile {
     pub fn text_at(&self, span: Span) -> &str {
         self.source.get(span.start..span.end).unwrap_or("")
     }
-
 }
 
 impl SourcePosition {

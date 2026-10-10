@@ -162,7 +162,10 @@ fn walk_declared_origins(
     let mut pending = vec![walk.push(None, reference, None)?];
     while let Some(step) = pending.pop() {
         let WalkStep {
-            parent, reference, scope, ..
+            parent,
+            reference,
+            scope,
+            ..
         } = walk.steps[step as usize];
         if !reference.is_valid() || walk.is_visiting(parent, reference) {
             return None;
@@ -337,7 +340,9 @@ pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
         }
         let (reference, scope) = scopes.head(program, reference, scope);
         match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => pending.push((*base_type, suffix, scope)),
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                pending.push((*base_type, suffix, scope))
+            }
             TypeReferenceNode::Reference { referee, .. } => pending.push((*referee, suffix, scope)),
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
                 let Some(suffix) = suffix.strip_prefix('.') else {

@@ -53,6 +53,7 @@ impl ContractViewNamespace<'static> {
 }
 
 pub(crate) fn clauses(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     clauses: &[Option<ClosedScalarContractValue>],
     namespace: &[ValueDeclaration],
     erased: &[ValueDeclaration],
@@ -62,7 +63,7 @@ pub(crate) fn clauses(
     for clause in clauses {
         let proposition = match clause {
             Some(ClosedScalarContractValue::Predicate(predicate)) => {
-                proposition(predicate, namespace, erased, views)?
+                proposition(identities, predicate, namespace, erased, views)?
             }
             // The checked selection gate established builtin reflexivity.
             Some(ClosedScalarContractValue::Boolean(_) | ClosedScalarContractValue::Integer(_)) => {
@@ -153,6 +154,7 @@ pub(crate) fn erased_formal_declarations(
 /// authored order. Proof formals carry their semantic type identity rather
 /// than a scalar type or value id — they never name a runtime operand.
 pub(crate) fn erased_proof_formal_declarations(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     erased: &[CheckedErasedProofParameterPlan],
 ) -> Vec<ErasedProofFormal> {
@@ -160,9 +162,11 @@ pub(crate) fn erased_proof_formal_declarations(
         .iter()
         .map(|parameter| ErasedProofFormal {
             source_position: parameter.source_position,
-            type_identity: checked
-                .type_identity_text(parameter.type_identity)
-                .unwrap_or_default(),
+            type_identity: identities.intern(
+                &checked
+                    .type_identity_text(parameter.type_identity)
+                    .unwrap_or_default(),
+            ),
         })
         .collect()
 }
@@ -200,6 +204,7 @@ pub(crate) struct LoweredProofTermField {
 /// Scalar leaves stay checked expressions: their `ValueId`s belong to the
 /// caller namespace the emitter supplies.
 pub(crate) fn checked_proof_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     term: &CheckedProofTerm,
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
@@ -219,6 +224,7 @@ pub(crate) fn checked_proof_term(
                     Ok(LoweredProofTermField {
                         field_identity: checked.symbols.display_path(field.field_symbol, "::"),
                         term: checked_proof_term(
+                            identities,
                             checked,
                             &field.term,
                             caller_erased_proof_parameters,
@@ -244,6 +250,7 @@ pub(crate) fn checked_proof_term(
         }
         CheckedProofTerm::Scalar(expression) => Ok(LoweredProofTerm::Scalar(
             crate::expression_preparation::prepare_expression::lower_checked_scalar_expression(
+                identities,
                 expression,
                 &[],
             )?,
@@ -268,7 +275,9 @@ pub(crate) fn lowered_proof_term(
             case_identity,
             fields,
         } => Ok(ProofTerm::Construction {
-            type_identity: checked.type_identity_text(*type_identity).unwrap_or_default(),
+            type_identity: checked
+                .type_identity_text(*type_identity)
+                .unwrap_or_default(),
             case_identity: case_identity.clone(),
             fields: fields
                 .iter()
@@ -293,6 +302,7 @@ pub(crate) fn lowered_proof_term(
 /// comparisons equated with true. Call composition can then cite the exact
 /// relation in ordinary fixed-integer proof rules.
 pub(crate) fn proposition(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     predicate: &CheckedBooleanExpression,
     namespace: &[ValueDeclaration],
     erased: &[ValueDeclaration],
@@ -300,6 +310,7 @@ pub(crate) fn proposition(
 ) -> Result<Proposition, LoweringError> {
     self::namespace::validate(predicate)?;
     crate::proofs::contract_predicates::proposition(
+        identities,
         predicate,
         &ScalarContractTerms {
             namespace,
@@ -318,6 +329,7 @@ struct ScalarContractTerms<'namespace> {
 impl PredicateTerms for ScalarContractTerms<'_> {
     fn case_membership(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedBooleanExpression,
     ) -> Result<Proposition, LoweringError> {
         let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression
@@ -326,6 +338,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
         };
         let parameters = self.authored_structural_parameters();
         crate::proofs::crash_routes::lower_structural_case_membership(
+            identities,
             subject,
             case,
             &parameters,
@@ -334,20 +347,35 @@ impl PredicateTerms for ScalarContractTerms<'_> {
         )
     }
 
-    fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+    fn scalar(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
         // Integer operations compose through the shared predicate lowering
         // entry requirements use, so a member leaf below arithmetic
         // (`self.length - 1`) resolves in the same namespace as a bare one.
         // Closed contracts carry no partial operation's safety evidence.
-        crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.leaf(leaf))
+        crate::proofs::integer_predicates::lower(expression, &[], &mut |leaf| {
+            self.leaf(identities, leaf)
+        })
     }
 
-    fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
+    fn boolean(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedBooleanExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
         match expression {
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
-            } => self.structural_member_term(*parameter_position, path, ScalarType::Boolean),
+            } => self.structural_member_term(
+                identities,
+                *parameter_position,
+                path,
+                ScalarType::Boolean,
+            ),
             CheckedBooleanExpression::ByteSequencePredicate {
                 predicate,
                 root,
@@ -376,6 +404,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                 } else {
                     let (root, path, field) =
                         crate::proofs::crash_routes::lower_structural_member_path(
+                            identities,
                             position,
                             path,
                             &parameters,
@@ -405,17 +434,19 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                 })
             }
             CheckedBooleanExpression::Not(operand) => {
-                ScalarTerm::boolean_not(self.boolean(operand)?)
+                ScalarTerm::boolean_not(self.boolean(identities, operand)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
-            CheckedBooleanExpression::Equal { left, right } => {
-                ScalarTerm::boolean_equal(self.boolean(left)?, self.boolean(right)?)
-                    .map_err(LoweringError::InvalidCrashPredicate)
-            }
+            CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
+                self.boolean(identities, left)?,
+                self.boolean(identities, right)?,
+            )
+            .map_err(LoweringError::InvalidCrashPredicate),
             _ => crate::proofs::crash_routes::checked_boolean_scalar_term(
+                identities,
                 expression,
-                self.namespace,
                 self.erased,
+                self.namespace,
             ),
         }
     }
@@ -428,12 +459,14 @@ impl PredicateTerms for ScalarContractTerms<'_> {
 impl ScalarContractTerms<'_> {
     fn structural_member_term(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         parameter_position: u32,
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, LoweringError> {
         let parameters = self.authored_structural_parameters();
         crate::proofs::crash_routes::lower_structural_member_term(
+            identities,
             parameter_position,
             path,
             scalar_type,
@@ -456,15 +489,20 @@ impl ScalarContractTerms<'_> {
             .collect()
     }
 
-    fn leaf(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+    fn leaf(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
         if let CheckedScalarExpression::Boolean(predicate) = expression {
-            return self.boolean(predicate);
+            return self.boolean(identities, predicate);
         }
         if let CheckedScalarExpression::StructuralParameterByteLength { root, path } = expression {
             let position = root.parameter().ok_or(LoweringError::Unsupported(
                 "closed sequence extent requires a structural formal",
             ))?;
             return crate::proofs::crash_routes::lower_sequence_extent_term(
+                identities,
                 position,
                 path,
                 &self.authored_structural_parameters(),
@@ -486,15 +524,17 @@ impl ScalarContractTerms<'_> {
             // one the emitted block parameters use.
             // IEEE leaves keep their exact format, as entry requirements do.
             return self.structural_member_term(
+                identities,
                 *parameter_position,
                 path,
                 crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
             );
         }
         crate::proofs::crash_routes::checked_scalar_term_with_views(
+            identities,
             expression,
-            self.namespace,
             self.erased,
+            self.namespace,
             self.views.parameters,
             self.views.element_views,
         )

@@ -461,8 +461,8 @@ pub(crate) fn collect_boundary_signatures<'a>(
     for requirement in typed.trait_requirements(definition) {
         if let Some(parent) = typed
             .traits()
-.iter()
-.find(|candidate| candidate.symbol == requirement.symbol && candidate.is_boundary)
+            .iter()
+            .find(|candidate| candidate.symbol == requirement.symbol && candidate.is_boundary)
         {
             let parent_arguments = typed
                 .type_reference_table

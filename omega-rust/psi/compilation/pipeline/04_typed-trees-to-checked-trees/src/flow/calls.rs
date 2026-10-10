@@ -545,11 +545,7 @@ fn append_call_parameter_domain_facts<'plans>(
         ) else {
             continue;
         };
-        let place = crate::semantic::places::append_place(
-            semantic,
-            place.root,
-            &place.segments,
-        );
+        let place = crate::semantic::places::append_place(semantic, place.root, &place.segments);
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(place),
             point,

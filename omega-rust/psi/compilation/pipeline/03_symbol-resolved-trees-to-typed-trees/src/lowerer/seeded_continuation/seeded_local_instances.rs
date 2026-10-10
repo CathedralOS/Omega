@@ -64,7 +64,8 @@ pub(super) fn instance_application_is_supported(
     {
         return false;
     }
-    source.data_definition_by_symbol(application.base_symbol)
+    source
+        .data_definition_by_symbol(application.base_symbol)
         .is_some_and(|definition| {
             definition.generic_instance.is_some()
                 && exact_top_level_data_symbol(source, definition)
@@ -371,13 +372,16 @@ pub(super) fn template_argument_is_supported(
                         })
                 }
                 symbols::SymbolKind::BuiltinType => true,
-                symbols::SymbolKind::Data => source.data_definition_by_symbol(*symbol)
-                    .is_some_and(|definition| {
-                        exact_top_level_data_symbol(source, definition)
-                            && definition.lifetime_parameters.is_empty()
-                            && definition.type_parameters.is_empty()
-                            && definition.generic_instance.is_none()
-                    }),
+                symbols::SymbolKind::Data => {
+                    source
+                        .data_definition_by_symbol(*symbol)
+                        .is_some_and(|definition| {
+                            exact_top_level_data_symbol(source, definition)
+                                && definition.lifetime_parameters.is_empty()
+                                && definition.type_parameters.is_empty()
+                                && definition.generic_instance.is_none()
+                        })
+                }
                 _ => false,
             }
         }
@@ -564,7 +568,8 @@ fn lifetime_instance_type_argument_is_supported(
             .iter()
             .zip(owner_lifetimes)
             .all(|(argument, owner)| argument.as_str() == owner.as_str())
-        && source.data_definition_by_symbol(application.base_symbol)
+        && source
+            .data_definition_by_symbol(application.base_symbol)
             .is_some_and(|definition| {
                 exact_top_level_data_symbol(source, definition)
                     && definition.generic_instance.is_some()
@@ -585,14 +590,17 @@ fn supported_named_argument(
     }
     match source.symbols.get(symbol).kind {
         symbols::SymbolKind::BuiltinType => true,
-        symbols::SymbolKind::Data => source.data_definition_by_symbol(symbol)
-            .is_some_and(|definition| {
-                exact_top_level_data_symbol(source, definition)
-                    && definition.lifetime_parameters.is_empty()
-                    && definition.type_parameters.is_empty()
-                    && (definition.generic_instance.is_none()
-                        || validated_instances.contains(&definition.symbol))
-            }),
+        symbols::SymbolKind::Data => {
+            source
+                .data_definition_by_symbol(symbol)
+                .is_some_and(|definition| {
+                    exact_top_level_data_symbol(source, definition)
+                        && definition.lifetime_parameters.is_empty()
+                        && definition.type_parameters.is_empty()
+                        && (definition.generic_instance.is_none()
+                            || validated_instances.contains(&definition.symbol))
+                })
+        }
         _ => false,
     }
 }

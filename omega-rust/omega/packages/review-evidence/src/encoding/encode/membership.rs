@@ -5,10 +5,8 @@ mod membership_accounting;
 mod visitor;
 
 use crate::record::PackagePolicyBaseline;
-pub use membership_accounting::{
-    PackagePolicyMembershipError, PackagePolicyMembershipLimits,
-};
-pub(crate) use membership_accounting::{ PackagePolicyMembershipUsage};
+pub(crate) use membership_accounting::PackagePolicyMembershipUsage;
+pub use membership_accounting::{PackagePolicyMembershipError, PackagePolicyMembershipLimits};
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) trait Observer {

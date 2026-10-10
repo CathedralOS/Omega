@@ -335,6 +335,7 @@ pub(super) fn checked_unit_provider_candidates(
 /// structural parameters refine the boundary's positionally. Rows are in
 /// canonical (boundary, provider, candidate) order.
 pub(super) fn conformances(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     candidates: &[CheckedUnitProviderCandidate],
     boundary_parameters: &[BoundaryParameters],
@@ -373,13 +374,17 @@ pub(super) fn conformances(
             }
             Ok(ProviderCandidateConformance {
                 boundary: *boundary,
-                requirement_identity: checked
-                    .typed
-                    .callable_identity_text(candidate.requirement_identity),
-                provider_identity: candidate.provider_identity.clone(),
-                candidate_identity: checked
-                    .typed
-                    .callable_identity_text(candidate.candidate_identity),
+                requirement_identity: identities.intern(
+                    &checked
+                        .typed
+                        .callable_identity_text(candidate.requirement_identity),
+                ),
+                provider_identity: identities.intern(&candidate.provider_identity.clone()),
+                candidate_identity: identities.intern(
+                    &checked
+                        .typed
+                        .callable_identity_text(candidate.candidate_identity),
+                ),
                 candidate: terminal_candidate,
                 signature: ProviderSignature {
                     parameters: parameters

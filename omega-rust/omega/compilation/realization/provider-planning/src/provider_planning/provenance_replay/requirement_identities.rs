@@ -349,7 +349,6 @@ pub(crate) fn satisfied_row_requirement<'typed>(
     .ok()
 }
 
-
 /// Whether two boundary names denote the same slot: equal, or one is the
 /// unqualified leaf of the other. External-root slot resolution matches
 /// retained selected plans with this same rule.

@@ -1,6 +1,5 @@
 //! Whole-plan identity, evidence-roster, and function-roster replay.
 
-
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 
 use super::AbstractToTargetTranslationValidationError;
@@ -28,4 +27,3 @@ pub(crate) fn reject_raw_ieee_float_fma(
         None => Ok(()),
     }
 }
-

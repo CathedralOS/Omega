@@ -120,8 +120,11 @@ pub(crate) fn realize(
                     .function(callee)
                     .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
                 let (arguments, crash_continuations) = match &mut node.operation {
-                    abstract_operations::call_or_call_structural_pattern!(arguments,
-                        crash_continuations, ..) => (arguments, crash_continuations),
+                    abstract_operations::call_or_call_structural_pattern!(
+                        arguments,
+                        crash_continuations,
+                        ..
+                    ) => (arguments, crash_continuations),
                     _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
                 };
                 *crash_continuations = if structural_call {

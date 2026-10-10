@@ -13,6 +13,7 @@ use super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::{
     decode_counted, decode_ids, decode_optional_id, encode_optional_id,
 };
+use terminal_psi::TerminalIdentityIndex;
 
 pub(crate) fn encode(
     writer: &mut Writer,
@@ -23,7 +24,7 @@ pub(crate) fn encode(
         return Ok(());
     };
     writer.boolean(true);
-    writer.string("reach template", &application.template_identity)?;
+    writer.u32(application.template_identity.0);
     writer.bytes(&application.template_commitment);
     writer.bytes(&application.specialization_commitment);
     writer.len("reach telescope", application.telescope.len())?;
@@ -48,13 +49,13 @@ pub(crate) fn encode(
                     writer.string("reach requirement", requirement)?;
                 }
                 encode_service_ceiling(writer, &binding.upper_bound)?;
-                writer.string("reach selected identity", &binding.selected_identity)?;
+                writer.u32(binding.selected_identity.0);
                 writer.bytes(&binding.selected_contract_commitment);
                 encode_service_ceiling(writer, &binding.selected_reach)?;
                 encode_optional_id(writer, binding.callee);
                 writer.boolean(binding.schema.is_some());
                 if let Some(schema) = &binding.schema {
-                    writer.string("reach schema template", &schema.template_identity)?;
+                    writer.u32(schema.template_identity.0);
                     writer.bytes(&schema.template_commitment);
                 }
             }
@@ -78,22 +79,22 @@ pub(crate) fn encode(
                 match argument {
                     ClosedReachArgument::Type(identity) => {
                         writer.u8(0);
-                        writer.string("reach call type", identity)?;
+                        writer.u32(identity.0);
                     }
                     ClosedReachArgument::Const(identity) => {
                         writer.u8(1);
-                        writer.string("reach call const", identity)?;
+                        writer.u32(identity.0);
                     }
                     ClosedReachArgument::Proposition(identity) => {
                         writer.u8(2);
-                        writer.string("reach call proposition", identity)?;
+                        writer.u32(identity.0);
                     }
                     ClosedReachArgument::Machine {
                         identity,
                         contract_commitment,
                     } => {
                         writer.u8(3);
-                        writer.string("reach call machine", identity)?;
+                        writer.u32(identity.0);
                         writer.bytes(contract_commitment);
                     }
                 }
@@ -109,36 +110,36 @@ pub(crate) fn decode(
     if !reader.boolean()? {
         return Ok(None);
     }
-    let template_identity = reader.string("reach template")?;
+    let template_identity = TerminalIdentityIndex(reader.u32()?);
     let template_commitment = reader.array()?;
     let specialization_commitment = reader.array()?;
     let telescope = decode_counted(reader, |reader| {
         Ok(match reader.u8()? {
             0 => ClosedReachParameter::Type {
-                argument: reader.string("reach type argument")?,
-            },
-            1 => ClosedReachParameter::Const {
                 argument: reader.string("reach const argument")?,
             },
-            2 => ClosedReachParameter::Proposition {
+            1 => ClosedReachParameter::Const {
                 argument: reader.string("reach proposition argument")?,
+            },
+            2 => ClosedReachParameter::Proposition {
+                argument: reader.string("reach requirement")?,
             },
             3 => {
                 let nominal_requirement = if reader.boolean()? {
-                    Some(reader.string("reach requirement")?)
+                    Some(reader.string("reach selected identity")?)
                 } else {
                     None
                 };
                 ClosedReachParameter::Machine(ClosedReachMachineBinding {
                     nominal_requirement,
                     upper_bound: decode_ids(reader, "ServiceId")?,
-                    selected_identity: reader.string("reach selected identity")?,
+                    selected_identity: TerminalIdentityIndex(reader.u32()?),
                     selected_contract_commitment: reader.array()?,
                     selected_reach: decode_ids(reader, "ServiceId")?,
                     callee: decode_optional_id(reader, "MachineId")?,
                     schema: if reader.boolean()? {
                         Some(ClosedReachSchema {
-                            template_identity: reader.string("reach schema template")?,
+                            template_identity: TerminalIdentityIndex(reader.u32()?),
                             template_commitment: reader.array()?,
                         })
                     } else {
@@ -166,13 +167,17 @@ pub(crate) fn decode(
                         specialization_commitment: reader.array()?,
                         arguments: decode_counted(reader, |reader| {
                             Ok(match reader.u8()? {
-                                0 => ClosedReachArgument::Type(reader.string("reach call type")?),
-                                1 => ClosedReachArgument::Const(reader.string("reach call const")?),
-                                2 => ClosedReachArgument::Proposition(
-                                    reader.string("reach call proposition")?,
-                                ),
+                                0 => {
+                                    ClosedReachArgument::Type(TerminalIdentityIndex(reader.u32()?))
+                                }
+                                1 => {
+                                    ClosedReachArgument::Const(TerminalIdentityIndex(reader.u32()?))
+                                }
+                                2 => ClosedReachArgument::Proposition(TerminalIdentityIndex(
+                                    reader.u32()?,
+                                )),
                                 3 => ClosedReachArgument::Machine {
-                                    identity: reader.string("reach call machine")?,
+                                    identity: TerminalIdentityIndex(reader.u32()?),
                                     contract_commitment: reader.array()?,
                                 },
                                 tag => {

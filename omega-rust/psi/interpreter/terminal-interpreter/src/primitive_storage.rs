@@ -1084,7 +1084,7 @@ impl TerminalExecution<'_> {
         if let Some((StructuralPathSegment::Field(identity), parent_path)) = view.path.split_last()
         {
             let field =
-                self.scalar_leaf_field(view, identity, parent_path, scalar_type, shared_view)?;
+                self.scalar_leaf_field(view, *identity, parent_path, scalar_type, shared_view)?;
             return Ok((
                 PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ScalarField(field)),
                 scalar_type,
@@ -1108,7 +1108,7 @@ impl TerminalExecution<'_> {
     fn scalar_leaf_field(
         &self,
         view: &TerminalStructuralValue,
-        identity: &str,
+        identity: terminal_psi::TerminalIdentityIndex,
         parent_path: &[StructuralPathSegment],
         scalar_type: ScalarType,
         shared_view: bool,

@@ -4,8 +4,6 @@ mod execution;
 mod report;
 mod request;
 
-pub use execution::{ inspect_package_source_locator};
-pub use request::{
-    SourceAdapter,
-};
+pub use execution::inspect_package_source_locator;
 pub(crate) use request::PackageSourceRequest;
+pub use request::SourceAdapter;

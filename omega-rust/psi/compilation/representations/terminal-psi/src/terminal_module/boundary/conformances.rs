@@ -1,11 +1,12 @@
+use crate::terminal_module::{TerminalIdentityIndex, TerminalIdentityTable};
 use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceApplication {
     pub owner: MachineId,
-    pub declaration_identity: String,
+    pub declaration_identity: TerminalIdentityIndex,
     pub telescope: Vec<ClosedConformanceParameterBinding>,
-    pub trait_identity: String,
+    pub trait_identity: TerminalIdentityIndex,
     pub trait_lifetime_arguments: Vec<String>,
     pub trait_arguments: Vec<String>,
     /// Ordered standalone replay registry derived from the exact checked
@@ -55,9 +56,9 @@ pub struct ClosedConformanceParameterBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceRow {
-    pub declaring_trait_identity: String,
+    pub declaring_trait_identity: TerminalIdentityIndex,
     /// Canonical normalized overload identity of the public requirement.
-    pub public_requirement_identity: String,
+    pub public_requirement_identity: TerminalIdentityIndex,
     /// Canonical value tuple of the finite generic method family row this
     /// table row supplies: one canonical const identity per requirement value
     /// binder, in the requirement's binder declaration order, the same
@@ -66,19 +67,19 @@ pub struct ClosedConformanceRow {
     /// names the exact `(declaring trait, complete requirement overload,
     /// canonical value tuple)` row a dispatch rejoins. A nongeneric requirement carries
     /// the empty tuple; readable spellings never appear here.
-    pub family_tuple: Vec<String>,
+    pub family_tuple: Vec<crate::TerminalIdentityIndex>,
     /// Declaration path retained separately for exact row-map replay.
-    pub requirement_identity: String,
-    pub realization_identity: String,
+    pub requirement_identity: TerminalIdentityIndex,
+    pub realization_identity: TerminalIdentityIndex,
     /// Reference into the owning application's standalone callable registry.
     /// Rows outside the bounded static named-witness lane remain map-free.
-    pub realization_callable_identity: Option<String>,
+    pub realization_callable_identity: Option<TerminalIdentityIndex>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceRealizationCallable {
     /// Canonical checked callable identity, not a declaration display path.
-    pub source_callable_identity: String,
+    pub source_callable_identity: TerminalIdentityIndex,
     /// Artifact-local Terminal machine emitted for that exact callable.
     pub machine: MachineId,
     /// Source-derived matched requirement/realization result class for the
@@ -96,6 +97,7 @@ pub enum ClosedConformanceCallableResult {
 }
 
 pub fn closed_conformance_application_report_fingerprint(
+    identities: &TerminalIdentityTable,
     application: &ClosedConformanceApplication,
 ) -> u64 {
     fn push(bytes: &mut Vec<u8>, value: &str) {
@@ -104,8 +106,18 @@ pub fn closed_conformance_application_report_fingerprint(
     }
 
     let mut bytes = Vec::new();
-    push(&mut bytes, &application.declaration_identity);
-    push(&mut bytes, &application.trait_identity);
+    push(
+        &mut bytes,
+        identities
+            .text(application.declaration_identity)
+            .unwrap_or_default(),
+    );
+    push(
+        &mut bytes,
+        identities
+            .text(application.trait_identity)
+            .unwrap_or_default(),
+    );
     bytes.extend((application.trait_lifetime_arguments.len() as u64).to_le_bytes());
     for argument in &application.trait_lifetime_arguments {
         push(&mut bytes, argument);
@@ -127,7 +139,12 @@ pub fn closed_conformance_application_report_fingerprint(
     }
     bytes.extend((application.realization_callables.len() as u64).to_le_bytes());
     for callable in &application.realization_callables {
-        push(&mut bytes, &callable.source_callable_identity);
+        push(
+            &mut bytes,
+            identities
+                .text(callable.source_callable_identity)
+                .unwrap_or_default(),
+        );
         bytes.extend(callable.machine.get().to_le_bytes());
         bytes.push(match callable.result {
             ClosedConformanceCallableResult::Unit => 1,
@@ -137,17 +154,37 @@ pub fn closed_conformance_application_report_fingerprint(
     }
     bytes.extend((application.rows.len() as u64).to_le_bytes());
     for row in &application.rows {
-        push(&mut bytes, &row.declaring_trait_identity);
-        push(&mut bytes, &row.public_requirement_identity);
+        push(
+            &mut bytes,
+            identities
+                .text(row.declaring_trait_identity)
+                .unwrap_or_default(),
+        );
+        push(
+            &mut bytes,
+            identities
+                .text(row.public_requirement_identity)
+                .unwrap_or_default(),
+        );
         bytes.extend((row.family_tuple.len() as u64).to_le_bytes());
         for identity in &row.family_tuple {
-            push(&mut bytes, identity);
+            push(&mut bytes, identities.text(*identity).unwrap_or_default());
         }
-        push(&mut bytes, &row.requirement_identity);
-        push(&mut bytes, &row.realization_identity);
+        push(
+            &mut bytes,
+            identities
+                .text(row.requirement_identity)
+                .unwrap_or_default(),
+        );
+        push(
+            &mut bytes,
+            identities
+                .text(row.realization_identity)
+                .unwrap_or_default(),
+        );
         bytes.push(u8::from(row.realization_callable_identity.is_some()));
         if let Some(identity) = &row.realization_callable_identity {
-            push(&mut bytes, identity);
+            push(&mut bytes, identities.text(*identity).unwrap_or_default());
         }
     }
     let mut hash = semantic_vocabulary::Fnv1a::new();
@@ -161,6 +198,7 @@ pub fn closed_conformance_application_report_fingerprint(
 /// independent join, while this value commits to the reusable semantic
 /// application structure itself.
 pub fn closed_conformance_application_commitment(
+    identities: &TerminalIdentityTable,
     application: &ClosedConformanceApplication,
 ) -> ClosedConformanceApplicationCommitment {
     fn push(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: &str) {
@@ -171,8 +209,18 @@ pub fn closed_conformance_application_commitment(
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
         b"omega.psi.terminal.closed-conformance-application.v5\0",
     );
-    push(&mut digest, &application.declaration_identity);
-    push(&mut digest, &application.trait_identity);
+    push(
+        &mut digest,
+        identities
+            .text(application.declaration_identity)
+            .unwrap_or_default(),
+    );
+    push(
+        &mut digest,
+        identities
+            .text(application.trait_identity)
+            .unwrap_or_default(),
+    );
     digest.u64(application.trait_lifetime_arguments.len() as u64);
     for argument in &application.trait_lifetime_arguments {
         push(&mut digest, argument);
@@ -194,7 +242,12 @@ pub fn closed_conformance_application_commitment(
     }
     digest.u64(application.realization_callables.len() as u64);
     for callable in &application.realization_callables {
-        push(&mut digest, &callable.source_callable_identity);
+        push(
+            &mut digest,
+            identities
+                .text(callable.source_callable_identity)
+                .unwrap_or_default(),
+        );
         digest.raw(&callable.machine.get().to_le_bytes());
         digest.byte(match callable.result {
             ClosedConformanceCallableResult::Unit => 1,
@@ -204,17 +257,37 @@ pub fn closed_conformance_application_commitment(
     }
     digest.u64(application.rows.len() as u64);
     for row in &application.rows {
-        push(&mut digest, &row.declaring_trait_identity);
-        push(&mut digest, &row.public_requirement_identity);
+        push(
+            &mut digest,
+            identities
+                .text(row.declaring_trait_identity)
+                .unwrap_or_default(),
+        );
+        push(
+            &mut digest,
+            identities
+                .text(row.public_requirement_identity)
+                .unwrap_or_default(),
+        );
         digest.u64(row.family_tuple.len() as u64);
         for identity in &row.family_tuple {
-            push(&mut digest, identity);
+            push(&mut digest, identities.text(*identity).unwrap_or_default());
         }
-        push(&mut digest, &row.requirement_identity);
-        push(&mut digest, &row.realization_identity);
+        push(
+            &mut digest,
+            identities
+                .text(row.requirement_identity)
+                .unwrap_or_default(),
+        );
+        push(
+            &mut digest,
+            identities
+                .text(row.realization_identity)
+                .unwrap_or_default(),
+        );
         digest.byte(u8::from(row.realization_callable_identity.is_some()));
         if let Some(identity) = &row.realization_callable_identity {
-            push(&mut digest, identity);
+            push(&mut digest, identities.text(*identity).unwrap_or_default());
         }
     }
     ClosedConformanceApplicationCommitment::from_digest(digest.finish())
@@ -228,21 +301,24 @@ mod tests {
         closed_conformance_application_report_fingerprint,
     };
 
-    fn application(family_tuple: Vec<String>) -> ClosedConformanceApplication {
+    fn application(
+        identities: &mut crate::TerminalIdentityTableBuilder,
+        family_tuple: Vec<crate::TerminalIdentityIndex>,
+    ) -> ClosedConformanceApplication {
         ClosedConformanceApplication {
             owner: semantic_vocabulary::MachineId::new(1).unwrap(),
-            declaration_identity: "package::CarrierScanner".into(),
+            declaration_identity: identities.intern("package::CarrierScanner"),
             telescope: Vec::new(),
-            trait_identity: "package::Scanner".into(),
+            trait_identity: identities.intern("package::Scanner"),
             trait_lifetime_arguments: Vec::new(),
             trait_arguments: vec!["package::Carrier".into()],
             realization_callables: Vec::new(),
             rows: vec![ClosedConformanceRow {
-                declaring_trait_identity: "package::Scanner".into(),
-                public_requirement_identity: "package::Scanner::scan()".into(),
+                declaring_trait_identity: identities.intern("package::Scanner"),
+                public_requirement_identity: identities.intern("package::Scanner::scan()"),
                 family_tuple,
-                requirement_identity: "package::Scanner::scan".into(),
-                realization_identity: "package::Carrier::scan".into(),
+                requirement_identity: identities.intern("package::Scanner::scan"),
+                realization_identity: identities.intern("package::Carrier::scan"),
                 realization_callable_identity: None,
             }],
             report_fingerprint: 0,
@@ -250,10 +326,12 @@ mod tests {
         }
     }
 
-    fn width_lanes_tuple() -> Vec<String> {
+    fn width_lanes_tuple(
+        identities: &mut crate::TerminalIdentityTableBuilder,
+    ) -> Vec<crate::TerminalIdentityIndex> {
         vec![
-            "named(integer-const(16))".to_owned(),
-            "named(integer-const(4))".to_owned(),
+            identities.intern("named(integer-const(16))"),
+            identities.intern("named(integer-const(4))"),
         ]
     }
 
@@ -261,21 +339,24 @@ mod tests {
     /// tuple commit differently, and tuple order is not normalized away.
     #[test]
     fn family_tuple_enters_row_commitment_and_report_fingerprint() {
-        let nongeneric = application(Vec::new());
-        let width_lanes = application(width_lanes_tuple());
-        let mut reversed = width_lanes_tuple();
+        let mut builder = crate::TerminalIdentityTableBuilder::default();
+        let nongeneric = application(&mut builder, Vec::new());
+        let tuple = width_lanes_tuple(&mut builder);
+        let width_lanes = application(&mut builder, tuple);
+        let mut reversed = width_lanes_tuple(&mut builder);
         reversed.reverse();
-        let lanes_width = application(reversed);
+        let lanes_width = application(&mut builder, reversed);
+        let identities = builder.snapshot();
 
         let commitments = [
-            closed_conformance_application_commitment(&nongeneric),
-            closed_conformance_application_commitment(&width_lanes),
-            closed_conformance_application_commitment(&lanes_width),
+            closed_conformance_application_commitment(&identities, &nongeneric),
+            closed_conformance_application_commitment(&identities, &width_lanes),
+            closed_conformance_application_commitment(&identities, &lanes_width),
         ];
         let fingerprints = [
-            closed_conformance_application_report_fingerprint(&nongeneric),
-            closed_conformance_application_report_fingerprint(&width_lanes),
-            closed_conformance_application_report_fingerprint(&lanes_width),
+            closed_conformance_application_report_fingerprint(&identities, &nongeneric),
+            closed_conformance_application_report_fingerprint(&identities, &width_lanes),
+            closed_conformance_application_report_fingerprint(&identities, &lanes_width),
         ];
         assert!(commitments.iter().all(|commitment| !commitment.is_zero()));
         assert_ne!(commitments[0], commitments[1]);
@@ -285,7 +366,10 @@ mod tests {
         assert_ne!(fingerprints[1], fingerprints[2]);
         assert_ne!(fingerprints[0], fingerprints[2]);
         assert_eq!(
-            closed_conformance_application_commitment(&application(width_lanes_tuple())),
+            closed_conformance_application_commitment(&identities, &{
+                let tuple = width_lanes_tuple(&mut builder);
+                application(&mut builder, tuple)
+            }),
             commitments[1]
         );
     }

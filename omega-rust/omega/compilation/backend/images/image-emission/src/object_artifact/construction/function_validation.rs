@@ -1292,7 +1292,7 @@ fn validate_boundary_settlements(
                 operation: settlement.invocation_site,
             });
         }
-        if let Err(error) = validate_completion_custody(settlement) {
+        if let Err(error) = validate_completion_custody(settlement, &plan.identities) {
             return Err(match error {
                 CompletionCustodyError::ArgumentPath => {
                     ObjectError::InvalidBoundarySettlementArgumentPath {

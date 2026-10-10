@@ -13,6 +13,7 @@ use crate::emission::operation_emission::view_subslice;
 use crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect;
 
 pub(crate) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     effects: &[LoweredScalarEffect],
     values: &[ValueDeclaration],
@@ -193,7 +194,9 @@ pub(crate) fn emit(
                     .erased_proof_arguments
                     .iter()
                     .map(|term| {
-                        crate::scalar_lowering::contracts::lowered_proof_term(checked, term, values, erased)
+                        crate::scalar_lowering::contracts::lowered_proof_term(
+                            checked, term, values, erased,
+                        )
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
                 let claim_transfers =
@@ -227,7 +230,11 @@ pub(crate) fn emit(
                         call.structural_arguments.clone(),
                         claim_transfers,
                         Vec::new(),
-                        lower_checked_crash_route_buckets(&call.crash_routes, &arguments)?,
+                        lower_checked_crash_route_buckets(
+                            identities,
+                            &call.crash_routes,
+                            &arguments,
+                        )?,
                         call.result
                             .as_ref()
                             .map_or(DirectCallResult::Unit, |result| {

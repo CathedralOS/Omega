@@ -173,13 +173,15 @@ fn validate_closed_rows(
             None,
             diagnostics,
         );
-        crate::proof_contracts::contract_entailment::check_law_conformance(program,
+        crate::proof_contracts::contract_entailment::check_law_conformance(
+            program,
             machine,
             conformance_name,
             &application,
             requirement,
             diagnostics,
-        &mut Vec::new());
+            &mut Vec::new(),
+        );
         // Authored rows choose their machine; a default or synthesized row is
         // the requirement's own declaration instantiated for this map.
         if matches!(

@@ -113,7 +113,9 @@ impl Budget {
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }
             | ScalarTerm::IeeeFloatLiteral(_) => {}
-            semantic_vocabulary::scalar_term_predicate_quint_pattern!(path, ..) => self.count(path.len())?,
+            semantic_vocabulary::scalar_term_predicate_quint_pattern!(path, ..) => {
+                self.count(path.len())?
+            }
             super::scalar_term_unary_operand!(operand) => self.scalar(operand, depth + 1)?,
             super::scalar_term_binary_operands!(left, right) => {
                 self.scalar(left, depth + 1)?;

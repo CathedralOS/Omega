@@ -26,6 +26,7 @@ pub(super) struct PreparedCases<'a> {
 }
 
 pub(super) fn prepare<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     state: &'a CheckedComposedUnitControlStatePlan,
     catalogs: &catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
@@ -68,6 +69,7 @@ pub(super) fn prepare<'a>(
     };
     let prepared_path =
         crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+            identities,
             &subject.path,
             structural_type,
             &catalogs.structural_types,
@@ -95,9 +97,10 @@ pub(super) fn prepare<'a>(
     let cases = declared
         .iter()
         .map(|declared| {
-            let mut matching = cases
-                .iter()
-                .filter(|case| case.case_identity.spelling() == declared.identity);
+            let mut matching = cases.iter().filter(|case| {
+                case.case_identity.spelling()
+                    == identities.text(declared.identity).unwrap_or_default()
+            });
             let case = matching.next().ok_or(LoweringError::Unsupported(
                 "Unit graph declared case lost its successor",
             ))?;
@@ -107,11 +110,13 @@ pub(super) fn prepare<'a>(
             let mut fields = Vec::new();
             let mut values = Vec::new();
             for payload in &case.payloads {
-                let field =
-                    terminal_psi::field_by_identity(&declared.fields, &payload.field_identity.spelling())
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph payload field is missing",
-                        ))?;
+                let field = terminal_psi::field_by_identity(
+                    &declared.fields,
+                    identities.intern(&payload.field_identity.spelling()),
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph payload field is missing",
+                ))?;
                 let scalar_type = terminal_scalar_type(payload.primitive_type)?;
                 fields.push(field.id);
                 values.push((

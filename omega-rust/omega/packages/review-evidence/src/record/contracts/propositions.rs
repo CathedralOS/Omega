@@ -61,9 +61,7 @@ fn package_review_data_properties_key(
     (multiplicity, carry)
 }
 
-impl PackageReviewPropositionBinder {
-
-}
+impl PackageReviewPropositionBinder {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewPropositionBinderValue {
@@ -93,9 +91,7 @@ pub(crate) struct PackageReviewPropositionBinderArgument {
     pub(crate) value: PackageReviewPropositionBinderValue,
 }
 
-impl PackageReviewPropositionBinderArgument {
-
-}
+impl PackageReviewPropositionBinderArgument {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PackageReviewEvidenceRequirement {
@@ -105,11 +101,7 @@ pub(crate) struct PackageReviewEvidenceRequirement {
     pub(crate) requirement: PackageReviewNominalIdentity,
 }
 
-impl PackageReviewEvidenceRequirement {
-
-
-
-}
+impl PackageReviewEvidenceRequirement {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewEvidenceInterface {
@@ -119,11 +111,7 @@ pub struct PackageReviewEvidenceInterface {
     pub(crate) requirements: Vec<PackageReviewEvidenceRequirement>,
 }
 
-impl PackageReviewEvidenceInterface {
-
-
-
-}
+impl PackageReviewEvidenceInterface {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewPropositionEvidence {
@@ -174,13 +162,7 @@ pub struct PackageReviewPropositionApplication {
     pub(crate) evidence: PackageReviewPropositionEvidence,
 }
 
-impl PackageReviewPropositionApplication {
-
-
-
-
-
-}
+impl PackageReviewPropositionApplication {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewPropositionParameterApplication {
@@ -188,6 +170,4 @@ pub struct PackageReviewPropositionParameterApplication {
     pub(crate) arguments: Vec<PackageReviewContractExpression>,
 }
 
-impl PackageReviewPropositionParameterApplication {
-
-}
+impl PackageReviewPropositionParameterApplication {}

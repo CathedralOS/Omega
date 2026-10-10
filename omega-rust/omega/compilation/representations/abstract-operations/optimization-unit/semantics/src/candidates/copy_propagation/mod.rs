@@ -5,8 +5,7 @@
 //! operation rewriting descend into named leaves.
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
@@ -38,10 +37,7 @@ fn validate_candidate_contract(
             AnalysisKind::Dominators,
             AnalysisKind::UseDefinition,
         ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
         OptimizationSafetyClass::StructuralIdentity,
     )?;
     if candidate.predicted_cost_delta() != -1 {

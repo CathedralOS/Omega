@@ -18,17 +18,17 @@
 //! exactly, rebuilds the output itself, and reconstructs the exact node
 //! custody the folded observations carry.
 
-use crate::candidates::provenance_realized_at;
 use crate::candidates::outside_region::validate_outside_region;
+use crate::candidates::provenance_realized_at;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    FoldedCaseMembershipRow, OptimizationFact, OptimizationNode,
-    ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, declared_structural_type,
+    FoldedCaseMembershipRow, OptimizationFact, OptimizationNode, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewritePatch, declared_structural_type,
     recompute_psi_optimization_unit_identity, resolved_sole_case, sole_case_at_path,
 };
 use semantic_vocabulary::{
@@ -306,7 +306,12 @@ fn accepted_provenance(
             .and_then(|block| block.nodes.get(index))
             .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
         let site = PsiRealizationSite::Node(row.site);
-        provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+        provenance.push(provenance_realized_at(
+            site,
+            site,
+            &node.provenance,
+            &node.fuel,
+        ));
     }
     provenance.sort_by_key(|row| {
         (

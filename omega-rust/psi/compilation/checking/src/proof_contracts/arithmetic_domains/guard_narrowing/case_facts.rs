@@ -53,8 +53,7 @@ pub(super) fn contribute_case_where_facts(
         return;
     }
     let Some(ordered_values::Operand::Place { root, fields, path }) =
-        ordered_values::operand(program, machine, state, subject,
-        None)
+        ordered_values::operand(program, machine, state, subject, None)
     else {
         return;
     };

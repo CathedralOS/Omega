@@ -47,6 +47,7 @@ fn ordinal(value: usize) -> Result<u64, LoweringError> {
 }
 
 pub(crate) fn boundary(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source: FlowInvalidationSource,
 ) -> Result<TerminalBorrowBoundarySource, LoweringError> {
@@ -63,24 +64,25 @@ pub(crate) fn boundary(
         } => TerminalBorrowBoundarySource::Call {
             statement_index: ordinal(statement_index)?,
             call_ordinal: ordinal(call_ordinal)?,
-            target_identity: identity(checked, target_symbol)?,
+            target_identity: identities.intern(&identity(checked, target_symbol)?),
         },
     })
 }
 
 pub(crate) fn owner_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     path: &[BorrowLoanOwnerSegment],
 ) -> Result<Vec<TerminalBorrowOwnerSegment>, LoweringError> {
     path.iter()
         .map(|segment| {
             Ok(match segment {
-                BorrowLoanOwnerSegment::Field(symbol) => {
-                    TerminalBorrowOwnerSegment::Field(identity(checked, *symbol)?)
-                }
-                BorrowLoanOwnerSegment::Case(symbol) => {
-                    TerminalBorrowOwnerSegment::Case(identity(checked, *symbol)?)
-                }
+                BorrowLoanOwnerSegment::Field(symbol) => TerminalBorrowOwnerSegment::Field(
+                    identities.intern(&identity(checked, *symbol)?),
+                ),
+                BorrowLoanOwnerSegment::Case(symbol) => TerminalBorrowOwnerSegment::Case(
+                    identities.intern(&identity(checked, *symbol)?),
+                ),
                 BorrowLoanOwnerSegment::FixedIndex(index) => {
                     TerminalBorrowOwnerSegment::FixedIndex(ordinal(*index)?)
                 }
@@ -91,6 +93,7 @@ pub(crate) fn owner_path(
 }
 
 pub(crate) fn place_segments(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     segments: &[facts::PlaceSegment],
 ) -> Result<Vec<TerminalBorrowPlaceSegment>, LoweringError> {
@@ -98,12 +101,12 @@ pub(crate) fn place_segments(
         .iter()
         .map(|segment| {
             Ok(match segment {
-                facts::PlaceSegment::Field { symbol } => {
-                    TerminalBorrowPlaceSegment::Field(identity(checked, *symbol)?)
-                }
-                facts::PlaceSegment::Case { variant } => {
-                    TerminalBorrowPlaceSegment::Case(identity(checked, *variant)?)
-                }
+                facts::PlaceSegment::Field { symbol } => TerminalBorrowPlaceSegment::Field(
+                    identities.intern(&identity(checked, *symbol)?),
+                ),
+                facts::PlaceSegment::Case { variant } => TerminalBorrowPlaceSegment::Case(
+                    identities.intern(&identity(checked, *variant)?),
+                ),
                 facts::PlaceSegment::FixedIndex { index } => {
                     TerminalBorrowPlaceSegment::FixedIndex(ordinal(*index)?)
                 }
@@ -122,12 +125,13 @@ pub(crate) fn place_segments(
 }
 
 pub(crate) fn place(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     place: &checked_trees::CapturedPlace,
 ) -> Result<TerminalBorrowPlace, LoweringError> {
     Ok(TerminalBorrowPlace {
-        root_identity: identity(checked, place.root_symbol)?,
-        segments: place_segments(checked, &place.segments)?,
+        root_identity: identities.intern(&identity(checked, place.root_symbol)?),
+        segments: place_segments(identities, checked, &place.segments)?,
     })
 }
 
@@ -180,6 +184,7 @@ fn retained_parent_status(
 }
 
 pub(crate) fn retain_selected_reborrow_root_handoffs(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
@@ -312,14 +317,14 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             }
 
             terminal_lineage.push(TerminalReborrowRootHandoffStep {
-                child_owner_identity: identity(checked, child.owner_symbol)?,
-                child_owner_path: owner_path(checked, &child.owner_path)?,
-                child_place: place(checked, &child.captured_place)?,
-                projection_remainder: place_segments(checked, projection_remainder)?,
+                child_owner_identity: identities.intern(&identity(checked, child.owner_symbol)?),
+                child_owner_path: owner_path(identities, checked, &child.owner_path)?,
+                child_place: place(identities, checked, &child.captured_place)?,
+                projection_remainder: place_segments(identities, checked, projection_remainder)?,
                 child_access: access(child.access.clone()),
-                child_activation: boundary(checked, child_activation.source)?,
-                formation_boundary: boundary(checked, suspension.source)?,
-                child_weakening: boundary(checked, child_weakening.source)?,
+                child_activation: boundary(identities, checked, child_activation.source)?,
+                formation_boundary: boundary(identities, checked, suspension.source)?,
+                child_weakening: boundary(identities, checked, child_weakening.source)?,
             });
             expected_parent = CheckedParentBorrowResource::Reborrow {
                 resource: *child_handle,
@@ -385,15 +390,16 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             .get(lineage[0].1.parent_end_status.parent_weakening);
         rows.push(TerminalReborrowRootHandoff {
             machine: terminal_machine,
-            source_machine_identity: identity(checked, leaf.machine_symbol)?,
-            source_state_identity: identity(checked, leaf.state_symbol)?,
-            direct_root_owner_identity: identity(checked, parent.owner_symbol)?,
-            direct_root_owner_path: owner_path(checked, &parent.owner_path)?,
-            direct_root_place: place(checked, &parent.captured_place)?,
+            source_machine_identity: identities.intern(&identity(checked, leaf.machine_symbol)?),
+            source_state_identity: identities.intern(&identity(checked, leaf.state_symbol)?),
+            direct_root_owner_identity: identities.intern(&identity(checked, parent.owner_symbol)?),
+            direct_root_owner_path: owner_path(identities, checked, &parent.owner_path)?,
+            direct_root_place: place(identities, checked, &parent.captured_place)?,
             direct_root_access: access(parent.access.clone()),
-            direct_root_activation: boundary(checked, parent.activation_source)?,
-            direct_root_weakening: boundary(checked, root_weakening.source)?,
-            direct_root_lifetime_identity: identity(checked, parent.parent_lifetime.root_symbol)?,
+            direct_root_activation: boundary(identities, checked, parent.activation_source)?,
+            direct_root_weakening: boundary(identities, checked, root_weakening.source)?,
+            direct_root_lifetime_identity: identities
+                .intern(&identity(checked, parent.parent_lifetime.root_symbol)?),
             lineage: terminal_lineage,
         });
     }

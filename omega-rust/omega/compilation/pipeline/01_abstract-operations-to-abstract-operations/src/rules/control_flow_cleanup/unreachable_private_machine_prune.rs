@@ -3,12 +3,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
-    NodeLocation, ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit,
-    PsiRealizationSite, PsiRewriteCandidate, UnreachablePrivateMachinesRewrite,
+    NodeLocation, ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit, PsiRealizationSite,
+    PsiRewriteCandidate, UnreachablePrivateMachinesRewrite,
 };
 use semantic_vocabulary::MachineId;
 
@@ -20,15 +20,19 @@ use crate::{
 
 psi_rule_contract!(
     UnreachablePrivateMachinePruneRule,
-    crate::rules::standard_rule_contract(b"omega.psi-rule.unreachable-private-machine-pruning.v1", CONTROL_FLOW_CLEANUP_PASS_NAME, 1,
-                AnalysisSet::new([AnalysisKind::CallGraph]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::CallGraph,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-                OptimizationSafetyClass::StructuralIdentity),
+    crate::rules::standard_rule_contract(
+        b"omega.psi-rule.unreachable-private-machine-pruning.v1",
+        CONTROL_FLOW_CLEANUP_PASS_NAME,
+        1,
+        AnalysisSet::new([AnalysisKind::CallGraph]),
+        AnalysisInvalidationSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::CallGraph,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+        OptimizationSafetyClass::StructuralIdentity
+    ),
 );
 
 impl PsiOptimizationRule for UnreachablePrivateMachinePruneRule {
@@ -151,7 +155,12 @@ fn rule_pruned_machine_provenance(
                     node: u32::try_from(node_index).ok()?,
                 });
                 if !node.provenance.is_empty() {
-                    rows.push(provenance_proven_unreachable_at(input, input, &node.provenance, &node.fuel));
+                    rows.push(provenance_proven_unreachable_at(
+                        input,
+                        input,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
                 for edge in &node.successors {
                     let input = PsiRealizationSite::Edge {
@@ -159,7 +168,12 @@ fn rule_pruned_machine_provenance(
                         edge: edge.psi_edge,
                     };
                     if !edge.provenance.is_empty() {
-                        rows.push(provenance_proven_unreachable_at(input, input, &edge.provenance, &edge.fuel));
+                        rows.push(provenance_proven_unreachable_at(
+                            input,
+                            input,
+                            &edge.provenance,
+                            &edge.fuel,
+                        ));
                     }
                 }
             }

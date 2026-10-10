@@ -27,7 +27,7 @@ fn refined_field_identity_retains_carrier_predicate_operator_and_literal() {
         let field = StructuralFieldDeclaration {
             storage: None,
             id: StructuralFieldId::new(1).unwrap(),
-            identity: "value".into(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
             relevance: BindingRelevance::Relevant,
             field_type: StructuralFieldType::RefinedScalar(
                 ScalarRefinement::new(carrier, predicate).unwrap(),

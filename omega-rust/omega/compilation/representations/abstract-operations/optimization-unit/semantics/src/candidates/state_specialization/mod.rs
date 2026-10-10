@@ -1,8 +1,7 @@
 //! Optimizer module role: executable entrance. State-argument specialization validation.
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
@@ -18,7 +17,10 @@ pub fn validate_state_argument_specialization_candidate(
         input,
         candidate,
         b"omega.psi-rule.state-argument-specialization.v1",
-        AnalysisSet::new([AnalysisKind::ScalarConstants, AnalysisKind::StronglyConnectedComponents]),
+        AnalysisSet::new([
+            AnalysisKind::ScalarConstants,
+            AnalysisKind::StronglyConnectedComponents,
+        ]),
         AnalysisInvalidationSet::new([
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::Dominators,

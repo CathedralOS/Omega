@@ -16,7 +16,7 @@
 //! the fixed templates, `compatibility_fingerprint.rs` derives the
 //! report-only fingerprint and `tests.rs` holds the template tests.
 
-use crate::constants::{ELF64_RELA_SIZE};
+use crate::constants::ELF64_RELA_SIZE;
 mod candidates;
 mod compatibility_fingerprint;
 mod template_plans;
@@ -41,7 +41,6 @@ use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::com
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, derive_contents};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::validate_candidate;
 use super::super::checked;
-
 
 const ELF64_GOT_WORD_SIZE: usize = 8;
 

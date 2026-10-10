@@ -99,7 +99,11 @@ pub(super) fn instantiate_source(
     )?;
     let mut sources = Vec::new();
     for leaf in actual_leaves.references {
-        if !application_source_reaches_leaf(program, &relative.source.segments, &leaf.local_segments) {
+        if !application_source_reaches_leaf(
+            program,
+            &relative.source.segments,
+            &leaf.local_segments,
+        ) {
             continue;
         }
         let suffix = place_suffix(&boundary.local_path, &relative.path).unwrap_or("");

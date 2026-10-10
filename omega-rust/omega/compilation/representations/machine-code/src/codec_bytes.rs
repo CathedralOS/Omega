@@ -2,14 +2,10 @@
 //! append-half of `cursor.rs`. Each helper appends one already-decided wire
 //! value; framing and field order stay with the encoder.
 
-
-
-pub(crate) use optimization_core::codec_bytes::{push_encoded};
 #[cfg(test)]
-pub(crate) use optimization_core::codec_bytes::{patch_encoded};
+pub(crate) use optimization_core::codec_bytes::patch_encoded;
+pub(crate) use optimization_core::codec_bytes::push_encoded;
 /// Write a fixed-width little-endian encoding at `offset` inside `bytes`.
-
-
 
 /// The manifest envelope shared by publication codecs: magic + version +
 /// identity + framed content, in that order.

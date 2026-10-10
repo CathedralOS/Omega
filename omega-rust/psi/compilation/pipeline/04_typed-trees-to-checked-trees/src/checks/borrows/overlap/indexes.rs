@@ -255,20 +255,10 @@ pub(super) fn index_expressions_may_overlap<'p>(
     if left == right {
         return true;
     }
-    let left_extent = index_expression_extent(
-        program,
-        left,
-        left_location,
-        selectors,
-        bound_lookup,
-    );
-    let right_extent = index_expression_extent(
-        program,
-        right,
-        right_location,
-        selectors,
-        bound_lookup,
-    );
+    let left_extent =
+        index_expression_extent(program, left, left_location, selectors, bound_lookup);
+    let right_extent =
+        index_expression_extent(program, right, right_location, selectors, bound_lookup);
     index_extents_may_overlap(left_extent, right_extent, selectors)
 }
 

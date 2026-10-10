@@ -345,13 +345,13 @@ mod cleanup_tests {
         let structural_types = vec![StructuralTypeDeclaration {
             scalar_restriction: None,
             id: structural_type,
-            identity: "Leaf".into(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
             shape: StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
                     storage: None,
                     id: StructuralFieldId::new(1).unwrap(),
-                    identity: "value".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(2),
                     relevance: BindingRelevance::Relevant,
                     field_type: StructuralFieldType::Scalar(ScalarType::IeeeFloat(
                         IeeeFloatFormat::Binary32,
@@ -468,7 +468,9 @@ mod cleanup_tests {
     fn residual() -> StructuralAffineDiscard {
         StructuralAffineDiscard {
             place: PlaceId::new(5).unwrap(),
-            path: vec![StructuralPathSegment::Field("left".into())],
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(3),
+            )],
             structural_type: StructuralTypeId::new(2).unwrap(),
         }
     }
@@ -558,7 +560,11 @@ mod cleanup_tests {
                     };
                     match mutation {
                         5 => discard.place = PlaceId::new(6).unwrap(),
-                        6 => discard.path = vec![StructuralPathSegment::Field("right".into())],
+                        6 => {
+                            discard.path = vec![StructuralPathSegment::Field(
+                                terminal_psi::TerminalIdentityIndex(4),
+                            )]
+                        }
                         _ => discard.structural_type = StructuralTypeId::new(3).unwrap(),
                     }
                 }

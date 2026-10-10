@@ -277,7 +277,11 @@ impl ProviderSelectionSubject {
         }
     }
 
-    pub(crate) fn selects_schema(&self, schema_symbol: SymbolHandle, requirement_identity: &str) -> bool {
+    pub(crate) fn selects_schema(
+        &self,
+        schema_symbol: SymbolHandle,
+        requirement_identity: &str,
+    ) -> bool {
         match self {
             Self::BoundaryTrait(identity) | Self::BoundaryRequirement(identity) => {
                 identity.symbol == schema_symbol

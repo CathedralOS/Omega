@@ -14,12 +14,11 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     WrappingMultiplyZeroAnnihilationRule,
     exact_total_scalar_identity(
-                b"omega.psi-rule.live-obligation-free-wrapping-integer-multiply-zero-annihilation.v1",
-            ),
+        b"omega.psi-rule.live-obligation-free-wrapping-integer-multiply-zero-annihilation.v1",
+    ),
     propose = propose_total_scalar_identities,
     classify,
 );
-
 
 /// Return left-zero then right-zero so ties remain deterministic.
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {

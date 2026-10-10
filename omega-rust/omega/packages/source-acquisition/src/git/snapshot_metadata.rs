@@ -1,12 +1,12 @@
 //! Canonical metadata for authenticated Git snapshots.
 
 use crate::SourceResolveError;
-use crate::{take_framed_bytes, take_u64};
 use crate::error::cache_invalid;
 use crate::git::objects::identity::is_object_id;
 use crate::identity::digest::append_framed_bytes;
 use crate::limits::GIT_SNAPSHOT_POLICY;
 use crate::tree::ResolvedLocalSource;
+use crate::{take_framed_bytes, take_u64};
 use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -63,5 +63,3 @@ pub(crate) fn parse_git_snapshot_metadata(
         content_identity,
     })
 }
-
-

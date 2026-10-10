@@ -185,7 +185,10 @@ impl Decomposition<'_> {
             let Some(variant) = member.as_variant() else {
                 continue;
             };
-            let case = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
+            let case = checked_trees::CheckedMemberIdentity::of_member(
+                variant.identity,
+                variant.name.clone(),
+            );
             let mut arm = vec![
                 CheckedBooleanExpression::StructuralCaseMembership {
                     subject: self.left_place(left_path).into(),

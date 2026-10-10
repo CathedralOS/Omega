@@ -139,7 +139,6 @@ impl<T: HierarchyNode> HierarchyArenaBuilder<T> {
         self.nodes.insert(node)
     }
 
-
     pub fn insert_children(
         &mut self,
         parent: Handle<T>,

@@ -22,6 +22,7 @@ mod source;
 pub(crate) use source::validate_runtime_memberships;
 
 pub(crate) fn lower_structural_runtime_requirement(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &CheckedBooleanExpression,
     scalar_parameters: &[ValueDeclaration],
     erased: &[ValueDeclaration],
@@ -31,6 +32,7 @@ pub(crate) fn lower_structural_runtime_requirement(
     // Validate the complete entry namespace before Boolean simplification.
     validate_namespace(expression)?;
     crate::proofs::contract_predicates::proposition(
+        identities,
         expression,
         &RuntimeRequirementTerms {
             scalar_parameters,
@@ -175,6 +177,7 @@ struct RuntimeRequirementTerms<'parameters> {
 impl RuntimeRequirementTerms<'_> {
     fn scalar_leaf(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
         match expression {
@@ -186,7 +189,7 @@ impl RuntimeRequirementTerms<'_> {
                 ) {
                     integer_scalar_type(*primitive_type)?;
                 }
-                checked_scalar_term(expression, self.scalar_parameters, self.erased)
+                checked_scalar_term(identities, expression, self.scalar_parameters, self.erased)
             }
             CheckedScalarExpression::IeeeFloatLiteral { value } => {
                 Ok(ScalarTerm::IeeeFloatLiteral(*value))
@@ -196,6 +199,7 @@ impl RuntimeRequirementTerms<'_> {
                 path,
                 primitive_type,
             } => lower_structural_member_term(
+                identities,
                 *parameter_position,
                 path,
                 terminal_scalar_type(*primitive_type)?,
@@ -206,7 +210,13 @@ impl RuntimeRequirementTerms<'_> {
                 let position = root.parameter().ok_or(LoweringError::Unsupported(
                     "runtime sequence extent requires a structural formal",
                 ))?;
-                lower_sequence_extent_term(position, path, self.parameters, self.structural_types)
+                lower_sequence_extent_term(
+                    identities,
+                    position,
+                    path,
+                    self.parameters,
+                    self.structural_types,
+                )
             }
             CheckedScalarExpression::IntegerLiteral { literal } => {
                 let scalar_type = integer_landing_scalar_type(literal)?;
@@ -224,6 +234,7 @@ impl RuntimeRequirementTerms<'_> {
 impl PredicateTerms for RuntimeRequirementTerms<'_> {
     fn case_membership(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedBooleanExpression,
     ) -> Result<Proposition, LoweringError> {
         let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression
@@ -231,6 +242,7 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
             return unsupported("runtime case requirement has no case subject");
         };
         crate::proofs::crash_routes::lower_structural_case_membership(
+            identities,
             subject,
             case,
             self.parameters,
@@ -238,29 +250,44 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
             self.structural_types,
         )
     }
-    fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
-        crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.scalar_leaf(leaf))
+    fn scalar(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
+        crate::proofs::integer_predicates::lower(expression, &[], &mut |leaf| {
+            self.scalar_leaf(identities, leaf)
+        })
     }
 
-    fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
+    fn boolean(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedBooleanExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
         match expression {
             CheckedBooleanExpression::Not(operand) => {
-                ScalarTerm::boolean_not(self.boolean(operand)?)
+                ScalarTerm::boolean_not(self.boolean(identities, operand)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
-            CheckedBooleanExpression::Equal { left, right } => {
-                ScalarTerm::boolean_equal(self.boolean(left)?, self.boolean(right)?)
-                    .map_err(LoweringError::InvalidCrashPredicate)
-            }
+            CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
+                self.boolean(identities, left)?,
+                self.boolean(identities, right)?,
+            )
+            .map_err(LoweringError::InvalidCrashPredicate),
             CheckedBooleanExpression::Constant(_)
             | CheckedBooleanExpression::Parameter { .. }
-            | CheckedBooleanExpression::ErasedParameter { .. } => {
-                checked_boolean_scalar_term(expression, self.scalar_parameters, self.erased)
-            }
+            | CheckedBooleanExpression::ErasedParameter { .. } => checked_boolean_scalar_term(
+                identities,
+                expression,
+                self.scalar_parameters,
+                self.erased,
+            ),
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
             } => lower_structural_member_term(
+                identities,
                 *parameter_position,
                 path,
                 ScalarType::Boolean,

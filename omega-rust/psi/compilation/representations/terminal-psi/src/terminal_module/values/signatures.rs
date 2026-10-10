@@ -1,3 +1,4 @@
+use crate::terminal_module::TerminalIdentityIndex;
 use crate::{
     StructuralAccess, StructuralMultiplicity, StructuralPathQualification, StructuralPathSegment,
 };
@@ -29,7 +30,7 @@ pub struct ErasedProofFormal {
     /// for diagnostics.
     pub source_position: u32,
     /// Canonical display-path identity of the proof-only carrier type.
-    pub type_identity: String,
+    pub type_identity: TerminalIdentityIndex,
 }
 
 /// The normal result shape of one terminal machine.

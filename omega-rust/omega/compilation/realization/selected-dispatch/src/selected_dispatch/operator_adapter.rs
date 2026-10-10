@@ -7,12 +7,10 @@
 mod application_realization;
 mod specialized_application_realization;
 
-pub use application_realization::{ CheckedOperatorAuthoredUseKind,
-    derive_checked_nongeneric_operator_application_realizations,
+pub use application_realization::{
+    CheckedOperatorAuthoredUseKind, derive_checked_nongeneric_operator_application_realizations,
 };
-pub use specialized_application_realization::{
-    derive_checked_specialized_operator_application_realizations,
-};
+pub use specialized_application_realization::derive_checked_specialized_operator_application_realizations;
 
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
@@ -104,10 +102,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
         }
     };
     let direct_provider = provider_planning::exact_checked_adapter(
-        provider_planning::ProviderPlanningContext::new(
-            checked,
-            source::DependencyScope::Product,
-        ),
+        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
         plan,
         row,
     );
@@ -148,10 +143,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
         }
     };
     if !provider_planning::provider_row_matches(
-        provider_planning::ProviderPlanningContext::new(
-            checked,
-            source::DependencyScope::Product,
-        ),
+        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
         plan,
         row,
         provider,
@@ -300,8 +292,7 @@ pub(super) fn requirement_overload_identity(
     operator: &typed_trees::operator::OperatorDefinition,
     realization_label: &str,
 ) -> Result<String, Diagnostic> {
-    let identity =
-        typed_trees::operator::boundary_operator_requirement_identity(checked, operator);
+    let identity = typed_trees::operator::boundary_operator_requirement_identity(checked, operator);
     if identity.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected {realization_label} realization has an empty requirement identity",

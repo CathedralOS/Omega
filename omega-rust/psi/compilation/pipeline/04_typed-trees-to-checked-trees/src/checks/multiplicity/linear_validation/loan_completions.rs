@@ -49,13 +49,13 @@ pub(crate) fn regions_for_calls(
                 accesses: call.accesses,
             };
             let ceiling = crate::flow::signature_ceiling_places(
-            program,
-            machine,
-            state,
-            Some(&facts.borrow),
-            &borrowed,
-            frames
-        )
+                program,
+                machine,
+                state,
+                Some(&facts.borrow),
+                &borrowed,
+                frames,
+            )
             .ok_or_else(|| {
                 diagnostics::Diagnostic::error(
                     "exclusive call completion has no representable caller storage authority",

@@ -272,7 +272,8 @@ fn runtime_cleanup_receiver(
     module: &terminal_psi::TerminalModule,
     cleanup: &terminal_psi::NominalAffineCleanup,
 ) -> Option<semantic_vocabulary::PlaceId> {
-    module.machine(cleanup.cleanup_machine)
+    module
+        .machine(cleanup.cleanup_machine)
         .and_then(|machine| machine.structural_parameters.first())
         .map(|parameter| parameter.place)
 }

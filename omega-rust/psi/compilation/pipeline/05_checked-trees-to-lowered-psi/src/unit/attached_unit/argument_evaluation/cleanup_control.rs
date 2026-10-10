@@ -107,6 +107,7 @@ impl Evaluation {
     /// homes. The later edge forwards these whole captures, not their old paths.
     pub(crate) fn capture_cleanup_arguments(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,
         arguments: &mut Vec<terminal_psi::StructuralArgument>,
         declarations: &[terminal_psi::StructuralParameterDeclaration],
@@ -129,6 +130,7 @@ impl Evaluation {
             blocks: &mut self.blocks,
         }
         .capture_arguments(
+            identities,
             arguments,
             declarations,
             values,
@@ -145,6 +147,7 @@ impl Evaluation {
     /// the same private control blocks as statement and call continuations.
     pub(crate) fn emit_cleanup_regions(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,
         regions: Vec<CleanupRegion>,
         values: &mut Vec<ValueDeclaration>,
@@ -157,14 +160,14 @@ impl Evaluation {
             return Ok(regions.into_iter().map(|region| region.action).collect());
         }
         self.continue_cleanup_regions(
-            checked,
-            regions, values, next_value, next_block, next_edge, operations,
+            identities, checked, regions, values, next_value, next_block, next_edge, operations,
         )?;
         Ok(Vec::new())
     }
 
     pub(crate) fn continue_cleanup_regions(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,
         mut regions: Vec<CleanupRegion>,
         values: &mut Vec<ValueDeclaration>,
@@ -196,7 +199,7 @@ impl Evaluation {
             blocks: &mut self.blocks,
         }
         .emit(
-            &regions, values, next_value, next_block, next_edge, operations,
+            identities, &regions, values, next_value, next_block, next_edge, operations,
         )
     }
 }
@@ -204,6 +207,7 @@ impl Evaluation {
 impl CleanupEmission<'_> {
     pub(crate) fn capture_arguments(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         arguments: &mut Vec<terminal_psi::StructuralArgument>,
         declarations: &[terminal_psi::StructuralParameterDeclaration],
         values: &mut Vec<ValueDeclaration>,
@@ -256,6 +260,7 @@ impl CleanupEmission<'_> {
             });
         }
         self.cleanup_jump(
+            identities,
             target,
             &parameters,
             Vec::new(),
@@ -271,6 +276,7 @@ impl CleanupEmission<'_> {
 
     pub(crate) fn emit(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         regions: &[CleanupRegion],
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -279,7 +285,7 @@ impl CleanupEmission<'_> {
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         self.cleanup_scope(
-            regions, 0, values, next_value, next_block, next_edge, operations,
+            identities, regions, 0, values, next_value, next_block, next_edge, operations,
         )
     }
 
@@ -297,6 +303,7 @@ impl CleanupEmission<'_> {
 
     pub(crate) fn continue_actions(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         actions: Vec<TerminalAffineCleanupAction>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -313,9 +320,10 @@ impl CleanupEmission<'_> {
             next_value,
         )?;
         self.cleanup_jump(
+            identities,
             continuation,
             &parameters,
-            actions,
+            Vec::new(),
             Vec::new(),
             values,
             next_edge,
@@ -325,6 +333,7 @@ impl CleanupEmission<'_> {
 
     fn cleanup_scope(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         regions: &[CleanupRegion],
         depth: usize,
         values: &mut Vec<ValueDeclaration>,
@@ -350,7 +359,7 @@ impl CleanupEmission<'_> {
                     .map(|region| region.action.clone())
                     .collect();
                 self.continue_actions(
-                    actions, values, next_value, next_block, next_edge, operations,
+                    identities, actions, values, next_value, next_block, next_edge, operations,
                 )?;
                 remaining = &remaining[count..];
                 continue;
@@ -375,6 +384,7 @@ impl CleanupEmission<'_> {
                 next_value,
             )?;
             self.cleanup_cases(
+                identities,
                 &remaining[..count],
                 depth,
                 join,
@@ -392,6 +402,8 @@ impl CleanupEmission<'_> {
 
     fn cleanup_cases(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         regions: &[CleanupRegion],
         depth: usize,
         join: BlockId,
@@ -462,6 +474,7 @@ impl CleanupEmission<'_> {
                 erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
                 erased_proof_formals:
                     crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                        identities,
                         self.checked,
                         self.erased_proof_formals,
                     ),
@@ -477,6 +490,7 @@ impl CleanupEmission<'_> {
             *values = when_true_parameters;
             *self.operation_start = operations.len();
             self.cleanup_scope(
+                identities,
                 &remaining[..count],
                 depth + 1,
                 values,
@@ -486,6 +500,7 @@ impl CleanupEmission<'_> {
                 operations,
             )?;
             self.cleanup_jump(
+                identities,
                 join,
                 join_parameters,
                 Vec::new(),
@@ -505,6 +520,8 @@ impl CleanupEmission<'_> {
 
     fn cleanup_jump(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         target: BlockId,
         parameters: &[ValueDeclaration],
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
@@ -521,6 +538,7 @@ impl CleanupEmission<'_> {
             erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    identities,
                     self.checked,
                     self.erased_proof_formals,
                 ),

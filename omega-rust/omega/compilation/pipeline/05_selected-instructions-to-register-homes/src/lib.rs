@@ -44,18 +44,21 @@ pub use register_allocation::{RegisterAllocationError, stage_register_allocation
 pub(crate) use assignment::baseline::{
     OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
-    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies};
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
+};
 pub use assignment::home_assignment::{
-    FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomeIdentity,
-    RegisterHomePlan, ValidatedRegisterHomes, VirtualRegisterHome, register_home_identity};
-pub(crate) use assignment::home_assignment::{ RegisterHomeError, RegisterHomeValidationReceipt,
-    assign_register_homes};
+    FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomeIdentity, RegisterHomePlan,
+    ValidatedRegisterHomes, VirtualRegisterHome, register_home_identity,
+};
+pub(crate) use assignment::home_assignment::{
+    RegisterHomeError, RegisterHomeValidationReceipt, assign_register_homes,
+};
 pub use assignment::post_allocation_manifest::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,
     PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,
     PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,
-    PostAllocationUnavailableData, ValidatedPostAllocationOptimizationManifest};
-
+    PostAllocationUnavailableData, ValidatedPostAllocationOptimizationManifest,
+};
 
 pub(crate) use assignment::runtime_spill::RuntimeSpillAllocationError;
 
@@ -65,7 +68,8 @@ pub(crate) use assignment::transformed::{
     StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
-    StagedOptimizedRegisterHomesAfterSelectedLowering};
+    StagedOptimizedRegisterHomesAfterSelectedLowering,
+};
 
 // Rematerialization staged by the active-resident recovery rule.
 
@@ -73,22 +77,22 @@ pub(crate) use rewrites::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressure,
-    stage_optimized_active_resident_rematerialization_pressure};
+    stage_optimized_active_resident_rematerialization_pressure,
+};
 
 // Current allocation facts.
-pub use output::{ AllocationEvidence, AllocationOutput, RetainedAllocation};
-pub(crate) use output::{
-    AllocationAdmissionError};
+pub(crate) use output::AllocationAdmissionError;
+pub use output::{AllocationEvidence, AllocationOutput, RetainedAllocation};
 
 // Allocation-visible callee-saved requirements.
 pub use preservation::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementIdentity,
-    AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementPolicy, AllocatedCalleeSavedUnitRequirement,
-    CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
-    ValidatedAllocatedCalleeSavedRequirements,
+    AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementPolicy,
+    AllocatedCalleeSavedUnitRequirement, CalleeSavedModificationWitness,
+    FunctionAllocatedCalleeSavedRequirements, ValidatedAllocatedCalleeSavedRequirements,
     encode_callee_saved_modification_witness_identity, stage_allocated_callee_saved_requirements,
-    validate_allocated_callee_saved_requirements};
-
+    validate_allocated_callee_saved_requirements,
+};
 
 // Validated spill boundaries not yet sequenced by `stage_register_allocation`.
 
@@ -96,4 +100,5 @@ pub use preservation::{
 // and legality; the post-allocation stages name these through this crate.
 pub use selected_instructions_to_selected_instructions::{
     MachineEffectStageError, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedPreAllocationMachineEffects, ValidatedSelectedAnalysis, analyze_machine_effects};
+    ValidatedPreAllocationMachineEffects, ValidatedSelectedAnalysis, analyze_machine_effects,
+};

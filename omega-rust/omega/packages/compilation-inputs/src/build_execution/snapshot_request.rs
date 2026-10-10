@@ -123,7 +123,6 @@ impl BuildSnapshotRequest {
         self
     }
 
-
     /// Required sealed output paths in canonical slash-separated form. An
     /// empty roster still runs against the captured source snapshot.
     pub fn required_outputs(&self) -> &[Vec<u8>] {

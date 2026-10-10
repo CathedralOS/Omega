@@ -36,6 +36,7 @@ impl PreparedScalarQualifications {
     /// it carries a scalar tag: that tag is the one semantic atom its
     /// signature declares (see [`Self::signature_value_type`]).
     pub(crate) fn prepare(
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         signatures: &[SymbolHandle],
         bodies: &[SymbolHandle],
@@ -99,7 +100,7 @@ impl PreparedScalarQualifications {
         for reference in references {
             let (primitive, atoms) = type_atoms(checked, reference)?;
             let scalar_type = terminal_scalar_type(primitive)?;
-            let mut identities = Vec::new();
+            let mut atom_identities = Vec::new();
             for (symbol, semantic_id) in atoms {
                 let identity = checked
                     .semantic_domains
@@ -113,11 +114,12 @@ impl PreparedScalarQualifications {
                         "scalar qualification has an invalid semantic identity",
                     ),
                 )?;
-                let establishment_routes = scalar_domain_establishment_routes(checked, symbol)?;
+                let establishment_routes =
+                    scalar_domain_establishment_routes(identities, checked, symbol)?;
                 if let Some(existing) = catalog
                     .domains
                     .iter()
-                    .find(|domain| domain.identity == identity)
+                    .find(|domain| domain.identity == identities.intern(&identity))
                 {
                     if existing.carrier != scalar_type
                         || existing.semantic_domain != semantic_domain
@@ -133,22 +135,25 @@ impl PreparedScalarQualifications {
                             "invalid initial scalar domain identity",
                         ))?,
                         semantic_domain,
-                        identity: identity.clone(),
+                        identity: identities.intern(&identity.clone()),
                         carrier: scalar_type,
                         establishment_routes,
                     });
                 }
-                identities.push(identity);
+                atom_identities.push(identity);
             }
-            identities.sort();
-            identities.dedup();
-            if !identities.is_empty() {
-                atom_sets.push(identities);
+            atom_identities.sort();
+            atom_identities.dedup();
+            if !atom_identities.is_empty() {
+                atom_sets.push(atom_identities);
             }
         }
-        catalog
-            .domains
-            .sort_by(|left, right| left.identity.cmp(&right.identity));
+        catalog.domains.sort_by(|left, right| {
+            identities
+                .text(left.identity)
+                .unwrap_or_default()
+                .cmp(&identities.text(right.identity).unwrap_or_default())
+        });
         for (ordinal, domain) in catalog.domains.iter_mut().enumerate() {
             domain.id = ScalarDomainId::new(
                 u64::try_from(ordinal)
@@ -164,14 +169,14 @@ impl PreparedScalarQualifications {
         }
         atom_sets.sort();
         atom_sets.dedup();
-        for (ordinal, identities) in atom_sets.into_iter().enumerate() {
-            let domains = identities
+        for (ordinal, atom_identities) in atom_sets.into_iter().enumerate() {
+            let domains = atom_identities
                 .iter()
                 .map(|identity| {
                     catalog
                         .domains
                         .iter()
-                        .find(|domain| &domain.identity == identity)
+                        .find(|domain| domain.identity == identities.intern(identity))
                         .map(|domain| domain.id)
                         .ok_or(LoweringError::Unsupported(
                             "scalar qualification set lost a domain",
@@ -306,6 +311,7 @@ impl PreparedScalarQualifications {
 /// artifact, resolved to the requirement and machine identities the
 /// checked-side evidence vocabulary produces and the module's own rows name.
 fn scalar_domain_establishment_routes(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     symbol: SymbolHandle,
 ) -> Result<Vec<ScalarDomainEstablishmentRoute>, LoweringError> {
@@ -321,30 +327,33 @@ fn scalar_domain_establishment_routes(
                 trait_definition,
                 requirement,
             } => ScalarDomainEstablishmentRoute::CheckedRequirement {
-                requirement_identity:
-                    crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
+                requirement_identity: identities.intern(
+                    &crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
                         checked,
                         trait_definition,
                         requirement,
                     )?,
+                ),
             },
             DomainEstablishmentRoute::BoundaryRequirement {
                 boundary_trait,
                 requirement,
             } => ScalarDomainEstablishmentRoute::BoundaryRequirement {
-                requirement_identity:
-                    crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
+                requirement_identity: identities.intern(
+                    &crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
                         checked,
                         boundary_trait,
                         requirement,
                     )?,
+                ),
             },
             DomainEstablishmentRoute::ExactMachine { machine } => {
                 ScalarDomainEstablishmentRoute::ExactMachine {
-                    machine_identity:
-                        crate::proofs::evidence_lowering::checked_evidence_machine_identity(
+                    machine_identity: identities.intern(
+                        &crate::proofs::evidence_lowering::checked_evidence_machine_identity(
                             checked, machine,
                         )?,
+                    ),
                 }
             }
         });

@@ -345,8 +345,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 .iter()
                 .find(|(symbol, _)| *symbol == path.symbol)
             {
-                if binding.type_identity != program.normalized_type_identity(state.return_type)
-                {
+                if binding.type_identity != program.normalized_type_identity(state.return_type) {
                     return None;
                 }
                 return_binding(binding.clone())

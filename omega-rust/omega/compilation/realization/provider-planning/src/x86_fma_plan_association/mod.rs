@@ -57,7 +57,6 @@ impl CheckedX86ScalarFmaPlanAssociation {
     pub const fn admitted_provider(&self) -> AdmittedX86ScalarFmaProvider {
         self.admitted_provider
     }
-
 }
 
 pub fn bind_checked_x86_scalar_fma_plan_associations(

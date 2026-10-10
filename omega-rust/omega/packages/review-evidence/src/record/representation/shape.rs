@@ -2,7 +2,6 @@
 
 pub type PackageReviewBoundaryShapeClass = calling_conventions::BoundaryValueClass;
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewBoundaryShape {
     pub(crate) class: PackageReviewBoundaryShapeClass,

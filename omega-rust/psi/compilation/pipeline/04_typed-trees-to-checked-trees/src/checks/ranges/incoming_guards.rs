@@ -94,12 +94,7 @@ impl IncomingGuardIndex {
                 .map(|machine| {
                     (
                         machine.symbol,
-                        collect_incoming_guard_facts(
-                            program,
-                            machine,
-                            call_frames,
-                            &bound_lookup,
-                        ),
+                        collect_incoming_guard_facts(program, machine, call_frames, &bound_lookup),
                     )
                 })
                 .collect(),

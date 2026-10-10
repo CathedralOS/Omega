@@ -9,6 +9,7 @@ use terminal_psi::{
 };
 
 pub(super) fn retain(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     demand: &CheckedBoundaryOperatorApplicationDemand,
@@ -16,13 +17,13 @@ pub(super) fn retain(
     application: &BoundaryApplication,
     output: &mut Vec<BoundaryApplicationCandidate>,
 ) -> Result<(), &'static str> {
-    let nominal = |symbol| {
+    let nominal = |identities: &mut terminal_psi::TerminalIdentityTableBuilder, symbol| {
         checked
             .exact_owner_nominal_identity(symbol, sources)
             .ok_or("boundary candidate has no exact declaration owner")
-            .and_then(|identity| {
+            .map(|identity| {
                 NominalDeclarationIdentity::new(
-                    checked.type_identity_text(identity).unwrap_or_default(),
+                    identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
                 )
             })
     };
@@ -37,22 +38,24 @@ pub(super) fn retain(
             .specialization
             .map(|(template, commitment)| {
                 Ok::<_, &'static str>(CheckedMachineSpecialization {
-                    template: nominal(template)?,
+                    template: nominal(identities, template)?,
                     commitment,
                 })
             })
             .transpose()?;
+        let machine = nominal(identities, candidate.machine)?;
+        let state = nominal(identities, candidate.entry)?;
+        let selection_identity =
+            identities.intern(&checked.callable_identity_text(candidate.selection_identity));
         output.push(BoundaryApplicationCandidate {
             requirement: requirement.clone(),
             application: application.clone(),
-            selection_identity: checked
-                .typed
-                .callable_identity_text(candidate.selection_identity),
+            selection_identity,
             selection_package: checked.symbols.symbol_package_identity(candidate.selection),
             target: candidate.target.clone(),
             body: CheckedMachineDeclaration {
-                machine: nominal(candidate.machine)?,
-                state: nominal(candidate.entry)?,
+                machine,
+                state,
                 contract: candidate.contract,
                 specialization,
             },

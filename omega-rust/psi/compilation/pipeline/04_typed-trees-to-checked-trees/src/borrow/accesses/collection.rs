@@ -138,11 +138,11 @@ impl<'a> BorrowAccessCollection<'a> {
             .expression_type_reference(expression)
             .is_some_and(|reference| {
                 validation::has_contents(
-        self.program,
-        reference,
-        &[],
-        validation::ContentsRequirement::BorrowFree
-    )
+                    self.program,
+                    reference,
+                    &[],
+                    validation::ContentsRequirement::BorrowFree,
+                )
             })
         {
             return;
@@ -167,11 +167,11 @@ impl<'a> BorrowAccessCollection<'a> {
         )
         .is_some_and(|reference| {
             validation::has_contents(
-        self.program,
-        reference,
-        &[],
-        validation::ContentsRequirement::RepresentedOwned
-    ) && self.program.type_multiplicity(reference)
+                self.program,
+                reference,
+                &[],
+                validation::ContentsRequirement::RepresentedOwned,
+            ) && self.program.type_multiplicity(reference)
                 == language_semantics::Multiplicity::Unrestricted
         })
     }

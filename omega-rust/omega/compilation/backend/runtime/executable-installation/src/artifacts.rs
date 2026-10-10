@@ -69,7 +69,6 @@ impl ArtifactEntry {
 pub struct Artifact(pub(crate) Arc<ArtifactRecord>);
 
 impl Artifact {
-
     pub fn identity(&self) -> ArtifactId {
         self.0.identity
     }
@@ -125,7 +124,6 @@ pub(crate) struct AdmittedArtifact {
 }
 
 impl AdmittedArtifact {
-
     /// Selects a sealed materialization target only when the requested entry
     /// belongs to this admitted artifact's canonical, admission-bound entry
     /// set. Numeric address resolution remains deferred until materialization

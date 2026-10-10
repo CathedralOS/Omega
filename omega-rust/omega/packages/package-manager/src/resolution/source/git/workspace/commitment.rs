@@ -23,6 +23,4 @@ impl BuildDeclarationCommitment {
         hasher.update(bytes);
         Self(hasher.finalize().into())
     }
-
-
 }

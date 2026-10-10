@@ -59,6 +59,7 @@ use crate::terminal_identities::dense_identity;
 /// boundary-call carrier through `projection_sources`, and reject any
 /// crash-qualified operator use in that closure that has no such site.
 pub(crate) fn retain_operation_crash_contracts(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machines: &[symbols::SymbolHandle],
     projection_sources: &[(symbols::SymbolHandle, MachineId)],
@@ -72,7 +73,7 @@ pub(crate) fn retain_operation_crash_contracts(
     validate_every_crash_qualified_use_has_a_site(checked, source_machines, &sites)?;
     let mut rows = sites
         .iter()
-        .map(|site| lower_site(checked, projection_sources, lowered, site))
+        .map(|site| lower_site(identities, checked, projection_sources, lowered, site))
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .flatten()
@@ -144,18 +145,20 @@ fn validate_every_crash_qualified_use_has_a_site(
 }
 
 fn lower_site(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     projection_sources: &[(symbols::SymbolHandle, MachineId)],
     lowered: &LoweredPsi,
     site: &CheckedCrashOperatorSite,
 ) -> Result<Option<TerminalOperationCrashContract>, LoweringError> {
     if site.named_use.is_valid() {
-        return validate_named_site_carrier(checked, projection_sources, lowered, site)
+        return validate_named_site_carrier(identities, checked, projection_sources, lowered, site)
             .map(|()| None);
     }
     let (machine_id, operation_id, operand_order) = emitted_operation(lowered, site)?;
     let machine = lowered
-        .semantic_module.machine(machine_id)
+        .semantic_module
+        .machine(machine_id)
         .ok_or(LoweringError::Unsupported(
             "operator crash site joins a Terminal machine outside the lowered module",
         ))?;
@@ -191,7 +194,11 @@ fn lower_site(
         .collect::<Vec<_>>();
     validate_operator_signature(checked, site, &authored_operand_types)?;
     let published_routes = reindex_formal_telescope(
-        lower_formal_crash_routes(published_buckets(checked, site)?, &authored_operand_types)?,
+        lower_formal_crash_routes(
+            identities,
+            published_buckets(checked, site)?,
+            &authored_operand_types,
+        )?,
         &authored_positions,
         &authored_operand_types,
     )?;
@@ -233,6 +240,7 @@ fn lower_site(
 /// the site's checked routes. Any drift means the contract has no Terminal
 /// carrier and the program fails closed instead of lowering crash-free.
 fn validate_named_site_carrier(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     projection_sources: &[(symbols::SymbolHandle, MachineId)],
     lowered: &LoweredPsi,
@@ -271,7 +279,8 @@ fn validate_named_site_carrier(
             "named operator crash invocation's machine has no Terminal lowering",
         ))?;
     let machine = lowered
-        .semantic_module.machine(machine_id)
+        .semantic_module
+        .machine(machine_id)
         .ok_or(LoweringError::Unsupported(
             "named operator crash invocation joins a Terminal machine outside the lowered module",
         ))?;
@@ -291,11 +300,13 @@ fn validate_named_site_carrier(
             "named operator crash invocation joins an operation that is not its boundary call",
         );
     };
-    let declaration = lowered
-        .semantic_module.boundary_machine(*boundary)
-        .ok_or(LoweringError::Unsupported(
-            "named operator crash invocation's boundary call names no retained declaration",
-        ))?;
+    let declaration =
+        lowered
+            .semantic_module
+            .boundary_machine(*boundary)
+            .ok_or(LoweringError::Unsupported(
+                "named operator crash invocation's boundary call names no retained declaration",
+            ))?;
     if declaration.kind != semantic_vocabulary::BoundaryRequirementKind::Operator
         || arguments.len() != declaration.scalar_parameters.len()
     {
@@ -306,6 +317,7 @@ fn validate_named_site_carrier(
     validate_operator_signature(checked, site, &declaration.scalar_parameters)?;
     if declaration.crash_routes
         != lower_formal_crash_routes(
+            identities,
             published_buckets(checked, site)?,
             &declaration.scalar_parameters,
         )?

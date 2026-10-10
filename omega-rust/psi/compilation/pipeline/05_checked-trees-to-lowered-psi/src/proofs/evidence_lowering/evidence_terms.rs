@@ -24,6 +24,7 @@ fn evidence_term_root(parents: &mut [usize], mut index: usize) -> usize {
 }
 
 pub(crate) fn lower_proposition_vocabulary(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     term_ids: &[Option<EvidenceTermId>],
 ) -> Result<
@@ -59,9 +60,11 @@ pub(crate) fn lower_proposition_vocabulary(
                         CheckedPropositionBinderKind::Type => PropositionBinderKind::Type,
                         CheckedPropositionBinderKind::Const { type_identity } => {
                             PropositionBinderKind::Const {
-                                type_identity: checked
-                                    .type_identity_text(*type_identity)
-                                    .unwrap_or_default(),
+                                type_identity: identities.intern(
+                                    &checked
+                                        .type_identity_text(*type_identity)
+                                        .unwrap_or_default(),
+                                ),
                             }
                         }
                         CheckedPropositionBinderKind::Machine => PropositionBinderKind::Machine,
@@ -134,13 +137,15 @@ pub(crate) fn lower_proposition_vocabulary(
                     belongs_to_selected_machine = false;
                     break;
                 };
-                Some(evidence_projection_identity(checked, projection, term)?)
+                Some(evidence_projection_identity(
+                    identities, checked, projection, term,
+                )?)
             } else {
                 None
             };
             binder_arguments.push(PropositionBinderArgumentIdentity {
                 kind: super::binder_argument_kind(argument.kind),
-                identity: argument.diagnostic_label.clone(),
+                identity: identities.intern(&argument.diagnostic_label.clone()),
                 evidence_projection,
             });
         }
@@ -155,7 +160,7 @@ pub(crate) fn lower_proposition_vocabulary(
             evidence_interface: application
                 .evidence_interface
                 .as_ref()
-                .map(|interface| lower_evidence_interface(checked, interface))
+                .map(|interface| lower_evidence_interface(identities, checked, interface))
                 .transpose()?,
         });
     }
@@ -333,6 +338,7 @@ pub(crate) fn lower_evidence_term_ids(
 }
 
 pub(crate) fn lower_evidence_terms(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     _selected_machine: symbols::SymbolHandle,
     declaration_ids: &[(symbols::SymbolHandle, PropositionId)],
@@ -368,6 +374,7 @@ pub(crate) fn lower_evidence_terms(
                         let projection_index = usize::try_from(projection.term.arena_index() - 1)
                             .expect("arena indices fit the host address space");
                         evidence_projection_identity(
+                            identities,
                             checked,
                             projection,
                             term_ids.get(projection_index).copied().flatten().ok_or(
@@ -380,7 +387,7 @@ pub(crate) fn lower_evidence_terms(
                     .transpose()?;
                 Ok(PropositionBinderArgumentIdentity {
                     kind: super::binder_argument_kind(argument.kind),
-                    identity: argument.diagnostic_label.clone(),
+                    identity: identities.intern(&argument.diagnostic_label),
                     evidence_projection,
                 })
             })
@@ -402,7 +409,7 @@ pub(crate) fn lower_evidence_terms(
                 .ok_or(LoweringError::Unsupported(
                     "terminal evidence term has an unresolved carrierless interface",
                 ))?;
-        let interface = lower_evidence_interface(checked, checked_interface)?;
+        let interface = lower_evidence_interface(identities, checked, checked_interface)?;
         if let Some((previous_proposition, previous_interface)) = identities_by_id.get(&id) {
             if *previous_proposition != proposition || *previous_interface != interface {
                 return Err(LoweringError::Unsupported(
@@ -428,6 +435,7 @@ pub(crate) fn lower_evidence_terms(
 }
 
 pub(crate) fn lower_evidence_interface(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     interface: &checked_trees::CheckedEvidenceInterfaceIdentity,
 ) -> Result<EvidenceInterfaceIdentity, LoweringError> {
@@ -436,22 +444,25 @@ pub(crate) fn lower_evidence_interface(
         .iter()
         .map(|requirement| {
             Ok(EvidenceRequirementIdentity {
-                declaring_trait_identity: checked
-                    .symbols
-                    .display_path(requirement.declaring_trait, "::"),
+                declaring_trait_identity: identities.intern(
+                    &checked
+                        .symbols
+                        .display_path(requirement.declaring_trait, "::"),
+                ),
                 declaring_trait_arguments: requirement.declaring_trait_arguments.clone(),
-                requirement_identity: checked_evidence_requirement_identity(
+                requirement_identity: identities.intern(&checked_evidence_requirement_identity(
                     checked,
                     requirement.declaring_trait,
                     requirement.requirement,
-                )?,
+                )?),
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     requirements.sort();
     requirements.dedup();
     Ok(EvidenceInterfaceIdentity {
-        trait_identity: checked.symbols.display_path(interface.trait_symbol, "::"),
+        trait_identity: identities
+            .intern(&checked.symbols.display_path(interface.trait_symbol, "::")),
         arguments: interface
             .arguments
             .iter()

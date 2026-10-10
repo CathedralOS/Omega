@@ -30,35 +30,32 @@ pub(crate) fn retarget_machine_calls(
     machine: SymbolHandle,
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
-    let Some((state_spans, declaration_expressions)) = program
-        .machine(machine)
-        .map(|machine| {
-            let state_spans = program
-                .machine_state_handles(machine.states)
+    let Some((state_spans, declaration_expressions)) = program.machine(machine).map(|machine| {
+        let state_spans = program
+            .machine_state_handles(machine.states)
+            .iter()
+            .map(|handle| program.machine_state(*handle).statement_nodes)
+            .collect::<Vec<_>>();
+        let mut declaration_expressions = Vec::new();
+        append_contract_expressions(program, machine.contracts, &mut declaration_expressions);
+        // A bodyless external leaf still owns executable compile-time
+        // expressions. Rebind their calls by the same exact-family rule
+        // as body calls, before typing commits their producer identities.
+        declaration_expressions.extend(
+            program
+                .machine_trait_conformances(machine.satisfies)
                 .iter()
-                .map(|handle| program.machine_state(*handle).statement_nodes)
-                .collect::<Vec<_>>();
-            let mut declaration_expressions = Vec::new();
-            append_contract_expressions(program, machine.contracts, &mut declaration_expressions);
-            // A bodyless external leaf still owns executable compile-time
-            // expressions. Rebind their calls by the same exact-family rule
-            // as body calls, before typing commits their producer identities.
-            declaration_expressions.extend(
-                program
-                    .machine_trait_conformances(machine.satisfies)
-                    .iter()
-                    .map(|conformance| conformance.via_expression),
-            );
-            for state in program
-                .machine_state_handles(machine.states)
-                .iter()
-                .map(|handle| program.machine_state(*handle))
-            {
-                append_contract_expressions(program, state.contracts, &mut declaration_expressions);
-            }
-            (state_spans, declaration_expressions)
-        })
-    else {
+                .map(|conformance| conformance.via_expression),
+        );
+        for state in program
+            .machine_state_handles(machine.states)
+            .iter()
+            .map(|handle| program.machine_state(*handle))
+        {
+            append_contract_expressions(program, state.contracts, &mut declaration_expressions);
+        }
+        (state_spans, declaration_expressions)
+    }) else {
         return;
     };
     let mut visited = Vec::new();

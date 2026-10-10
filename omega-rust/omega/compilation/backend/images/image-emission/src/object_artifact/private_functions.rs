@@ -62,6 +62,7 @@ pub(crate) fn validate_private_functions<'plan>(
             return Err(ObjectError::UnsupportedPrivateFunctionBody);
         }
         let standalone = MachineCodePlan {
+            identities: Default::default(),
             psi: private.source_psi,
             target,
             entry: private.function.machine,

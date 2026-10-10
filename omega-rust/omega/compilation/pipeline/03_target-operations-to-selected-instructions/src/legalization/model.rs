@@ -53,8 +53,6 @@ impl LegalizationValidationReceipt {
     pub const fn fuel_schedule(self) -> semantic_vocabulary::FuelScheduleIdentity {
         self.fuel_schedule
     }
-
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

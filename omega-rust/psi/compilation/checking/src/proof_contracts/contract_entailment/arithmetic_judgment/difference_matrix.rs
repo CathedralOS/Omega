@@ -2,8 +2,8 @@
 //! seeding and transitive closure, nonzero-difference proofs, interval
 //! reads of polynomials, and substitution across the polynomial surface.
 use super::super::BigInt;
-use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 use super::{Engine, Polynomial, SUBSTITUTION_ROUNDS, ZERO_ATOM};
+use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 
 impl<'program> Engine<'program> {
     pub(super) fn is_known_nonzero(&self, difference: &Polynomial) -> bool {

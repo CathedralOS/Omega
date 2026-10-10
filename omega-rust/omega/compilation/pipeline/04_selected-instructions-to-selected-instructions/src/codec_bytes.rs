@@ -2,9 +2,7 @@
 //! append-half of `cursor.rs`. Each helper appends one already-decided wire
 //! value; framing and field order stay with the encoder.
 
-
-
-pub(crate) use optimization_core::codec_bytes::{push_encoded};
+pub(crate) use optimization_core::codec_bytes::push_encoded;
 /// Append the standard record header: magic bytes then the u32 LE version.
 pub(crate) fn encode_header(buffer: &mut Vec<u8>, magic: &[u8; 8], version: u32) {
     buffer.extend_from_slice(magic);

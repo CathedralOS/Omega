@@ -8,6 +8,7 @@ use semantic_vocabulary::{
 };
 
 use crate::StructuralPathQualification;
+use crate::terminal_module::TerminalIdentityIndex;
 use crate::{
     CrashCause, CrashRouteBucket, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
     TerminalPsiIdentity, TrappingIntegerPrimitive,
@@ -103,7 +104,7 @@ pub struct TerminalTraceBoundaryCrashSiteRow {
     pub block: BlockId,
     pub operation: OperationId,
     pub boundary: BoundaryMachineId,
-    pub boundary_identity: String,
+    pub boundary_identity: TerminalIdentityIndex,
     pub route: CrashRouteBucket,
 }
 
@@ -145,11 +146,11 @@ pub enum TerminalOperationCrashDenotation {
 pub enum TerminalTraceOrdinaryEventKind {
     BoundaryCall {
         boundary: BoundaryMachineId,
-        boundary_identity: String,
+        boundary_identity: TerminalIdentityIndex,
     },
     PortWrite {
         service: ServiceId,
-        service_identity: String,
+        service_identity: TerminalIdentityIndex,
     },
 }
 
@@ -179,7 +180,7 @@ pub struct TerminalTraceExternalCompletionSiteRow {
     pub block: BlockId,
     pub edge: EdgeId,
     pub boundary: BoundaryMachineId,
-    pub boundary_identity: String,
+    pub boundary_identity: TerminalIdentityIndex,
     pub kind: ExternalCompletionKind,
     /// ProcessExit observes exactly one fixed signed i32 status, independent
     /// of the host's physical status presentation.
@@ -938,7 +939,7 @@ mod tests {
                     block,
                     operation: id(CALL, OperationId::new),
                     boundary,
-                    boundary_identity: "pkg::Port".into(),
+                    boundary_identity: crate::TerminalIdentityIndex(1),
                     route: crash_route(CrashCause::Abort),
                 }],
                 operation_crash_sites: vec![TerminalTraceOperationCrashSiteRow {
@@ -960,7 +961,7 @@ mod tests {
                         operation: id(CALL, OperationId::new),
                         kind: TerminalTraceOrdinaryEventKind::BoundaryCall {
                             boundary,
-                            boundary_identity: "pkg::Port".into(),
+                            boundary_identity: crate::TerminalIdentityIndex(1),
                         },
                         scalar_arguments: vec![u16_schema()],
                         structural_arguments: Vec::new(),
@@ -972,7 +973,7 @@ mod tests {
                         operation: id(WRITE, OperationId::new),
                         kind: TerminalTraceOrdinaryEventKind::PortWrite {
                             service: id(1, ServiceId::new),
-                            service_identity: "pkg::port".into(),
+                            service_identity: crate::TerminalIdentityIndex(2),
                         },
                         scalar_arguments: vec![
                             TerminalTraceScalarSchema {
@@ -1200,7 +1201,9 @@ mod tests {
         schema
             .projected_qualifications
             .push(crate::StructuralPathQualification {
-                path: vec![StructuralPathSegment::Field("item".into())],
+                path: vec![StructuralPathSegment::Field(crate::TerminalIdentityIndex(
+                    3,
+                ))],
                 domain,
             });
         profile.ordinary_events[0].structural_arguments = vec![schema];

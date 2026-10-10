@@ -16,6 +16,7 @@ use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn record(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
         let node = self
@@ -89,10 +90,13 @@ impl emission::Emission<'_, '_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "record field declaration missing",
                 ))?;
-            let identity = checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone());
+            let identity = checked_trees::CheckedMemberIdentity::of_member(
+                declaration.identity,
+                declaration.name.clone(),
+            );
             let position = shape_fields
                 .iter()
-                .position(|candidate| candidate.identity == identity.spelling())
+                .position(|candidate| candidate.identity == identities.intern(&identity.spelling()))
                 .ok_or(LoweringError::Unsupported("record field identity missing"))?;
             let target = &shape_fields[position];
             // Source custody replays every semantic initializer. Erased fields
@@ -107,6 +111,7 @@ impl emission::Emission<'_, '_, '_> {
             let value = match field.value {
                 checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
                     let evaluated = self.scalar(
+                        identities,
                         CheckedScalarExpressionRole::RecordField {
                             expression: node.expression,
                             field_ordinal: u32::try_from(ordinal).map_err(|_| {
@@ -134,12 +139,14 @@ impl emission::Emission<'_, '_, '_> {
                         )?
                     } else {
                         let child_type = super::field_carrier::resolve(
+                            identities,
                             self.checked,
                             self.structural_types,
                             &target.field_type,
                             field.type_reference,
                         )?;
                         let completed = self.child_constructor_operand(
+                            identities,
                             child_type,
                             value,
                             field.type_reference,

@@ -1,7 +1,6 @@
 use crate::candidates::provenance_realized_at;
 use optimization_unit::{
-    DeadScalarNodeRewrite, NodeLocation, PsiOptimizationFunction,
-    PsiRealizationSite,
+    DeadScalarNodeRewrite, NodeLocation, PsiOptimizationFunction, PsiRealizationSite,
 };
 use semantic_vocabulary::BlockId;
 
@@ -14,7 +13,12 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
     let block = &function.blocks[block_position];
     let removed = block.nodes.get(node_position)?;
     block.nodes.get(node_position.checked_add(1)?)?;
-    let mut provenance = vec![provenance_realized_at(PsiRealizationSite::Node(patch.location), PsiRealizationSite::Node(patch.location), &removed.provenance, &removed.fuel)];
+    let mut provenance = vec![provenance_realized_at(
+        PsiRealizationSite::Node(patch.location),
+        PsiRealizationSite::Node(patch.location),
+        &removed.provenance,
+        &removed.fuel,
+    )];
     for (index, node) in block.nodes.iter().enumerate().skip(node_position + 1) {
         if node.provenance.is_empty() {
             continue;
@@ -28,7 +32,12 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
             node: old.node.checked_sub(1)?,
             ..old
         };
-        provenance.push(provenance_realized_at(PsiRealizationSite::Node(old), PsiRealizationSite::Node(new), &node.provenance, &node.fuel));
+        provenance.push(provenance_realized_at(
+            PsiRealizationSite::Node(old),
+            PsiRealizationSite::Node(new),
+            &node.provenance,
+            &node.fuel,
+        ));
     }
     let mut blocks = vec![block.id];
     for later in function.blocks.iter().skip(block_position + 1) {
@@ -42,7 +51,12 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
                 block: later.id,
                 node: u32::try_from(index).ok()?,
             });
-            provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+            provenance.push(provenance_realized_at(
+                site,
+                site,
+                &node.provenance,
+                &node.fuel,
+            ));
         }
     }
     blocks.sort();

@@ -13,6 +13,7 @@ use crate::scalar_lowering::contracts::LoweredProofTerm;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     statement: u32,
@@ -33,13 +34,14 @@ pub(crate) fn lower(
     computations: &mut computations::Expansion<'_>,
 ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
     evaluate(
+        identities,
         checked,
         state,
         statement,
         bindings,
         source_types,
-        when_true,
         when_false,
+        when_true,
         computations,
     )
 }
@@ -70,6 +72,7 @@ pub(crate) fn is_computed(
 /// This evaluator owns just one selected guard and never starts either arm.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn evaluate(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     statement: u32,
@@ -96,6 +99,7 @@ pub(crate) fn evaluate(
         }
     } else {
         let LoweredDirectExpression::Boolean { expression } = bindings.expression_at(
+            identities,
             checked,
             state,
             statement,
@@ -136,6 +140,7 @@ pub(crate) fn evaluate(
         terminator: branch,
     });
     let target = computations.retained_value(
+        identities,
         state,
         statement,
         CheckedScalarExpressionRole::Guard,

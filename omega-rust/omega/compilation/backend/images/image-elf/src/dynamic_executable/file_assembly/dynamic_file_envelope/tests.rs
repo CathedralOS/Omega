@@ -180,7 +180,7 @@ fn assert_rejected_with_custody(candidate: Candidate) -> Diagnostic {
 }
 
 fn overwrite_u64(bytes: &mut [u8], offset: usize, value: u64) {
-    crate::codec_bytes::patch_encoded(bytes, offset, value.to_le_bytes());
+    optimization_core::codec_bytes::patch_encoded(bytes, offset, value.to_le_bytes());
 }
 
 #[test]
@@ -283,7 +283,7 @@ fn exact_header_and_table_substitutions_are_rejected_with_custody() {
     assert_rejected_with_custody(identity);
 
     let mut target = candidate(TargetProfile::LinuxX64);
-    crate::codec_bytes::patch_encoded(
+    optimization_core::codec_bytes::patch_encoded(
         &mut target.contents.header_prefix_bytes,
         18,
         EM_AARCH64.to_le_bytes(),

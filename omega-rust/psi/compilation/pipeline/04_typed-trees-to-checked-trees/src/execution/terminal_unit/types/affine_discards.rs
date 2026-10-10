@@ -15,11 +15,19 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     source_parameters: &[StateParameter],
     operations: &[CheckedUnitEffectOperationPlan],
     admitted_local_symbols: &[SymbolHandle],
-    structural_types: &BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
+    structural_types: &BTreeMap<
+        typed_trees::type_identity::TypeIdentityId,
+        CheckedUnitStructuralTypePlan,
+    >,
 ) -> Option<(Vec<u32>, Vec<CheckedUnitPartialAffineDiscardPlan>, bool)> {
     let mut transferred_parameters = BTreeSet::new();
-    let mut moved_parameter_paths =
-        BTreeMap::<u32, Vec<(Vec<CheckedUnitStructuralPathSegment>, typed_trees::type_identity::TypeIdentityId)>>::new();
+    let mut moved_parameter_paths = BTreeMap::<
+        u32,
+        Vec<(
+            Vec<CheckedUnitStructuralPathSegment>,
+            typed_trees::type_identity::TypeIdentityId,
+        )>,
+    >::new();
     for operation in operations
         .iter()
         .flat_map(|operation| operation.with_value_calls())

@@ -1,6 +1,5 @@
 //! The affine array construction prefix.
 
-use std::collections::BTreeSet;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, parameter_qualifications, type_graph_requires_nominal_drop,
 };
@@ -9,6 +8,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralTypeShape, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceNode,
 };
+use std::collections::BTreeSet;
 
 pub(crate) fn build_affine_array_construction_prefix(
     program: &dyn ::validation::CheckingInput,
@@ -56,9 +56,12 @@ pub(crate) fn build_affine_array_construction_prefix(
         || local.initial_value.is_valid()
         || crate::checks::type_multiplicity(program, local.type_reference) != Multiplicity::Affine
         || !parameter_qualifications(program, shapes, local.type_reference, binders)?.is_empty()
-        || type_graph_requires_nominal_drop(program, local.type_reference,
-        &[],
-        &mut BTreeSet::new())
+        || type_graph_requires_nominal_drop(
+            program,
+            local.type_reference,
+            &[],
+            &mut BTreeSet::new(),
+        )
     {
         return None;
     }
@@ -75,9 +78,7 @@ pub(crate) fn build_affine_array_construction_prefix(
         return None;
     }
     if crate::checks::type_multiplicity(program, *element_type) != Multiplicity::Affine
-        || type_graph_requires_nominal_drop(program, *element_type,
-        &[],
-        &mut BTreeSet::new())
+        || type_graph_requires_nominal_drop(program, *element_type, &[], &mut BTreeSet::new())
     {
         return None;
     }

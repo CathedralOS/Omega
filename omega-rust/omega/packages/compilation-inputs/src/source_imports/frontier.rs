@@ -115,7 +115,11 @@ impl SourceStorage {
     /// contract root so `package_relative_source` retains the canonical path.
     /// A reconciled supplier must not be registered here: doing so would erase
     /// its ordinary package identity and defeat accepted-binding replay.
-    pub(crate) fn register_toolchain_contract_root(&mut self, path: PathBuf, contract_root: PathBuf) {
+    pub(crate) fn register_toolchain_contract_root(
+        &mut self,
+        path: PathBuf,
+        contract_root: PathBuf,
+    ) {
         self.toolchain_contract_roots.insert(
             normalize_directory(path),
             normalize_directory(contract_root),

@@ -157,8 +157,7 @@ fn bound_view_roots_recurse(
     let Some(contract) = source.structural.as_ref() else {
         return Err(SelectedInstructionError::custody());
     };
-    let Some(declaration) = contract.structural_place(parameter)
-    else {
+    let Some(declaration) = contract.structural_place(parameter) else {
         return Err(SelectedInstructionError::custody());
     };
     let StructuralPlaceKind::BlockParameter { block, .. } = declaration.kind else {
@@ -175,7 +174,8 @@ fn bound_view_roots_recurse(
                 .map(|root| vec![(root, bound_view.root_length)])
                 .ok_or_else(|| SelectedInstructionError::custody());
         }
-        let kind = contract.structural_place(place)
+        let kind = contract
+            .structural_place(place)
             .map(|declaration| declaration.kind);
         match kind {
             // A bound un-sliced place is its own root; the parameter's checked

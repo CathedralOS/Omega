@@ -52,8 +52,7 @@ pub struct PackagePolicyServiceProgressRoute {
     pub(crate) requirement: PackageReviewNominalIdentity,
 }
 
-impl PackagePolicyServiceProgressRoute {
-}
+impl PackagePolicyServiceProgressRoute {}
 
 impl super::PackagePolicyServiceMethod {
     pub(super) fn validate_authority(&self) -> Result<(), &'static str> {

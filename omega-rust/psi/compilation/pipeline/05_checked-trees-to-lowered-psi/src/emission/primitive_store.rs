@@ -23,6 +23,7 @@ pub(crate) struct Destination {
 }
 
 pub(crate) fn parameter_destination(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     parameter: &StructuralParameterDeclaration,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
@@ -36,8 +37,9 @@ pub(crate) fn parameter_destination(
     {
         return unsupported("primitive store parameter lost its exclusive custody");
     }
-    let scalar_restriction = destination_restriction(parameter.structural_type, path, types)?;
-    let (path, _) = lower_destination_path(parameter.structural_type, path, types)?;
+    let scalar_restriction =
+        destination_restriction(identities, parameter.structural_type, path, types)?;
+    let (path, _) = lower_destination_path(identities, parameter.structural_type, path, types)?;
     Ok(Destination {
         place: parameter.place,
         path,
@@ -47,6 +49,7 @@ pub(crate) fn parameter_destination(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_assignment(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -66,6 +69,7 @@ pub(crate) fn emit_assignment(
 ) -> Result<OperationKind, LoweringError> {
     // The runtime elements' selectors are evaluated before the stored value.
     let indexes = super::runtime_elements::evaluate_selectors(
+        identities,
         &destination.path,
         checked,
         machine,
@@ -81,6 +85,7 @@ pub(crate) fn emit_assignment(
         calls,
     )?;
     let value = evaluation.source_value(
+        identities,
         checked,
         machine,
         state,
@@ -135,11 +140,12 @@ pub(crate) fn emit_assignment(
 /// Fields, literal elements, and the assignment's runtime elements compose in
 /// one walk.
 pub(crate) fn lower_destination_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(Vec<ProjectionStep>, ScalarType), LoweringError> {
-    let (steps, walked) = walk_path(structural_type, path, types)?;
+    let (steps, walked) = walk_path(identities, structural_type, path, types)?;
     let scalar_type = match walked {
         Walked::Declared(structural_type) => {
             let StructuralTypeShape::PrimitiveScalar(scalar_type) = unique_declaration(
@@ -161,11 +167,12 @@ pub(crate) fn lower_destination_path(
 }
 
 pub(crate) fn destination_restriction(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<Option<StructuralFieldType>, LoweringError> {
-    let (_, walked) = walk_path(structural_type, path, types)?;
+    let (_, walked) = walk_path(identities, structural_type, path, types)?;
     match walked {
         Walked::Declared(identity) => Ok(unique_declaration(
             types,
@@ -182,6 +189,7 @@ pub(crate) fn destination_restriction(
 /// A static projection to a primitive leaf, for observations that name no
 /// runtime element.
 pub(crate) fn lower_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
@@ -190,9 +198,11 @@ pub(crate) fn lower_path(
         // Reads may observe declaration-constrained scalar fields through a
         // pointer. Such a field is not raw primitive store storage. Reuse the
         // carrier walk (including its bounds), then query read-only leaf typing.
-        let (steps, _) = walk_path(structural_type, carrier, types)?;
+        let (steps, _) = walk_path(identities, structural_type, carrier, types)?;
         let mut path = super::runtime_elements::static_segments(steps)?;
-        path.push(terminal_psi::StructuralPathSegment::Field(identity.spelling()));
+        path.push(terminal_psi::StructuralPathSegment::Field(
+            identities.intern(&identity.spelling()),
+        ));
         let scalar_type = terminal_semantics::primitive_read_projection_type(
             types.iter(),
             structural_type,
@@ -203,7 +213,7 @@ pub(crate) fn lower_path(
         ))?;
         return Ok((path, scalar_type));
     }
-    let (steps, scalar_type) = lower_destination_path(structural_type, path, types)?;
+    let (steps, scalar_type) = lower_destination_path(identities, structural_type, path, types)?;
     Ok((
         super::runtime_elements::static_segments(steps)?,
         scalar_type,
@@ -214,6 +224,7 @@ pub(crate) fn lower_path(
 /// retains its declared scalar carrier and invariant; array elements retain
 /// their declared primitive type. Runtime selectors change neither.
 pub(crate) fn indexed_element_scalar_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     element: StructuralTypeId,
     element_path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
@@ -221,7 +232,7 @@ pub(crate) fn indexed_element_scalar_type(
     if let Some((CheckedUnitStructuralPathSegment::Field(identity), carrier)) =
         element_path.split_last()
     {
-        let (_, walked) = walk_path(element, carrier, types)?;
+        let (_, walked) = walk_path(identities, element, carrier, types)?;
         let Walked::Declared(record) = walked else {
             return unsupported("indexed field carrier is not a record");
         };
@@ -237,7 +248,9 @@ pub(crate) fn indexed_element_scalar_type(
             .ok_or(LoweringError::Unsupported(
                 "indexed field carrier has no directly addressed fields",
             ))?;
-        let mut matching = fields.iter().filter(|field| field.identity == identity.spelling());
+        let mut matching = fields
+            .iter()
+            .filter(|field| field.identity == identities.intern(&identity.spelling()));
         let (Some(field), None) = (matching.next(), matching.next()) else {
             return unsupported("indexed field is absent or ambiguous");
         };
@@ -264,7 +277,7 @@ pub(crate) fn indexed_element_scalar_type(
         };
         return Ok(scalar_type);
     }
-    let (_, walked) = walk_path(element, element_path, types)?;
+    let (_, walked) = walk_path(identities, element, element_path, types)?;
     let scalar_type = match walked {
         Walked::ScalarField(scalar_type) => scalar_type,
         Walked::Declared(identity) => match unique_declaration(
@@ -298,6 +311,7 @@ pub(crate) fn indexed_element_scalar_type(
 type Walked = terminal_semantics::Position;
 
 fn walk_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
@@ -327,7 +341,8 @@ fn walk_path(
                 CheckedUnitStructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields, .. },
             ) => {
-                let Some(field) = live_field(fields, &identity.spelling()) else {
+                let Some(field) = live_field(fields, identities.intern(&identity.spelling()))
+                else {
                     return unsupported("primitive projection field is erased or ambiguous");
                 };
                 result.push(ProjectionStep::Static(Segment::Field(

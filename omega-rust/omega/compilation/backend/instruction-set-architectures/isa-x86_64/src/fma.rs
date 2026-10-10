@@ -20,8 +20,6 @@ pub struct DecodedVfmadd132Scalar {
     pub multiplicand: MachineRegister,
 }
 
-
-
 /// Decode one exact canonical register-only scalar `VFMADD132S{S,D}`.
 ///
 /// This is a structural replay of the VEX fields, not a call back into the
@@ -61,17 +59,11 @@ pub fn decode_vfmadd132_scalar(bytes: &[u8]) -> Result<DecodedVfmadd132Scalar, D
     })
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::{
         DecodedScalarFmaFormat, DecodedVfmadd132Scalar, MachineRegister, decode_vfmadd132_scalar,
     };
-
-
-
-
 
     #[test]
     fn independently_decodes_both_formats_and_extended_registers() {

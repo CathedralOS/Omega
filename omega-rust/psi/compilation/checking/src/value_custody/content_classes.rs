@@ -37,36 +37,36 @@ fn content_classes(
 ) -> ContentClassRow {
     ContentClassRow {
         plain_owned_with_numeric_constraints: crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
-    ),
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        ),
         plain_owned_with_represented_constraints: crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::RepresentedOwned
-    ),
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::RepresentedOwned,
+        ),
         linear_owned_contents: crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::LinearOwned
-    ),
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
+        ),
         borrow_free_contents: crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::BorrowFree
-    ),
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::BorrowFree,
+        ),
         owned_or_shared_view_fields: crate::has_owned_or_shared_view_fields(program, reference),
         owned_or_shared_view_contents: crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::OwnedOrSharedView
-    ),
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::OwnedOrSharedView,
+        ),
         closed_primitive_array: crate::is_closed_primitive_array_type(program, reference),
         bounded_byte_capacity: crate::bounded_byte_buffer_capacity(program, reference),
     }

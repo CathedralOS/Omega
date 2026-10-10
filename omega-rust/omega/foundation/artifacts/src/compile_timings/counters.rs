@@ -104,7 +104,6 @@ pub fn preliminary_check_totals() -> (u64, u64) {
     )
 }
 
-
 /// Record entry to the checked-compilation API, including rejected requests.
 pub fn record_checked_compilation() {
     CHECKED_COMPILATION_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);

@@ -76,6 +76,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
 }
 
 pub(in crate::unit::attached_unit::composed_control) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     admitted: AdmittedGraph<'_>,
@@ -104,6 +105,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         })
         .collect::<Vec<_>>();
     let machine_result = returns::result(
+        identities,
         checked,
         plan.states[0].state,
         &plan.result,
@@ -114,8 +116,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     )?;
     let entry = &plan.states[0];
     let mut claims = crate::unit::attached_unit::claims::lower_unit_entry_claims(
-        plan.machine,
+        identities,
         entry.state,
+        plan.machine,
         &entry.entry_claims,
         &parameters,
         &catalogs.structural_types,
@@ -269,6 +272,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .bind_claim_namespace(claims.published());
     let content_entry_claims =
         crate::proofs::content_conservation::lower_whole_content_entry_claims(
+            identities,
             checked,
             &catalogs.structural_types,
             &entry.structural_parameters,
@@ -318,6 +322,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         }
         if position != 0 || entry_reentered {
             let mut block_parameters = lower_unit_parameters(
+                identities,
                 &state.structural_parameters,
                 &catalogs.type_ids,
                 &catalogs.structural_types,
@@ -428,8 +433,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             continue;
         }
         let lowered = crate::unit::attached_unit::claims::lower_unit_entry_claims(
-            state_owners[position].1,
+            identities,
             state.state,
+            state_owners[position].1,
             &state.entry_claims,
             &state_views[position],
             &catalogs.structural_types,
@@ -457,6 +463,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             erased_scalar_formals: Vec::new(),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    identities,
                     checked,
                     &plan.states[0].erased_proof_parameters,
                 ),
@@ -559,7 +566,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         if !emission.admitted.live[position] {
             continue;
         }
-        emission.emit_state(position)?;
+        emission.emit_state(identities, position)?;
     }
     let live_states = std::mem::take(&mut emission.admitted.live);
     let StateGraphEmission {
@@ -621,6 +628,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             &catalogs.structural_types,
         );
         let Some(predicate) = crate::scalar_lowering::contracts::clauses(
+            identities,
             &state.requires,
             &state_values[position],
             &state_erased[position],
@@ -717,6 +725,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             .collect::<Vec<_>>();
         structural_places.extend(
             crate::unit::attached_unit::provider_attachments::lower_provider_attachment_places(
+                identities,
                 checked,
                 attachment,
                 declaration,
@@ -766,6 +775,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             erased_scalar_formals: entry_erased_formals,
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    identities,
                     checked,
                     &plan.states[0].erased_proof_parameters,
                 ),
@@ -792,8 +802,11 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &mut machine.blocks,
         &catalogs.structural_types,
     )?;
-    machine.contract.crash_routes =
-        lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &machine.parameters)?;
+    machine.contract.crash_routes = lower_checked_crash_route_buckets(
+        identities,
+        &catalogs.root_crash_routes,
+        &machine.parameters,
+    )?;
     ranking::retain(&mut machine, &block_ranks, &rank_edges)?;
     Ok((
         machine,

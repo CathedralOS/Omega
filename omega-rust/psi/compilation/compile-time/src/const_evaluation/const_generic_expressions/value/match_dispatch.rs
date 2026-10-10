@@ -52,11 +52,10 @@ impl MatchSubject {
     ) -> Result<bool, String> {
         match (self, pattern) {
             (Self::Anonymous(subject), Value::Anonymous(expression)) => {
-                let pattern =
-                    validation::evaluate_anonymous_numeric_expression(
-                        program, expression, selected, builtin,
-                    )
-                    .ok_or("constant Match needs a defined anonymous pattern")?;
+                let pattern = validation::evaluate_anonymous_numeric_expression(
+                    program, expression, selected, builtin,
+                )
+                .ok_or("constant Match needs a defined anonymous pattern")?;
                 Ok(subject.cmp_value(&pattern).is_eq())
             }
             (Self::Scalar(subject), pattern) => {
@@ -362,16 +361,13 @@ fn landing_summaries(
                     pending.push(Step::Enter(binary.left));
                 }
                 _ => {
-                    let value =
-                        validation::evaluate_anonymous_numeric_expression(
-                            program,
-                            expression,
-                            &[],
-                            |operand| context.has_builtin(program, operand),
-                        )
-                        .ok_or(
-                            "anonymous constant expression requires defined exact numeric values",
-                        )?;
+                    let value = validation::evaluate_anonymous_numeric_expression(
+                        program,
+                        expression,
+                        &[],
+                        |operand| context.has_builtin(program, operand),
+                    )
+                    .ok_or("anonymous constant expression requires defined exact numeric values")?;
                     let fractional = (matches!(
                         program.expression_table.expression(expression),
                         ExpressionNode::Float(_)

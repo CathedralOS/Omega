@@ -16,8 +16,7 @@ pub(super) fn check(
     instruction: &SelectedInstruction,
     actual: &Control,
 ) -> Result<(), ResolvedFragmentEmissionError> {
-    if let selected_instructions::selected_call_triple_pattern!(target, ..) = instruction.kind
-    {
+    if let selected_instructions::selected_call_triple_pattern!(target, ..) = instruction.kind {
         let mut rows = function
             .calls
             .iter()

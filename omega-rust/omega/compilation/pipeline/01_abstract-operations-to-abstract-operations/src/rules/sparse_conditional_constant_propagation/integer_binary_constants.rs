@@ -19,14 +19,15 @@ use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
 use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    IntegerConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite,
+    PsiRewriteCandidate,
 };
 use semantic_vocabulary::{IntegerType, IntegerValue, MachineId, OperationId, ValueId};
 
 use super::integer_binary_shapes;
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::sparse_conditional_constant_propagation::{
-    constant_evaluation_contract as contract, integer_constant, node_location
+    constant_evaluation_contract as contract, integer_constant, node_location,
 };
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -136,7 +137,11 @@ fn propose(
                 let Some(constant) = evaluate(&shape, left_value, right_value) else {
                     continue;
                 };
-                let location = node_location(function.machine, block.id, u32::try_from(node_index).expect("optimization node indices are u32"));
+                let location = node_location(
+                    function.machine,
+                    block.id,
+                    u32::try_from(node_index).expect("optimization node indices are u32"),
+                );
                 candidates.push(
                     PsiRewriteCandidate::new_integer_evaluation(
                         unit.identity,

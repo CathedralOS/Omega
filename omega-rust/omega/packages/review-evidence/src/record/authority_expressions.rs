@@ -4,7 +4,6 @@ use super::contracts::PackageReviewArithmeticDomain;
 
 pub type PackageReviewPrimitiveType = typed_trees::types::PrimitiveType;
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageReviewStructuralPredicatePathSegment {
     Field(String),
@@ -31,9 +30,7 @@ pub struct PackageReviewStructuralParameterField {
     pub(crate) path: Vec<PackageReviewStructuralPredicatePathSegment>,
 }
 
-impl PackageReviewStructuralParameterField {
-
-}
+impl PackageReviewStructuralParameterField {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewIntegerComparisonKind {
@@ -44,9 +41,7 @@ pub enum PackageReviewIntegerComparisonKind {
 
 pub type PackageReviewIeeeFloatComparisonKind = semantic_vocabulary::IeeeFloatComparisonKind;
 
-
 pub type PackageReviewIntegerBinaryKind = facts::CheckedIntegerBinaryKind;
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageReviewIntegerLiteralLanding {
@@ -54,9 +49,7 @@ pub(crate) struct PackageReviewIntegerLiteralLanding {
     pub(crate) arithmetic_domain: PackageReviewArithmeticDomain,
 }
 
-impl PackageReviewIntegerLiteralLanding {
-
-}
+impl PackageReviewIntegerLiteralLanding {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewIntegerLiteral {
@@ -64,9 +57,7 @@ pub struct PackageReviewIntegerLiteral {
     pub(crate) landing: Option<PackageReviewIntegerLiteralLanding>,
 }
 
-impl PackageReviewIntegerLiteral {
-
-}
+impl PackageReviewIntegerLiteral {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewIntegerRange {
@@ -74,9 +65,7 @@ pub struct PackageReviewIntegerRange {
     pub(crate) maximum: String,
 }
 
-impl PackageReviewIntegerRange {
-
-}
+impl PackageReviewIntegerRange {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageReviewScalarExpression {

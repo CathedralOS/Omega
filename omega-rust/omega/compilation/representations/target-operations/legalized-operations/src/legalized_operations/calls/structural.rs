@@ -32,9 +32,7 @@ impl LegalizedStructuralContract {
         &self,
         place: semantic_vocabulary::PlaceId,
     ) -> Option<&StructuralPlaceDeclaration> {
-        self.structural_places
-            .iter()
-            .find(|row| row.id == place)
+        self.structural_places.iter().find(|row| row.id == place)
     }
 
     /// The structural type keyed `id`, when the contract declares it.

@@ -13,10 +13,10 @@ mod pass;
 mod work_usage;
 
 pub use decision::OptimizationDecisionRecord;
-pub use error::{InvalidOptimizationManifestRecord};
-pub(crate) use error::{ OptimizationManifestDecodeError};
-pub use fact_reference::{OptimizationFactReference};
-pub(crate) use fact_reference::{ OptimizationFactReferenceDecodeError};
+pub use error::InvalidOptimizationManifestRecord;
+pub(crate) use error::OptimizationManifestDecodeError;
+pub use fact_reference::OptimizationFactReference;
+pub(crate) use fact_reference::OptimizationFactReferenceDecodeError;
 pub use pass::OptimizationPassManifestRecord;
 pub use work_usage::OptimizationWorkUsage;
 

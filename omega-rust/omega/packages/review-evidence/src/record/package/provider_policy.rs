@@ -12,13 +12,15 @@ mod validation;
 
 pub(crate) use authority::{
     PackagePolicyServiceAuthority, PackagePolicyServiceProgressPremise,
-    PackagePolicyServiceProgressRoute};
+    PackagePolicyServiceProgressRoute,
+};
 pub(crate) use families::{PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate};
 pub use methods::PackagePolicyServiceMethod;
-pub use plans::{ PackagePolicySelectedProviders};
-pub(crate) use plans::{PackagePolicyProviderPlan};
+pub(crate) use plans::PackagePolicyProviderPlan;
+pub use plans::PackagePolicySelectedProviders;
 
 pub(crate) use rows::{
-    PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall, PackagePolicyProviderRow};
+    PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall, PackagePolicyProviderRow,
+};
 pub(crate) use service_validation::validate_service_methods;
 pub(crate) use signature::PackagePolicyServiceSignature;

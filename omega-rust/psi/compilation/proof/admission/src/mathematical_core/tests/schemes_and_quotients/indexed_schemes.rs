@@ -201,10 +201,7 @@ fn indexed_applications_reject_wrong_descriptions_and_indices() {
         apply(&mut arena, q_zero, constructor)
     };
     let error = check_type(&mut arena, &context, elimination, expected, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        crate::argument_error_pair_pattern!()
-    ));
+    assert!(matches!(error, crate::argument_error_pair_pattern!()));
 
     // A value where the index type belongs is malformed, not a type.
     let mut bad_family = family.clone();
@@ -212,10 +209,7 @@ fn indexed_applications_reject_wrong_descriptions_and_indices() {
     let zero = two_zero(&mut arena);
     let malformed = bad_family.indexed_w(&mut arena, zero);
     let error = infer_type(&mut arena, &context, malformed, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        crate::argument_error_pair_pattern!()
-    ));
+    assert!(matches!(error, crate::argument_error_pair_pattern!()));
 
     // A strict index type is a malformed universe for `I : Type l`.
     let mut strict_family = family.clone();
@@ -223,10 +217,7 @@ fn indexed_applications_reject_wrong_descriptions_and_indices() {
     let zero = two_zero(&mut arena);
     let malformed = strict_family.indexed_w(&mut arena, zero);
     let error = infer_type(&mut arena, &context, malformed, &mut budget).unwrap_err();
-    assert!(matches!(
-        error,
-        crate::argument_error_pair_pattern!()
-    ));
+    assert!(matches!(error, crate::argument_error_pair_pattern!()));
 
     // Wrong instantiation arity is rejected at the constant itself.
     let bad_constant = constant(&mut arena, INDEXED_W, vec![Level::Constant(0)]);

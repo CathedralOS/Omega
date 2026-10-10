@@ -321,6 +321,7 @@ pub fn establish_behavior_exclusions(
 /// candidate bodies to walk, and whether the declared contract must still
 /// bound realizations the retained catalog cannot name.
 fn boundary_realization_coverage(
+    module: &TerminalModule,
     candidates: &[&ProviderCandidateConformance],
     selected_provider_plans: &crate::SelectedProviderPlanFacts,
 ) -> (Vec<MachineId>, bool) {
@@ -329,7 +330,12 @@ fn boundary_realization_coverage(
     let requirement_identities = {
         let mut identities: Vec<&str> = candidates
             .iter()
-            .map(|candidate| candidate.requirement_identity.as_str())
+            .map(|candidate| {
+                module
+                    .identities
+                    .text(candidate.requirement_identity)
+                    .unwrap_or_default()
+            })
             .collect();
         identities.sort_unstable();
         identities.dedup();
@@ -369,8 +375,10 @@ fn boundary_realization_coverage(
                             .unwrap_or(machine_identity.as_str());
                         let mut matched = false;
                         for candidate in candidates.iter().filter(|candidate| {
-                            candidate.requirement_identity == requirement_identity
-                                && candidate.candidate_identity == realization_identity
+                            module.identities.text(candidate.requirement_identity)
+                                == Some(requirement_identity)
+                                && module.identities.text(candidate.candidate_identity)
+                                    == Some(realization_identity)
                         }) {
                             matched = true;
                             bodies.push(candidate.candidate);
@@ -391,10 +399,9 @@ fn boundary_realization_coverage(
             // admit any retained candidate or an external realization, so the
             // declared contract stays in force alongside every body.
             needs_contract = true;
-            for candidate in candidates
-                .iter()
-                .filter(|candidate| candidate.requirement_identity == requirement_identity)
-            {
+            for candidate in candidates.iter().filter(|candidate| {
+                module.identities.text(candidate.requirement_identity) == Some(requirement_identity)
+            }) {
                 bodies.push(candidate.candidate);
             }
         }
@@ -480,7 +487,7 @@ fn inspect_machine<'module>(
                         .filter(|candidate| candidate.boundary == *boundary)
                         .collect();
                     let (realizations, needs_contract) =
-                        boundary_realization_coverage(&candidates, selected_provider_plans);
+                        boundary_realization_coverage(module, &candidates, selected_provider_plans);
                     if needs_contract {
                         for bucket in &declaration.crash_routes {
                             if exclusions.excludes_crash_cause(bucket.cause) {

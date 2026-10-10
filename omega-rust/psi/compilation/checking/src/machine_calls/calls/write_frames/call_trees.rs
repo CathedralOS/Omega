@@ -332,7 +332,8 @@ fn complete_expression_tree(
         }
         // Call frames share completed state summaries with every other walk
         // of this program: one honest acyclic or solved-cycle frame per state.
-        if known_call_written_paths_for_parts(program,
+        if known_call_written_paths_for_parts(
+            program,
             call.target_symbol,
             call.target.as_str(),
             &receiver_members,
@@ -343,7 +344,8 @@ fn complete_expression_tree(
             machine_symbols,
             symbols,
             inference,
-        None)
+            None,
+        )
         .or_else(|| {
             if call.receiver.is_valid() && receiver_member_chain(program, call.receiver).is_none() {
                 return None;

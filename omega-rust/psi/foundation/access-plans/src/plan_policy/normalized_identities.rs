@@ -43,9 +43,8 @@ pub(crate) fn authoritative_access_layout_commitment(
 pub(crate) fn authoritative_placement_interpretation(
     plan: &crate::placements::placement_plan::ValidatedPlacementPlan,
 ) -> ExtentContentInterpretation {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.placement-plan.authoritative.v1\0",
-    );
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.placement-plan.authoritative.v1\0");
     hash_canonical_layout(&mut digest, &plan.layout);
     hash_u64_sha(&mut digest, plan.access.plan.entries.len() as u64);
     for entry in &plan.access.plan.entries {
@@ -64,7 +63,10 @@ pub(crate) fn authoritative_placement_interpretation(
     ExtentContentInterpretation::from_sha256_commitment(compatibility_fingerprint, commitment)
 }
 
-fn hash_canonical_layout(digest: &mut crate::digest_encoder::DomainDigestEncoder, layout: &layout_plans::LayoutPlanReport) {
+fn hash_canonical_layout(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    layout: &layout_plans::LayoutPlanReport,
+) {
     hash_u64_sha(digest, layout.schema_report_fingerprint);
     match layout.size {
         Some(size) => {
@@ -140,7 +142,10 @@ fn canonical_layout_entry_bytes(entry: &LayoutFieldEntryReport) -> Vec<u8> {
     bytes
 }
 
-fn hash_field_access_sha(digest: &mut crate::digest_encoder::DomainDigestEncoder, access: &FieldAccess) {
+fn hash_field_access_sha(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    access: &FieldAccess,
+) {
     match access {
         FieldAccess::Inaccessible => digest.byte(0),
         FieldAccess::Stable {
@@ -199,7 +204,10 @@ fn hash_field_access_sha(digest: &mut crate::digest_encoder::DomainDigestEncoder
     }
 }
 
-fn hash_exposure_sha(digest: &mut crate::digest_encoder::DomainDigestEncoder, exposure: AccessExposure) {
+fn hash_exposure_sha(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    exposure: AccessExposure,
+) {
     digest.byte(match exposure {
         AccessExposure::Exported => 0,
         AccessExposure::BindingPrivate => 1,

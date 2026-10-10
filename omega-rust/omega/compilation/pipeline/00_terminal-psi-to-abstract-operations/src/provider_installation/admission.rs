@@ -30,11 +30,14 @@ pub(crate) fn admit_provider_installation_with_projection(
             .iter()
             .filter(|candidate| candidate.boundary == boundary)
             .collect::<Vec<_>>();
-        let requirement_identity = candidates[0].requirement_identity.as_str();
+        let requirement_identity = plan
+            .identities
+            .text(candidates[0].requirement_identity)
+            .unwrap_or_default();
         if requirement_identity.is_empty()
-            || candidates
-                .iter()
-                .any(|candidate| candidate.requirement_identity != requirement_identity)
+            || candidates.iter().any(|candidate| {
+                plan.identities.text(candidate.requirement_identity) != Some(requirement_identity)
+            })
         {
             return Err(ProviderInstallationError::InvalidLoweredCatalog);
         }
@@ -55,8 +58,8 @@ pub(crate) fn admit_provider_installation_with_projection(
             .iter()
             .filter(|candidate| {
                 selected_rows.iter().any(|(provider, machine)| {
-                    candidate.provider_identity == *provider
-                        && candidate.candidate_identity == *machine
+                    plan.identities.text(candidate.provider_identity) == Some(*provider)
+                        && plan.identities.text(candidate.candidate_identity) == Some(*machine)
                 })
             })
             .collect::<Vec<_>>();
@@ -69,7 +72,11 @@ pub(crate) fn admit_provider_installation_with_projection(
         };
         selections.push(terminal_installation::ProviderInstallationSelection {
             boundary,
-            provider_identity: candidate.provider_identity.clone(),
+            provider_identity: plan
+                .identities
+                .text(candidate.provider_identity)
+                .unwrap_or_default()
+                .to_string(),
             candidate: candidate.candidate,
         });
         installed_candidates.push((**candidate).clone());

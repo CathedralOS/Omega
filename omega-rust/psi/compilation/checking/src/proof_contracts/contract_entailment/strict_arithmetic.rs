@@ -64,7 +64,6 @@ pub enum StrictArithmeticImplicationJudgment {
     Unknown,
 }
 
-
 /// Instantiate all arguments simultaneously in the original symbol namespace
 /// before judging the goal. Unknown arguments and conflicting formal bindings
 /// reject even when the hypotheses are inconsistent or the goal is constant.

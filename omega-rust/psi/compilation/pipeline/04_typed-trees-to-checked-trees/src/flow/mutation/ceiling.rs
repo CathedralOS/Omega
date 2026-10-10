@@ -19,7 +19,6 @@ use facts::PlaceRoot;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceNode;
 
-
 pub(crate) fn signature_ceiling_places(
     program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,

@@ -19,8 +19,7 @@ pub(super) fn all_instances_reachable_from_ordinary_data(
     while cursor < reachable.len() {
         let symbol = reachable[cursor];
         cursor += 1;
-        let Some(definition) = source.data_definition_by_symbol(symbol)
-        else {
+        let Some(definition) = source.data_definition_by_symbol(symbol) else {
             return false;
         };
         collect_member_references(source, definition, instance_symbols, &mut reachable);

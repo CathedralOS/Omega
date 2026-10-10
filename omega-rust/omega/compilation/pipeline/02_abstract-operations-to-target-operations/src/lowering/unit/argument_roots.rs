@@ -44,8 +44,7 @@ pub(in crate::lowering) fn resolve<'parameter>(
         .into_iter()
         .find(|parameter| parameter.place == place)
     {
-        let declaration = function.structural_parameter(place)
-            .ok_or_else(unknown)?;
+        let declaration = function.structural_parameter(place).ok_or_else(unknown)?;
         return Ok(StructuralArgumentRoot {
             declaration: declaration.clone(),
             backing_shape: structural_shape(
@@ -92,7 +91,8 @@ pub(in crate::lowering) fn resolve<'parameter>(
             .block_entries
             .iter()
             .find_map(|entry| {
-                entry.structural_parameter(place)
+                entry
+                    .structural_parameter(place)
                     .map(|parameter| (entry.block, parameter))
             })
             .ok_or_else(unknown)?;

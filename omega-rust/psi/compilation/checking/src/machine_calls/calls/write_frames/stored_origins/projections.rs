@@ -365,7 +365,10 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
             program.type_reference_table.type_reference(reference),
             segment,
         ) {
-            (TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }, PlaceSegment::Case { variant }) => {
+            (
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. },
+                PlaceSegment::Case { variant },
+            ) => {
                 if selected_case.is_some()
                     || program.symbols.get(*variant).kind != SymbolKind::Variant
                 {
@@ -385,8 +388,10 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
                         });
                 selected_case?;
             }
-            (TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }, PlaceSegment::Field { symbol: field }) =>
-            {
+            (
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. },
+                PlaceSegment::Field { symbol: field },
+            ) => {
                 if program.symbols.get(*field).kind != SymbolKind::Field {
                     return None;
                 }
@@ -395,7 +400,8 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
                         .data_payload_field_by_symbol(variant, *field)?
                         .type_reference
                 } else {
-                    let (definition, nested_scope) = scopes.definition(program, reference, scope)?;
+                    let (definition, nested_scope) =
+                        scopes.definition(program, reference, scope)?;
                     scope = nested_scope;
                     program
                         .data_members(definition)

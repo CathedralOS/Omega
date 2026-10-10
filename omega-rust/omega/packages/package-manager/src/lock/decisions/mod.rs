@@ -28,7 +28,6 @@ pub(crate) struct HistoricalPackagePolicyDecision {
 }
 
 impl HistoricalPackagePolicyDecision {
-
     /// Version 1 document reference only, never an index for a modern change.
     pub const fn package_index(&self) -> Option<usize> {
         match self.subject {

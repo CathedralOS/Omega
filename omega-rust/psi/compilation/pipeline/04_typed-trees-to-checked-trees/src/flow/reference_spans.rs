@@ -168,8 +168,7 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
             FlowConstraintKind::SemanticContext { context } => active_contexts
                 .iter()
                 .any(|active| active.context == context),
-            FlowConstraintKind::Unknown
-            | checked_trees::borrow_set_quint_pattern!(..) => true,
+            FlowConstraintKind::Unknown | checked_trees::borrow_set_quint_pattern!(..) => true,
         },
     )
 }

@@ -68,9 +68,17 @@ impl<'a> TerminalProductionRequest<'a> {
             ),
             _ => None,
         };
+        // One shared identity builder interns every row identity across the
+        // whole production; the sealed table lands on the module once.
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let lowered = observer
             .record_result(TerminalProductionStage::Lowering, || {
-                lower_machine(self.checked, self.machine, self.exact_toolchain_sources)
+                lower_machine(
+                    &mut identities,
+                    self.checked,
+                    self.machine,
+                    self.exact_toolchain_sources,
+                )
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         if let (Some(admission), Some(selection)) = (admission, entry_selection) {

@@ -270,13 +270,13 @@ fn capture_preserved(
     // Reuse the independent signature/authority ceiling instead of trusting
     // an omitted dispatch or introducing another transitive body scanner.
     let Some(ceiling) = crate::flow::signature_ceiling_places(
-            program,
-            caller.symbol,
-            supplied.caller_state,
-            None,
-            call,
-            Some(frames)
-        ) else {
+        program,
+        caller.symbol,
+        supplied.caller_state,
+        None,
+        call,
+        Some(frames),
+    ) else {
         return false;
     };
     writes.extend(ceiling);

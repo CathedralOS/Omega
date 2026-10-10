@@ -50,4 +50,3 @@ pub(crate) fn lower_measure_definition(
         body,
     })
 }
-

@@ -1,10 +1,7 @@
 //! Proof-certified translation from exact redundants to total-policy leaders.
 
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
-use optimization_unit::{
-    PhiTranslatedScalarGvnRewrite,
-    PsiOptimizationUnit, PsiRewriteCandidate,
-};
+use optimization_unit::{PhiTranslatedScalarGvnRewrite, PsiOptimizationUnit, PsiRewriteCandidate};
 
 use crate::rules::global_value_numbering::collect_compatible_policy_scalar_rows;
 
@@ -15,9 +12,9 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 psi_rule_contract!(
     PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
     phi_translated_contract(
-                b"omega.psi-rule.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1",
-                OptimizationSafetyClass::ProofCertified,
-            ),
+        b"omega.psi-rule.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1",
+        OptimizationSafetyClass::ProofCertified,
+    ),
 );
 
 impl PsiOptimizationRule for PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule {

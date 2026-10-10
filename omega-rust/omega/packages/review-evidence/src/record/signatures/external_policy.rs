@@ -6,7 +6,9 @@ use super::{
     PackageReviewExternalBinding, PackageReviewForeignLocator, PackageReviewNominalIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
-pub(crate) use signatures::{PackagePolicyExternalCallableSignature, PackagePolicyExternalRequirement};
+pub(crate) use signatures::{
+    PackagePolicyExternalCallableSignature, PackagePolicyExternalRequirement,
+};
 
 /// Exact producer identity retained independently of its evaluation history.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

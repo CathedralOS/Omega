@@ -11,7 +11,8 @@ use std::fmt;
 
 mod document;
 pub(crate) use document::{
-    PackagePolicyReviewError, recover_package_policy_review, render_package_policy_review};
+    PackagePolicyReviewError, recover_package_policy_review, render_package_policy_review,
+};
 
 /// An exact row or source-replacement change, or the separately reported
 /// root-role compatibility change. Digests come from the comparison; they are

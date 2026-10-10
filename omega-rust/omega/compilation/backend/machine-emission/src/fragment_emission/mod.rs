@@ -22,8 +22,8 @@ mod replay;
 mod source;
 mod validation;
 
-pub use error::{ FunctionFragmentEmissionManifestDecodeError};
-pub(crate) use error::{FunctionFragmentEmissionError};
+pub(crate) use error::FunctionFragmentEmissionError;
+pub use error::FunctionFragmentEmissionManifestDecodeError;
 pub use source::StagedOptimizedFunctionFragmentEmissionSource;
 
 use crate::function_realization::ValidatedFunctionRelativeOptimizationRealizationManifest;

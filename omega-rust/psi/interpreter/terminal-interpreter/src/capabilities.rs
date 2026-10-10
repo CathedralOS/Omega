@@ -320,10 +320,9 @@ mod tests {
         };
         set_machine(&mut program, entry, machine(1, Vec::new()));
         let boundary = BoundaryMachineId::new(1).unwrap();
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .boundary_machines
-            .push(boundary_declaration(boundary));
+        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let declaration = boundary_declaration(catalogs, boundary);
+        catalogs.boundary_machines.push(declaration);
         program
     }
 
@@ -344,15 +343,30 @@ mod tests {
         }
     }
 
+    // Fixture declarations intern authored identities through the module
+    // table the same way the producer does, so identity joins stay index-true.
+    fn intern_identity(
+        catalogs: &mut terminal_psi::TerminalModule,
+        text: &str,
+    ) -> terminal_psi::TerminalIdentityIndex {
+        let mut builder = std::mem::take(&mut catalogs.identities).into_builder();
+        let index = builder.intern(text);
+        catalogs.identities = builder.snapshot();
+        index
+    }
+
     fn add_provider(program: &mut AdmittedTerminalProgram<'_>, boundary: BoundaryMachineId) {
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
+        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let requirement_identity = intern_identity(catalogs, "graph boundary");
+        let provider_identity = intern_identity(catalogs, "graph provider");
+        let candidate_identity = intern_identity(catalogs, "graph candidate");
+        catalogs
             .provider_candidates
             .push(terminal_psi::ProviderCandidateConformance {
                 boundary,
-                requirement_identity: "graph boundary".into(),
-                provider_identity: "graph provider".into(),
-                candidate_identity: "graph candidate".into(),
+                requirement_identity,
+                provider_identity,
+                candidate_identity,
                 candidate: MachineId::new(2).unwrap(),
                 signature: terminal_psi::ProviderSignature::empty(),
                 refinement: terminal_psi::ProviderRefinement::empty(),
@@ -360,6 +374,7 @@ mod tests {
     }
 
     fn boundary_declaration(
+        catalogs: &mut terminal_psi::TerminalModule,
         boundary: BoundaryMachineId,
     ) -> terminal_psi::BoundaryMachineDeclaration {
         terminal_psi::BoundaryMachineDeclaration {
@@ -367,7 +382,7 @@ mod tests {
             kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
             completion: terminal_psi::BoundaryCompletion::NormalReturn,
             unconditional_termination: false,
-            identity: "graph boundary".into(),
+            identity: intern_identity(catalogs, "graph boundary"),
             attachment: None,
             parameter_order: Vec::new(),
             scalar_parameters: Vec::new(),
@@ -542,46 +557,42 @@ mod tests {
 
     fn dynamic_program() -> AdmittedTerminalProgram<'static> {
         let mut program = program();
-        let slot = |slot| terminal_psi::TerminalDynamicSlot {
-            slot,
-            declaring_trait_identity: "graph interface".into(),
-            requirement_identity: format!("requirement {slot}"),
-            family_tuple: Vec::new(),
-            scalar_parameters: Vec::new(),
-            structural_parameters: Vec::new(),
-            entry_claim_paths: Vec::new(),
-            result: None,
-        };
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .dynamic_dispatch
-            .interfaces = (0..2)
+        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let slot =
+            |catalogs: &mut terminal_psi::TerminalModule, slot| terminal_psi::TerminalDynamicSlot {
+                slot,
+                declaring_trait_identity: intern_identity(catalogs, "graph interface"),
+                requirement_identity: intern_identity(catalogs, &format!("requirement {slot}")),
+                family_tuple: Vec::new(),
+                scalar_parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                entry_claim_paths: Vec::new(),
+                result: None,
+            };
+        catalogs.dynamic_dispatch.interfaces = (0..2)
             .map(|id| terminal_psi::TerminalDynamicInterface {
                 id,
-                identity: format!("interface {id}"),
-                slots: vec![slot(0), slot(1)],
+                identity: intern_identity(catalogs, &format!("interface {id}")),
+                slots: vec![slot(catalogs, 0), slot(catalogs, 1)],
             })
             .collect();
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .dynamic_dispatch
-            .tables = vec![
+        catalogs.dynamic_dispatch.tables = vec![
             terminal_psi::TerminalDynamicTable {
                 id: 0,
                 interface: 0,
-                implementation_identity: "first implementation".into(),
+                implementation_identity: intern_identity(catalogs, "first implementation"),
                 rows: vec![None, Some(MachineId::new(3).unwrap())],
             },
             terminal_psi::TerminalDynamicTable {
                 id: 1,
                 interface: 0,
-                implementation_identity: "second implementation".into(),
+                implementation_identity: intern_identity(catalogs, "second implementation"),
                 rows: vec![Some(MachineId::new(2).unwrap()), None],
             },
             terminal_psi::TerminalDynamicTable {
                 id: 2,
                 interface: 1,
-                implementation_identity: "unrelated implementation".into(),
+                implementation_identity: intern_identity(catalogs, "unrelated implementation"),
                 rows: vec![Some(MachineId::new(3).unwrap()), None],
             },
         ];
@@ -622,10 +633,9 @@ mod tests {
         );
         let provider = MachineId::new(4).unwrap();
         let provider_import = BoundaryMachineId::new(2).unwrap();
-        std::sync::Arc::make_mut(&mut program.catalogs)
-            .to_mut()
-            .boundary_machines
-            .push(boundary_declaration(provider_import));
+        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        let declaration = boundary_declaration(catalogs, provider_import);
+        catalogs.boundary_machines.push(declaration);
         set_machine(
             &mut program,
             provider,

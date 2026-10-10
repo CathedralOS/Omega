@@ -772,7 +772,7 @@ impl TerminalExecution<'_> {
     ) -> Result<
         (
             TerminalStructuralValue,
-            &'a String,
+            terminal_psi::TerminalIdentityIndex,
             &'a terminal_psi::StructuralFieldDeclaration,
         ),
         TerminalInterpretError,
@@ -795,7 +795,8 @@ impl TerminalExecution<'_> {
         let Some(fields) = self.program.record_fields(&parent.structural_type) else {
             return Err(malformed());
         };
-        let field = terminal_psi::live_field_by_identity(fields, identity).ok_or_else(malformed)?;
-        Ok((parent, identity, field))
+        let field =
+            terminal_psi::live_field_by_identity(fields, *identity).ok_or_else(malformed)?;
+        Ok((parent, *identity, field))
     }
 }

@@ -821,9 +821,8 @@ pub(crate) fn boundary_plan_application_identity(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
 ) -> (u64, [u8; 32]) {
-    let mut strong = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.boundary-plan-application.v4",
-    );
+    let mut strong =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v4");
     strong.string(&signature.owner_requirement_identity);
     strong.byte(match signature.native_target.architecture {
         target::Architecture::Aarch64 => 1,

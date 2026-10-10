@@ -101,8 +101,7 @@ pub fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
             }
             StructuralPathSegment::Field(name) => {
                 bytes.push(1);
-                encode_len(bytes, name.len());
-                bytes.extend_from_slice(name.as_bytes());
+                crate::codec_bytes::push_encoded(bytes, name.0.to_le_bytes());
             }
             StructuralPathSegment::FixedIndex(index) => {
                 bytes.push(2);

@@ -1,6 +1,7 @@
 //! Affine cleanup plans: partial and nominal affine discards, caller
 //! requirements, claim transfers and call custody.
 
+use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
     CheckedUnitEffectMachinePlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment,
@@ -8,7 +9,6 @@ use crate::checked_trees::flow::terminal::{
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
 use typed_trees::type_identity::TypeIdentityId;
-use crate::checked_trees::CheckedMemberIdentity;
 
 /// Conditions and their paths share the ordinary Unit plan's storage namespace.
 /// They are control dependencies, not permission to dispose a payload. A nested

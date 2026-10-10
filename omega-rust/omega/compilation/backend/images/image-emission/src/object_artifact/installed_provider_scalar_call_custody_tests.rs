@@ -166,13 +166,15 @@ fn substitute_installed_provider_unit_scalar_call(
             provider_call(plan).provider.boundary = BoundaryMachineId::new(9).unwrap();
         }
         Field::ProviderRequirementIdentity => {
-            provider_call(plan).provider.requirement_identity.clear();
+            provider_call(plan).provider.requirement_identity =
+                terminal_psi::TerminalIdentityIndex(0);
         }
         Field::ProviderProviderIdentity => {
-            provider_call(plan).provider.provider_identity.clear();
+            provider_call(plan).provider.provider_identity = terminal_psi::TerminalIdentityIndex(0);
         }
         Field::ProviderCandidateIdentity => {
-            provider_call(plan).provider.candidate_identity.clear();
+            provider_call(plan).provider.candidate_identity =
+                terminal_psi::TerminalIdentityIndex(0);
         }
         Field::ProviderCandidate => {
             provider_call(plan).provider.candidate = MachineId::new(5).unwrap();
@@ -393,9 +395,9 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
     let boundary = BoundaryMachineId::new(7).expect("boundary");
     let provider = ProviderCandidateConformance {
         boundary,
-        requirement_identity: "timer.tick".into(),
-        provider_identity: "timer.host".into(),
-        candidate_identity: "timer.host.tick".into(),
+        requirement_identity: terminal_psi::TerminalIdentityIndex(1),
+        provider_identity: terminal_psi::TerminalIdentityIndex(2),
+        candidate_identity: terminal_psi::TerminalIdentityIndex(3),
         candidate: machine_id(2),
         signature: ProviderSignature::empty(),
         refinement: ProviderRefinement::empty(),
@@ -405,6 +407,7 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
         psi: identity(),
         target,
         entry: machine_id(1),
+        identities: Default::default(),
         functions: vec![
             MachineCodeFunction {
                 machine: machine_id(1),

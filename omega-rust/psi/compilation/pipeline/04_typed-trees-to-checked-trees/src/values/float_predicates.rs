@@ -266,8 +266,7 @@ pub(crate) fn comparison(
         {
             let (machine, _) =
                 validation::find_machine_by_entry_state(program, call.target_symbol)?;
-            let binding = program
-                .machine_token_binding_by_symbol(machine.symbol)?;
+            let binding = program.machine_token_binding_by_symbol(machine.symbol)?;
             let (operator, _) =
                 typed_trees::operator::primitive_float_binary_semantics(program, binding)?;
             let [left, right] = program.expression_table.expression_handles(call.arguments) else {

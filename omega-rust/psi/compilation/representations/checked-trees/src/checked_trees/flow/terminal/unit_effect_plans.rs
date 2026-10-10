@@ -17,8 +17,8 @@ use diagnostics::{CoverageForm, Diagnostic};
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use source::SourceSpan;
 use symbols::{SymbolHandle, SymbolTable};
-use typed_trees::types::PrimitiveType;
 use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::types::PrimitiveType;
 
 /// Cleanup follows an evaluated call, retires an assignment's old value after
 /// its operands complete and before its store, or precedes an authored statement
@@ -106,10 +106,8 @@ impl CheckedUnitEffectPlans {
             if !shape.identity.is_valid() {
                 return Err(shape.identity);
             }
-            match crate::checked_structural_type_by_identity(
-                &self.structural_types,
-                shape.identity,
-            ) {
+            match crate::checked_structural_type_by_identity(&self.structural_types, shape.identity)
+            {
                 Some(existing) if *existing != shape => return Err(shape.identity),
                 Some(_) => {}
                 None => self.structural_types.push(shape),

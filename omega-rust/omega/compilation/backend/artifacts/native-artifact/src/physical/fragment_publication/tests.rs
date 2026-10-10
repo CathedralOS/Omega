@@ -17,6 +17,7 @@ fn construction_rejects_detached_final_plan_and_object_terminal() {
     let retained = abstract_operations::AbstractOperationPlan {
         psi,
         entry: semantic_vocabulary::MachineId::new(1).unwrap(),
+        identities: Default::default(),
         structural_types: Vec::new().into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
@@ -129,6 +130,7 @@ fn plan(machine_raw: u64) -> MachineCodePlan {
         psi: terminal(),
         target: NativeTarget::linux_x64(),
         entry: machine,
+        identities: Default::default(),
         functions: vec![MachineCodeFunction {
             machine,
             attachment: None,

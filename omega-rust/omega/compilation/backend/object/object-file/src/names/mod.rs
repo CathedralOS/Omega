@@ -89,7 +89,6 @@ pub fn object_function_symbol(
         .then_some((binding.symbol, symbol))
 }
 
-
 pub fn entry_symbol_name(target: NativeTarget) -> String {
     object_target_policy(target)
         .expect("no object policy is declared for this (architecture, object-format) pair")
@@ -107,7 +106,6 @@ pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
     }
     .to_owned()
 }
-
 
 pub(crate) fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
     match section {
@@ -127,7 +125,6 @@ mod tests {
         Architecture, ForeignLocatorCandidate, NativeTarget, ObjectFormat, TargetProfile,
         normalize_foreign_locator,
     };
-
 
     #[test]
     fn foreign_locator_lookup_joins_exact_coordinates_and_rejects_duplicates() {

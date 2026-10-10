@@ -22,7 +22,6 @@ use object_file::{
 };
 use target::NativeTarget;
 
-
 fn record(
     section: SectionKind,
     offset: usize,

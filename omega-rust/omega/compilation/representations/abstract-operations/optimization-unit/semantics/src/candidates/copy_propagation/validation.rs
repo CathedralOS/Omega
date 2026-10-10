@@ -7,8 +7,8 @@ use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    BlockParameterIncomingBinding, NodeLocation, PsiOptimizationUnit,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ValueDefinitionSite,
+    BlockParameterIncomingBinding, NodeLocation, PsiOptimizationUnit, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewritePatch, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity, reconstruct_psi_closed_region_observation,
 };
 use std::collections::BTreeSet;
@@ -93,13 +93,23 @@ pub(super) fn validate_redundant_block_parameter_candidate(
                     machine: patch.machine,
                     edge: edge.psi_edge,
                 };
-                expected_provenance.push(provenance_realized_at(site, site, &edge.provenance, &edge.fuel));
+                expected_provenance.push(provenance_realized_at(
+                    site,
+                    site,
+                    &edge.provenance,
+                    &edge.fuel,
+                ));
             }
             if changes_use {
                 affected_blocks.insert(source.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    expected_provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+                    expected_provenance.push(provenance_realized_at(
+                        site,
+                        site,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
             }
             if node

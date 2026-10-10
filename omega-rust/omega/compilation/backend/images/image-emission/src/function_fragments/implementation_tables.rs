@@ -392,12 +392,12 @@ mod tests {
         TerminalDynamicDispatchCatalog {
             interfaces: vec![TerminalDynamicInterface {
                 id: 0,
-                identity: "Example".into(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
                 slots: (0..rows.len())
                     .map(|slot| TerminalDynamicSlot {
                         slot: slot as u32,
-                        declaring_trait_identity: "Example".into(),
-                        requirement_identity: format!("member{slot}"),
+                        declaring_trait_identity: terminal_psi::TerminalIdentityIndex(1),
+                        requirement_identity: terminal_psi::TerminalIdentityIndex(slot as u32),
                         family_tuple: Vec::new(),
                         scalar_parameters: Vec::new(),
                         structural_parameters: Vec::new(),
@@ -409,7 +409,7 @@ mod tests {
             tables: vec![TerminalDynamicTable {
                 id: 0,
                 interface: 0,
-                implementation_identity: "Choice".into(),
+                implementation_identity: terminal_psi::TerminalIdentityIndex(2),
                 rows,
             }],
         }
@@ -484,7 +484,7 @@ mod tests {
         catalog.tables.push(TerminalDynamicTable {
             id: 1,
             interface: 0,
-            implementation_identity: "OtherChoice".into(),
+            implementation_identity: terminal_psi::TerminalIdentityIndex(3),
             rows: Vec::new(),
         });
         let mut object = ObjectPlan::with_capacity(target::NativeTarget::macos_arm64(), 1, 2);

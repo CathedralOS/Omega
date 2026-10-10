@@ -310,6 +310,7 @@ mod tests {
         AbstractOperationPlan {
             psi: terminal,
             entry: machine,
+            identities: Default::default(),
             structural_types: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),

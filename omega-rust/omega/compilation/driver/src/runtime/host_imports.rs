@@ -128,6 +128,7 @@ pub(super) fn bind<'host>(
                         declaration,
                         binding.requirement_identity(),
                         binding.provider_plan_report_identity(),
+                        &program.module().identities,
                     )
                 }) {
                     return Err(TerminalRuntimeError::InvalidProvision(
@@ -135,6 +136,7 @@ pub(super) fn bind<'host>(
                     ));
                 }
                 if let Some(adapter) = clock::ClockImport::admit(
+                    &program.module().identities,
                     declaration,
                     binding,
                     provisions.map_or(&[], TerminalRuntimeProvisions::borrowed_storage_layouts),

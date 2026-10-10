@@ -6,38 +6,42 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
     NodeLocation, NonAdjacentBlockMergeRewrite, OptimizationBlock, ProvenanceRewrite,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate, ScalarSubstitution,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    ScalarSubstitution,
 };
 use semantic_vocabulary::BlockId;
 
 use crate::analyses::block_dominates;
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
     NonAdjacentBlockMergeRule,
-    crate::rules::standard_rule_contract(b"omega.psi-rule.non-adjacent-unique-predecessor-block-merge.v1", CONTROL_FLOW_CLEANUP_PASS_NAME, 1,
-                AnalysisSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::Dominators,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::OwnershipFrontiers,
-                ]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-                OptimizationSafetyClass::StructuralIdentity),
+    crate::rules::standard_rule_contract(
+        b"omega.psi-rule.non-adjacent-unique-predecessor-block-merge.v1",
+        CONTROL_FLOW_CLEANUP_PASS_NAME,
+        1,
+        AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::Dominators,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::OwnershipFrontiers,
+        ]),
+        AnalysisInvalidationSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+        OptimizationSafetyClass::StructuralIdentity
+    ),
 );
 
 impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
@@ -187,15 +191,27 @@ pub(super) fn non_adjacent_merge_accounting(
         edge: incoming.psi_edge,
     };
     let mut realized = if first.successors.is_empty() {
-        vec![provenance_realized_at(incoming_site, PsiRealizationSite::Node(predecessor), &incoming.provenance, &incoming.fuel)]
+        vec![provenance_realized_at(
+            incoming_site,
+            PsiRealizationSite::Node(predecessor),
+            &incoming.provenance,
+            &incoming.fuel,
+        )]
     } else {
         first
             .successors
             .iter()
-            .map(|successor| provenance_realized_at(incoming_site, PsiRealizationSite::Edge {
-                    machine: function.machine,
-                    edge: successor.psi_edge,
-                }, &incoming.provenance, &incoming.fuel))
+            .map(|successor| {
+                provenance_realized_at(
+                    incoming_site,
+                    PsiRealizationSite::Edge {
+                        machine: function.machine,
+                        edge: successor.psi_edge,
+                    },
+                    &incoming.provenance,
+                    &incoming.fuel,
+                )
+            })
             .collect()
     };
 
@@ -215,7 +231,12 @@ pub(super) fn non_adjacent_merge_accounting(
                 .node
                 .checked_add(u32::try_from(node_index).ok()?)?,
         });
-        realized.push(provenance_realized_at(input, output, &node.provenance, &node.fuel));
+        realized.push(provenance_realized_at(
+            input,
+            output,
+            &node.provenance,
+            &node.fuel,
+        ));
     }
 
     let mut input_effect = 0u64;
@@ -277,7 +298,12 @@ pub(super) fn non_adjacent_merge_accounting(
                 block: block.id,
                 node: u32::try_from(node_index).ok()?,
             });
-            realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+            realized.push(provenance_realized_at(
+                site,
+                site,
+                &node.provenance,
+                &node.fuel,
+            ));
         }
     }
     realized.sort_by_key(optimization_unit::ProvenanceRewrite::canonical_sort_key);

@@ -88,7 +88,10 @@ pub(super) fn binding_arguments_match(
                 .iter()
                 .filter_map(|member| match member {
                     typed_trees::data::DataMember::Field(field)
-                        if checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity =>
+                        if checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        ) == *identity =>
                     {
                         Some(field)
                     }

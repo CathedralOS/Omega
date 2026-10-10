@@ -1,7 +1,7 @@
 use crate::candidates::provenance_realized_at;
 use optimization_unit::{
-    NodeLocation, NonAdjacentBlockMergeRewrite, PsiOptimizationFunction,
-    PsiRealizationSite, ScalarSubstitution,
+    NodeLocation, NonAdjacentBlockMergeRewrite, PsiOptimizationFunction, PsiRealizationSite,
+    ScalarSubstitution,
 };
 use semantic_vocabulary::BlockId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -28,12 +28,27 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
         edge: patch.incoming_edge,
     };
     let mut realized = if !first.provenance.is_empty() {
-        vec![provenance_realized_at(incoming_site, PsiRealizationSite::Node( patch.predecessor, ), &incoming.provenance, &incoming.fuel)]
+        vec![provenance_realized_at(
+            incoming_site,
+            PsiRealizationSite::Node(patch.predecessor),
+            &incoming.provenance,
+            &incoming.fuel,
+        )]
     } else if !first.successors.is_empty() {
         first
             .successors
             .iter()
-            .map(|successor| provenance_realized_at(incoming_site, PsiRealizationSite::Edge { machine: function.machine, edge: successor.psi_edge, }, &incoming.provenance, &incoming.fuel))
+            .map(|successor| {
+                provenance_realized_at(
+                    incoming_site,
+                    PsiRealizationSite::Edge {
+                        machine: function.machine,
+                        edge: successor.psi_edge,
+                    },
+                    &incoming.provenance,
+                    &incoming.fuel,
+                )
+            })
             .collect()
     } else {
         return None;
@@ -56,7 +71,12 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
                 .node
                 .checked_add(u32::try_from(node_index).ok()?)?,
         });
-        realized.push(provenance_realized_at(input, output, &node.provenance, &node.fuel));
+        realized.push(provenance_realized_at(
+            input,
+            output,
+            &node.provenance,
+            &node.fuel,
+        ));
     }
 
     let mut input_effect = 0u64;
@@ -118,7 +138,12 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
                 block: block.id,
                 node: u32::try_from(node_index).ok()?,
             });
-            realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+            realized.push(provenance_realized_at(
+                site,
+                site,
+                &node.provenance,
+                &node.fuel,
+            ));
         }
     }
     realized.sort_by_key(|row| {

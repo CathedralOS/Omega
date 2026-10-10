@@ -129,7 +129,12 @@ pub fn structural_member_identity(
                 }
                 typed_trees::data::DataMember::Variant(variant) => program
                     .data_payload_field_by_symbol(variant, symbol)
-                    .map(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())),
+                    .map(|field| {
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        )
+                    }),
                 typed_trees::data::DataMember::Field(_) => None,
             })
     })

@@ -1,6 +1,4 @@
-use crate::file_layout::bytes::{
-    write_fixed_string_16, write_reserved_u32s, write_u32, write_u64,
-};
+use crate::file_layout::bytes::{write_fixed_string_16, write_reserved_u32s, write_u32, write_u64};
 use crate::file_layout::constants::{
     MACHO_EXECUTABLE_BASE, MACHO_SECTION_SIZE, MACHO_SEGMENT_COMMAND_SIZE,
 };

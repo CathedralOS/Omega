@@ -187,11 +187,8 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     for (storage, path, domain_symbol, semantic_domain) in rows {
         let mut place = storage.clone();
         place.extend_segments(&path);
-        let place_handle = crate::semantic::places::append_place(
-            semantic,
-            place.root,
-            &place.segments,
-        );
+        let place_handle =
+            crate::semantic::places::append_place(semantic, place.root, &place.segments);
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(place_handle),
             point,
@@ -238,8 +235,7 @@ fn row_was_live(
     }
     let mut place = storage.clone();
     place.extend_segments(path);
-    let place =
-        crate::semantic::places::append_place(semantic, place.root, &place.segments);
+    let place = crate::semantic::places::append_place(semantic, place.root, &place.segments);
     build
         .contexts
         .semantic_context_refs

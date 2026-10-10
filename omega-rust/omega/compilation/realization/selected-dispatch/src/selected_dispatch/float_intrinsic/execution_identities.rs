@@ -45,8 +45,7 @@ pub(crate) fn derive_selected_compiler_intrinsic_execution_identity(
         )));
     }
     if let NamedFloatRealization::Convert(domain) = realization {
-        let Some(requirement) = IntrinsicRequirement::by_symbol(checked, requirement_symbol)
-        else {
+        let Some(requirement) = IntrinsicRequirement::by_symbol(checked, requirement_symbol) else {
             return Err(Diagnostic::error(format!(
                 "selected ProviderPlan `{}` resolves conversion requirement symbol {:?} to no intrinsic requirement declaration",
                 plan.name, requirement_symbol,

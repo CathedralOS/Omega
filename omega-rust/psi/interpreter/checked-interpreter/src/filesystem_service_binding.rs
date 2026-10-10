@@ -9,7 +9,6 @@ pub struct FilesystemServiceBinding {
 }
 
 impl FilesystemServiceBinding {
-
     pub(crate) fn declaration_symbol_for(
         self,
         checked: &CheckedTrees,

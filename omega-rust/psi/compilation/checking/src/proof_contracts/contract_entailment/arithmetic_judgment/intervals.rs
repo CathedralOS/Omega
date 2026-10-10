@@ -6,8 +6,7 @@
 use super::super::BigInt;
 use super::{Engine, OpaqueTerm, Polynomial};
 use crate::proof_contracts::arithmetic_domains::{
-    BigIntInterval as Interval, bitwise_and_constants, bitwise_carrier_bounds,
-    floor_shift_right,
+    BigIntInterval as Interval, bitwise_and_constants, bitwise_carrier_bounds, floor_shift_right,
 };
 
 impl<'program> Engine<'program> {

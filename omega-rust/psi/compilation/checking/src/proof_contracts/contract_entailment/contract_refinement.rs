@@ -238,20 +238,8 @@ fn is_law_conjunct(program: &dyn crate::CheckingInput, expression: ExpressionHan
     }
     let result = RESULT_BINDER.to_owned();
     match (
-        structural_term(
-            program,
-            None,
-            None,
-            binary.left,
-            None
-        ),
-        structural_term(
-            program,
-            None,
-            None,
-            binary.right,
-            None
-        ),
+        structural_term(program, None, None, binary.left, None),
+        structural_term(program, None, None, binary.right, None),
     ) {
         (Some(left), Some(right)) => {
             !term_mentions_variable(&left, &result) && !term_mentions_variable(&right, &result)

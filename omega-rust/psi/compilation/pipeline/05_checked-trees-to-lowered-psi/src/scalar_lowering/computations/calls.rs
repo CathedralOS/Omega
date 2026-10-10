@@ -46,6 +46,7 @@ enum Operand {
 /// load-bearing custody — its binding and expression rows must rejoin uniquely
 /// and agree with the computed operand — and at least one must be present.
 fn consume_pure_call_argument(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     bindings: &storage::ScalarBindings,
     state: symbols::SymbolHandle,
@@ -55,7 +56,8 @@ fn consume_pure_call_argument(
     argument_ordinal: u32,
     operand: &checked_trees::CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
-    let operand_expression = bindings.expression(&checked.facts.proven_scalar_indexes, operand)?;
+    let operand_expression =
+        bindings.expression(identities, &checked.facts.proven_scalar_indexes, operand)?;
     let plans = &checked.facts.values.scalar_expressions;
     let mut retained = false;
     for role in [
@@ -78,7 +80,9 @@ fn consume_pure_call_argument(
         if !present {
             continue;
         }
-        if bindings.expression_at(checked, state, statement, role)? != operand_expression {
+        if bindings.expression_at(identities, checked, state, statement, role)?
+            != operand_expression
+        {
             return unsupported("computed call operand disagrees with its retained pure argument");
         }
         retained = true;
@@ -93,6 +97,7 @@ fn consume_pure_call_argument(
 /// its retained actual produced a pure scalar plan, so a computation operand
 /// that is not a completed `Value` legitimately owns none.
 pub(crate) fn consume_pure_call_arguments(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     bindings: &storage::ScalarBindings,
     state: symbols::SymbolHandle,
@@ -143,13 +148,14 @@ pub(crate) fn consume_pure_call_arguments(
         let argument_ordinal = u32::try_from(argument_ordinal)
             .map_err(|_| LoweringError::Unsupported("scalar call argument ordinal exceeds u32"))?;
         consume_pure_call_argument(
+            identities,
             checked,
             bindings,
             state,
-            statement,
             binding_ordinal,
             *call_ordinal,
             argument_ordinal,
+            statement,
             operand,
         )?;
     }
@@ -160,6 +166,7 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source_call: Handle<checked_trees::FlowCallFact>,
         callee: &checked_trees::CheckedScalarCallee,
         call_ordinal: u32,
@@ -221,11 +228,12 @@ impl Expansion<'_> {
                     "computed structural arguments have a stale span",
                 ))?;
         let mut structural_arguments = structural_arguments::lower(
+            identities,
             self.checked,
             source_call,
-            target_machine,
             target_state,
             site.state,
+            target_machine,
             structural,
             site.bindings,
             &self.produced_values,
@@ -342,6 +350,7 @@ impl Expansion<'_> {
                     // would defer this read until the call, after later effects.
                     operands.push(Operand::Effect(LoweredScalarEffect::CopyStructuralValue {
                         source: site.bindings.structural_copy_source(
+                            identities,
                             actual.place,
                             &actual.path,
                             self.structural_types,
@@ -358,7 +367,9 @@ impl Expansion<'_> {
                     let value = match segment {
                         PreparedStructuralPathSegment::RuntimeIndex(
                             checked_trees::CheckedRuntimeIndex::StructuralField(field),
-                        ) => Some(Argument::Value(site.bindings.runtime_index_field(field)?)),
+                        ) => Some(Argument::Value(
+                            site.bindings.runtime_index_field(identities, field)?,
+                        )),
                         PreparedStructuralPathSegment::ComputedIndex(root) => {
                             Some(Argument::Computation(*root))
                         }
@@ -397,12 +408,12 @@ impl Expansion<'_> {
                 .clone();
             match operand {
                 Operand::Scalar(argument) => {
-                    let value_type = self.argument_type(argument, site, input_types)?;
+                    let value_type = self.argument_type(identities, argument, site, input_types)?;
                     scalar_actuals.push(parameter(prefix.len(), value_type));
                     prefix.push(value_type);
                 }
                 Operand::DispatchSelector(argument) => {
-                    let value_type = self.argument_type(argument, site, input_types)?;
+                    let value_type = self.argument_type(identities, argument, site, input_types)?;
                     selector_actual = Some(parameter(prefix.len(), value_type));
                     prefix.push(value_type);
                 }
@@ -413,7 +424,7 @@ impl Expansion<'_> {
                     structural_arguments[*structural_ordinal]
                         .selector_positions
                         .push(prefix.len());
-                    prefix.push(self.argument_type(value, site, input_types)?);
+                    prefix.push(self.argument_type(identities, value, site, input_types)?);
                 }
                 _ => {}
             }
@@ -429,6 +440,7 @@ impl Expansion<'_> {
         };
         let (_, caller_state) = crate::declarations::state_declaration(self.checked, site.state)?;
         let loan_completions = crate::emission::loan_completions::prepare(
+            identities,
             self.checked,
             self.machine,
             coordinate,
@@ -472,6 +484,7 @@ impl Expansion<'_> {
                     structural_arguments,
                     claim_transfers:
                         crate::emission::claim_bindings::prepare_checked_claim_transfers(
+                            identities,
                             self.checked,
                             &claim_transfers,
                             parameters,
@@ -492,12 +505,11 @@ impl Expansion<'_> {
                 )?,
                 arguments: scalar_actuals,
                 structural_arguments,
-                completion_receipts: crate::emission::claim_bindings::prepare_checked_claim_transfers(
-                    self.checked, &claim_transfers, parameters, self.structural_types,
-                )?,
+                completion_receipts: crate::emission::claim_bindings::prepare_checked_claim_transfers(identities, self.checked, &claim_transfers, parameters, self.structural_types)?,
             })
         } else {
             LoweredScalarBinding::DirectCall(lower_scalar_call(
+                identities,
                 self.checked,
                 self.qualifications,
                 self.machine,
@@ -529,6 +541,7 @@ impl Expansion<'_> {
         // or its borrowed access. Keep the scalar result and caller prefix live
         // across the exact normal continuation; a crashing call never reaches it.
         let discards = self.temporary_cleanup_actions(
+            identities,
             site.state,
             source_call,
             structural,
@@ -561,7 +574,7 @@ impl Expansion<'_> {
                 | Operand::DispatchSelector(argument)
                 | Operand::Selector {
                     value: argument, ..
-                } => self.argument(argument, prefix, continuation, site, active)?,
+                } => self.argument(identities, argument, prefix, continuation, site, active)?,
                 Operand::ByteLiteral(slot) => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),
@@ -576,9 +589,15 @@ impl Expansion<'_> {
                         super::parameters(prefix),
                     ),
                 }),
-                Operand::Range { argument, slot } => {
-                    self.subslice(argument, slot, prefix, continuation, site, active)?
-                }
+                Operand::Range { argument, slot } => self.subslice(
+                    identities,
+                    argument,
+                    slot,
+                    prefix,
+                    continuation,
+                    site,
+                    active,
+                )?,
                 Operand::Effect(effect) => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),
@@ -595,6 +614,7 @@ impl Expansion<'_> {
                     let values = &self.checked.facts.values.structural_values;
                     let prepared =
                         crate::scalar_lowering::branch_states::structural_values::prepare_value(
+                            identities,
                             self.checked,
                             self.qualifications,
                             site.state,
@@ -615,7 +635,14 @@ impl Expansion<'_> {
                             "computed value did not establish its reserved argument",
                         );
                     }
-                    prepared.finish(site.state, site.bindings, prefix, continuation, self)?
+                    prepared.finish(
+                        identities,
+                        site.state,
+                        site.bindings,
+                        prefix,
+                        continuation,
+                        self,
+                    )?
                 }
             };
         }
@@ -627,6 +654,7 @@ impl Expansion<'_> {
     /// exact source to storage and lowers the already selected subtree paths.
     fn temporary_cleanup_actions(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         state: symbols::SymbolHandle,
         source_call: Handle<checked_trees::FlowCallFact>,
         arguments: &[CheckedScalarComputationStructuralArgument],
@@ -682,9 +710,10 @@ impl Expansion<'_> {
                 .get(slot.root)
                 .expression;
             let claims = crate::emission::claim_bindings::prepare_claim_dispositions(
+                identities,
                 self.checked,
-                self.machine,
                 state,
+                self.machine,
                 language_semantics::PermissionEventSource::Call {
                     statement_index: call.statement_index,
                     call_ordinal: call.call_ordinal,
@@ -702,10 +731,17 @@ impl Expansion<'_> {
                     return unsupported("temporary cleanup names a different owner");
                 }
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    action.path(), slot.structural_type, self.structural_types,
-                    None, &mut std::iter::empty(), None,
+                    identities,
+                    action.path(
+            ),
+            slot.structural_type,
+            self.structural_types,
+                    None,
+                    &mut std::iter::empty(),
+                    None,
                 )?;
                 let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
+                    identities,
                     self.checked,
                     &self
                         .checked
@@ -715,20 +751,19 @@ impl Expansion<'_> {
                         .cleanup_control,
                     action.case_conditions(),
                     self.structural_types,
-                    |condition_path| {
-                        let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                            condition_path, slot.structural_type, self.structural_types,
-                            None, &mut std::iter::empty(), None,
-                        )?;
+                    |identities, condition_path| {
+                        let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, condition_path, slot.structural_type, self.structural_types, None, &mut std::iter::empty(), None)?;
                         Ok((slot.place, path))
                     },
                 )?;
                 let structural_type = terminal_psi::structural_type_by_identity(
                     self.structural_types,
-                    &self
-                        .checked
-                        .type_identity_text(action.type_identity())
-                        .unwrap_or_default(),
+                    identities.intern(
+                        &self
+                            .checked
+                            .type_identity_text(action.type_identity())
+                            .unwrap_or_default(),
+                    ),
                 )
                 .map(|declaration| declaration.id)
                 .ok_or(LoweringError::Unsupported(

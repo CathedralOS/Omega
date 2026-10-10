@@ -14,11 +14,7 @@ pub struct PackageReviewDataField {
     pub(crate) type_identity: PackageReviewTypeIdentity,
 }
 
-impl PackageReviewDataField {
-
-
-
-}
+impl PackageReviewDataField {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageReviewDataMember {
@@ -52,9 +48,7 @@ pub struct PackageReviewDataProperties {
     pub(crate) carry: Option<language_semantics::CarryPolicy>,
 }
 
-impl PackageReviewDataProperties {
-
-}
+impl PackageReviewDataProperties {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageReviewDataShape {

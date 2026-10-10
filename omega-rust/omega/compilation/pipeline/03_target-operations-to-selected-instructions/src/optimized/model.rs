@@ -80,13 +80,6 @@ pub struct StagedOptimizedSelectionCustodyReceipt {
 impl StagedOptimizedSelectionCustodyReceipt {
     crate::staging_custody_core_accessors!();
 
-
-
-
-
-
-
-
     pub const fn selected(self) -> SelectedInstructionPlanIdentity {
         self.selected
     }
@@ -98,7 +91,6 @@ impl StagedOptimizedSelectionCustodyReceipt {
     pub const fn legalization_validator(self) -> OptimizationValidatorIdentity {
         self.legalization_validator
     }
-
 
     pub const fn function_count(self) -> usize {
         self.function_count

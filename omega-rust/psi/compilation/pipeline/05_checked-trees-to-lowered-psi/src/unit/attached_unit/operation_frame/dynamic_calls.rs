@@ -18,6 +18,8 @@ use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult};
 impl OperationFrame<'_, '_> {
     pub(super) fn dynamic_call(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         call: &CheckedUnitCallPlan,
         interface_identity: &typed_trees::type_identity::TypeIdentityId,
         inputs: &CallInputs<'_>,
@@ -73,12 +75,14 @@ impl OperationFrame<'_, '_> {
             .earlier(structural_arguments, self.operations, self.evaluation)?
             .into_owned();
         let structural_arguments = self.lower_runtime_structural_arguments(
+            identities,
             structural_arguments,
             &earlier,
             inputs.byte_places,
             inputs.evaluated_selectors,
         )?;
         let prepared_claims = crate::emission::claim_bindings::prepare_checked_claim_transfers(
+            identities,
             self.checked,
             call.claim_transfers(),
             &slot_plan.structural_parameters,
@@ -120,7 +124,7 @@ impl OperationFrame<'_, '_> {
             },
         });
         match result {
-            Some(value) => self.bind_scalar_result(call.coordinate, value),
+            Some(value) => self.bind_scalar_result(identities, call.coordinate, value),
             None => Ok(()),
         }
     }

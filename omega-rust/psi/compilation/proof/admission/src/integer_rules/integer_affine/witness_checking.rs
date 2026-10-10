@@ -142,7 +142,6 @@ impl CheckedIntegerAffineForm {
     }
 }
 
-
 /// The degree-1/offset-0 form returned whenever the witness root meets a
 /// direct fixed-integer leaf pair: no axioms or endpoint steps are needed
 /// and the target is retained whole.

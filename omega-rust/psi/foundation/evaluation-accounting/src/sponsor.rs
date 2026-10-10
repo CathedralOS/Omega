@@ -219,8 +219,6 @@ impl BuildEvaluationSponsor {
         self.consumption().fuel_units
     }
 
-
-
     pub fn live_filesystem_handles(&self) -> u64 {
         self.consumption().live_filesystem_handles
     }

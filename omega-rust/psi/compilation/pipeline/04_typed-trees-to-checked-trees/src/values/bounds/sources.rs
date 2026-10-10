@@ -76,8 +76,7 @@ impl PlaceIntegerBounds<'_> {
                     .program
                     .primitive_type_reference(parameter.type_reference)
                     == Some(primitive_type)
-        }) && let Some((machine, state)) =
-            validation::find_state(self.program, self.state)
+        }) && let Some((machine, state)) = validation::find_state(self.program, self.state)
             && let Some((minimum, maximum)) =
                 validation::state_parameter_integer_interval(self.program, machine, state, symbol)
         {

@@ -53,14 +53,13 @@ fn proof_certified_exact_integer_multiply_by_zero_shapes(
 psi_rule_contract!(
     LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule,
     super::proof_check_elision_rule_contract(
-                b"omega.psi-rule.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1",
-                AnalysisSet::new([
-                    AnalysisKind::ScalarConstants,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-            ),
+        b"omega.psi-rule.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1",
+        AnalysisSet::new([
+            AnalysisKind::ScalarConstants,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+    ),
     propose = propose_proof_certified_scalar_identities,
     proof_certified_exact_integer_multiply_by_zero_shapes,
 );
-

@@ -869,18 +869,26 @@ fn receiver_layout(
     // names. Module-qualified and attached display spellings may legitimately
     // differ; the portable declaration identity binds the package and path.
     if checked_entry.source_signature_identity() != source.identity().bytes()
-        || checked_entry.declaration() != source.declaration()
+        || terminal
+            .identities
+            .text(checked_entry.declaration().identity())
+            != Some(source.declaration())
         || terminal
             .machine(terminal.entry)
             .and_then(|machine| machine.declaration.as_ref())
-            .is_none_or(|declaration| &declaration.machine != source.declaration())
+            .is_none_or(|declaration| {
+                terminal.identities.text(declaration.machine.identity())
+                    != Some(source.declaration())
+            })
         || checked_entry.terminal_entry() != terminal.entry
         || checked_entry.terminal_entry() != function.machine
         || checked_entry.terminal_psi_identity()
             != terminal_codec::terminal_psi_identity(terminal).map_err(|_| invalid())?
         || source.receiver().source_position() != Some(source_position)
         || source.receiver().normalized_type_identity()
-            != Some(eligibility.source_receiver_type_identity())
+            != terminal
+                .identities
+                .text(eligibility.source_receiver_type_identity())
     {
         return Err(invalid());
     }
@@ -947,7 +955,11 @@ fn receiver_layout(
         fields,
         source,
         receiver_identity,
-        &declaration.identity,
+        terminal
+            .identities
+            .text(declaration.identity)
+            .unwrap_or_default(),
+        &terminal.identities,
         ErasedRows {
             services,
             determined_evidence,
@@ -999,8 +1011,9 @@ fn validate_receiver_fields(
     source: &SelectedProgramEntrySignature,
     receiver_identity: &str,
     attachment_type_identity: &str,
+    identities: &terminal_psi::TerminalIdentityTable,
     rows: ErasedRows<'_>,
-    field_path: &mut Vec<String>,
+    field_path: &mut Vec<terminal_psi::TerminalIdentityIndex>,
     visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
     erased: &mut ErasedRowUse,
     invalid: &dyn Fn() -> Diagnostic,
@@ -1015,11 +1028,16 @@ fn validate_receiver_fields(
             // Retained service leaves require the same establishment as erased
             // ones. Never recurse into their zero-payload type as zero-valid data.
             let type_identity = service_carrier.ok_or_else(invalid)?;
-            field_path.push(field.identity.clone());
-            let mut matches = rows
-                .services
-                .iter()
-                .filter(|row| row.field_path() == field_path.as_slice());
+            field_path.push(field.identity);
+            let mut matches =
+                rows.services.iter().filter(|row| {
+                    row.field_path().len() == field_path.len()
+                        && row.field_path().iter().zip(field_path.iter()).all(
+                            |(segment, identity)| {
+                                identities.text(*identity) == Some(segment.as_str())
+                            },
+                        )
+                });
             let mut determined = rows
                 .determined_evidence
                 .iter()
@@ -1043,7 +1061,8 @@ fn validate_receiver_fields(
                         || row.target_slot() != source.target_slot()
                         || row.receiver_type_identity() != receiver_identity
                         || row.attachment_type_identity() != attachment_type_identity
-                        || row.carrier_type_identity() != type_identity =>
+                        || row.carrier_type_identity()
+                            != identities.text(type_identity).unwrap_or_default() =>
                 {
                     Err(invalid())
                 }
@@ -1108,13 +1127,14 @@ fn validate_receiver_fields(
                     match &nested_declaration.shape {
                         terminal_psi::record_or_mixed_shape_pattern!(nested_fields) => {
                             visiting.push(structural_type);
-                            field_path.push(field.identity.clone());
+                            field_path.push(field.identity);
                             let outcome = validate_receiver_fields(
                                 declarations,
                                 nested_fields,
                                 source,
                                 receiver_identity,
                                 attachment_type_identity,
+                                identities,
                                 rows,
                                 field_path,
                                 visiting,

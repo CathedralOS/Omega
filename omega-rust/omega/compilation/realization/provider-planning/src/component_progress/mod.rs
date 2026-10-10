@@ -243,9 +243,10 @@ fn owning_machine(
     program: &checked_trees::CheckedTrees,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::machine::Machine> {
-    program.machines().iter().find(|machine| {
-        program.machine_or_state_symbol(machine, symbol)
-    })
+    program
+        .machines()
+        .iter()
+        .find(|machine| program.machine_or_state_symbol(machine, symbol))
 }
 
 fn exact_boundary_requirement(

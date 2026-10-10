@@ -17,7 +17,7 @@
 //! the report-only compatibility fingerprint and `tests.rs` the layout
 //! tests.
 
-use crate::constants::{SECTION_COUNT};
+use crate::constants::SECTION_COUNT;
 mod abi_validation;
 mod candidates;
 mod compatibility_fingerprint;
@@ -31,7 +31,8 @@ pub(crate) use load_headers::public_section_kind;
 pub(crate) use load_headers::{
     ElfLoadImageMemoryPlacement, ElfLoadProgramHeader, ElfLoadProgramHeaderKind,
     ElfPlacedDynamicSection, ElfPlacedDynamicSectionKind, ElfResolvedSectionHeaderPlacement,
-    ElfSectionPlacementResolutionKind};
+    ElfSectionPlacementResolutionKind,
+};
 pub(crate) use validated_layout::{ElfDynamicLoadLayoutError, ValidatedElfDynamicLoadLayout};
 
 use crate::constants::IMAGE_BASE;
@@ -42,7 +43,6 @@ use crate::dynamic_executable::load_placement::load_layout::candidates::{
 };
 use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::non_authoritative_layout_compatibility_fingerprint;
 use crate::dynamic_executable::section_headers::relative_section_layout::ValidatedElfRelativeSectionPayloadLayout;
-
 
 const PLACEMENT_FIXUP_COUNT: usize = 25;
 

@@ -434,11 +434,13 @@ pub(super) fn narrow_environment_by_condition(
         );
         return;
     }
-    let Some(comparison) = meaning::guard_comparison(program, machine.symbol, condition, &|operand| {
-        crate::proof_contracts::bound_expression_meaning::operand_type(
-            program, machine, state, operand,
-        )
-    }) else {
+    let Some(comparison) =
+        meaning::guard_comparison(program, machine.symbol, condition, &|operand| {
+            crate::proof_contracts::bound_expression_meaning::operand_type(
+                program, machine, state, operand,
+            )
+        })
+    else {
         return;
     };
     narrow_environment_by_comparison(
@@ -1269,8 +1271,7 @@ impl EnsuresProjection<'_> {
                     projected_facts::has_fixed_integer_meaning(program, declared)
                 })
             })
-            .and_then(|state| ordered_values::operand(program, self.machine, state, place,
-        None));
+            .and_then(|state| ordered_values::operand(program, self.machine, state, place, None));
         Some(ProjectedOperand {
             operand,
             spelled: Some(spelled),
@@ -1288,8 +1289,7 @@ pub(crate) fn incoming_guard_environments(
     machine: &Machine,
     frames: Option<&crate::CallFrameResolver>,
 ) -> Vec<(symbols::SymbolHandle, ValueEnvironment)> {
-    let mut environments = arrivals::incoming_environments(program, machine, frames,
-        None);
+    let mut environments = arrivals::incoming_environments(program, machine, frames, None);
     for (state, (_, environment)) in program
         .machine_states(machine)
         .iter()
@@ -1307,8 +1307,7 @@ pub(crate) fn incoming_guard_environment(
     state: &State,
     frames: Option<&crate::CallFrameResolver>,
 ) -> ValueEnvironment {
-    let mut environment = arrivals::incoming_environments(program, machine, frames,
-        None)
+    let mut environment = arrivals::incoming_environments(program, machine, frames, None)
         .into_iter()
         .find_map(|(symbol, environment)| (symbol == state.symbol).then_some(environment))
         .unwrap_or_default();

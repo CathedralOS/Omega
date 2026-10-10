@@ -28,8 +28,7 @@ pub(super) fn value(
 ) -> Option<CheckedCallScalarArgument> {
     let role = CheckedScalarExpressionRole::StorageInitializer;
     let computations = &facts.values.scalar_computations;
-    let mut roots =
-        computations.roots_for_statement_role(state.symbol, statement_index, role);
+    let mut roots = computations.roots_for_statement_role(state.symbol, statement_index, role);
     if let Some(root) = roots.next() {
         trace.phase(
             "statement sequence: local data: mutable primitive local: computation initializer",

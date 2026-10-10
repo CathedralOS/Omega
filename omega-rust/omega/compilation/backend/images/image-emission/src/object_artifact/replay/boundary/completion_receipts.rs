@@ -24,10 +24,11 @@ pub(crate) enum CompletionCustodyError {
 /// expose distinct public error enums with established precedence.
 pub(crate) fn validate_completion_custody(
     settlement: &BoundarySettlementRecord,
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<(), CompletionCustodyError> {
     if settlement.arguments.iter().any(|argument| {
         argument.path.iter().any(
-            |segment| matches!(segment, StructuralPathSegment::Field(identity) if identity.is_empty()),
+            |segment| matches!(segment, StructuralPathSegment::Field(identity) if *identity == terminal_psi::TerminalIdentityIndex::ABSENT),
         )
     }) {
         return Err(CompletionCustodyError::ArgumentPath);
@@ -39,6 +40,7 @@ pub(crate) fn validate_completion_custody(
         return Err(CompletionCustodyError::ReceiptArgumentIndex);
     }
     if !completion_receipts_have_exact_custody(
+        identities,
         &settlement.arguments,
         &settlement.completion_claim_sources,
         &settlement.completion_receipts,
@@ -97,6 +99,7 @@ pub(crate) fn validate_completion_custody(
 /// Replay the verifier's exact claim-source matching, claim uniqueness, and
 /// canonical receipt ordering after the verified module has been discarded.
 pub fn completion_receipts_have_exact_custody(
+    identities: &terminal_psi::TerminalIdentityTable,
     arguments: &[StructuralArgument],
     sources: &[CompletionClaimSource],
     receipts: &[CompletionReceipt],
@@ -104,7 +107,7 @@ pub fn completion_receipts_have_exact_custody(
     let mut source_claims = BTreeSet::<ClaimId>::new();
     if sources.windows(2).any(|pair| pair[0] >= pair[1])
         || sources.iter().any(|source| {
-            !source_claims.insert(source.claim()) || !claim_source_is_canonical(source)
+            !source_claims.insert(source.claim()) || !claim_source_is_canonical(source, identities)
         })
     {
         return false;
@@ -137,11 +140,14 @@ pub fn completion_receipts_have_exact_custody(
         && actual == expected
 }
 
-fn claim_source_is_canonical(source: &CompletionClaimSource) -> bool {
+fn claim_source_is_canonical(
+    source: &CompletionClaimSource,
+    identities: &terminal_psi::TerminalIdentityTable,
+) -> bool {
     let entry_is_canonical = source.entry.as_ref().is_none_or(|entry| {
         entry.claim == source.claim
             && entry.path.iter().all(|segment| {
-            !matches!(segment, StructuralPathSegment::Field(identity) if identity.is_empty())
+            !matches!(segment, StructuralPathSegment::Field(identity) if *identity == terminal_psi::TerminalIdentityIndex::ABSENT)
         })
     });
     let content_is_canonical = source.content.as_ref().is_none_or(|content| {
@@ -175,7 +181,7 @@ fn claim_source_is_canonical(source: &CompletionClaimSource) -> bool {
                             (
                                 StructuralPathSegment::Field(entry),
                                 ContentPlaceSegment::Field(content),
-                            ) => entry == content,
+                            ) => identities.text(*entry) == Some(content.as_str()),
                             (
                                 StructuralPathSegment::FixedIndex(entry),
                                 ContentPlaceSegment::FixedIndex(content),
@@ -274,34 +280,45 @@ mod tests {
 
     #[test]
     fn exact_completion_receipt_custody_replays_the_claim_catalog() {
-        assert!(completion_receipts_have_exact_custody(&[], &[], &[]));
         assert!(completion_receipts_have_exact_custody(
+            &Default::default(),
+            &[],
+            &[],
+            &[]
+        ));
+        assert!(completion_receipts_have_exact_custody(
+            &Default::default(),
             &[argument(1)],
             &[source(1, 1)],
             &[receipt(1, 0)],
         ));
         assert!(completion_receipts_have_exact_custody(
+            &Default::default(),
             &[argument(1), argument(2),],
             &[source(1, 2), source(2, 1),],
             &[receipt(1, 1), receipt(2, 0)]
         ));
 
         assert!(!completion_receipts_have_exact_custody(
+            &Default::default(),
             &[argument(1), argument(2),],
             &[source(1, 2), source(2, 1)],
             &[receipt(2, 0), receipt(1, 1)]
         ));
         assert!(!completion_receipts_have_exact_custody(
+            &Default::default(),
             &[argument(1), argument(2)],
             &[source(1, 1)],
             &[receipt(1, 0), receipt(1, 1)],
         ));
         assert!(!completion_receipts_have_exact_custody(
+            &Default::default(),
             &[argument(1)],
             &[source(1, 1)],
             &[receipt(1, 0), receipt(1, 0)],
         ));
         assert!(!completion_receipts_have_exact_custody(
+            &Default::default(),
             &[argument(1)],
             &[source(1, 1)],
             &[],
@@ -315,6 +332,7 @@ mod tests {
         let mut entry_projection = source(1, 1);
         entry_projection.entry.as_mut().unwrap().path = vec![StructuralPathSegment::FixedIndex(1)];
         assert!(!completion_receipts_have_exact_custody(
+            &Default::default(),
             std::slice::from_ref(&projected),
             &[entry_projection],
             &[receipt(1, 0)],
@@ -343,6 +361,7 @@ mod tests {
             }),
         };
         assert!(completion_receipts_have_exact_custody(
+            &Default::default(),
             &[projected],
             std::slice::from_ref(&content_root),
             &[receipt(1, 0)],
@@ -355,12 +374,14 @@ mod tests {
             path: vec![StructuralPathSegment::FixedIndex(1)],
         });
         assert!(completion_receipts_have_exact_custody(
+            &Default::default(),
             &[argument(1)],
             std::slice::from_ref(&combined),
             &[receipt(1, 0)],
         ));
         combined.content.as_mut().unwrap().input.segments[0] = ContentPlaceSegment::FixedIndex(2);
         assert!(!completion_receipts_have_exact_custody(
+            &Default::default(),
             &[argument(1)],
             &[combined],
             &[receipt(1, 0)],
@@ -370,27 +391,32 @@ mod tests {
     #[test]
     fn complete_custody_replay_preserves_validation_precedence() {
         let valid = settlement(vec![argument(1)], vec![source(1, 1)], vec![receipt(1, 0)]);
-        assert_eq!(validate_completion_custody(&valid), Ok(()));
+        assert_eq!(
+            validate_completion_custody(&valid, &Default::default()),
+            Ok(())
+        );
 
         let mut invalid_argument = valid.clone();
-        invalid_argument.arguments[0].path = vec![StructuralPathSegment::Field(String::new())];
+        invalid_argument.arguments[0].path = vec![StructuralPathSegment::Field(
+            terminal_psi::TerminalIdentityIndex(0),
+        )];
         invalid_argument.completion_receipts[0].argument_index = 2;
         assert_eq!(
-            validate_completion_custody(&invalid_argument),
+            validate_completion_custody(&invalid_argument, &Default::default()),
             Err(CompletionCustodyError::ArgumentPath)
         );
 
         let mut invalid_index = valid.clone();
         invalid_index.completion_receipts[0].argument_index = 2;
         assert_eq!(
-            validate_completion_custody(&invalid_index),
+            validate_completion_custody(&invalid_index, &Default::default()),
             Err(CompletionCustodyError::ReceiptArgumentIndex)
         );
 
         let mut invalid_receipt = valid.clone();
         invalid_receipt.completion_receipts[0].claim = ClaimId::new(2).expect("other claim");
         assert_eq!(
-            validate_completion_custody(&invalid_receipt),
+            validate_completion_custody(&invalid_receipt, &Default::default()),
             Err(CompletionCustodyError::ReceiptCustody)
         );
 
@@ -399,7 +425,7 @@ mod tests {
             .provider_execution
             .provider_plan_report_identity = 9;
         assert_eq!(
-            validate_completion_custody(&invalid_provider),
+            validate_completion_custody(&invalid_provider, &Default::default()),
             Err(CompletionCustodyError::ProviderCustody)
         );
 
@@ -408,20 +434,23 @@ mod tests {
             target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
         );
         assert_eq!(
-            validate_completion_custody(&role_substitution),
+            validate_completion_custody(&role_substitution, &Default::default()),
             Err(CompletionCustodyError::ProviderCustody)
         );
 
         let mut provider_output = settlement(Vec::new(), Vec::new(), Vec::new());
         provider_output.realization =
             target_operations::BoundaryRealization::HostedWriteByteI32(Default::default());
-        assert_eq!(validate_completion_custody(&provider_output), Ok(()));
+        assert_eq!(
+            validate_completion_custody(&provider_output, &Default::default()),
+            Ok(())
+        );
 
         let mut reverse_role_substitution = provider_output;
         reverse_role_substitution.realization =
             target_operations::BoundaryRealization::HostedExitProcessI32(Default::default());
         assert_eq!(
-            validate_completion_custody(&reverse_role_substitution),
+            validate_completion_custody(&reverse_role_substitution, &Default::default()),
             Err(CompletionCustodyError::ProviderCustody)
         );
     }

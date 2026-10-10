@@ -4,10 +4,10 @@
 //! one plan, independent from the aggregate machine-contract carrier.
 
 use language_semantics::MachineTerminationPlan;
-use symbols::SymbolHandle;
-use typed_trees::type_identity::TypeIdentityId;
-use typed_trees::type_identity::CallableIdentityId;
 use language_semantics::SemanticDomainId;
+use symbols::SymbolHandle;
+use typed_trees::type_identity::CallableIdentityId;
+use typed_trees::type_identity::TypeIdentityId;
 
 mod arrival_correspondence;
 pub use arrival_correspondence::{

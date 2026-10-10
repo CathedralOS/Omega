@@ -204,4 +204,3 @@ pub fn bitwise_and_constants(
         Some(value)
     }
 }
-

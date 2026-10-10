@@ -261,11 +261,11 @@ pub(super) fn field_store(
                 validation::field_domains::domain_constraint_symbols(program, result_type);
             if program.type_multiplicity(result_type) != Multiplicity::Unrestricted
                 || !validation::has_contents(
-        program,
-        result_type,
-        &[],
-        validation::ContentsRequirement::RepresentedOwned
-    )
+                    program,
+                    result_type,
+                    &[],
+                    validation::ContentsRequirement::RepresentedOwned,
+                )
                 || !matches!(
                     program.expression_table.expression(assignment.value),
                     ExpressionNode::Call(_)
@@ -491,11 +491,11 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                 if structural_access_for_type_reference(program, local.type_reference)
                     != Some(CheckedStructuralAccess::Owned)
                     || !validation::has_contents(
-        program,
-        local.type_reference,
-        &[],
-        validation::ContentsRequirement::RepresentedOwned
-    )
+                        program,
+                        local.type_reference,
+                        &[],
+                        validation::ContentsRequirement::RepresentedOwned,
+                    )
                 {
                     return None;
                 }

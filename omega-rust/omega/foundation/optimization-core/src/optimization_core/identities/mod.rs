@@ -1,7 +1,6 @@
 //! Optimizer module role: stage group. Canonical, domain-separated optimization identities.
 //! Shared digest framing routes into rule/fact, stage, artifact, decision, and bundle ownership.
 
-
 const IDENTITY_WIDTH: usize = 32;
 
 fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
@@ -102,8 +101,7 @@ pub use artifacts::{
     OptimizedTerminalOrdinaryCallableEntryIdentity, RelocationFreeObjectContainerIdentity,
     RelocationFreeObjectPlanIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
-pub use bundle::{ OptimizationIdentityBundle, OptimizationIdentityBundleIdentity,
-};
+pub use bundle::{OptimizationIdentityBundle, OptimizationIdentityBundleIdentity};
 pub use decisions::{
     OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
@@ -112,10 +110,9 @@ pub use decisions::{
 };
 pub(crate) use error::IdentityDecodeError;
 pub use rules_and_facts::{
-    AcceptedObligationFactIdentity,
-    OptimizationCandidateIdentity, OptimizationPassIdentity, OptimizationRuleIdentity,
-    OptimizationRuleSetIdentity, OwnershipFrontierFactIdentity, ProofQuestionIdentity,
-    ScalarConstantFactIdentity, ValueRangeFactIdentity,
+    AcceptedObligationFactIdentity, OptimizationCandidateIdentity, OptimizationPassIdentity,
+    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OwnershipFrontierFactIdentity,
+    ProofQuestionIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 pub use stages::{
     FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,

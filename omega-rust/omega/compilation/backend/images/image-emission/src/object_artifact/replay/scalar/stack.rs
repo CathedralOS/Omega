@@ -17,10 +17,10 @@ use target_operations::TerminalPsiProvenance;
 
 use super::super::unit::stack::aarch64_stack_adjustment_at;
 use super::call_stack::scalar_call_stack_at;
-use super::stack_mutation::claimed_mutations_and_call_sites;
 use super::conditional_stack::validate_conditional_tree_scalar_stack;
 use super::division_stack::validate_linear_scalar_division_stack;
 use super::shared_convergence::validate_boolean_shared_convergence_stack;
+use super::stack_mutation::claimed_mutations_and_call_sites;
 use super::stack_mutation::{
     aarch64_control_flow_instruction, aarch64_unsupported_sp_write, replay_scalar_mutation,
     validate_aarch64_scalar_mutation, validate_x86_scalar_mutation,
@@ -150,13 +150,8 @@ pub(crate) fn validate_scalar_stack(
     {
         return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
     }
-    let (mut claimed, mut call_sites) = claimed_mutations_and_call_sites(
-        architecture,
-        machine,
-        bytes,
-        evidence,
-        calls,
-    )?;
+    let (mut claimed, mut call_sites) =
+        claimed_mutations_and_call_sites(architecture, machine, bytes, evidence, calls)?;
     let mut validated_calls = Vec::with_capacity(calls.len());
     let mut depth = 0_u32;
     let mut peak = 0_u32;

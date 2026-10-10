@@ -162,10 +162,7 @@ fn application_satisfied(
 ) -> bool {
     let carried: Vec<String> = type_arguments
         .iter()
-        .map(|argument| {
-            typed
-                .package_qualified_type_identity_text(*argument)
-        })
+        .map(|argument| typed.package_qualified_type_identity_text(*argument))
         .collect();
     carried == demanded.type_argument_identities
         && first_occurrence_normalized(lifetime_arguments) == demanded.lifetime_arguments

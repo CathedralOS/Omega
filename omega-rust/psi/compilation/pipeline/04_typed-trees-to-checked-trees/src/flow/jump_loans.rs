@@ -52,11 +52,11 @@ fn loan_parameters<'program>(
         .iter()
         .filter_map(|parameter| {
             (!validation::has_contents(
-        program,
-        parameter.type_reference,
-        &[],
-        validation::ContentsRequirement::NumericOwned
-    ))
+                program,
+                parameter.type_reference,
+                &[],
+                validation::ContentsRequirement::NumericOwned,
+            ))
             .then_some(parameter.symbol)
         })
 }

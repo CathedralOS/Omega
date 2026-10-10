@@ -6,7 +6,8 @@ mod model;
 mod service_establishment;
 
 pub use model::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError, ValidatedNativeProgramEntrySettlement,
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
+    ValidatedNativeProgramEntrySettlement,
 };
 
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
@@ -35,10 +36,14 @@ pub fn validate_native_program_entry_settlement(
     }
     // The source owner closes arena coordinates into exact package/toolchain
     // declaration identity. Display names alone cannot distinguish packages.
-    if checked_entry.declaration() != program_entry.source.declaration() {
+    let module = artifact.semantic_module();
+    if module
+        .identities
+        .text(checked_entry.declaration().identity())
+        != Some(program_entry.source.declaration())
+    {
         return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
-    let module = artifact.semantic_module();
     let psi = terminal_codec::terminal_psi_identity(module).map_err(|error| {
         NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
     })?;
@@ -61,7 +66,7 @@ pub fn validate_native_program_entry_settlement(
     if module
         .machine(checked_entry.terminal_entry())
         .and_then(|machine| machine.declaration.as_ref())
-        .is_none_or(|declaration| &declaration.machine != checked_entry.declaration())
+        .is_none_or(|declaration| declaration.machine != *checked_entry.declaration())
     {
         return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
@@ -104,9 +109,15 @@ fn validate_receiver_eligibility(
                 establishments
                     .iter()
                     .filter(|row| {
-                        row.field_identity() == field.field_identity()
-                            && row.field_path() == field.field_path()
-                            && row.carrier_type_identity() == field.carrier_type_identity()
+                        module.identities.text(field.field_identity()) == Some(row.field_identity())
+                            && row.field_path().iter().zip(field.field_path()).all(
+                                |(row_segment, field_segment)| {
+                                    module.identities.text(*field_segment)
+                                        == Some(row_segment.as_str())
+                                },
+                            )
+                            && module.identities.text(field.carrier_type_identity())
+                                == Some(row.carrier_type_identity())
                     })
                     .count()
                     != 1
@@ -130,7 +141,9 @@ fn validate_receiver_eligibility(
                 .attachment
                 .is_some_and(|attachment| attachment != eligibility.terminal_receiver_type())
             || program_entry.source.receiver().normalized_type_identity()
-                != Some(eligibility.source_receiver_type_identity())
+                != module
+                    .identities
+                    .text(eligibility.source_receiver_type_identity())
         {
             return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
         }

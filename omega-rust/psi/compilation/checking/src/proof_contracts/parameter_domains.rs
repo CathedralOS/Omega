@@ -8,7 +8,6 @@ use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
-
 /// Read the required parameter after one simultaneous application. A selected
 /// actual belongs to the caller's scope, so the callee's tuple is not applied
 /// again inside it. Qualifications outside and inside that selection both stay

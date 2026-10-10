@@ -44,16 +44,16 @@ pub(in crate::optimization_unit::identity) fn encode_crash_route_bucket(
 }
 
 fn encode_evidence_interface(bytes: &mut CanonicalBytes, interface: &EvidenceInterfaceIdentity) {
-    bytes.string(&interface.trait_identity);
+    bytes.u32(interface.trait_identity.0);
     bytes.slice(&interface.arguments, |bytes, argument| {
         bytes.string(argument)
     });
     bytes.slice(&interface.requirements, |bytes, requirement| {
-        bytes.string(&requirement.declaring_trait_identity);
+        bytes.u32(requirement.declaring_trait_identity.0);
         bytes.slice(&requirement.declaring_trait_arguments, |bytes, argument| {
             bytes.string(argument)
         });
-        bytes.string(&requirement.requirement_identity);
+        bytes.u32(requirement.requirement_identity.0);
     });
 }
 

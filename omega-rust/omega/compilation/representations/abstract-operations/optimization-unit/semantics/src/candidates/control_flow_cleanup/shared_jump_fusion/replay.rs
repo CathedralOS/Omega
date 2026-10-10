@@ -75,7 +75,8 @@ pub(super) fn validate(
         || !matches!(terminal.provenance.first(), Some(PsiProvenance::Edge(_)))
         || !matches!(
             terminal.operation,
-            abstract_operations::return_or_return_unit_pattern!() | abstract_operations::return_structural_or_crash_pattern!()
+            abstract_operations::return_or_return_unit_pattern!()
+                | abstract_operations::return_structural_or_crash_pattern!()
         )
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);

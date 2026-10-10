@@ -81,8 +81,8 @@ pub(crate) fn record_boolean_assignment(
     if primitive != Some(PrimitiveType::Bool) {
         return;
     }
-    let Some(binding) = super::ordered_values::operand(program, machine, state, target,
-        None) else {
+    let Some(binding) = super::ordered_values::operand(program, machine, state, target, None)
+    else {
         return;
     };
     record_binding(
@@ -156,10 +156,9 @@ pub(super) fn select(
     {
         return false;
     }
-    let Some(binding) =
-        state.and_then(|state| super::ordered_values::operand(program, machine, state, expression,
-        None))
-    else {
+    let Some(binding) = state.and_then(|state| {
+        super::ordered_values::operand(program, machine, state, expression, None)
+    }) else {
         return false;
     };
     let Some(value) = environment

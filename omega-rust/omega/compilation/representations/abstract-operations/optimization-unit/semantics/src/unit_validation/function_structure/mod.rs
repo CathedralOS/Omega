@@ -80,8 +80,12 @@ pub(crate) fn validate_function(
             OptimizationUnitValidationError::InvalidFunctionServiceCeiling(function.machine),
         );
     }
-    let (byte_sequence_literals, trivial_affine_locals) =
-        validate_function_structural_catalog(function, structural_types, structural_domains)?;
+    let (byte_sequence_literals, trivial_affine_locals) = validate_function_structural_catalog(
+        function,
+        &unit.identities,
+        structural_types,
+        structural_domains,
+    )?;
     validate_provider_attachment_specialization(function, boundary_machines, structural_types)?;
     structural_roots::validate_structural_root_uniqueness(function)?;
 

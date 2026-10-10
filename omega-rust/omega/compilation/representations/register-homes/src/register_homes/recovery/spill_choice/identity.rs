@@ -41,10 +41,16 @@ pub(crate) fn encode_terminal_spill_choice_content(plan: &SpillChoicePlan) -> Ve
                 "spill-choice identity",
             );
             for resident in &choice.active_residents {
-                crate::codec_bytes::push_encoded(&mut bytes, resident.virtual_register.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    resident.virtual_register.0.to_le_bytes(),
+                );
                 crate::codec_bytes::push_encoded(&mut bytes, resident.class.0.to_le_bytes());
                 crate::codec_bytes::push_encoded(&mut bytes, resident.start.0.to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, resident.exclusive_end.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    resident.exclusive_end.0.to_le_bytes(),
+                );
                 crate::codec_bytes::push_encoded(&mut bytes, resident.view.0.to_le_bytes());
             }
             crate::codec_bytes::length(
@@ -53,8 +59,14 @@ pub(crate) fn encode_terminal_spill_choice_content(plan: &SpillChoicePlan) -> Ve
                 "spill-choice identity",
             );
             for contender in &choice.contenders {
-                crate::codec_bytes::push_encoded(&mut bytes, contender.virtual_register.0.to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, contender.exclusive_end.0.to_le_bytes());
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    contender.virtual_register.0.to_le_bytes(),
+                );
+                crate::codec_bytes::push_encoded(
+                    &mut bytes,
+                    contender.exclusive_end.0.to_le_bytes(),
+                );
                 crate::codec_bytes::option(&mut bytes, contender.reclaimed_view, |bytes, view| {
                     crate::codec_bytes::push_encoded(bytes, view.0.to_le_bytes());
                 });
@@ -110,9 +122,7 @@ mod tests {
         use semantic_vocabulary::MachineId;
 
         use super::super::SpillChoiceDecodeError;
-        use crate::{
-            FunctionSpillChoices, PressureContender, PressureResident, SpillChoice,
-        };
+        use crate::{FunctionSpillChoices, PressureContender, PressureResident, SpillChoice};
 
         let plan = SpillChoicePlan {
             legality: AllocationLegalityIdentity::from_bytes([1; 32]),

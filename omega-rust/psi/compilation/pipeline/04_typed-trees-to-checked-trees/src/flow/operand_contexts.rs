@@ -114,19 +114,19 @@ pub(crate) fn operand_binds_stable_copy(
             TypeReferenceNode::Named { .. } => {
                 return program.primitive_type_reference(reference).is_some()
                     || validation::has_contents(
-        program,
-        reference,
-        &[],
-        validation::ContentsRequirement::StableObservation
-    );
+                        program,
+                        reference,
+                        &[],
+                        validation::ContentsRequirement::StableObservation,
+                    );
             }
             TypeReferenceNode::Generic { .. } | TypeReferenceNode::FixedArray { .. } => {
                 return validation::has_contents(
-        program,
-        reference,
-        &[],
-        validation::ContentsRequirement::StableObservation
-    );
+                    program,
+                    reference,
+                    &[],
+                    validation::ContentsRequirement::StableObservation,
+                );
             }
             _ => return false,
         }

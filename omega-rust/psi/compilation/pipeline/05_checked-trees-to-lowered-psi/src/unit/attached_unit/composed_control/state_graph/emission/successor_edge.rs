@@ -31,6 +31,8 @@ impl StateGraphEmission<'_, '_> {
     /// them after selection), and record the target's arrival and rank.
     pub(super) fn successor_edge(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         frame: &SuccessorFrame<'_>,
         emitted: &mut EmittedState<'_>,
         edge: &CheckedStructuralControlSuccessorPlan,
@@ -214,6 +216,7 @@ impl StateGraphEmission<'_, '_> {
                                 .chain(std::iter::once(establishment.as_ref()))
                                 .cloned().collect::<Vec<_>>();
                             let emitted = super::super::super::emission::emit_call_operations(
+                                identities,
                                 checked,
                                 plan.machine,
                                 state,
@@ -258,11 +261,7 @@ impl StateGraphEmission<'_, '_> {
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ViewSubslice(_) => {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                            let emitted = subslices::emit(
-                                checked, state, edge.statement_ordinal, &transfer.source,
-                                state_parameters, &mut edge_evaluation, destination, bindings, &mut edge_values,
-                                next_value, next_block, next_edge, operations, self.catalogs, &mut self.structural_places,
-                            )?;
+                            let emitted = subslices::emit(identities, checked, state, edge.statement_ordinal, &transfer.source, state_parameters, &mut edge_evaluation, destination, bindings, &mut edge_values, next_value, next_block, next_edge, operations, self.catalogs, &mut self.structural_places)?;
                             self.structural_places.push(emitted);
                             destination
                         }
@@ -292,6 +291,7 @@ impl StateGraphEmission<'_, '_> {
                             // receiving verifier still requires live membership
                             // on the edge that borrows its payload.
                             let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                                identities,
                                 &subject.path,
                                 root_type,
                                 &self.catalogs.structural_types,
@@ -333,11 +333,7 @@ impl StateGraphEmission<'_, '_> {
                                 );
                             }
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                            self.structural_places.push(case_leaf_copy::emit(
-                                &self.catalogs.structural_types, source, root_type, &subject.path,
-                                &case_identity.spelling(), &field_identity.spelling(), path,
-                                target_parameter, destination, operations,
-                            )?);
+                            self.structural_places.push(case_leaf_copy::emit(identities, &self.catalogs.structural_types, source, root_type, &subject.path, &field_identity.spelling(), &case_identity.spelling(), path, target_parameter, destination, operations)?);
                             destination
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
@@ -414,16 +410,16 @@ impl StateGraphEmission<'_, '_> {
                                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                                     binding_ordinal,
                                 } => {
-                                    let result = case_emission::result(state, binding_ordinal, operations)?;
+                                    let result = case_emission::result(
+            state, binding_ordinal, operations)?;
                                     (result.place(), result.structural_type())
                                 },
-                                _ => return unsupported("Unit graph projected value has no established root"),
+                                _ => return unsupported(
+            "Unit graph projected value has no established root"),
                             };
-                            let source = edge_evaluation.current_structural_place(source);
-                            let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                                &subject.path, root_type, &self.catalogs.structural_types,
-                                None, &mut std::iter::empty(), None,
-                            )?;
+                            let source = edge_evaluation.current_structural_place(
+            source);
+                            let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, &subject.path, root_type, &self.catalogs.structural_types, None, &mut std::iter::empty(), None)?;
                             if target_parameter.multiplicity != language_semantics::Multiplicity::Unrestricted {
                                 argument_path = path;
                                 source
@@ -659,6 +655,7 @@ impl StateGraphEmission<'_, '_> {
             let expression = match transfer.source {
                 checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => {
                     bindings.expression(
+                        identities,
                         &checked.facts.proven_scalar_indexes,
                         &CheckedScalarExpression::Parameter {
                             position: index as usize,
@@ -670,9 +667,10 @@ impl StateGraphEmission<'_, '_> {
                     let value = scalars::successor_value(checked, state, edge, transfer)?;
                     let mut calls = self.catalogs.scalar_calls.emission_context();
                     let value = edge_evaluation.source_value(
+                        identities,
                         checked,
-                        owner,
                         state.state,
+                        owner,
                         edge.statement_ordinal,
                         CheckedScalarExpressionRole::TransitionArgument {
                             argument_ordinal: transfer.argument_ordinal,
@@ -720,6 +718,7 @@ impl StateGraphEmission<'_, '_> {
         let exit =
             super::super::cleanup::coordinate(state, edge.statement_ordinal as usize, false)?;
         let mut cleanup_regions = super::super::cleanup::for_exit_regions(
+            identities,
             self.checked,
             state,
             exit,
@@ -768,6 +767,7 @@ impl StateGraphEmission<'_, '_> {
             .iter()
             .map(|argument| {
                 let expression = bindings.expression_at(
+                    identities,
                     checked,
                     state.state,
                     edge.statement_ordinal,
@@ -790,6 +790,7 @@ impl StateGraphEmission<'_, '_> {
             .iter()
             .map(|term| {
                 crate::scalar_lowering::contracts::checked_proof_term(
+                    identities,
                     checked,
                     term,
                     &self.state_erased_proof[position],
@@ -885,6 +886,7 @@ impl StateGraphEmission<'_, '_> {
             )?;
             let mut calls = self.catalogs.scalar_calls.emission_context();
             let observed = edge_evaluation.retained_observation(
+                identities,
                 checked,
                 root,
                 &bindings,
@@ -912,6 +914,7 @@ impl StateGraphEmission<'_, '_> {
             .any(|region| !region.conditions.is_empty())
         {
             edge_evaluation.capture_cleanup_arguments(
+                identities,
                 self.checked,
                 &mut structural_arguments,
                 &capture_parameters,
@@ -925,6 +928,7 @@ impl StateGraphEmission<'_, '_> {
             )?;
         }
         let cleanup_actions = edge_evaluation.emit_cleanup_regions(
+            identities,
             self.checked,
             cleanup_regions,
             &mut edge_values,
@@ -980,6 +984,7 @@ impl StateGraphEmission<'_, '_> {
                 erased_scalar_formals: self.state_erased[position].clone(),
                 erased_proof_formals:
                     crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                        identities,
                         self.checked,
                         &self.state_erased_proof[position],
                     ),

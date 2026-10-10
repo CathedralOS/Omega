@@ -2,10 +2,10 @@ use super::{integer_signature, strict_x86_entry};
 use crate::plans::{
     BoundaryPlanDiagnostic, BoundaryPlanResult, CallSignature, CallingPolicy,
     CallingPolicyRejection, EntryStack, MachineRegime, MachineRegister, MachineState,
-    MachineStateSet, Preemption, RegisterSet, StateFootprintEvidence,
-    StatePlan, SystemVEightbyteClass, ValueShape, encode_state_plan_identity,
-evaluate_ordinary_boundary_entry_plan,
-    validate_boundary_entry_plan, validate_boundary_plan_result,
+    MachineStateSet, Preemption, RegisterSet, StateFootprintEvidence, StatePlan,
+    SystemVEightbyteClass, ValueShape, encode_state_plan_identity,
+    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
+    validate_boundary_plan_result,
 };
 
 #[test]
@@ -37,8 +37,6 @@ fn ordinary_firmware_entry_has_no_interrupted_state_obligation() {
             .contains_all(MachineStateSet::new([MachineState::Flags]))
     );
 }
-
-
 
 #[test]
 fn boundary_entry_validation_rejects_unsaved_permitted_state() {
@@ -73,7 +71,6 @@ fn emitted_evidence_is_firewalled_from_contract_identity() {
     );
     assert_eq!(identity, validated.contract_report_fingerprint());
 }
-
 
 #[test]
 fn evaluated_state_plan_changes_contract_identity() {

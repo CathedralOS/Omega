@@ -224,11 +224,8 @@ fn visit_destination_trees(
                     ),
                 );
             }
-            crate::expression_traversal::visit_pre_order(
-                program,
-                pending,
-                |expression, node| {
-                    match node {
+            crate::expression_traversal::visit_pre_order(program, pending, |expression, node| {
+                match node {
                         ExpressionNode::StructLiteral(literal) => {
                             for field in program.expression_table.struct_fields(literal.fields) {
                                 if let Some(destination) = crate::value_custody::struct_literals::selected_construction_field_type(program, literal, field.field_symbol) {
@@ -278,9 +275,8 @@ fn visit_destination_trees(
                         }
                         _ => {}
                     }
-                    false
-                },
-            );
+                false
+            });
         }
     }
 }

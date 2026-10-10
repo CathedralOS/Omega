@@ -301,7 +301,6 @@ impl AppliedLoopInvariantScalarMotion {
     ) {
         (self.session, self.candidate, self.ledger)
     }
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

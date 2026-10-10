@@ -31,7 +31,8 @@ pub(super) fn evaluate(
         abstract_operations::boolean_not_or_equal_pair_pattern!(..) => {
             boolean_literals::evaluate(function, node, candidate)
         }
-        abstract_operations::integer_equal_less_pair_pattern!(..) | O::IntegerLessOrEqual { .. } => {
+        abstract_operations::integer_equal_less_pair_pattern!(..)
+        | O::IntegerLessOrEqual { .. } => {
             integer_comparisons::evaluate(input, function, node, candidate, location)
         }
         _ => Err(OptimizationUnitValidationError::CandidatePatchMismatch),

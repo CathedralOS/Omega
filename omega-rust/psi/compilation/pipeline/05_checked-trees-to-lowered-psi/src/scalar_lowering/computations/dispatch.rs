@@ -15,6 +15,7 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn dispatch(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         subject: Computation,
         arms: arena::HandleSpan<CheckedScalarDispatchArm>,
         result_type: QualifiedScalarType,
@@ -23,8 +24,12 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
-        let subject_type =
-            self.argument_type(&Argument::Computation(subject), site, input_types)?;
+        let subject_type = self.argument_type(
+            identities,
+            &Argument::Computation(subject),
+            site,
+            input_types,
+        )?;
         let plans = &self.checked.facts.values.scalar_computations;
         let arms = plans
             .dispatch_arms
@@ -37,8 +42,12 @@ impl Expansion<'_> {
         let mut covered = false;
         for arm in &arms {
             if covered
-                || self.argument_type(&Argument::Computation(arm.value), site, input_types)?
-                    != result_type
+                || self.argument_type(
+                    identities,
+                    &Argument::Computation(arm.value),
+                    site,
+                    input_types,
+                )? != result_type
             {
                 return unsupported(
                     "scalar dispatch has an unreachable arm or incompatible result",
@@ -47,8 +56,12 @@ impl Expansion<'_> {
             match arm.pattern {
                 CheckedScalarDispatchPattern::Wildcard => covered = true,
                 CheckedScalarDispatchPattern::Value(pattern) => {
-                    if self.argument_type(&Argument::Computation(pattern), site, input_types)?
-                        != subject_type
+                    if self.argument_type(
+                        identities,
+                        &Argument::Computation(pattern),
+                        site,
+                        input_types,
+                    )? != subject_type
                     {
                         return unsupported(
                             "scalar dispatch subject and pattern carriers disagree",
@@ -78,6 +91,7 @@ impl Expansion<'_> {
             // Arm bodies receive the original prefix. The saved subject and
             // last pattern value are no longer live once an arm is selected.
             let selected = self.argument(
+                identities,
                 &Argument::Computation(arm.value),
                 input_types,
                 target,
@@ -151,6 +165,7 @@ impl Expansion<'_> {
                         terminator,
                     });
                     self.argument(
+                        identities,
                         &Argument::Computation(pattern),
                         &saved_types,
                         tested,
@@ -164,6 +179,7 @@ impl Expansion<'_> {
         let continuation =
             continuation.ok_or(LoweringError::Unsupported("scalar dispatch has no arms"))?;
         self.argument(
+            identities,
             &Argument::Computation(subject),
             input_types,
             continuation,

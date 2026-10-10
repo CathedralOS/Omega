@@ -103,7 +103,7 @@ pub(crate) fn call_mutated_places(
             caller_state_symbol,
             Some(borrow),
             borrow_call,
-            call_frames
+            call_frames,
         )
     })
 }

@@ -747,12 +747,16 @@ fn validate_type_reference_node(
             // Resolution gives lexical binders priority over declarations.
             // Validate that selected identity, rather than accepting any
             // in-scope spelling as a constructor or recapturing a global.
-            if type_parameter_scope.type_parameters.iter().any(|parameter| {
-                matches!(parameter.kind, TypeParameterKind::Type)
-                    && ((base_symbol.is_valid() && parameter.symbol == *base_symbol)
-                        || (!program.symbols.has_source_metadata()
-                            && parameter.name.as_str() == base_name.as_str()))
-            }) {
+            if type_parameter_scope
+                .type_parameters
+                .iter()
+                .any(|parameter| {
+                    matches!(parameter.kind, TypeParameterKind::Type)
+                        && ((base_symbol.is_valid() && parameter.symbol == *base_symbol)
+                            || (!program.symbols.has_source_metadata()
+                                && parameter.name.as_str() == base_name.as_str()))
+                })
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} cannot apply generic parameter `{base_name}` as a generic constructor"
                 )));
@@ -808,7 +812,7 @@ fn validate_type_reference_node(
                 if parameters.is_empty() {
                     for argument in argument_handles {
                         validate_generic_argument(*argument, diagnostics);
-}
+                    }
                     return;
                 }
                 if parameters.len() != argument_handles.len() {
@@ -873,7 +877,7 @@ fn validate_type_reference_node(
             } else {
                 for argument in argument_handles {
                     validate_generic_argument(*argument, diagnostics);
-}
+                }
             }
         }
         TypeReferenceNode::DynamicTrait {
@@ -913,20 +917,24 @@ fn validate_type_reference_node(
             }
             for argument in arguments {
                 validate_generic_argument(*argument, diagnostics);
-}
+            }
         }
         TypeReferenceNode::Named { symbol, name } => {
             // Name resolution binds the lexical telescope before globals.
             // Scope membership alone does not establish a type: these binders
             // supply values to index/extent positions, never stored types.
-            if type_parameter_scope.type_parameters.iter().any(|parameter| {
-                matches!(
-                    parameter.kind,
-                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-                ) && ((symbol.is_valid() && parameter.symbol == *symbol)
-                    || (!program.symbols.has_source_metadata()
-                        && parameter.name.as_str() == name.as_str()))
-            }) {
+            if type_parameter_scope
+                .type_parameters
+                .iter()
+                .any(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                    ) && ((symbol.is_valid() && parameter.symbol == *symbol)
+                        || (!program.symbols.has_source_metadata()
+                            && parameter.name.as_str() == name.as_str()))
+                })
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses value parameter `{name}` as a type; const and runtime value parameters supply values, not types"
                 )));

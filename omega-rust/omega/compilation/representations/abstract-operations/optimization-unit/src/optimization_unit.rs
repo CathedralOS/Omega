@@ -135,6 +135,10 @@ pub struct PsiOptimizationUnit {
     /// whole-program reachability rewrites. Source ordinals bind each removed
     /// machine to the immutable verified Terminal-Psi function roster.
     pub pruned_machines: Vec<PrunedMachineCustody>,
+    /// Identity text every `TerminalIdentityIndex` on this unit resolves
+    /// against — the sealed module table, retained after the module itself
+    /// is discarded.
+    pub identities: terminal_psi::TerminalIdentityTable,
     pub functions: Vec<PsiOptimizationFunction>,
 }
 

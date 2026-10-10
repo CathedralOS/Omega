@@ -21,13 +21,13 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
     let declaration = StructuralTypeDeclaration {
         scalar_restriction: None,
         id: StructuralTypeId::new(7).unwrap(),
-        identity: "Refined".into(),
+        identity: terminal_psi::TerminalIdentityIndex(1),
         shape: StructuralTypeShape::Record {
             storage: terminal_psi::StructuralRecordStorage::Packed,
             fields: vec![StructuralFieldDeclaration {
                 storage: None,
                 id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
-                identity: "enabled".into(),
+                identity: terminal_psi::TerminalIdentityIndex(2),
                 relevance: BindingRelevance::Relevant,
                 field_type: StructuralFieldType::RefinedScalar(
                     ScalarRefinement::new(ScalarType::Boolean, predicate.clone()).unwrap(),
@@ -60,7 +60,7 @@ fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
     let declaration = StructuralTypeDeclaration {
         scalar_restriction: None,
         id: StructuralTypeId::new(7).unwrap(),
-        identity: "test::Binding".into(),
+        identity: terminal_psi::TerminalIdentityIndex(3),
         shape: StructuralTypeShape::BindingCarrier,
     };
     let mut encoded = Vec::new();
@@ -114,7 +114,7 @@ fn reference_type_and_referent_path_round_trip_without_erasing_custody() {
     let declaration = StructuralTypeDeclaration {
         scalar_restriction: None,
         id: StructuralTypeId::new(7).unwrap(),
-        identity: "test::Reference".into(),
+        identity: terminal_psi::TerminalIdentityIndex(4),
         shape: StructuralTypeShape::Reference {
             referent: StructuralTypeId::new(3).unwrap(),
             access: StructuralAccess::MutableBorrow,
@@ -196,7 +196,7 @@ fn byte_view_type_round_trip_retains_its_access() {
         let declaration = StructuralTypeDeclaration {
             scalar_restriction: None,
             id: StructuralTypeId::new(7).unwrap(),
-            identity: "bytes".into(),
+            identity: terminal_psi::TerminalIdentityIndex(5),
             shape: StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView { access },
             ),
@@ -214,7 +214,7 @@ fn case_path_round_trip_retains_canonical_identity_and_rejects_zero() {
     let case = semantic_vocabulary::StructuralCaseId::new(41).unwrap();
     let path = vec![
         StructuralPathSegment::Case(case),
-        StructuralPathSegment::Field("payload".into()),
+        StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
     ];
     let mut bytes = Vec::new();
     encode_path(&mut bytes, &path);
@@ -226,7 +226,7 @@ fn case_path_round_trip_retains_canonical_identity_and_rejects_zero() {
         &mut other,
         &[
             StructuralPathSegment::FixedIndex(case.get()),
-            StructuralPathSegment::Field("payload".into()),
+            StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(6)),
         ],
     );
     assert_ne!(bytes, other);

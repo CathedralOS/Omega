@@ -11,9 +11,9 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     DominatorProofCertifiedScalarGvnRule,
     dominating_contract(
-                b"omega.psi-rule.dominator-proof-certified-total-scalar-gvn.v1",
-                OptimizationSafetyClass::ProofCertified,
-            ),
+        b"omega.psi-rule.dominator-proof-certified-total-scalar-gvn.v1",
+        OptimizationSafetyClass::ProofCertified,
+    ),
 );
 
 impl PsiOptimizationRule for DominatorProofCertifiedScalarGvnRule {

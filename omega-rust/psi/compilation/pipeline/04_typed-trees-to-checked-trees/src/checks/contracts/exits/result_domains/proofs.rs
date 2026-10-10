@@ -160,22 +160,25 @@ pub(super) fn establishes_scalar_predicates(
             }
             let returned = exit_return_expression(program, exit);
             let known = proof.current_value(returned);
-            if super::super::super::prover::evaluate_scalar(program, *expression, &mut |leaf| {
-                if subjects.contains(&leaf) {
-                    return known.clone();
-                }
-                let typed_trees::expression::ExpressionNode::Name(path) =
-                    program.expression_table.expression(leaf)
-                else {
-                    return None;
-                };
-                indices
-                    .iter()
-                    .find(|index| index.symbol == path.symbol)
-                    .map(|index| index.value.clone())
-            },
-            &|_, _| true
-        ) == Some(super::super::super::prover::ScalarValue::Boolean(true))
+            if super::super::super::prover::evaluate_scalar(
+                program,
+                *expression,
+                &mut |leaf| {
+                    if subjects.contains(&leaf) {
+                        return known.clone();
+                    }
+                    let typed_trees::expression::ExpressionNode::Name(path) =
+                        program.expression_table.expression(leaf)
+                    else {
+                        return None;
+                    };
+                    indices
+                        .iter()
+                        .find(|index| index.symbol == path.symbol)
+                        .map(|index| index.value.clone())
+                },
+                &|_, _| true,
+            ) == Some(super::super::super::prover::ScalarValue::Boolean(true))
             {
                 return true;
             }
@@ -491,23 +494,26 @@ impl ScalarReturnProof<'_> {
         {
             return None;
         }
-        super::super::super::prover::evaluate_scalar(self.program, expression, &mut |leaf| {
-            let subject = canonical_place_from_expression_in_state(
-                self.program,
-                self.exit.state_symbol,
-                self.exit.statement_index,
-                leaf,
-            )?;
-            super::super::super::prover::scalar_value_at_place(
-                self.program,
-                &self.facts.semantic,
-                self.contexts
-                    .iter()
-                    .map(|context| self.facts.semantic.contexts.get(*context)),
-                &subject,
-            )
-        },
-            &|_, _| true
+        super::super::super::prover::evaluate_scalar(
+            self.program,
+            expression,
+            &mut |leaf| {
+                let subject = canonical_place_from_expression_in_state(
+                    self.program,
+                    self.exit.state_symbol,
+                    self.exit.statement_index,
+                    leaf,
+                )?;
+                super::super::super::prover::scalar_value_at_place(
+                    self.program,
+                    &self.facts.semantic,
+                    self.contexts
+                        .iter()
+                        .map(|context| self.facts.semantic.contexts.get(*context)),
+                    &subject,
+                )
+            },
+            &|_, _| true,
         )
     }
 }

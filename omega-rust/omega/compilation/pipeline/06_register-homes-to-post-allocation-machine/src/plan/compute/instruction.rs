@@ -36,13 +36,13 @@ pub(super) fn build(
                     function: function_index,
                     register: operand.virtual_register.0,
                 })?;
-            let view = physical
-                .model().view(home.view)
-                .ok_or(PostAllocationMachineError::UnknownView {
+            let view = physical.model().view(home.view).ok_or(
+                PostAllocationMachineError::UnknownView {
                     function: function_index,
                     register: operand.virtual_register.0,
                     view: home.view.0,
-                })?;
+                },
+            )?;
             if home.class != operand.class || view.class != operand.class {
                 return Err(PostAllocationMachineError::HomeClassMismatch {
                     function: function_index,

@@ -46,8 +46,7 @@ pub(crate) fn filter_expired_borrow_loans(
                 }
                 keep
             }
-            FlowConstraintKind::Unknown
-            | checked_trees::borrow_context_quint_pattern!(..) => true,
+            FlowConstraintKind::Unknown | checked_trees::borrow_context_quint_pattern!(..) => true,
         }
     })
 }
@@ -118,10 +117,8 @@ pub(crate) fn filter_reassigned_borrow_loans(
     // writing through one preserves its captured loan, while replacing it ends
     // the old occurrence. Classify the typed target before comparing owner paths.
     if let Some(assignment) = statement.as_assignment()
-        && let Some((machine, state)) = validation::find_state(
-            program,
-            program.symbols.get(reassigned_symbol).parent,
-        )
+        && let Some((machine, state)) =
+            validation::find_state(program, program.symbols.get(reassigned_symbol).parent)
         && let Some(mut reference) =
             validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
     {
@@ -203,8 +200,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                 }
                 keep
             }
-            FlowConstraintKind::Unknown
-            | checked_trees::borrow_context_quint_pattern!(..) => true,
+            FlowConstraintKind::Unknown | checked_trees::borrow_context_quint_pattern!(..) => true,
         }
     })
 }

@@ -120,7 +120,10 @@ fn select(
                             .iter()
                             .find_map(|member| match member {
                                 DataMember::Variant(variant)
-                                    if checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()) == *case =>
+                                    if checked_trees::CheckedMemberIdentity::of_member(
+                                        variant.identity,
+                                        variant.name.clone(),
+                                    ) == *case =>
                                 {
                                     Some(variant)
                                 }
@@ -132,7 +135,12 @@ fn select(
                     program
                         .data_payload_fields(variant)
                         .iter()
-                        .find(|declaration| checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone()) == *field)?;
+                        .find(|declaration| {
+                            checked_trees::CheckedMemberIdentity::of_member(
+                                declaration.identity,
+                                declaration.name.clone(),
+                            ) == *field
+                        })?;
                     let actual =
                         program
                             .data_members(data)
@@ -155,16 +163,23 @@ fn select(
                 _ => return None,
             };
             let declaration = if let Some(variant) = payload {
-                program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *field_identity)?
+                program.data_payload_fields(variant).iter().find(|field| {
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ) == *field_identity
+                })?
             } else {
                 program
                     .data_members(data)
                     .iter()
                     .find_map(|member| match member {
-                        DataMember::Field(field) if checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *field_identity => {
+                        DataMember::Field(field)
+                            if checked_trees::CheckedMemberIdentity::of_member(
+                                field.identity,
+                                field.name.clone(),
+                            ) == *field_identity =>
+                        {
                             Some(field)
                         }
                         _ => None,

@@ -57,7 +57,10 @@ pub(crate) fn partial_affine_residuals(
     types: &BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: typed_trees::type_identity::TypeIdentityId,
-    moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, typed_trees::type_identity::TypeIdentityId)],
+    moved_paths: &[(
+        Vec<CheckedUnitStructuralPathSegment>,
+        typed_trees::type_identity::TypeIdentityId,
+    )],
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
     let borrowed = moved_paths
         .iter()

@@ -55,6 +55,8 @@ impl super::Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn structural_field(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         receiver: checked_trees::CheckedStructuralValueHandle,
         subject: &CheckedUnitStructuralArgumentPlan,
         field: symbols::SymbolHandle,
@@ -89,6 +91,7 @@ impl super::Expansion<'_> {
                 );
             }
             let prepared = structural_values::prepare_value(
+                identities,
                 self.checked,
                 self.qualifications,
                 site.state,
@@ -145,7 +148,14 @@ impl super::Expansion<'_> {
             ),
         });
         match completed {
-            Some(value) => value.finish(site.state, site.bindings, input_types, observation, self),
+            Some(value) => value.finish(
+                identities,
+                site.state,
+                site.bindings,
+                input_types,
+                observation,
+                self,
+            ),
             None => Ok(observation),
         }
     }
@@ -248,6 +258,7 @@ fn planned_place_loans<'plan>(
 
 /// The captured place a silent loan local names, when `symbol` is one.
 fn loan_subject(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -258,7 +269,7 @@ fn loan_subject(
         .iter()
         .find(|loan| loan.symbol == symbol)
     {
-        Some(loan) => captured_place_subject(checked, state, loan, types),
+        Some(loan) => captured_place_subject(identities, checked, state, loan, types),
         None => Ok(None),
     }
 }
@@ -267,6 +278,7 @@ fn loan_subject(
 /// place. An unsupported capture is retained, not refused: only a use of the
 /// loan owns that failure.
 pub(crate) fn prepare_place_observations(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -278,14 +290,16 @@ pub(crate) fn prepare_place_observations(
         let identity = checked.normalized_type_identity(loan.referee);
         if !primitive
             && !types.iter().any(|declaration| {
-                declaration.identity == checked.type_identity_text(identity).unwrap_or_default()
+                declaration.identity
+                    == identities.intern(&checked.type_identity_text(identity).unwrap_or_default())
                     && matches!(declaration.shape, StructuralTypeShape::Record { .. })
             })
         {
             continue;
         }
         let capture = (|| {
-            let Some(subject) = captured_place_subject(checked, state, loan, types)? else {
+            let Some(subject) = captured_place_subject(identities, checked, state, loan, types)?
+            else {
                 return Ok(None);
             };
             let observation = if let Some(primitive) = subject.primitive {
@@ -352,6 +366,7 @@ fn carrier_identity(
 /// and the declared type it ends on, so the ordinary subject walk continues
 /// there.
 fn captured_place_subject(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     loan: &checked_trees::CheckedPlaceLoanPlan,
@@ -377,9 +392,10 @@ fn captured_place_subject(
         }
     };
     let root_identity = carrier_identity(checked, owner, loan.root_type)?;
-    let mut declaration = terminal_psi::structural_type_by_identity(types, &root_identity).ok_or(
-        LoweringError::Unsupported("record loan's captured root has no structural namespace"),
-    )?;
+    let mut declaration =
+        terminal_psi::structural_type_by_identity(types, identities.intern(&root_identity)).ok_or(
+            LoweringError::Unsupported("record loan's captured root has no structural namespace"),
+        )?;
     let mut path = Vec::new();
     let mut carrier_path = Vec::new();
     let mut runtime_index = None;
@@ -397,7 +413,9 @@ fn captured_place_subject(
                 let Some(fields) = declaration.shape.record_fields() else {
                     return unsupported("record loan's captured path left its record namespace");
                 };
-                let mut matching = fields.iter().filter(|field| field.identity == identity.spelling());
+                let mut matching = fields
+                    .iter()
+                    .filter(|field| field.identity == identities.intern(&identity.spelling()));
                 let selected = matching.next().ok_or(LoweringError::Unsupported(
                     "record loan's captured field is absent",
                 ))?;
@@ -517,7 +535,7 @@ fn captured_place_subject(
                     && integer.bits() == 8
         )
         && let Some(overlay) = types.iter().find(|candidate| {
-            candidate.identity == referee_identity
+            candidate.identity == identities.intern(&referee_identity)
                 && matches!(candidate.shape, StructuralTypeShape::Record { .. })
         })
     {
@@ -530,7 +548,7 @@ fn captured_place_subject(
     let typed_overlay = (loan.recast_source.is_valid()
         && byte_overlay.is_none()
         && runtime_index.is_none()
-        && declaration.identity != referee_identity
+        && declaration.identity != identities.intern(&referee_identity)
         && matches!(declaration.shape, StructuralTypeShape::Record { .. }))
     .then_some(TypedRecordOverlay {
         source: loan.recast_source,
@@ -595,6 +613,7 @@ pub(crate) struct LoanedStore {
 /// This resolves geometry, not live backing custody; the operation frame must
 /// still establish exclusive access to the returned root before emitting it.
 pub(crate) fn loaned_store(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -607,20 +626,21 @@ pub(crate) fn loaned_store(
     let checked_trees::CheckedStoreRoot::Local { symbol } = root else {
         return Ok(None);
     };
-    let Some(loan) = loan_subject(checked, machine, state, symbol, types)? else {
+    let Some(loan) = loan_subject(identities, checked, state, symbol, machine, types)? else {
         return Ok(None);
     };
     if loan.access != checked_trees::CheckedStructuralAccess::MutableBorrow {
         return unsupported("record store requires a mutable captured loan");
     }
     let field = crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
+        identities,
         primitive_type,
         carrier_path,
         field_identity,
         loan.terminal,
         types,
     )?;
-    let mut path = captured_store_path(&loan)?;
+    let mut path = captured_store_path(identities, &loan)?;
     let byte_overlay = if let Some(overlay) = loan.byte_overlay {
         // Byte-region admission requires a recursively fact-free referee.
         // The encoding-fit proof is not a semantic field-range proof: if that
@@ -655,6 +675,7 @@ pub(crate) fn loaned_store(
 /// The full leaf path is geometry only; source replay separately rejoins the
 /// authored assignment, and emission still proves each stored byte's bound.
 pub(crate) fn loaned_primitive_store(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -665,7 +686,7 @@ pub(crate) fn loaned_primitive_store(
     let checked_trees::CheckedStoreRoot::Local { symbol } = destination else {
         return Ok(None);
     };
-    let Some(loan) = loan_subject(checked, machine, state, *symbol, types)? else {
+    let Some(loan) = loan_subject(identities, checked, state, *symbol, machine, types)? else {
         return Ok(None);
     };
     let Some(overlay) = &loan.byte_overlay else {
@@ -674,22 +695,27 @@ pub(crate) fn loaned_primitive_store(
     if loan.access != checked_trees::CheckedStructuralAccess::MutableBorrow {
         return unsupported("record store requires a mutable captured loan");
     }
-    let (_, scalar_type) =
-        crate::emission::primitive_store::lower_destination_path(loan.terminal, path, types)?;
+    let (_, scalar_type) = crate::emission::primitive_store::lower_destination_path(
+        identities,
+        loan.terminal,
+        path,
+        types,
+    )?;
     Ok(Some(LoanedStore {
         symbol: *symbol,
         source: loan.source,
-        path: captured_store_path(&loan)?,
+        path: captured_store_path(identities, &loan)?,
         byte_overlay: Some(overlay.scalar_path(checked, path, scalar_type)?),
     }))
 }
 
 fn captured_store_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     loan: &CapturedPlaceSubject,
 ) -> Result<Vec<checked_trees::CheckedUnitStructuralPathSegment>, LoweringError> {
     let mut path = Vec::new();
     for segment in &loan.carrier_path {
-        path.push(checked_path_segment(segment)?);
+        path.push(checked_path_segment(identities, segment)?);
     }
     if let Some(selector) = &loan.runtime_index {
         // Byte overlays resolve this authored coordinate through their
@@ -707,17 +733,22 @@ fn captured_store_path(
         path.push(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector.clone()));
     }
     for segment in &loan.element_suffix {
-        path.push(checked_path_segment(segment)?);
+        path.push(checked_path_segment(identities, segment)?);
     }
     Ok(path)
 }
 
 fn checked_path_segment(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     segment: &terminal_psi::StructuralPathSegment,
 ) -> Result<checked_trees::CheckedUnitStructuralPathSegment, LoweringError> {
     use checked_trees::CheckedUnitStructuralPathSegment as Checked;
     match segment {
-        terminal_psi::StructuralPathSegment::Field(field) => Ok(Checked::Field(checked_trees::CheckedMemberIdentity::of_spelling(field))),
+        terminal_psi::StructuralPathSegment::Field(field) => Ok(Checked::Field(
+            checked_trees::CheckedMemberIdentity::of_spelling(
+                identities.text(*field).unwrap_or_default(),
+            ),
+        )),
         terminal_psi::StructuralPathSegment::FixedIndex(index) => Ok(Checked::FixedIndex(*index)),
         _ => unsupported("record loan captured an unsupported structural segment"),
     }
@@ -728,6 +759,7 @@ fn checked_path_segment(
 /// all carry their silent loans in that one plan, whichever machine declares
 /// them.
 pub(crate) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan_machine: symbols::SymbolHandle,
     machines: &[symbols::SymbolHandle],
@@ -760,7 +792,7 @@ pub(crate) fn prepare(
             let loan = match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
-                } => loan_subject(checked, plan_machine, root.state, symbol, types)?,
+                } => loan_subject(identities, checked, plan_machine, root.state, symbol, types)?,
                 _ => None,
             };
             let (
@@ -797,12 +829,14 @@ pub(crate) fn prepare(
                         &[],
                         &[],
                     );
-                    let mut declarations = types
-                        .iter()
-                        .filter(|declaration| {
-                            declaration.identity
-                                == checked.type_identity_text(root_identity).unwrap_or_default()
-                        });
+                    let mut declarations = types.iter().filter(|declaration| {
+                        declaration.identity
+                            == identities.intern(
+                                &checked
+                                    .type_identity_text(root_identity)
+                                    .unwrap_or_default(),
+                            )
+                    });
                     let declaration = declarations.next().ok_or(LoweringError::Unsupported(
                         "record read has no structural namespace",
                     ))?;
@@ -824,7 +858,11 @@ pub(crate) fn prepare(
             };
             let (walk, identity, leaf_primitive) = match &typed_overlay {
                 Some(overlay) => record_view_source_walk(checked, overlay, subject, *field)?,
-                None => (subject.path.clone(), identity.spelling(), node.primitive_type),
+                None => (
+                    subject.path.clone(),
+                    identity.spelling(),
+                    node.primitive_type,
+                ),
             };
             let observation_root_type = declaration.id;
             let mut primitive_path = carrier_path.clone();
@@ -838,7 +876,9 @@ pub(crate) fn prepare(
                         else {
                             return unsupported("field observation case left its sum namespace");
                         };
-                        let mut cases = cases.iter().filter(|case| case.identity == identity.spelling());
+                        let mut cases = cases.iter().filter(|case| {
+                            case.identity == identities.intern(&identity.spelling())
+                        });
                         let case = cases.next().ok_or(LoweringError::Unsupported(
                             "field observation selected an absent case",
                         ))?;
@@ -900,7 +940,9 @@ pub(crate) fn prepare(
                             "record read carrier path left its record namespace",
                         ))?,
                 };
-                let mut matching = fields.iter().filter(|field| field.identity == identity.spelling());
+                let mut matching = fields
+                    .iter()
+                    .filter(|field| field.identity == identities.intern(&identity.spelling()));
                 let selected = matching.next().ok_or(LoweringError::Unsupported(
                     "record read carrier field is absent",
                 ))?;
@@ -931,9 +973,10 @@ pub(crate) fn prepare(
                         "record read requires a record namespace",
                     ))?,
             };
-            let retained = terminal_psi::field_by_identity(&fields, &identity).ok_or(
-                LoweringError::Unsupported("record read has no declared field identity"),
-            )?;
+            let retained = terminal_psi::field_by_identity(&fields, identities.intern(&identity))
+                .ok_or(LoweringError::Unsupported(
+                "record read has no declared field identity",
+            ))?;
             let scalar_type = terminal_scalar_type(node.primitive_type)?;
             let leaf_scalar_type = terminal_scalar_type(leaf_primitive)?;
             let bounded_leaf =
@@ -1086,7 +1129,11 @@ fn record_view_source_walk(
     let validation::RecastLeafSegment::Field(last) = last else {
         return unsupported("record view source leaf is not a field");
     };
-    Ok((walk, field_path_identity(checked, *last)?.spelling(), leaf.primitive))
+    Ok((
+        walk,
+        field_path_identity(checked, *last)?.spelling(),
+        leaf.primitive,
+    ))
 }
 
 /// The canonical path identity of one declared record field symbol.
@@ -1102,7 +1149,10 @@ pub(crate) fn field_path_identity(
         .flat_map(|owner| checked.data_members(owner))
         .find_map(|member| match member {
             DataMember::Field(candidate) if candidate.symbol == field => {
-                Some(checked_trees::CheckedMemberIdentity::of_member(candidate.identity, candidate.name.clone()))
+                Some(checked_trees::CheckedMemberIdentity::of_member(
+                    candidate.identity,
+                    candidate.name.clone(),
+                ))
             }
             _ => None,
         })

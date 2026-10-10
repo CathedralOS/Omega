@@ -1,8 +1,8 @@
 //! State-argument specialization pass entrance and rule registration.
 
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
@@ -21,26 +21,30 @@ psi_rule_contract!(
     /// argument) or through an in-block `parameter CMP literal` integer
     /// comparison against a pure scalar-constant prefix (an integer argument).
     /// Machines holding an authenticated cyclic component stay frozen.
-StateArgumentSpecializationRule,
-    crate::rules::standard_rule_contract(b"omega.psi-rule.state-argument-specialization.v1", STATE_SPECIALIZATION_PASS_NAME, 1,
-                AnalysisSet::new([
-                    AnalysisKind::ScalarConstants,
-                    AnalysisKind::StronglyConnectedComponents,
-                ]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::Dominators,
-                    AnalysisKind::PostDominators,
-                    AnalysisKind::LoopForest,
-                    AnalysisKind::StronglyConnectedComponents,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::ExecutableEdges,
-                    AnalysisKind::ScalarConstants,
-                    AnalysisKind::ValueRanges,
-                    AnalysisKind::EffectSummaries,
-                    AnalysisKind::ValueLiveness,
-                ]),
-                OptimizationSafetyClass::StructuralIdentity),
+    StateArgumentSpecializationRule,
+    crate::rules::standard_rule_contract(
+        b"omega.psi-rule.state-argument-specialization.v1",
+        STATE_SPECIALIZATION_PASS_NAME,
+        1,
+        AnalysisSet::new([
+            AnalysisKind::ScalarConstants,
+            AnalysisKind::StronglyConnectedComponents,
+        ]),
+        AnalysisInvalidationSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::Dominators,
+            AnalysisKind::PostDominators,
+            AnalysisKind::LoopForest,
+            AnalysisKind::StronglyConnectedComponents,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::ExecutableEdges,
+            AnalysisKind::ScalarConstants,
+            AnalysisKind::ValueRanges,
+            AnalysisKind::EffectSummaries,
+            AnalysisKind::ValueLiveness,
+        ]),
+        OptimizationSafetyClass::StructuralIdentity
+    ),
 );
 
 impl PsiOptimizationRule for StateArgumentSpecializationRule {

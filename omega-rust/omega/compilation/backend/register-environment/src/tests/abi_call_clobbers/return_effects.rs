@@ -1,8 +1,7 @@
 use super::{
-    abi_case_context,
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
-    baseline_target_register_environment, convention_for, declaration_mut, produced_effects,
-    scalar_abi_cases, units_for_names, validate_effects,
+    abi_case_context, baseline_target_register_environment, convention_for, declaration_mut,
+    produced_effects, scalar_abi_cases, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
@@ -112,7 +111,8 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
                 .constraint(*key)
                 .unwrap_or_else(|| panic!("environment missing selected return row {key:?}"));
             let declaration = catalog
-                .catalog().declaration(*key)
+                .catalog()
+                .declaration(*key)
                 .unwrap_or_else(|| panic!("effect catalog missing return declaration {key:?}"));
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::ControlFlow, "{key:?}");

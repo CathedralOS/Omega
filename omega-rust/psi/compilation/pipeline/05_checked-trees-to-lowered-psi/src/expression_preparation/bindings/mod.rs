@@ -460,6 +460,7 @@ impl ScalarBindings {
     /// live local or an authored parameter directly by symbol.
     pub(crate) fn shared_structural_argument(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         machine: &checked_trees::machine::Machine,
@@ -468,12 +469,14 @@ impl ScalarBindings {
         if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
             return unsupported("computed shared argument changes its access");
         }
-        self.borrowed_structural_argument(checked, argument, machine, parameters)
+        self.borrowed_structural_argument(identities, checked, argument, machine, parameters)
     }
 
     /// Bind an exact shared or mutable loan to its existing structural home.
     pub(crate) fn borrowed_structural_argument(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         machine: &checked_trees::machine::Machine,
@@ -494,6 +497,7 @@ impl ScalarBindings {
                 "borrowed argument lost its published selected type",
             ))?;
         let prepared = structural_paths::prepare_structural_argument_path(
+            identities,
             checked,
             argument,
             root,
@@ -517,6 +521,7 @@ impl ScalarBindings {
     /// the same declaration walk without evaluating a selector.
     pub(crate) fn element_case_observation(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         source: &StructuralArgument,
         case: &str,
@@ -560,11 +565,12 @@ impl ScalarBindings {
         };
         let (place, path, element_path, case, observes_element_view_length) =
             structural_cases::resolve_runtime_element(
+                identities,
                 self.structural_fields.declarations(),
                 structural_type,
                 source.place,
-                &static_path(&argument.path[..selector_position])?,
                 &static_path(&argument.path[selector_position + 1..])?,
+                &static_path(&argument.path[..selector_position])?,
                 &checked_trees::CheckedMemberIdentity::of_spelling(&case),
             )?;
         let index = match selector {
@@ -573,6 +579,7 @@ impl ScalarBindings {
             }
             checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
                 structural_fields::resolve_typed(
+                    identities,
                     &self.structural_fields,
                     field.parameter_position,
                     &field.path,
@@ -872,6 +879,7 @@ impl ScalarBindings {
 
     pub(crate) fn byte_record_observation(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         proven_indexes: &[checked_trees::expression::ExpressionHandle],
         symbol: symbols::SymbolHandle,
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -880,6 +888,7 @@ impl ScalarBindings {
         primitive: PrimitiveType,
     ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
         crate::expression_preparation::bindings::place_observations::byte_record_observation(
+            identities,
             &self.place_observations,
             self,
             proven_indexes,
@@ -907,12 +916,19 @@ impl ScalarBindings {
     /// crossing so owning a record cannot widen a shared reference inside it.
     pub(crate) fn primitive_borrow(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         scalar_type: ScalarType,
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<StructuralArgument, LoweringError> {
-        let source = self.prepared_primitive_borrow(checked, argument, scalar_type, structural_types)?;
+        let source = self.prepared_primitive_borrow(
+            identities,
+            checked,
+            argument,
+            scalar_type,
+            structural_types,
+        )?;
         Ok(StructuralArgument {
             place: source.place,
             access: source.access,
@@ -930,6 +946,7 @@ impl ScalarBindings {
     /// computed call operand takes.
     pub(crate) fn scalar_parameter_borrow(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         structural_types: &[StructuralTypeDeclaration],
@@ -945,11 +962,19 @@ impl ScalarBindings {
                 .ok_or(LoweringError::Unsupported(
                     "borrowed scalar formal has no published home",
                 ))?;
-        self.primitive_borrow(checked, argument, *scalar_type, structural_types)
+        self.primitive_borrow(
+            identities,
+            checked,
+            argument,
+            *scalar_type,
+            structural_types,
+        )
     }
 
     pub(crate) fn prepared_primitive_borrow(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         scalar_type: ScalarType,
@@ -1082,6 +1107,7 @@ impl ScalarBindings {
                     .into_iter()
                     .map(structural_paths::PreparedStructuralPathSegment::Static)
                     .chain(structural_paths::prepare_structural_argument_path(
+                        identities,
                         checked,
                         argument,
                         root_type,
@@ -1098,6 +1124,7 @@ impl ScalarBindings {
     /// published storage. Their ordinals share one namespace and cannot alias.
     pub(crate) fn owned_call_argument(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         results: &[(
             u32,
@@ -1105,10 +1132,10 @@ impl ScalarBindings {
         )],
     ) -> Result<StructuralArgument, LoweringError> {
         let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
-            return self.owned_argument(argument);
+            return self.owned_argument(identities, argument);
         };
         let Some((_, binding)) = results.iter().find(|(candidate, _)| *candidate == ordinal) else {
-            return self.owned_argument(argument);
+            return self.owned_argument(identities, argument);
         };
         // A prepared result is consumed whole; this lane has no route for an
         // owned projection out of it.
@@ -1130,6 +1157,7 @@ impl ScalarBindings {
     /// whole-value use rather than a widening.
     pub(crate) fn owned_argument(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
         let mut source = self.owned_argument_home(argument)?;
@@ -1141,6 +1169,7 @@ impl ScalarBindings {
         source
             .path
             .extend(structural_paths::lower_static_argument_path(
+                identities,
                 &argument.path,
                 selected_root,
                 self.structural_fields.declarations(),
@@ -1430,6 +1459,7 @@ impl ScalarBindings {
 
     pub(crate) fn expression_at(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         statement: u32,
@@ -1443,7 +1473,7 @@ impl ScalarBindings {
             .ok_or(LoweringError::Unsupported(
                 "scalar computation needs one checked expression and one source binding",
             ))?;
-        self.expression(&checked.facts.proven_scalar_indexes, expression)
+        self.expression(identities, &checked.facts.proven_scalar_indexes, expression)
     }
 
     /// A selected dispatch copied this scalar payload before the arm began.
@@ -1469,9 +1499,12 @@ impl ScalarBindings {
     /// expansion carries this value across later argument effects.
     pub(crate) fn runtime_index_field(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         field: &checked_trees::CheckedStructuralParameterField,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         let observation = structural_fields::resolve_typed(
+            identities,
             &self.structural_fields,
             field.parameter_position,
             &field.path,
@@ -1540,12 +1573,15 @@ impl ScalarBindings {
 
     pub(crate) fn expression(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         proven_indexes: &[checked_trees::expression::ExpressionHandle],
         expression: &CheckedScalarExpression,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         let mut expression = expression.clone();
         self.scalar(&mut expression)?;
         crate::expression_preparation::prepare_expression::lower_checked_scalar_expression_with_parameters(
+            identities,
             &expression,
             &self.structural_parameters,
             &self.structural_fields,

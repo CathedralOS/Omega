@@ -7,6 +7,7 @@
 
 use semantic_vocabulary::{ProofTerm, ProofTermField};
 use terminal_psi::ErasedProofFormal;
+use terminal_psi::TerminalIdentityIndex;
 
 use super::scalar_term_wire::{decode_scalar_term, encode_scalar_term};
 use super::wire::{Reader, Writer};
@@ -131,7 +132,7 @@ pub(crate) fn encode_proof_formals(
     writer.len("erased proof formals", formals.len())?;
     for formal in formals {
         writer.u32(formal.source_position);
-        writer.string("erased proof formal type", &formal.type_identity)?;
+        writer.u32(formal.type_identity.0);
     }
     Ok(())
 }
@@ -143,8 +144,8 @@ pub(crate) fn decode_proof_formals(
     let mut formals = Vec::with_capacity(usize::try_from(count).expect("u32 count fits usize"));
     for _ in 0..count {
         let source_position = reader.u32()?;
-        let type_identity = reader.string("erased proof formal type")?;
-        if type_identity.is_empty() {
+        let type_identity = TerminalIdentityIndex(reader.u32()?);
+        if type_identity.is_absent() {
             return Err(CodecError::MalformedStructuralFoundation(
                 "empty erased proof formal type",
             ));

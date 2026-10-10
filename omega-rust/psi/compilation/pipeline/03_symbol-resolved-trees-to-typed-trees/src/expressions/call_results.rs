@@ -63,8 +63,7 @@ pub(crate) fn computed_receiver_method_target(
         };
         let state = declared_call_state(program, call.target_symbol)?;
         let owner = program.symbols.get(state.symbol).parent;
-        let producer = program
-            .machine(owner)?;
+        let producer = program.machine(owner)?;
         if call.receiver.is_valid() != producer.attached_data.is_some() {
             return None;
         }

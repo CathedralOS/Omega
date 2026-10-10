@@ -302,9 +302,7 @@ impl<T: Default> PagedArenaSet<T> {
             return Some(&self.first_page);
         }
         let index = usize::try_from(generation.checked_sub(self.first_generation)?).ok()?;
-        self.additional_pages
-            .get(index.checked_sub(1)?)?
-            .as_deref()
+        self.additional_pages.get(index.checked_sub(1)?)?.as_deref()
     }
 
     fn page_for_generation_mut(&mut self, generation: u32) -> Option<&mut Arena<T>> {

@@ -86,22 +86,15 @@ pub(crate) fn lower_entry_scalar(
     ) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>,
 ) -> Option<CheckedScalarExpression> {
     if primitive_type == PrimitiveType::Bool {
-        return lower_entry_predicate(
-            program,
-            operators,
-            machine,
-            state,
-            expression,
-            &|leaf| {
-                let place = validation::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    before_statement,
-                    leaf,
-                )?;
-                subjects(&place)
-            },
-        )
+        return lower_entry_predicate(program, operators, machine, state, expression, &|leaf| {
+            let place = validation::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                before_statement,
+                leaf,
+            )?;
+            subjects(&place)
+        })
         .map(|value| CheckedScalarExpression::Boolean(Box::new(value)));
     }
     if !validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)

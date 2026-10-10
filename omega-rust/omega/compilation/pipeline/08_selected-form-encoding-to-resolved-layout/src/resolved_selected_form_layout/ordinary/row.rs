@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use super::plan::unexpected;
+use std::collections::BTreeMap;
 
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;

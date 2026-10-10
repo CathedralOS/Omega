@@ -20,10 +20,7 @@ pub(crate) fn validate_selected_operator_provider_evidence(
     for plan in selected.plans() {
         let operator = checked.operators().iter().find(|operator| {
             crate::service_schema::schema_binds_exact_boundary_operator(
-                crate::ProviderPlanningContext::new(
-                    checked,
-                    source::DependencyScope::Product,
-                ),
+                crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
                 &plan.schema,
                 operator,
             )
@@ -140,8 +137,7 @@ fn selected_requirement_provider_evidence(
     selected: &effects::SelectedProviderPlanFacts,
     requirement_symbol: symbols::SymbolHandle,
 ) -> Result<(), diagnostics::Diagnostic> {
-    let Some(requirement) =
-        crate::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
+    let Some(requirement) = crate::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
     else {
         return Ok(());
     };
@@ -212,14 +208,10 @@ fn selected_operator_provider_evidence(
     operator_symbol: symbols::SymbolHandle,
     use_site: Option<checked_trees::CheckedBoundaryOperatorApplicationUseSite>,
 ) -> Result<(), diagnostics::Diagnostic> {
-    let Some(operator) = checked
-        .typed
-        .operator_definition_by_symbol(operator_symbol)
-    else {
+    let Some(operator) = checked.typed.operator_definition_by_symbol(operator_symbol) else {
         return Ok(());
     };
-    let slot =
-        typed_trees::operator::boundary_operator_requirement_identity(checked, operator);
+    let slot = typed_trees::operator::boundary_operator_requirement_identity(checked, operator);
     let operator_package = checked
         .typed
         .symbols
@@ -420,9 +412,7 @@ pub fn selected_use_plan<'a>(
     origin: checked_trees::CheckedValueOrigin,
 ) -> Option<(usize, &'a ProviderPlan)> {
     if let checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } = origin
-        && !checked
-            .typed
-            .machine(machine_symbol).is_some()
+        && !checked.typed.machine(machine_symbol).is_some()
     {
         return None;
     }
@@ -433,7 +423,8 @@ pub fn selected_use_plan<'a>(
     )?;
     let is_operator = checked
         .typed
-        .operator_definition_by_symbol(requirement).is_some();
+        .operator_definition_by_symbol(requirement)
+        .is_some();
     if is_operator
         && matches!(
             plan.rows.as_slice(),

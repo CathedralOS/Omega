@@ -1060,7 +1060,11 @@ fn resolve_machine_index(
 fn proof_rank_parameter(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-) -> Option<(SymbolHandle, TypeReferenceHandle, typed_trees::type_identity::TypeIdentityId)> {
+) -> Option<(
+    SymbolHandle,
+    TypeReferenceHandle,
+    typed_trees::type_identity::TypeIdentityId,
+)> {
     let caller_witness = machine.termination_plan.implementation_witness.as_ref()?;
     let [caller_subject] = caller_witness.subjects.as_slice() else {
         return None;

@@ -1,7 +1,6 @@
 use crate::candidates::provenance_realized_at;
 use optimization_unit::{
-    NodeLocation, PsiOptimizationFunction, PsiRealizationSite,
-    SharedJumpFusionRewrite,
+    NodeLocation, PsiOptimizationFunction, PsiRealizationSite, SharedJumpFusionRewrite,
 };
 use semantic_vocabulary::BlockId;
 
@@ -29,9 +28,24 @@ pub(crate) fn reconstruct_shared_terminal_fusion_accounting(
     });
     let output_clone = PsiRealizationSite::Node(patch.predecessor);
     let mut provenance = vec![
-        provenance_realized_at(input_edge, output_clone, &incoming.provenance, &incoming.fuel),
-        provenance_realized_at(input_terminal, output_clone, &terminal.provenance, &terminal.fuel),
-        provenance_realized_at(input_terminal, input_terminal, &terminal.provenance, &terminal.fuel),
+        provenance_realized_at(
+            input_edge,
+            output_clone,
+            &incoming.provenance,
+            &incoming.fuel,
+        ),
+        provenance_realized_at(
+            input_terminal,
+            output_clone,
+            &terminal.provenance,
+            &terminal.fuel,
+        ),
+        provenance_realized_at(
+            input_terminal,
+            input_terminal,
+            &terminal.provenance,
+            &terminal.fuel,
+        ),
     ];
     provenance.sort_by_key(|row| {
         (

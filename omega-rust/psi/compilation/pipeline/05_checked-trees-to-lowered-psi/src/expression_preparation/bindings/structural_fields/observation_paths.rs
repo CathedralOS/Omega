@@ -56,6 +56,7 @@ pub(super) fn readable_carrier(
 }
 
 pub(super) fn explicit_path<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     declarations: &'a [StructuralTypeDeclaration],
@@ -85,7 +86,9 @@ pub(super) fn explicit_path<'a>(
                 Source::Case(identity),
                 StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
             ) if selected_case_fields.is_none() => {
-                let mut matching = cases.iter().filter(|case| case.identity == identity.spelling());
+                let mut matching = cases
+                    .iter()
+                    .filter(|case| case.identity == identities.intern(&identity.spelling()));
                 let (Some(case), None) = (matching.next(), matching.next()) else {
                     return unsupported("field observation requires one declared case");
                 };
@@ -103,7 +106,9 @@ pub(super) fn explicit_path<'a>(
                     .ok_or(LoweringError::Unsupported(
                         "field observation requires a field carrier",
                     ))?;
-                let mut matching = fields.iter().filter(|field| field.identity == identity.spelling());
+                let mut matching = fields
+                    .iter()
+                    .filter(|field| field.identity == identities.intern(&identity.spelling()));
                 let (Some(field), None) = (matching.next(), matching.next()) else {
                     return unsupported("field observation requires one declared field");
                 };

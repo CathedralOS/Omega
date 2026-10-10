@@ -8,8 +8,7 @@ pub(crate) mod materializer;
 
 use crate::artifacts::{AdmittedArtifact, Artifact, InstallationAudience};
 use crate::authority_digests::{
-    AdmissionReceiptId, CodePlacementId, FinalValidationId, InstallationScopeId,
-    MachineFootprintId,
+    AdmissionReceiptId, CodePlacementId, FinalValidationId, InstallationScopeId, MachineFootprintId,
 };
 use crate::placement::materializer::MaterializedArtifactBytes;
 use extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};

@@ -7,9 +7,7 @@ use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowCallFact, FlowSemanticContextRef};
 use facts::ScalarValue;
-use facts::{
-    FactPayload, FactPlace, FactPlan, ProgramPoint,
-};
+use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
@@ -435,7 +433,11 @@ pub(super) fn append_entry_context(
         let mut refs = HandleSpan::empty();
         let place = semantic.append_symbol_place(*parameter);
         let value = semantic.scalar_values.append(value.clone());
-        let fact = semantic.append_transfer_at_point(FactPlace::Place(place), point, FactPayload::AssignedScalarValue { value });
+        let fact = semantic.append_transfer_at_point(
+            FactPlace::Place(place),
+            point,
+            FactPayload::AssignedScalarValue { value },
+        );
         semantic.append_ref(&mut refs, fact);
         semantic.append_context(point, refs);
     }
@@ -446,7 +448,11 @@ pub(super) fn append_entry_context(
         let mut refs = HandleSpan::empty();
         let place = semantic.append_symbol_place(parameter.symbol);
         let bounds = semantic.integer_ranges.append(bounds.clone());
-        let fact = semantic.append_transfer_at_point(FactPlace::Place(place), point, FactPayload::AssignedIntegerBounds { bounds });
+        let fact = semantic.append_transfer_at_point(
+            FactPlace::Place(place),
+            point,
+            FactPayload::AssignedIntegerBounds { bounds },
+        );
         semantic.append_ref(&mut refs, fact);
         semantic.append_context(point, refs);
     }

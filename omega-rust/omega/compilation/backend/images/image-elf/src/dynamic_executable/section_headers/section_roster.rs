@@ -13,12 +13,12 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::constants::SECTION_COUNT;
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::import_sections::dynamic_section_descriptors::ElfDynamicSectionKind;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
     ElfProcedureLinkageSectionInfo, ElfProcedureLinkageSectionKind, ElfProcedureLinkageSectionLink,
 };
-use crate::constants::{SECTION_COUNT};
 use crate::dynamic_executable::section_headers::section_name_table::{
     ElfSectionNameTableSectionKind, ValidatedElfSectionNameTablePlan,
 };

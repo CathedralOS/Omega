@@ -37,9 +37,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 
-use crate::labels::{
-    context_proves_boolean_label, instantiate_operator_contract_expression_label,
-};
+use crate::labels::{context_proves_boolean_label, instantiate_operator_contract_expression_label};
 
 /// Whether the selected operator's published route guard is provably false at
 /// one named call. When the call's evaluation emitted an operand-time

@@ -52,11 +52,13 @@ impl CleanupRegion {
 }
 
 pub(crate) fn lower_cleanup_conditions(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     control: &checked_trees::CheckedCleanupControlPlans,
     selected: arena::HandleSpan<checked_trees::CheckedCleanupCaseCondition>,
     types: &[terminal_psi::StructuralTypeDeclaration],
     mut storage: impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
         &[checked_trees::CheckedUnitStructuralPathSegment],
     ) -> Result<
         (PlaceId, Vec<terminal_psi::StructuralPathSegment>),
@@ -85,18 +87,21 @@ pub(crate) fn lower_cleanup_conditions(
                         "cleanup condition lost its retained path",
                     ))?
             };
-            let (place, path) = storage(path)?;
+            let (place, path) = storage(identities, path)?;
             let structural_type = terminal_psi::structural_type_by_identity(
                 types,
-                &checked
-                    .type_identity_text(condition.type_identity)
-                    .unwrap_or_default(),
+                identities.intern(
+                    &checked
+                        .type_identity_text(condition.type_identity)
+                        .unwrap_or_default(),
+                ),
             )
             .map(|declaration| declaration.id)
             .ok_or(LoweringError::Unsupported(
                 "cleanup condition has no structural type",
             ))?;
             let (_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
+                identities,
                 types,
                 structural_type,
                 &[],
@@ -116,10 +121,11 @@ pub(crate) fn lower_cleanup_conditions(
 /// of structural parameters: each root owns exactly one cleanup action, and
 /// the actions run in reverse declaration order (`ordered`).
 pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    lower_ordered_nominal_affine_unit_cleanup_machine(checked, nominal)
+    lower_ordered_nominal_affine_unit_cleanup_machine(identities, checked, nominal)
 }
 
 /// Selected cleanup operations have the same hook contract for Unit and scalar exits.
@@ -146,12 +152,14 @@ pub(crate) fn continuation_cleanups<'a>(
 /// ordinary control emission. The storage resolver owns captured coordinates;
 /// neither action paths nor tag observations may evaluate a selector again.
 pub(crate) fn lower_checked_cleanup_regions<'action>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
     control: &checked_trees::CheckedCleanupControlPlans,
     types: &[terminal_psi::StructuralTypeDeclaration],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     mut storage: impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
         &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
         &[checked_trees::CheckedUnitStructuralPathSegment],
     ) -> Result<
@@ -168,16 +176,15 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
     let mut regions = actions
         .into_iter()
         .map(|action| {
-            let (place, path) = storage(action.source(), action.path())?;
-            let conditions =
-                lower_cleanup_conditions(
-                    checked,
-                    control,
-                    action.case_conditions(),
-                    types,
-                    |path| {
-                    storage(action.source(), path)
-                })?;
+            let (place, path) = storage(identities, action.source(), action.path())?;
+            let conditions = lower_cleanup_conditions(
+                identities,
+                checked,
+                control,
+                action.case_conditions(),
+                types,
+                |builder, path| storage(builder, action.source(), path),
+            )?;
             let lowered = match action {
                 checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
                     terminal_psi::TerminalAffineCleanupAction::RetireHome(place)
@@ -635,8 +642,9 @@ fn nominal_cleanup_return_actions(
 }
 
 pub(crate) fn lower_partial_affine_unit_cleanup_machine(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    partial::lower_partial_affine_unit_cleanup_machine(checked, partial)
+    partial::lower_partial_affine_unit_cleanup_machine(identities, checked, partial)
 }

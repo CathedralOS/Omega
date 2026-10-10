@@ -27,19 +27,20 @@ mod program_entry_physical;
 mod selected_entry;
 mod uefi;
 
-pub use entry_signature::{ ProgramEntryExtentValueLayout,
-    ProgramEntryReceiverSignature, SelectedProgramEntrySignature,
+pub(crate) use entry_signature::{ProgramEntryExtentFieldRole, ProgramEntryResultSignature};
+pub use entry_signature::{
+    ProgramEntryExtentValueLayout, ProgramEntryReceiverSignature, SelectedProgramEntrySignature,
 };
-pub(crate) use entry_signature::{ ProgramEntryExtentFieldRole, ProgramEntryResultSignature};
-pub(crate) use entry_signature::{ ProgramEntrySignatureIdentity,
-    ProgramEntryVisibleParameterSignature};
+pub(crate) use entry_signature::{
+    ProgramEntrySignatureIdentity, ProgramEntryVisibleParameterSignature,
+};
+pub(crate) use optimized_semantic_entry::OptimizedProgramStoragePhysicalEntryDisposition;
 pub use optimized_semantic_entry::{
     OptimizedProgramStorageSemanticCallingApplication,
     OptimizedProgramStorageSemanticEntryContract,
     bind_optimized_program_storage_semantic_entry_contract,
 };
-pub(crate) use optimized_semantic_entry::{
-    OptimizedProgramStoragePhysicalEntryDisposition};
+pub(crate) use optimized_semantic_wrapper::OptimizedProgramStorageSemanticWrapperPlan;
 pub use optimized_semantic_wrapper::{
     OptimizedProgramStorageSemanticReceiverLayout,
     OptimizedProgramStorageSemanticWrapperEncodingError,
@@ -51,9 +52,8 @@ pub(crate) use optimized_semantic_wrapper::{
     OptimizedProgramStorageSemanticWrapperContinuationDisposition,
     OptimizedProgramStorageSemanticWrapperEncodingDisposition,
     OptimizedProgramStorageSemanticWrapperRelocationKind,
-    OptimizedProgramStorageSemanticWrapperStep};
-pub(crate) use optimized_semantic_wrapper::{
-    OptimizedProgramStorageSemanticWrapperPlan};
+    OptimizedProgramStorageSemanticWrapperStep,
+};
 #[cfg(feature = "installed-writer")]
 pub use post_handoff_writer::{
     LoweredPostHandoffWriter, LoweredPostHandoffWriterFragment, PostHandoffEntryWriterBindingError,
@@ -66,8 +66,8 @@ pub use program_entry_physical::{
     LINUX_X86_64_I32_TYPE_IDENTITY, LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
     MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY,
     MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY, MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
-    MACOS_X86_64_I32_TYPE_IDENTITY,
-    ProgramEntryPhysicalContractPackageSourceDigest, ProgramEntryPhysicalContractPlan, WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+    MACOS_X86_64_I32_TYPE_IDENTITY, ProgramEntryPhysicalContractPackageSourceDigest,
+    ProgramEntryPhysicalContractPlan, WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
     WINDOWS_X86_64_U32_TYPE_IDENTITY, exact_linux_arm64_physical_boundary_entry_plan,
     exact_linux_arm64_physical_contract_package_source_digest,
     exact_linux_x86_64_physical_boundary_entry_plan,
@@ -86,6 +86,4 @@ pub(crate) use selected_entry::diagnostic::ProgramStorageEntryDiagnostic;
 pub use selected_entry::root_role::ProgramStorageEntryRootRole;
 pub use selected_entry::service_establishment::ProgramEntryFusedServiceEstablishment;
 
-pub use uefi::uefi_os_handoff::{
-    uefi_os_handoff_exhaustion_requires_error,
-};
+pub use uefi::uefi_os_handoff::uefi_os_handoff_exhaustion_requires_error;

@@ -11,7 +11,9 @@ fn reference_projection_identity_is_distinct_from_owned_paths() {
     assert_ne!(reference, identity(&[]));
     assert_ne!(
         reference,
-        identity(&[StructuralPathSegment::Field("Referent".into())])
+        identity(&[StructuralPathSegment::Field(
+            terminal_psi::TerminalIdentityIndex(1)
+        )])
     );
     assert_ne!(reference, identity(&[StructuralPathSegment::FixedIndex(3)]));
 }
@@ -209,21 +211,21 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
         declaration: StructuralTypeDeclaration {
             scalar_restriction: None,
             id: structural_type,
-            identity: "InputResult".into(),
+            identity: terminal_psi::TerminalIdentityIndex(2),
             shape: StructuralTypeShape::Sum {
                 cases: vec![
                     StructuralCaseDeclaration {
                         id: StructuralCaseId::new(1).unwrap(),
-                        identity: "End".into(),
+                        identity: terminal_psi::TerminalIdentityIndex(3),
                         fields: Vec::new(),
                     },
                     StructuralCaseDeclaration {
                         id: StructuralCaseId::new(2).unwrap(),
-                        identity: "Value".into(),
+                        identity: terminal_psi::TerminalIdentityIndex(4),
                         fields: vec![StructuralFieldDeclaration {
                             storage: None,
                             id: StructuralFieldId::new(1).unwrap(),
-                            identity: "value".into(),
+                            identity: terminal_psi::TerminalIdentityIndex(5),
                             relevance: BindingRelevance::Relevant,
                             field_type: StructuralFieldType::BoundedInteger(
                                 BoundedIntegerType::new(
@@ -268,10 +270,10 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
             panic!("sum")
         };
         match mutation {
-            0 => changed.declaration.identity.push_str("Other"),
-            1 => cases[1].identity.push_str("Other"),
+            0 => changed.declaration.identity = terminal_psi::TerminalIdentityIndex(991),
+            1 => cases[1].identity = terminal_psi::TerminalIdentityIndex(992),
             2 => cases[1].id = StructuralCaseId::new(3).unwrap(),
-            3 => cases[1].fields[0].identity.push_str("Other"),
+            3 => cases[1].fields[0].identity = terminal_psi::TerminalIdentityIndex(993),
             4 => cases[1].fields[0].id = StructuralFieldId::new(2).unwrap(),
             5 => {
                 cases[1].fields[0].field_type = StructuralFieldType::BoundedInteger(
@@ -328,7 +330,9 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
     let claim = ClaimId::new(23).unwrap();
     let argument = StructuralArgument {
         place: PlaceId::new(29).unwrap(),
-        path: vec![terminal_psi::StructuralPathSegment::Field("leaf".into())],
+        path: vec![terminal_psi::StructuralPathSegment::Field(
+            terminal_psi::TerminalIdentityIndex(6),
+        )],
         access: StructuralAccess::Owned,
     };
     let source = target_operations::CompletionClaimSource {
@@ -352,11 +356,11 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         structural_type: StructuralTypeDeclaration {
             scalar_restriction: None,
             id: StructuralTypeId::new(73).unwrap(),
-            identity: "Bytes".into(),
+            identity: terminal_psi::TerminalIdentityIndex(7),
             shape: StructuralTypeShape::Sum {
                 cases: vec![StructuralCaseDeclaration {
                     id: StructuralCaseId::new(1).unwrap(),
-                    identity: "Bytes".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(7),
                     fields: Vec::new(),
                 }],
             },
@@ -670,7 +674,12 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         };
     let argument = |place: u64, field: &str, access: StructuralAccess| StructuralArgument {
         place: PlaceId::new(place).unwrap(),
-        path: vec![StructuralPathSegment::Field(field.to_owned())],
+        path: vec![StructuralPathSegment::Field(
+            terminal_psi::TerminalIdentityIndex(match field {
+                "other" => 10,
+                _ => 0,
+            }),
+        )],
         access,
     };
     let caller_parameters = vec![
@@ -882,7 +891,9 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
     projected_qualified[0]
         .projected_qualifications
         .push(StructuralPathQualification {
-            path: vec![StructuralPathSegment::Field("leaf".into())],
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(6),
+            )],
             domain: StructuralDomainId::new(5).unwrap(),
         });
     assert_eq!(
@@ -972,12 +983,16 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
     let structural_arguments = vec![
         StructuralArgument {
             place: PlaceId::new(101).unwrap(),
-            path: vec![StructuralPathSegment::Field("header".into())],
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(8),
+            )],
             access: StructuralAccess::SharedBorrow,
         },
         StructuralArgument {
             place: PlaceId::new(102).unwrap(),
-            path: vec![StructuralPathSegment::Field("payload".into())],
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(9),
+            )],
             access: StructuralAccess::MutableBorrow,
         },
     ];
@@ -1003,7 +1018,11 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         let mut changed = structural_arguments.clone();
         match mutation {
             0 => changed[0].place = PlaceId::new(103).unwrap(),
-            1 => changed[0].path = vec![StructuralPathSegment::Field("other".into())],
+            1 => {
+                changed[0].path = vec![StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(10),
+                )]
+            }
             2 => changed[0].access = StructuralAccess::Owned,
             3 => changed[0].path.push(StructuralPathSegment::FixedIndex(0)),
             4 => changed.swap(0, 1),
@@ -1031,7 +1050,9 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             6 => changed[0]
                 .projected_qualifications
                 .push(StructuralPathQualification {
-                    path: vec![StructuralPathSegment::Field("leaf".into())],
+                    path: vec![StructuralPathSegment::Field(
+                        terminal_psi::TerminalIdentityIndex(6),
+                    )],
                     domain: StructuralDomainId::new(5).unwrap(),
                 }),
             _ => changed[0].place = PlaceId::new(203).unwrap(),
@@ -1166,7 +1187,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
     let kernel = target_operations::NormalizedSystemCallBinding {
         target: target::TargetProfile::LinuxX64,
         number: 0,
-        requirement_identity: "Input::read".into(),
+        requirement_identity: "Input::read".to_owned(),
         provider_plan_report_identity: 7,
         provider_plan_commitment: [7; 32],
     };
@@ -1193,7 +1214,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         match mutation {
             0 => changed.target = target::TargetProfile::LinuxArm64,
             1 => changed.number = 211,
-            2 => changed.requirement_identity = "Input::other".into(),
+            2 => changed.requirement_identity = "Input::other".to_owned(),
             3 => changed.provider_plan_report_identity += 1,
             _ => changed.provider_plan_commitment[0] ^= 1,
         }
@@ -1245,7 +1266,7 @@ fn physical_child_identity_binds_every_retained_field() {
         vec![TerminalBoundaryApplicationDemand::new(
             operation,
             BoundaryOperatorRequirement::new(
-                NominalDeclarationIdentity::new("package:operator".to_owned()).unwrap(),
+                NominalDeclarationIdentity::new(terminal_psi::TerminalIdentityIndex(13)),
                 "operator::call()->u64".to_owned(),
                 None,
             )
@@ -1262,12 +1283,12 @@ fn physical_child_identity_binds_every_retained_field() {
                     operation,
                     selected_plan_digest,
                     BoundaryApplicationRealization::NongenericCheckedBody {
-                        realization_machine: NominalDeclarationIdentity::new("machine".to_owned())
-                            .unwrap(),
+                        realization_machine: NominalDeclarationIdentity::new(
+                            terminal_psi::TerminalIdentityIndex(14),
+                        ),
                         realization_state: NominalDeclarationIdentity::new(
-                            "machine::entry".to_owned(),
-                        )
-                        .unwrap(),
+                            terminal_psi::TerminalIdentityIndex(15),
+                        ),
                         realization_contract_commitment: [3; 32],
                     },
                 )

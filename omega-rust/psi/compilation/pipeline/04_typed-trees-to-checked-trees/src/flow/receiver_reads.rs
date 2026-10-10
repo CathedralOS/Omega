@@ -531,7 +531,7 @@ impl DirectReads<'_, '_> {
                     self.value(field.value);
                 }
             }
-                        typed_trees::spelled_literal_expression_pattern!() => {}
+            typed_trees::spelled_literal_expression_pattern!() => {}
         }
     }
 

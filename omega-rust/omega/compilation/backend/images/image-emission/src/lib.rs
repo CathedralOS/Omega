@@ -44,30 +44,33 @@ pub use function_fragments::replay::verify_retained_target_operations;
 
 pub use object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
 pub use object_artifact::replay::boundary::completion_receipts::completion_receipts_have_exact_custody;
-pub use object_artifact::stack_demand::{ derive_stack_demand};
-pub(crate) use object_artifact::stack_demand::{StackDemand};
+pub(crate) use object_artifact::stack_demand::StackDemand;
+pub use object_artifact::stack_demand::derive_stack_demand;
 pub use object_artifact::{
-    ObjectArtifact, ObjectBoundarySettlement,
-    ObjectCodeAttribution, ObjectForeignCall,
-    ObjectFunction, ObjectScalarCallStack,
-    ObjectUnitCallStack, build_object_artifact, derive_normalized_foreign_call_custody,
+    ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectForeignCall,
+    ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack, build_object_artifact,
+    derive_normalized_foreign_call_custody, durable_home_offsets,
     foreign_invocation_provenance_matches, foreign_result_operand_count, fragment_instruction_span,
-    durable_home_offsets, producer_instruction, scalar_immediate_span, transported_span_end, scalar_call_result_producer,
-    unique_block_instruction,
-    structural_result_capture};
-pub(crate) use object_artifact::{ ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction, ObjectError, ObjectPortEffect, ObjectScalarStack, ObjectUnitStack};
+    producer_instruction, scalar_call_result_producer, scalar_immediate_span,
+    structural_result_capture, transported_span_end, unique_block_instruction,
+};
+pub(crate) use object_artifact::{
+    ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction, ObjectError,
+    ObjectPortEffect, ObjectScalarStack, ObjectUnitStack,
+};
 
-pub use function_fragments::{ FunctionFragmentObjectArtifactRequest,
-    build_function_fragment_object_artifact};
+pub use function_fragments::{
+    FunctionFragmentObjectArtifactRequest, build_function_fragment_object_artifact,
+};
 
-pub use dynamic_elf::{
-    RequestedDynamicElfImage, validate_requested_dynamic_elf_image};
-pub use hosted_receiver::{ bind_hosted_receiver};
-pub(crate) use hosted_receiver::{HostedReceiverBinding};
+pub use dynamic_elf::{RequestedDynamicElfImage, validate_requested_dynamic_elf_image};
+pub(crate) use hosted_receiver::HostedReceiverBinding;
+pub use hosted_receiver::bind_hosted_receiver;
 pub use image_output::{
     ExecutableImage, ExecutableImageEmissionRequest, ImageApplicationMetadataError,
-    ObjectContainer, RequestedExecutableImage,
-    can_emit_executable_image, emit_executable_image, validate_direct_executable_image};
+    ObjectContainer, RequestedExecutableImage, can_emit_executable_image, emit_executable_image,
+    validate_direct_executable_image,
+};
 
-pub use installation_record::{ InstallationError};
+pub use installation_record::InstallationError;
 pub use machine_code::BoundaryExecutionRecord;

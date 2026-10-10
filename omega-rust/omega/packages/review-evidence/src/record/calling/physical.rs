@@ -110,9 +110,7 @@ impl PackagePolicyMachineStateSet {
 
 pub type PackagePolicyEntryStack = calling_conventions::EntryStack;
 
-
 pub type PackagePolicyPreemption = calling_conventions::Preemption;
-
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyStatePlan {

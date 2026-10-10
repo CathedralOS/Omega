@@ -13,6 +13,7 @@ use crate::proofs::{
 use crate::proofs::{StructuralParameterDeclaration, StructuralTypeId};
 
 pub(crate) fn checked_boolean_scalar_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
     erased: &[ValueDeclaration],
@@ -48,13 +49,13 @@ pub(crate) fn checked_boolean_scalar_term(
                 "structural crash predicates require structural signature lowering",
             );
         }
-        CheckedBooleanExpression::Not(operand) => {
-            ScalarTerm::boolean_not(checked_boolean_scalar_term(operand, values, erased)?)
-                .map_err(LoweringError::InvalidCrashPredicate)?
-        }
+        CheckedBooleanExpression::Not(operand) => ScalarTerm::boolean_not(
+            checked_boolean_scalar_term(identities, operand, erased, values)?,
+        )
+        .map_err(LoweringError::InvalidCrashPredicate)?,
         CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
-            checked_boolean_scalar_term(left, values, erased)?,
-            checked_boolean_scalar_term(right, values, erased)?,
+            checked_boolean_scalar_term(identities, left, values, erased)?,
+            checked_boolean_scalar_term(identities, right, values, erased)?,
         )
         .map_err(LoweringError::InvalidCrashPredicate)?,
         CheckedBooleanExpression::IntegerMathComparison { .. } => {
@@ -63,8 +64,8 @@ pub(crate) fn checked_boolean_scalar_term(
             );
         }
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-            let left = checked_scalar_term(left, values, erased)?;
-            let right = checked_scalar_term(right, values, erased)?;
+            let left = checked_scalar_term(identities, left, values, erased)?;
+            let right = checked_scalar_term(identities, right, values, erased)?;
             let Some(integer_type) = left.scalar_type().as_integer() else {
                 return unsupported("crash comparison operand is not an integer");
             };
@@ -108,11 +109,12 @@ pub(super) fn checked_integer_comparison(
 }
 
 pub(crate) fn checked_scalar_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &CheckedScalarExpression,
     values: &[ValueDeclaration],
     erased: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
-    let expression = lower_checked_scalar_expression(expression, &[])?;
+    let expression = lower_checked_scalar_expression(identities, expression, &[])?;
     lowered_direct_scalar_term(&expression, values, erased)
 }
 
@@ -120,6 +122,7 @@ pub(crate) fn checked_scalar_term(
 /// and element-view carriers, so a whole-view extent observation resolves
 /// its retained source place instead of failing closed.
 pub(crate) fn checked_scalar_term_with_views(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &CheckedScalarExpression,
     values: &[ValueDeclaration],
     erased: &[ValueDeclaration],
@@ -130,8 +133,9 @@ pub(crate) fn checked_scalar_term_with_views(
         values.iter().map(|value| value.scalar_type),
     );
     let expression = lower_checked_scalar_expression_with_parameters(
+        identities,
         expression,
-        structural_parameters,
+        &[],
         &Default::default(),
         &[],
         &[],

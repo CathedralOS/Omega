@@ -74,6 +74,7 @@ pub(super) struct StagingContext<'a> {
 /// establishes joins `temporaries`; the narrowed view's place is returned.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     context: &StagingContext<'_>,
     operation: &CheckedUnitEffectOperationPlan,
@@ -93,6 +94,7 @@ pub(super) fn emit(
     let structural_type = lookup_type_id(context.type_ids, &argument.type_identity)?;
     let destination = place_id(allocate_dense(next_place)?);
     let storage = view_ranges::storage(
+        identities,
         checked,
         context.state,
         site.statement,
@@ -104,6 +106,7 @@ pub(super) fn emit(
         .then(|| allocate_dense(next_place).map(place_id))
         .transpose()?;
     let (source, establishment) = storage.bind(
+        identities,
         checked,
         context.state,
         context.bindings,
@@ -119,6 +122,7 @@ pub(super) fn emit(
         ));
     }
     let declaration = view_ranges::emit(
+        identities,
         checked,
         site,
         source,

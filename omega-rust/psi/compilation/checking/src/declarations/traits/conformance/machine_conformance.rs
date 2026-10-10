@@ -733,13 +733,15 @@ fn validate_machine_single_requirement(
 
     // A LAW requirement (ensures on the requirement) demands the satisfier
     // PROVE the law: proven-ensures |= declared-law, forall-to-forall.
-    crate::proof_contracts::contract_entailment::check_law_conformance(program,
+    crate::proof_contracts::contract_entailment::check_law_conformance(
+        program,
         machine,
         conformance_alias,
         &application,
         requirement,
         diagnostics,
-        &mut Vec::new());
+        &mut Vec::new(),
+    );
 }
 
 /// Validate the first deliberately closed named-witness conformance surface.

@@ -48,45 +48,41 @@ pub fn validate_ordered_requirement_call_totality(
             }
         }
     }
-    crate::expression_traversal::visit_pre_order(
-        program,
-        pending,
-        |_, node| {
-            if let ExpressionNode::Call(call) = node
-                && let Ok((machine, _)) =
-                    crate::machine_calls::denotational_calls::normal_return_call_candidate(
-                        program,
-                        call,
-                        operational,
-                        service_reaches,
-                    )
-            {
-                let mut summaries = termination
-                    .machines
-                    .iter()
-                    .filter(|fact| fact.machine == machine.symbol);
-                let unconditional = summaries.next().is_some_and(|fact| {
-                    matches!(&fact.plan.checked_summary,
+    crate::expression_traversal::visit_pre_order(program, pending, |_, node| {
+        if let ExpressionNode::Call(call) = node
+            && let Ok((machine, _)) =
+                crate::machine_calls::denotational_calls::normal_return_call_candidate(
+                    program,
+                    call,
+                    operational,
+                    service_reaches,
+                )
+        {
+            let mut summaries = termination
+                .machines
+                .iter()
+                .filter(|fact| fact.machine == machine.symbol);
+            let unconditional = summaries.next().is_some_and(|fact| {
+                matches!(&fact.plan.checked_summary,
                         language_semantics::TerminationGuarantee::Terminates { premises }
                             if premises.is_empty())
-                }) && summaries.next().is_none();
-                if !unconditional {
-                    diagnostics.push(Diagnostic::error(format!(
+            }) && summaries.next().is_none();
+            if !unconditional {
+                diagnostics.push(Diagnostic::error(format!(
                         "ordered requirement call `{}` is not denotational: the exact selected machine is not unconditionally terminating",
                         call.target,
                     )));
-                } else if !crate::machine_calls::denotational_calls::has_no_crash_routes(
-                    program,
-                    machine.symbol,
-                    operational,
-                ) {
-                    diagnostics.push(Diagnostic::error(format!(
+            } else if !crate::machine_calls::denotational_calls::has_no_crash_routes(
+                program,
+                machine.symbol,
+                operational,
+            ) {
+                diagnostics.push(Diagnostic::error(format!(
                         "ordered requirement call `{}` is not denotational: the selected call closure has a crash route",
                         call.target,
                     )));
-                }
             }
-            false
-        },
-    );
+        }
+        false
+    });
 }

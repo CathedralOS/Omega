@@ -82,7 +82,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
     let field = StructuralFieldDeclaration {
         storage: None,
         id: StructuralFieldId::new(1).unwrap(),
-        identity: "console".into(),
+        identity: terminal_psi::TerminalIdentityIndex(1),
         relevance: BindingRelevance::Relevant,
         field_type: StructuralFieldType::Structural(service),
     };
@@ -90,7 +90,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: root,
-            identity: "Main".into(),
+            identity: terminal_psi::TerminalIdentityIndex(2),
             shape: StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![field.clone()],
@@ -99,13 +99,13 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: service,
-            identity: "ConsoleCarrier".into(),
+            identity: terminal_psi::TerminalIdentityIndex(3),
             shape: StructuralTypeShape::BindingCarrier,
         },
     ];
     let source = program_entry_plan::SelectedProgramEntrySignature::from_checked_declaration(
         target::TargetProfile::MacosArm64.program_entry_slot(),
-        terminal_psi::NominalDeclarationIdentity::new("package:test::Main::entry".into()).unwrap(),
+        "package:test::Main::entry".to_owned(),
         "Main::entry".into(),
         "entry".into(),
         "Main::entry()".into(),
@@ -136,6 +136,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
             &source,
             "Main",
             "Main",
+            &Default::default(),
             super::ErasedRows {
                 services: &[],
                 determined_evidence: &[]
@@ -161,7 +162,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
     let field = |field_type| StructuralFieldDeclaration {
         storage: None,
         id: StructuralFieldId::new(1).unwrap(),
-        identity: "bytes".into(),
+        identity: terminal_psi::TerminalIdentityIndex(5),
         relevance: BindingRelevance::Relevant,
         field_type,
     };
@@ -177,7 +178,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: root,
-                identity: "outer".into(),
+                identity: terminal_psi::TerminalIdentityIndex(6),
                 shape: StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![field(StructuralFieldType::Structural(child))],
@@ -186,7 +187,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: child,
-                identity: "inner".into(),
+                identity: terminal_psi::TerminalIdentityIndex(7),
                 shape: StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![field(StructuralFieldType::ByteSequence(carrier))],
@@ -232,7 +233,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
     let field = |field_type| StructuralFieldDeclaration {
         storage: None,
         id: StructuralFieldId::new(1).unwrap(),
-        identity: "value".into(),
+        identity: terminal_psi::TerminalIdentityIndex(8),
         relevance: BindingRelevance::Relevant,
         field_type,
     };
@@ -240,7 +241,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: root,
-            identity: "outer".into(),
+            identity: terminal_psi::TerminalIdentityIndex(6),
             shape: StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![field(StructuralFieldType::Structural(child))],
@@ -249,7 +250,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: child,
-            identity: "inner".into(),
+            identity: terminal_psi::TerminalIdentityIndex(7),
             shape: StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![field(StructuralFieldType::Scalar(ScalarType::Boolean))],
@@ -294,7 +295,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
     for field_type in [
         StructuralFieldType::Structural(root),
         StructuralFieldType::Erased {
-            type_identity: "unestablished-service".into(),
+            type_identity: terminal_psi::TerminalIdentityIndex(9),
         },
         StructuralFieldType::BoundedInteger(
             BoundedIntegerType::new(
@@ -342,27 +343,27 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
     let field = |field_type| StructuralFieldDeclaration {
         storage: None,
         id: StructuralFieldId::new(1).unwrap(),
-        identity: "value".into(),
+        identity: terminal_psi::TerminalIdentityIndex(8),
         relevance: BindingRelevance::Relevant,
         field_type,
     };
     let case = |fields| StructuralCaseDeclaration {
         id: StructuralCaseId::new(1).unwrap(),
-        identity: "Say".into(),
+        identity: terminal_psi::TerminalIdentityIndex(10),
         fields,
     };
     let sum_declaration = |fields: Vec<StructuralFieldDeclaration>| StructuralTypeDeclaration {
         scalar_restriction: None,
         id: sum,
-        identity: "sum".into(),
+        identity: terminal_psi::TerminalIdentityIndex(11),
         shape: StructuralTypeShape::Sum {
             cases: vec![
                 case(fields),
                 StructuralCaseDeclaration {
                     id: StructuralCaseId::new(2).unwrap(),
-                    identity: "Quiet".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(12),
                     fields: vec![field(StructuralFieldType::Erased {
-                        type_identity: "unestablished".into(),
+                        type_identity: terminal_psi::TerminalIdentityIndex(13),
                     })],
                 },
             ],
@@ -373,7 +374,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: root,
-                identity: "outer".into(),
+                identity: terminal_psi::TerminalIdentityIndex(6),
                 shape: StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![field(StructuralFieldType::Structural(sum))],
@@ -419,7 +420,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
             ..field(StructuralFieldType::Scalar(ScalarType::Boolean))
         }],
         vec![field(StructuralFieldType::Erased {
-            type_identity: "nested-service".into(),
+            type_identity: terminal_psi::TerminalIdentityIndex(14),
         })],
     ] {
         let label = format!("{first_case_fields:?}");
@@ -463,7 +464,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     let field = |field_type| StructuralFieldDeclaration {
         storage: None,
         id: StructuralFieldId::new(1).unwrap(),
-        identity: "value".into(),
+        identity: terminal_psi::TerminalIdentityIndex(8),
         relevance: BindingRelevance::Relevant,
         field_type,
     };
@@ -498,7 +499,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: root,
-                identity: "outer".into(),
+                identity: terminal_psi::TerminalIdentityIndex(6),
                 shape: StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![field(StructuralFieldType::Structural(array))],
@@ -507,13 +508,13 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: array,
-                identity: "array".into(),
+                identity: terminal_psi::TerminalIdentityIndex(15),
                 shape: StructuralTypeShape::FixedArray { element, length },
             },
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: element,
-                identity: "element".into(),
+                identity: terminal_psi::TerminalIdentityIndex(16),
                 shape: element_shape.clone(),
             },
         ];
@@ -527,7 +528,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             declarations.push(StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: leaf,
-                identity: "leaf".into(),
+                identity: terminal_psi::TerminalIdentityIndex(17),
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
             });
         }
@@ -562,7 +563,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: root,
-                identity: "outer".into(),
+                identity: terminal_psi::TerminalIdentityIndex(6),
                 shape: StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![field(StructuralFieldType::Structural(array))],
@@ -571,13 +572,13 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: array,
-                identity: "array".into(),
+                identity: terminal_psi::TerminalIdentityIndex(15),
                 shape: StructuralTypeShape::FixedArray { element, length: 0 },
             },
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: element,
-                identity: "element".into(),
+                identity: terminal_psi::TerminalIdentityIndex(16),
                 shape: element_shape.clone(),
             },
         ];
@@ -592,7 +593,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: root,
-            identity: "outer".into(),
+            identity: terminal_psi::TerminalIdentityIndex(6),
             shape: StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![field(StructuralFieldType::Structural(array))],
@@ -601,7 +602,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: array,
-            identity: "array".into(),
+            identity: terminal_psi::TerminalIdentityIndex(15),
             shape: StructuralTypeShape::FixedArray {
                 element: array,
                 length: 0,
@@ -619,20 +620,20 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         |common: Vec<StructuralFieldDeclaration>, case_fields| StructuralTypeDeclaration {
             scalar_restriction: None,
             id: mixed,
-            identity: "mixed".into(),
+            identity: terminal_psi::TerminalIdentityIndex(18),
             shape: StructuralTypeShape::Mixed {
                 fields: common,
                 cases: vec![
                     StructuralCaseDeclaration {
                         id: StructuralCaseId::new(1).unwrap(),
-                        identity: "Empty".into(),
+                        identity: terminal_psi::TerminalIdentityIndex(19),
                         fields: case_fields,
                     },
                     StructuralCaseDeclaration {
                         id: StructuralCaseId::new(2).unwrap(),
-                        identity: "Full".into(),
+                        identity: terminal_psi::TerminalIdentityIndex(20),
                         fields: vec![field(StructuralFieldType::Erased {
-                            type_identity: "unestablished".into(),
+                            type_identity: terminal_psi::TerminalIdentityIndex(13),
                         })],
                     },
                 ],
@@ -643,7 +644,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: root,
-                identity: "outer".into(),
+                identity: terminal_psi::TerminalIdentityIndex(6),
                 shape: StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![field(StructuralFieldType::Structural(mixed))],
@@ -1095,7 +1096,7 @@ fn hosted_receiver_binding(
     let target = physical.target_slot().owner.native_target();
     let source = program_entry_plan::SelectedProgramEntrySignature::from_checked_declaration(
         physical.target_slot(),
-        terminal_psi::NominalDeclarationIdentity::new("package:test::Main::main".into()).unwrap(),
+        "package:test::Main::main".to_owned(),
         "Main".into(),
         "main".into(),
         "Main::main".into(),
@@ -1109,7 +1110,7 @@ fn hosted_receiver_binding(
     let checked_entry = terminal_psi::CheckedProgramEntryTerminalReceipt::new(
         source.identity().bytes(),
         source.machine_name().into(),
-        source.declaration().clone(),
+        terminal_psi::NominalDeclarationIdentity::new(terminal_psi::TerminalIdentityIndex(4)),
         terminal_psi::TerminalPsiIdentity {
             vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
             program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([7; 32]),

@@ -27,8 +27,7 @@ pub fn called_boundary_signature<'program>(
         .name_path_members(call.receiver)
         .last()?;
     let attached = machine.attached_data.as_ref()?;
-    let data = program
-        .data_definition_by_name_str(attached.as_str())?;
+    let data = program.data_definition_by_name_str(attached.as_str())?;
     let field_type = program
         .data_members(data)
         .iter()

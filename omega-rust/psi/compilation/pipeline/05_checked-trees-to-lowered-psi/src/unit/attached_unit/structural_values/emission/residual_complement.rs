@@ -101,21 +101,18 @@ pub(super) fn complement(
     types: &[CheckedUnitStructuralTypePlan],
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: typed_trees::type_identity::TypeIdentityId,
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], typed_trees::type_identity::TypeIdentityId)],
+    moved_paths: &[(
+        &[CheckedUnitStructuralPathSegment],
+        typed_trees::type_identity::TypeIdentityId,
+    )],
 ) -> Result<Vec<CheckedUnitPartialAffineDiscardPlan>, LoweringError> {
     let borrowed = types
         .iter()
         .map(|declaration| (declaration.identity, declaration))
         .collect();
-    validation::reconstruct(
-        &borrowed,
-        source,
-        root_type,
-        moved_paths,
-        &[],
-        usize::MAX,
+    validation::reconstruct(&borrowed, source, root_type, moved_paths, &[], usize::MAX).ok_or(
+        LoweringError::Unsupported(
+            "projected move's residual complement has no partial-affine discard route",
+        ),
     )
-    .ok_or(LoweringError::Unsupported(
-        "projected move's residual complement has no partial-affine discard route",
-    ))
 }

@@ -40,7 +40,9 @@ impl PackagePolicyProviderRow {
         &self.binding
     }
 
-    pub(crate) fn compiler_intrinsic_execution(&self) -> Option<PackageReviewCompilerIntrinsicExecution> {
+    pub(crate) fn compiler_intrinsic_execution(
+        &self,
+    ) -> Option<PackageReviewCompilerIntrinsicExecution> {
         self.compiler_intrinsic_execution
     }
 
@@ -55,9 +57,7 @@ pub struct PackagePolicyProviderEvaluatedSyscall {
     pub(crate) producer: PackagePolicyEvaluatedBindingProducer,
 }
 
-impl PackagePolicyProviderEvaluatedSyscall {
-
-}
+impl PackagePolicyProviderEvaluatedSyscall {}
 
 /// Leaf mechanisms preserve evaluated producers but never evaluator receipts.
 #[derive(Debug, Clone, PartialEq, Eq)]

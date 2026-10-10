@@ -35,13 +35,8 @@ pub(crate) fn validate_linear_scalar_division_stack(
     {
         return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
     }
-    let (mut claimed, mut call_sites) = claimed_mutations_and_call_sites(
-        architecture,
-        machine,
-        bytes,
-        evidence,
-        calls,
-    )?;
+    let (mut claimed, mut call_sites) =
+        claimed_mutations_and_call_sites(architecture, machine, bytes, evidence, calls)?;
     let mut validated_calls = Vec::with_capacity(calls.len());
     let mut cursor = 0;
     let mut depth = 0_u32;
@@ -197,12 +192,8 @@ fn validate_scalar_division_branch_instructions(
         branch.branch_offset,
         branch.branch_byte_count,
     )?;
-    let join = decode_exact_x86_instruction(
-        machine,
-        bytes,
-        branch.join_offset,
-        branch.join_byte_count,
-    )?;
+    let join =
+        decode_exact_x86_instruction(machine, bytes, branch.join_offset, branch.join_byte_count)?;
     if conditional.mnemonic() != iced_x86::Mnemonic::Jne
         || conditional.flow_control() != iced_x86::FlowControl::ConditionalBranch
         || usize::try_from(conditional.near_branch_target()).ok()

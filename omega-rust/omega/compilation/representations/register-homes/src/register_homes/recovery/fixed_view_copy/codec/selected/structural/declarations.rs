@@ -53,7 +53,7 @@ pub(super) fn encode_type(
     declaration: &StructuralTypeDeclaration,
 ) -> Result<(), terminal_codec::CodecError> {
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
-    encode_string(bytes, &declaration.identity);
+    crate::codec_bytes::push_encoded(bytes, declaration.identity.0.to_le_bytes());
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => bytes.push(11),
         StructuralTypeShape::Reference { referent, access } => {
@@ -122,7 +122,7 @@ pub(super) fn decode_type(
     cursor: &mut Cursor<'_>,
 ) -> Result<StructuralTypeDeclaration, FixedViewCopyDecodeError> {
     let id = decode_id(cursor, StructuralTypeId::new)?;
-    let identity = decode_string(cursor)?;
+    let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let mut scalar_restriction = None;
     let shape = match cursor.byte()? {
         11 => StructuralTypeShape::BindingCarrier,
@@ -290,7 +290,7 @@ fn encode_cases(
     length(bytes, cases.len());
     for case in cases {
         crate::codec_bytes::push_encoded(bytes, case.id.get().to_le_bytes());
-        encode_string(bytes, &case.identity);
+        crate::codec_bytes::push_encoded(bytes, case.identity.0.to_le_bytes());
         encode_fields(bytes, &case.fields)?;
     }
     Ok(())
@@ -304,7 +304,7 @@ fn decode_cases(
     for _ in 0..count {
         cases.push(StructuralCaseDeclaration {
             id: decode_id(cursor, StructuralCaseId::new)?,
-            identity: decode_string(cursor)?,
+            identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
             fields: decode_fields(cursor)?,
         });
     }
@@ -318,7 +318,7 @@ fn encode_fields(
     length(bytes, fields.len());
     for field in fields {
         crate::codec_bytes::push_encoded(bytes, field.id.get().to_le_bytes());
-        encode_string(bytes, &field.identity);
+        crate::codec_bytes::push_encoded(bytes, field.identity.0.to_le_bytes());
         bytes.push(match field.relevance {
             BindingRelevance::Relevant => 1,
             BindingRelevance::Erased => 2,
@@ -335,7 +335,7 @@ fn decode_fields(
     let mut fields = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {
         let id = decode_id(cursor, StructuralFieldId::new)?;
-        let identity = decode_string(cursor)?;
+        let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
         let relevance = match cursor.byte()? {
             1 => BindingRelevance::Relevant,
             2 => BindingRelevance::Erased,
@@ -665,7 +665,7 @@ pub(in super::super) fn decode_path(
     let mut path = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {
         path.push(match cursor.byte()? {
-            1 => StructuralPathSegment::Field(decode_string(cursor)?),
+            1 => StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(cursor.u32()?)),
             2 => StructuralPathSegment::FixedIndex(cursor.u64()?),
             3 => StructuralPathSegment::Referent,
             7 => StructuralPathSegment::Case(decode_id(
@@ -813,7 +813,7 @@ fn encode_scalar_restriction(
         }
         StructuralFieldType::Erased { type_identity } => {
             bytes.push(5);
-            encode_string(bytes, type_identity);
+            crate::codec_bytes::push_encoded(bytes, type_identity.0.to_le_bytes());
         }
     }
     Ok(())
@@ -861,7 +861,7 @@ fn decode_scalar_restriction(
         }
         4 => StructuralFieldType::Structural(decode_id(cursor, StructuralTypeId::new)?),
         5 => StructuralFieldType::Erased {
-            type_identity: decode_string(cursor)?,
+            type_identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralFieldType(tag)),
     })

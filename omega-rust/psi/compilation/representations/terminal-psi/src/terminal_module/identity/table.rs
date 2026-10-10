@@ -11,12 +11,33 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalIdentityIndex(pub u32);
 
+impl TerminalIdentityIndex {
+    /// ZII absent sentinel: index 0 is the table's empty entry, so a field
+    /// holding it renders as the empty identity the String shape used as
+    /// its default. `is_absent` is the validity test the empty-string
+    /// checks carried.
+    pub const ABSENT: Self = Self(0);
+
+    pub fn is_absent(self) -> bool {
+        self == Self::ABSENT
+    }
+}
+
 /// The deduplicated rendered identities the module's rows index into. Ordered
 /// by first use; the codec writes this section once and decoding checks its
 /// entries once.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalIdentityTable {
     entries: Vec<String>,
+}
+
+/// A fresh table carries only entry 0, the empty identity `ABSENT` renders as.
+impl Default for TerminalIdentityTable {
+    fn default() -> Self {
+        Self {
+            entries: vec![String::new()],
+        }
+    }
 }
 
 impl TerminalIdentityTable {
@@ -28,18 +49,55 @@ impl TerminalIdentityTable {
     /// The rendered identity text `index` names; `None` for an out-of-range
     /// index (impossible for codec-decoded modules, whose indices are checked
     /// against the table length once).
+    /// Reverse lookup used when a checked-side identity must rejoin its
+    /// already-interned terminal index (artifact rosters built after the
+    /// module table is sealed). Construction-scale tables keep this a scan.
+    pub fn index_of(&self, text: &str) -> Option<TerminalIdentityIndex> {
+        self.entries
+            .iter()
+            .position(|entry| entry == text)
+            .map(|position| TerminalIdentityIndex(position as u32))
+    }
+
     pub fn text(&self, index: TerminalIdentityIndex) -> Option<&str> {
         self.entries.get(index.0 as usize).map(String::as_str)
+    }
+
+    /// Construction resumed on an existing table: test fixtures and sealed
+    /// rosters that must mint identities late take the rows back to a builder
+    /// rather than reconstructing the deduplication map by hand.
+    pub fn into_builder(self) -> TerminalIdentityTableBuilder {
+        let positions = self
+            .entries
+            .iter()
+            .enumerate()
+            .map(|(position, entry)| (entry.clone(), position as u32))
+            .collect();
+        TerminalIdentityTableBuilder {
+            entries: self.entries,
+            positions,
+        }
     }
 }
 
 /// Produces a `TerminalIdentityTable`: interns each rendered identity once and
 /// hands out its stable index. Construction scratch only — the durable module
 /// field is the plain `entries` vector.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TerminalIdentityTableBuilder {
     entries: Vec<String>,
     positions: std::collections::HashMap<String, u32>,
+}
+
+/// A fresh builder already holds entry 0 so the first real identity indexes
+/// at 1 and never collides with `ABSENT`.
+impl Default for TerminalIdentityTableBuilder {
+    fn default() -> Self {
+        Self {
+            entries: vec![String::new()],
+            positions: [(String::new(), 0)].into_iter().collect(),
+        }
+    }
 }
 
 impl TerminalIdentityTableBuilder {
@@ -54,6 +112,26 @@ impl TerminalIdentityTableBuilder {
         self.positions.insert(text.to_owned(), position);
         self.entries.push(text.to_owned());
         TerminalIdentityIndex(position)
+    }
+
+    /// The index `text` already occupies. Read-only: lowering paths that
+    /// compare rather than mint identities never extend the table.
+    pub fn index_of(&self, text: &str) -> Option<TerminalIdentityIndex> {
+        self.positions.get(text).copied().map(TerminalIdentityIndex)
+    }
+
+    /// The text an interned index carries. Read-only.
+    pub fn text(&self, index: TerminalIdentityIndex) -> Option<&str> {
+        self.entries.get(index.0 as usize).map(String::as_str)
+    }
+
+    /// A read-side view of the interned prefix. Fingerprint and commitment
+    /// helpers take `&TerminalIdentityTable`; the producer borrows one
+    /// mid-construction rather than rebuilding interned text.
+    pub fn snapshot(&self) -> TerminalIdentityTable {
+        TerminalIdentityTable {
+            entries: self.entries.clone(),
+        }
     }
 
     /// The finished table. `build` runs no deduplication: `intern` already

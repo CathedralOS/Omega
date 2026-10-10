@@ -34,5 +34,4 @@ impl PackageReviewConstShape {
     pub const fn declared_type(&self) -> &PackageReviewTypeIdentity {
         &self.declared_type
     }
-
 }

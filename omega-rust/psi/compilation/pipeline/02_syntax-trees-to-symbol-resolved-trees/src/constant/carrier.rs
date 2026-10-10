@@ -240,8 +240,7 @@ pub(super) fn receiving_parameters(
     if conflicting || !selected.is_valid() {
         return None;
     }
-    if let Some(template) = program.data_definition_by_symbol(selected)
-    {
+    if let Some(template) = program.data_definition_by_symbol(selected) {
         return Some(program.data_type_parameters(template.type_parameters));
     }
     let domain = program.domain_definition_by_symbol(selected)?;

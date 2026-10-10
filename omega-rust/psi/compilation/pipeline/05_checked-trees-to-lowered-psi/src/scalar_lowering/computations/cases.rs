@@ -81,6 +81,7 @@ pub(crate) struct Construction {
 }
 
 pub(crate) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
@@ -102,6 +103,7 @@ pub(crate) fn prepare(
                     "computed case lost its constructor",
                 ))?;
             slots.push(reserve(
+                identities,
                 checked,
                 subject.expression,
                 &source,
@@ -116,6 +118,7 @@ pub(crate) fn prepare(
 /// Resolve one exact constructor against the shared structural namespace.
 /// The caller owns allocation and the result's lifetime.
 pub(crate) fn reserve(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     expression: checked_trees::expression::ExpressionHandle,
     source: &validation::ScalarCaseConstructor,
@@ -125,7 +128,7 @@ pub(crate) fn reserve(
     let identity = checked.normalized_type_identity(source.type_reference);
     let declaration = terminal_psi::structural_type_by_identity(
         types,
-        &checked.type_identity_text(identity).unwrap_or_default(),
+        identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
     )
     .ok_or(LoweringError::Unsupported(
         "computed case has no structural type namespace",
@@ -148,10 +151,15 @@ pub(crate) fn reserve(
         let DataMember::Variant(variant) = member else {
             continue;
         };
-        let identity = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
-        let case = terminal_psi::structural_case_by_identity(cases, &identity.spelling()).ok_or(
-            LoweringError::Unsupported("computed case declaration is absent"),
-        )?;
+        let identity =
+            checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
+        let case = terminal_psi::structural_case_by_identity(
+            cases,
+            identities.intern(&identity.spelling()),
+        )
+        .ok_or(LoweringError::Unsupported(
+            "computed case declaration is absent",
+        ))?;
         case_bindings.push((variant.symbol, case.id));
         if variant.symbol == source.case {
             selected = Some((variant, case));
@@ -173,10 +181,15 @@ pub(crate) fn reserve(
             .ok_or(LoweringError::Unsupported(
                 "computed case field has a foreign owner",
             ))?;
-        let identity = checked_trees::CheckedMemberIdentity::of_member(authored.identity, authored.name.clone());
-        let declaration = terminal_psi::field_by_identity(&case.fields, &identity.spelling()).ok_or(
-            LoweringError::Unsupported("computed case field declaration is absent"),
-        )?;
+        let identity = checked_trees::CheckedMemberIdentity::of_member(
+            authored.identity,
+            authored.name.clone(),
+        );
+        let declaration =
+            terminal_psi::field_by_identity(&case.fields, identities.intern(&identity.spelling()))
+                .ok_or(LoweringError::Unsupported(
+                    "computed case field declaration is absent",
+                ))?;
         let primitive = checked
             .primitive_type_reference(authored.type_reference)
             .ok_or(LoweringError::Unsupported(
@@ -291,6 +304,8 @@ fn constructions<'a>(
 impl Expansion<'_> {
     pub(super) fn case_membership(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         subject: &CheckedScalarComputationStructuralArgument,
         observed_case: symbols::SymbolHandle,
         input_types: &[QualifiedScalarType],
@@ -318,9 +333,12 @@ impl Expansion<'_> {
                     // selector is read before the tag and the observation owns
                     // the element's bound.
                     let identity = structural_case_identity(self.checked, observed_case)?;
-                    let expression = site
-                        .bindings
-                        .element_case_observation(argument, &source, &identity.spelling())?;
+                    let expression = site.bindings.element_case_observation(
+                        identities,
+                        argument,
+                        &source,
+                        &identity.spelling(),
+                    )?;
                     return Ok(self.binding(
                         input_types,
                         input_types.len(),
@@ -336,6 +354,7 @@ impl Expansion<'_> {
                 let identity = structural_case_identity(self.checked, observed_case)?;
                 let (path, case) =
                     crate::expression_preparation::bindings::structural_cases::resolve_at(
+                        identities,
                         self.structural_types,
                         structural_type,
                         &argument.path,
@@ -396,7 +415,7 @@ impl Expansion<'_> {
         let mut completed_fields = Vec::new();
         for (field, reserved) in retained.iter().zip(&slot.fields) {
             let operand = Argument::Computation(field.value);
-            self.argument_type(&operand, site, input_types)?;
+            self.argument_type(identities, &operand, site, input_types)?;
             completed_fields.push(reserved.completed(parameter(
                 completed_types.len(),
                 reserved.scalar_type.into(),
@@ -463,7 +482,14 @@ impl Expansion<'_> {
                 cleanup_actions: Vec::new(),
             },
         });
-        self.sequence(&operands, input_types, constructor, site, active)
+        self.sequence(
+            identities,
+            &operands,
+            input_types,
+            constructor,
+            site,
+            active,
+        )
     }
 }
 
@@ -562,7 +588,10 @@ fn structural_case_identity(
         .flat_map(|data| checked.data_members(data).iter())
         .filter_map(|member| match member {
             DataMember::Variant(variant) if variant.symbol == observed_case => {
-                Some(checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()))
+                Some(checked_trees::CheckedMemberIdentity::of_member(
+                    variant.identity,
+                    variant.name.clone(),
+                ))
             }
             _ => None,
         })

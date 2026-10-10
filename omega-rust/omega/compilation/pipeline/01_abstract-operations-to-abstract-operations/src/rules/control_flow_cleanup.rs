@@ -8,8 +8,7 @@
 
 use crate::rules::catalog::BuiltInRuleRegistration;
 use optimization_unit::{
-    FuelSettlement, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
-    PsiRealizationSite,
+    FuelSettlement, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance, PsiRealizationSite,
 };
 
 mod adjacent_block_merge;

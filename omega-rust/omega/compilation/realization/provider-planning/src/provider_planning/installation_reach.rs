@@ -183,12 +183,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
             );
         }
     }
-    substitute_nested_installation_reaches(
-        checked,
-        &mut resolutions,
-        pending,
-        &mut diagnostics,
-    );
+    substitute_nested_installation_reaches(checked, &mut resolutions, pending, &mut diagnostics);
     if diagnostics.is_empty() {
         Ok(resolutions)
     } else {
@@ -224,8 +219,7 @@ fn append_top_level_installation_reach_resolution<'a>(
         .machines()
         .iter()
         .filter(|machine| {
-            checked.attached_data_path(machine).as_deref()
-                == Some(plan.provider_type.as_str())
+            checked.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
         })
         .filter(|machine| {
             checked

@@ -182,10 +182,7 @@ impl Builder<'_, '_> {
                     validation::structural_type_identity(self.program, expected, &[], &[]),
                 )
             } else {
-                (
-                    source,
-                    self.program.normalized_type_identity(projected),
-                )
+                (source, self.program.normalized_type_identity(projected))
             };
         // Ordinary collection openers retain their exact element identity.
         // An authored recast retains both declared identities: source

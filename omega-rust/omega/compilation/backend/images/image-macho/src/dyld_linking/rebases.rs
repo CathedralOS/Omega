@@ -157,7 +157,6 @@ pub(crate) fn macho_rebase_info(image: &FinalImage) -> Result<MachoRebaseInfo, D
     Ok(MachoRebaseInfo { bytes, sites })
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::macho_rebase_info;

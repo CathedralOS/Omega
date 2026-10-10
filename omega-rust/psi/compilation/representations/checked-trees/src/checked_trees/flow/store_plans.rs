@@ -20,8 +20,8 @@ use crate::{
 };
 
 use super::CheckedUnitStructuralPathSegment;
-use typed_trees::type_identity::TypeIdentityId;
 use crate::checked_trees::CheckedMemberIdentity;
+use typed_trees::type_identity::TypeIdentityId;
 
 /// One authored store: the exact place it replaces and the value it writes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,9 +105,7 @@ impl CheckedStorePlan {
 impl CheckedStoreDestination {
     /// The carrier path and identity of a leaf that is a record field: the
     /// path's final `Field` segment.
-    pub fn field(
-        &self,
-    ) -> Option<(&[CheckedUnitStructuralPathSegment], &CheckedMemberIdentity)> {
+    pub fn field(&self) -> Option<(&[CheckedUnitStructuralPathSegment], &CheckedMemberIdentity)> {
         match self.path.split_last()? {
             (CheckedUnitStructuralPathSegment::Field(identity), carrier) => {
                 Some((carrier, identity))

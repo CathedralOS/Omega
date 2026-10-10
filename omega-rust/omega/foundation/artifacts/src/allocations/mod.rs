@@ -54,11 +54,9 @@ pub struct AllocationDelta {
     pub deallocated_bytes: u64,
 }
 
-impl AllocationSnapshot {
-}
+impl AllocationSnapshot {}
 
-impl AllocationDelta {
-}
+impl AllocationDelta {}
 
 pub fn snapshot() -> AllocationSnapshot {
     AllocationSnapshot {
@@ -68,7 +66,3 @@ pub fn snapshot() -> AllocationSnapshot {
         deallocated_bytes: DEALLOCATED_BYTES.load(Ordering::Relaxed),
     }
 }
-
-
-
-

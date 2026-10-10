@@ -97,7 +97,8 @@ impl<'a> UnitPlans<'a> {
         self,
         identity: typed_trees::type_identity::TypeIdentityId,
     ) -> Option<&'a checked_trees::CheckedUnitStructuralTypePlan> {
-        self.structural_types().find(|shape| shape.identity == identity)
+        self.structural_types()
+            .find(|shape| shape.identity == identity)
     }
 }
 
@@ -239,9 +240,7 @@ impl<'a> UnitBody<'a> {
             .chain(composed.iter().flat_map(|state| &state.parameter_storage))
     }
 
-    pub(crate) fn attachment(
-        self,
-    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+    pub(crate) fn attachment(self) -> Option<typed_trees::type_identity::TypeIdentityId> {
         match self {
             Self::Ordinary(plan) => plan.attachment_type_identity,
             Self::Composed(plan) => plan.attachment_type_identity,

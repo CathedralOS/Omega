@@ -584,9 +584,8 @@ fn validate_abstract_numeric_coercion(
         source = primitive;
         source_interval = Some(interval);
     }
-    let float_bounds = |expression| {
-        super::float_source_bounds(program, environment, expression, &result_type)
-    };
+    let float_bounds =
+        |expression| super::float_source_bounds(program, environment, expression, &result_type);
     let integer_bounds = || {
         super::integer_ranges::integer_source_bounds_from_interval(
             program,
@@ -766,14 +765,12 @@ fn narrow_abstract_specification_environment(
 ) {
     let source_type =
         |expression| abstract_specification_result_type(program, bindings, expression);
-    let Some(comparison) =
-        crate::proof_contracts::bound_expression_meaning::guard_comparison(
-            program,
-            bindings.owner_symbol,
-            expression,
-            &source_type,
-        )
-    else {
+    let Some(comparison) = crate::proof_contracts::bound_expression_meaning::guard_comparison(
+        program,
+        bindings.owner_symbol,
+        expression,
+        &source_type,
+    ) else {
         return;
     };
     if comparison.operator == BinaryOperator::And {

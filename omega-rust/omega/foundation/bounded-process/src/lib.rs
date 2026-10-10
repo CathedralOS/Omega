@@ -14,8 +14,8 @@ mod preparation;
 mod process_child;
 
 pub use bounded_process::{
-    BoundedCaptureBudget, BoundedCaptureLimits, BoundedProcessInput,
-    BoundedProcessOutput, BoundedProcessRunError, run_bounded_process,
+    BoundedCaptureBudget, BoundedCaptureLimits, BoundedProcessInput, BoundedProcessOutput,
+    BoundedProcessRunError, run_bounded_process,
 };
 pub use preparation::{BoundedProcessLimits, BoundedProcessPrepared};
 pub use process_child::{BoundedProcessChild, BoundedProcessCompletion, BoundedProcessExitStatus};

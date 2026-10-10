@@ -9,8 +9,8 @@
 use abstract_operations::AbstractOperation;
 use optimization_core::{AnalysisKind, OptimizationRuleContract};
 use optimization_unit::{
-    DeadScalarNodeRewrite, NodeLocation, ProvenanceRewrite,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    DeadScalarNodeRewrite, NodeLocation, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{BlockId, OperationId, ScalarType, ValueId};
 
@@ -193,7 +193,10 @@ pub(super) fn node_elision_accounting(
                 node: u32::try_from(index).ok()?,
             });
             provenance.push(provenance_realized_at(
-                site, site, &node.provenance, &node.fuel,
+                site,
+                site,
+                &node.provenance,
+                &node.fuel,
             ));
         }
     }
@@ -214,7 +217,10 @@ pub(super) fn node_elision_accounting(
                 node: u32::try_from(index).ok()?,
             });
             provenance.push(provenance_realized_at(
-                site, site, &node.provenance, &node.fuel,
+                site,
+                site,
+                &node.provenance,
+                &node.fuel,
             ));
         }
     }

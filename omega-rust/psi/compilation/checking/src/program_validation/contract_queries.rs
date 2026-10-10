@@ -52,11 +52,11 @@ pub fn validate_generic_machine_contract_entailment(
             })
         {
             validate_machine_contract_entailment(
-            program,
-            machine,
-            &mut diagnostics,
-            &mut Vec::new()
-        );
+                program,
+                machine,
+                &mut diagnostics,
+                &mut Vec::new(),
+            );
         }
     }
     finish_diagnostics(diagnostics)

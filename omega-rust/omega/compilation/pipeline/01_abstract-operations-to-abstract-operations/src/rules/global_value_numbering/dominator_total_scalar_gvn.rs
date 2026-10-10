@@ -10,9 +10,9 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     DominatorTotalScalarGvnRule,
     dominating_contract(
-                b"omega.psi-rule.dominator-obligation-free-total-scalar-gvn.v1",
-                OptimizationSafetyClass::ExactOperationSemantics,
-            ),
+        b"omega.psi-rule.dominator-obligation-free-total-scalar-gvn.v1",
+        OptimizationSafetyClass::ExactOperationSemantics,
+    ),
 );
 
 impl PsiOptimizationRule for DominatorTotalScalarGvnRule {

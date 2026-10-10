@@ -12,29 +12,29 @@
 pub mod codec_bytes;
 pub mod cursor;
 pub mod digest_encoder;
-pub mod variant_accessors;
 mod optimization_core;
+pub mod variant_accessors;
 
+pub(crate) use optimization_core::DuplicateOptimization;
+pub(crate) use optimization_core::contracts::CoreContractDecodeError;
 pub use optimization_core::contracts::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OPTIMIZATION_REFERENCE_EXTENT,
     OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationRuleContract,
     OptimizationSafetyClass, OptimizationWorkBudget,
 };
-pub(crate) use optimization_core::contracts::{ CoreContractDecodeError};
 pub use optimization_core::decisions::{
     BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionLogDecodeError,
-    BaselineDecisionOutcome, BaselineDecisionRecordError,
-    ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
-    ExternalDecisionLog, ExternalDecisionPoint, ExternalDecisionSchemaError,
-    ValidatedCandidateSummary, external_psi_decision_schema_v2_identity,
-    psi_target_neutral_decision_target_v2_identity,
+    BaselineDecisionOutcome, BaselineDecisionRecordError, ExternalCandidateFeatures,
+    ExternalDecisionAction, ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
+    ExternalDecisionSchemaError, ValidatedCandidateSummary,
+    external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
 };
 pub use optimization_core::identities::{
-    AcceptedObligationFactIdentity, CanonicalIdentityEncoder,
-    FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity, OptimizationCandidateIdentity,
-    OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
+    AcceptedObligationFactIdentity, CanonicalIdentityEncoder, FunctionFragmentEmissionIdentity,
+    FunctionFragmentEmissionManifestIdentity, FunctionFragmentObjectContainerManifestIdentity,
+    FunctionFragmentTextSectionManifestIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,
+    OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
     OptimizationIdentityBundle, OptimizationIdentityBundleIdentity, OptimizationPassIdentity,
     OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationUnitIdentity,
@@ -53,12 +53,11 @@ pub use optimization_core::identities::{
     TargetCostModelIdentity, TerminalRelocationFreeTextSectionIdentity,
     TransformationLedgerIdentity, ValueRangeFactIdentity,
 };
+pub(crate) use optimization_core::manifest::OptimizationFactReferenceDecodeError;
 pub use optimization_core::manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
     OptimizationPassManifestRecord, OptimizationWorkUsage,
 };
-pub(crate) use optimization_core::manifest::{
-    OptimizationFactReferenceDecodeError};
 #[cfg(any(test, feature = "test-support"))]
 pub use optimization_core::mutation_matrix::{
     MutationOutcome, OneFieldSubstitutionMatrix, custody_field_inventory,
@@ -71,11 +70,8 @@ pub use optimization_core::rollback::{
     OptimizationRollbackSettlement,
 };
 pub use optimization_core::{
-    encode_option_u64, hex, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
+    Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
     OptimizationPhaseMismatch, OptimizationPhaseSelections, OptimizationSelectionIdentity,
     OptimizationSelections, PostTerminalOptimizationSelectionProjection,
-    PostTerminalOptimizationSelections,
-    PsiOptimizationSelectionProjection,
+    PostTerminalOptimizationSelections, PsiOptimizationSelectionProjection, encode_option_u64, hex,
 };
-pub(crate) use optimization_core::{
-    DuplicateOptimization};

@@ -110,11 +110,11 @@ pub(crate) fn validate_scalar_structural_scalar_field_stores(
             || store.code_offset != expected_store_prefix.len()
             || exact_defining_attribution_count(function, store) != 1
             || exact_attribution_count(
-            &function.semantic_code_attribution,
-            store.psi_operation,
-            store.operation_ordinal,
-            Some((store.code_offset, store.byte_count)),
-        ) != 1
+                &function.semantic_code_attribution,
+                store.psi_operation,
+                store.operation_ordinal,
+                Some((store.code_offset, store.byte_count)),
+            ) != 1
             || stores[..index].iter().any(|earlier| {
                 earlier.psi_operation == store.psi_operation
                     || earlier.defining_operation == store.defining_operation
@@ -167,10 +167,9 @@ pub(crate) fn validate_scalar_structural_scalar_field_stores(
 
 fn valid_store_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
     path.iter().all(
-        |segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(identity) if !identity.is_empty()),
+        |segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(identity) if *identity != terminal_psi::TerminalIdentityIndex::ABSENT),
     )
 }
-
 
 fn exact_defining_attribution_count(
     function: &MachineCodeFunction,

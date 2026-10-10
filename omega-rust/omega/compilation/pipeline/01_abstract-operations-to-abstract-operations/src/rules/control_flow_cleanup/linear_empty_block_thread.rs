@@ -5,36 +5,40 @@ use std::collections::BTreeSet;
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
-    LinearEmptyBlockRewrite, NodeLocation, ProvenanceRewrite,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    LinearEmptyBlockRewrite, NodeLocation, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::BlockId;
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
     compose_linear_thread_bindings, linear_thread_ownership_is_identity,
 };
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
     LinearEmptyBlockThreadRule,
-    crate::rules::standard_rule_contract(b"omega.psi-rule.linear-empty-block-thread.v2", CONTROL_FLOW_CLEANUP_PASS_NAME, 2,
-                AnalysisSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::OwnershipFrontiers,
-                ]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-                OptimizationSafetyClass::StructuralIdentity),
+    crate::rules::standard_rule_contract(
+        b"omega.psi-rule.linear-empty-block-thread.v2",
+        CONTROL_FLOW_CLEANUP_PASS_NAME,
+        2,
+        AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::OwnershipFrontiers,
+        ]),
+        AnalysisInvalidationSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+        OptimizationSafetyClass::StructuralIdentity
+    ),
 );
 
 impl PsiOptimizationRule for LinearEmptyBlockThreadRule {
@@ -200,8 +204,18 @@ pub(super) fn linear_thread_accounting(
 
     let mut affected = BTreeSet::from([predecessor.block, empty.block]);
     let mut realized = vec![
-        provenance_realized_at(predecessor_site, output_site, &predecessor_edge.provenance, &predecessor_edge.fuel),
-        provenance_realized_at(empty_site, output_site, &empty_edge.provenance, &empty_edge.fuel),
+        provenance_realized_at(
+            predecessor_site,
+            output_site,
+            &predecessor_edge.provenance,
+            &predecessor_edge.fuel,
+        ),
+        provenance_realized_at(
+            empty_site,
+            output_site,
+            &empty_edge.provenance,
+            &empty_edge.fuel,
+        ),
     ];
     let mut expected_effect = 0u64;
     for block in &function.blocks {
@@ -220,7 +234,12 @@ pub(super) fn linear_thread_accounting(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+                    realized.push(provenance_realized_at(
+                        site,
+                        site,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;

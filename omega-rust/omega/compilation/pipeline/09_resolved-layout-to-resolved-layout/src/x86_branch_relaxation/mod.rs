@@ -6,9 +6,9 @@ mod error;
 use machine_code::layout::evidence::relaxation_identity as identity;
 mod validation;
 
-pub(crate) use catalog::x86_rel8_selected;
 pub(crate) use catalog::FunctionRelativeLayoutCatalogError;
-pub use error::{OptimizedX86BranchRelaxationError};
+pub(crate) use catalog::x86_rel8_selected;
+pub use error::OptimizedX86BranchRelaxationError;
 
 use optimization_core::OptimizationWorkBudget;
 use register_model::ValidatedPhysicalRegisterModel;

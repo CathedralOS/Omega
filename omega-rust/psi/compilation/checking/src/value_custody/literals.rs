@@ -178,8 +178,7 @@ pub(crate) use integer_landing::{anonymous_numeric_value, evaluate_anonymous_num
 pub use integer_landing::{
     evaluate_anonymous_numeric_comparison, evaluate_anonymous_numeric_expression,
     has_anonymous_numeric_results, has_anonymous_operator_meaning,
-    land_anonymous_integer_expression, land_integer_value,
-    select_anonymous_numeric_match_arm,
+    land_anonymous_integer_expression, land_integer_value, select_anonymous_numeric_match_arm,
 };
 pub(crate) use integer_remainder::validate_anonymous_remainders;
 
@@ -339,7 +338,7 @@ pub(crate) fn validate_suffix_landings(
                     StatementNode::Transition(transition) if state.return_type.is_valid() => {
                         for target in transition.targets() {
                             if let typed_trees::statement::TransitionTargetNode::Value(value) =
-                                    program.statement_table.transition_target(target)
+                                program.statement_table.transition_target(target)
                             {
                                 validate_suffix_landing(
                                     program,

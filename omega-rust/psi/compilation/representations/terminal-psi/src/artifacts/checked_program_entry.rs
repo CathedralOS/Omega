@@ -10,6 +10,7 @@
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
 
 use crate::TerminalPsiIdentity;
+use crate::terminal_module::TerminalIdentityIndex;
 
 /// Checked projection of the source receiver into the Terminal entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,9 +45,9 @@ pub enum CheckedProgramEntryReceiverCleanup {
 /// This correspondence carries no selected-plan or installation authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedProgramEntryFusedServiceField {
-    field_identity: String,
-    carrier_type_identity: String,
-    field_path: Vec<String>,
+    field_identity: TerminalIdentityIndex,
+    carrier_type_identity: TerminalIdentityIndex,
+    field_path: Vec<TerminalIdentityIndex>,
 }
 
 impl CheckedProgramEntryFusedServiceField {
@@ -55,9 +56,9 @@ impl CheckedProgramEntryFusedServiceField {
     /// segment is always `field_identity`. A direct receiver field carries a
     /// single segment.
     pub fn new(
-        field_identity: String,
-        carrier_type_identity: String,
-        field_path: Vec<String>,
+        field_identity: TerminalIdentityIndex,
+        carrier_type_identity: TerminalIdentityIndex,
+        field_path: Vec<TerminalIdentityIndex>,
     ) -> Self {
         Self {
             field_identity,
@@ -66,17 +67,17 @@ impl CheckedProgramEntryFusedServiceField {
         }
     }
 
-    pub fn field_identity(&self) -> &str {
-        &self.field_identity
+    pub fn field_identity(&self) -> TerminalIdentityIndex {
+        self.field_identity
     }
 
-    pub fn carrier_type_identity(&self) -> &str {
-        &self.carrier_type_identity
+    pub fn carrier_type_identity(&self) -> TerminalIdentityIndex {
+        self.carrier_type_identity
     }
 
     /// The receiver-root-to-field route through enclosing record fields,
     /// ending at the service field's own identity.
-    pub fn field_path(&self) -> &[String] {
+    pub fn field_path(&self) -> &[TerminalIdentityIndex] {
         &self.field_path
     }
 }
@@ -90,26 +91,29 @@ impl CheckedProgramEntryFusedServiceField {
 /// establishment row went missing; it carries no establishment authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedProgramEntryDeterminedEvidenceField {
-    carrier_type_identity: String,
-    field_path: Vec<String>,
+    carrier_type_identity: TerminalIdentityIndex,
+    field_path: Vec<TerminalIdentityIndex>,
 }
 
 impl CheckedProgramEntryDeterminedEvidenceField {
     /// `field_path` is the complete route from the receiver root through each
     /// enclosing record field or mixed-shape common field down to the erased
     /// field itself, spelled as for [`CheckedProgramEntryFusedServiceField`].
-    pub fn new(carrier_type_identity: String, field_path: Vec<String>) -> Self {
+    pub fn new(
+        carrier_type_identity: TerminalIdentityIndex,
+        field_path: Vec<TerminalIdentityIndex>,
+    ) -> Self {
         Self {
             carrier_type_identity,
             field_path,
         }
     }
 
-    pub fn carrier_type_identity(&self) -> &str {
-        &self.carrier_type_identity
+    pub fn carrier_type_identity(&self) -> TerminalIdentityIndex {
+        self.carrier_type_identity
     }
 
-    pub fn field_path(&self) -> &[String] {
+    pub fn field_path(&self) -> &[TerminalIdentityIndex] {
         &self.field_path
     }
 }
@@ -118,8 +122,8 @@ impl CheckedProgramEntryDeterminedEvidenceField {
 /// owned receiver disposal, bound to the exact Terminal attachment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedProgramEntryReceiverEligibility {
-    source_receiver_type_identity: String,
-    owned_receiver_type_identity: String,
+    source_receiver_type_identity: TerminalIdentityIndex,
+    owned_receiver_type_identity: TerminalIdentityIndex,
     projection: CheckedProgramEntryReceiverProjection,
     terminal_receiver_type: StructuralTypeId,
     fused_service_fields: Vec<CheckedProgramEntryFusedServiceField>,
@@ -129,8 +133,8 @@ pub struct CheckedProgramEntryReceiverEligibility {
 
 impl CheckedProgramEntryReceiverEligibility {
     pub fn new(
-        source_receiver_type_identity: String,
-        owned_receiver_type_identity: String,
+        source_receiver_type_identity: TerminalIdentityIndex,
+        owned_receiver_type_identity: TerminalIdentityIndex,
         projection: CheckedProgramEntryReceiverProjection,
         terminal_receiver_type: StructuralTypeId,
         fused_service_fields: Vec<CheckedProgramEntryFusedServiceField>,
@@ -156,12 +160,12 @@ impl CheckedProgramEntryReceiverEligibility {
         self
     }
 
-    pub fn source_receiver_type_identity(&self) -> &str {
-        &self.source_receiver_type_identity
+    pub fn source_receiver_type_identity(&self) -> TerminalIdentityIndex {
+        self.source_receiver_type_identity
     }
 
-    pub fn owned_receiver_type_identity(&self) -> &str {
-        &self.owned_receiver_type_identity
+    pub fn owned_receiver_type_identity(&self) -> TerminalIdentityIndex {
+        self.owned_receiver_type_identity
     }
 
     pub const fn projection(&self) -> CheckedProgramEntryReceiverProjection {

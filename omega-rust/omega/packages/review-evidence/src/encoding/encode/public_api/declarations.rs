@@ -70,7 +70,11 @@ pub(in crate::encoding::encode) fn trait_shape(
             encoder.field("type_parameters", |encoder| {
                 encoder.sequence(&requirement.type_parameters, type_parameter)
             })?;
-            encode_callable_shape!(encoder, &requirement.parameters, requirement.return_type.as_ref());
+            encode_callable_shape!(
+                encoder,
+                &requirement.parameters,
+                requirement.return_type.as_ref()
+            );
             encoder.field("contracts", |encoder| {
                 encoder.sequence(&requirement.contracts, encode_callable_contract)
             })?;

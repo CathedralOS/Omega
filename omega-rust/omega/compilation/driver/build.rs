@@ -34,9 +34,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         collect_inputs(root, &cargo_configuration, &mut paths)?;
     }
     paths.sort();
-    let mut digest = digest_encoder::DomainDigestEncoder::new(
-        b"omega-rust-compiler-build-inputs-v1\0",
-    );
+    let mut digest =
+        digest_encoder::DomainDigestEncoder::new(b"omega-rust-compiler-build-inputs-v1\0");
     for relative in paths {
         let path = root.join(&relative);
         println!("cargo:rerun-if-changed={}", path.display());

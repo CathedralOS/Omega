@@ -35,7 +35,7 @@ pub(super) fn validate_services(module: &TerminalModule) -> Result<(), CodecErro
     validate_service_parent_graph(module)?;
     require_known_services(module, &module.root_service_reach.concrete)?;
     for dependency in &module.root_service_reach.installation_dependencies {
-        if dependency.requirement_identity.is_empty() {
+        if dependency.requirement_identity.is_absent() {
             return malformed("installation reach requirement identity must be nonempty");
         }
         require_known_services(module, &dependency.upper_bound)?;
@@ -106,9 +106,9 @@ pub(super) fn validate_provider_candidate(
     module: &TerminalModule,
     candidate: &ProviderCandidateConformance,
 ) -> Result<(), CodecError> {
-    if candidate.requirement_identity.is_empty()
-        || candidate.provider_identity.is_empty()
-        || candidate.candidate_identity.is_empty()
+    if candidate.requirement_identity.is_absent()
+        || candidate.provider_identity.is_absent()
+        || candidate.candidate_identity.is_absent()
     {
         return malformed("provider candidate identities must be nonempty");
     }

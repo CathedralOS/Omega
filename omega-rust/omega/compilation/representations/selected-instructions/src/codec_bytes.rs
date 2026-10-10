@@ -2,13 +2,9 @@
 //! append-half of `cursor.rs`. Each helper appends one already-decided wire
 //! value; framing and field order stay with the encoder.
 
-
-
-
-
-pub(crate) use optimization_core::codec_bytes::{push_encoded};
 #[cfg(test)]
-pub(crate) use optimization_core::codec_bytes::{patch_encoded};
+pub(crate) use optimization_core::codec_bytes::patch_encoded;
+pub(crate) use optimization_core::codec_bytes::push_encoded;
 /// Append the canonical u64-le collection length tag.
 pub(crate) fn encode_len(bytes: &mut Vec<u8>, length: usize) {
     push_encoded(bytes, (length as u64).to_le_bytes());

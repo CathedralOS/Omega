@@ -3,9 +3,9 @@
 //! syscall forms, and the placement arithmetic they share.
 
 use crate::plans::{
-    CallPlan, CallSignature, CallingPolicy, EntryControl,
-    IndirectPointerLocation, MachineRegister, PlanDiagnostic, RegisterSet, SystemVEightbyteClass,
-    ValueClass, ValueLocation, ValuePlacement, ValueShape,
+    CallPlan, CallSignature, CallingPolicy, EntryControl, IndirectPointerLocation, MachineRegister,
+    PlanDiagnostic, RegisterSet, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement,
+    ValueShape,
 };
 use target::Architecture;
 

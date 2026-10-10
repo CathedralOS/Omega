@@ -69,11 +69,7 @@ fn instantiate_contract_expression_place(
             value,
         )?;
         place.segments.extend(remaining);
-        return Some(super::append_place(
-            facts,
-            place.root,
-            &place.segments,
-        ));
+        return Some(super::append_place(facts, place.root, &place.segments));
     }
 
     match program.expression_table.expression(expression) {

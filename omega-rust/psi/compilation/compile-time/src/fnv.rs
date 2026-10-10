@@ -31,7 +31,6 @@ pub(crate) fn optional_text(hash: &mut u64, value: &Option<String>) {
     }
 }
 
-
 /// One query authority: its scope tag then the requester's identity.
 pub(super) fn query_authority(hash: &mut u64, authority: &super::SchemaQueryAuthority) {
     match authority {

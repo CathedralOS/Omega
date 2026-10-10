@@ -160,8 +160,7 @@ impl<'program> ContractExpressionEvaluator<'program, '_> {
             .program
             .machine_by_symbol(self.target_symbol)
             .or_else(|| {
-                validation::find_state(self.program, self.target_symbol)
-                    .map(|(machine, _)| machine)
+                validation::find_state(self.program, self.target_symbol).map(|(machine, _)| machine)
             })?;
         self.self_data_definition(machine)
     }

@@ -60,18 +60,18 @@ mod tests {
         assert!(
             BoundaryApplication::exact(vec![BoundaryApplicationArgument::type_argument(
                 1,
-                BoundaryTypeIdentity::new("type".to_owned()).unwrap(),
+                BoundaryTypeIdentity::new(terminal_psi::TerminalIdentityIndex(4)),
             )])
             .is_err()
         );
         let application = BoundaryApplication::exact(vec![
             BoundaryApplicationArgument::type_argument(
                 0,
-                BoundaryTypeIdentity::new("type".to_owned()).unwrap(),
+                BoundaryTypeIdentity::new(terminal_psi::TerminalIdentityIndex(4)),
             ),
             BoundaryApplicationArgument::const_argument(
                 1,
-                BoundaryTypeIdentity::new("u64".to_owned()).unwrap(),
+                BoundaryTypeIdentity::new(terminal_psi::TerminalIdentityIndex(5)),
                 "u64".to_owned(),
                 "integer(u64,4)".to_owned(),
             )

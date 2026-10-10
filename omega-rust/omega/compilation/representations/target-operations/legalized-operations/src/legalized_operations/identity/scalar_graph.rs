@@ -142,7 +142,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(TAG_NEAREST_IEEE_FLOAT_ARITHMETIC);
                     crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
                     bytes.push(realization.operation.ordinal());
-                    encode_scalar_type(bytes, semantic_vocabulary::ScalarType::IeeeFloat(realization.format));
+                    encode_scalar_type(
+                        bytes,
+                        semantic_vocabulary::ScalarType::IeeeFloat(realization.format),
+                    );
                     // Present only on an x86 FMA; appending it stays injective.
                     if let Some(provider) = realization.x86_scalar_fma {
                         bytes.extend_from_slice(&provider.identity());

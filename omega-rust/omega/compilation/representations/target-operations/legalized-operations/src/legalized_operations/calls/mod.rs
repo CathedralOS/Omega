@@ -4,8 +4,8 @@
 //! Transformation and independent source-to-target replay remain in pipeline.
 
 mod structural;
+pub(crate) use structural::LegalizedCallSourceError;
 pub use structural::{
-    LegalizedBoundarySettlement, LegalizedCallUnitParameter,
-    LegalizedStructuralContract, NativeCallOrigin,
+    LegalizedBoundarySettlement, LegalizedCallUnitParameter, LegalizedStructuralContract,
+    NativeCallOrigin,
 };
-pub(crate) use structural::{ LegalizedCallSourceError};

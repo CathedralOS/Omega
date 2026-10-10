@@ -109,7 +109,6 @@ pub(crate) struct PackageReviewEvaluatedImport {
     pub(crate) receipt_identity_digest: [u8; 32],
 }
 
-
 /// Stable, source-handle-free review identity for one evaluated syscall.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PackageReviewEvaluatedSyscall {
@@ -128,7 +127,6 @@ pub(crate) struct PackageReviewEvaluatedSyscall {
     pub(crate) receipt_binding_identity_digest: [u8; 32],
     pub(crate) receipt_identity_digest: [u8; 32],
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewExternalCallableParameter {

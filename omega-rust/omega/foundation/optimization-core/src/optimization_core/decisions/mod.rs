@@ -5,8 +5,7 @@ mod external_schema;
 
 pub use baseline::{
     BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionLogDecodeError,
-    BaselineDecisionOutcome, BaselineDecisionRecordError,
-    ValidatedCandidateSummary,
+    BaselineDecisionOutcome, BaselineDecisionRecordError, ValidatedCandidateSummary,
 };
 pub use external_schema::{
     ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,

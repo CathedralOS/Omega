@@ -17,18 +17,16 @@ use super::structural_signature_wire::{
 };
 use super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
+use terminal_psi::TerminalIdentityIndex;
 
 pub(crate) fn encode_provider_candidate(
     writer: &mut Writer,
     candidate: &ProviderCandidateConformance,
 ) -> Result<(), CodecError> {
     writer.id(candidate.boundary);
-    writer.string(
-        "provider requirement identity",
-        &candidate.requirement_identity,
-    )?;
-    writer.string("provider identity", &candidate.provider_identity)?;
-    writer.string("provider candidate identity", &candidate.candidate_identity)?;
+    writer.u32(candidate.requirement_identity.0);
+    writer.u32(candidate.provider_identity.0);
+    writer.u32(candidate.candidate_identity.0);
     writer.id(candidate.candidate);
     writer.len(
         "provider signature parameters",
@@ -75,9 +73,9 @@ pub(crate) fn decode_provider_candidate(
     reader: &mut Reader<'_>,
 ) -> Result<ProviderCandidateConformance, CodecError> {
     let boundary = reader.id("BoundaryMachineId")?;
-    let requirement_identity = reader.string("provider requirement identity")?;
-    let provider_identity = reader.string("provider identity")?;
-    let candidate_identity = reader.string("provider candidate identity")?;
+    let requirement_identity = TerminalIdentityIndex(reader.u32()?);
+    let provider_identity = TerminalIdentityIndex(reader.u32()?);
+    let candidate_identity = TerminalIdentityIndex(reader.u32()?);
     let candidate = reader.id("MachineId")?;
     let parameters = decode_counted(reader, |reader| {
         let position = reader.u32()?;

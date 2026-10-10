@@ -121,7 +121,7 @@ pub(crate) fn append_expression_occurrences(
         ExpressionNode::Unary(unary) => {
             append_expression_occurrences(program, unary.operand, occurrences);
         }
-                typed_trees::spelled_literal_expression_pattern!() => {}
+        typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 

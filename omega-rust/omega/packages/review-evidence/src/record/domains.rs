@@ -59,9 +59,6 @@ impl PackageReviewDomainEstablishmentRoute {
             Self::ExactMachine { .. } => PackageReviewDomainEstablishmentKind::ExactMachine,
         }
     }
-
-
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

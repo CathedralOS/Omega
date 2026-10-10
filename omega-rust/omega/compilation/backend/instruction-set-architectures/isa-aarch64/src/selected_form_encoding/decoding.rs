@@ -6,8 +6,7 @@ use crate::saturating_forms::SaturatingRealization;
 use crate::selected_form_encoding::selected_forms::BOUND_WORDS;
 use crate::selected_form_encoding::selected_forms::{integer_bits, u12};
 use crate::selected_form_encoding::{
-    Aarch64SelectedFormEncodingError,
-    Aarch64SelectedFormFootprint,
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
 };
 use register_model::RegisterViewId;
 use selected_instructions::{
@@ -1022,7 +1021,6 @@ fn decode_materialization(decoded: &[DecodedWord], register: u8) -> Option<u64> 
     Some(value)
 }
 
-
 pub(crate) fn footprint(
     kind: SelectedInstructionKind,
     operands: &[RegisterViewId],
@@ -1065,7 +1063,9 @@ pub(crate) fn footprint(
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![0], vec![], true),
         SelectedInstructionKind::ExactDivideU64 { .. }
-        | selected_instructions::exact_wrapping_divrem_set_pattern!(..) => (vec![0, 1], vec![2], false),
+        | selected_instructions::exact_wrapping_divrem_set_pattern!(..) => {
+            (vec![0, 1], vec![2], false)
+        }
         SelectedInstructionKind::CompareI64 => (vec![0, 1], vec![], true),
         selected_instructions::saturating_add_or_subtract_pattern!()
         | SelectedInstructionKind::SaturatingDivide { .. }
@@ -1102,8 +1102,7 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan => (vec![], vec![], false),
-        SelectedInstructionKind::Jump
-        | selected_instructions::dedicated_selected_forms!() => {
+        SelectedInstructionKind::Jump | selected_instructions::dedicated_selected_forms!() => {
             unreachable!("non-scalar forms have dedicated footprint decoders")
         }
     };

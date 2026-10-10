@@ -11,16 +11,13 @@ use crate::authority_digests::{
 use crate::installation::InstalledCodeEvidence;
 use crate::installation::{InstallationDiagnostic, InstalledCode};
 use extents::{ExtentRights, MappedExtent, MappingReceiptContext};
-use layout_plans::{
-    MaterializationDiagnostic, PlacementSite, RelocationTarget,
-};
+use layout_plans::{MaterializationDiagnostic, PlacementSite, RelocationTarget};
 use post_handoff_writer_plan::{
-    PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
-    PostHandoffWriterSource, PostHandoffWriterSourceSlot,
+    PostHandoffWriterInvocationPlan, PostHandoffWriterPlan, PostHandoffWriterSource,
+    PostHandoffWriterSourceSlot,
 };
 
 impl InstalledCode {
-
     fn validate_post_handoff_entry_writer_invocation(
         &self,
         plan: &PostHandoffWriterPlan,
@@ -256,7 +253,6 @@ impl<'mapping, 'bytes> PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
     pub const fn is_empty(&self) -> bool {
         self.bytes.is_empty()
     }
-
 }
 
 impl<'mapping, 'bytes> ValidatedPreparedPostHandoffWriterDestination<'mapping, 'bytes> {
@@ -460,4 +456,3 @@ fn non_authoritative_post_handoff_entry_writer_context_fingerprint(
     })
     .expect("fixed FNV normalization replaces zero")
 }
-

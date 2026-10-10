@@ -241,9 +241,7 @@ impl CallTransfers<'_> {
             CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                 self.computation(*left) + self.computation(*right)
             }
-            crate::cast_or_qualification_triple_pattern!(operand, ..) => {
-                self.computation(*operand)
-            }
+            crate::cast_or_qualification_triple_pattern!(operand, ..) => self.computation(*operand),
             CheckedScalarComputationKind::CaseMembership { subject, .. } => match subject {
                 CheckedScalarComputationStructuralArgument::Place(argument) => {
                     self.argument_evaluation(argument)

@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralArgument, StructuralCaseDeclaration,
     StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeShape,
+    StructuralPlaceDeclaration, StructuralTypeShape, TerminalIdentityIndex,
 };
 
 use super::{
@@ -208,7 +208,7 @@ pub fn shape(
 pub(crate) fn descended_field(
     unit: &PsiOptimizationUnit,
     current: StructuralTypeId,
-    identity: &str,
+    identity: TerminalIdentityIndex,
 ) -> Option<(StructuralFieldId, StructuralTypeId)> {
     descended_field_matching(unit, current, |field| field.identity == identity)
 }
@@ -264,7 +264,7 @@ pub(crate) fn canonicalize_ordinary_path(
                     terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                     _ => return None,
                 };
-                let field = terminal_psi::live_field_by_identity(fields, identity)?;
+                let field = terminal_psi::live_field_by_identity(fields, *identity)?;
                 let next = field.field_type.as_structural()?;
                 canonical.push(CanonicalStructuralPathSegment::Field(field.id));
                 current = next;
@@ -701,7 +701,7 @@ pub(crate) fn descended_type(
                 terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                 _ => return None,
             };
-            match terminal_psi::field_by_identity(fields, identity)?.field_type {
+            match terminal_psi::field_by_identity(fields, *identity)?.field_type {
                 StructuralFieldType::Structural(next) => Some(next),
                 _ => None,
             }
@@ -1076,7 +1076,7 @@ impl<'a> Position<'a> {
         match (self, step) {
             (Self::Type(current), PathStep::Ordinary(segment)) => match segment {
                 StructuralPathSegment::Field(identity) => {
-                    descended_field(unit, current, identity).map(|(_, next)| Self::Type(next))
+                    descended_field(unit, current, *identity).map(|(_, next)| Self::Type(next))
                 }
                 StructuralPathSegment::FixedIndex(_)
                 | StructuralPathSegment::RuntimeIndex { .. } => match shape(unit, current)? {
@@ -1256,7 +1256,7 @@ pub fn established_case_at(
                 // an `EstablishScalarArray` element is not a placed child.
                 let (field, next) = match step {
                     PathStep::Ordinary(StructuralPathSegment::Field(identity)) => {
-                        descended_field(unit, declared?, identity)?
+                        descended_field(unit, declared?, *identity)?
                     }
                     PathStep::Canonical(CanonicalStructuralPathSegment::Field(identity)) => {
                         descended_field_id(unit, declared?, *identity)?

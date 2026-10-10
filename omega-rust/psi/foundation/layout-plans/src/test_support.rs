@@ -39,10 +39,7 @@ pub fn post_handoff_context() -> MaterializationContext {
 }
 
 /// A field entry row with no member identity — the common fixture row.
-pub fn layout_field_entry(
-    field: &str,
-    placement: LayoutPlacementReport,
-) -> LayoutFieldEntryReport {
+pub fn layout_field_entry(field: &str, placement: LayoutPlacementReport) -> LayoutFieldEntryReport {
     LayoutFieldEntryReport {
         field: field.into(),
         member_identity: None,

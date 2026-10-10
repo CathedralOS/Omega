@@ -1,8 +1,8 @@
 //! The dylib roster, the jump thunks, the eager bind stream, and the post-relocation
 //! re-check that the thunk opcodes survived.
 
-use crate::dyld_linking::write_uleb128;
 use crate::dyld_linking::load_commands::MachoDylib;
+use crate::dyld_linking::write_uleb128;
 use crate::file_layout::layout::align_to;
 use crate::isa::MachoIsa;
 use calling_conventions::{DARWIN_LIBOBJC_PATH, darwin_import_library};
@@ -424,7 +424,6 @@ pub(crate) fn macho_bind_info(thunks: &[MachoImportThunk]) -> Vec<u8> {
 
     bytes
 }
-
 
 fn patch_aarch64_adrp(
     text: &mut [u8],

@@ -12,8 +12,8 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitStructuralParameterPlan,
 };
 use symbols::SymbolHandle;
-use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::type_identity::CallableIdentityId;
+use typed_trees::type_identity::TypeIdentityId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedDynamicSlotPlan {

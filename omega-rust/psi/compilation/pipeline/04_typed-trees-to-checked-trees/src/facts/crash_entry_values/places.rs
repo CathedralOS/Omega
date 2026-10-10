@@ -220,14 +220,20 @@ fn entry_parameter_place_at_write_boundary(
                 let (variant, field) = selected?;
                 if let Some(variant) = variant {
                     path.push(CheckedStructuralPredicatePathSegment::Case(
-                        checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            variant.identity,
+                            variant.name.clone(),
+                        ),
                     ));
                     identities.push(facts::PlaceSegment::Case {
                         variant: variant.symbol,
                     });
                 }
                 path.push(CheckedStructuralPredicatePathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ),
                 ));
                 identities.push(facts::PlaceSegment::Field {
                     symbol: field.symbol,
@@ -283,7 +289,7 @@ pub(super) fn projection_requires_write_scan(
         program,
         endpoint,
         &[],
-        validation::ContentsRequirement::StableObservation
+        validation::ContentsRequirement::StableObservation,
     )
     .then_some(mutable)
 }
@@ -300,16 +306,16 @@ fn traversed_storage_requires_write_scan(
             Some(nested || *access == language_core::ReferenceAccess::Mutable)
         }
         _ => (validation::has_contents(
-        program,
-        reference,
-        &[],
-        validation::ContentsRequirement::BorrowedStorage
-    ) || validation::has_contents(
-        program,
-        reference,
-        &[],
-        validation::ContentsRequirement::StableObservation
-    ))
+            program,
+            reference,
+            &[],
+            validation::ContentsRequirement::BorrowedStorage,
+        ) || validation::has_contents(
+            program,
+            reference,
+            &[],
+            validation::ContentsRequirement::StableObservation,
+        ))
         .then_some(false),
     }
 }

@@ -21,6 +21,7 @@ impl Evaluation {
     /// same observation root at entry and on another arrival has new actuals.
     pub(crate) fn retained_observation(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         root: &checked_trees::CheckedScalarComputationRoot,
         bindings: &crate::expression_preparation::bindings::ScalarBindings,
@@ -36,17 +37,24 @@ impl Evaluation {
             .map(|value| value.value_type())
             .collect::<Vec<_>>();
         let result_type = crate::scalar_lowering::computations::computation_value_type(
+            identities,
             checked,
             &self.shared_qualifications,
             root.root,
             bindings,
             &source_types,
         )?;
-        let mut expansion =
-            self.scalar_computation_expansion(checked, &self.shared_qualifications, root.machine);
-        let entry = expansion.retained_root(root, bindings, &source_types, result_type, 0)?;
+        let mut expansion = self.scalar_computation_expansion(
+            identities,
+            checked,
+            &self.shared_qualifications,
+            root.machine,
+        );
+        let entry =
+            expansion.retained_root(identities, root, bindings, &source_types, result_type, 0)?;
         let states = expansion.finish();
         self.single_completed_expansion(
+            identities,
             checked,
             &states,
             entry,
@@ -67,6 +75,7 @@ impl Evaluation {
     /// Effectful computations keep the existing selective value evaluator.
     pub(crate) fn branch_guard(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         statement: u32,
@@ -95,7 +104,8 @@ impl Evaluation {
                 "guard has no retained source value",
             ))?;
         let bindings = self.contextual_bindings();
-        let expression = bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
+        let expression =
+            bindings.expression(identities, &checked.facts.proven_scalar_indexes, value)?;
         // A short-circuit guard is always a planned decision. So is a whole-root
         // case test whose successor may read that case's payload: only the
         // decision's dispatch establishes the payload for it.
@@ -122,6 +132,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn guard_value(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
@@ -161,6 +172,7 @@ impl Evaluation {
             CheckedCallScalarArgument::Pure(value.clone())
         };
         let value = self.source_value(
+            identities,
             checked,
             machine,
             state,
@@ -184,6 +196,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn source_value(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
@@ -263,13 +276,14 @@ impl Evaluation {
         let (pure_expression, result_type) = match value {
             CheckedCallScalarArgument::Pure(value) => {
                 let expression =
-                    bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
+                    bindings.expression(identities, &checked.facts.proven_scalar_indexes, value)?;
                 let result_type = expression.value_type(&source_types)?;
                 (Some(expression), result_type)
             }
             CheckedCallScalarArgument::Computation(handle) => (
                 None,
                 crate::scalar_lowering::computations::computation_value_type(
+                    identities,
                     checked,
                     qualifications,
                     *handle,
@@ -291,9 +305,11 @@ impl Evaluation {
                 scalar_type,
             });
         }
-        let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
+        let mut expansion =
+            self.scalar_computation_expansion(identities, checked, qualifications, machine);
         let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(
+                identities,
                 state,
                 statement,
                 role,
@@ -303,6 +319,7 @@ impl Evaluation {
                 0,
             )?,
             CheckedCallScalarArgument::Computation(_) => expansion.retained_value(
+                identities,
                 state,
                 statement,
                 role,
@@ -314,6 +331,7 @@ impl Evaluation {
         };
         let states = expansion.finish();
         self.single_completed_expansion(
+            identities,
             checked,
             &states,
             entry,

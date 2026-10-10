@@ -12,13 +12,12 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     ProofCertifiedDeadScalarEliminationRule,
     super::proof_check_elision_rule_contract(
-                b"omega.psi-rule.dead-unused-proof-certified-scalar-elimination.v1",
-                AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
-            ),
+        b"omega.psi-rule.dead-unused-proof-certified-scalar-elimination.v1",
+        AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
+    ),
     propose = propose_proof_certified_dead_scalar_nodes,
     classify,
 );
-
 
 pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
     let (source_operation, result, scalar_type) = match operation {

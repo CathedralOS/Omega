@@ -16,8 +16,8 @@ use crate::proof_contracts::default_domains::place_queries::{
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
-    LiteralValue, expression_sequence_measures, expression_symbol, expression_symbolic_value,
-    fold, literal_value, mentions_float,
+    LiteralValue, expression_sequence_measures, expression_symbol, expression_symbolic_value, fold,
+    literal_value, mentions_float,
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;

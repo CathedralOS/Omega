@@ -37,8 +37,7 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 obligation: *obligation,
                 support: *psi_operation,
             }),
-            abstract_operations::establish_record_or_case_pattern!(psi_operation,
-                fields, ..) => {
+            abstract_operations::establish_record_or_case_pattern!(psi_operation, fields, ..) => {
                 expected.extend(fields.iter().filter_map(|initializer| {
                     let terminal_psi::RecordFieldValue::Scalar {
                         range_obligation, ..
@@ -80,8 +79,11 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 obligation,
                 ..
             }
-            | abstract_operations::byte_read_or_field_read_pattern!(psi_operation,
-                obligation, ..)
+            | abstract_operations::byte_read_or_field_read_pattern!(
+                psi_operation,
+                obligation,
+                ..
+            )
             | O::ElementViewSubslice {
                 psi_operation,
                 obligation,
@@ -92,8 +94,11 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 region: terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. },
                 ..
             }
-            | abstract_operations::element_view_read_write_pair_pattern!(psi_operation,
-                obligation, ..)
+            | abstract_operations::element_view_read_write_pair_pattern!(
+                psi_operation,
+                obligation,
+                ..
+            )
             | O::IntegerExactCast {
                 psi_operation,
                 obligation,

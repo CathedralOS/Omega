@@ -152,13 +152,15 @@ fn validate_dynamic_catalog(
 ) -> Result<(), OptimizationUnitValidationError> {
     let invalid = || OptimizationUnitValidationError::DynamicDispatchCatalogMismatch;
     for (ordinal, interface) in unit.dynamic_dispatch.interfaces.iter().enumerate() {
-        if usize::try_from(interface.id).ok() != Some(ordinal) || interface.identity.is_empty() {
+        if usize::try_from(interface.id).ok() != Some(ordinal)
+            || interface.identity == terminal_psi::TerminalIdentityIndex::ABSENT
+        {
             return Err(invalid());
         }
         for (ordinal, slot) in interface.slots.iter().enumerate() {
             if usize::try_from(slot.slot).ok() != Some(ordinal)
-                || slot.declaring_trait_identity.is_empty()
-                || slot.requirement_identity.is_empty()
+                || slot.declaring_trait_identity == terminal_psi::TerminalIdentityIndex::ABSENT
+                || slot.requirement_identity == terminal_psi::TerminalIdentityIndex::ABSENT
                 || slot
                     .structural_parameters
                     .iter()
@@ -234,7 +236,7 @@ fn validate_dynamic_catalog(
             .interface(table.interface)
             .ok_or_else(invalid)?;
         if usize::try_from(table.id).ok() != Some(ordinal)
-            || table.implementation_identity.is_empty()
+            || table.implementation_identity == terminal_psi::TerminalIdentityIndex::ABSENT
             || table.rows.len() != interface.slots.len()
         {
             return Err(invalid());

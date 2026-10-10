@@ -4,19 +4,17 @@
 //! declaration path. These records identify checked inputs; they do not grant
 //! execution authority or replace the artifact's semantic proof.
 
+use crate::terminal_module::TerminalIdentityIndex;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NominalDeclarationIdentity(String);
+pub struct NominalDeclarationIdentity(TerminalIdentityIndex);
 
 impl NominalDeclarationIdentity {
-    pub fn new(canonical: String) -> Result<Self, &'static str> {
-        if canonical.is_empty() {
-            return Err("nominal declaration identity is empty");
-        }
-        Ok(Self(canonical))
+    pub fn new(identity: TerminalIdentityIndex) -> Self {
+        Self(identity)
     }
 
-    pub fn canonical(&self) -> &str {
-        &self.0
+    pub fn identity(&self) -> TerminalIdentityIndex {
+        self.0
     }
 }
 

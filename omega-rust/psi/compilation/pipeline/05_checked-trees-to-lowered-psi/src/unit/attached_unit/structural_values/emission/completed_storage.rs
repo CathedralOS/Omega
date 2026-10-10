@@ -115,6 +115,7 @@ impl Emission<'_, '_, '_> {
     /// Both explicit fields and omitted-field zero provisioning use this join.
     pub(super) fn complete_construction(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         place: PlaceId,
         decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
         continuation: Option<&super::ValueContinuation>,
@@ -135,7 +136,7 @@ impl Emission<'_, '_, '_> {
         result.qualifications.extend(domains);
         result.qualifications.sort();
         result.qualifications.dedup();
-        self.completed(place, continuation)
+        self.completed(identities, place, continuation)
     }
 
     /// Publish checked operand facts without relabeling its producer's ABI
@@ -144,6 +145,7 @@ impl Emission<'_, '_, '_> {
     /// need no second copy. A membership judgment never authorizes affine copying.
     pub(super) fn retain_checked_memberships(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         place: PlaceId,
         decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
     ) -> Result<PlaceId, LoweringError> {
@@ -180,6 +182,7 @@ impl Emission<'_, '_, '_> {
             return unsupported("affine operand must retain its checked membership roster");
         }
         self.copied_leaf_place(
+            identities,
             &StructuralArgument {
                 place,
                 path: Vec::new(),

@@ -5,7 +5,10 @@
 //! frontier commitment. This records existing authority; loan ancestry,
 //! backing lifetime and runtime preservation still require their own joins.
 
-use crate::{StructuralAccess, StructuralArgument, StructuralPathSegment};
+use crate::{
+    StructuralAccess, StructuralArgument, StructuralPathSegment,
+    terminal_module::TerminalIdentityTable,
+};
 use arena::{Arena, Handle, HandleSpan};
 use language_semantics::CarryPolicy;
 use semantic_vocabulary::{
@@ -188,7 +191,10 @@ pub enum TerminalSuspensionStorage {
     CallArgument,
 }
 
-pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8; 32] {
+pub fn suspension_frontier_commitment(
+    identities: &TerminalIdentityTable,
+    plan: &TerminalSuspensionCallPlan,
+) -> [u8; 32] {
     let mut hash =
         crate::digest_encoder::DomainDigestEncoder::new(b"terminal-suspension-frontier-v6\0");
     hash.raw(&plan.operation.get().to_le_bytes());
@@ -218,7 +224,7 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
                 hash_access(&mut hash, argument.access);
                 hash.u64(argument.path.len() as u64);
                 for segment in &argument.path {
-                    hash_loan_path_segment(&mut hash, segment);
+                    hash_loan_path_segment(identities, &mut hash, segment);
                 }
             }
         }
@@ -252,7 +258,7 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
             }
         }
     }
-    hash_loans(&mut hash, &plan.loans);
+    hash_loans(identities, &mut hash, &plan.loans);
     hash.finish()
 }
 
@@ -291,12 +297,13 @@ fn hash_span<T>(hash: &mut crate::digest_encoder::DomainDigestEncoder, span: Han
 }
 
 fn hash_loans(
+    identities: &TerminalIdentityTable,
     hash: &mut crate::digest_encoder::DomainDigestEncoder,
     loans: &TerminalSuspensionLoans,
 ) {
     hash.u64(loans.paths.len() as u64);
     for (_, segment) in loans.paths.iter() {
-        hash_loan_path_segment(hash, segment);
+        hash_loan_path_segment(identities, hash, segment);
     }
     hash.u64(loans.value_links.len() as u64);
     for (_, link) in loans.value_links.iter() {
@@ -338,7 +345,7 @@ fn hash_loans(
                 hash_access(hash, argument.access);
                 hash.u64(argument.path.len() as u64);
                 for segment in &argument.path {
-                    hash_loan_path_segment(hash, segment);
+                    hash_loan_path_segment(identities, hash, segment);
                 }
             }
         }
@@ -364,6 +371,7 @@ fn hash_access(hash: &mut crate::digest_encoder::DomainDigestEncoder, access: St
 }
 
 fn hash_loan_path_segment(
+    identities: &TerminalIdentityTable,
     hash: &mut crate::digest_encoder::DomainDigestEncoder,
     segment: &StructuralPathSegment,
 ) {
@@ -374,6 +382,7 @@ fn hash_loan_path_segment(
         }
         StructuralPathSegment::Field(field) => {
             hash.byte(1);
+            let field = identities.text(*field).unwrap_or_default();
             hash.u64(field.len() as u64);
             hash.raw(field.as_bytes());
         }

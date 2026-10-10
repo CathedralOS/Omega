@@ -1,8 +1,6 @@
 use super::trait_definition_by_symbol;
 use crate::declarations::symbols::TopLevelSymbols;
-use crate::value_custody::type_references::{
-    TypeReferenceOwner, validate_type_reference_handle,
-};
+use crate::value_custody::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::operator::trait_operator_operand_signature;

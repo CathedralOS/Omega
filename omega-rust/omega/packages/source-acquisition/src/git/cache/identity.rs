@@ -1,7 +1,5 @@
 //! Stable Git cache identities, metadata records, and cache diagnostics.
 
-
-
 use crate::git::request::GitExecutionTransport;
 use crate::identity::digest::{append_framed_bytes, format_sha256};
 use crate::limits::GIT_CACHE_POLICY;

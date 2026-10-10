@@ -83,6 +83,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         OperationKind::WriteOnlyPrimitiveStore {
             destination: place_id(1),
             path: Vec::new(),
+            range_obligation: None,
             value: value_id(1),
         },
         OperationKind::WriteOnlyPrimitiveStore {
@@ -91,6 +92,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
                 index: value_id(2),
                 obligation: ObligationId::new(1).unwrap(),
             }],
+            range_obligation: None,
             value: value_id(1),
         },
         OperationKind::CallUnit {

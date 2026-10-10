@@ -405,7 +405,10 @@ impl VerifiedComponent {
                 .module
                 .provider_candidates
                 .iter()
-                .filter(|candidate| candidate.requirement_identity == row.requirement_identity)
+                .filter(|candidate| {
+                    self.module.identities.text(candidate.requirement_identity)
+                        == Some(row.requirement_identity.as_str())
+                })
                 .collect::<Vec<_>>();
             if for_requirement.is_empty() {
                 return Err(IndependentRealizationMismatch::MissingRealization {
@@ -414,7 +417,10 @@ impl VerifiedComponent {
             }
             let for_provider = for_requirement
                 .iter()
-                .filter(|candidate| candidate.provider_identity == plan.provider_type)
+                .filter(|candidate| {
+                    self.module.identities.text(candidate.provider_identity)
+                        == Some(plan.provider_type.as_str())
+                })
                 .collect::<Vec<_>>();
             if for_provider.is_empty() {
                 return Err(IndependentRealizationMismatch::ProviderTypeMismatch {
@@ -424,7 +430,10 @@ impl VerifiedComponent {
             }
             let exact = for_provider
                 .iter()
-                .filter(|candidate| candidate.candidate_identity == *machine_identity)
+                .filter(|candidate| {
+                    self.module.identities.text(candidate.candidate_identity)
+                        == Some(machine_identity.as_str())
+                })
                 .collect::<Vec<_>>();
             match exact.as_slice() {
                 [] => {
@@ -470,7 +479,13 @@ impl VerifiedComponent {
             .root_service_reach
             .installation_dependencies
             .iter()
-            .map(|dependency| dependency.requirement_identity.clone())
+            .map(|dependency| {
+                self.module
+                    .identities
+                    .text(dependency.requirement_identity)
+                    .unwrap_or_default()
+                    .to_string()
+            })
             .collect();
         if !unresolved.is_empty() {
             return Err(IndependentRealizationMismatch::UnresolvedInstallationRows {

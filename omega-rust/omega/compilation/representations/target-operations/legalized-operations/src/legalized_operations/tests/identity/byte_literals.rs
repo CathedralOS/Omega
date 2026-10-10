@@ -23,7 +23,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
     let structural_type = StructuralTypeDeclaration {
         scalar_restriction: None,
         id: argument.structural_type,
-        identity: "bytes".into(),
+        identity: terminal_psi::TerminalIdentityIndex(1),
         shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
             access: Some(terminal_psi::StructuralAccess::SharedBorrow),
         }),

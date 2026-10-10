@@ -3,8 +3,7 @@
 //! This owner decides representation compatibility only. Call admission keeps
 //! source access, multiplicity, predicate obligations and live-loan custody.
 use crate::execution::terminal_unit::types::{
-    base_type_identity, byte_sequence_carrier,
-    lent_storage_identity, substituted_formal_type,
+    base_type_identity, byte_sequence_carrier, lent_storage_identity, substituted_formal_type,
 };
 use crate::execution::terminal_unit::{SymbolHandle, TypeReferenceNode};
 
@@ -39,8 +38,7 @@ pub(crate) fn classify(
     target_identity: typed_trees::type_identity::TypeIdentityId,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Option<ArgumentPresentation> {
-    if base_type_identity(program, projected_type, &[],
-        &[])
+    if base_type_identity(program, projected_type, &[], &[])
         .is_some_and(|identity| identity == target_identity)
     {
         return Some(ArgumentPresentation::SameIdentity);

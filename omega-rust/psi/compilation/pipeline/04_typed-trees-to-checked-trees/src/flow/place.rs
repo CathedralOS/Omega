@@ -16,8 +16,8 @@ pub(crate) use case_access::{
     place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
 };
 pub(crate) use comparison::{
-    canonical_place_joined_segments_may_overlap,
-    canonical_place_segments_equal, canonical_place_segments_may_overlap, canonical_places_agree,
+    canonical_place_joined_segments_may_overlap, canonical_place_segments_equal,
+    canonical_place_segments_may_overlap, canonical_places_agree,
     place_segment_has_unresolved_identity, static_place_segment_pair_equal,
 };
 pub(crate) use literal_projection::{

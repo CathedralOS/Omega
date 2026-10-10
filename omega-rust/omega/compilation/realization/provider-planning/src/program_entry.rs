@@ -501,8 +501,6 @@ fn validate_selected_program_entry_shape(
             )]
         })?;
     let declaration = typed.type_identity_text(declaration).unwrap_or_default();
-    let declaration = terminal_psi::NominalDeclarationIdentity::new(declaration)
-        .map_err(|message| vec![Diagnostic::error(message)])?;
     let signature = program_entry_plan::SelectedProgramEntrySignature::from_checked_declaration(
         selected.slot,
         declaration,

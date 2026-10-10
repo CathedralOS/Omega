@@ -19,7 +19,6 @@ pub struct GitRetainedStorageCustody {
 }
 
 impl GitRetainedStorageCustody {
-
     pub const fn entry_limit(&self) -> usize {
         self.entry_limit
     }

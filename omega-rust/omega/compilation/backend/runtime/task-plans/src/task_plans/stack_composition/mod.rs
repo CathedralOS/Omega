@@ -851,9 +851,8 @@ fn admitted_contribution_report_fingerprint(
 fn admitted_contribution_commitment(
     candidate: &SameStackContributionAdmissionCandidate,
 ) -> SameStackContributionCommitment {
-    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.task.same-stack-contribution.v1\0",
-    );
+    let mut hash =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.task.same-stack-contribution.v1\0");
     hash.u64(candidate.provider_plan_report_identity);
     hash.raw(&candidate.provider_plan_commitment.as_bytes());
     hash.string(&candidate.requirement_identity);

@@ -44,6 +44,7 @@ impl StructuralCaseBinding {
 /// predicate's canonical owned-place path. Selectors still require their real
 /// emitting operand frame, and source bindings retain live custody.
 pub(crate) fn resolve_at(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     declarations: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
     steps: &[checked_trees::CheckedUnitStructuralPathSegment],
@@ -55,8 +56,12 @@ pub(crate) fn resolve_at(
     ),
     LoweringError,
 > {
-    let prepared =
-        super::structural_paths::prepare_argument_path(steps, structural_type, declarations)?;
+    let prepared = super::structural_paths::prepare_argument_path(
+        identities,
+        steps,
+        structural_type,
+        declarations,
+    )?;
     let path = super::structural_paths::emit_argument_path(
         &prepared,
         None,
@@ -93,10 +98,14 @@ pub(crate) fn resolve_at(
     .ok_or(LoweringError::Unsupported(
         "case observation has no exact declared carrier",
     ))?;
-    Ok((path, selected_case(declarations, sum.id, identity)?))
+    Ok((
+        path,
+        selected_case(identities, declarations, sum.id, identity)?,
+    ))
 }
 
 pub(crate) fn resolve(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     bindings: &[StructuralCaseBinding],
     subject: &checked_trees::CheckedStructuralParameterField,
     identity: &checked_trees::CheckedMemberIdentity,
@@ -118,6 +127,7 @@ pub(crate) fn resolve(
         return unsupported("case observation has ambiguous source bindings");
     }
     let (sum, path) = walk(
+        identities,
         &binding.declarations,
         binding.structural_type,
         &subject.path,
@@ -125,7 +135,7 @@ pub(crate) fn resolve(
     Ok((
         binding.source,
         path,
-        selected_case(&binding.declarations, sum, identity)?,
+        selected_case(identities, &binding.declarations, sum, identity)?,
     ))
 }
 
@@ -140,6 +150,7 @@ pub(crate) fn resolve(
 /// view's dominating live-length observation. A nested view needs a separately
 /// established descriptor root before its length can be observed.
 pub(crate) fn resolve_runtime_element(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     declarations: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
     source: PlaceId,
@@ -156,7 +167,7 @@ pub(crate) fn resolve_runtime_element(
     ),
     LoweringError,
 > {
-    let (array, prefix) = walk(declarations, structural_type, prefix)?;
+    let (array, prefix) = walk(identities, declarations, structural_type, prefix)?;
     let (element, observes_element_view_length) = match &unique_declaration(
         declarations,
         array,
@@ -171,8 +182,8 @@ pub(crate) fn resolve_runtime_element(
             return unsupported("runtime case observation requires an array or whole element view");
         }
     };
-    let (sum, element_path) = walk(declarations, element, element_path)?;
-    let case = selected_case(declarations, sum, identity)?;
+    let (sum, element_path) = walk(identities, declarations, element, element_path)?;
+    let case = selected_case(identities, declarations, sum, identity)?;
     Ok((
         source,
         prefix,
@@ -185,6 +196,7 @@ pub(crate) fn resolve_runtime_element(
 /// Walk a proof predicate's owned-place coordinates. Reference crossings and
 /// evaluated selectors belong to executable address preparation, not this walk.
 fn walk(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     declarations: &[StructuralTypeDeclaration],
     mut structural_type: StructuralTypeId,
     steps: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -206,7 +218,9 @@ fn walk(
                 let fields = case_fields.take().or_else(|| shape.direct_fields()).ok_or(
                     LoweringError::Unsupported("case observation field left its record namespace"),
                 )?;
-                let mut selected = fields.iter().filter(|field| field.identity == identity.spelling());
+                let mut selected = fields
+                    .iter()
+                    .filter(|field| field.identity == identities.intern(&identity.spelling()));
                 let field = selected.next().ok_or(LoweringError::Unsupported(
                     "case observation lost its carrier field",
                 ))?;
@@ -219,7 +233,9 @@ fn walk(
                     return unsupported("case observation requires a structural carrier field");
                 };
                 structural_type = child;
-                path.push(terminal_psi::StructuralPathSegment::Field(identity.spelling()));
+                path.push(terminal_psi::StructuralPathSegment::Field(
+                    identities.intern(&identity.spelling()),
+                ));
             }
             checked_trees::CheckedStructuralPredicatePathSegment::Case(identity)
                 if case_fields.is_none() =>
@@ -229,7 +245,9 @@ fn walk(
                 else {
                     return unsupported("case observation case step left its sum namespace");
                 };
-                let mut selected = cases.iter().filter(|case| case.identity == identity.spelling());
+                let mut selected = cases
+                    .iter()
+                    .filter(|case| case.identity == identities.intern(&identity.spelling()));
                 let (Some(case), None) = (selected.next(), selected.next()) else {
                     return unsupported("case observation case step names no single case");
                 };
@@ -264,6 +282,7 @@ fn walk(
 }
 
 fn selected_case(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     declarations: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
     identity: &checked_trees::CheckedMemberIdentity,
@@ -279,7 +298,9 @@ fn selected_case(
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
         _ => return unsupported("case observation requires an exact selected sum"),
     };
-    let mut selected = cases.iter().filter(|case| case.identity == identity.spelling());
+    let mut selected = cases
+        .iter()
+        .filter(|case| case.identity == identities.intern(&identity.spelling()));
     let case = selected.next().ok_or(LoweringError::Unsupported(
         "case observation lost its exact selected case",
     ))?;

@@ -74,6 +74,7 @@ pub(super) fn derive(
         source_position,
         owned,
     )?;
+    let identities = &module.identities;
     let entry = module.machine(module.entry)?;
     if entry.attachment.is_some() {
         return None;
@@ -135,11 +136,12 @@ pub(super) fn derive(
     // empty dimensions; a zero byte count never excuses an invalid element.
     // Erased qualification establishment remains an independent installed
     // occurrence obligation; this correspondence supplies no Bound authority.
-    if structural_type.identity
+    if module.identities.text(structural_type.identity)
         != checked
             .type_identity_text(owned_receiver_type_identity)
-            .unwrap_or_default()
+            .as_deref()
         || !zero_valid_record_storage(
+            identities,
             checked,
             &module.structural_types,
             terminal_receiver_type,
@@ -152,6 +154,7 @@ pub(super) fn derive(
     }
     let mut fused_service_fields = Vec::new();
     collect_fused_service_fields(
+        identities,
         checked,
         &module.structural_types,
         definition,
@@ -161,6 +164,7 @@ pub(super) fn derive(
     )?;
     let mut determined_evidence_fields = Vec::new();
     collect_determined_evidence_fields(
+        identities,
         checked,
         &module.structural_types,
         fields,
@@ -178,10 +182,16 @@ pub(super) fn derive(
     }
     Some(
         CheckedProgramEntryReceiverEligibility::new(
-            checked.normalized_type_identity_text(receiver.type_reference),
-            checked
-                .type_identity_text(owned_receiver_type_identity)
-                .unwrap_or_default(),
+            identities
+                .index_of(&checked.normalized_type_identity_text(receiver.type_reference))
+                .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
+            identities
+                .index_of(
+                    &checked
+                        .type_identity_text(owned_receiver_type_identity)
+                        .unwrap_or_default(),
+                )
+                .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
             projection,
             terminal_receiver_type,
             fused_service_fields,
@@ -244,11 +254,12 @@ fn ordinary_context_terminal_position(
 /// determined evidence type is never a `Binding` carrier, so these rows and
 /// the fused-service rows name disjoint fields.
 fn collect_determined_evidence_fields(
+    identities: &terminal_psi::TerminalIdentityTable,
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     fields: &[terminal_psi::StructuralFieldDeclaration],
     entry: symbols::SymbolHandle,
-    field_path: &mut Vec<String>,
+    field_path: &mut Vec<terminal_psi::TerminalIdentityIndex>,
     visiting: &mut Vec<StructuralTypeId>,
     rows: &mut Vec<CheckedProgramEntryDeterminedEvidenceField>,
 ) -> Option<()> {
@@ -256,9 +267,13 @@ fn collect_determined_evidence_fields(
         match &field.field_type {
             StructuralFieldType::Erased { type_identity }
                 if field.relevance.is_erased()
-                    && nullary_determined_evidence(checked, type_identity, entry) =>
+                    && nullary_determined_evidence(
+                        checked,
+                        identities.text(*type_identity).unwrap_or_default(),
+                        entry,
+                    ) =>
             {
-                field_path.push(field.identity.clone());
+                field_path.push(field.identity);
                 if rows
                     .iter()
                     .any(|row| row.field_path() == field_path.as_slice())
@@ -266,7 +281,7 @@ fn collect_determined_evidence_fields(
                     return None;
                 }
                 rows.push(CheckedProgramEntryDeterminedEvidenceField::new(
-                    type_identity.clone(),
+                    *type_identity,
                     field_path.clone(),
                 ));
                 field_path.pop();
@@ -284,9 +299,10 @@ fn collect_determined_evidence_fields(
                 else {
                     continue;
                 };
-                field_path.push(field.identity.clone());
+                field_path.push(field.identity);
                 visiting.push(*child);
                 collect_determined_evidence_fields(
+                    identities,
                     checked,
                     declarations,
                     nested_fields,
@@ -310,6 +326,7 @@ fn collect_determined_evidence_fields(
 /// uniqueness is enforced: a repeated field route is refused, so two same-named
 /// leaves under different record fields each keep their own row.
 fn admit_fused_service_field(
+    identities: &terminal_psi::TerminalIdentityTable,
     roster: &mut Vec<CheckedProgramEntryFusedServiceField>,
     field: CheckedProgramEntryFusedServiceField,
 ) -> bool {
@@ -329,42 +346,57 @@ fn admit_fused_service_field(
 /// field route. Plain nested-record fields only extend the route; every other
 /// field kind contributes nothing and is skipped.
 fn collect_fused_service_fields(
+    identities: &terminal_psi::TerminalIdentityTable,
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     source: &DataDefinition,
     fields: &[terminal_psi::StructuralFieldDeclaration],
-    field_path: &mut Vec<String>,
+    field_path: &mut Vec<terminal_psi::TerminalIdentityIndex>,
     roster: &mut Vec<CheckedProgramEntryFusedServiceField>,
 ) -> Option<()> {
     for member in checked.data_members(source) {
         let DataMember::Field(field) = member else {
             continue;
         };
-        let field_identity = checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone());
+        let field_identity =
+            checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone());
         match checked
             .bound_service_parameter_carrier(field.type_reference)
             .ok()?
         {
             Some(carrier) => {
-                let mut terminal_fields = fields
-                    .iter()
-                    .filter(|candidate| candidate.identity == field_identity.spelling());
+                let mut terminal_fields = fields.iter().filter(|candidate| {
+                    identities.text(candidate.identity) == Some(field_identity.spelling().as_str())
+                });
                 let terminal_field = terminal_fields.next()?;
                 if terminal_fields.next().is_some()
                     || !terminal_semantics::fused_service_field_matches(
                         declarations,
                         terminal_field,
-                        &checked.type_identity_text(carrier.carrier_type_identity).unwrap_or_default(),
+                        identities
+                            .index_of(
+                                &checked
+                                    .type_identity_text(carrier.carrier_type_identity)
+                                    .unwrap_or_default(),
+                            )
+                            .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
                     )
                 {
                     return None;
                 }
-                field_path.push(field_identity.spelling());
+                field_path.push(terminal_field.identity);
                 if !admit_fused_service_field(
+                    identities,
                     roster,
                     CheckedProgramEntryFusedServiceField::new(
-                        field_identity.spelling(),
-                        checked.type_identity_text(carrier.carrier_type_identity).unwrap_or_default(),
+                        terminal_field.identity,
+                        identities
+                            .index_of(
+                                &checked
+                                    .type_identity_text(carrier.carrier_type_identity)
+                                    .unwrap_or_default(),
+                            )
+                            .unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
                         field_path.clone(),
                     ),
                 ) {
@@ -376,22 +408,28 @@ fn collect_fused_service_fields(
                 let Some(nested) = source_record(checked, field.type_reference) else {
                     continue;
                 };
-                let mut terminal_fields = fields
-                    .iter()
-                    .filter(|candidate| candidate.identity == field_identity.spelling());
-                let structural_child = match (terminal_fields.next(), terminal_fields.next()) {
-                    (Some(terminal_field), None) => match &terminal_field.field_type {
-                        StructuralFieldType::Structural(child) => Some(*child),
-                        _ => None,
-                    },
-                    _ => None,
-                };
+                let mut terminal_fields = fields.iter().filter(|candidate| {
+                    identities.text(candidate.identity) == Some(field_identity.spelling().as_str())
+                });
+                let (terminal_field, structural_child) =
+                    match (terminal_fields.next(), terminal_fields.next()) {
+                        (Some(terminal_field), None) => match &terminal_field.field_type {
+                            StructuralFieldType::Structural(child) => {
+                                (terminal_field, Some(*child))
+                            }
+                            _ => (terminal_field, None),
+                        },
+                        _ => (
+                            terminal_fields.next().unwrap_or_else(|| unreachable!()),
+                            None,
+                        ),
+                    };
                 let Some(child) = structural_child else {
                     // The subtree contributes no Terminal-visible route: a
                     // service leaf inside it could not name a roster row, so
                     // eligibility must refuse; a service-free subtree is
                     // skipped like every other non-carrier field kind.
-                    if source_tree_has_service_field(checked, nested, &mut Vec::new()) {
+                    if source_tree_has_service_field(identities, checked, nested, &mut Vec::new()) {
                         return None;
                     }
                     continue;
@@ -407,8 +445,9 @@ fn collect_fused_service_fields(
                     terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                     _ => continue,
                 };
-                field_path.push(field_identity.spelling());
+                field_path.push(terminal_field.identity);
                 collect_fused_service_fields(
+                    identities,
                     checked,
                     declarations,
                     nested,
@@ -430,6 +469,7 @@ fn collect_fused_service_fields(
 /// a service-free subtree is safe to skip. `visiting` bounds recursive
 /// record cycles the same way `zero_valid` bound them.
 fn source_tree_has_service_field(
+    identities: &terminal_psi::TerminalIdentityTable,
     checked: &CheckedTrees,
     source: &DataDefinition,
     visiting: &mut Vec<symbols::SymbolHandle>,
@@ -449,7 +489,7 @@ fn source_tree_has_service_field(
             return true;
         }
         source_record(checked, field.type_reference)
-            .map(|nested| source_tree_has_service_field(checked, nested, visiting))
+            .map(|nested| source_tree_has_service_field(identities, checked, nested, visiting))
             .unwrap_or(false)
     });
     visiting.pop();
@@ -472,6 +512,7 @@ fn unique_declaration<'d>(
 }
 
 fn zero_valid_record_storage(
+    identities: &terminal_psi::TerminalIdentityTable,
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
@@ -485,6 +526,7 @@ fn zero_valid_record_storage(
     let is_receiver = visiting.is_empty();
     visiting.push(structural_type);
     let valid = zero_valid_shape(
+        identities,
         checked,
         declarations,
         declaration,
@@ -508,6 +550,7 @@ fn zero_valid_record_storage(
 /// receiver — the route the fused-service roster can name — and clears at
 /// array elements and case payloads.
 fn zero_valid_node(
+    identities: &terminal_psi::TerminalIdentityTable,
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
@@ -520,11 +563,14 @@ fn zero_valid_node(
         return false;
     };
     let source = source_reference.and_then(|reference| {
-        source_record(checked, reference)
-            .filter(|_| declaration.identity == checked.normalized_type_identity_text(reference))
+        source_record(checked, reference).filter(|_| {
+            identities.text(declaration.identity)
+                == Some(checked.normalized_type_identity_text(reference).as_str())
+        })
     });
     visiting.push(structural_type);
     let valid = zero_valid_shape(
+        identities,
         checked,
         declarations,
         declaration,
@@ -544,6 +590,7 @@ fn zero_valid_node(
 /// fields); `source_reference` is the source type reference for this node
 /// itself (element and byte-carrier checks).
 fn zero_valid_shape(
+    identities: &terminal_psi::TerminalIdentityTable,
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     declaration: &terminal_psi::StructuralTypeDeclaration,
@@ -559,10 +606,11 @@ fn zero_valid_shape(
         // zero_valid_fields, never by generic recursion or zero-filled bytes.
         StructuralTypeShape::BindingCarrier => false,
         StructuralTypeShape::Record { fields, .. } => zero_valid_fields(
+            identities,
             checked,
             declarations,
             fields,
-            |field| source_field_type(checked, source, field),
+            |field| source_field_type(identities, checked, source, field),
             visiting,
             is_receiver,
             admit_erased_services,
@@ -589,6 +637,7 @@ fn zero_valid_shape(
                 }
             });
             zero_valid_node(
+                identities,
                 checked,
                 declarations,
                 *element,
@@ -598,20 +647,35 @@ fn zero_valid_shape(
                 entry,
             )
         }
-        StructuralTypeShape::Sum { cases } => {
-            zero_valid_first_case(checked, declarations, source, cases, visiting, entry)
-        }
+        StructuralTypeShape::Sum { cases } => zero_valid_first_case(
+            identities,
+            checked,
+            declarations,
+            source,
+            cases,
+            visiting,
+            entry,
+        ),
         StructuralTypeShape::Mixed { fields, cases } => {
             zero_valid_fields(
+                identities,
                 checked,
                 declarations,
                 fields,
-                |field| source_field_type(checked, source, field),
+                |field| source_field_type(identities, checked, source, field),
                 visiting,
                 is_receiver,
                 admit_erased_services,
                 entry,
-            ) && zero_valid_first_case(checked, declarations, source, cases, visiting, entry)
+            ) && zero_valid_first_case(
+                identities,
+                checked,
+                declarations,
+                source,
+                cases,
+                visiting,
+                entry,
+            )
         }
         StructuralTypeShape::PrimitiveScalar(_) => {
             terminal_semantics::scalar_declaration_accepts_zero(declaration)
@@ -628,6 +692,7 @@ fn zero_valid_shape(
 /// roster. Only record-field routes can name that occurrence; neither its
 /// legacy erasure nor its retained zero-payload marker establishes a value.
 fn zero_valid_fields(
+    identities: &terminal_psi::TerminalIdentityTable,
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     fields: &[terminal_psi::StructuralFieldDeclaration],
@@ -645,7 +710,7 @@ fn zero_valid_fields(
                 && terminal_semantics::fused_service_field_matches(
                     declarations,
                     field,
-                    &checked.type_identity_text(carrier.carrier_type_identity).unwrap_or_default(),
+                    identities.index_of(&checked.type_identity_text(carrier.carrier_type_identity).unwrap_or_default()).unwrap_or(terminal_psi::TerminalIdentityIndex::ABSENT),
                 );
         }
         // Determined evidence joins its own roster row on the same record-field
@@ -654,7 +719,7 @@ fn zero_valid_fields(
             && !is_receiver
             && field.relevance.is_erased()
             && matches!(&field.field_type, StructuralFieldType::Erased { type_identity }
-                if nullary_determined_evidence(checked, type_identity, entry));
+                if nullary_determined_evidence(checked, identities.text(*type_identity).unwrap_or_default(), entry));
         (is_receiver || !field.relevance.is_erased() || determined_erased)
             && match field.field_type {
                 StructuralFieldType::Scalar(_)
@@ -670,6 +735,7 @@ fn zero_valid_fields(
                 StructuralFieldType::Structural(child) => {
                     let reference = field_reference(field);
                     zero_valid_node(
+    identities,
                         checked,
                         declarations,
                         child,
@@ -719,6 +785,7 @@ fn zero_valid_fields(
 /// tag and the payload overlay with zeroes, so only `cases[0]` inhabits zero
 /// storage. Later cases are unreachable here and are not judged.
 fn zero_valid_first_case(
+    identities: &terminal_psi::TerminalIdentityTable,
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     source: Option<&DataDefinition>,
@@ -734,7 +801,15 @@ fn zero_valid_first_case(
             let DataMember::Variant(variant) = member else {
                 return None;
             };
-            (case.identity == checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()).spelling()).then_some(variant)
+            (identities.text(case.identity)
+                == Some(
+                    &checked_trees::CheckedMemberIdentity::of_member(
+                        variant.identity,
+                        variant.name.clone(),
+                    )
+                    .spelling(),
+                ))
+            .then_some(variant)
         })
     });
     // A case carrying its own `where` facts must construct through its
@@ -748,10 +823,11 @@ fn zero_valid_first_case(
         return false;
     }
     zero_valid_fields(
+        identities,
         checked,
         declarations,
         &case.fields,
-        |field| source_payload_field_type(checked, variant, field),
+        |field| source_payload_field_type(identities, checked, variant, field),
         visiting,
         false,
         false,
@@ -809,6 +885,7 @@ fn nullary_determined_evidence(
 }
 
 fn source_payload_field_type(
+    identities: &terminal_psi::TerminalIdentityTable,
     checked: &CheckedTrees,
     variant: Option<&DataVariant>,
     field: &terminal_psi::StructuralFieldDeclaration,
@@ -820,12 +897,21 @@ fn source_payload_field_type(
         .data_payload_fields(variant)
         .iter()
         .find_map(|candidate| {
-            (field.identity == checked_trees::CheckedMemberIdentity::of_member(candidate.identity, candidate.name.clone()).spelling()).then_some(candidate.type_reference)
+            (identities.text(field.identity)
+                == Some(
+                    &checked_trees::CheckedMemberIdentity::of_member(
+                        candidate.identity,
+                        candidate.name.clone(),
+                    )
+                    .spelling(),
+                ))
+            .then_some(candidate.type_reference)
         })
         .unwrap_or_default()
 }
 
 fn source_field_type(
+    identities: &terminal_psi::TerminalIdentityTable,
     checked: &CheckedTrees,
     source: Option<&DataDefinition>,
     field: &terminal_psi::StructuralFieldDeclaration,
@@ -840,7 +926,15 @@ fn source_field_type(
             let DataMember::Field(candidate) = member else {
                 return None;
             };
-            (field.identity == checked_trees::CheckedMemberIdentity::of_member(candidate.identity, candidate.name.clone()).spelling()).then_some(candidate.type_reference)
+            (identities.text(field.identity)
+                == Some(
+                    &checked_trees::CheckedMemberIdentity::of_member(
+                        candidate.identity,
+                        candidate.name.clone(),
+                    )
+                    .spelling(),
+                ))
+            .then_some(candidate.type_reference)
         })
         .unwrap_or_default()
 }

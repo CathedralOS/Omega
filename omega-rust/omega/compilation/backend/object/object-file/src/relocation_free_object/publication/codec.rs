@@ -1,5 +1,4 @@
 //! Canonical version-1 publication encoding, not admission against a source.
-use crate::cursor::Cursor;
 use super::{
     Architecture, FuelScheduleIdentity, FunctionFragmentObjectContainerManifest,
     FunctionFragmentObjectContainerManifestDecodeError,
@@ -11,6 +10,7 @@ use super::{
     RelocationFreeObjectSymbolPolicy, SelectedInstructionPlanIdentity, SemanticFingerprint,
     TerminalPsiIdentity, TerminalRelocationFreeTextSectionIdentity, VocabularyMarker,
 };
+use crate::cursor::Cursor;
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTOM\0\0";
 const MANIFEST_VERSION: u32 = 1;
 impl FunctionFragmentObjectContainerManifest {
@@ -67,9 +67,8 @@ impl FunctionFragmentObjectContainerManifest {
         let target = decode_target(&mut cursor)?;
         let semantic_entry = MachineId::new(cursor.u64()?)
             .ok_or(FunctionFragmentObjectContainerManifestDecodeError::InvalidSemanticEntry)?;
-        let semantic_entry_symbol =
-            ObjectLocalSymbolId::new(cursor.u64()?)
-                .ok_or(FunctionFragmentObjectContainerManifestDecodeError::InvalidSymbolId)?;
+        let semantic_entry_symbol = ObjectLocalSymbolId::new(cursor.u64()?)
+            .ok_or(FunctionFragmentObjectContainerManifestDecodeError::InvalidSymbolId)?;
         if cursor.byte()? != 1 {
             return Err(FunctionFragmentObjectContainerManifestDecodeError::UnknownSymbolPolicy);
         }
@@ -159,11 +158,17 @@ pub(super) fn encode_manifest_content(record: &FunctionFragmentObjectContainerMa
     });
     crate::codec_bytes::push_encoded(&mut bytes, record.statistics.sections.to_le_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.statistics.function_symbols.to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.object_local_symbols.to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        record.statistics.object_local_symbols.to_le_bytes(),
+    );
     crate::codec_bytes::push_encoded(&mut bytes, record.statistics.external_symbols.to_le_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.statistics.text_bytes.to_le_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, record.statistics.container_bytes.to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, record.statistics.relocation_records.to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        record.statistics.relocation_records.to_le_bytes(),
+    );
     bytes.extend_from_slice(&[1; 4]);
     bytes
 }
@@ -201,5 +206,3 @@ pub(super) fn decode_target(
         pointer_alignment,
     })
 }
-
-

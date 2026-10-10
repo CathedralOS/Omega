@@ -418,8 +418,7 @@ fn collect_member_domain_symbols(
     if ancestors.contains(&data_symbol) {
         return;
     }
-    let Some(data) = program.data_definition_by_symbol(data_symbol)
-    else {
+    let Some(data) = program.data_definition_by_symbol(data_symbol) else {
         return;
     };
     ancestors.push(data_symbol);

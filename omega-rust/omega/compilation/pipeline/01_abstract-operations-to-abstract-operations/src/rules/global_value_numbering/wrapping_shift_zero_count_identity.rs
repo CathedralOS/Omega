@@ -13,12 +13,11 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     WrappingShiftZeroCountIdentityRule,
     exact_total_scalar_identity(
-                b"omega.psi-rule.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1",
-            ),
+        b"omega.psi-rule.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1",
+    ),
     propose = propose_total_scalar_identities,
     classify,
 );
-
 
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     let Some(operands) = operation.integer_shift() else {

@@ -20,8 +20,8 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::SignatureContract;
 use typed_trees::statement::StatementHandle;
-use typed_trees::types::TypeReferenceHandle;
 use typed_trees::type_identity::CallableIdentityId;
+use typed_trees::types::TypeReferenceHandle;
 
 pub use numerics::arithmetic::ArithmeticPolicyAdapter as CheckedArithmeticPolicyAdapter;
 

@@ -219,6 +219,7 @@ impl OperationFrame<'_, '_> {
     /// Emit one operation `lowers` admits.
     pub(super) fn emit(
         mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         match operation {
@@ -226,6 +227,7 @@ impl OperationFrame<'_, '_> {
                 statement_index,
                 destination,
             } => self.windows.capture_assignment_destination(
+                identities,
                 destination,
                 self.parameters,
                 self.structural_types.declarations(),
@@ -251,30 +253,30 @@ impl OperationFrame<'_, '_> {
                 value,
                 ..
             } => self.port_write(service_reach, *port, *value),
-            CheckedUnitEffectOperationPlan::Store(store) => self.store(store),
+            CheckedUnitEffectOperationPlan::Store(store) => self.store(identities, store),
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {
-                self.establish_scalar_local(result, value)
+                self.establish_scalar_local(identities, result, value)
             }
             CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {
-                self.establish_scalar_array(operation)
+                self.establish_scalar_array(identities, operation)
             }
             CheckedUnitEffectOperationPlan::MoveStructuralField {
                 result,
                 source,
                 expression,
-            } => self.move_structural_field(result, source, *expression),
+            } => self.move_structural_field(identities, result, source, *expression),
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary,
                 cleanup_actions,
-            } => self.continuation_cleanup(boundary, cleanup_actions),
+            } => self.continuation_cleanup(identities, boundary, cleanup_actions),
             CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
-                self.establish_byte_sequence(operation)
+                self.establish_byte_sequence(identities, operation)
             }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
-                self.establish_view_subslice(operation)
+                self.establish_view_subslice(identities, operation)
             }
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-                self.establish_structural_value(operation)
+                self.establish_structural_value(identities, operation)
             }
             CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. } => {
                 self.establish_structural_local(operation)
@@ -284,11 +286,19 @@ impl OperationFrame<'_, '_> {
                 result,
                 source,
                 storage,
-            } => self.establish_reference(*formation_expression, result, source, *storage),
+            } => self.establish_reference(
+                identities,
+                *formation_expression,
+                result,
+                source,
+                *storage,
+            ),
             CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
-                self.release_reference(operation)
+                self.release_reference(identities, operation)
             }
-            CheckedUnitEffectOperationPlan::AtomicAccess(access) => self.atomic_access(access),
+            CheckedUnitEffectOperationPlan::AtomicAccess(access) => {
+                self.atomic_access(identities, access)
+            }
             _ => unsupported("operation frame received a call operation"),
         }
     }
@@ -300,6 +310,8 @@ impl OperationFrame<'_, '_> {
     /// all rejoin it by ordinal.
     fn establish_reference(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         formation_expression: checked_trees::expression::ExpressionHandle,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
@@ -312,7 +324,7 @@ impl OperationFrame<'_, '_> {
                 parameter_index,
             } = source.source
             {
-                self.primitive_parameter_source(parameter_index, source)?
+                self.primitive_parameter_source(identities, parameter_index, source)?
             } else {
                 let earlier = self.results.earlier(
                     std::slice::from_ref(source),
@@ -330,6 +342,7 @@ impl OperationFrame<'_, '_> {
                     self.private_places,
                 )?;
                 let mut selectors = parameters::mint_runtime_index_selectors(
+                    identities,
                     std::slice::from_ref(source),
                     &self.evaluation.structural_fields,
                     self.values,
@@ -338,6 +351,7 @@ impl OperationFrame<'_, '_> {
                 )?
                 .into_iter();
                 parameters::lower_reference_source(
+                    identities,
                     self.checked,
                     source,
                     self.structural_types.declarations(),
@@ -424,10 +438,13 @@ impl OperationFrame<'_, '_> {
     /// views; no loan copies a previously established referent.
     fn primitive_parameter_source(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         parameter_index: u32,
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
         self.evaluation.prepare_borrowed_argument(
+            identities,
             self.checked,
             self.state,
             source,
@@ -474,6 +491,8 @@ impl OperationFrame<'_, '_> {
     /// Replaced locals resolve their receiving home, not their birth result.
     fn release_reference(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::ReleaseReference {
@@ -491,7 +510,7 @@ impl OperationFrame<'_, '_> {
                     let value = self.results.repair_value(binding, self.operations)?;
                     Ok((value.place, value.structural_type))
                 })?;
-        let path = lower_structural_path(path)?;
+        let path = lower_structural_path(identities, path)?;
         let types = self.structural_types.declarations();
         let leaf = terminal_semantics::runtime_structural_path_tip(types.iter(), root_type, &path)
             .ok_or(LoweringError::Unsupported(
@@ -512,6 +531,7 @@ impl OperationFrame<'_, '_> {
                 // Their captured loan boundary does not change their geometry
                 // into a stored reference or consume their borrowed backing.
                 self.evaluation.continue_cleanup_regions(
+                    identities,
                     self.checked,
                     vec![crate::unit::unit_cleanup::CleanupRegion {
                         conditions: Vec::new(),
@@ -536,7 +556,7 @@ impl OperationFrame<'_, '_> {
             }
             _ => return unsupported("loan retirement requires a descriptor carrier"),
         }
-        self.retire_selection_complements(selection_complements)?;
+        self.retire_selection_complements(identities, selection_complements)?;
         if path.is_empty() {
             // A whole descriptor release ends this physical owner. Keeping it
             // in the selection frontier would move a dead parent on the next
@@ -551,6 +571,7 @@ impl OperationFrame<'_, '_> {
     /// declared places.
     pub(super) fn lower_runtime_structural_arguments(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         arguments: &[CheckedUnitStructuralArgumentPlan],
         earlier: &[(Option<StructuralPlaceDeclaration>, bool)],
         byte_places: &[PlaceId],
@@ -559,10 +580,11 @@ impl OperationFrame<'_, '_> {
         let mut selector_values =
             parameters::call_index_selectors(arguments, evaluated_selectors)?.into_iter();
         parameters::lower_structural_arguments(
+            identities,
             self.checked,
             arguments,
             self.structural_types.declarations(),
-            self.parameters,
+            &[],
             &[],
             earlier,
             &self.operations.structural_values.clone(),

@@ -22,14 +22,16 @@ use crate::proofs::evidence_lowering::outcome_specific_ensures::outcome_specific
 use crate::proofs::evidence_lowering::proof_output_calls::lower_proof_output_calls;
 
 pub(crate) fn lower_and_install_evidence_artifacts(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     lowered: &mut LoweredPsi,
 ) -> Result<(), LoweringError> {
     let evidence_term_ids = lower_evidence_term_ids(checked, machine)?;
     let (declarations, applications, declaration_ids) =
-        lower_proposition_vocabulary(checked, &evidence_term_ids.term_ids)?;
+        lower_proposition_vocabulary(identities, checked, &evidence_term_ids.term_ids)?;
     let evidence_terms = lower_evidence_terms(
+        identities,
         checked,
         machine,
         &declaration_ids,
@@ -37,6 +39,7 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         evidence_term_ids.term_ids,
     )?;
     let outcome_specific_ensures = outcome_specific_ensure_rows(
+        identities,
         checked,
         machine,
         lowered.semantic_module.entry,
@@ -51,6 +54,7 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         &evidence_terms.term_ids,
     )?;
     let proof_output_calls = lower_proof_output_calls(
+        identities,
         checked,
         machine,
         lowered.semantic_module.entry,
@@ -61,6 +65,7 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         &applications,
     )?;
     lower_outcome_specific_call_evidence(
+        identities,
         checked,
         machine,
         lowered,
@@ -117,29 +122,32 @@ pub(crate) fn checked_evidence_requirement_identity(
     declaring_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
 ) -> Result<String, LoweringError> {
-    Ok(checked
-        .typed
-        .callable_identity_text(exact_trait_requirement(checked, declaring_trait, requirement)?.overload_identity))
+    Ok(checked.typed.callable_identity_text(
+        exact_trait_requirement(checked, declaring_trait, requirement)?.overload_identity,
+    ))
 }
 
 /// Every binder-argument evidence projection lowers the same three checked
 /// fields into one identity; only the term-id lookup differs per call site.
 pub(super) fn evidence_projection_identity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     projection: &checked_trees::CheckedEvidenceProjection,
     term: crate::proofs::EvidenceTermId,
 ) -> Result<crate::proofs::EvidenceProjectionIdentity, LoweringError> {
     Ok(crate::proofs::EvidenceProjectionIdentity {
         term,
-        declaring_trait_identity: checked
-            .symbols
-            .display_path(projection.declaring_trait, "::"),
+        declaring_trait_identity: identities.intern(
+            &checked
+                .symbols
+                .display_path(projection.declaring_trait, "::"),
+        ),
         declaring_trait_arguments: projection.declaring_trait_arguments.clone(),
-        requirement_identity: checked_evidence_requirement_identity(
+        requirement_identity: identities.intern(&checked_evidence_requirement_identity(
             checked,
             projection.declaring_trait,
             projection.requirement,
-        )?,
+        )?),
     })
 }
 

@@ -15,8 +15,8 @@ pub(crate) use control_flow::{
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
 };
 pub(crate) use control_flow::{
-    analyze_countdown_invariant_constant_placement,
-    analyze_countdown_invariant_constants, analyze_counted_loops,
+    analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
+    analyze_counted_loops,
 };
 pub(crate) use manager::{AnalysisManager, AnalysisManagerError};
 #[cfg(any(test, feature = "test-support"))]

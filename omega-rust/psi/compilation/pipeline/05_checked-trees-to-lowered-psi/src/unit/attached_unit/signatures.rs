@@ -79,6 +79,7 @@ pub(crate) fn find(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     bodies: &[AdmittedBody<'_>],
     qualifications: &PreparedScalarQualifications,
@@ -106,6 +107,7 @@ pub(super) fn lower(
             );
         }
         let parameters = lower_unit_parameters(
+            identities,
             plan.structural_parameters,
             type_ids,
             structural_types,
@@ -144,8 +146,9 @@ pub(super) fn lower(
         let erased_proof_parameters = plan.erased_proof_parameters.to_vec();
         // Claims stay machine-local: unrelated callees cannot shift these IDs.
         let claims = lower_unit_entry_claims(
-            plan.machine,
+            identities,
             plan.state,
+            plan.machine,
             plan.entry_claims,
             &parameters,
             structural_types,
@@ -184,6 +187,7 @@ pub(super) fn lower(
 
     for signature in &mut signatures {
         let cleanup_context = crate::unit::unit_cleanup::contexts::prepare_signature(
+            identities,
             checked,
             signature.source,
             &mut signature.predicate_parameters,
@@ -194,6 +198,7 @@ pub(super) fn lower(
             .as_ref()
             .and_then(|context| context.receiver);
         let requirements = super::entry_requirements::lower(
+            identities,
             checked,
             signature.source,
             &signature.scalar_parameters,

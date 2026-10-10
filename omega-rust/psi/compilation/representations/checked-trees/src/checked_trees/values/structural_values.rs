@@ -5,8 +5,8 @@ use arena::Arena;
 use arena::{Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableMatchArm};
-use typed_trees::types::TypeReferenceHandle;
 use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralValuePlans {

@@ -74,8 +74,6 @@ impl ProofTerm {
         }
         Ok(())
     }
-
-
 }
 
 /// One named payload field of a proof-term construction. Field order is the

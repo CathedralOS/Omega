@@ -1,12 +1,12 @@
 //! Independent semantic/proof-to-object reconstruction.
 
 use super::{
-    OptimizedObjectArtifactCustodyReceipt,
-    OptimizedObjectArtifactError, OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifest,
+    OptimizedObjectArtifactCustodyReceipt, OptimizedObjectArtifactError,
+    OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifest,
     OptimizedObjectArtifactManifestIdentity, OptimizedObjectArtifactRecord,
     OptimizedObjectArtifactStage, OptimizedObjectArtifactStatistics,
-    OptimizedObjectArtifactUnavailableData,
-    StagedOptimizedRelocationFreeObjectContainer, ValidatedOptimizedObjectArtifactManifest,
+    OptimizedObjectArtifactUnavailableData, StagedOptimizedRelocationFreeObjectContainer,
+    ValidatedOptimizedObjectArtifactManifest,
 };
 
 pub(super) fn construct_artifact(

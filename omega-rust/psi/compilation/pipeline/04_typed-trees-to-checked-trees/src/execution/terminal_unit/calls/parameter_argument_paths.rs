@@ -373,14 +373,13 @@ impl ParameterArgument<'_> {
         byte_view: bool,
     ) -> Option<ArgumentPath> {
         let (program, target) = (self.program, self.target);
-        let (projected, path) =
-            projected_argument_path(
+        let (projected, path) = projected_argument_path(
             program,
             self.state,
             self.statement_index,
             self.place,
             None,
-            None
+            None,
         )?;
         super::argument_presentation::classify(
             program,
@@ -422,7 +421,6 @@ impl ParameterArgument<'_> {
             place,
             self.selectors,
         )?;
-        (base_type_identity(program, projected, &[],
-        &[])? == self.target_identity).then_some(path)
+        (base_type_identity(program, projected, &[], &[])? == self.target_identity).then_some(path)
     }
 }

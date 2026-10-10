@@ -669,7 +669,11 @@ impl NativeTarget {
             ObjectFormat::Coff => 2,
         };
         crate::codec_bytes::patch_encoded(&mut bytes, 2, (self.pointer_size as u64).to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 10, (self.pointer_alignment as u64).to_le_bytes());
+        crate::codec_bytes::patch_encoded(
+            &mut bytes,
+            10,
+            (self.pointer_alignment as u64).to_le_bytes(),
+        );
         bytes
     }
 
@@ -688,7 +692,11 @@ impl NativeTarget {
             ObjectFormat::Coff => 3,
         };
         crate::codec_bytes::patch_encoded(&mut bytes, 2, (self.pointer_size as u64).to_le_bytes());
-        crate::codec_bytes::patch_encoded(&mut bytes, 10, (self.pointer_alignment as u64).to_le_bytes());
+        crate::codec_bytes::patch_encoded(
+            &mut bytes,
+            10,
+            (self.pointer_alignment as u64).to_le_bytes(),
+        );
         bytes
     }
 

@@ -169,11 +169,8 @@ pub(super) fn establish(
         }
     }
     for candidate in candidate_targets {
-        let candidate_place = crate::semantic::places::append_place(
-            semantic,
-            candidate.root,
-            &candidate.segments,
-        );
+        let candidate_place =
+            crate::semantic::places::append_place(semantic, candidate.root, &candidate.segments);
         for (domain_symbol, semantic_domain) in &declared_target_domains {
             let was_live = build
                 .contexts

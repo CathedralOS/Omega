@@ -440,7 +440,10 @@ pub(crate) fn validate_callback_address_bytes(
             {
                 return Err(invalid());
             }
-            crate::codec_bytes::push_encoded(&mut expected, (0x9000_0000 | u32::from(register)).to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut expected,
+                (0x9000_0000 | u32::from(register)).to_le_bytes(),
+            );
             expected.extend_from_slice(
                 &(0x9100_0000 | (u32::from(register) << 5) | u32::from(register)).to_le_bytes(),
             );

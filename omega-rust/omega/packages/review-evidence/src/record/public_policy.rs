@@ -9,11 +9,13 @@ use super::{PackageReviewConstShape, PackageReviewPropositionShape};
 
 pub(crate) use declarations::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
-    PackagePolicyOperatorShape, PackagePolicyTraitRequirement, PackagePolicyTraitShape};
+    PackagePolicyOperatorShape, PackagePolicyTraitRequirement, PackagePolicyTraitShape,
+};
 
 pub(crate) use signatures::{
     PackagePolicyMachineParameterContract, PackagePolicyMachineParameterSignature,
-    PackagePolicyTypeParameter, PackagePolicyTypeParameterKind};
+    PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyPublicApi {

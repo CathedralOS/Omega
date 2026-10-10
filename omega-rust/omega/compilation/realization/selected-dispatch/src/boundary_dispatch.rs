@@ -81,10 +81,8 @@ fn plan_selected_boundary_adapter_dispatch(
     // Product execution. Build's admitted provider context is independent:
     // requiring its calls to join Product plans would replay the wrong purpose.
     // Select all Product roots, not a guessed reachable subset or callee names.
-    let context = provider_planning::ProviderPlanningContext::new(
-        checked,
-        source::DependencyScope::Product,
-    );
+    let context =
+        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product);
     let product_roots = typed_trees::references::DeclarationSelection::from_symbols(
         typed_trees::references::collect_program_declarations(checked)
             .into_iter()

@@ -29,9 +29,7 @@ pub use applications::{
 };
 
 use crate::declarations::symbols::TopLevelSymbols;
-use crate::value_custody::type_references::{
-    TypeReferenceOwner, validate_type_reference_handle,
-};
+use crate::value_custody::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 use diagnostics::Diagnostic;
 use signatures::{operator_name, operator_operand_key, operator_signature_key};
 

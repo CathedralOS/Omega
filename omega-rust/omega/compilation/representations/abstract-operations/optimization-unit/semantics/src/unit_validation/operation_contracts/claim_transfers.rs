@@ -182,7 +182,6 @@ pub(crate) fn validate_internal_claim_transfers(
     })
 }
 
-
 pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
     fn scalar_term_roots(term: &ScalarTerm, roots: &mut BTreeSet<PlaceId>) {
         match term {

@@ -18,9 +18,9 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
     same_block_contract(
-                b"omega.psi-rule.same-block-proof-certified-compatible-policy-scalar-cse.v1",
-                OptimizationSafetyClass::ProofCertified,
-            ),
+        b"omega.psi-rule.same-block-proof-certified-compatible-policy-scalar-cse.v1",
+        OptimizationSafetyClass::ProofCertified,
+    ),
 );
 
 impl PsiOptimizationRule for SameBlockProofCertifiedCompatiblePolicyScalarCseRule {

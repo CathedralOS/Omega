@@ -8,11 +8,11 @@ use super::{
     BinaryOperator, ExpressionHandle, Machine, State, StatementNode, SymbolHandle,
     TransitionGuardNode,
 };
-use validation::Interval;
 use crate::checks::ranges::loop_invariants::assignment_counter_field;
 use crate::checks::ranges::loop_invariants::expression_is_counter_member;
 use crate::checks::ranges::loop_invariants::integer_literal;
 use crate::checks::ranges::loop_invariants::transition_target_symbol;
+use validation::Interval;
 
 pub(super) fn updates_preserve_order(
     program: &dyn ::validation::CheckingInput,
@@ -118,9 +118,7 @@ pub(super) fn updates_preserve_order(
                         // the other endpoint if it has already stabilized.
                         if changes[target_index] > states.len() {
                             Interval {
-                                low: (joined.low == previous.low)
-                                    .then_some(joined.low)
-                                    .flatten(),
+                                low: (joined.low == previous.low).then_some(joined.low).flatten(),
                                 high: (joined.high == previous.high)
                                     .then_some(joined.high)
                                     .flatten(),

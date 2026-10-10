@@ -100,7 +100,6 @@ impl PreparedLocalProjectNativeRequest {
         self.terminal_authority_policy = policy;
         self
     }
-
 }
 
 #[derive(Debug)]

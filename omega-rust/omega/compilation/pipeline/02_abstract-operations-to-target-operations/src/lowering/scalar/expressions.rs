@@ -1,7 +1,9 @@
 use crate::LoweringError;
 use abstract_operations::AbstractParameter;
 use calling_conventions::{ValueLocation, ValuePlacement, ValueShape};
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+};
 use std::collections::BTreeMap;
 use target_operations::{
     ScalarParameterLocation, TargetBooleanExpression, TargetIntegerExpression,

@@ -108,10 +108,7 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
                     &mut reference,
                 );
                 if let Some(payload) = payload {
-                    payload_updates.push((
-                        payload.handle_at(field_offset as u32),
-                        reference,
-                    ));
+                    payload_updates.push((payload.handle_at(field_offset as u32), reference));
                 } else {
                     field_updates.push((
                         definition.members.handle_at(member_offset as u32),

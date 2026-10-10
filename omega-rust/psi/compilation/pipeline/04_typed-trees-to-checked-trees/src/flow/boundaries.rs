@@ -51,9 +51,7 @@ fn append_boundary_edges_for_trait(
         return;
     }
 
-    let Some(trait_definition) = program
-        .trait_definition_by_symbol(trait_symbol)
-    else {
+    let Some(trait_definition) = program.trait_definition_by_symbol(trait_symbol) else {
         return;
     };
 

@@ -203,7 +203,6 @@ impl SummaryCrashBucket {
         }
     }
 
-
     /// `substitute` with an optional per-projection operand resolver. When
     /// `resolve` is present it answers each referenced formal's entry operand
     /// at the member projection the guard reads — a caller written only in a

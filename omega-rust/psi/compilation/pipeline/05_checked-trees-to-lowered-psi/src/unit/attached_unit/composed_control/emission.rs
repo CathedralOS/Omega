@@ -23,6 +23,7 @@ use std::borrow::Cow;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_call_operations(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
@@ -72,13 +73,14 @@ pub(super) fn emit_call_operations(
         let (operation_index, staged) = match *step {
             Step::CaptureBefore(statement) => {
                 evaluation.prepare_storage_before(
+                    identities,
                     checked,
                     state.state,
                     statement,
                     &catalogs.structural_types,
                     values,
-                    &mut catalogs.next_place,
                     next_value,
+                    &mut catalogs.next_place,
                     operations,
                     &mut catalogs.temporary_places,
                 )?;
@@ -105,12 +107,13 @@ pub(super) fn emit_call_operations(
                 }
                 let mut calls = catalogs.scalar_calls.emission_context();
                 let value = evaluation.argument_at(
+                    identities,
                     checked,
-                    machine,
                     state.state,
+                    machine,
                     &planned_operations[operation],
-                    ordinal,
                     source_value_count,
+                    ordinal,
                     values,
                     next_value,
                     next_block,
@@ -133,13 +136,14 @@ pub(super) fn emit_call_operations(
                 )?;
                 let mut calls = catalogs.scalar_calls.emission_context();
                 let value = evaluation.call_selector(
+                    identities,
                     checked,
-                    machine,
                     state.state,
+                    machine,
                     &planned_operations[operation],
-                    argument,
                     segment,
                     source_value_count,
+                    argument,
                     values,
                     next_value,
                     next_block,
@@ -163,11 +167,12 @@ pub(super) fn emit_call_operations(
                     return unsupported("composed range operand is evaluated more than once");
                 }
                 let place = literal_arguments::stage_range(
+                    identities,
                     checked,
                     state,
                     &planned_operations[operation],
-                    ordinal,
                     source_value_count,
+                    ordinal,
                     catalogs,
                     evaluation,
                     values,
@@ -223,6 +228,7 @@ pub(super) fn emit_call_operations(
             None
         } else {
             Some(literal_arguments::evaluate(
+                identities,
                 checked,
                 machine,
                 state,
@@ -294,12 +300,13 @@ pub(super) fn emit_call_operations(
         };
         match &call_operands {
             None if establishes_local => {
-                let local = frame.establish_primitive_local(operation)?;
+                let local = frame.establish_primitive_local(identities, operation)?;
                 catalogs.temporary_places.push(local.declaration);
                 primitive_locals.push(local);
             }
-            None => frame.emit(operation)?,
+            None => frame.emit(identities, operation)?,
             Some((arguments, byte_places)) => frame.emit_call(
+                identities,
                 operation,
                 CallInputs {
                     evaluated_scalar_arguments: arguments.as_deref(),

@@ -31,7 +31,10 @@ impl Builder<'_, '_> {
             _ => return None,
         };
         let target = semantic_casts::result_type(self.program, self.state, operand)?;
-        crate::values::scalar::boolean_lowering::comparable_byte_carrier_type(self.program, target)?;
+        crate::values::scalar::boolean_lowering::comparable_byte_carrier_type(
+            self.program,
+            target,
+        )?;
         let subject = self.byte_operand_subject(operand, target)?;
         Some(self.insert(
             PrimitiveType::Bool,
@@ -56,7 +59,10 @@ impl Builder<'_, '_> {
         let (predicate, operand) =
             typed_trees::byte_predicates::byte_predicate_call(self.program, expression)?;
         let target = semantic_casts::result_type(self.program, self.state, operand)?;
-        crate::values::scalar::boolean_lowering::comparable_byte_carrier_type(self.program, target)?;
+        crate::values::scalar::boolean_lowering::comparable_byte_carrier_type(
+            self.program,
+            target,
+        )?;
         let subject = self.byte_operand_subject(operand, target)?;
         Some(self.insert(
             PrimitiveType::Bool,

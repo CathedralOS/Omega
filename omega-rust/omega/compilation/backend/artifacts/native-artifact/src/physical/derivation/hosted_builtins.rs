@@ -340,7 +340,8 @@ pub(crate) fn derive_hosted_builtin_child(
     if settlement.byte_count == 0 {
         return Err("hosted builtin physical child requires a nonempty emitted span");
     }
-    let function = object.function_on_machine(occurrence.machine())
+    let function = object
+        .function_on_machine(occurrence.machine())
         .ok_or("hosted builtin physical child names an absent object function")?;
     let expected_object_offset = function
         .text_offset

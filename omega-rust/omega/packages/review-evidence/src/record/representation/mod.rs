@@ -11,20 +11,23 @@ pub(crate) use movement::{
     PackageReviewBoundaryValueShape, PackageReviewIndirectPointerLocation,
     PackageReviewMachineRegister, PackageReviewOpaqueRepresentationMovementRole,
     PackageReviewOpaqueRepresentationOccurrence, PackageReviewOpaqueRepresentationPathElement,
-    PackageReviewSystemVEightbyteClass};
-pub use policy::{
-    PackagePolicyRepresentation,
+    PackageReviewSystemVEightbyteClass,
 };
-pub(crate) use policy::{ PackagePolicyRepresentationAvailability,
-    PackagePolicyRepresentationDemand, PackagePolicyRepresentationSelection};
+pub use policy::PackagePolicyRepresentation;
+pub(crate) use policy::{
+    PackagePolicyRepresentationAvailability, PackagePolicyRepresentationDemand,
+    PackagePolicyRepresentationSelection,
+};
 
 pub(crate) use shape::{
     PackageReviewBoundaryShape, PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
-    PackageReviewBoundaryShapeGraph};
+    PackageReviewBoundaryShapeGraph,
+};
 
 pub(crate) use target::{
     PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
-    PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile};
+    PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewOpaqueRepresentationApplicationOrigin {

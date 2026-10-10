@@ -19,9 +19,10 @@
 //! plan, so both roles earn the row only under the exact retained occurrence.
 
 use effects::{
-    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition, TerminalMechanismIdentity,
-    provider_plan::{ServiceMethod, ServiceSchema, ServiceSchemaDigest}};
-
+    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission,
+    TerminalAuthorityDisposition, TerminalMechanismIdentity,
+    provider_plan::{ServiceMethod, ServiceSchema, ServiceSchemaDigest},
+};
 
 use super::TerminalAuthorityPolicyRow;
 
@@ -199,4 +200,3 @@ pub(crate) fn filesystem_mechanism_row(
         None => Err(UnsettledFilesystemRequirement::UnknownRequirement),
     }
 }
-

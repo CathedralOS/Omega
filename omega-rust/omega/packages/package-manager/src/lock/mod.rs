@@ -12,7 +12,9 @@
 
 mod acceptance;
 mod compilation;
-pub(crate) use acceptance::{PackageAcceptanceRow, PackagePolicyAcceptance, PackagePolicyOccurrence};
+pub(crate) use acceptance::{
+    PackageAcceptanceRow, PackagePolicyAcceptance, PackagePolicyOccurrence,
+};
 pub(crate) use compilation::AcceptedPackageCompilation;
 mod decisions;
 mod error;
@@ -25,11 +27,13 @@ use self::PackageLockError as Error;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 pub(crate) use decisions::{
-    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError, HistoricalPackagePolicyLimits};
+    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
+};
 pub(crate) use error::PackageLockError;
 pub(crate) use limits::PackageLockRecoveryLimits;
 pub(crate) use occurrences::{
-    PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError};
+    PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
+};
 use package_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;
 
@@ -42,7 +46,6 @@ pub(crate) struct PackageLockTarget {
 }
 
 impl PackageLockTarget {
-
     /// Retain the exact binding inputs of each independently accepted review.
     pub(crate) fn from_accepted_policies(
         source: CanonicalSourceClosureSubject,
@@ -186,7 +189,6 @@ impl PackageLock {
     pub fn targets(&self) -> &[PackageLockTarget] {
         &self.targets
     }
-
 
     pub fn target(&self, profile: TargetProfile) -> Option<&PackageLockTarget> {
         self.targets

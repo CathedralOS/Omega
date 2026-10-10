@@ -129,8 +129,7 @@ fn proof_term_type_matches(
             program.state_by_symbol(caller_state).is_some_and(|state| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.symbol == *parameter_symbol
-                        && base_type_identity(program, parameter.type_reference, &[],
-        &[])
+                        && base_type_identity(program, parameter.type_reference, &[], &[])
                             == Some(type_identity)
                 })
             })
@@ -526,8 +525,19 @@ pub(crate) fn projected_argument_path(
                 if cases.next().is_some() || fields.next().is_some() {
                     return None;
                 }
-                path.push(CheckedUnitStructuralPathSegment::Case(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone())));
-                payload_field = Some((*symbol, checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())));
+                path.push(CheckedUnitStructuralPathSegment::Case(
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        case.identity,
+                        case.name.clone(),
+                    ),
+                ));
+                payload_field = Some((
+                    *symbol,
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ),
+                ));
             }
         }
     }
@@ -763,16 +773,9 @@ pub(crate) fn projected_argument_path_for_identity(
     place: &validation::CanonicalPlace,
     target_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
-    let (projected, path) = projected_argument_path(
-            program,
-            state_symbol,
-            statement_index,
-            place,
-            None,
-            None
-        )?;
-    (base_type_identity(program, projected, &[],
-        &[])? == target_identity).then_some(path)
+    let (projected, path) =
+        projected_argument_path(program, state_symbol, statement_index, place, None, None)?;
+    (base_type_identity(program, projected, &[], &[])? == target_identity).then_some(path)
 }
 
 /// The literal element count of a fixed array reached through any number of
@@ -958,14 +961,7 @@ fn byte_array_range_path(
         segments: fields.to_vec(),
     };
     let (backing_type, mut path) =
-        projected_argument_path(
-            program,
-            state,
-            statement_index,
-            &backing,
-            None,
-            None
-        )?;
+        projected_argument_path(program, state, statement_index, &backing, None, None)?;
     let extent = fixed_array_literal_length(program, backing_type)?;
     // An omitted end names the backing's literal extent.
     let end = end.unwrap_or(extent);

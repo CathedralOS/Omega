@@ -99,6 +99,7 @@ pub(super) fn validate_requirements(
 }
 
 pub(crate) fn field_clause(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     types: &[StructuralTypeDeclaration],
     parameter: &StructuralParameterDeclaration,
     identity: &checked_trees::CheckedMemberIdentity,
@@ -109,7 +110,7 @@ pub(crate) fn field_clause(
     let field = find_structural_type(types, parameter.structural_type)
         .and_then(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields, .. } => {
-                terminal_psi::field_by_identity(fields, &identity.spelling())
+                terminal_psi::field_by_identity(fields, identities.intern(&identity.spelling()))
             }
             _ => None,
         })
@@ -123,6 +124,7 @@ pub(crate) fn field_clause(
 }
 
 pub(crate) fn prepare_signature(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source: SymbolHandle,
     predicate_parameters: &mut Vec<StructuralParameterDeclaration>,
@@ -160,6 +162,7 @@ pub(crate) fn prepare_signature(
                     "nominal cleanup caller predicate parameter is absent",
                 ))?;
             requires.push(field_clause(
+                identities,
                 types,
                 parameter,
                 &requirement.field_identity,
@@ -195,12 +198,16 @@ pub(crate) fn prepare_signature(
         }
         let structural_type = terminal_psi::structural_type_by_identity(
             types,
-            &checked.type_identity_text(hook.type_identity).unwrap_or_default(),
+            identities.intern(
+                &checked
+                    .type_identity_text(hook.type_identity)
+                    .unwrap_or_default(),
+            ),
         )
-            .ok_or(LoweringError::Unsupported(
-                "nominal cleanup hook owner type is absent",
-            ))?
-            .id;
+        .ok_or(LoweringError::Unsupported(
+            "nominal cleanup hook owner type is absent",
+        ))?
+        .id;
         if predicate_parameters.is_empty() {
             // Reserve through the closure allocator, but publish no executable
             // parameter/place: this receiver exists only to substitute clauses

@@ -3,9 +3,8 @@ use crate::candidates::provenance_proven_unreachable_at;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    NodeLocation, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
-    recompute_psi_optimization_unit_identity,
+    NodeLocation, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewritePatch, recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::MachineId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -182,7 +181,12 @@ pub(crate) fn pruned_machine_provenance(
                     node: u32::try_from(node_index).ok()?,
                 });
                 if !node.provenance.is_empty() {
-                    rows.push(provenance_proven_unreachable_at(input, input, &node.provenance, &node.fuel));
+                    rows.push(provenance_proven_unreachable_at(
+                        input,
+                        input,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
                 for edge in &node.successors {
                     let input = PsiRealizationSite::Edge {
@@ -190,7 +194,12 @@ pub(crate) fn pruned_machine_provenance(
                         edge: edge.psi_edge,
                     };
                     if !edge.provenance.is_empty() {
-                        rows.push(provenance_proven_unreachable_at(input, input, &edge.provenance, &edge.fuel));
+                        rows.push(provenance_proven_unreachable_at(
+                            input,
+                            input,
+                            &edge.provenance,
+                            &edge.fuel,
+                        ));
                     }
                 }
             }

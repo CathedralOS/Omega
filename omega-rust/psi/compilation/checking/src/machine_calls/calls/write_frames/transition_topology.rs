@@ -87,14 +87,12 @@ pub(crate) fn named_state_transition_subgraph_is_acyclic(
             let Some(transition) = statement.as_transition() else {
                 return true;
             };
-            transition
-                .targets()
-                .all(|edge| {
-                    !matches!(
-                        program.statement_table.transition_target(edge),
-                        TransitionTargetNode::Named { .. }
-                    ) || named_transition_subgraph_is_acyclic(program, machine, state, edge)
-                })
+            transition.targets().all(|edge| {
+                !matches!(
+                    program.statement_table.transition_target(edge),
+                    TransitionTargetNode::Named { .. }
+                ) || named_transition_subgraph_is_acyclic(program, machine, state, edge)
+            })
         })
 }
 

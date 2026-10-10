@@ -231,13 +231,8 @@ pub(crate) fn validate_boolean_shared_convergence_stack(
             structural_identity = Some(identity);
         }
     }
-    let (mut claimed, mut call_sites) = claimed_mutations_and_call_sites(
-        architecture,
-        machine,
-        bytes,
-        evidence,
-        calls,
-    )?;
+    let (mut claimed, mut call_sites) =
+        claimed_mutations_and_call_sites(architecture, machine, bytes, evidence, calls)?;
     let mut validated_calls = Vec::with_capacity(calls.len());
     let mut peak = 0;
     for (start, end, condition) in prefixes {

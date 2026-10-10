@@ -49,7 +49,6 @@ impl PackagePolicyProviderPlan {
         &self.plan_name
     }
 
-
     pub fn schema_declaration(&self) -> &PackageReviewNominalIdentity {
         &self.schema_declaration
     }

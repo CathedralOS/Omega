@@ -9,6 +9,7 @@ use checked_trees::{CheckedByteSequenceValue, CheckedUnitStructuralArgumentSourc
 impl OperationFrame<'_, '_> {
     pub(super) fn byte_descriptor_operand(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_index: u32,
         value: &checked_trees::CheckedByteSequenceValuePlan,
     ) -> Result<PlaceId, LoweringError> {
@@ -24,6 +25,7 @@ impl OperationFrame<'_, '_> {
         }
         if let Source::ByteSequenceLiteral { bytes } = &source.source {
             return byte_store::emit_literal_view(
+                identities,
                 bytes,
                 Vec::new(),
                 self.structural_types.declarations(),
@@ -47,7 +49,12 @@ impl OperationFrame<'_, '_> {
                     .any(|declaration| {
                         declaration.id == produced.structural_type
                             && declaration.identity
-                                == self.checked.type_identity_text(source.type_identity).unwrap_or_default()
+                                == identities.intern(
+                                    &self
+                                        .checked
+                                        .type_identity_text(source.type_identity)
+                                        .unwrap_or_default(),
+                                )
                             && matches!(
                                 declaration.shape,
                                 terminal_psi::StructuralTypeShape::ByteSequence(
@@ -77,6 +84,7 @@ impl OperationFrame<'_, '_> {
             && let Some(range) = super::super::view_ranges::range(source)
         {
             let storage = super::super::view_ranges::storage(
+                identities,
                 self.checked,
                 self.state,
                 statement_index,
@@ -88,6 +96,7 @@ impl OperationFrame<'_, '_> {
                 .then(|| allocate_dense(self.next_place).map(place_id))
                 .transpose()?;
             let (range_source, establishment) = storage.bind(
+                identities,
                 self.checked,
                 self.state,
                 &bindings,
@@ -106,6 +115,7 @@ impl OperationFrame<'_, '_> {
             let destination = place_id(allocate_dense(self.next_place)?);
             let result_type = range_source.structural_type;
             let declaration = super::super::view_ranges::emit(
+                identities,
                 self.checked,
                 ViewRangeSite {
                     state: self.state,
@@ -142,6 +152,7 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(),
         );
         let mut selectors = parameters::mint_runtime_index_selectors(
+            identities,
             std::slice::from_ref(source),
             &fields,
             self.values.as_slice(),
@@ -152,6 +163,7 @@ impl OperationFrame<'_, '_> {
         let mut path = home.path;
         path.extend(
             crate::expression_preparation::bindings::structural_paths::lower_argument_path(
+                identities,
                 &source.path,
                 Some(self.values.as_slice()),
                 &mut selectors,

@@ -136,7 +136,10 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             encode_string(bytes, "");
             encode_string(bytes, kernel.target.target_name());
             crate::codec_bytes::push_encoded(bytes, kernel.number.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, kernel.provider_plan_report_identity.to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                bytes,
+                kernel.provider_plan_report_identity.to_le_bytes(),
+            );
             bytes.extend_from_slice(&kernel.provider_plan_commitment);
             encode_string(bytes, &kernel.requirement_identity);
             encode_call_plan(bytes, &binding.boundary_entry_plan.call);
@@ -154,10 +157,16 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             .to_le_bytes(),
     );
     bytes.extend_from_slice(&contribution.commitment().as_bytes());
-    crate::codec_bytes::push_encoded(bytes, contribution.provider_plan_report_identity().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        bytes,
+        contribution.provider_plan_report_identity().to_le_bytes(),
+    );
     bytes.extend_from_slice(&contribution.provider_plan_commitment().as_bytes());
     encode_string(bytes, contribution.requirement_identity());
-    crate::codec_bytes::push_encoded(bytes, contribution.receipt().normalized_identity().to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        bytes,
+        contribution.receipt().normalized_identity().to_le_bytes(),
+    );
     crate::codec_bytes::push_encoded(bytes, contribution.bytes().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, contribution.alignment().to_le_bytes());
 }

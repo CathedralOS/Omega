@@ -19,6 +19,7 @@ use crate::retention::reborrow_root_handoff::{
 };
 
 pub(crate) fn retain_selected_reborrow_restored_call_uses(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
@@ -111,12 +112,13 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                     .weakenings
                     .get(member.parent_end_status.child_weakening);
                 shared_cohort.push(TerminalReborrowSharedCohortMember {
-                    child_owner_identity: identity(checked, member.owner_symbol)?,
-                    child_owner_path: owner_path(checked, &member.owner_path)?,
-                    child_place: place(checked, &member.captured_place)?,
+                    child_owner_identity: identities
+                        .intern(&identity(checked, member.owner_symbol)?),
+                    child_owner_path: owner_path(identities, checked, &member.owner_path)?,
+                    child_place: place(identities, checked, &member.captured_place)?,
                     child_access: access(member.access.clone()),
-                    child_activation: boundary(checked, member_activation.source)?,
-                    child_weakening: boundary(checked, member_weakening.source)?,
+                    child_activation: boundary(identities, checked, member_activation.source)?,
+                    child_weakening: boundary(identities, checked, member_weakening.source)?,
                 });
             }
         }
@@ -191,11 +193,11 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             );
         };
         let child_owner_identity = identity(checked, child.owner_symbol)?;
-        let child_owner_path = owner_path(checked, &child.owner_path)?;
-        let child_place = place(checked, &child.captured_place)?;
+        let child_owner_path = owner_path(identities, checked, &child.owner_path)?;
+        let child_place = place(identities, checked, &child.captured_place)?;
         let child_access = access(child.access.clone());
-        let child_activation = boundary(checked, child_activation.source)?;
-        let child_weakening = boundary(checked, child_weakening.source)?;
+        let child_activation = boundary(identities, checked, child_activation.source)?;
+        let child_weakening = boundary(identities, checked, child_weakening.source)?;
         rows.push(TerminalReborrowRestoredCallUse {
             machine: terminal_machine,
             operation: terminal_operation,
@@ -215,24 +217,25 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                         "restored reborrow call ordinal exceeds Terminal range",
                     )
                 })?,
-                target_identity: identity(checked, call.target_symbol)?,
+                target_identity: identities.intern(&identity(checked, call.target_symbol)?),
             },
             call_target_machine: callee_id,
-            source_machine_identity: identity(checked, event.machine_symbol)?,
-            source_state_identity: identity(checked, event.state_symbol)?,
-            direct_root_owner_identity: identity(checked, parent.owner_symbol)?,
-            direct_root_owner_path: owner_path(checked, &parent.owner_path)?,
-            direct_root_place: place(checked, &parent.captured_place)?,
-            direct_root_activation: boundary(checked, parent.activation_source)?,
-            direct_root_weakening: boundary(checked, parent_weakening.source)?,
-            direct_root_lifetime_identity: identity(checked, parent.parent_lifetime.root_symbol)?,
-            child_owner_identity,
+            source_machine_identity: identities.intern(&identity(checked, event.machine_symbol)?),
+            source_state_identity: identities.intern(&identity(checked, event.state_symbol)?),
+            direct_root_owner_identity: identities.intern(&identity(checked, parent.owner_symbol)?),
+            direct_root_owner_path: owner_path(identities, checked, &parent.owner_path)?,
+            direct_root_place: place(identities, checked, &parent.captured_place)?,
+            direct_root_activation: boundary(identities, checked, parent.activation_source)?,
+            direct_root_weakening: boundary(identities, checked, parent_weakening.source)?,
+            direct_root_lifetime_identity: identities
+                .intern(&identity(checked, parent.parent_lifetime.root_symbol)?),
+            child_owner_identity: identities.intern(&child_owner_identity),
             child_owner_path,
             child_place,
-            projection_remainder: place_segments(checked, projection_remainder)?,
+            projection_remainder: place_segments(identities, checked, projection_remainder)?,
             child_access,
             child_activation,
-            formation_boundary: boundary(checked, child.parent_suspension.source)?,
+            formation_boundary: boundary(identities, checked, child.parent_suspension.source)?,
             child_weakening,
             shared_cohort,
         });

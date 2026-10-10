@@ -4,26 +4,25 @@
 //! and manifest contracts it publishes; semantic reconstruction lives in
 //! `reconstruction`, and canonical bytes in `codec`.
 
-use crate::artifact_custody::reconstruction::{
-    construct_artifact, construct_manifest, receipt};
+use crate::artifact_custody::reconstruction::{construct_artifact, construct_manifest, receipt};
 use optimization_core::{
     FunctionFragmentEmissionManifestIdentity, FunctionFragmentObjectContainerManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity};
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+};
 use semantic_vocabulary::MachineId;
 use target::{Architecture, NativeTarget, ObjectFormat};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::{
-    RelocationFreeObjectContainerError,
-    StagedOptimizedRelocationFreeObjectContainer};
 use crate::cursor::Cursor;
+use crate::{RelocationFreeObjectContainerError, StagedOptimizedRelocationFreeObjectContainer};
 use codec::{
     decode_artifact_content, decode_machine, decode_psi, decode_statistics, decode_target,
-    encode_artifact_content, encode_manifest_content};
+    encode_artifact_content, encode_manifest_content,
+};
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"OMGOTA\0\0";
 const ARTIFACT_VERSION: u32 = 2;
@@ -52,23 +51,27 @@ pub fn stage_validated_optimized_object_artifact_shared(
         source,
         artifact,
         manifest,
-        custody})
+        custody,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedObjectArtifactStage {
-    ValidatedOptimizedObjectArtifactV1}
+    ValidatedOptimizedObjectArtifactV1,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedObjectArtifactUnavailableData {
-    Unavailable}
+    Unavailable,
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct OptimizedObjectArtifactStatistics {
     pub text_bytes: u64,
     pub object_container_bytes: u64,
     pub function_symbols: u64,
-    pub relocation_records: u64}
+    pub relocation_records: u64,
+}
 
 /// Canonical, source-free identity record for the semantic/proof-to-object join.
 ///
@@ -91,7 +94,8 @@ pub struct OptimizedObjectArtifactRecord {
     pub object_container_manifest: FunctionFragmentObjectContainerManifestIdentity,
     pub object: RelocationFreeObjectPlanIdentity,
     pub object_container: RelocationFreeObjectContainerIdentity,
-    pub statistics: OptimizedObjectArtifactStatistics}
+    pub statistics: OptimizedObjectArtifactStatistics,
+}
 
 impl OptimizedObjectArtifactRecord {
     pub fn recomputed_identity(&self) -> OptimizedObjectArtifactIdentity {
@@ -148,7 +152,8 @@ pub struct OptimizedObjectArtifactManifest {
     pub external_entry_bridge: OptimizedObjectArtifactUnavailableData,
     pub executable_image: OptimizedObjectArtifactUnavailableData,
     pub installation: OptimizedObjectArtifactUnavailableData,
-    pub publication: OptimizedObjectArtifactUnavailableData}
+    pub publication: OptimizedObjectArtifactUnavailableData,
+}
 
 impl OptimizedObjectArtifactManifest {
     pub fn recomputed_identity(&self) -> OptimizedObjectArtifactManifestIdentity {
@@ -224,7 +229,8 @@ impl OptimizedObjectArtifactManifest {
             external_entry_bridge: unavailable,
             executable_image: unavailable,
             installation: unavailable,
-            publication: unavailable};
+            publication: unavailable,
+        };
         if manifest.recomputed_identity() != identity {
             return Err(OptimizedObjectArtifactManifestDecodeError::IdentityMismatch);
         }
@@ -234,7 +240,8 @@ impl OptimizedObjectArtifactManifest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedOptimizedObjectArtifactManifest {
-    record: OptimizedObjectArtifactManifest}
+    record: OptimizedObjectArtifactManifest,
+}
 
 impl ValidatedOptimizedObjectArtifactManifest {
     pub const fn record(&self) -> &OptimizedObjectArtifactManifest {
@@ -253,7 +260,8 @@ pub struct StagedValidatedOptimizedObjectArtifact {
     source: std::sync::Arc<StagedOptimizedRelocationFreeObjectContainer>,
     artifact: OptimizedObjectArtifactRecord,
     manifest: ValidatedOptimizedObjectArtifactManifest,
-    custody: OptimizedObjectArtifactCustodyReceipt}
+    custody: OptimizedObjectArtifactCustodyReceipt,
+}
 
 impl StagedValidatedOptimizedObjectArtifact {
     pub const fn terminal(&self) -> &terminal_codec::CanonicalTerminalArtifact {
@@ -305,7 +313,8 @@ pub struct OptimizedObjectArtifactCustodyReceipt {
     object: RelocationFreeObjectPlanIdentity,
     object_container: RelocationFreeObjectContainerIdentity,
     artifact: OptimizedObjectArtifactIdentity,
-    manifest: OptimizedObjectArtifactManifestIdentity}
+    manifest: OptimizedObjectArtifactManifestIdentity,
+}
 
 impl OptimizedObjectArtifactCustodyReceipt {
     pub const fn psi_artifact(self) -> [u8; 32] {
@@ -340,7 +349,8 @@ pub enum OptimizedObjectArtifactError {
     LengthOverflow,
     ArtifactMismatch,
     ManifestMismatch,
-    ReceiptMismatch}
+    ReceiptMismatch,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedObjectArtifactRecordDecodeError {
@@ -354,7 +364,8 @@ pub enum OptimizedObjectArtifactRecordDecodeError {
     TargetLayoutOverflow,
     UnknownOptionalTag(u8),
     IdentityMismatch,
-    TrailingBytes}
+    TrailingBytes,
+}
 
 optimization_core::truncated_from_adapter!(OptimizedObjectArtifactRecordDecodeError);
 
@@ -366,7 +377,8 @@ pub enum OptimizedObjectArtifactManifestDecodeError {
     UnknownUnavailableStatus,
     Artifact(OptimizedObjectArtifactRecordDecodeError),
     IdentityMismatch,
-    TrailingBytes}
+    TrailingBytes,
+}
 
 impl std::fmt::Display for OptimizedObjectArtifactError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

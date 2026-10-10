@@ -79,7 +79,12 @@ pub fn admit_native_realization<'request>(
                         .providers
                         .selected_provider_plans
                         .selected_row_matches_requirement(
-                            &boundary.identity,
+                            input
+                                .context()
+                                .module()
+                                .identities
+                                .text(boundary.identity)
+                                .unwrap_or_default(),
                             settlement.provider_execution.requirement_identity(),
                             settlement
                                 .provider_execution

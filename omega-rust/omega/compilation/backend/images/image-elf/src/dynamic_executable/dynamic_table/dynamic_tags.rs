@@ -15,11 +15,11 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::constants::ELF64_RELA_SIZE;
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, require};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_descriptors::{
     ElfProcedureLinkageSectionKind, ValidatedElfProcedureLinkageSectionDescriptorPlan,
 };
-use crate::constants::{ELF64_RELA_SIZE};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::{
     ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage,
     ElfProcedureLinkageSemanticTarget,

@@ -18,8 +18,7 @@ pub fn resolve_named_call<'program>(
     has_value_receiver: bool,
 ) -> Option<&'program OperatorDefinition> {
     if target_symbol.is_valid() {
-        return program
-            .operator_definition_by_symbol(target_symbol);
+        return program.operator_definition_by_symbol(target_symbol);
     }
 
     let mut candidates = program.operators().iter().filter(|operator| {
@@ -37,8 +36,7 @@ pub fn resolve_named_expression_call<'program>(
     call: &crate::expression::TableCallExpression,
 ) -> Option<&'program OperatorDefinition> {
     if call.target_symbol.is_valid() {
-        return program
-            .operator_definition_by_symbol(call.target_symbol);
+        return program.operator_definition_by_symbol(call.target_symbol);
     }
     let candidates = named_expression_call_candidates(program, call);
     let [selected] = candidates.as_slice() else {
@@ -62,7 +60,8 @@ pub fn selected_boundary_operator<'program>(
     resolve_named_expression_call(program, call).filter(|operator| {
         operator.is_boundary
             && program
-                .operator_definition_by_symbol(operator.symbol).is_some()
+                .operator_definition_by_symbol(operator.symbol)
+                .is_some()
     })
 }
 

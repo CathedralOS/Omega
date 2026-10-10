@@ -16,13 +16,8 @@ pub(in crate::checks::contracts) fn closed_boolean_value(
     if !has_builtin_operators(program, operators, expression) {
         return None;
     }
-    let ScalarValue::Boolean(value) = evaluate(
-            program,
-            expression,
-            &mut |_| None,
-            &|_,
-            _| true
-        )? else {
+    let ScalarValue::Boolean(value) = evaluate(program, expression, &mut |_| None, &|_, _| true)?
+    else {
         return None;
     };
     Some(value)
@@ -50,7 +45,6 @@ pub(in crate::checks::contracts) fn has_builtin_operators(
         _ => true,
     }
 }
-
 
 /// Comparison meaning is supplied by the consumer independently of leaf
 /// values. In particular, the domain prover has no selected-operator evidence

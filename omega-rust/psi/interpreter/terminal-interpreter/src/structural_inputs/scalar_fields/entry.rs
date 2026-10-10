@@ -101,8 +101,7 @@ fn validate_type(
             }
         }
         // The host field carrier supplies no selected case discriminator.
-        terminal_psi::sum_or_mixed_shape_pattern!()
-        | StructuralTypeShape::Reference { .. } => {
+        terminal_psi::sum_or_mixed_shape_pattern!() | StructuralTypeShape::Reference { .. } => {
             return Err(malformed());
         }
         // The already supplied binding identity has no scalar payload. This

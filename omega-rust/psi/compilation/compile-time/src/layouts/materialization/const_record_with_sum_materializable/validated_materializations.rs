@@ -410,7 +410,6 @@ impl ValidatedConstRecordWithSumMaterialization {
         &self.nested_sums
     }
 
-
     /// Compatibility accessor for the singular API.
     pub fn nested_sum(&self) -> &ValidatedConstSumMaterialization {
         self.nested_sums[0].nested_sum()

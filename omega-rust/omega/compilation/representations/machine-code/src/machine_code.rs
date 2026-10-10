@@ -142,6 +142,9 @@ pub struct MachineCodePlan {
     pub psi: TerminalPsiIdentity,
     pub target: NativeTarget,
     pub entry: MachineId,
+    /// Identity text every `TerminalIdentityIndex` in this plan resolves
+    /// against; the sealed module table travels with the plan verbatim.
+    pub identities: terminal_psi::TerminalIdentityTable,
     pub functions: Vec<MachineCodeFunction>,
 }
 

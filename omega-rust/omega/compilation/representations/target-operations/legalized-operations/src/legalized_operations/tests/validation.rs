@@ -55,7 +55,9 @@ fn empty_call_ownership_events_remain_bound_to_the_original_call_origin() {
 fn installed_call_origin_retains_projected_operands_and_structural_receipt_ordinals() {
     let mut installed = installed_provider_plan();
     let call = structural_call_mut(&mut installed);
-    let path = vec![terminal_psi::StructuralPathSegment::Field("payload".into())];
+    let path = vec![terminal_psi::StructuralPathSegment::Field(
+        terminal_psi::TerminalIdentityIndex(1),
+    )];
     let LegalizedScalarArgument::Structural {
         semantic, target, ..
     } = &mut call.arguments[0]

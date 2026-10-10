@@ -23,5 +23,4 @@ impl CastForm {
     pub fn is_recast(self) -> bool {
         !matches!(self, Self::Value)
     }
-
 }

@@ -125,12 +125,12 @@ pub(crate) fn proof_edge_strict_decrease_judged(
                 continue;
             }
             let Some(subject_term) = structural_term(
-            program,
-            Some((machine, other, Default::default())),
-            None,
-            comparison.left,
-            None
-        ) else {
+                program,
+                Some((machine, other, Default::default())),
+                None,
+                comparison.left,
+                None,
+            ) else {
                 continue;
             };
             let Some((definition, variant)) = super::structural_terms::case_guard_classifier(
@@ -179,12 +179,12 @@ pub(crate) fn proof_edge_strict_decrease_judged(
                     continue;
                 };
                 let Some(receiver_term) = structural_term(
-            program,
-            Some((machine, other, Default::default())),
-            None,
-            member.receiver,
-            None
-        ) else {
+                    program,
+                    Some((machine, other, Default::default())),
+                    None,
+                    member.receiver,
+                    None,
+                ) else {
                     continue;
                 };
                 if receiver_term != subject_term {
@@ -249,12 +249,12 @@ pub(crate) fn proof_edge_strict_decrease_judged(
                         local.initial_value,
                     );
                 } else if let Some(term) = structural_term(
-            program,
-            Some((machine, state, local.type_reference)),
-            None,
-            local.initial_value,
-            None
-        ) {
+                    program,
+                    Some((machine, state, local.type_reference)),
+                    None,
+                    local.initial_value,
+                    None,
+                ) {
                     judge.intake_equation(
                         StructuralTerm::Variable(local.name.as_str().to_owned()),
                         term,
@@ -275,12 +275,12 @@ pub(crate) fn proof_edge_strict_decrease_judged(
 
     // The obligation.
     let Some(argument_term) = structural_term(
-            program,
-            Some((machine, state, Default::default())),
-            None,
-            edge_argument,
-            None
-        ) else {
+        program,
+        Some((machine, state, Default::default())),
+        None,
+        edge_argument,
+        None,
+    ) else {
         return false;
     };
     let left = StructuralTerm::Application {

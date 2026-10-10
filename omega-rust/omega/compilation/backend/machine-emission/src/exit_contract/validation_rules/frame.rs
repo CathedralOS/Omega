@@ -27,7 +27,8 @@ pub(in crate::exit_contract) fn frame_permissions(
     let mut units = BTreeSet::new();
     for slot in &frame.callee_save_slots {
         let view = physical
-            .model().view(slot.storage_view)
+            .model()
+            .view(slot.storage_view)
             .ok_or(WholeFunctionExitContractError::InvalidConvention)?;
         units.extend(view.units.iter().copied());
     }

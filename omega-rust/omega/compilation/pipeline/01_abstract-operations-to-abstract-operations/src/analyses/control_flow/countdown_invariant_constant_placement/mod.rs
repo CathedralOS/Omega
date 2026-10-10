@@ -85,7 +85,6 @@ impl ValidatedCountdownInvariantConstantPlacementAnalysis {
     const fn new(snapshot: CountdownInvariantConstantPlacementAnalysisSnapshot) -> Self {
         Self { snapshot }
     }
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -9,6 +9,7 @@ use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration};
 
 pub(crate) fn resolve(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     declarations: &[StructuralTypeDeclaration],
     field: &StructuralFieldType,
@@ -21,11 +22,14 @@ pub(crate) fn resolve(
         Some(ByteSequenceCarrier::BoundedOwned { .. }) => {
             let identity =
                 validation::structural_type_identity(&checked.typed, reference, &[], &[]);
-            terminal_psi::structural_type_by_identity(declarations, &checked.type_identity_text(identity).unwrap_or_default())
-                .map(|declaration| declaration.id)
-                .ok_or(LoweringError::Unsupported(
-                    "byte member has no retained carrier",
-                ))
+            terminal_psi::structural_type_by_identity(
+                declarations,
+                identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
+            )
+            .map(|declaration| declaration.id)
+            .ok_or(LoweringError::Unsupported(
+                "byte member has no retained carrier",
+            ))
         }
         Some(ByteSequenceCarrier::BorrowedView { .. }) => {
             // The field embeds a shared descriptor contract, not a nominal

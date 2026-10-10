@@ -140,6 +140,7 @@ impl DynamicDispatchIndex {
 /// Publish the dispatch catalog of one lowered closure. `source_machines`
 /// names the source owner of each `module.machines` entry, in order.
 pub(crate) fn lower_dynamic_dispatch_catalog(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machines: &[SymbolHandle],
     module: &mut TerminalModule,
@@ -162,7 +163,12 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         .iter()
         .map(|declaration| {
             (
-                checked.type_identity_by_text(&declaration.identity),
+                checked.type_identity_by_text(
+                    module
+                        .identities
+                        .text(declaration.identity)
+                        .unwrap_or_default(),
+                ),
                 declaration.id,
             )
         })
@@ -175,12 +181,13 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         let mut slots = Vec::new();
         for (slot, requirement_identity) in index.slots[interface_id as usize].iter().enumerate() {
             let Some(plan) = slot_plans.iter().find(|plan| {
-                &plan.interface_identity == interface_identity
-                    && &plan.requirement_identity == requirement_identity
+                plan.interface_identity == *interface_identity
+                    && plan.requirement_identity == *requirement_identity
             }) else {
                 return unsupported("dynamic interface slot has no checked call shape");
             };
             slots.push(lower_slot(
+                identities,
                 checked,
                 plan,
                 u32::try_from(slot)
@@ -191,7 +198,11 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         }
         catalog.interfaces.push(TerminalDynamicInterface {
             id: interface_id,
-            identity: checked.type_identity_text(*interface_identity).unwrap_or_default(),
+            identity: identities.intern(
+                &checked
+                    .type_identity_text(*interface_identity)
+                    .unwrap_or_default(),
+            ),
             slots,
         });
     }
@@ -227,7 +238,12 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         }
         let mut rows = Vec::with_capacity(slots.len());
         for (row, slot) in selection.rows.iter().zip(slots) {
-            if checked.typed.callable_identity_text(row.requirement_identity) != slot.requirement_identity {
+            if identities.intern(
+                &checked
+                    .typed
+                    .callable_identity_text(row.requirement_identity),
+            ) != slot.requirement_identity
+            {
                 return unsupported("implementation row is out of its interface's slot order");
             }
             if !selected_here {
@@ -247,7 +263,8 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         catalog.tables.push(TerminalDynamicTable {
             id: table_id,
             interface,
-            implementation_identity: checked.symbols.display_path(*implementation, "::"),
+            implementation_identity: identities
+                .intern(&checked.symbols.display_path(*implementation, "::")),
             rows,
         });
     }
@@ -261,10 +278,14 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
 /// machine lowering does: source positions minus the selector are not
 /// structural-lane positions when scalar arguments precede a borrow.
 fn lower_slot(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &CheckedDynamicSlotPlan,
     slot: u32,
-    type_ids: &[(typed_trees::type_identity::TypeIdentityId, semantic_vocabulary::StructuralTypeId)],
+    type_ids: &[(
+        typed_trees::type_identity::TypeIdentityId,
+        semantic_vocabulary::StructuralTypeId,
+    )],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<TerminalDynamicSlot, LoweringError> {
     let Some((selector, scalars)) = plan.scalar_parameters.split_first() else {
@@ -312,9 +333,7 @@ fn lower_slot(
         )?;
         Ok(TerminalDynamicClaimPath {
             argument_index: claim.argument_index,
-            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                &claim.path, formal.structural_type, structural_types,
-            )?,
+            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &claim.path, formal.structural_type, structural_types)?,
         })
     }).collect::<Result<Vec<_>, LoweringError>>()?;
     entry_claim_paths.sort();
@@ -327,10 +346,13 @@ fn lower_slot(
     };
     Ok(TerminalDynamicSlot {
         slot,
-        declaring_trait_identity: checked.symbols.display_path(plan.declaring_trait, "::"),
-        requirement_identity: checked
-            .typed
-            .callable_identity_text(plan.requirement_identity),
+        declaring_trait_identity: identities
+            .intern(&checked.symbols.display_path(plan.declaring_trait, "::")),
+        requirement_identity: identities.intern(
+            &checked
+                .typed
+                .callable_identity_text(plan.requirement_identity),
+        ),
         family_tuple: Vec::new(),
         scalar_parameters,
         structural_parameters,

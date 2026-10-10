@@ -264,7 +264,7 @@ fn collect_root_mentions(
                 recurse(field.value);
             }
         }
-                typed_trees::spelled_literal_expression_pattern!() => {}
+        typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 
@@ -282,8 +282,7 @@ fn expression_contains(
     }
     let recurse = |child| expression_contains(program, child, needle);
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_)
-        | typed_trees::spelled_literal_expression_pattern!() => false,
+        ExpressionNode::Name(_) | typed_trees::spelled_literal_expression_pattern!() => false,
         ExpressionNode::Member(member) => recurse(member.receiver),
         ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),

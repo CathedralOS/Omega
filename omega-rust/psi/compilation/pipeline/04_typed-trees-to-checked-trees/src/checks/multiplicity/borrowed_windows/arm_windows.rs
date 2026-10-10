@@ -889,8 +889,7 @@ impl<'facts> ArmWindowPlan<'facts> {
                     operators,
                 );
             }
-            ExpressionNode::Name(_)
-            | typed_trees::spelled_literal_expression_pattern!() => {}
+            ExpressionNode::Name(_) | typed_trees::spelled_literal_expression_pattern!() => {}
         }
     }
 }

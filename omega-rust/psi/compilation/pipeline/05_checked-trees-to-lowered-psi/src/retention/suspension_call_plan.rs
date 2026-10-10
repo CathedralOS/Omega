@@ -16,6 +16,7 @@ use crate::terminal_identities::lookup_claim_id;
 use arena::{Handle, HandleSpan};
 use terminal_psi::{TerminalSuspensionPlace, TerminalSuspensionValueType};
 pub(crate) fn retain_suspension_call_plans(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source_machines: &[symbols::SymbolHandle],
     source_calls: &[LoweredSourceCallOccurrence],
@@ -179,6 +180,7 @@ pub(crate) fn retain_suspension_call_plans(
                 ))
         });
         let loans = retain_loan_graph(
+            identities,
             checked,
             crossing,
             occurrence,
@@ -223,7 +225,10 @@ pub(crate) fn retain_suspension_call_plans(
             operation: plan.operation,
             crossing: plan.crossing,
             target: plan.target,
-            frontier_commitment: terminal_psi::suspension_frontier_commitment(plan),
+            frontier_commitment: terminal_psi::suspension_frontier_commitment(
+                &identities.snapshot(),
+                plan,
+            ),
         })
         .collect();
     module.suspension_call_plans = plans;
@@ -234,6 +239,7 @@ pub(crate) fn retain_suspension_call_plans(
 /// namespace. Source handles are construction scratch only. Capture coordinates
 /// come from the emitting operation, never from the descriptor's current home.
 fn retain_loan_graph(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     crossing: &checked_trees::SuspensionCrossingCarryFact,
     occurrence: &LoweredSourceCallOccurrence,
@@ -262,14 +268,14 @@ fn retain_loan_graph(
                 "suspension loan roster is unavailable",
             ))?;
     let mut graph = terminal_psi::TerminalSuspensionLoans::default();
-    let mut identities = Vec::new();
+    let mut loan_identities = Vec::new();
     for (position, row) in rows
         .iter()
         .enumerate()
         .filter(|(_, row)| row.retained_for_crossing)
     {
         let terminal = graph.occurrences.insert(TerminalSuspensionLoan::default());
-        identities.push((
+        loan_identities.push((
             crossing.borrows.loans.handle_at(position as u32),
             row.stored_loan(),
             terminal,
@@ -279,12 +285,12 @@ fn retain_loan_graph(
         if !loan.is_valid() {
             return Handle::invalid();
         }
-        identities
+        loan_identities
             .iter()
             .find(|(_, source, _)| *source == loan)
             .map_or(Handle::invalid(), |(_, _, terminal)| *terminal)
     };
-    for (source_row, source_loan, terminal) in &identities {
+    for (source_row, source_loan, terminal) in &loan_identities {
         let row = carry.suspension_loans.get(*source_row);
         let (capture, resource, parent, supplier, access) = match row.source {
             SuspensionCrossingLoanSource::Stored { ref resource, .. } => {
@@ -372,7 +378,8 @@ fn retain_loan_graph(
                 else {
                     return unsupported("suspension captured loan has no structural operand");
                 };
-                let path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(path, root, types)?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+            identities, path, root, types)?;
                 let path = graph.paths.insert_many(path);
                 let capture = TerminalSuspensionLoanCapture::CallArgument {
                     live_value: u32::try_from(live_value).map_err(|_| {
@@ -485,7 +492,7 @@ fn retain_loan_graph(
                     )?;
                     let mut retained = HandleSpan::empty();
                     for link in links {
-                        let terminal = identities
+                        let terminal = loan_identities
                             .iter()
                             .find(|(source, _, _)| source == link)
                             .map(|(_, _, terminal)| *terminal)

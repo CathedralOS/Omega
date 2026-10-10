@@ -14,8 +14,7 @@ pub(super) fn provenance(
     FunctionFragmentControlProvenance,
     crate::fragment_emission::projection::ResolvedFragmentEmissionError,
 > {
-    if let selected_instructions::selected_call_triple_pattern!(target, ..) = instruction.kind
-    {
+    if let selected_instructions::selected_call_triple_pattern!(target, ..) = instruction.kind {
         let mut rows = function
             .calls
             .iter()

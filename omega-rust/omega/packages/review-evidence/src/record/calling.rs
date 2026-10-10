@@ -10,16 +10,19 @@ mod physical;
 
 pub(crate) use application::{
     PackagePolicyCallingParameter, PackagePolicyCallingPlan, PackagePolicyNativeParameter,
-    PackagePolicyNativeParameterOrigin};
+    PackagePolicyNativeParameterOrigin,
+};
 
 pub(crate) use callbacks::{
     PackagePolicyCallbackBinder, PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,
     PackagePolicyCallbackInlineField, PackagePolicyCallbackLayout,
     PackagePolicyCallbackLayoutApplication, PackagePolicyCallbackMaterialization,
-    PackagePolicyCallbacks};
+    PackagePolicyCallbacks,
+};
 pub(crate) use opaque::PackagePolicyCallingOpaqueUse;
 
 pub(crate) use physical::{
     PackagePolicyEntryControl, PackagePolicyEntryStack, PackagePolicyMachineRegime,
     PackagePolicyMachineState, PackagePolicyMachineStateSet, PackagePolicyPhysicalCallingContract,
-    PackagePolicyPreemption, PackagePolicyStatePlan};
+    PackagePolicyPreemption, PackagePolicyStatePlan,
+};

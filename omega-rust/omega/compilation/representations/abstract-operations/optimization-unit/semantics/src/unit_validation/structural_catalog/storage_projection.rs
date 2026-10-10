@@ -146,7 +146,7 @@ fn byte_field<'types>(
             .as_slice(),
         None => shape.direct_fields()?,
     };
-    let field = terminal_psi::live_field_by_identity(fields, identity)?;
+    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
     Some(StructuralStorageProjection::ByteField {
         carrier: field.field_type.byte_sequence_carrier()?,
         predicates: field.field_type.byte_predicates(),

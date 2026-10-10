@@ -95,7 +95,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
             structural_types: vec![terminal_psi::StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: structural_type,
-                identity: "u64".into(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
                 shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
             }]
             .into(),
@@ -390,7 +390,7 @@ fn primitive_reference_publication_preserves_original_home_and_total_view() {
     .map(|(index, scalar)| StructuralTypeDeclaration {
         scalar_restriction: None,
         id: StructuralTypeId::new(index as u64 + 1).unwrap(),
-        identity: format!("carrier{index}"),
+        identity: terminal_psi::TerminalIdentityIndex(index as u32 + 1),
         shape: StructuralTypeShape::PrimitiveScalar(scalar),
     })
     .collect::<Vec<_>>();
@@ -411,7 +411,7 @@ fn primitive_reference_publication_preserves_original_home_and_total_view() {
         // The pointer still names one primitive home when the lending
         // reference was captured inside an aggregate carrier.
         path: vec![
-            StructuralPathSegment::Field("bits".into()),
+            StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2)),
             StructuralPathSegment::Referent,
         ],
         root_structural_type: source_type,

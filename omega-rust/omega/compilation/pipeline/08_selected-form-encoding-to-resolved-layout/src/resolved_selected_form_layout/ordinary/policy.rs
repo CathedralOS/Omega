@@ -28,9 +28,7 @@ pub(in super::super) fn select(
         && selected.functions.iter().all(|function| {
             matches!(
                 function.blocks.first().map(|block| &block.terminator),
-                Some(
-                    selected_instructions::conditional_branch_less_pair_pattern!(..)
-                )
+                Some(selected_instructions::conditional_branch_less_pair_pattern!(..))
             )
         })
     {
@@ -45,5 +43,3 @@ pub(in super::super) fn select(
         )
     }
 }
-
-

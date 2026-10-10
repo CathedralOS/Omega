@@ -120,6 +120,7 @@ impl Emission<'_, '_, '_> {
     /// source for the residual complement.
     pub(super) fn projected_root(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: CheckedStructuralValueHandle,
         path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         leaf_type_identity: typed_trees::type_identity::TypeIdentityId,
@@ -193,7 +194,7 @@ impl Emission<'_, '_, '_> {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     };
-                let declaration = self.emit_operand_call(call)?;
+                let declaration = self.emit_operand_call(identities, call)?;
                 let StructuralPlaceKind::OperationResult { .. } = declaration.kind else {
                     return unsupported("projected selection call has no result place");
                 };

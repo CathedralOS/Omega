@@ -8,6 +8,7 @@ use super::{
 use checked_trees::types::TypeReferenceNode;
 
 fn lower_projection(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     projection: &language_semantics::content::ContentProjectionPlan,
 ) -> Result<terminal_psi::RetainedBorrowContentProjection, LoweringError> {
@@ -30,12 +31,13 @@ fn lower_projection(
     Ok(terminal_psi::RetainedBorrowContentProjection {
         semantic_domain: DomainSemanticId::new(projection.identity.domain.get())
             .ok_or(LoweringError::InvalidContentDomainIdentity)?,
-        carrier_identity: exact.carrier_identity.clone(),
+        carrier_identity: identities.intern(&exact.carrier_identity.clone()),
         projection,
     })
 }
 
 fn lower_custody(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     fact: &checked_trees::RetainedBorrowCustodyFact,
 ) -> Result<terminal_psi::RetainedBorrowCustody, LoweringError> {
@@ -143,15 +145,15 @@ fn lower_custody(
     }
 
     let source_identity = parameter.name.as_str().to_owned();
-    let source_projection = lower_projection(checked, &fact.source_projection)?;
-    let result_projection = lower_projection(checked, &fact.result_projection)?;
+    let source_projection = lower_projection(identities, checked, &fact.source_projection)?;
+    let result_projection = lower_projection(identities, checked, &fact.result_projection)?;
     Ok(terminal_psi::RetainedBorrowCustody {
-        callable_identity,
+        callable_identity: identities.intern(&callable_identity),
         source: terminal_psi::RetainedBorrowPlace {
             version: ContentPlaceVersion::Entry,
             root: terminal_psi::RetainedBorrowPlaceRoot::Parameter {
                 position: *position,
-                identity: source_identity,
+                identity: identities.intern(&source_identity),
             },
             segments: Vec::new(),
         },
@@ -163,7 +165,8 @@ fn lower_custody(
         access: StructuralAccess::SharedBorrow,
         callable_lifetime_parameter_count,
         callable_lifetime_parameter_ordinal: fact.callable_lifetime_parameter_ordinal,
-        result_nominal_identity: fact.result_projection.carrier_identity.clone(),
+        result_nominal_identity: identities
+            .intern(&fact.result_projection.carrier_identity.clone()),
         result_multiplicity: StructuralMultiplicity::Linear,
         result_lifetime_argument_count: 1,
         result_lifetime_argument_ordinal: fact.result_lifetime_argument_ordinal,
@@ -175,6 +178,7 @@ fn lower_custody(
 }
 
 pub(crate) fn retain_foreign_borrow_custodies(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
@@ -184,7 +188,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
         .content
         .retained_borrow_custodies
         .iter()
-        .map(|fact| lower_custody(checked, fact))
+        .map(|fact| lower_custody(identities, checked, fact))
         .collect::<Result<Vec<_>, _>>()?;
     rows.sort_by(|left, right| left.callable_identity.cmp(&right.callable_identity));
     if rows

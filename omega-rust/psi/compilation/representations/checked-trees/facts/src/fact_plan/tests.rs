@@ -280,6 +280,7 @@ fn expression_places_resolve_attached_data_members() {
         name: Identifier::generated("Main::main"),
         target: None,
         supply_mode: Default::default(),
+        target_family_interface: false,
         purpose: Default::default(),
         termination_plan: Default::default(),
         service_reach_row: Default::default(),

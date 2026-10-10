@@ -2,8 +2,7 @@ use super::indexes::BorrowCompatibilityPlaceSide;
 use super::indexes::{
     EvaluatedIndexExtent, NormalizedBound, SelectorEvaluation, SelectorLocation, bound_equal,
     bound_is_at_or_before, bound_is_strictly_before, fixed_index_extent, fixed_range_extent,
-    index_expression_extent, index_expressions_may_overlap,
-    index_extents_may_overlap,
+    index_expression_extent, index_expressions_may_overlap, index_extents_may_overlap,
 };
 use super::premises::StatedOrderingPremise;
 use crate::flow::{place_segment_has_unresolved_identity, static_place_segment_pair_equal};
@@ -532,26 +531,14 @@ fn place_segment_pair_may_overlap<'p>(
             facts::PlaceSegment::Index { expression },
         ) => index_extents_may_overlap(
             fixed_range_extent(start, end),
-            index_expression_extent(
-                program,
-                expression,
-                right_location,
-                selectors,
-                bound_lookup,
-            ),
+            index_expression_extent(program, expression, right_location, selectors, bound_lookup),
             selectors,
         ),
         (
             facts::PlaceSegment::Index { expression },
             facts::PlaceSegment::FixedRange { start, end },
         ) => index_extents_may_overlap(
-            index_expression_extent(
-                program,
-                expression,
-                left_location,
-                selectors,
-                bound_lookup,
-            ),
+            index_expression_extent(program, expression, left_location, selectors, bound_lookup),
             fixed_range_extent(start, end),
             selectors,
         ),

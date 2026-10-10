@@ -54,6 +54,7 @@ pub(super) fn establish(
     };
     let receiver = provisions.and_then(TerminalRuntimeProvisions::receiver);
     if let Some(receiver) = receiver {
+        let identities = &program.module().identities;
         let Some(provisions) = provisions else {
             return Err(TerminalRuntimeError::InvalidProvision(
                 "receiver lost its root provisions",
@@ -61,8 +62,16 @@ pub(super) fn establish(
         };
         for field in receiver.fused_service_fields() {
             let mut rows = provisions.fused_service_slots().filter(|(row, _)| {
-                row.field_path() == field.field_path()
-                    && row.carrier_type_identity() == field.carrier_type_identity()
+                row.field_path().len() == field.field_path().len()
+                    && row.field_path().iter().zip(field.field_path()).all(
+                        |(row_segment, field_segment)| {
+                            identities.text(*field_segment) == Some(row_segment.as_str())
+                        },
+                    )
+                    && row.carrier_type_identity()
+                        == identities
+                            .text(field.carrier_type_identity())
+                            .unwrap_or_default()
             });
             let Some((row, _)) = rows.next() else {
                 return Err(TerminalRuntimeError::InvalidProvision(
@@ -86,8 +95,15 @@ pub(super) fn establish(
             ) {
                 arrival.erased_fields.push(TerminalEstablishedErasedField {
                     argument_index: 0,
-                    field_path: field.field_path().to_vec(),
-                    carrier_type_identity: field.carrier_type_identity().to_owned(),
+                    field_path: field
+                        .field_path()
+                        .iter()
+                        .map(|segment| identities.text(*segment).unwrap_or_default().to_string())
+                        .collect(),
+                    carrier_type_identity: identities
+                        .text(field.carrier_type_identity())
+                        .unwrap_or_default()
+                        .to_string(),
                 });
             }
         }
@@ -103,8 +119,15 @@ pub(super) fn establish(
             for field in receiver.determined_evidence_fields() {
                 arrival.erased_fields.push(TerminalEstablishedErasedField {
                     argument_index: 0,
-                    field_path: field.field_path().to_vec(),
-                    carrier_type_identity: field.carrier_type_identity().to_owned(),
+                    field_path: field
+                        .field_path()
+                        .iter()
+                        .map(|segment| identities.text(*segment).unwrap_or_default().to_string())
+                        .collect(),
+                    carrier_type_identity: identities
+                        .text(field.carrier_type_identity())
+                        .unwrap_or_default()
+                        .to_string(),
                 });
             }
         }

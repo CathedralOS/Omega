@@ -102,7 +102,10 @@ pub(super) fn aarch64_store(
                 .to_le_bytes(),
         );
         if index + 1 != width {
-            crate::codec_bytes::push_encoded(bytes, (0xd340_fc00_u32 | (8 << 16) | (16 << 5) | 16).to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                bytes,
+                (0xd340_fc00_u32 | (8 << 16) | (16 << 5) | 16).to_le_bytes(),
+            );
         }
     }
     Some(())

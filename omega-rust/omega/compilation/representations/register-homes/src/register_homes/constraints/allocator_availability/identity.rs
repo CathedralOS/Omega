@@ -1,5 +1,3 @@
-
-
 use crate::{
     AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
 };
@@ -10,7 +8,9 @@ pub fn allocator_availability_identity(
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-allocator-availability.v1\0");
     bytes.extend_from_slice(&encode_terminal_allocator_availability_content(plan));
-    AllocatorAvailabilityIdentity::from_bytes(crate::digest_encoder::content_identity(&bytes).into())
+    AllocatorAvailabilityIdentity::from_bytes(
+        crate::digest_encoder::content_identity(&bytes).into(),
+    )
 }
 
 pub(crate) fn encode_terminal_allocator_availability_content(
@@ -116,9 +116,7 @@ mod tests {
         crate::codec_bytes::patch_encoded(&mut wrong_version, 8, 2_u32.to_le_bytes());
         assert_eq!(
             AllocatorAvailabilityPlan::decode(&wrong_version),
-            Err(super::super::AllocatorAvailabilityDecodeError::UnsupportedVersion(
-                2
-            ))
+            Err(super::super::AllocatorAvailabilityDecodeError::UnsupportedVersion(2))
         );
         assert_eq!(
             AllocatorAvailabilityPlan::decode(&encoded[..encoded.len() - 1]),

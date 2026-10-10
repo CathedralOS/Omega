@@ -44,9 +44,9 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } => {
             collect_value_roots(checked, *value, roots)?;
             if establishes_byte_element_view(checked, plans, result.type_identity, *value)? {
-                if let Some(identity) = crate::terminal_identities::byte_view_element_identity(
-                    plans.structural_types(),
-                ) {
+                if let Some(identity) =
+                    crate::terminal_identities::byte_view_element_identity(plans.structural_types())
+                {
                     roots.push(identity);
                 }
             }

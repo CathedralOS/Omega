@@ -61,7 +61,7 @@ impl AuthoredBehaviorExclusion {
             AuthoredBehaviorExclusionKind::Service { identity } => module
                 .services
                 .iter()
-                .find(|service| service.identity == *identity)
+                .find(|service| module.identities.text(service.identity) == Some(identity.as_str()))
                 .map(|service| BehaviorExclusion::Service(service.id)),
         }
     }

@@ -34,7 +34,9 @@ use super::{
 pub fn exact_complement(
     first: &CheckedBooleanExpression,
     second: &CheckedBooleanExpression,
-    declared_cases: impl FnOnce(&CheckedStructuralParameterField) -> Option<Vec<crate::CheckedMemberIdentity>>,
+    declared_cases: impl FnOnce(
+        &CheckedStructuralParameterField,
+    ) -> Option<Vec<crate::CheckedMemberIdentity>>,
 ) -> bool {
     use CheckedBooleanExpression as Boolean;
     let (first, first_polarity) = polarity(first);

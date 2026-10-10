@@ -62,7 +62,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         ));
     }
     for candidate in &module.boundary_application_candidates {
-        if candidate.selection_identity.is_empty()
+        if candidate.selection_identity.is_absent()
             || candidate.target.as_ref().is_some_and(String::is_empty)
             || candidate.body.contract == [0; 32]
             || candidate
@@ -249,7 +249,10 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .map(|application| {
                 (
                     application.owner,
-                    application.declaration_identity.as_str(),
+                    module
+                        .identities
+                        .text(application.declaration_identity)
+                        .unwrap_or_default(),
                     application.report_fingerprint,
                 )
             }),
@@ -373,7 +376,12 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .root_service_reach
             .installation_dependencies
             .iter()
-            .map(|dependency| dependency.requirement_identity.as_str()),
+            .map(|dependency| {
+                module
+                    .identities
+                    .text(dependency.requirement_identity)
+                    .unwrap_or_default()
+            }),
     ) {
         return Err(CodecError::NonCanonicalOrder(
             "installation reach dependencies by requirement identity",
@@ -473,8 +481,14 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     if !strictly_increasing(module.provider_candidates.iter().map(|candidate| {
         (
             candidate.boundary,
-            candidate.provider_identity.as_str(),
-            candidate.candidate_identity.as_str(),
+            module
+                .identities
+                .text(candidate.provider_identity)
+                .unwrap_or_default(),
+            module
+                .identities
+                .text(candidate.candidate_identity)
+                .unwrap_or_default(),
             candidate.candidate,
         )
     })) {

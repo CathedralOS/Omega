@@ -163,5 +163,4 @@ pub enum SchemaQueryAuthority {
     ForeignScope { requester_identity: String },
 }
 
-impl SchemaQueryAuthority {
-}
+impl SchemaQueryAuthority {}

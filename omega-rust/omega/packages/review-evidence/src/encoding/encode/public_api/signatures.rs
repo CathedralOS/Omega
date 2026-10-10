@@ -101,7 +101,11 @@ pub(in crate::encoding) fn machine_contract(
             encoder.field("type_parameters", |encoder| {
                 encoder.sequence(&signature.type_parameters, type_parameter)
             })?;
-            encode_callable_shape!(encoder, &signature.parameters, signature.return_type.as_ref());
+            encode_callable_shape!(
+                encoder,
+                &signature.parameters,
+                signature.return_type.as_ref()
+            );
             encoder.field("contracts", |encoder| {
                 encoder.sequence(&signature.contracts, encode_callable_contract)
             })?;

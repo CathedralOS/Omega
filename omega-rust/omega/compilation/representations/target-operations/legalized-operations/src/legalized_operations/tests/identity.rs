@@ -133,14 +133,15 @@ fn call_aware_unit_identity_binds_semantic_and_target_custody() {
         let mut changed = plan.clone();
         match mutation {
             0 => changed.scalar_functions[0].structural = None,
-            1 => changed.scalar_functions[0]
-                .structural
-                .as_mut()
-                .unwrap()
-                .structural_types
-                .make_mut()[0]
-                .identity
-                .push_str("::drift"),
+            1 => {
+                changed.scalar_functions[0]
+                    .structural
+                    .as_mut()
+                    .unwrap()
+                    .structural_types
+                    .make_mut()[0]
+                    .identity = terminal_psi::TerminalIdentityIndex(999)
+            }
             2 => changed.scalar_functions[0].call_plan.shadow_bytes += 8,
             3 => changed.scalar_functions[0]
                 .structural
@@ -193,7 +194,9 @@ fn call_aware_unit_identity_binds_semantic_and_target_custody() {
             11 => structural_argument_mut(&mut structural_call_mut(&mut changed).arguments[0])
                 .0
                 .path
-                .push(StructuralPathSegment::Field("base".into())),
+                .push(StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(2),
+                )),
             12 => {
                 structural_argument_mut(&mut structural_call_mut(&mut changed).arguments[0])
                     .1

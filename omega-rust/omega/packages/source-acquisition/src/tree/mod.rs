@@ -8,8 +8,7 @@ pub(crate) mod filesystem;
 pub(crate) mod identity;
 mod resolved_tree;
 
+pub(crate) use resolved_tree::ResolvedSourceTree;
 pub use resolved_tree::{
-    ResolvedLocalSource, VerifiedPackageSourceEntry,
-    VerifiedPackageSourceEntryKind,
+    ResolvedLocalSource, VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind,
 };
-pub(crate) use resolved_tree::{ ResolvedSourceTree};

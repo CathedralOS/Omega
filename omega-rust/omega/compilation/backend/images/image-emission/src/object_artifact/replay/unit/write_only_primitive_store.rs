@@ -33,7 +33,7 @@ pub(crate) fn write_only_store_home_is_exact(
 ) -> bool {
     source_is_exact
         && destination_type_count == 1
-        && !store.destination_type.identity.is_empty()
+        && store.destination_type.identity != terminal_psi::TerminalIdentityIndex::ABSENT
         && store.destination_type.id == store.destination.structural_type
         && store.destination.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
         && matches!(

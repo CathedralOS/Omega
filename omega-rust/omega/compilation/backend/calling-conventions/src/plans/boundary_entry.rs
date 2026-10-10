@@ -9,9 +9,9 @@ use crate::plans::call_plan_evaluation::validate_call_plan_structure;
 use crate::plans::plan_identity::Fnv1a;
 use crate::plans::state_footprints::machine_state_for_registers;
 use crate::plans::{
-    BoundaryPlanDiagnostic, CallPlan, CallSignature, CallingPolicy, EntryStack, MachineRegime, MachineState, MachineStateSet, PlanDiagnostic, Preemption,
-    StatePlan, ValueLocation, evaluate_call_plan,
-    validate_call_plan,
+    BoundaryPlanDiagnostic, CallPlan, CallSignature, CallingPolicy, EntryStack, MachineRegime,
+    MachineState, MachineStateSet, PlanDiagnostic, Preemption, StatePlan, ValueLocation,
+    evaluate_call_plan, validate_call_plan,
 };
 use target::Architecture;
 
@@ -96,7 +96,6 @@ pub fn evaluate_ordinary_boundary_entry_plan(
 /// instruction, stack, and control state in addition to the ordinary ABI
 /// volatile banks. An explicit source-selected boundary plan remains
 /// authoritative and must not be widened through this compatibility path.
-
 
 fn evaluate_ordinary_boundary_entry_plan_from_call(
     call: CallPlan,

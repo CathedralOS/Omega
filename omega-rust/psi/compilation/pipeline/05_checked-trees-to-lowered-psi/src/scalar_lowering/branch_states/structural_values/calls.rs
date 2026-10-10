@@ -131,6 +131,7 @@ impl Storage {
 impl Preparation<'_> {
     pub(super) fn prepare_calls(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         producer: &checked_trees::CheckedStructuralValueCall,
     ) -> Result<PlaceId, LoweringError> {
         let (machine, _) = crate::declarations::state_declaration(self.checked, self.state)?;
@@ -204,8 +205,9 @@ impl Preparation<'_> {
                     if positions[operation].len() != call.scalar_arguments.len() {
                         return unsupported("structural call has incomplete scalar preparation");
                     }
-                    let result = self.result(binding)?;
+                    let result = self.result(identities, binding)?;
                     let mut prepared = super::super::unit_operations::prepare(
+                        identities,
                         self.checked,
                         &caller,
                         operations[operation],
@@ -262,6 +264,7 @@ impl Preparation<'_> {
                         return unsupported("structural operand construction lost its type");
                     }
                     let prepared = prepare_value(
+                        identities,
                         self.checked,
                         self.qualifications,
                         self.state,
@@ -287,7 +290,10 @@ impl Preparation<'_> {
                     {
                         return unsupported("structural operand result is established twice");
                     }
-                    results.push((result.binding_ordinal, self.result(result)?.into()));
+                    results.push((
+                        result.binding_ordinal,
+                        self.result(identities, result)?.into(),
+                    ));
                 }
                 _ => {
                     return unsupported(
@@ -301,18 +307,21 @@ impl Preparation<'_> {
 
     fn result(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         binding: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     ) -> Result<super::super::super::StructuralOperationResult, LoweringError> {
-        let declaration =
-            terminal_psi::structural_type_by_identity(
-                self.types,
+        let declaration = terminal_psi::structural_type_by_identity(
+            self.types,
+            identities.intern(
                 &self
                     .checked
                     .type_identity_text(binding.type_identity)
                     .unwrap_or_default(),
-            ).ok_or(
-                LoweringError::Unsupported("structural operand result lost its carrier"),
-            )?;
+            ),
+        )
+        .ok_or(LoweringError::Unsupported(
+            "structural operand result lost its carrier",
+        ))?;
         let multiplicity = match binding.multiplicity {
             Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
             Multiplicity::Affine => StructuralMultiplicity::Affine,

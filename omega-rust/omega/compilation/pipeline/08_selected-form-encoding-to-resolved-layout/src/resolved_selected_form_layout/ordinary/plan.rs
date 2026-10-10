@@ -104,20 +104,29 @@ fn derive_once(
     })
 }
 
-pub(crate) fn conditional_branch(block: &SelectedBlock) -> Option<(&SelectedInstruction, &SelectedSuccessor)> {
+pub(crate) fn conditional_branch(
+    block: &SelectedBlock,
+) -> Option<(&SelectedInstruction, &SelectedSuccessor)> {
     match &block.terminator {
         SelectedTerminator::ConditionalBranch {
             instruction,
             when_nonzero,
             ..
         } => Some((instruction, when_nonzero)),
-        selected_instructions::conditional_branch_less_pair_pattern!(instruction,when_less, ..) => Some((instruction, when_less)),
+        selected_instructions::conditional_branch_less_pair_pattern!(
+            instruction,
+            when_less,
+            ..
+        ) => Some((instruction, when_less)),
         SelectedTerminator::Jump { .. }
         | selected_instructions::terminator_exit_triple_pattern!(..) => None,
     }
 }
 
-pub(crate) fn widening_candidate(instruction: &SelectedInstruction, row: &SelectedFormEncodingRow) -> bool {
+pub(crate) fn widening_candidate(
+    instruction: &SelectedInstruction,
+    row: &SelectedFormEncodingRow,
+) -> bool {
     matches!(
         instruction.kind,
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -145,10 +154,9 @@ pub(crate) fn byte_displacement(
 pub(in super::super) fn instructions(
     block: &SelectedBlock,
 ) -> impl Iterator<Item = &SelectedInstruction> {
-    block
-        .instructions
-        .iter()
-        .chain(std::iter::once(selected_instructions::terminator_instruction(&block.terminator)))
+    block.instructions.iter().chain(std::iter::once(
+        selected_instructions::terminator_instruction(&block.terminator),
+    ))
 }
 
 fn instruction_size(

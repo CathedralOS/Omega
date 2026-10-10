@@ -57,7 +57,8 @@ impl FloatProjectionOperation {
             self.source_namespace(),
             self.source_name(),
         );
-        let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(FLOAT_PROJECTION_CONTRACT_DOMAIN);
+        let mut hasher =
+            crate::digest_encoder::DomainDigestEncoder::new(FLOAT_PROJECTION_CONTRACT_DOMAIN);
         hasher.raw(&format.to_le_bytes());
         hasher.byte(operation);
         hasher.byte(declaration);

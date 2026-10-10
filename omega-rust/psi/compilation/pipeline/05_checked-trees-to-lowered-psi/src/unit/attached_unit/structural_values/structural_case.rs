@@ -11,6 +11,7 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, structural_re
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn structural_case(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
         let node = self
@@ -68,10 +69,16 @@ impl emission::Emission<'_, '_, '_> {
             let checked_trees::data::DataMember::Variant(variant) = member else {
                 continue;
             };
-            let identity = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
+            let identity = checked_trees::CheckedMemberIdentity::of_member(
+                variant.identity,
+                variant.name.clone(),
+            );
             if variant.symbol == case_symbol {
-                let case = terminal_psi::structural_case_by_identity(&cases, &identity.spelling())
-                    .ok_or(LoweringError::Unsupported("case declaration is absent"))?;
+                let case = terminal_psi::structural_case_by_identity(
+                    &cases,
+                    identities.intern(&identity.spelling()),
+                )
+                .ok_or(LoweringError::Unsupported("case declaration is absent"))?;
                 selected = Some((variant, case.clone()));
             }
         }
@@ -109,10 +116,13 @@ impl emission::Emission<'_, '_, '_> {
                     0..common.len(),
                 ),
             };
-            let identity = checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone());
+            let identity = checked_trees::CheckedMemberIdentity::of_member(
+                declaration.identity,
+                declaration.name.clone(),
+            );
             let position = shape_fields[roster.clone()]
                 .iter()
-                .position(|candidate| candidate.identity == identity.spelling())
+                .position(|candidate| candidate.identity == identities.intern(&identity.spelling()))
                 .map(|offset| roster.start + offset)
                 .ok_or(LoweringError::Unsupported("case field identity missing"))?;
             let target = &shape_fields[position];
@@ -124,6 +134,7 @@ impl emission::Emission<'_, '_, '_> {
             let value = match field.value {
                 checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
                     let evaluated = self.scalar(
+                        identities,
                         CheckedScalarExpressionRole::StructuralValueField {
                             expression: node.expression,
                             field_ordinal: u32::try_from(ordinal).map_err(|_| {
@@ -161,6 +172,7 @@ impl emission::Emission<'_, '_, '_> {
                             target.identity.clone(),
                         ));
                         let completed = self.child_constructor_operand(
+                            identities,
                             child_type,
                             value,
                             field.type_reference,

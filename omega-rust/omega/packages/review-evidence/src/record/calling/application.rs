@@ -112,8 +112,6 @@ impl PackagePolicyCallingPlan {
     }
 }
 
-impl PackagePolicyCallingParameter {
-}
+impl PackagePolicyCallingParameter {}
 
-impl PackagePolicyNativeParameter {
-}
+impl PackagePolicyNativeParameter {}

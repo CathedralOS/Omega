@@ -40,10 +40,12 @@ impl VirtualClockResult {
                 TypeReferenceNode::Unit
             ),
             Self::Integer(primitive) => {
-                primitive.is_fixed_integer() && matches!(
-                    checked.type_reference_table.type_reference(result),
-                    TypeReferenceNode::Named { .. }
-                ) && checked.primitive_type_reference(result) == Some(primitive)
+                primitive.is_fixed_integer()
+                    && matches!(
+                        checked.type_reference_table.type_reference(result),
+                        TypeReferenceNode::Named { .. }
+                    )
+                    && checked.primitive_type_reference(result) == Some(primitive)
             }
         }
     }

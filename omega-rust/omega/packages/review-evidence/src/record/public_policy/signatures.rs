@@ -59,8 +59,7 @@ impl PackagePolicyTypeParameter {
         self.bounds
     }
 }
-impl PackagePolicyMachineParameterContract {
-}
+impl PackagePolicyMachineParameterContract {}
 impl PackagePolicyMachineParameterSignature {
     pub const fn lifetime_parameter_count(&self) -> usize {
         self.lifetime_parameter_count

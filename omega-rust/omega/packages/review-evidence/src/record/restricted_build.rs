@@ -31,8 +31,8 @@ pub(crate) enum PackagePolicyRestrictedBuildOperation {
 }
 
 /// The logical grant root a retained request names, by compiler vocabulary.
-pub(crate) type PackagePolicyRestrictedBuildGrantRoot = package_compilation::RestrictedBuildGrantRoot;
-
+pub(crate) type PackagePolicyRestrictedBuildGrantRoot =
+    package_compilation::RestrictedBuildGrantRoot;
 
 /// One logical root grant inside a retained request.
 #[derive(Debug, Clone, PartialEq, Eq)]

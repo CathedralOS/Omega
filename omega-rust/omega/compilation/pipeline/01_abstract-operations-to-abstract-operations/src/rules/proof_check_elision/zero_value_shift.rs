@@ -51,14 +51,13 @@ fn proof_certified_exact_integer_zero_value_shift_shapes(
 psi_rule_contract!(
     LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
     super::proof_check_elision_rule_contract(
-                b"omega.psi-rule.live-proof-certified-exact-integer-zero-value-shift-elimination.v1",
-                AnalysisSet::new([
-                    AnalysisKind::ScalarConstants,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-            ),
+        b"omega.psi-rule.live-proof-certified-exact-integer-zero-value-shift-elimination.v1",
+        AnalysisSet::new([
+            AnalysisKind::ScalarConstants,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+    ),
     propose = propose_proof_certified_scalar_identities,
     proof_certified_exact_integer_zero_value_shift_shapes,
 );
-

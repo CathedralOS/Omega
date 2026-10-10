@@ -1,7 +1,6 @@
 //! Snapshot identity records and published-snapshot verification.
 
 use crate::SourceResolveError;
-use crate::{take_framed_bytes, take_u64};
 use crate::custody::tree::{CacheCustodyKind, read_bounded_cache_record};
 use crate::error::local_snapshot_invalid;
 use crate::identity::digest::append_framed_bytes;
@@ -11,6 +10,7 @@ use crate::limits::{
 use crate::tree::ResolvedLocalSource;
 use crate::tree::capture::{SourceTreePolicy, capture_local_source_from_open_root};
 use crate::tree::filesystem::open_absolute_directory_nofollow;
+use crate::{take_framed_bytes, take_u64};
 use cap_fs_ext::DirExt;
 use std::path::Path;
 
@@ -128,5 +128,3 @@ pub(crate) fn local_snapshot_content_identity(
     )?;
     Ok(parse_local_snapshot_metadata(&bytes, &metadata_path)?.content_identity)
 }
-
-

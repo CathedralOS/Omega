@@ -34,7 +34,7 @@ fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
         // Bare-place destinations that replace or re-establish contents.
         O::PrimitiveLocalStore { destination, .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(destination, ..)
-        | abstract_operations::byte_sequence_store_pair_pattern!( destination, .. )
+        | abstract_operations::byte_sequence_store_pair_pattern!(destination, ..)
         | O::EstablishElementView { destination, .. } => *destination == place,
         // Parameter-row destinations and vacating move sources.
         O::WriteOnlyPrimitiveStore { destination, .. } => destination.place() == place,
@@ -69,7 +69,9 @@ fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &Structur
             operands.push(source);
         }
         O::StoreStructuralField { value, .. } => operands.push(value),
-        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => operands.extend(structural_arguments.iter()),
+        abstract_operations::call_structural_or_boundary_call_pattern!(structural_arguments) => {
+            operands.extend(structural_arguments.iter())
+        }
         _ => {}
     }
     operands.into_iter()

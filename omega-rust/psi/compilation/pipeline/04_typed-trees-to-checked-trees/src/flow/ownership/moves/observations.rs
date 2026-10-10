@@ -284,11 +284,11 @@ pub(super) fn detached_borrowed_copy_admitted(
         return program.type_multiplicity(projected)
             == language_semantics::Multiplicity::Unrestricted
             && validation::has_contents(
-        program,
-        projected,
-        &[],
-        validation::ContentsRequirement::StableObservation
-    );
+                program,
+                projected,
+                &[],
+                validation::ContentsRequirement::StableObservation,
+            );
     }
     // A service-receiver invocation detaches its stable arguments at the ABI
     // seam; the caller's custody stays whole. The seam's copy carries runtime
@@ -299,11 +299,11 @@ pub(super) fn detached_borrowed_copy_admitted(
     };
     call_target_is_service_signature(program, target_symbol)
         && validation::has_contents(
-        program,
-        projected,
-        &[],
-        validation::ContentsRequirement::SeamMarshal
-    )
+            program,
+            projected,
+            &[],
+            validation::ContentsRequirement::SeamMarshal,
+        )
 }
 
 /// Whether `target_symbol` names a machine signature of a `boundary` trait —

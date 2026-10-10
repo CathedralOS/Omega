@@ -4,10 +4,9 @@
 use calling_conventions::MachineRegister;
 use register_model::{
     PhysicalRegisterModel, PhysicalRegisterModelIdentity, PreservationConvention, RegisterClass,
-    RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, reservation_overlay,
-    sorted_units,
-    RegisterView, RegisterViewId, RegisterWriteSemantics, ReservationReason,
-    ValidatedPhysicalRegisterModel, validate_physical_register_model,
+    RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView, RegisterViewId,
+    RegisterWriteSemantics, ReservationReason, ValidatedPhysicalRegisterModel, reservation_overlay,
+    sorted_units, validate_physical_register_model,
 };
 use std::collections::BTreeMap;
 use target::Architecture;
@@ -384,7 +383,6 @@ fn build_x86_64_physical_register_model() -> PhysicalRegisterModel {
     }
 }
 
-
 fn units_for(units: &BTreeMap<String, Vec<RegisterUnitId>>, names: &[&str]) -> Vec<RegisterUnitId> {
     sorted_units(names.iter().flat_map(|name| units[*name].iter().copied()))
 }
@@ -403,7 +401,6 @@ pub(crate) fn complement(
 fn view_ids(views: &BTreeMap<String, RegisterViewId>, names: &[&str]) -> Vec<RegisterViewId> {
     names.iter().map(|name| views[*name]).collect()
 }
-
 
 /// The canonical x86-64 physical register model, validated once per process.
 ///

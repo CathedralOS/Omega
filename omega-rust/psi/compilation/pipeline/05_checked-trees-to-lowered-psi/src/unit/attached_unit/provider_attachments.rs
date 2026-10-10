@@ -14,6 +14,7 @@ use super::{
 };
 
 pub(crate) fn lower_provider_attachment_places(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     attachment: StructuralTypeId,
     declaration: &StructuralTypeDeclaration,
@@ -36,7 +37,7 @@ pub(crate) fn lower_provider_attachment_places(
         .map(|requirement| {
             let field = terminal_psi::field_by_identity(
                 &fields.expect("provider requirements require record attachment"),
-                &requirement.field_identity.spelling(),
+                identities.intern(&requirement.field_identity.spelling()),
             )
             .ok_or(LoweringError::Unsupported(
                 "provider-backed attachment requirement names an unknown field",
@@ -47,9 +48,11 @@ pub(crate) fn lower_provider_attachment_places(
             if !terminal_semantics::fused_service_field_matches(
                 structural_types,
                 field,
-                &checked
-                    .type_identity_text(requirement.provider_type_identity)
-                    .unwrap_or_default(),
+                identities.intern(
+                    &checked
+                        .type_identity_text(requirement.provider_type_identity)
+                        .unwrap_or_default(),
+                ),
             ) {
                 return unsupported(
                     "provider-backed attachment requirement disagrees with its exact carrier",

@@ -249,8 +249,7 @@ pub(in crate::execution) fn build_call_operation(
                 );
                 let shelled = program.normalized_type_identity(target_state.return_type);
                 expected.multiplicity != multiplicity
-                    || (peeled != Some(expected.type_identity)
-                        && shelled != expected.type_identity)
+                    || (peeled != Some(expected.type_identity) && shelled != expected.type_identity)
             }
             Some(ExpectedCallValueResult::Structural(expected))
                 if crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(

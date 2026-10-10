@@ -8,12 +8,11 @@ use crate::declarations::dependencies::read::{
     DependencyProjectionError, validate_static_dependency_source,
 };
 pub(crate) use planning::{
-    plan_dependency_addition_from_source,
-    plan_dependency_replacement_from_source};
+    plan_dependency_addition_from_source, plan_dependency_replacement_from_source,
+};
 use rendering::source_digest;
 use std::fmt;
 use std::path::{Path, PathBuf};
-
 
 const BUILD_MACHINE_NAME: &str = "build";
 const BUILDER_PARAMETER_NAME: &str = "builder";

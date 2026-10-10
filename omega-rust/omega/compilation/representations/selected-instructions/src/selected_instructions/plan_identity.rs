@@ -277,7 +277,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             obligation,
             accepted_fact,
         }
-        | crate::exact_wrapping_divrem_set_pattern!(obligation,accepted_fact, ..)
+        | crate::exact_wrapping_divrem_set_pattern!(obligation, accepted_fact, ..)
         | SelectedInstructionKind::SaturatingDivide {
             obligation,
             accepted_fact,
@@ -505,8 +505,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 }
                 terminal_psi::StructuralPathSegment::Field(field) => {
                     bytes.push(0);
-                    crate::codec_bytes::encode_len(bytes, field.len());
-                    bytes.extend_from_slice(field.as_bytes());
+                    crate::codec_bytes::push_encoded(bytes, field.0.to_le_bytes());
                 }
                 terminal_psi::StructuralPathSegment::FixedIndex(index) => {
                     bytes.push(1);

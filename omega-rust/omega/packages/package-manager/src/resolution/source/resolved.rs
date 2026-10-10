@@ -86,7 +86,6 @@ impl<S> ResolvedPackageSource<S> {
             self.dependency_projections,
         )
     }
-
 }
 
 /// Assemble the resolved-package-source record shared by local and

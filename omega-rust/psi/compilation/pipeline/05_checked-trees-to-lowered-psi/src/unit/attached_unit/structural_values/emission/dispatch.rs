@@ -13,6 +13,7 @@ impl Emission<'_, '_, '_> {
     /// Lower one `Dispatch` node authored at `expression`.
     pub(super) fn dispatch(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: checked_trees::expression::ExpressionHandle,
         subject: checked_trees::CheckedScalarComputationHandle,
         arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
@@ -31,6 +32,7 @@ impl Emission<'_, '_, '_> {
             .to_vec();
         let source_count = self.values.len();
         let subject = self.scalar(
+            identities,
             CheckedScalarExpressionRole::StructuralValueSubject { expression },
             subject,
             source_count,
@@ -49,6 +51,7 @@ impl Emission<'_, '_, '_> {
             let mut fallback = None;
             if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
                 let pattern = self.scalar(
+                    identities,
                     CheckedScalarExpressionRole::StructuralValuePattern {
                         source_arm: arm.source_arm,
                     },
@@ -81,7 +84,7 @@ impl Emission<'_, '_, '_> {
                 }
             }
             self.values.truncate(source_count);
-            self.value(arm.value, Some(continuation))?;
+            self.value(identities, arm.value, Some(continuation))?;
             self.restore_fallback(fallback);
         }
         if is_root {

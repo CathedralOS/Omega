@@ -1,4 +1,3 @@
-
 use super::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
     AllocatedCalleeSavedRequirementPolicy, encode_callee_saved_modification_witness_identity,
@@ -7,7 +6,9 @@ use super::{
 pub(crate) fn allocated_callee_saved_requirement_identity(
     plan: &AllocatedCalleeSavedRequirementPlan,
 ) -> AllocatedCalleeSavedRequirementIdentity {
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"omega.allocated-callee-saved-requirements.v2");
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.allocated-callee-saved-requirements.v2",
+    );
     hasher.raw(&plan.selected.bytes());
     hasher.raw(&plan.homes.bytes());
     hasher.raw(&plan.post_allocation_manifest.bytes());

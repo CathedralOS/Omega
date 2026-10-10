@@ -2,35 +2,38 @@
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
-    NodeLocation, ProvenanceRewrite, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
-    ScalarSubstitution, SharedJumpFusionRewrite,
+    NodeLocation, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    PsiRealizationSite, PsiRewriteCandidate, ScalarSubstitution, SharedJumpFusionRewrite,
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
-use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
     SharedJumpFusionRule,
-    crate::rules::standard_rule_contract(b"omega.psi-rule.shared-terminal-jump-fusion.v2", CONTROL_FLOW_CLEANUP_PASS_NAME, 2,
-                AnalysisSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::OwnershipFrontiers,
-                    AnalysisKind::PostDominators,
-                ]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-                OptimizationSafetyClass::StructuralIdentity),
+    crate::rules::standard_rule_contract(
+        b"omega.psi-rule.shared-terminal-jump-fusion.v2",
+        CONTROL_FLOW_CLEANUP_PASS_NAME,
+        2,
+        AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::OwnershipFrontiers,
+            AnalysisKind::PostDominators,
+        ]),
+        AnalysisInvalidationSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+        OptimizationSafetyClass::StructuralIdentity
+    ),
 );
 
 impl PsiOptimizationRule for SharedJumpFusionRule {
@@ -198,9 +201,24 @@ fn shared_terminal_fusion_accounting(
     });
     let output_clone = PsiRealizationSite::Node(predecessor);
     let mut provenance = vec![
-        provenance_realized_at(input_edge, output_clone, &incoming.provenance, &incoming.fuel),
-        provenance_realized_at(input_terminal, output_clone, &terminal.provenance, &terminal.fuel),
-        provenance_realized_at(input_terminal, input_terminal, &terminal.provenance, &terminal.fuel),
+        provenance_realized_at(
+            input_edge,
+            output_clone,
+            &incoming.provenance,
+            &incoming.fuel,
+        ),
+        provenance_realized_at(
+            input_terminal,
+            output_clone,
+            &terminal.provenance,
+            &terminal.fuel,
+        ),
+        provenance_realized_at(
+            input_terminal,
+            input_terminal,
+            &terminal.provenance,
+            &terminal.fuel,
+        ),
     ];
     provenance.sort_by_key(|row| {
         (

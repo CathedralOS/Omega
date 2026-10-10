@@ -50,12 +50,11 @@ pub(crate) fn call_parameter_domains(
     };
     let mut requirements = Vec::new();
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        let declared = validation::parameter_domain_constraints(program, parameter.type_reference, &[]);
-        for domain in validation::parameter_domain_constraints(
-            program,
-            parameter.type_reference,
-            &bindings,
-        ) {
+        let declared =
+            validation::parameter_domain_constraints(program, parameter.type_reference, &[]);
+        for domain in
+            validation::parameter_domain_constraints(program, parameter.type_reference, &bindings)
+        {
             // Existing declaration contracts instantiate their own domain
             // arguments. Do not copy an open callee-domain identity into the
             // caller; only newly selected caller qualifications belong here.

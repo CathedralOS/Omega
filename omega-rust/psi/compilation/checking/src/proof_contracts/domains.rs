@@ -14,8 +14,7 @@ use crate::proof_contracts::properties::{
     declared_property_requirements, type_satisfies_declared_property,
 };
 use crate::value_custody::type_references::{
-    TypeReferenceOwner, type_reference_label, type_references_match,
-    validate_type_reference_handle,
+    TypeReferenceOwner, type_reference_label, type_references_match, validate_type_reference_handle,
 };
 use diagnostics::Diagnostic;
 use facts::FactPlan;

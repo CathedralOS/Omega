@@ -14,6 +14,7 @@
 //! a call shape, not a declaration: it names value types, structural types
 //! and custody, never a callee's own places or values.
 
+use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::{MachineId, ScalarType, StructuralTypeId};
 
 use crate::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
@@ -32,7 +33,7 @@ pub struct TerminalDynamicDispatchCatalog {
 pub struct TerminalDynamicInterface {
     pub id: u32,
     /// Normalized identity of the selector type.
-    pub identity: String,
+    pub identity: TerminalIdentityIndex,
     /// Canonical requirement slots, dense by `slot`.
     pub slots: Vec<TerminalDynamicSlot>,
 }
@@ -42,8 +43,8 @@ pub struct TerminalDynamicInterface {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalDynamicSlot {
     pub slot: u32,
-    pub declaring_trait_identity: String,
-    pub requirement_identity: String,
+    pub declaring_trait_identity: TerminalIdentityIndex,
+    pub requirement_identity: TerminalIdentityIndex,
     /// Canonical value tuple of a finite-family row; empty for a
     /// nongeneric requirement.
     pub family_tuple: Vec<String>,
@@ -82,7 +83,7 @@ pub struct TerminalDynamicTable {
     pub id: u32,
     pub interface: u32,
     /// Normalized identity of the selected named implementation.
-    pub implementation_identity: String,
+    pub implementation_identity: TerminalIdentityIndex,
     /// One row per interface slot. A semantic row without an executable
     /// machine is absent and dispatching it traps.
     pub rows: Vec<Option<MachineId>>,

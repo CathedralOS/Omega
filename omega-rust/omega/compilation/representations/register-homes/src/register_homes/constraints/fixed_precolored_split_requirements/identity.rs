@@ -29,14 +29,19 @@ pub fn fixed_precolored_split_requirement_plan_identity(
         ObjectFormat::Coff => 2,
     });
     crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_size as u64).to_le_bytes());
-    crate::codec_bytes::push_encoded(&mut bytes, (plan.target.pointer_alignment as u64).to_le_bytes());
+    crate::codec_bytes::push_encoded(
+        &mut bytes,
+        (plan.target.pointer_alignment as u64).to_le_bytes(),
+    );
     bytes.push(match plan.policy {
         FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1 => 0,
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
-    FixedPrecoloredSplitRequirementPlanIdentity(crate::digest_encoder::content_identity(&bytes).into())
+    FixedPrecoloredSplitRequirementPlanIdentity(
+        crate::digest_encoder::content_identity(&bytes).into(),
+    )
 }
 
 fn encode_family(

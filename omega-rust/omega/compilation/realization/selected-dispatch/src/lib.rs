@@ -22,22 +22,22 @@ pub use compiler_intrinsic::derive_selected_compiler_intrinsic_execution_identit
 pub use execution_settlement::{
     SelectedExecution, SelectedExecutionRequest, settle_selected_execution,
 };
-pub use provider_checking::{ ProviderCheckingInputs, ProviderCheckingRequest,
-};
 pub(crate) use intrinsic_review::{
     ResolvedAcceptedSemanticBinding, resolve_accepted_service_binding,
-    retain_selected_compiler_intrinsic_review_identities};
-
-pub use service_custody::{ program_entry_service_requirements,
+    retain_selected_compiler_intrinsic_review_identities,
 };
-pub(crate) use service_custody::{
-    derive_fused_program_entry_establishments};
+pub use provider_checking::{ProviderCheckingInputs, ProviderCheckingRequest};
 
-pub use selected_dispatch::{ CheckedOperatorAuthoredUseKind, SelectedCompilerIntrinsicExecutionIdentity,
+pub(crate) use service_custody::derive_fused_program_entry_establishments;
+pub use service_custody::program_entry_service_requirements;
+
+pub use selected_dispatch::{
+    CheckedOperatorAuthoredUseKind, SelectedCompilerIntrinsicExecutionIdentity,
     derive_checked_nongeneric_operator_application_realizations,
-    derive_checked_specialized_operator_application_realizations, settle_selected_comparison_execution,
+    derive_checked_specialized_operator_application_realizations,
+    settle_selected_comparison_execution,
 };
-pub(crate) use selected_dispatch::{ 
+pub(crate) use selected_dispatch::{
     derive_selected_compiler_intrinsic_execution_identity,
-    derive_selected_primitive_float_binary_execution,
-    settle_selected_execution_dispatch};
+    derive_selected_primitive_float_binary_execution, settle_selected_execution_dispatch,
+};

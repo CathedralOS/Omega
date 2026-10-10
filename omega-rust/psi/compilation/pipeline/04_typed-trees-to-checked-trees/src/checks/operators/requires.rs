@@ -53,8 +53,7 @@ use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::types::PrimitiveType;
 
 use crate::labels::{
-    context_proves_boolean_label, instantiate_operator_contract_expression_label,
-    symbol_name,
+    context_proves_boolean_label, instantiate_operator_contract_expression_label, symbol_name,
 };
 
 mod float_bounds;
@@ -761,14 +760,12 @@ fn requires_clause_label(
     fact: &ProofFact,
 ) -> String {
     match fact {
-        ProofFact::Expression(expression) => {
-            instantiate_operator_contract_expression_label(
-                program,
-                parameters,
-                operand_labels,
-                *expression,
-            )
-        }
+        ProofFact::Expression(expression) => instantiate_operator_contract_expression_label(
+            program,
+            parameters,
+            operand_labels,
+            *expression,
+        ),
         ProofFact::Membership(membership) => format!(
             "{} in {}",
             instantiate_operator_contract_expression_label(

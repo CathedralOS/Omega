@@ -434,9 +434,8 @@ fn selection_identity(
     retained: &[SymbolHandle],
     pruned: &[SymbolHandle],
 ) -> CheckedTreeProductSelectionIdentity {
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(
-        PRODUCT_SELECTION_IDENTITY_DOMAIN,
-    );
+    let mut hasher =
+        crate::digest_encoder::DomainDigestEncoder::new(PRODUCT_SELECTION_IDENTITY_DOMAIN);
     let mut encode = |symbols: &[SymbolHandle]| {
         hasher.u64(symbols.len() as u64);
         for symbol in symbols {

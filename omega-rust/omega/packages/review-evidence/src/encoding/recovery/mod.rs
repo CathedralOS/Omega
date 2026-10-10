@@ -7,7 +7,5 @@
 
 mod policy;
 
-pub use policy::{ PackagePolicyRecoveryLimits,
-};
-pub(crate) use policy::{
-    PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};
+pub use policy::PackagePolicyRecoveryLimits;
+pub(crate) use policy::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};

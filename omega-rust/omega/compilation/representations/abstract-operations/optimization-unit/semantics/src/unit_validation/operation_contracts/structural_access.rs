@@ -216,7 +216,9 @@ where
                 )
             )
             && argument.path.iter().all(|segment| match segment {
-                terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
+                terminal_psi::StructuralPathSegment::Field(identity) => {
+                    *identity != terminal_psi::TerminalIdentityIndex::ABSENT
+                }
                 terminal_psi::StructuralPathSegment::FixedIndex(_)
                 | terminal_psi::StructuralPathSegment::Case(_)
                 | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => true,

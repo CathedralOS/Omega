@@ -105,9 +105,9 @@ pub(crate) fn validate_installed_provider_unit_scalar_calls(
             || !owners.insert(call.owner)
             || call.provider.boundary != call.boundary
             || call.provider.candidate == function.machine
-            || call.provider.requirement_identity.is_empty()
-            || call.provider.provider_identity.is_empty()
-            || call.provider.candidate_identity.is_empty()
+            || call.provider.requirement_identity == terminal_psi::TerminalIdentityIndex::ABSENT
+            || call.provider.provider_identity == terminal_psi::TerminalIdentityIndex::ABSENT
+            || call.provider.candidate_identity == terminal_psi::TerminalIdentityIndex::ABSENT
             || !call.provider.signature.parameters.is_empty()
             || !call.provider.refinement.positional_parameters.is_empty()
             || call.call_plan != caller_abi.call_plan

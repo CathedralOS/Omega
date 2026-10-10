@@ -137,10 +137,11 @@ pub fn x86_64_microsoft_normalized_foreign_call_keys() -> Vec<RegisterConstraint
 }
 
 /// Exact Linux System-V scalar call with two U64 arguments and one U64 result.
-pub(crate) const X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64: RegisterConstraintKey = RegisterConstraintKey {
-    family: RegisterConstraintFamily::Call,
-    variant: 3,
-};
+pub(crate) const X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64: RegisterConstraintKey =
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 3,
+    };
 
 pub const X86_64_SYSTEM_V_RETURN: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Return,

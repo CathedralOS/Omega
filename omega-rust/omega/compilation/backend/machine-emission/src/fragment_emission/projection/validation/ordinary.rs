@@ -14,10 +14,9 @@ pub(super) fn check(
             && fragments.functions.len() == selected.functions.len(),
     )?;
     for (source, claimed) in selected.functions.iter().zip(&fragments.functions) {
-        let resolved = layout.function(source.machine)
-            .ok_or(ResolvedFragmentEmissionError::MissingFunction(
-                source.machine,
-            ))?;
+        let resolved = layout.function(source.machine).ok_or(
+            ResolvedFragmentEmissionError::MissingFunction(source.machine),
+        )?;
         require(
             claimed.machine == source.machine
                 && (claimed.attachment == source.attachment
@@ -30,7 +29,8 @@ pub(super) fn check(
         )?;
         let mut offset = 0_u64;
         for (block, actual) in resolved.blocks.iter().zip(&claimed.blocks) {
-            let selected_block = source.block(block.block)
+            let selected_block = source
+                .block(block.block)
                 .ok_or(ResolvedFragmentEmissionError::MissingBlock(block.block))?;
             require(
                 actual.block == block.block

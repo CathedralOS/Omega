@@ -26,6 +26,9 @@ pub use artifacts::{
 mod callback_application;
 pub use callback_application::TerminalCallbackApplication;
 
+#[cfg(test)]
+mod source_guards;
+
 pub use language_core::BindingRelevance;
 pub use semantic_vocabulary::{
     BoundaryCompletion, BoundaryRequirementKind, ExternalCompletionKind,
@@ -82,7 +85,8 @@ pub use terminal_module::{
     TerminalBlockNaturalRank, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
     TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalBoundaryApplicationDemand,
     TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
-    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable, TerminalMachine,
+    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
+    TerminalIdentityIndex, TerminalIdentityTable, TerminalIdentityTableBuilder, TerminalMachine,
     TerminalMachineResult, TerminalModule, TerminalNaturalCycle, TerminalNaturalRankComparison,
     TerminalNaturalRankEdge, TerminalObservationSchema, TerminalOperationCrashContract,
     TerminalOperationCrashDenotation, TerminalPlacedViewInput, TerminalProofRankingRelation,

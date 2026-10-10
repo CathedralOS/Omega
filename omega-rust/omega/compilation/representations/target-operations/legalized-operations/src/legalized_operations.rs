@@ -41,11 +41,11 @@ impl LegalizedOperationPlanIdentity {
 pub mod legality;
 pub use legality::LegalizedExactIntegerOperator;
 pub mod calls;
+pub(crate) use calls::LegalizedCallSourceError;
 pub use calls::{
-    LegalizedBoundarySettlement, LegalizedCallUnitParameter,
-    LegalizedStructuralContract, NativeCallOrigin,
+    LegalizedBoundarySettlement, LegalizedCallUnitParameter, LegalizedStructuralContract,
+    NativeCallOrigin,
 };
-pub(crate) use calls::{ LegalizedCallSourceError};
 pub mod control_flow;
 pub use control_flow::{
     LegalizedDescriptorOrigin, LegalizedNormalizedForeignCall, LegalizedRuntimeIndexOperand,
@@ -60,11 +60,10 @@ pub use control_flow::{
 pub mod identity;
 mod validation;
 pub use identity::{
-    encode_call_binding, encode_call_plan,
-    encode_fuel, encode_hosted_read_byte_identity, encode_integer, encode_locator,
-    encode_machine_function_identity, encode_native_callback_argument,
-    encode_placement, encode_provider_execution, encode_register, encode_scalar_type, encode_shape,
-    legalized_operation_plan_identity,
+    encode_call_binding, encode_call_plan, encode_fuel, encode_hosted_read_byte_identity,
+    encode_integer, encode_locator, encode_machine_function_identity,
+    encode_native_callback_argument, encode_placement, encode_provider_execution, encode_register,
+    encode_scalar_type, encode_shape, legalized_operation_plan_identity,
 };
 
 #[cfg(test)]

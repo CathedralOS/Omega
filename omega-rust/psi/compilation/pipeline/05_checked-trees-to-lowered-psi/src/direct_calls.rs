@@ -20,14 +20,14 @@
 //! walk every structural argument a direct or boundary call passes. A
 //! consumer that needs only those facts never lists the five operations.
 
+use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
+use crate::lowering_error::LoweringError;
+use lowered_psi::LoweredSourceFrontierBindings;
 use semantic_vocabulary::{MachineId, ObligationId, ProofTerm, ScalarTerm, ValueId};
 use terminal_psi::{
     ClaimTransfer, CrashRouteBucket, Operation, OperationKind, OperationResult, StructuralArgument,
     StructuralMultiplicity, ValueDeclaration,
 };
-use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
-use lowered_psi::LoweredSourceFrontierBindings;
-use crate::lowering_error::LoweringError;
 
 /// One direct in-module call, before its Terminal spelling is chosen.
 /// Lanes the chosen operation does not carry must be empty; the result mode
@@ -105,13 +105,14 @@ pub(crate) fn emit_direct_call(
             source_target,
             frontier_before_call,
         )?,
-        CallRecord::Values(source_values_before_call) => operations.record_source_call_with_values(
-            coordinate,
-            source_site,
-            operation,
-            source_target,
-            source_values_before_call,
-        )?,
+        CallRecord::Values(source_values_before_call) => operations
+            .record_source_call_with_values(
+                coordinate,
+                source_site,
+                operation,
+                source_target,
+                source_values_before_call,
+            )?,
     }
     operations.push(Operation {
         static_reach_binding: None,

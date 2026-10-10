@@ -14,6 +14,7 @@ pub(super) struct CompletedOperand {
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn capture_operand(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: terminal_psi::StructuralArgument,
         expression: typed_trees::expression::ExpressionHandle,
         first_new_place: u64,
@@ -22,6 +23,7 @@ impl emission::Emission<'_, '_, '_> {
             Vec::new()
         } else if argument.place.get() < first_new_place {
             super::super::claims::lower_owned_operand_claims(
+                identities,
                 self.checked,
                 self.machine,
                 self.state,

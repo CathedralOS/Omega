@@ -15,12 +15,12 @@
 //! `AtomicAccess` and must not rebuild the model as a separate read, arithmetic
 //! and store.
 
+use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
     CheckedCallScalarArgument, CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralPathSegment,
 };
 use language_core::atomic::MemoryOrdering;
 use typed_trees::types::PrimitiveType;
-use crate::checked_trees::CheckedMemberIdentity;
 
 /// The fetch-family arithmetic a read-modify-write applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -75,7 +75,7 @@ pub(crate) fn validate(
         program,
         owner_type,
         &[],
-        validation::ContentsRequirement::BorrowFree
+        validation::ContentsRequirement::BorrowFree,
     ) {
         return None;
     }

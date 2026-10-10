@@ -100,7 +100,10 @@ impl ValidatedOptimizedAbstractPlanProjection {
     /// or publication authority.
     pub fn identity(self) -> OptimizedAbstractPlanProjectionIdentity {
         let mut canonical = Vec::with_capacity(272);
-        crate::codec_bytes::push_encoded(&mut canonical, self.psi.vocabulary_marker.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(
+            &mut canonical,
+            self.psi.vocabulary_marker.get().to_le_bytes(),
+        );
         canonical.extend_from_slice(self.psi.program_fingerprint.as_bytes());
         crate::codec_bytes::push_encoded(&mut canonical, self.fuel_schedule.marker().to_le_bytes());
         canonical.extend_from_slice(&self.initial_unit.bytes());

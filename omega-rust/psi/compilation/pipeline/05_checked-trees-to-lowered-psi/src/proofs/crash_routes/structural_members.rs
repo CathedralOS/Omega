@@ -28,6 +28,7 @@ fn indexed_element_type(
 }
 
 pub(crate) fn lower_structural_member_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     parameter_position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     parameters: &[StructuralParameterDeclaration],
@@ -69,9 +70,13 @@ pub(crate) fn lower_structural_member_path(
                     return unsupported("structural scalar contract case receiver is not a sum");
                 }
             };
-            let case = terminal_psi::structural_case_by_identity(cases, &identity.spelling()).ok_or(
-                LoweringError::Unsupported("structural scalar contract case is absent"),
-            )?;
+            let case = terminal_psi::structural_case_by_identity(
+                cases,
+                identities.intern(&identity.spelling()),
+            )
+            .ok_or(LoweringError::Unsupported(
+                "structural scalar contract case is absent",
+            ))?;
             terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
             selected_case_fields = Some(&case.fields);
             continue;
@@ -123,11 +128,12 @@ pub(crate) fn lower_structural_member_path(
                 }
             }
         };
-        let field = terminal_psi::field_by_identity(fields, &identity.spelling())
-            .filter(|field| !field.relevance.is_erased())
-            .ok_or(LoweringError::Unsupported(
-                "structural scalar contract path field is absent or erased",
-            ))?;
+        let field =
+            terminal_psi::field_by_identity(fields, identities.intern(&identity.spelling()))
+                .filter(|field| !field.relevance.is_erased())
+                .ok_or(LoweringError::Unsupported(
+                    "structural scalar contract path field is absent or erased",
+                ))?;
         terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));
         let is_last = index + 1 == path.len();
         match (&field.field_type, is_last) {
@@ -147,6 +153,7 @@ pub(crate) fn lower_structural_member_path(
 /// distinguishes element counts from byte storage; neither field names nor
 /// an equally numbered scalar parameter supply descriptor authority.
 pub(crate) fn lower_sequence_extent_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     parameter_position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     parameters: &[StructuralParameterDeclaration],
@@ -169,6 +176,7 @@ pub(crate) fn lower_sequence_extent_term(
         )
     } else {
         crate::proofs::crash_routes::lower_structural_member_path(
+            identities,
             parameter_position,
             path,
             parameters,
@@ -218,14 +226,20 @@ pub(crate) fn lower_sequence_extent_term(
 }
 
 pub(crate) fn lower_structural_member_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     parameter_position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     expected: ScalarType,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
-    let (root, terminal_path, actual) =
-        lower_structural_member_path(parameter_position, path, parameters, structural_types)?;
+    let (root, terminal_path, actual) = lower_structural_member_path(
+        identities,
+        parameter_position,
+        path,
+        parameters,
+        structural_types,
+    )?;
     if actual.scalar_type() != Some(expected) {
         return unsupported(
             "structural scalar contract path does not end at the retained scalar type",
@@ -243,12 +257,14 @@ pub(crate) fn lower_structural_member_term(
 }
 
 pub(crate) fn lower_ieee_float_field(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     field: &checked_trees::CheckedStructuralParameterField,
     format: IeeeFloatFormat,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<IeeeFloatStructuralField, LoweringError> {
     let (root, path, actual) = lower_structural_member_path(
+        identities,
         field.parameter_position,
         &field.path,
         parameters,
@@ -261,11 +277,13 @@ pub(crate) fn lower_ieee_float_field(
 }
 
 pub(crate) fn lower_byte_sequence_field(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     field: &checked_trees::CheckedStructuralParameterField,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<ByteSequenceStructuralField, LoweringError> {
     let (root, path, actual) = lower_structural_member_path(
+        identities,
         field.parameter_position,
         &field.path,
         parameters,
@@ -279,6 +297,7 @@ pub(crate) fn lower_byte_sequence_field(
 }
 
 pub(crate) fn lower_structural_sum_subject(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     subject: &checked_trees::CheckedStructuralParameterField,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
@@ -290,6 +309,7 @@ pub(crate) fn lower_structural_sum_subject(
             "structural sum predicate names a non-structural parameter",
         ))?;
     lower_sum_path(
+        identities,
         parameter.place,
         parameter.structural_type,
         &subject.path,
@@ -298,6 +318,7 @@ pub(crate) fn lower_structural_sum_subject(
 }
 
 fn lower_sum_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     root: PlaceId,
     mut structural_type: StructuralTypeId,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -320,9 +341,13 @@ fn lower_sum_path(
                 }
                 _ => return unsupported("structural sum predicate case receiver is not a sum"),
             };
-            let case = terminal_psi::structural_case_by_identity(cases, &identity.spelling()).ok_or(
-                LoweringError::Unsupported("structural sum predicate case is absent"),
-            )?;
+            let case = terminal_psi::structural_case_by_identity(
+                cases,
+                identities.intern(&identity.spelling()),
+            )
+            .ok_or(LoweringError::Unsupported(
+                "structural sum predicate case is absent",
+            ))?;
             terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
             selected_case_fields = Some(&case.fields);
             continue;
@@ -355,11 +380,12 @@ fn lower_sum_path(
                 }
             }
         };
-        let field = terminal_psi::field_by_identity(fields, &identity.spelling())
-            .filter(|field| !field.relevance.is_erased())
-            .ok_or(LoweringError::Unsupported(
-                "structural sum predicate path field is absent or erased",
-            ))?;
+        let field =
+            terminal_psi::field_by_identity(fields, identities.intern(&identity.spelling()))
+                .filter(|field| !field.relevance.is_erased())
+                .ok_or(LoweringError::Unsupported(
+                    "structural sum predicate path field is absent or erased",
+                ))?;
         let Some(next) = field.field_type.as_structural() else {
             return unsupported("structural sum predicate path does not reach a structural value");
         };
@@ -387,6 +413,7 @@ fn lower_sum_path(
 /// resolver. Only guarantees supply a declared result; the result is not an
 /// entry parameter and cannot lend a coincidentally equal parameter ordinal.
 pub(crate) fn lower_structural_case_membership(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     subject: &checked_trees::CheckedStructuralCaseSubject,
     case_identity: &checked_trees::CheckedMemberIdentity,
     parameters: &[StructuralParameterDeclaration],
@@ -410,8 +437,13 @@ pub(crate) fn lower_structural_case_membership(
             (result.place, result.structural_type)
         }
     };
-    let (subject, structural_type) =
-        lower_sum_path(root, structural_type, &subject.path, structural_types)?;
+    let (subject, structural_type) = lower_sum_path(
+        identities,
+        root,
+        structural_type,
+        &subject.path,
+        structural_types,
+    )?;
     let declaration = terminal_psi::find_structural_type(structural_types, structural_type).ok_or(
         LoweringError::Unsupported("case membership declaration is absent"),
     )?;
@@ -422,7 +454,7 @@ pub(crate) fn lower_structural_case_membership(
     };
     let mut matching = cases
         .iter()
-        .filter(|case| case.identity == case_identity.spelling());
+        .filter(|case| case.identity == identities.intern(&case_identity.spelling()));
     let case = matching
         .next()
         .ok_or(LoweringError::Unsupported("case membership was redirected"))?;

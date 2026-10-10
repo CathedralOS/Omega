@@ -18,7 +18,8 @@ pub(super) fn bind_provider_executions(
                 ))?;
             let execution = match settlement.execution {
                 AdmittedBoundaryExecution::Provider(provider_execution) => {
-                    if provider_execution.requirement_identity() != declaration.identity
+                    if plan.identities.text(declaration.identity)
+                        != Some(provider_execution.requirement_identity())
                         && !verified_input.is_some_and(|input| {
                             input.target_family_realizations().iter().any(|row| {
                                 (row.head == settlement.boundary
@@ -32,7 +33,11 @@ pub(super) fn bind_provider_executions(
                     {
                         return Err(LoweringError::ProviderExecutionRequirementMismatch {
                             boundary: settlement.boundary,
-                            expected: declaration.identity.clone(),
+                            expected: plan
+                                .identities
+                                .text(declaration.identity)
+                                .unwrap_or_default()
+                                .to_string(),
                             actual: provider_execution.requirement_identity().to_owned(),
                         });
                     }

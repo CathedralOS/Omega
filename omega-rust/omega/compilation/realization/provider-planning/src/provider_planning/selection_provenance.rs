@@ -150,11 +150,7 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
     Vec<diagnostics::Diagnostic>,
 > {
     let typed = context.typed;
-    selected.sort_by(|left, right| {
-        left.derived
-            .plan
-            .selection_order(&right.derived.plan)
-    });
+    selected.sort_by(|left, right| left.derived.plan.selection_order(&right.derived.plan));
 
     let mut diagnostics = replay_operator_family_selections(context, &selected);
     let mut independent_join = IndependentComponentJoin::new(independent_components);

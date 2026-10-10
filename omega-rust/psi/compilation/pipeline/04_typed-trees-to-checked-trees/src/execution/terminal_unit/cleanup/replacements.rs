@@ -136,13 +136,13 @@ pub(super) fn actions(
             destination.path.clone()
         } else {
             crate::execution::terminal_unit::calls::projected_argument_path(
-            program,
-            state,
-            *statement_index as usize,
-            &place,
-            None,
-            None
-        )?
+                program,
+                state,
+                *statement_index as usize,
+                &place,
+                None,
+                None,
+            )?
             .1
         };
         // A death can cover the replaced place or an enclosing value: a

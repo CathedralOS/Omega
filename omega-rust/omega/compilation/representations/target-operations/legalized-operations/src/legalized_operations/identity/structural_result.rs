@@ -90,7 +90,9 @@ mod tests {
                     .push(StructuralPathSegment::Referent),
                 3 => changed.reference_sources[0]
                     .path
-                    .push(StructuralPathSegment::Field("held".into())),
+                    .push(StructuralPathSegment::Field(
+                        terminal_psi::TerminalIdentityIndex(2),
+                    )),
                 4 => {
                     changed.reference_sources[0].sources[0].access = StructuralAccess::SharedBorrow
                 }

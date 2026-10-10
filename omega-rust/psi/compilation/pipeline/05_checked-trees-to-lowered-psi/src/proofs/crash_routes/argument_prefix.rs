@@ -11,6 +11,7 @@ use terminal_psi::{
 };
 
 pub(crate) fn structural_crash_route_argument_prefix(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     argument: &StructuralArgument,
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
@@ -54,10 +55,11 @@ pub(crate) fn structural_crash_route_argument_prefix(
         .ok_or(LoweringError::Unsupported(
             "structural crash route argument has no caller structural source",
         ))?;
-    structural_crash_route_prefix_from_type(argument, structural_type, structural_types)
+    structural_crash_route_prefix_from_type(identities, argument, structural_type, structural_types)
 }
 
 pub(crate) fn structural_crash_route_prefix_from_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     argument: &StructuralArgument,
     mut structural_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[StructuralTypeDeclaration],
@@ -116,7 +118,7 @@ pub(crate) fn structural_crash_route_prefix_from_type(
                         }
                     }
                 };
-                let field = terminal_psi::field_by_identity(fields, identity)
+                let field = terminal_psi::field_by_identity(fields, *identity)
                     .filter(|field| !field.relevance.is_erased())
                     .ok_or(LoweringError::Unsupported(
                         "structural crash route argument field is absent or erased",

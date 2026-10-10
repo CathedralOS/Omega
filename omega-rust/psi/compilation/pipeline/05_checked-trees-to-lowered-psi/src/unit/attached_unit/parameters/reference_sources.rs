@@ -29,6 +29,7 @@ pub(crate) struct ReferenceSourceEvaluation<'scope, 'calls> {
 /// argument owner, then retain the reference-source leaf marker. Formation,
 /// access and escape permission remain with reference custody validation.
 pub(crate) fn lower_reference_source(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     source: &CheckedUnitStructuralArgumentPlan,
     structural_types: &[StructuralTypeDeclaration],
@@ -66,12 +67,13 @@ pub(crate) fn lower_reference_source(
         ),
     };
     let arguments = lower_structural_arguments(
+        identities,
         checked,
         std::slice::from_ref(&prefix),
         structural_types,
         parameters,
         trivial_affine_locals,
-        structural_results,
+        &[],
         &[],
         &[],
         primitive_locals,
@@ -132,7 +134,13 @@ pub(crate) fn lower_reference_source(
             // The ordinary argument join already crossed the retained carrier
             // to the checked referent. Keeping another marker would instead
             // declare storage beneath that descriptor and lose parent lineage.
-            if endpoint.identity != checked.type_identity_text(source.type_identity).unwrap_or_default() {
+            if endpoint.identity
+                != identities.intern(
+                    &checked
+                        .type_identity_text(source.type_identity)
+                        .unwrap_or_default(),
+                )
+            {
                 return unsupported("reference source changes its checked endpoint type");
             }
             false
@@ -152,6 +160,7 @@ pub(crate) fn lower_reference_source(
 /// Multiple completion alternatives share one output path without losing their
 /// distinct source places, projections, or access permissions.
 pub(crate) fn lower_reference_result_sources(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     references: &[checked_trees::CheckedReferenceResultSourcePlan],
     result_type: semantic_vocabulary::StructuralTypeId,
@@ -161,23 +170,10 @@ pub(crate) fn lower_reference_result_sources(
     let mut references = references
         .iter()
         .map(|reference| {
-            let source = lower_reference_source(
-                checked,
-                &reference.source,
-                structural_types,
-                parameters,
-                &[],
-                &[],
-                &[],
-                &[],
-                None,
-            )?;
-            Ok(terminal_psi::StructuralReferenceResultSource {
-                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                    &reference.path,
-                    result_type,
-                    structural_types,
-                )?,
+            let source = lower_reference_source(identities, checked, &reference.source, structural_types, &[], &[], &[], &[], &[], None)?;
+            Ok(
+            terminal_psi::StructuralReferenceResultSource {
+                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &reference.path, result_type, structural_types)?,
                 sources: vec![source],
             })
         })

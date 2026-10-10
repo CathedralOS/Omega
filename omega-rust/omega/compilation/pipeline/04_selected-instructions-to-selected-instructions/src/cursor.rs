@@ -3,8 +3,6 @@
 //! each decoder maps it into its own error enum through `From<Truncated>`
 //! and the u64-sized length read through [`TakeError`].
 
-
-
 pub(crate) use optimization_core::cursor::{TakeError, Truncated};
 pub(crate) struct Cursor<'a> {
     encoded: &'a [u8],

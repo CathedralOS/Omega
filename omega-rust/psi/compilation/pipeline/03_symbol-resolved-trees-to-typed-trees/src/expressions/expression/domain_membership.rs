@@ -151,7 +151,8 @@ fn domain_definition<'p>(
     program: &'p resolved::SymbolResolvedTrees,
     domain_symbol: symbols::SymbolHandle,
 ) -> Result<&'p resolved::domain::DomainDefinition, Diagnostic> {
-    program.domain_definition_by_symbol(domain_symbol)
+    program
+        .domain_definition_by_symbol(domain_symbol)
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "cannot lower executable membership for unknown domain symbol {}",

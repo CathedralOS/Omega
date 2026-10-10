@@ -20,6 +20,7 @@ use crate::proofs::{
 };
 
 pub(crate) fn lower_outcome_specific_call_evidence(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     lowered: &mut LoweredPsi,
@@ -57,12 +58,13 @@ pub(crate) fn lower_outcome_specific_call_evidence(
             .ok_or(LoweringError::Unsupported(
                 "outcome-specific arm has no lowered call occurrence",
             ))?;
-        let operation_id = occurrence
-            .terminal_site
-            .operation()
-            .ok_or(LoweringError::Unsupported(
-                "outcome-specific arm names a completion edge, not a call operation",
-            ))?;
+        let operation_id =
+            occurrence
+                .terminal_site
+                .operation()
+                .ok_or(LoweringError::Unsupported(
+                    "outcome-specific arm names a completion edge, not a call operation",
+                ))?;
         let (result_place, callee_id) = {
             let operation = lowered
                 .semantic_module
@@ -87,6 +89,7 @@ pub(crate) fn lower_outcome_specific_call_evidence(
             (result.place, *callee)
         };
         let ensure_rows = outcome_specific_ensure_rows(
+            identities,
             checked,
             callee_symbol,
             callee_id,
@@ -105,16 +108,12 @@ pub(crate) fn lower_outcome_specific_call_evidence(
             let output_field = guarantee
                 .public_selector
                 .clone()
-                .ok_or(LoweringError::Unsupported(
-                    "selected guarantee is unnamed",
-                ))?;
+                .ok_or(LoweringError::Unsupported("selected guarantee is unnamed"))?;
             let callee_term = terminal_evidence_term_id(
                 term_ids,
-                guarantee
-                    .evidence_term
-                    .ok_or(LoweringError::Unsupported(
-                        "selected guarantee carries no evidence term",
-                    ))?,
+                guarantee.evidence_term.ok_or(LoweringError::Unsupported(
+                    "selected guarantee carries no evidence term",
+                ))?,
                 "selected guarantee term has no terminal identity",
             )?;
             let ensure = ensure_rows
@@ -132,18 +131,19 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                     "selected guarantee is not a nominal proposition",
                 ));
             };
-            let checked_term = checked
-                .facts
-                .proof
-                .evidence_terms
-                .get(guarantee.evidence_term.expect("selected evidence term checked"));
-            let instantiated = row
-                .instantiated_proposition
-                .as_ref()
-                .ok_or(LoweringError::Unsupported(
-                    "selected arm row carries no instantiated proposition",
-                ))?;
+            let checked_term = checked.facts.proof.evidence_terms.get(
+                guarantee
+                    .evidence_term
+                    .expect("selected evidence term checked"),
+            );
+            let instantiated =
+                row.instantiated_proposition
+                    .as_ref()
+                    .ok_or(LoweringError::Unsupported(
+                        "selected arm row carries no instantiated proposition",
+                    ))?;
             let instantiated_proposition = terminal_proposition_application_id(
+                identities,
                 checked,
                 term_ids,
                 declarations,
@@ -183,7 +183,7 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                 .ok_or(LoweringError::Unsupported(
                     "outcome-specific witness has no interface identity",
                 ))
-                .and_then(|interface| lower_evidence_interface(checked, interface))?;
+                .and_then(|interface| lower_evidence_interface(identities, checked, interface))?;
             evidence_rows.push(OutcomeSpecificCallEvidence {
                 guard: ensure.guard,
                 position: ensure.position,

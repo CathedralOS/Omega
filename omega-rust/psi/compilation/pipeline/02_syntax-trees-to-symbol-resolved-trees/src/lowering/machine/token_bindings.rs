@@ -247,7 +247,8 @@ impl TokenBinding<'_> {
                 // A generic domain (`domain<T, const U: Unit> T::Quantity<U>`)
                 // classifies an open carrier, so an operand participates by
                 // being qualified with the domain itself.
-                let domain_name = program.domain_definition_by_symbol(domain)
+                let domain_name = program
+                    .domain_definition_by_symbol(domain)
                     .map(|definition| definition.name.as_str().to_owned())
                     .unwrap_or_default();
                 if operand_types.iter().any(|type_reference| {

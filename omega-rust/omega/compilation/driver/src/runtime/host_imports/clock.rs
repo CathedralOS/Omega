@@ -128,6 +128,7 @@ impl ClockImport {
     /// Absence means no exact implementation is offered. A matching offer with
     /// an incompatible declaration is an error, not another adapter's fallback.
     pub(super) fn admit(
+        identities: &terminal_psi::TerminalIdentityTable,
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
         storage_layouts: &[NativeBorrowedStorageLayout],
@@ -138,6 +139,7 @@ impl ClockImport {
         };
         let signature = TerminalImportSignature::from(declaration);
         let operation = admission::validate(
+            identities,
             declaration,
             binding,
             &signature,

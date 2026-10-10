@@ -200,7 +200,7 @@ impl ProgramEntryVisibleParameterSignature {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntrySignature {
     target_slot: target::ProgramEntrySlotDeclaration,
-    declaration: terminal_psi::NominalDeclarationIdentity,
+    declaration: String,
     machine_name: String,
     state_name: String,
     normalized_callable_identity: String,
@@ -212,7 +212,7 @@ pub struct SelectedProgramEntrySignature {
 impl SelectedProgramEntrySignature {
     pub fn from_checked_declaration(
         target_slot: target::ProgramEntrySlotDeclaration,
-        declaration: terminal_psi::NominalDeclarationIdentity,
+        declaration: String,
         machine_name: String,
         state_name: String,
         normalized_callable_identity: String,
@@ -237,7 +237,7 @@ impl SelectedProgramEntrySignature {
         self.target_slot
     }
 
-    pub const fn declaration(&self) -> &terminal_psi::NominalDeclarationIdentity {
+    pub fn declaration(&self) -> &str {
         &self.declaration
     }
 
@@ -269,7 +269,7 @@ impl SelectedProgramEntrySignature {
     /// or toolchain ownership rather than frontend arena numbering.
     pub fn identity(&self) -> ProgramEntrySignatureIdentity {
         let mut canonical = SOURCE_SIGNATURE_SCHEMA.to_vec();
-        push_string(&mut canonical, self.declaration.canonical());
+        push_string(&mut canonical, &self.declaration);
         push_string(&mut canonical, self.target_slot.owner.target_name());
         push_string(&mut canonical, self.target_slot.slot_name);
         canonical.push(match self.target_slot.schema {

@@ -22,5 +22,3 @@ pub(super) fn project(
         .map(Into::into)
         .collect()
 }
-
-

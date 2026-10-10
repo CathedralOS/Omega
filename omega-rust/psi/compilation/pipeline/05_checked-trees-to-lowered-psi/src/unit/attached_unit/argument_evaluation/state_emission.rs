@@ -27,6 +27,7 @@ use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_state(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     state: &LoweredScalarBranchState,
     mut block: BlockId,
@@ -111,10 +112,11 @@ pub(super) fn emit_state(
                     .collect::<Vec<_>>(),
             )?;
             let id = emit_scalar_binding(
+                identities,
                 checked,
                 binding,
-                &values,
                 caller_erased_formals,
+                &values,
                 next_value,
                 operations,
                 calls,
@@ -127,10 +129,11 @@ pub(super) fn emit_state(
         }
     }
     crate::scalar_lowering::effects::emit(
+        identities,
         checked,
         &state.structural_effects,
-        &values,
         caller_erased_formals,
+        &values,
         next_value,
         operations,
         calls,
@@ -249,10 +252,8 @@ pub(super) fn emit_state(
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let regions = crate::unit::unit_cleanup::emit_prepared_cleanup_regions(
-                cleanup_actions,
-                calls,
-            )?;
+            let regions =
+                crate::unit::unit_cleanup::emit_prepared_cleanup_regions(cleanup_actions, calls)?;
             let cleanup_actions = if regions.iter().any(|region| !region.conditions.is_empty()) {
                 super::cleanup_control::CleanupEmission {
                     checked,
@@ -263,7 +264,16 @@ pub(super) fn emit_state(
                     erased_proof_formals: source_erased_proof_formals,
                     operation_start: &mut operation_start,
                     blocks,
-                }.emit(&regions, &mut values, next_value, next_block, next_edge, operations)?;
+                }
+                .emit(
+                    identities,
+                    &regions,
+                    &mut values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                )?;
                 Vec::new()
             } else {
                 regions.into_iter().map(|region| region.action).collect()
@@ -274,7 +284,10 @@ pub(super) fn emit_state(
                 target: *targets.get(*target).ok_or(LoweringError::Unsupported(
                     "call computation target is absent",
                 ))?,
-                arguments, erased_arguments, erased_proof_arguments, cleanup_actions,
+                arguments,
+                erased_arguments,
+                erased_proof_arguments,
+                cleanup_actions,
             }
         }
         LoweredScalarBranchTerminator::Conditional {
@@ -375,8 +388,11 @@ pub(super) fn emit_state(
                 );
                 let mut root = root;
                 root.erased_scalar_formals = erased_formals;
-                root.erased_proof_formals =
-                    erased_proof_formal_declarations(checked, source_erased_proof_formals);
+                root.erased_proof_formals = erased_proof_formal_declarations(
+                    identities,
+                    checked,
+                    source_erased_proof_formals,
+                );
                 root.operations.splice(
                     0..0,
                     operations[operation_start..terminator_operation_start]
@@ -719,7 +735,11 @@ pub(super) fn emit_state(
         id: block,
         parameters: block_parameters,
         erased_scalar_formals: block_erased_formals,
-        erased_proof_formals: erased_proof_formal_declarations(checked, source_erased_proof_formals),
+        erased_proof_formals: erased_proof_formal_declarations(
+            identities,
+            checked,
+            source_erased_proof_formals,
+        ),
         operations: operations[operation_start..].to_vec(),
         terminator,
     });

@@ -264,9 +264,7 @@ impl ValueEnvironment {
                 .iter()
                 .any(|written| place_paths_overlap(path, written))
         };
-        let keep_pair = |(left, right): &(String, String)| {
-            !overlaps(left) && !overlaps(right)
-        };
+        let keep_pair = |(left, right): &(String, String)| !overlaps(left) && !overlaps(right);
         self.intervals.retain(|path, _| !overlaps(path));
         self.known_u64_values.retain(|path, _| !overlaps(path));
         self.float_intervals.retain(|path, _| !overlaps(path));

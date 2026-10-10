@@ -99,8 +99,7 @@ pub fn proof_obligation_key(
                 ),
                 atom(
                     "base",
-                    program
-                        .package_qualified_type_identity_text(obligation.base_type),
+                    program.package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 binary_operands_identity(program, &obligation.binary_operands),
@@ -140,8 +139,7 @@ pub fn proof_obligation_key(
                 ),
                 atom(
                     "base",
-                    program
-                        .package_qualified_type_identity_text(obligation.base_type),
+                    program.package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 compound(
@@ -162,8 +160,7 @@ pub fn proof_obligation_key(
                 ),
                 atom(
                     "base",
-                    program
-                        .package_qualified_type_identity_text(obligation.base_type),
+                    program.package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
             ],
@@ -180,8 +177,7 @@ pub fn proof_obligation_key(
                 ),
                 atom(
                     "base",
-                    program
-                        .package_qualified_type_identity_text(obligation.base_type),
+                    program.package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 binary_operands_identity(program, &obligation.binary_operands),
@@ -193,8 +189,7 @@ pub fn proof_obligation_key(
                 owner_identity(program, &obligation.owner),
                 atom(
                     "base",
-                    program
-                        .package_qualified_type_identity_text(obligation.base_type),
+                    program.package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
             ],
@@ -218,8 +213,7 @@ pub fn proof_obligation_key(
                 ),
                 atom(
                     "base",
-                    program
-                        .package_qualified_type_identity_text(obligation.base_type),
+                    program.package_qualified_type_identity_text(obligation.base_type),
                 ),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 guard_identity(program, &obligation.guard),
@@ -595,8 +589,7 @@ fn expression_identity(
                 expression_identity(program, node.value),
                 atom(
                     "target",
-                    program
-                        .package_qualified_type_identity_text(node.target_type),
+                    program.package_qualified_type_identity_text(node.target_type),
                 ),
                 atom("domain", node.domain.name()),
                 atom(
@@ -699,8 +692,7 @@ fn expression_identity(
         ),
         ExpressionNode::ZeroValue(type_reference) => atom(
             "zero",
-            program
-                .package_qualified_type_identity_text(*type_reference),
+            program.package_qualified_type_identity_text(*type_reference),
         ),
     }
 }
@@ -829,8 +821,7 @@ fn static_argument_identity(
             if argument.type_reference.is_valid() {
                 atom(
                     "type",
-                    program
-                        .package_qualified_type_identity_text(argument.type_reference),
+                    program.package_qualified_type_identity_text(argument.type_reference),
                 )
             } else {
                 "type:none".to_owned()

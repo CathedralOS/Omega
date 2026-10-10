@@ -15,7 +15,8 @@ pub(super) fn declaration(
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> MachineEffectDeclaration {
     let row = constraints
-        .catalog().constraint(constraint)
+        .catalog()
+        .constraint(constraint)
         .expect("canonical AArch64 catalog contains its scalar-call constraint");
     let arity = row
         .operands

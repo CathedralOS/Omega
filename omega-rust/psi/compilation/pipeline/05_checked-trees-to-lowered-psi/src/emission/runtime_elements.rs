@@ -119,6 +119,7 @@ pub(crate) struct EvaluatedSelector {
 /// `u64` coordinate.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn evaluate_selectors(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     steps: &[ProjectionStep],
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -145,6 +146,7 @@ pub(crate) fn evaluate_selectors(
                     .assignment_index_is_proven(state, statement_index, *depth);
 
                 let index = evaluation.source_value(
+                    identities,
                     checked,
                     machine,
                     state,
@@ -192,6 +194,7 @@ pub(crate) fn evaluate_selectors(
             ProjectionStep::RuntimeIndexField(field) => {
                 let observation =
                     crate::expression_preparation::bindings::structural_fields::resolve_typed(
+                        identities,
                         &evaluation.structural_fields,
                         field.parameter_position,
                         &field.path,

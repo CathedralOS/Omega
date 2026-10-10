@@ -38,6 +38,7 @@ use super::{
 use crate::scalar_lowering::branch_states::prepared::LoweredCrashExit;
 
 pub(crate) fn lower_boundary_crash_routes(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     boundary: &CheckedBoundaryMachinePlan,
     scalar_types: &[ScalarType],
@@ -66,6 +67,7 @@ pub(crate) fn lower_boundary_crash_routes(
     // The scalar-only operation contract path cannot resolve these members;
     // using provider body bindings here would change the published contract.
     lower_structural_crash_route_buckets(
+        identities,
         &normalize_formal_crash_routes(buckets),
         &formal_crash_parameters(scalar_types)?,
         structural_parameters,
@@ -82,10 +84,12 @@ pub(crate) fn lower_boundary_crash_routes(
 /// normalize before lowering: `false` contributes nothing and `true` is the
 /// unconditional guard.
 pub(crate) fn lower_formal_crash_routes(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     buckets: &[checked_trees::CrashRouteBucket],
     scalar_types: &[ScalarType],
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
     lower_checked_crash_route_buckets(
+        identities,
         &normalize_formal_crash_routes(buckets),
         &formal_crash_parameters(scalar_types)?,
     )
@@ -225,6 +229,7 @@ pub(crate) fn lower_checked_crash_exit(
 }
 
 pub(crate) fn lower_checked_crash_route_buckets(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     buckets: &[checked_trees::CrashRouteBucket],
     parameters: &[ValueDeclaration],
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {
@@ -246,7 +251,7 @@ pub(crate) fn lower_checked_crash_route_buckets(
                         )?;
                         Ok(terminal_psi::CrashRouteGuard::Predicate(
                             terminal_psi::CrashPredicateTerm::new(
-                                checked_boolean_proposition(expression, parameters)?,
+                                checked_boolean_proposition(identities, expression, parameters)?,
                             ),
                         ))
                     }

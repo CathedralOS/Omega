@@ -17,11 +17,11 @@
 mod post_handoff_writer;
 
 pub use post_handoff_writer::{
-    GeneratedPostHandoffWriterFragmentPlan,
-    POST_HANDOFF_WRITER_CONTEXT_ABI_V1,
-    POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH, POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
-    PostHandoffWriterSource, PostHandoffWriterSourceSlot, PostHandoffWriterStep,
-    derive_post_handoff_writer, post_handoff_writer_context_byte_len, validate_step,
+    GeneratedPostHandoffWriterFragmentPlan, POST_HANDOFF_WRITER_CONTEXT_ABI_V1,
+    POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH, POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET,
+    PostHandoffWriterInvocationPlan, PostHandoffWriterPlan, PostHandoffWriterSource,
+    PostHandoffWriterSourceSlot, PostHandoffWriterStep, derive_post_handoff_writer,
+    post_handoff_writer_context_byte_len, validate_step,
 };
 /// Shared test fixtures for the writer-plan consumer tests.
 #[cfg(feature = "test-support")]

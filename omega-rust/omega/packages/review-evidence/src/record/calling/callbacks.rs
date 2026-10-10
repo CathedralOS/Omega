@@ -80,15 +80,9 @@ pub(crate) struct PackagePolicyCallbackInlineField {
     pub(crate) child_layout: PackagePolicyCallbackLayoutApplication,
 }
 
-impl PackagePolicyCallbacks {
-}
-impl PackagePolicyCallbackBinder {
-}
-impl PackagePolicyCallbackDemand {
-}
-impl PackagePolicyCallbackMaterialization {
-}
-impl PackagePolicyCallbackLayoutApplication {
-}
-impl PackagePolicyCallbackInlineField {
-}
+impl PackagePolicyCallbacks {}
+impl PackagePolicyCallbackBinder {}
+impl PackagePolicyCallbackDemand {}
+impl PackagePolicyCallbackMaterialization {}
+impl PackagePolicyCallbackLayoutApplication {}
+impl PackagePolicyCallbackInlineField {}

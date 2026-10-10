@@ -30,6 +30,8 @@ impl StateGraphEmission<'_, '_> {
     /// blocks, edge blocks, counters and occurrence rows.
     pub(super) fn seal_state(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         position: usize,
         mut terminator: Terminator,
         edge_blocks: Vec<Block>,
@@ -61,7 +63,8 @@ impl StateGraphEmission<'_, '_> {
             )?;
             let exit = super::super::cleanup::coordinate(state, statement_index, false)?;
             let mut regions = super::super::cleanup::for_exit_regions(
-            self.checked,
+                identities,
+                self.checked,
                 state,
                 exit,
                 self.catalogs,
@@ -80,6 +83,7 @@ impl StateGraphEmission<'_, '_> {
                         .into_owned();
                 let source = evaluation.current_structural_place(binding.place());
                 let (completion, arrival) = super::super::returns::projected::materialize(
+                    identities,
                     self.checked,
                     &binding,
                     source,
@@ -88,9 +92,9 @@ impl StateGraphEmission<'_, '_> {
                     self.catalogs,
                     &mut evaluation,
                     &mut values,
-                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
+                    &mut next_value,
                     &mut operations,
                 )?;
                 terminator = completion;
@@ -102,12 +106,13 @@ impl StateGraphEmission<'_, '_> {
                 }
             } else {
                 let actions = evaluation.emit_cleanup_regions(
+                    identities,
                     self.checked,
                     regions,
                     &mut values,
-                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
+                    &mut next_value,
                     &mut operations,
                 )?;
                 let Terminator::ReturnStructural {
@@ -204,6 +209,7 @@ impl StateGraphEmission<'_, '_> {
             root.erased_scalar_formals = self.state_erased[position].clone();
             root.erased_proof_formals =
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    identities,
                     self.checked,
                     &self.state_erased_proof[position],
                 );

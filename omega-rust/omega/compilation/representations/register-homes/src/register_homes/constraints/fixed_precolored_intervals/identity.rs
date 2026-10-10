@@ -2,7 +2,6 @@
 
 use crate::identity::encode_fixed_constraint_site_identity;
 
-
 use crate::{
     FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
 };

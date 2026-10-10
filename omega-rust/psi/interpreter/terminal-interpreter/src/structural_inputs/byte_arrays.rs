@@ -70,7 +70,7 @@ pub(crate) fn array_path_type(
                 StructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields, .. },
             ) => {
-                let field = terminal_psi::live_field_by_identity(fields, identity)?;
+                let field = terminal_psi::live_field_by_identity(fields, *identity)?;
                 let next = field.field_type.as_structural()?;
                 next
             }
@@ -313,8 +313,8 @@ impl TerminalExecution<'_> {
                 let Some(fields) = self.program.record_fields(&parent.structural_type) else {
                     return Err(malformed());
                 };
-                let field =
-                    terminal_psi::live_field_by_identity(fields, identity).ok_or_else(malformed)?;
+                let field = terminal_psi::live_field_by_identity(fields, *identity)
+                    .ok_or_else(malformed)?;
                 if !matches!(
                     field.field_type.byte_sequence_carrier(),
                     Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })

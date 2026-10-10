@@ -84,7 +84,10 @@ pub(crate) fn lower_result(
                     program, *symbol,
                 )?;
                 Some(checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ),
                 ))
             }
             _ => None,
@@ -187,5 +190,8 @@ pub(crate) fn structural_case_name(
             typed_trees::data::DataMember::Variant(case) if case.symbol == selected => Some(case),
             _ => None,
         })?;
-    Some(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()))
+    Some(checked_trees::CheckedMemberIdentity::of_member(
+        case.identity,
+        case.name.clone(),
+    ))
 }

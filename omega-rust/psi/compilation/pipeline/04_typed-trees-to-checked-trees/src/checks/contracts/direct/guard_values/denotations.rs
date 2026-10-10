@@ -154,8 +154,7 @@ impl Denotations<'_> {
         {
             return None;
         }
-        let (machine, state) =
-            validation::find_state(self.program, self.caller_state_symbol)?;
+        let (machine, state) = validation::find_state(self.program, self.caller_state_symbol)?;
         let statements = self
             .program
             .statement_table

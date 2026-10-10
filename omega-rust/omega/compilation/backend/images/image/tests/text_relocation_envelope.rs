@@ -14,15 +14,14 @@ mod common;
 use common::layout;
 
 use image::{
-    FinalImageInput, apply_aarch64_relocations, apply_x86_64_relocations,
-    build_final_image, validate_final_text_relocation_envelope,
+    FinalImageInput, apply_aarch64_relocations, apply_x86_64_relocations, build_final_image,
+    validate_final_text_relocation_envelope,
 };
 use object_file::{
     ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
     RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
 };
 use target::NativeTarget;
-
 
 /// A record with no resolvable symbol and no addend, for the cases whose
 /// subject is field or origin shape rather than the symbol row itself.

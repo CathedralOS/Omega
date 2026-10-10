@@ -28,6 +28,7 @@ pub(crate) fn source_bytes(argument: &CheckedUnitStructuralArgumentPlan) -> Opti
 }
 
 pub(crate) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     types: &[StructuralTypeDeclaration],
@@ -59,15 +60,17 @@ pub(crate) fn prepare(
             let Some(bytes) = source_bytes(argument) else {
                 continue;
             };
-            let declaration =
-                terminal_psi::structural_type_by_identity(
-                    types,
+            let declaration = terminal_psi::structural_type_by_identity(
+                types,
+                identities.intern(
                     &checked
                         .type_identity_text(argument.type_identity)
                         .unwrap_or_default(),
-                ).ok_or(
-                    LoweringError::Unsupported("computed literal has no structural type namespace"),
-                )?;
+                ),
+            )
+            .ok_or(LoweringError::Unsupported(
+                "computed literal has no structural type namespace",
+            ))?;
             if let Some(existing) = slots.iter().find(|slot| {
                 slot.source_call == source_call && slot.argument_ordinal == argument_ordinal
             }) {
@@ -81,7 +84,13 @@ pub(crate) fn prepare(
             slots.push(Slot {
                 source_call,
                 argument_ordinal,
-                literal: ByteLiteral::reserve(bytes, declaration.id, types, next_place)?,
+                literal: ByteLiteral::reserve(
+                    identities,
+                    bytes,
+                    declaration.id,
+                    types,
+                    next_place,
+                )?,
             });
         }
     }

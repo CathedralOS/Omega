@@ -67,7 +67,6 @@ pub fn children(
     }
 }
 
-
 /// Preserve occurrence identity for checks that consume selected declarations
 /// or result types. This is the same postorder as the node-only convenience API.
 pub fn visit_post_order(

@@ -853,34 +853,41 @@ fn collect_nested_receiving_obligations(
     let mut fields = Vec::new();
     let mut visited = Vec::new();
     for (_, root) in program.statement_table.expression_roots(statement) {
-        validation::expression_traversal::visit_post_order(program, root, &mut visited, |_, node| {
-            if let ExpressionNode::Call(call) = node {
-                calls.push(CallOccurrence {
-                    target_symbol: call.target_symbol,
-                    target: call.target.clone(),
-                    receiver: call.receiver.is_valid().then(|| {
-                        Identifier::generated(program.expression_table.display_name(call.receiver))
-                    }),
-                    arguments: program.expression_table.expression_handles(call.arguments),
-                });
-            }
-            if let ExpressionNode::StructLiteral(literal) = node {
-                for field in program.expression_table.struct_fields(literal.fields) {
-                    let Some(reference) = validation::selected_construction_field_type(
-                        program,
-                        literal,
-                        field.field_symbol,
-                    ) else {
-                        continue;
-                    };
-                    // Reference/aggregate custody remains with construction;
-                    // only a scalar's own receiving predicate is owed here.
-                    if program.primitive_type_reference(reference).is_some() {
-                        fields.push((field, reference));
+        validation::expression_traversal::visit_post_order(
+            program,
+            root,
+            &mut visited,
+            |_, node| {
+                if let ExpressionNode::Call(call) = node {
+                    calls.push(CallOccurrence {
+                        target_symbol: call.target_symbol,
+                        target: call.target.clone(),
+                        receiver: call.receiver.is_valid().then(|| {
+                            Identifier::generated(
+                                program.expression_table.display_name(call.receiver),
+                            )
+                        }),
+                        arguments: program.expression_table.expression_handles(call.arguments),
+                    });
+                }
+                if let ExpressionNode::StructLiteral(literal) = node {
+                    for field in program.expression_table.struct_fields(literal.fields) {
+                        let Some(reference) = validation::selected_construction_field_type(
+                            program,
+                            literal,
+                            field.field_symbol,
+                        ) else {
+                            continue;
+                        };
+                        // Reference/aggregate custody remains with construction;
+                        // only a scalar's own receiving predicate is owed here.
+                        if program.primitive_type_reference(reference).is_some() {
+                            fields.push((field, reference));
+                        }
                     }
                 }
-            }
-        });
+            },
+        );
     }
     for (field, reference) in fields {
         collect_receiving_initializer_obligation(

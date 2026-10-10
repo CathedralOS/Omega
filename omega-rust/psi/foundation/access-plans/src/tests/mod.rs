@@ -284,7 +284,10 @@ fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourcePro
 fn stable_word_placement() -> ValidatedPlacementPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 0x5ab1e,
-        entries: vec![layout_field_entry("word".into(), LayoutPlacementReport::At { offset: 0 })],
+        entries: vec![layout_field_entry(
+            "word".into(),
+            LayoutPlacementReport::At { offset: 0 },
+        )],
         offsets: Some(vec![0]),
         size: Some(4),
         align: 4,
@@ -358,7 +361,10 @@ fn stable_uart_resource_profile(
 fn destructive_word_placement() -> ValidatedPlacementPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 0xe17e_7a4e,
-        entries: vec![layout_field_entry("fifo".into(), LayoutPlacementReport::At { offset: 0 })],
+        entries: vec![layout_field_entry(
+            "fifo".into(),
+            LayoutPlacementReport::At { offset: 0 },
+        )],
         offsets: Some(vec![0]),
         size: Some(4),
         align: 4,
@@ -431,7 +437,10 @@ fn atomic_word_placement_with_operations(
 ) -> ValidatedPlacementPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint,
-        entries: vec![layout_field_entry("head".into(), LayoutPlacementReport::At { offset: 0 })],
+        entries: vec![layout_field_entry(
+            "head".into(),
+            LayoutPlacementReport::At { offset: 0 },
+        )],
         offsets: Some(vec![0]),
         size: Some(4),
         align: 4,

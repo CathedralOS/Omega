@@ -493,13 +493,12 @@ fn append_operator_ensures_context(
                     semantic.append_ref(&mut refs, fact);
                 }
                 typed_trees::domain::ProofFact::Expression(expression) => {
-                    let label =
-                        crate::labels::instantiate_operator_contract_expression_label(
-                            program,
-                            parameters,
-                            &operand_labels,
-                            *expression,
-                        );
+                    let label = crate::labels::instantiate_operator_contract_expression_label(
+                        program,
+                        parameters,
+                        &operand_labels,
+                        *expression,
+                    );
                     let instantiated = semantic.append_instantiated_expression(label);
                     let mut dependencies = operands
                         .iter()
@@ -554,7 +553,9 @@ fn append_operator_ensures_context(
                     let place = semantic.append_symbol_place(application.proposition);
                     let (binder_labels, argument_handles) =
                         crate::labels::proposition_label_sources(application, program);
-                    let argument_labels = argument_handles.iter().map(|argument| {
+                    let argument_labels = argument_handles
+                        .iter()
+                        .map(|argument| {
                             crate::labels::instantiate_operator_contract_expression_label(
                                 program,
                                 parameters,

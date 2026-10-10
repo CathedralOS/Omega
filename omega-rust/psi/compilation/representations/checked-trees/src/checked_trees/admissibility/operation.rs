@@ -1,6 +1,6 @@
 use crate::{
-    AcceptanceSummary, AcceptanceVerdict, AcceptanceView, CallAcceptance,
-    OperatorAcceptance, StateOperationAcceptance, StateOperationAcceptanceKind,
+    AcceptanceSummary, AcceptanceVerdict, AcceptanceView, CallAcceptance, OperatorAcceptance,
+    StateOperationAcceptance, StateOperationAcceptanceKind,
 };
 
 impl<'facts> AcceptanceView for StateOperationAcceptance<'facts> {

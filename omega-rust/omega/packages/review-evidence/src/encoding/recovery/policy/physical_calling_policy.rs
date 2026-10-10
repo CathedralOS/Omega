@@ -6,7 +6,6 @@ pub(in crate::encoding::recovery) mod state;
 use super::{Error, reader::Reader};
 use crate::record::{PackagePolicyPhysicalCallingContract, PackageReviewBoundaryCallingPolicy};
 
-
 pub(in crate::encoding::recovery) fn physical(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyPhysicalCallingContract, Error> {
@@ -18,7 +17,8 @@ pub(in crate::encoding::recovery) fn physical(
         stack_alignment: reader.u16()?,
         shadow_bytes: reader.u16()?,
         entry_control: state::entry_control(reader)?,
-        state: state::state_plan(reader)?})
+        state: state::state_plan(reader)?,
+    })
 }
 
 pub(in crate::encoding::recovery) fn policy(

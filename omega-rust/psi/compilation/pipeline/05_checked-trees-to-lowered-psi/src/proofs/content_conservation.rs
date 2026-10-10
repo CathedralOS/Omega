@@ -228,6 +228,7 @@ pub(crate) fn lower_structural_content_projection(
 /// Projected qualifications never qualify a sibling or the whole owner. This
 /// binds entry content, not a partition theorem or boundary admission.
 pub(crate) fn lower_whole_content_entry_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     structural_types: &[StructuralTypeDeclaration],
     checked_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -311,11 +312,13 @@ pub(crate) fn lower_whole_content_entry_claims(
                     CheckedUnitStructuralPathSegment::Field(identity),
                     StructuralTypeShape::Record { fields, .. },
                 ) => {
-                    let field = terminal_psi::field_by_identity(fields, &identity.spelling()).ok_or(
-                        LoweringError::Unsupported(
-                            "content claim field is absent from its carrier",
-                        ),
-                    )?;
+                    let field = terminal_psi::field_by_identity(
+                        fields,
+                        identities.intern(&identity.spelling()),
+                    )
+                    .ok_or(LoweringError::Unsupported(
+                        "content claim field is absent from its carrier",
+                    ))?;
                     if field.relevance != language_core::BindingRelevance::Relevant {
                         return unsupported("content claim traverses an erased field");
                     }
@@ -341,7 +344,9 @@ pub(crate) fn lower_whole_content_entry_claims(
         let mut projections = content
             .into_iter()
             .map(|projection| {
-                if projection.carrier_identity != carrier.identity {
+                if projection.carrier_identity
+                    != identities.text(carrier.identity).unwrap_or_default()
+                {
                     return unsupported(
                         "content projection carrier disagrees with its qualified parameter",
                     );

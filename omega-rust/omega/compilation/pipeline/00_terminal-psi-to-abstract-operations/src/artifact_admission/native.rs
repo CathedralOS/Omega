@@ -100,9 +100,14 @@ impl VerifiedNativeArtifactInput {
                 || row.target != selections.target()
                 || member.callable() != terminal_psi::TargetMachineCallable::Boundary(row.member)
                 || terminal_psi::find_boundary_machine(&module.boundary_machines, row.head)
-                    .is_none_or(|head| head.identity != row.head_identity)
+                    .is_none_or(|head| {
+                        module.identities.text(head.identity) != Some(row.head_identity.as_str())
+                    })
                 || terminal_psi::find_boundary_machine(&module.boundary_machines, row.member)
-                    .is_none_or(|member| member.identity != row.member_identity)
+                    .is_none_or(|member| {
+                        module.identities.text(member.identity)
+                            != Some(row.member_identity.as_str())
+                    })
             {
                 return Err(
                     "selected family provider row disagrees with the exact artifact member"

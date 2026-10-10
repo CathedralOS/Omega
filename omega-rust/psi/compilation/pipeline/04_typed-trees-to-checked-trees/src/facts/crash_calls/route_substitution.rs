@@ -428,7 +428,7 @@ fn boolean_evidence_is_crash_lane_lowerable(
                 && scalar_evidence_is_crash_lane_lowerable(right)
         }
         CheckedBooleanExpression::Not(operand) => boolean_evidence_is_crash_lane_lowerable(operand),
-        facts::checked_boolean_triple_pattern!(left,right, ..) => {
+        facts::checked_boolean_triple_pattern!(left, right, ..) => {
             boolean_evidence_is_crash_lane_lowerable(left)
                 && boolean_evidence_is_crash_lane_lowerable(right)
         }
@@ -910,16 +910,16 @@ pub(crate) fn refine_published_crash_routes(
                     let concrete_value = (builtin_meaning && entry_predicate.is_some())
                         .then(|| {
                             crate::checks::contracts::call_site_boolean_contract_expression_value(
-            program,
-            None,
-            state_flow,
-            call_flow,
-            call_site,
-            target_state_symbol,
-            target_parameters,
-            expression,
-            call_frames
-        )
+                                program,
+                                None,
+                                state_flow,
+                                call_flow,
+                                call_site,
+                                target_state_symbol,
+                                target_parameters,
+                                expression,
+                                call_frames,
+                            )
                         })
                         .flatten();
                     match concrete_value {

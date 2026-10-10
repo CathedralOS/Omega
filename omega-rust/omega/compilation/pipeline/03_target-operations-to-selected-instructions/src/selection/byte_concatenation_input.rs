@@ -98,8 +98,7 @@ pub(super) fn capacity(
         return None;
     }
     let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
-        signature.structural_type(result.structural_type)?
-            .shape
+        signature.structural_type(result.structural_type)?.shape
     else {
         return None;
     };

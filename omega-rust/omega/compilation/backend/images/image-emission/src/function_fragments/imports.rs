@@ -15,10 +15,9 @@ use crate::{
 };
 use machine_code::{CallbackAddressEncoding, NormalizedForeignCallResolutionKind};
 use object_file::{
-    ObjectPlan, RelocationKind, RelocationPlan,
-    boundary_relocation_origin,
-    RelocationRecord, SectionKind, StagedOptimizedRelocationFreeObjectContainer, SymbolKind,
-    SymbolSection, normalized_foreign_import_symbol_name, object_function_symbol,
+    ObjectPlan, RelocationKind, RelocationPlan, RelocationRecord, SectionKind,
+    StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolSection,
+    boundary_relocation_origin, normalized_foreign_import_symbol_name, object_function_symbol,
     object_symbol_handle_by_foreign_locator,
 };
 
@@ -217,7 +216,8 @@ pub(super) fn validate(
     let mut records = artifact.relocations.records();
     for field in fields {
         let (call, locator) = call_for_import_field(&import_calls, field)?;
-        let function = artifact.function_on_machine(field.caller)
+        let function = artifact
+            .function_on_machine(field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;
         let origin = boundary_relocation_origin(function.symbol, field.invocation_site);
         for callback in &call.callback_addresses {
@@ -333,5 +333,3 @@ fn relocation_kind(kind: NormalizedForeignCallResolutionKind) -> RelocationKind 
         NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => RelocationKind::Aarch64Branch26,
     }
 }
-
-

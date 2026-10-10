@@ -1017,11 +1017,8 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
     let retained = machines
         .iter()
         .flat_map(|plan| {
-            machine_owned_type_identities(&plan.machine).chain(
-                plan.cleanups
-                    .iter()
-                    .map(|cleanup| cleanup.type_identity),
-            )
+            machine_owned_type_identities(&plan.machine)
+                .chain(plan.cleanups.iter().map(|cleanup| cleanup.type_identity))
         })
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
@@ -1120,14 +1117,10 @@ fn value_leaf_type_identities(
 fn machine_owned_type_identities(
     machine: &CheckedUnitEffectMachinePlan,
 ) -> impl Iterator<Item = typed_trees::type_identity::TypeIdentityId> + '_ {
-    machine
-        .attachment_type_identity
-        .iter()
-        .copied()
-        .chain(
-            machine
-                .structural_parameters
-                .iter()
-                .map(|parameter| parameter.type_identity),
-        )
+    machine.attachment_type_identity.iter().copied().chain(
+        machine
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.type_identity),
+    )
 }

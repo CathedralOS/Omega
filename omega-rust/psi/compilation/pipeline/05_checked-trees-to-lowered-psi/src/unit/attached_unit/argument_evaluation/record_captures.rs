@@ -12,6 +12,8 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare_storage_before(
         &mut self,
+
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,
         state: symbols::SymbolHandle,
         statement: u32,
@@ -56,6 +58,7 @@ impl Evaluation {
             )?
         {
             self.prepare_borrowed_argument(
+                identities,
                 checked,
                 state,
                 argument,
@@ -114,7 +117,7 @@ impl Evaluation {
                     bindings.runtime_index_local(*position)?
                 }
                 checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
-                    bindings.runtime_index_field(field)?
+                    bindings.runtime_index_field(identities, field)?
                 }
                 _ => {
                     return super::unsupported(

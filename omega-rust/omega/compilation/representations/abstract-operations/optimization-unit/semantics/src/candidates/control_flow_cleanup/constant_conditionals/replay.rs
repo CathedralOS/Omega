@@ -1,8 +1,8 @@
 //! Independent constant-conditional replay mechanics.
-use crate::candidates::{provenance_proven_unreachable_at, provenance_realized_at};
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::sparse_conditional_constant_propagation::literal_boolean_fact;
 use crate::candidates::{candidate_block, candidate_function, set_node_effect_link};
+use crate::candidates::{provenance_proven_unreachable_at, provenance_realized_at};
 use crate::unit_validation::derived_metadata::reconstruct_declared_places;
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::unit_validation::services::refresh_root_service_reach;
@@ -221,8 +221,18 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
         .collect::<BTreeSet<_>>();
     let mut affected = BTreeSet::from([decision.block]);
     affected.extend(removed.iter().copied());
-    let mut realized = vec![provenance_realized_at(selected_site, selected_site, &selected.provenance, &selected.fuel)];
-    let mut unreachable = vec![provenance_proven_unreachable_at(rejected_site, rejected_site, &rejected.provenance, &rejected.fuel)];
+    let mut realized = vec![provenance_realized_at(
+        selected_site,
+        selected_site,
+        &selected.provenance,
+        &selected.fuel,
+    )];
+    let mut unreachable = vec![provenance_proven_unreachable_at(
+        rejected_site,
+        rejected_site,
+        &rejected.provenance,
+        &rejected.fuel,
+    )];
     let mut expected_effect = 0u64;
     for block in &function.blocks {
         if removed.contains(&block.id) {
@@ -234,14 +244,24 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                 };
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    unreachable.push(provenance_proven_unreachable_at(site, site, &node.provenance, &node.fuel));
+                    unreachable.push(provenance_proven_unreachable_at(
+                        site,
+                        site,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
                 for edge in &node.successors {
                     let site = PsiRealizationSite::Edge {
                         machine: function.machine,
                         edge: edge.psi_edge,
                     };
-                    unreachable.push(provenance_proven_unreachable_at(site, site, &edge.provenance, &edge.fuel));
+                    unreachable.push(provenance_proven_unreachable_at(
+                        site,
+                        site,
+                        &edge.provenance,
+                        &edge.fuel,
+                    ));
                 }
             }
             continue;
@@ -258,7 +278,12 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+                    realized.push(provenance_realized_at(
+                        site,
+                        site,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;

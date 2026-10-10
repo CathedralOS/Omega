@@ -80,7 +80,11 @@ pub(in crate::checks::termination) fn strict_decrease_message(
     let transition = if source == destination {
         format!("the transition from `{}` back to itself", label(source))
     } else {
-        format!("the transition from `{}` to `{}`", label(source), label(destination))
+        format!(
+            "the transition from `{}` to `{}`",
+            label(source),
+            label(destination)
+        )
     };
     format!(
         "cannot prove strict rank decrease on a recurrent arrival: {transition} is not \

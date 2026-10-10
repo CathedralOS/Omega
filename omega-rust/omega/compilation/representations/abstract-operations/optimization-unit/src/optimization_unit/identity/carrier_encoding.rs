@@ -117,7 +117,7 @@ pub(super) fn encode_structural_path_segment(
         }
         StructuralPathSegment::Field(identity) => {
             bytes.u8(1);
-            bytes.string(identity);
+            bytes.u32(identity.0);
         }
         StructuralPathSegment::FixedIndex(index) => {
             bytes.u8(2);

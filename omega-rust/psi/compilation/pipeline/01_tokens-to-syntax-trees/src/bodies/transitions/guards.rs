@@ -759,7 +759,9 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
                 fields.push((field.clone(), None));
                 matched_fields.push((field, expected));
                 input = rest;
-                let Some(next) = input.take_comma()? else { break };
+                let Some(next) = input.take_comma()? else {
+                    break;
+                };
                 input = next;
                 continue;
             }

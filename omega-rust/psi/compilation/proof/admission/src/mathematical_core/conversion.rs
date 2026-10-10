@@ -724,8 +724,8 @@ pub fn convertible_retaining(
             // reaches here — weak-head normalization already selected
             // its branch — so only stuck scrutinees meet this rule.
             if !motives_convertible(arena, context, left_motive, right_motive, budget, retained)? {
-            return Ok(false);
-}
+                return Ok(false);
+            }
             let two = arena.insert(Term::Two);
             if !convertible_retaining(
                 arena,
@@ -854,8 +854,8 @@ pub fn convertible_retaining(
             // normalization already selected the base — so only stuck
             // proofs meet this rule.
             if !motives_convertible(arena, context, left_motive, right_motive, budget, retained)? {
-            return Ok(false);
-}
+                return Ok(false);
+            }
             let proof_type = infer_type(arena, context, left_proof, budget)?;
             let proof_head = weak_head_normalize_retaining(
                 arena,
@@ -1031,8 +1031,8 @@ pub fn convertible_retaining(
             // unfolded `step a k ih` — so only stuck trees meet this
             // rule.
             if !motives_convertible(arena, context, left_motive, right_motive, budget, retained)? {
-            return Ok(false);
-}
+                return Ok(false);
+            }
             let tree_type = infer_type(arena, context, left_tree, budget)?;
             let tree_head = weak_head_normalize_retaining(
                 arena,
@@ -1247,8 +1247,8 @@ pub fn convertible_retaining(
             // `box` scrutinee never reaches here — weak-head
             // normalization already applied the body.
             if !motives_convertible(arena, context, left_motive, right_motive, budget, retained)? {
-            return Ok(false);
-}
+                return Ok(false);
+            }
             let scrutinee_type = infer_type(arena, context, left_scrutinee, budget)?;
             let scrutinee_head = weak_head_normalize_retaining(
                 arena,

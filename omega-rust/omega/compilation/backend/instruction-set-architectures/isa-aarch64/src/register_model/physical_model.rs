@@ -4,10 +4,9 @@
 use calling_conventions::MachineRegister;
 use register_model::{
     PhysicalRegisterModel, PhysicalRegisterModelIdentity, PreservationConvention, RegisterClass,
-    RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, reservation_overlay,
-    sorted_units,
-    RegisterView, RegisterViewId, RegisterWriteSemantics, ReservationReason,
-    ValidatedPhysicalRegisterModel, validate_physical_register_model,
+    RegisterClassId, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView, RegisterViewId,
+    RegisterWriteSemantics, ReservationReason, ValidatedPhysicalRegisterModel, reservation_overlay,
+    sorted_units, validate_physical_register_model,
 };
 use std::collections::BTreeMap;
 use target::Architecture;
@@ -379,7 +378,6 @@ fn build_aarch64_physical_register_model() -> PhysicalRegisterModel {
     }
 }
 
-
 pub(crate) fn complement(
     all: &[RegisterUnitId],
     fixed: &[RegisterUnitId],
@@ -394,7 +392,6 @@ pub(crate) fn complement(
 fn view_ids(views: &BTreeMap<String, RegisterViewId>, names: &[&str]) -> Vec<RegisterViewId> {
     names.iter().map(|name| views[*name]).collect()
 }
-
 
 /// The canonical AArch64 physical register model, validated once per
 /// process.
@@ -412,6 +409,7 @@ pub fn validated_aarch64_physical_register_model() -> &'static ValidatedPhysical
 }
 
 /// The content identity of the canonical AArch64 physical register model.
-pub(crate) fn canonical_aarch64_physical_register_model_identity() -> PhysicalRegisterModelIdentity {
+pub(crate) fn canonical_aarch64_physical_register_model_identity() -> PhysicalRegisterModelIdentity
+{
     validated_aarch64_physical_register_model().identity()
 }

@@ -29,9 +29,7 @@ pub(super) fn provider_identities(
         if matching.next().is_some() {
             return unsupported("named provider repeats an exact boundary requirement row");
         }
-        let Some(realization) = typed
-            .machine(row.realization_machine)
-        else {
+        let Some(realization) = typed.machine(row.realization_machine) else {
             return unsupported("named provider row has no exact realization machine");
         };
         let states = typed.machine_states(realization);

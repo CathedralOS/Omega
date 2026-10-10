@@ -39,9 +39,10 @@ pub(super) fn expected_owned_projected_copy_bytes(
     if indirect_source {
         match target.architecture {
             Architecture::X86_64 => expected_x86_stack_load(&mut bytes, 11, home, 8)?,
-            Architecture::Aarch64 => {
-                crate::codec_bytes::push_encoded(&mut bytes, expected_aarch64_stack_load(9, home, 8)?.to_le_bytes())
-            }
+            Architecture::Aarch64 => crate::codec_bytes::push_encoded(
+                &mut bytes,
+                expected_aarch64_stack_load(9, home, 8)?.to_le_bytes(),
+            ),
         }
     }
     if let [
@@ -134,7 +135,11 @@ pub(super) fn expected_owned_projected_copy_bytes(
         let mut copied = 0_u32;
         for destination in &argument.destination.locations {
             let (offset, width) = match destination {
-                calling_conventions::register_or_stack_pair_pattern!(value_byte_offset,byte_size, ..) => (*value_byte_offset, *byte_size),
+                calling_conventions::register_or_stack_pair_pattern!(
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                ) => (*value_byte_offset, *byte_size),
                 ValueLocation::Indirect { .. } => return None,
             };
             if offset != copied || !(1..=8).contains(&width) {

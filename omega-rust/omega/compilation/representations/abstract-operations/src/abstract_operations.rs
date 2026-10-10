@@ -27,6 +27,10 @@ pub struct AbstractOperationPlan {
     /// The selector word chooses a table; ordinary call operands retain their
     /// independent storage and ownership identities.
     pub dynamic_dispatch: terminal_psi::TerminalDynamicDispatchCatalog,
+    /// Identity text every `TerminalIdentityIndex` on this plan resolves
+    /// against: the module discards nothing an index still names, so the
+    /// sealed table travels with the plan verbatim.
+    pub identities: terminal_psi::TerminalIdentityTable,
     pub functions: Vec<AbstractFunction>,
 }
 
@@ -70,8 +74,8 @@ pub use structural_type_catalog::StructuralTypeCatalog;
 pub mod atomic;
 pub use atomic::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
-    AtomicCoherenceViolation, AtomicModificationAfter,
-    AtomicReadsFrom, happens_before_atomic_coherence_violation,
+    AtomicCoherenceViolation, AtomicModificationAfter, AtomicReadsFrom,
+    happens_before_atomic_coherence_violation,
 };
 pub mod calls;
 pub use calls::{
@@ -94,7 +98,7 @@ pub use integer_arithmetic::{
     IntegerShiftPolicy,
 };
 pub mod operations;
-pub use operations::{AbstractOperation};
+pub use operations::AbstractOperation;
 mod structural_stores;
 pub use structural_stores::{StructuralScalarStoreDestination, StructuralWindowRoot};
 mod structural_copy;

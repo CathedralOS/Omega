@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use super::super::ordinary::branch_size;
+use std::collections::BTreeMap;
 
 use isa_aarch64::{
     validate_aarch64_selected_i64_less_than_branch_form,
@@ -17,14 +17,14 @@ use isa_x86_64::{
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    MachineEncodedEffects, SelectedBlock, SelectedBlockId,
-    SelectedInstruction, SelectedTerminator,
+    MachineEncodedEffects, SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedTerminator,
 };
 use target::Architecture;
 
 use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence, declared_size_matches,
+    OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow,
+    declared_size_matches,
 };
 
 #[allow(clippy::too_many_arguments)]

@@ -331,7 +331,7 @@ fn external_backing(
         let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape else {
             return false;
         };
-        terminal_psi::live_field_by_identity(fields, identity)
+        terminal_psi::live_field_by_identity(fields, *identity)
             .and_then(|field| field.field_type.byte_sequence_carrier())
             .is_some_and(|carrier| {
                 matches!(

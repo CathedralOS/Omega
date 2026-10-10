@@ -144,7 +144,10 @@ pub fn structural_scalar_field_at_coordinate(
                 }
                 selected_case = case.symbol;
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
-                    checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        case.identity,
+                        case.name.clone(),
+                    ),
                 ));
             }
             facts::PlaceSegment::Field { symbol } => {
@@ -190,7 +193,10 @@ pub fn structural_scalar_field_at_coordinate(
                         carrier_type_reference: carrier,
                         path,
                         field: field.symbol,
-                        field_identity: checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                        field_identity: checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        ),
                         primitive_type,
                         domain: program.arithmetic_domain_for_type_reference(
                             program
@@ -200,7 +206,10 @@ pub fn structural_scalar_field_at_coordinate(
                     });
                 }
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ),
                 ));
                 carrier = field.type_reference;
                 selected_case = SymbolHandle::invalid();
@@ -365,7 +374,10 @@ pub fn structural_scalar_field(
         carrier_type_reference: carrier,
         path,
         field: field.symbol,
-        field_identity: checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+        field_identity: checked_trees::CheckedMemberIdentity::of_member(
+            field.identity,
+            field.name.clone(),
+        ),
         primitive_type,
         domain: program.arithmetic_domain_for_type_reference(
             program

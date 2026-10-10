@@ -23,17 +23,15 @@ use common::{TEXT_ADDRESS, layout};
 
 use image::{
     EmittedImageOutput, EncodedCompilerTextDigest, ExecutableImageOutput, FinalImageInput,
-    apply_x86_64_relocations, build_final_image,
-    emitted_direct_executable_output, place_data_regions, place_executable_regions,
-    validate_final_text_relocation_envelope, validate_placed_data_region_inventory,
-    validate_placed_executable_region_inventory,
+    apply_x86_64_relocations, build_final_image, emitted_direct_executable_output,
+    place_data_regions, place_executable_regions, validate_final_text_relocation_envelope,
+    validate_placed_data_region_inventory, validate_placed_executable_region_inventory,
 };
 use object_file::{
     ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
     RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
 };
 use target::NativeTarget;
-
 
 /// mov eax, edi; test eax, eax; setnz al; ret — eight bytes the entry symbol
 /// owns completely so the placed executable inventory classifies every byte.
@@ -47,7 +45,6 @@ fn encoded_data() -> Vec<u8> {
     data.extend_from_slice(&[0x33; 8]);
     data
 }
-
 
 fn data_relocation(
     offset: usize,

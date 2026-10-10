@@ -1,6 +1,6 @@
 //! Same-operand exact integer laws and candidate acceptance.
-use crate::candidates::provenance_realized_at;
 use crate::candidates::global_value_numbering::independently_accepted_operation_fact;
+use crate::candidates::provenance_realized_at;
 use crate::candidates::sparse_conditional_constant_propagation::{
     observation_at, same_closed_scalar_observation,
 };
@@ -17,8 +17,8 @@ use optimization_core::{
     OptimizationSafetyClass, OptimizationValidatorIdentity,
 };
 use optimization_unit::{
-    ObservationKnowledge, PsiOptimizationUnit,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
+    ObservationKnowledge, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{
@@ -235,7 +235,12 @@ pub(crate) fn validate_proof_certified_same_operand_integer_constant_candidate(
         return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
     }
     let site = PsiRealizationSite::Node(patch.location);
-    let expected_provenance = [provenance_realized_at(site, site, &node.provenance, &node.fuel)];
+    let expected_provenance = [provenance_realized_at(
+        site,
+        site,
+        &node.provenance,
+        &node.fuel,
+    )];
     if candidate.provenance() != expected_provenance {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }

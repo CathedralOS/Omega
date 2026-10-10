@@ -26,6 +26,7 @@ impl OperationFrame<'_, '_> {
     /// slots but never shift this local's authored ordinal.
     pub(super) fn establish_scalar_local(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         result: &checked_trees::CheckedUnitScalarResultBindingPlan,
         value: &checked_trees::CheckedCallScalarArgument,
     ) -> Result<(), LoweringError> {
@@ -43,6 +44,7 @@ impl OperationFrame<'_, '_> {
             }
         };
         let lowered = self.evaluation.source_value(
+            identities,
             self.checked,
             self.machine,
             self.state,
@@ -60,7 +62,8 @@ impl OperationFrame<'_, '_> {
         if lowered.scalar_type != terminal_scalar_type(result.primitive_type)? {
             return unsupported("Unit scalar expression local type disagrees with its binding");
         }
-        let lowered = self.refine_scalar_local_value(result.statement_index, lowered)?;
+        let lowered =
+            self.refine_scalar_local_value(identities, result.statement_index, lowered)?;
         self.evaluation
             .scalar_bindings
             .append(lowered.scalar_type, self.values.len());
@@ -73,6 +76,7 @@ impl OperationFrame<'_, '_> {
     /// namespace and this value together, regardless of its producing operation.
     pub(super) fn refine_scalar_local_value(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_index: u32,
         value: ValueDeclaration,
     ) -> Result<ValueDeclaration, LoweringError> {
@@ -129,6 +133,7 @@ impl OperationFrame<'_, '_> {
         )?;
         self.values.push(value);
         self.evaluation.require_value_refinements(
+            identities,
             self.checked,
             machine,
             predicates,
@@ -150,6 +155,7 @@ impl OperationFrame<'_, '_> {
     /// statement-source construction additionally binds the declared local.
     pub(super) fn establish_scalar_array(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishScalarArray {
@@ -167,6 +173,7 @@ impl OperationFrame<'_, '_> {
             let element_ordinal = u32::try_from(ordinal)
                 .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
             let value = self.evaluation.source_value(
+                identities,
                 self.checked,
                 self.machine,
                 self.state,
@@ -236,6 +243,7 @@ impl OperationFrame<'_, '_> {
     /// ledger's parameters.
     pub(super) fn emit_window_move(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_index: u32,
         moved: &CheckedUnitStructuralArgumentPlan,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
@@ -265,6 +273,7 @@ impl OperationFrame<'_, '_> {
         };
         let prepared_claims = if let Some((owner, reference)) = owner {
             crate::emission::claim_bindings::prepare_establishment_claims(
+                identities,
                 self.checked,
                 self.machine,
                 self.state,
@@ -291,6 +300,7 @@ impl OperationFrame<'_, '_> {
             calls: &mut *self.calls,
         };
         self.windows.emit_move(
+            identities,
             moved,
             result,
             result_claims,
@@ -299,10 +309,10 @@ impl OperationFrame<'_, '_> {
             self.type_ids,
             &mut evaluation,
             self.values,
-            self.next_place,
             self.next_value,
             self.next_block,
             self.next_edge,
+            self.next_place,
             self.operations,
         )
     }
@@ -310,6 +320,7 @@ impl OperationFrame<'_, '_> {
     /// A window store evaluated through this frame, pairing the move.
     pub(super) fn emit_window_store(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_index: u32,
         destination: &CheckedUnitStructuralArgumentPlan,
         opening: Option<PlaceId>,
@@ -325,6 +336,7 @@ impl OperationFrame<'_, '_> {
             calls: &mut *self.calls,
         };
         self.windows.emit_store(
+            identities,
             destination,
             opening,
             value,
@@ -346,6 +358,7 @@ impl OperationFrame<'_, '_> {
     /// closed before its sequence's exits.
     pub(super) fn move_structural_field(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
         expression: typed_trees::expression::ExpressionHandle,
@@ -353,7 +366,13 @@ impl OperationFrame<'_, '_> {
         self.results
             .require_next(result, "borrowed-window move result binding is not dense")?;
         require_parameter_window_root(self.parameters, source, self.evaluation)?;
-        let moved = self.emit_window_move(result.statement_index, source, result, expression)?;
+        let moved = self.emit_window_move(
+            identities,
+            result.statement_index,
+            source,
+            result,
+            expression,
+        )?;
         let producer = self
             .operations
             .operations
@@ -397,6 +416,7 @@ impl OperationFrame<'_, '_> {
     /// storage with its own live length and declared qualifications.
     pub(super) fn establish_byte_sequence(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishByteSequence {
@@ -433,6 +453,7 @@ impl OperationFrame<'_, '_> {
             })
         {
             return self.establish_owned_byte_sequence(
+                identities,
                 result,
                 value,
                 structural_type,
@@ -501,6 +522,8 @@ impl OperationFrame<'_, '_> {
     /// loans, lengths and reads name it exactly as they name any owned result.
     pub(super) fn establish_owned_byte_sequence(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         value: &checked_trees::CheckedByteSequenceValuePlan,
         structural_type: semantic_vocabulary::StructuralTypeId,
@@ -509,10 +532,13 @@ impl OperationFrame<'_, '_> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; a published roster must already hold it.
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
-            crate::emission::structural_byte_sequence_store::prepare_types(value, types)?;
+            crate::emission::structural_byte_sequence_store::prepare_types(
+                identities, value, types,
+            )?;
         }
         let (declaration, produced) =
             crate::emission::structural_byte_sequence_store::emit_owned_value(
+                identities,
                 value,
                 structural_type,
                 qualifications,
@@ -520,9 +546,9 @@ impl OperationFrame<'_, '_> {
                 &self.evaluation.structural_locals,
                 self.structural_types.declarations(),
                 self.private_places,
-                self.next_place,
                 self.next_value,
                 &mut self.calls.next_obligation_identity,
+                self.next_place,
                 self.operations,
             )?;
         self.register_structural_result(declaration, result, produced)
@@ -543,6 +569,7 @@ impl OperationFrame<'_, '_> {
     /// extent and checks the range against it like any other subslice.
     pub(super) fn establish_view_subslice(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } = operation
@@ -572,6 +599,7 @@ impl OperationFrame<'_, '_> {
         };
         let result_type = lookup_type_id(self.type_ids, &result.type_identity)?;
         let storage = super::super::view_ranges::storage(
+            identities,
             self.checked,
             self.state,
             result.statement_index,
@@ -583,6 +611,7 @@ impl OperationFrame<'_, '_> {
             .then(|| allocate_dense(self.next_place).map(place_id))
             .transpose()?;
         let (range_source, establishment) = storage.bind(
+            identities,
             self.checked,
             self.state,
             &bindings,
@@ -599,6 +628,7 @@ impl OperationFrame<'_, '_> {
             self.private_places.push(declaration);
         }
         let declaration = super::super::view_ranges::emit(
+            identities,
             self.checked,
             site,
             range_source,
@@ -718,6 +748,7 @@ impl OperationFrame<'_, '_> {
     /// transported the result.
     pub(super) fn store_structural_field(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_index: u32,
         destination: &CheckedUnitStructuralArgumentPlan,
         opening_binding: Option<u32>,
@@ -735,7 +766,7 @@ impl OperationFrame<'_, '_> {
             })
             .transpose()?;
         require_parameter_window_root(self.parameters, destination, self.evaluation)?;
-        self.emit_window_store(statement_index, destination, opening, repair)
+        self.emit_window_store(identities, statement_index, destination, opening, repair)
     }
 
     /// Resolve the completed owned occurrence independently of whether its
@@ -881,10 +912,13 @@ impl OperationFrame<'_, '_> {
     /// Commit ordered cleanup at its exact continuation while retaining scalar values.
     pub(super) fn continuation_cleanup(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         boundary: &checked_trees::CheckedUnitCleanupBoundary,
         cleanup_actions: &[checked_trees::CheckedNormalCleanupAction],
     ) -> Result<(), LoweringError> {
         let actions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+            identities,
             self.checked,
             cleanup_actions,
             &self
@@ -895,7 +929,7 @@ impl OperationFrame<'_, '_> {
                 .cleanup_control,
             self.structural_types.declarations(),
             self.type_ids,
-            |source, selected_path| {
+            |identities, source, selected_path| {
                 let captured = match boundary {
                     checked_trees::CheckedUnitCleanupBoundary::Replacement {
                         statement_index,
@@ -906,6 +940,7 @@ impl OperationFrame<'_, '_> {
                         && destination.path == old_value.path =>
                     {
                         self.windows.captured_assignment_place(
+                            identities,
                             *statement_index,
                             source,
                             selected_path,
@@ -929,10 +964,7 @@ impl OperationFrame<'_, '_> {
                         Ok((place, value.structural_type))
                     },
                 )?;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    selected_path, root_type, self.structural_types.declarations(),
-                    None, &mut std::iter::empty(), None,
-                )?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, selected_path, root_type, self.structural_types.declarations(), None, &mut std::iter::empty(), None)?;
                 Ok((place, path))
             },
             |cleanup, place, structural_type, path| {
@@ -949,6 +981,7 @@ impl OperationFrame<'_, '_> {
             },
         )?;
         self.evaluation.continue_cleanup_regions(
+            identities,
             self.checked,
             actions,
             self.values,

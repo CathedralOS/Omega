@@ -33,7 +33,11 @@ pub(super) fn replay_provider_executions(
             continue;
         };
         required_executions.insert((
-            boundary.identity.clone(),
+            module
+                .identities
+                .text(boundary.identity)
+                .unwrap_or_default()
+                .to_string(),
             execution.provider_plan_report_identity,
             execution.provider_execution_report_identity,
             execution.provider_execution_report_fingerprint,
@@ -107,10 +111,21 @@ pub(super) fn replay_provider_executions(
             ));
         }
         let execution = foreign.provider_execution;
-        validate_foreign_provider_binding(&boundary.identity, foreign, selected_provider_plans)
-            .map_err(ProviderExecutionReplayError::Shared)?;
+        validate_foreign_provider_binding(
+            module
+                .identities
+                .text(boundary.identity)
+                .unwrap_or_default(),
+            foreign,
+            selected_provider_plans,
+        )
+        .map_err(ProviderExecutionReplayError::Shared)?;
         required_executions.insert((
-            boundary.identity.clone(),
+            module
+                .identities
+                .text(boundary.identity)
+                .unwrap_or_default()
+                .to_string(),
             execution.provider_plan_report_identity,
             execution.provider_execution_report_identity,
             execution.provider_execution_report_fingerprint,

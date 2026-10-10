@@ -1274,17 +1274,14 @@ fn land_anonymous(
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Value, String> {
-    let (literal, warning) =
-        validation::land_anonymous_integer_expression(
-            program,
-            expression,
-            destination,
-            selected_arms,
-            |expression| context.has_builtin(program, expression),
-        )
-        .ok_or(
-            "anonymous constant expression cannot land exactly at the selected integer carrier",
-        )?;
+    let (literal, warning) = validation::land_anonymous_integer_expression(
+        program,
+        expression,
+        destination,
+        selected_arms,
+        |expression| context.has_builtin(program, expression),
+    )
+    .ok_or("anonymous constant expression cannot land exactly at the selected integer carrier")?;
     if let Some(warning) = warning
         && !warnings.contains(&warning)
     {

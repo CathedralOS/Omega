@@ -10,6 +10,7 @@ use super::{
     PreparedScalarQualifications, QualifiedScalarType, ScalarType, storage, unsupported,
 };
 pub(crate) fn computation_value_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
     root: Computation,
@@ -17,16 +18,18 @@ pub(crate) fn computation_value_type(
     source_types: &[QualifiedScalarType],
 ) -> Result<QualifiedScalarType, LoweringError> {
     value_type(
+        identities,
         checked,
         qualifications,
         root,
         bindings,
-        source_types,
+        &mut Vec::new(),
         &mut Vec::new(),
     )
 }
 
 fn value_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
     handle: Computation,
@@ -53,13 +56,14 @@ fn value_type(
             ..
         } => qualifications.scalar_state_types(checked, *state)?.1,
         CheckedScalarComputationKind::Value(expression) => bindings
-            .expression(&checked.facts.proven_scalar_indexes, expression)?
+            .expression(identities, &checked.facts.proven_scalar_indexes, expression)?
             .value_type(source_types)?,
         CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
             // The conversion result is a bare fixed-integer carrier; the
             // Boolean operand must be unqualified, matching Select's
             // condition convention.
             if value_type(
+                identities,
                 checked,
                 qualifications,
                 *operand,
@@ -85,6 +89,7 @@ fn value_type(
             ..
         } => {
             let left = value_type(
+                identities,
                 checked,
                 qualifications,
                 *when_true,
@@ -93,6 +98,7 @@ fn value_type(
                 active,
             )?;
             let right = value_type(
+                identities,
                 checked,
                 qualifications,
                 *when_false,
@@ -115,6 +121,7 @@ fn value_type(
             let mut result = None;
             for arm in arms {
                 let value = value_type(
+                    identities,
                     checked,
                     qualifications,
                     arm.value,

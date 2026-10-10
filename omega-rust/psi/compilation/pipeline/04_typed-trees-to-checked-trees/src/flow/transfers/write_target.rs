@@ -195,8 +195,7 @@ pub(in crate::flow) fn narrow_pinned_selectors(
                 .span_or_empty(semantic.places.get(target_place).segments)
     {
         let root = semantic.places.get(target_place).root;
-        target_place =
-            crate::semantic::places::append_place(semantic, root, &target_segments);
+        target_place = crate::semantic::places::append_place(semantic, root, &target_segments);
     }
     (target_place, stable_value_target)
 }

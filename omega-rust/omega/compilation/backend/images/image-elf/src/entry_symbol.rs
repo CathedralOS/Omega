@@ -5,8 +5,7 @@ use diagnostics::Diagnostic;
 use image::FinalImage;
 
 pub(crate) fn elf_entry_address(image: &FinalImage, text_address: u64) -> Result<u64, Diagnostic> {
-    Ok(text_address
-        + image::final_image_entry_symbol(image, "ELF")?.offset as u64)
+    Ok(text_address + image::final_image_entry_symbol(image, "ELF")?.offset as u64)
 }
 
 #[cfg(test)]

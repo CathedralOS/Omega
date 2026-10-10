@@ -1,6 +1,5 @@
 use crate::identity::encode_fixed_constraint_site_identity;
 
-
 use crate::{AllocationLegalityIdentity, AllocationLegalityPlan, FunctionAllocationLegality};
 
 /// `allocation_legality_identity` from the digests of `plan.functions`, in

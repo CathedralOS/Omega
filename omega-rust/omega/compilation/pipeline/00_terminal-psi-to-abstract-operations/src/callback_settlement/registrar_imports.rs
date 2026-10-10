@@ -48,7 +48,15 @@ pub(crate) fn settle_callback_registrar_imports(
     let declarations = terminal_module
         .boundary_machines
         .iter()
-        .map(|declaration| (declaration.id, declaration.identity.as_str()))
+        .map(|declaration| {
+            (
+                declaration.id,
+                terminal_module
+                    .identities
+                    .text(declaration.identity)
+                    .unwrap_or_default(),
+            )
+        })
         .collect::<std::collections::BTreeMap<_, _>>();
 
     for occurrence in callback_occurrences {

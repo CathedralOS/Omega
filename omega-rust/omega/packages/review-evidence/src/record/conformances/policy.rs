@@ -40,6 +40,4 @@ pub(crate) struct PackagePolicyConformanceRow {
     pub(crate) realization_state: PackageReviewNominalIdentity,
 }
 
-
-impl PackagePolicyConformanceRow {
-}
+impl PackagePolicyConformanceRow {}

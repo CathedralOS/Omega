@@ -15,10 +15,24 @@ fn type_id(raw: u64) -> StructuralTypeId {
     StructuralTypeId::new(raw).unwrap()
 }
 
-fn field(raw: u64, identity: &str, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
+// Fixture field lookups compare by table index; authored names map to fixed
+// positions rather than a shared module table.
+fn idx(name: &str) -> terminal_psi::TerminalIdentityIndex {
+    terminal_psi::TerminalIdentityIndex(match name {
+        "line" => 1,
+        "name" => 2,
+        _ => 0,
+    })
+}
+
+fn field(
+    raw: u64,
+    identity: terminal_psi::TerminalIdentityIndex,
+    field_type: StructuralFieldType,
+) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
         id: StructuralFieldId::new(raw).unwrap(),
-        identity: identity.to_string(),
+        identity,
         relevance: BindingRelevance::Relevant,
         field_type,
         storage: None,
@@ -31,7 +45,7 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
     let declaration = |raw, shape| StructuralTypeDeclaration {
         scalar_restriction: None,
         id: type_id(raw),
-        identity: format!("type{raw}"),
+        identity: terminal_psi::TerminalIdentityIndex(10 + raw as u32),
         shape,
     };
     vec![
@@ -41,7 +55,7 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
                 fields: vec![
                     field(
                         1,
-                        "line",
+                        idx("line"),
                         StructuralFieldType::PredicateByteSequence {
                             carrier: OWNER,
                             predicates: ByteSequencePredicateSet::from_bits(1).unwrap(),
@@ -49,7 +63,7 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
                     ),
                     field(
                         2,
-                        "name",
+                        idx("name"),
                         StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
                             access: Some(StructuralAccess::SharedBorrow),
                         }),
@@ -69,7 +83,7 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
 #[test]
 fn an_owner_field_loan_names_the_owner_carrier() {
     let types = catalog();
-    let line = [StructuralPathSegment::Field("line".to_string())];
+    let line = [StructuralPathSegment::Field(idx("line"))];
     for access in [
         StructuralAccess::MutableBorrow,
         StructuralAccess::SharedBorrow,
@@ -88,7 +102,7 @@ fn an_owner_field_loan_names_the_owner_carrier() {
 #[test]
 fn a_stored_view_field_is_a_descriptor_not_a_referent() {
     let types = catalog();
-    let name = [StructuralPathSegment::Field("name".to_string())];
+    let name = [StructuralPathSegment::Field(idx("name"))];
     assert_eq!(
         borrowed_referent_type(
             types.iter(),

@@ -3,10 +3,7 @@
 //! replaying compiler-owned plans against them.
 
 use crate::plans::plan_identity::Fnv1a;
-use crate::plans::{
-MachineRegister, MachineState, MachineStateSet,
-    RegisterSet,
-};
+use crate::plans::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 
 /// Implementation evidence. This is intentionally not a field of
 /// `BoundaryEntryPlan`: changing allocation or emitted code revalidates the

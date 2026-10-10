@@ -11,12 +11,14 @@ use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
 pub(super) fn lower_partial_affine_unit_cleanup_machine(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     let plan = &partial.machine;
     // The lane's dispatcher joins the ordinary roster for this closure.
     let mut source_mapped = lower_unit_closure(
+        identities,
         checked,
         &UnitClosureRequest {
             plans: UnitPlans::with_staged(&checked.facts.flow.terminal_unit_effects, plan),
@@ -60,14 +62,15 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
             Ok(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
                 StructuralAffineDiscard {
                     place: entry.structural_parameters[parameter_index as usize].place,
-                    path: lower_structural_path(&residual.path)?,
+                    path: lower_structural_path(
+            identities,&residual.path)?,
                     structural_type: terminal_type_ids
                     .iter()
                     .find(|(identity, _)| {
                         identity
-                            == &checked
+                            == &identities.intern(&checked
                                 .type_identity_text(residual.type_identity)
-                                .unwrap_or_default()
+                                .unwrap_or_default())
                     })
                     .map(|(_, id)| *id)
                     .ok_or(LoweringError::Unsupported(

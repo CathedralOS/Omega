@@ -168,7 +168,7 @@ fn storage_path<'types>(
                 StructuralTypeShape::Record { fields, storage },
                 StructuralPathSegment::Field(identity),
             ) => {
-                let field = terminal_psi::live_field_by_identity(fields, identity)?;
+                let field = terminal_psi::live_field_by_identity(fields, *identity)?;
                 // A pending record's absent field recipe is not its logical
                 // scalar width or a declaration-order byte offset.
                 let offset = match storage {
@@ -258,7 +258,7 @@ mod tests {
     ) -> StructuralFieldDeclaration {
         StructuralFieldDeclaration {
             id: StructuralFieldId::new(value).expect("field identity"),
-            identity: "value".into(),
+            identity: terminal_psi::TerminalIdentityIndex(4),
             relevance: BindingRelevance::Relevant,
             field_type,
             storage,
@@ -271,7 +271,7 @@ mod tests {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: identity(1),
-                identity: "signed byte".into(),
+                identity: terminal_psi::TerminalIdentityIndex(3),
                 shape: StructuralTypeShape::Record {
                     storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
                         byte_size: 1,
@@ -290,7 +290,7 @@ mod tests {
             StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: identity(2),
-                identity: "outer".into(),
+                identity: terminal_psi::TerminalIdentityIndex(2),
                 shape: StructuralTypeShape::Record {
                     storage: StructuralRecordStorage::Packed,
                     fields: vec![field(2, StructuralFieldType::Structural(identity(1)), None)],
@@ -303,8 +303,8 @@ mod tests {
                 types.iter(),
                 identity(2),
                 &[
-                    StructuralPathSegment::Field("value".into()),
-                    StructuralPathSegment::Field("value".into())
+                    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(4)),
+                    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(4))
                 ]
             ),
             Some(ReferenceStorageProjection {
@@ -320,7 +320,7 @@ mod tests {
         let types = [StructuralTypeDeclaration {
             scalar_restriction: None,
             id: identity(1),
-            identity: "fragmented".into(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
             shape: StructuralTypeShape::Record {
                 storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
                     byte_size: 1,
@@ -355,7 +355,9 @@ mod tests {
             reference_storage_projection(
                 types.iter(),
                 identity(1),
-                &[StructuralPathSegment::Field("value".into())]
+                &[StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(4)
+                )]
             ),
             None
         );

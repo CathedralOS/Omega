@@ -15,6 +15,7 @@ use checked_trees::CheckedControlResultPlan;
 pub(super) mod projected;
 
 pub(super) fn result(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     entry_state: symbols::SymbolHandle,
     plan: &CheckedControlResultPlan,
@@ -51,6 +52,7 @@ pub(super) fn result(
     });
     let structural_type = lookup_type_id(&catalogs.type_ids, &result.type_identity)?;
     let reference_sources = crate::unit::attached_unit::parameters::lower_reference_result_sources(
+        identities,
         checked,
         reference_sources,
         structural_type,
@@ -72,6 +74,7 @@ pub(super) fn result(
                 .collect::<Result<Vec<_>, _>>()?,
             projected_qualifications:
                 crate::unit::attached_unit::parameters::lower_projected_qualifications(
+                    identities,
                     &result.projected_qualifications,
                     &catalogs.domain_ids,
                     structural_type,

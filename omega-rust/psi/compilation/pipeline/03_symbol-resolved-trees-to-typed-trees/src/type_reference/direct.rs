@@ -191,13 +191,14 @@ pub(super) fn lower_fixed_array_type(
                 // value, not the spelling or a fresh evaluation in caller scope.
                 // Both signature and body type routes retain selection custody
                 // before erasing the constant into an ordinary fixed extent.
-                let declaration = source_trees
-                    .roots
-                    .const_declaration(*symbol)
-                    .ok_or_else(|| {
-                        Diagnostic::error("array length constant has no resolved declaration")
-                            .with_source_span(name.source_span())
-                    })?;
+                let declaration =
+                    source_trees
+                        .roots
+                        .const_declaration(*symbol)
+                        .ok_or_else(|| {
+                            Diagnostic::error("array length constant has no resolved declaration")
+                                .with_source_span(name.source_span())
+                        })?;
                 let value = declaration
                     .evaluated_value
                     .as_ref()

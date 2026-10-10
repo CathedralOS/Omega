@@ -15,7 +15,8 @@ pub(super) fn declaration(
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> MachineEffectDeclaration {
     let row = constraints
-        .catalog().constraint(constraint)
+        .catalog()
+        .constraint(constraint)
         .expect("canonical x86-64 catalog contains its scalar-call constraint");
     let physical = crate::x86_64_physical_register_model_ref();
     let stack_pointer = physical

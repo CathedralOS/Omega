@@ -109,8 +109,7 @@ pub struct PackagePolicyProgressPremise {
     pub(crate) projections: Vec<PackageReviewNominalIdentity>,
     pub(crate) establishment_routes: Vec<PackagePolicyServiceProgressRoute>,
 }
-impl PackagePolicyProgressPremise {
-}
+impl PackagePolicyProgressPremise {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyTermination {

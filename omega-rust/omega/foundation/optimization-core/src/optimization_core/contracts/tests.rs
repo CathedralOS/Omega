@@ -1,9 +1,8 @@
 use super::budget::InvalidOptimizationWorkBudget;
 use super::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, CoreContractDecodeError,
-    OPTIMIZATION_REFERENCE_EXTENT, OptimizationCandidateVerdict,
-    OptimizationReasonCode, OptimizationRuleContract, OptimizationSafetyClass,
-    OptimizationWorkBudget,
+    OPTIMIZATION_REFERENCE_EXTENT, OptimizationCandidateVerdict, OptimizationReasonCode,
+    OptimizationRuleContract, OptimizationSafetyClass, OptimizationWorkBudget,
 };
 use crate::{OptimizationPassIdentity, OptimizationRuleIdentity};
 

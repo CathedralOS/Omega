@@ -20,7 +20,9 @@ pub(crate) fn index_service_catalog(
                 declaration.id,
             ));
         }
-        if declaration.identity.is_empty() || !identities.insert(declaration.identity.as_str()) {
+        if declaration.identity == terminal_psi::TerminalIdentityIndex::ABSENT
+            || !identities.insert(declaration.identity)
+        {
             return Err(OptimizationUnitValidationError::InvalidServiceIdentity(
                 declaration.id,
             ));
@@ -128,8 +130,8 @@ pub(crate) fn validate_root_service_reach(
         .iter()
         .enumerate()
     {
-        if dependency.requirement_identity.is_empty()
-            || !requirement_identities.insert(dependency.requirement_identity.as_str())
+        if dependency.requirement_identity == terminal_psi::TerminalIdentityIndex::ABSENT
+            || !requirement_identities.insert(dependency.requirement_identity)
             || !valid_service_ceiling(&dependency.upper_bound, services)
         {
             return Err(
@@ -170,7 +172,7 @@ pub(crate) fn derive_root_service_reach(
         .root_service_reach
         .installation_dependencies
         .iter()
-        .map(|dependency| (dependency.requirement_identity.as_str(), dependency))
+        .map(|dependency| (dependency.requirement_identity, dependency))
         .collect::<BTreeMap<_, _>>();
     let mut pending = vec![unit.entry];
     let mut visited = BTreeSet::new();
@@ -209,7 +211,7 @@ pub(crate) fn derive_root_service_reach(
                             node: 0,
                         },
                     )?;
-                    if let Some(dependency) = dependencies.get(declaration.identity.as_str()) {
+                    if let Some(dependency) = dependencies.get(&declaration.identity) {
                         // The published ceiling is the boundary's fixed service
                         // united with the installation bound; installation
                         // substitutes only the bound, so the fixed service stays
@@ -230,7 +232,7 @@ pub(crate) fn derive_root_service_reach(
                             );
                         }
                         concrete.extend(declaration.fixed_service_reach.iter().copied());
-                        used_dependencies.insert(declaration.identity.as_str());
+                        used_dependencies.insert(declaration.identity);
                     } else {
                         concrete.extend(declaration.published_service_ceiling.iter().copied());
                     }
@@ -249,7 +251,7 @@ pub(crate) fn derive_root_service_reach(
         .root_service_reach
         .installation_dependencies
         .iter()
-        .filter(|dependency| used_dependencies.contains(dependency.requirement_identity.as_str()))
+        .filter(|dependency| used_dependencies.contains(&dependency.requirement_identity))
         .cloned()
         .collect();
     Ok(terminal_psi::TerminalRootServiceReach {

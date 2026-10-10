@@ -1,13 +1,7 @@
 use super::{
-    bundle::IdentityBundleDecodeError,
-    rules_and_facts::DuplicateOptimizationRuleIdentity,
-};
-use super::{
-    FunctionFragmentObjectContainerManifestIdentity,
-    FunctionFragmentTextSectionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, IDENTITY_WIDTH,
-    IdentityDecodeError, OptimizationCandidateIdentity,
-    OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
+    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, IDENTITY_WIDTH, IdentityDecodeError,
+    OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationDecisionSchemaIdentity, OptimizationDecisionTargetIdentity,
     OptimizationIdentityBundle, OptimizationIdentityBundleIdentity, OptimizationPassIdentity,
     OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationUnitIdentity,
@@ -22,6 +16,9 @@ use super::{
     RelocationFreeObjectPlanIdentity, ScalarConstantFactIdentity,
     SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
     TerminalRelocationFreeTextSectionIdentity, TransformationLedgerIdentity,
+};
+use super::{
+    bundle::IdentityBundleDecodeError, rules_and_facts::DuplicateOptimizationRuleIdentity,
 };
 use crate::{Optimization, OptimizationSelections};
 

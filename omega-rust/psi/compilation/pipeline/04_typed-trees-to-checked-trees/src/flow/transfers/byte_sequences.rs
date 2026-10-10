@@ -152,7 +152,10 @@ fn value_proves_predicate(
             return false;
         }
         match fact.payload {
-            facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain) => {
+            facts::domain_membership_symbol_and_instance_pattern!(
+                domain_symbol,
+                semantic_domain
+            ) => {
                 // The materialized bytes retain the same primitive predicate
                 // across bounded carriers. This is not carrier/domain identity.
                 index_free_membership(program, domain_symbol, semantic_domain)

@@ -5,8 +5,8 @@
 //! counts produce 0 and read no bytes; equal zero counts produce 1 likewise.
 
 use super::{
-    decode_all, Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    ValidatedAarch64SelectedFormEncoding,
+    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
+    ValidatedAarch64SelectedFormEncoding, decode_all,
 };
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterViewId;
@@ -305,7 +305,6 @@ fn assemble(registers: [u8; 8]) -> Result<Vec<u8>, Aarch64SelectedFormEncodingEr
     Ok(bytes)
 }
 
-
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -412,7 +411,8 @@ mod tests {
             register_model::validate_physical_register_model(aarch64_physical_register_model())
                 .unwrap();
         let catalog = crate::aarch64_register_constraint_catalog(&physical);
-        let row = catalog.constraint(crate::AARCH64_COMPARE_BYTE_SEQUENCES)
+        let row = catalog
+            .constraint(crate::AARCH64_COMPARE_BYTE_SEQUENCES)
             .expect("catalog declares the compare constraint");
         assert_eq!(row.operands.len(), 8);
         for position in 0..4 {

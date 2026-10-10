@@ -1,8 +1,7 @@
 use super::{
-    abi_case_context,
-    Architecture, BTreeSet, EffectRejection, RegisterConstraintKey,
-    baseline_target_register_environment, named_view, produced_effects,
-    scalar_abi_cases, validate_effects,
+    Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
+    baseline_target_register_environment, named_view, produced_effects, scalar_abi_cases,
+    validate_effects,
 };
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -219,7 +218,8 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
                 .constraint(*key)
                 .unwrap_or_else(|| panic!("environment missing selected branch row {key:?}"));
             let declaration = catalog
-                .catalog().declaration(*key)
+                .catalog()
+                .declaration(*key)
                 .unwrap_or_else(|| panic!("effect catalog missing branch declaration {key:?}"));
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::ControlFlow, "{key:?}");

@@ -56,11 +56,9 @@ fn close_family_realizations(
     let module = artifact.semantic_module();
     let mut rows = Vec::new();
     for source in sources {
-        let Some(head) = module
-            .boundary_machines
-            .iter()
-            .find(|boundary| boundary.identity == source.head_identity)
-        else {
+        let Some(head) = module.boundary_machines.iter().find(|boundary| {
+            module.identities.text(boundary.identity) == Some(source.head_identity.as_str())
+        }) else {
             // An unretained source family creates no execution demand.
             continue;
         };
@@ -85,8 +83,16 @@ fn close_family_realizations(
             target: source.target.clone(),
             head: head.id,
             member: member.id,
-            head_identity: head.identity.clone(),
-            member_identity: member.identity.clone(),
+            head_identity: module
+                .identities
+                .text(head.identity)
+                .unwrap_or_default()
+                .to_owned(),
+            member_identity: module
+                .identities
+                .text(member.identity)
+                .unwrap_or_default()
+                .to_owned(),
             selected_requirement_identity: source.selected_requirement_identity.clone(),
             provider_plan_report_identity: source.provider_plan_report_identity,
             provider_plan_digest: source.provider_plan_digest,
@@ -164,6 +170,7 @@ pub fn project_terminal_native_realization_proposal(
                 ),
             &demanded_intrinsics,
             &terminal_module.boundary_machines,
+            &terminal_module.identities,
         )?;
     let callback_occurrences = project_callback_occurrences(
         callback_placements,

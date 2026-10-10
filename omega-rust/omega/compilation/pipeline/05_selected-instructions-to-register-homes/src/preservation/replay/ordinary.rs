@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
-use selected_instructions::{terminator_instruction
-};
+use selected_instructions::terminator_instruction;
 
 use super::{
     super::AllocatedCalleeSavedRequirementError,
     state::{ReplayTraversal, add},
-    writes::{index_homes, scan_instruction}};
+    writes::{index_homes, scan_instruction},
+};
 
 pub(super) fn reconstruct(
     traversal: &mut ReplayTraversal<'_>,
@@ -45,4 +45,3 @@ pub(super) fn reconstruct(
     traversal.finish(function.machine, units);
     Ok(())
 }
-

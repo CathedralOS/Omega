@@ -17,7 +17,9 @@ impl FinalImageSymbolDigest {
 }
 
 pub fn final_image_symbol_digest(image: &FinalImage) -> FinalImageSymbolDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.final-image-symbol-table.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.final-image-symbol-table.sha256.v1\0",
+    );
     digest.byte(match image.target.architecture {
         target::Architecture::Aarch64 => 1,
         target::Architecture::X86_64 => 2,
@@ -52,7 +54,10 @@ pub fn final_image_symbol_digest(image: &FinalImage) -> FinalImageSymbolDigest {
     FinalImageSymbolDigest(digest.finish())
 }
 
-fn digest_handle(digest: &mut crate::digest_encoder::DomainDigestEncoder, handle: FinalImageSymbolHandle) {
+fn digest_handle(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    handle: FinalImageSymbolHandle,
+) {
     digest.byte(u8::from(handle.is_valid()));
     digest.u64(u64::from(handle.arena_index()));
     digest.u64(u64::from(handle.generation()));

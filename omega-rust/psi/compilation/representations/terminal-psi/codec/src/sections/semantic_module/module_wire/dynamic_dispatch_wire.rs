@@ -11,7 +11,7 @@ use crate::sections::semantic_module::structural_place_wire::{
 use terminal_psi::{
     StructuralMultiplicity, TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog,
     TerminalDynamicInterface, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
-    TerminalDynamicTable,
+    TerminalDynamicTable, TerminalIdentityIndex,
 };
 
 pub(super) fn encode_dynamic_dispatch(
@@ -21,15 +21,12 @@ pub(super) fn encode_dynamic_dispatch(
     writer.len("dynamic interfaces", catalog.interfaces.len())?;
     for interface in &catalog.interfaces {
         writer.u32(interface.id);
-        writer.string("dynamic interface identity", &interface.identity)?;
+        writer.u32(interface.identity.0);
         writer.len("dynamic interface slots", interface.slots.len())?;
         for slot in &interface.slots {
             writer.u32(slot.slot);
-            writer.string(
-                "dynamic slot declaring trait",
-                &slot.declaring_trait_identity,
-            )?;
-            writer.string("dynamic slot requirement", &slot.requirement_identity)?;
+            writer.u32(slot.declaring_trait_identity.0);
+            writer.u32(slot.requirement_identity.0);
             writer.strings("dynamic slot family tuple", &slot.family_tuple)?;
             writer.len(
                 "dynamic slot scalar parameters",
@@ -73,10 +70,7 @@ pub(super) fn encode_dynamic_dispatch(
     for table in &catalog.tables {
         writer.u32(table.id);
         writer.u32(table.interface);
-        writer.string(
-            "dynamic table implementation",
-            &table.implementation_identity,
-        )?;
+        writer.u32(table.implementation_identity.0);
         writer.len("dynamic table rows", table.rows.len())?;
         for row in &table.rows {
             match row {
@@ -97,12 +91,12 @@ pub(super) fn decode_dynamic_dispatch(
     let interfaces = decode_counted(reader, |reader| {
         Ok(TerminalDynamicInterface {
             id: reader.u32()?,
-            identity: reader.string("dynamic interface identity")?,
+            identity: TerminalIdentityIndex(reader.u32()?),
             slots: decode_counted(reader, |reader| {
                 Ok(TerminalDynamicSlot {
                     slot: reader.u32()?,
-                    declaring_trait_identity: reader.string("dynamic slot declaring trait")?,
-                    requirement_identity: reader.string("dynamic slot requirement")?,
+                    declaring_trait_identity: TerminalIdentityIndex(reader.u32()?),
+                    requirement_identity: TerminalIdentityIndex(reader.u32()?),
                     family_tuple: reader.strings("dynamic slot family tuple")?,
                     scalar_parameters: decode_counted(reader, decode_scalar_type)?,
                     structural_parameters: decode_counted(reader, |reader| {
@@ -144,7 +138,7 @@ pub(super) fn decode_dynamic_dispatch(
         Ok(TerminalDynamicTable {
             id: reader.u32()?,
             interface: reader.u32()?,
-            implementation_identity: reader.string("dynamic table implementation")?,
+            implementation_identity: TerminalIdentityIndex(reader.u32()?),
             rows: decode_counted(reader, |reader| match reader.u8()? {
                 0 => Ok(None),
                 1 => Ok(Some(reader.id("MachineId")?)),

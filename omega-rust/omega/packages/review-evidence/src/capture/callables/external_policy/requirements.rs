@@ -4,10 +4,7 @@ use crate::capture::{
     api::operators::project_operator_coordinate,
     semantics::declarations::top_level_requirement_identity,
 };
-use crate::record::{
-    PackagePolicyExternalRequirement,
-    PackageReviewExternalBinding,
-};
+use crate::record::{PackagePolicyExternalRequirement, PackageReviewExternalBinding};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::machine::{Machine, SatisfiedDeclaration, TraitConformance};

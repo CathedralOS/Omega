@@ -68,7 +68,6 @@ pub(super) fn call_site_proves_boolean_contract_expression(
     .unwrap_or(false)
 }
 
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn call_site_boolean_contract_expression_value<'program, 'call>(
     program: &'program dyn ::validation::CheckingInput,

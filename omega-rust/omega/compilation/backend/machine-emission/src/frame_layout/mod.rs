@@ -23,13 +23,13 @@ pub use machine_code::target_frame_layout_identity;
 pub use register_environment::FrameAbiPreservationConvention;
 pub use save_storage::{
     FunctionNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveSlot,
-    NonAuthoritativeCalleeSaveSlotId,
-    NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
-    NonAuthoritativeCalleeSaveStoragePolicy,
+    NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageIdentity,
+    NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStoragePolicy,
 };
-pub(crate) use save_storage::{ NonAuthoritativeCalleeSaveStorageError,
-    ValidatedNonAuthoritativeCalleeSaveStorage,
-    stage_non_authoritative_callee_save_storage, validate_non_authoritative_callee_save_storage};
+pub(crate) use save_storage::{
+    NonAuthoritativeCalleeSaveStorageError, ValidatedNonAuthoritativeCalleeSaveStorage,
+    stage_non_authoritative_callee_save_storage, validate_non_authoritative_callee_save_storage,
+};
 pub(crate) use validation::validate_target_frame_layout;
 
 pub(crate) use unwind::{FrameContinuationCustody, frame_unwind_policy};

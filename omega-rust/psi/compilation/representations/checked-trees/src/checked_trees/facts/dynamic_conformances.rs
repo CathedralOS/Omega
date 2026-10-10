@@ -1,7 +1,7 @@
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::type_identity::CallableIdentityId;
+use typed_trees::type_identity::TypeIdentityId;
 
 /// The checked implementation behind one `Impl as dyn Trait<Args>`
 /// conversion: the selector value the conversion produces names exactly this

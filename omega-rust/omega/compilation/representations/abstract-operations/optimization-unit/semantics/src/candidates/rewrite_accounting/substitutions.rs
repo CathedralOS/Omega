@@ -12,7 +12,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
             replace(&mut binding.argument);
         }
     };
-match operation {
+    match operation {
         O::Jump { bindings, .. } => rewrite_bindings(bindings),
         O::Conditional {
             condition,

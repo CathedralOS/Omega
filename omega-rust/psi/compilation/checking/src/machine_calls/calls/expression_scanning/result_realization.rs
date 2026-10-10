@@ -168,11 +168,11 @@ fn boundary_structural_initializer(
     // qualification, reference, or linear-result realization route.
     program.type_multiplicity(local.type_reference) != language_semantics::Multiplicity::Linear
         && crate::has_contents(
-        program,
-        local.type_reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::PlainOwned
-    )
+            program,
+            local.type_reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
+        )
         && initializer_target_is_admitted(
             program,
             machine,
@@ -222,11 +222,11 @@ fn ordinary_structural_result_type(
             crate::structural_result_qualifications(program, reference).is_ok()
         }
         language_semantics::Multiplicity::Affine => crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::PlainOwned
-    ),
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
+        ),
         language_semantics::Multiplicity::Unrestricted => {
             crate::is_closed_primitive_array_type(program, reference)
         }
@@ -578,14 +578,12 @@ pub(super) fn report_void_value_callee(
                     let Some(transition) = statement.as_transition() else {
                         return false;
                     };
-                    transition
-                        .targets()
-                        .any(|handle| {
-                            matches!(
-                                program.statement_table.transition_target(handle),
-                                TransitionTargetNode::Value(_)
-                            )
-                        })
+                    transition.targets().any(|handle| {
+                        matches!(
+                            program.statement_table.transition_target(handle),
+                            TransitionTargetNode::Value(_)
+                        )
+                    })
                 })
     });
     if produces_value {

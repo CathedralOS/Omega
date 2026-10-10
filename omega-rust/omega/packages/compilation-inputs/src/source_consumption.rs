@@ -38,7 +38,6 @@ pub struct ConsumedSourceUnit {
 }
 
 impl ConsumedSourceUnit {
-
     /// Rebuild one retained row from its decoded coordinates. Same shape
     /// contract as [`for_test`](Self::for_test) — persisted projections are
     /// validated on the way in rather than trusted.

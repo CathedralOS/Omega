@@ -36,8 +36,7 @@ pub struct PackageReviewPropositionParameterSignature {
     pub(crate) parameters: Vec<PackageReviewPropositionParameterValue>,
 }
 
-impl PackageReviewPropositionParameterSignature {
-}
+impl PackageReviewPropositionParameterSignature {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PackageReviewPropositionParameterValue {
@@ -46,10 +45,7 @@ pub(crate) struct PackageReviewPropositionParameterValue {
     pub(crate) is_mutable: bool,
 }
 
-impl PackageReviewPropositionParameterValue {
-
-
-}
+impl PackageReviewPropositionParameterValue {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewMachineParameterContract {

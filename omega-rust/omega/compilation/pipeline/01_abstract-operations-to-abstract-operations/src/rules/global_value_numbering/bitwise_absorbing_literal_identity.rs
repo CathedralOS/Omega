@@ -15,12 +15,11 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     BitwiseAbsorbingLiteralIdentityRule,
     exact_total_scalar_identity(
-                b"omega.psi-rule.live-obligation-free-integer-bitwise-absorbing-literal-elimination.v1",
-            ),
+        b"omega.psi-rule.live-obligation-free-integer-bitwise-absorbing-literal-elimination.v1",
+    ),
     propose = propose_total_scalar_identities,
     classify,
 );
-
 
 /// Return the four exact-width absorbing laws in canonical operation and
 /// left-literal/right-literal order. The law operand is also the replacement.

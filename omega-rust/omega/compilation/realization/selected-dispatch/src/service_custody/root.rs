@@ -107,9 +107,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
     }
     let receiver_parameter = context.parameter;
     let owner = context.definition;
-    if checked
-        .normalized_type_identity_text(receiver_parameter.type_reference)
-        != receiver_identity
+    if checked.normalized_type_identity_text(receiver_parameter.type_reference) != receiver_identity
     {
         return Err(vec![Diagnostic::error(
             "selected ProgramEntry receiver identity drifted before Fused establishment",
@@ -258,7 +256,9 @@ pub(crate) fn derive_fused_program_entry_establishments(
                 .structural_types
                 .iter()
                 .map(|plan| {
-                    checked.type_identity_text(plan.identity).unwrap_or_default()
+                    checked
+                        .type_identity_text(plan.identity)
+                        .unwrap_or_default()
                 })
                 .collect::<Vec<_>>()
                 .join(", "),
@@ -300,8 +300,7 @@ pub(crate) fn derive_fused_program_entry_establishments(
             )));
             continue;
         };
-        let carrier_type_identity = checked
-            .normalized_type_identity_text(field.type_reference);
+        let carrier_type_identity = checked.normalized_type_identity_text(field.type_reference);
         if checked
             .type_identity_text(*provider_type_identity)
             .unwrap_or_default()
@@ -528,6 +527,5 @@ fn unconstrained_type_identity(
     {
         type_reference = *base_type;
     }
-    checked
-        .normalized_type_identity_text(type_reference)
+    checked.normalized_type_identity_text(type_reference)
 }

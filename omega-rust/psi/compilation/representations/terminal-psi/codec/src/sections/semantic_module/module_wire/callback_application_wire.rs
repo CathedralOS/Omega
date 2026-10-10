@@ -39,10 +39,12 @@ mod tests {
             requirement: "Hooks::call(u64)".to_owned(),
             published_contract: [3; 32],
             body: terminal_psi::CheckedMachineDeclaration {
-                machine: terminal_psi::NominalDeclarationIdentity::new("package:hook".into())
-                    .expect("machine"),
-                state: terminal_psi::NominalDeclarationIdentity::new("package:hook:entry".into())
-                    .expect("state"),
+                machine: terminal_psi::NominalDeclarationIdentity::new(
+                    terminal_psi::TerminalIdentityIndex(11),
+                ),
+                state: terminal_psi::NominalDeclarationIdentity::new(
+                    terminal_psi::TerminalIdentityIndex(12),
+                ),
                 contract: [5; 32],
                 specialization: None,
             },

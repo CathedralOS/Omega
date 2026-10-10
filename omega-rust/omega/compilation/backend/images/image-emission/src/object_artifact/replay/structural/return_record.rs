@@ -209,7 +209,7 @@ pub(crate) fn validate_structural_return_record(
                         .parameters
                         .iter()
                         .any(|parameter| parameter.place == local.id)
-                    || local_type.identity.is_empty()
+                    || local_type.identity == terminal_psi::TerminalIdentityIndex::ABSENT
                     || !matches!(
                         local_type.shape,
                         terminal_psi::StructuralTypeShape::Record { ref fields, .. } if fields.is_empty()

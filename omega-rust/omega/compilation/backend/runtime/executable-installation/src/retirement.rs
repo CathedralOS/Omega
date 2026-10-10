@@ -4,5 +4,3 @@
 //! `uninstall.rs` is the drain-or-quarantine join, `replacement.rs` the
 //! patch-then-drain join, and `quarantine.rs` the trapping reservation a
 //! drain that cannot complete parks in.
-
-

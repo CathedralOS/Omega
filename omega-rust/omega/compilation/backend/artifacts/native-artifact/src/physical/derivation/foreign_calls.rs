@@ -135,7 +135,9 @@ pub(crate) fn derive_normalized_foreign_child(
     if declaration.completion != completion {
         return Err("normalized foreign invocation changed its completion contract");
     }
-    if *boundary != occurrence.boundary() || declaration.identity != requirement_identity {
+    if *boundary != occurrence.boundary()
+        || module.identities.text(declaration.identity) != Some(requirement_identity)
+    {
         return Ok(None);
     }
 

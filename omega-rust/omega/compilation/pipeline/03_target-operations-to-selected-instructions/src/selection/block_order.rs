@@ -5,7 +5,8 @@ use legalized_operations::{LegalizedScalarFunction, LegalizedScalarTerminator};
 pub(super) fn derive(
     source: &LegalizedScalarFunction,
 ) -> Result<Vec<usize>, SelectedInstructionError> {
-    let entry = source.block_index(source.entry_block)
+    let entry = source
+        .block_index(source.entry_block)
         .ok_or(SelectedInstructionError::custody())?;
     let mut outgoing = Vec::new();
     for block in &source.blocks {
@@ -28,7 +29,8 @@ pub(super) fn derive(
             targets
                 .into_iter()
                 .map(|target| {
-                    source.block_index(target)
+                    source
+                        .block_index(target)
                         .ok_or(SelectedInstructionError::custody())
                 })
                 .collect::<Result<Vec<_>, _>>()?,

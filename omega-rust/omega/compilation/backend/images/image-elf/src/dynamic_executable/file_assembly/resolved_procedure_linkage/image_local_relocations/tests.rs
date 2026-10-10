@@ -170,8 +170,7 @@ use crate::test_support::interpreter;
 
 fn envelope(target: TargetProfile) -> ValidatedElfDynamicFileEnvelope {
     let linkage = crate::test_support::resolved_linkage(callback_image(target), target);
-    let headers =
-        crate::test_support::section_header_table_from_linkage(linkage);
+    let headers = crate::test_support::section_header_table_from_linkage(linkage);
     let payloads = plan_elf_indexed_section_payloads(headers).unwrap();
     let relative = plan_elf_relative_section_payload_layout(payloads).unwrap();
     let load = plan_elf_dynamic_load_layout(relative).unwrap();

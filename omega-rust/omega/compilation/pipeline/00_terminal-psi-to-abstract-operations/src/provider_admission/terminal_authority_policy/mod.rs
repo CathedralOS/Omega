@@ -18,18 +18,18 @@ mod time_host;
 
 pub(crate) use console_host::console_mechanism_row;
 pub(crate) use darwin_clock::darwin_clock_mechanism_row;
-pub use filesystem::{filesystem_host_permission_rows};
-pub(crate) use filesystem::{  filesystem_mechanism_row };
-pub use model::{
-    TerminalAuthorityPolicy};
-pub(crate) use model::{ TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow};
+pub use filesystem::filesystem_host_permission_rows;
+pub(crate) use filesystem::filesystem_mechanism_row;
+pub use model::TerminalAuthorityPolicy;
+pub(crate) use model::{TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow};
 
 pub(crate) use normalized_foreign::{
     normalized_foreign_terminal_mechanism,
-    normalized_foreign_terminal_mechanism_with_callback_materializations};
+    normalized_foreign_terminal_mechanism_with_callback_materializations,
+};
 pub(crate) use syscall::conservative_syscall_terminal_mechanism;
-pub use time_host::{time_host_permission_rows};
-pub(crate) use time_host::{  time_host_mechanism_row };
+pub(crate) use time_host::time_host_mechanism_row;
+pub use time_host::time_host_permission_rows;
 
 use commitment::complete_policy_commitment;
 
@@ -55,4 +55,3 @@ pub fn current_terminal_authority_policy() -> TerminalAuthorityPolicy {
         Vec::new(),
     )
 }
-

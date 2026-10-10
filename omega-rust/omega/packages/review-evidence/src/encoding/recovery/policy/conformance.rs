@@ -1,12 +1,14 @@
 //! Bounded recovery of the complete inert conformance application component.
 
 use super::{
-    Error, identity::{nominal, type_identity},
-    reader::Reader};
+    Error,
+    identity::{nominal, type_identity},
+    reader::Reader,
+};
 use crate::record::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
-    PackagePolicyConformanceRow};
-
+    PackagePolicyConformanceRow,
+};
 
 pub(in crate::encoding::recovery) fn application(
     reader: &mut Reader<'_>,
@@ -25,8 +27,10 @@ pub(in crate::encoding::recovery) fn application(
                 declaring_trait: nominal(reader)?,
                 requirement: nominal(reader)?,
                 realization_machine: nominal(reader)?,
-                realization_state: nominal(reader)?})
-        })?})
+                realization_state: nominal(reader)?,
+            })
+        })?,
+    })
 }
 
 pub(in crate::encoding::recovery) fn const_argument(

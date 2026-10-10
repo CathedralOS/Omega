@@ -146,6 +146,7 @@ impl ResolvedWindowPlace {
     /// memberships are untouched. Geometry alone never establishes a domain.
     fn selected_memberships(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         carrier_path: &[StructuralPathSegment],
     ) -> Result<
         (
@@ -163,7 +164,9 @@ impl ResolvedWindowPlace {
                     "the qualified hole lost its field identity",
                 ));
             };
-            path.push(StructuralPathSegment::Field(identity.spelling()));
+            path.push(StructuralPathSegment::Field(
+                identities.intern(&identity.spelling()),
+            ));
         }
         terminal_psi::StructuralPathQualification::select_restorable(
             &self.qualifications,
@@ -182,6 +185,7 @@ impl ResolvedWindowPlace {
 impl BorrowedWindowLedger {
     pub(crate) fn capture_assignment_destination(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         destination: &CheckedUnitStructuralArgumentPlan,
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
@@ -194,6 +198,7 @@ impl BorrowedWindowLedger {
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         let place = resolve_window_place(
+            identities,
             destination,
             parameters,
             evaluation.evaluation,
@@ -202,10 +207,11 @@ impl BorrowedWindowLedger {
             type_ids,
         )?;
         let indexes = runtime_elements::evaluate_selectors(
+            identities,
             &place.steps,
             evaluation.checked,
-            evaluation.machine,
             evaluation.state,
+            evaluation.machine,
             evaluation.statement_index,
             evaluation.evaluation,
             evaluation.source_value_count,
@@ -223,7 +229,9 @@ impl BorrowedWindowLedger {
             else {
                 return unsupported("captured field destination lost its declaration identity");
             };
-            path.push(StructuralPathSegment::Field(identity.spelling()));
+            path.push(StructuralPathSegment::Field(
+                identities.intern(&identity.spelling()),
+            ));
         }
         self.assignment = Some(CapturedAssignmentDestination {
             statement_index: evaluation.statement_index,
@@ -239,6 +247,7 @@ impl BorrowedWindowLedger {
     /// paths; only the assignment prefix owns runtime selector evaluation.
     pub(crate) fn captured_assignment_place(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_index: u32,
         source: &CheckedUnitStructuralArgumentSourcePlan,
         path: &[CheckedUnitStructuralPathSegment],
@@ -255,6 +264,7 @@ impl BorrowedWindowLedger {
         let mut retained = capture.path.clone();
         retained.extend(
             crate::expression_preparation::bindings::structural_paths::lower_structural_path(
+                identities,
                 &path[capture.destination.path.len()..],
             )?,
         );
@@ -263,6 +273,7 @@ impl BorrowedWindowLedger {
 
     fn evaluated_place(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         plan: &CheckedUnitStructuralArgumentPlan,
         place: &ResolvedWindowPlace,
         evaluation: &mut WindowEvaluation<'_, '_>,
@@ -272,19 +283,23 @@ impl BorrowedWindowLedger {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<(PlaceId, Vec<StructuralPathSegment>), LoweringError> {
-        if let Some((source, mut path)) =
-            self.captured_assignment_place(evaluation.statement_index, &plan.source, &plan.path)?
-        {
+        if let Some((source, mut path)) = self.captured_assignment_place(
+            identities,
+            evaluation.statement_index,
+            &plan.source,
+            &plan.path,
+        )? {
             if place.field.is_some() {
                 path.pop();
             }
             return Ok((source, path));
         }
         let indexes = runtime_elements::evaluate_selectors(
+            identities,
             &place.steps,
             evaluation.checked,
-            evaluation.machine,
             evaluation.state,
+            evaluation.machine,
             evaluation.statement_index,
             evaluation.evaluation,
             evaluation.source_value_count,
@@ -311,6 +326,7 @@ impl BorrowedWindowLedger {
     /// removed value as `result`. Returns the structural result place.
     pub(crate) fn emit_move(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         moved: &CheckedUnitStructuralArgumentPlan,
         result: &CheckedUnitStructuralResultBindingPlan,
         result_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
@@ -326,6 +342,7 @@ impl BorrowedWindowLedger {
         operations: &mut OperationBuffer,
     ) -> Result<PlaceId, LoweringError> {
         let place = resolve_window_place(
+            identities,
             moved,
             parameters,
             evaluation.evaluation,
@@ -346,9 +363,11 @@ impl BorrowedWindowLedger {
             ));
         }
         let (source, path) = self.evaluated_place(
-            moved, &place, evaluation, values, next_value, next_block, next_edge, operations,
+            identities, moved, &place, evaluation, values, next_value, next_block, next_edge,
+            operations,
         )?;
-        let (qualifications, projected_qualifications) = place.selected_memberships(&path)?;
+        let (qualifications, projected_qualifications) =
+            place.selected_memberships(identities, &path)?;
         if let Some(absent) = self.open.iter().find(|absent| {
             absent.source == source && paths_overlap(&absent.checked_path, &place.checked_path)
         }) {
@@ -406,6 +425,7 @@ impl BorrowedWindowLedger {
     /// be a whole owned place of the hole's declared type.
     pub(crate) fn emit_store(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         destination: &CheckedUnitStructuralArgumentPlan,
         opening: Option<PlaceId>,
         value: BorrowedWindowRepairValue,
@@ -420,6 +440,7 @@ impl BorrowedWindowLedger {
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         let place = resolve_window_place(
+            identities,
             destination,
             parameters,
             evaluation.evaluation,
@@ -428,6 +449,7 @@ impl BorrowedWindowLedger {
             type_ids,
         )?;
         let (source, path) = self.evaluated_place(
+            identities,
             destination,
             &place,
             evaluation,
@@ -483,7 +505,7 @@ impl BorrowedWindowLedger {
                 "the repair value's type differs from the type moved out of the place",
             ));
         }
-        let (required, required_projected) = place.selected_memberships(&path)?;
+        let (required, required_projected) = place.selected_memberships(identities, &path)?;
         let (offered, offered_projected) = parameters
             .iter()
             .filter(|parameter| parameter.place == value.place)
@@ -599,6 +621,7 @@ pub(crate) struct WindowEvaluation<'a, 'calls> {
 }
 
 fn resolve_window_place(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     plan: &CheckedUnitStructuralArgumentPlan,
     parameters: &[StructuralParameterDeclaration],
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
@@ -710,8 +733,8 @@ fn resolve_window_place(
             projected_qualifications,
         });
     }
-    let (steps, leaf) =
-        lower_window_path(root_type, &plan.path, structural_types).map_err(|_| {
+    let (steps, leaf) = lower_window_path(identities, root_type, &plan.path, structural_types)
+        .map_err(|_| {
             let reason = if plan
                 .path
                 .iter()

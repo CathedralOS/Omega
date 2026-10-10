@@ -707,13 +707,13 @@ fn case_field_store(
     let _value_state_parameter = source_parameters.get(value_position)?;
 
     let (projected, value_path) = super::calls::projected_argument_path(
-            program,
-            state.symbol,
-            statement_index as usize,
-            &value_place,
-            None,
-            None
-        )?;
+        program,
+        state.symbol,
+        statement_index as usize,
+        &value_place,
+        None,
+        None,
+    )?;
     // A member read below one structural parameter names the copied leaf; the
     // projected type, not the parameter's own type, decides the field match.
     let same_named_type = matches!(
@@ -756,8 +756,7 @@ fn case_field_store(
                 parameter_index: u32::try_from(value_index).ok()?,
             },
             path: value_path,
-            type_identity: super::types::base_type_identity(program, projected, &[],
-        &[])?,
+            type_identity: super::types::base_type_identity(program, projected, &[], &[])?,
             access: value_plan.access,
         }),
     )
@@ -824,12 +823,22 @@ fn case_literal_field_store(
         let identity = declarations
             .iter()
             .find(|declaration| declaration.symbol == *field_symbol)
-            .map(|declaration| checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone()))
+            .map(|declaration| {
+                checked_trees::CheckedMemberIdentity::of_member(
+                    declaration.identity,
+                    declaration.name.clone(),
+                )
+            })
             .or_else(|| {
                 commons
                     .iter()
                     .find(|declaration| declaration.symbol == *field_symbol)
-                    .map(|declaration| checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone()))
+                    .map(|declaration| {
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            declaration.identity,
+                            declaration.name.clone(),
+                        )
+                    })
             })?;
         let field_ordinal = u32::try_from(ordinal).ok()?;
         let (binding, expression) = facts.values.scalar_expressions.bound_expression_at(
@@ -858,9 +867,16 @@ fn case_literal_field_store(
         statement_index,
         checked_trees::CheckedStoreValue::CaseLiteral(checked_trees::CheckedCaseLiteralValuePlan {
             literal: assignment.value,
-            case_identity: checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
-            type_identity: super::types::base_type_identity(program, field.type_reference, &[],
-        &[])?,
+            case_identity: checked_trees::CheckedMemberIdentity::of_member(
+                variant.identity,
+                variant.name.clone(),
+            ),
+            type_identity: super::types::base_type_identity(
+                program,
+                field.type_reference,
+                &[],
+                &[],
+            )?,
             fields,
         }),
     )

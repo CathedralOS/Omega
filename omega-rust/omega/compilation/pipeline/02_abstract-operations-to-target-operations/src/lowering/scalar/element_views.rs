@@ -369,7 +369,7 @@ fn scalar_leaf_offset(
         else {
             return None;
         };
-        let field = terminal_psi::field_by_identity(fields, identity)?;
+        let field = terminal_psi::field_by_identity(fields, *identity)?;
         if field.field_type.scalar_type() == Some(scalar) {
             return parent_offset.checked_add(
                 direct_scalar_field_geometry(parent, field.id, scalar, structural_types)

@@ -20,7 +20,6 @@ psi_rule_contract!(
     classify,
 );
 
-
 /// Return the five saturating neutral laws in canonical tie order.
 ///
 /// For commutative operations the left-identity row precedes the right row.

@@ -254,7 +254,12 @@ fn checked_projection_path(
                 if fields.next().is_some() {
                     return None;
                 }
-                checked_path.push(CheckedSegment::Field(checked_trees::CheckedMemberIdentity::of_member(selected.identity, selected.name.clone())));
+                checked_path.push(CheckedSegment::Field(
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        selected.identity,
+                        selected.name.clone(),
+                    ),
+                ));
                 carrier = selected.type_reference;
             }
             RepresentationSegment::Element(index) => {
@@ -357,7 +362,10 @@ fn recast_projection_path(
             .filter_map(|member| match member {
                 typed_trees::data::DataMember::Field(candidate)
                     if !candidate.relevance.is_erased()
-                        && checked_trees::CheckedMemberIdentity::of_member(candidate.identity, candidate.name.clone()) == *identity =>
+                        && checked_trees::CheckedMemberIdentity::of_member(
+                            candidate.identity,
+                            candidate.name.clone(),
+                        ) == *identity =>
                 {
                     Some(candidate)
                 }

@@ -99,10 +99,7 @@ pub(crate) fn lower_trait_definition(
     }
 
     if let Some(base) = &trait_definition.refines {
-        let base_definition = lowerer
-            .source_trees
-            .roots
-            .trait_definition(base.symbol);
+        let base_definition = lowerer.source_trees.roots.trait_definition(base.symbol);
         let Some(base_definition) = base_definition else {
             return Err(Diagnostic::error(format!(
                 "transparent refinement `{}` base `{}` does not name a trait",

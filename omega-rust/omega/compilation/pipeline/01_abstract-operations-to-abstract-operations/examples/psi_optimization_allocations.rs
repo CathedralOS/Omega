@@ -99,7 +99,9 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
             .expect("check");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed, preparation, &checking)
         .expect("check");
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &mut identities,
         &checked,
         TerminalMachineSelection::Name("measure"),
         &[],

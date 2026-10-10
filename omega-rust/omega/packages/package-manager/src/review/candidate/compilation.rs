@@ -48,8 +48,7 @@ pub(crate) struct CandidateCompilation<'request, 'closure> {
     pub restricted_build_checkpoint: Option<&'request RestrictedBuildCheckpoint>,
 }
 
-impl<'request, 'closure> CandidateCompilation<'request, 'closure> {
-}
+impl<'request, 'closure> CandidateCompilation<'request, 'closure> {}
 
 /// The same candidate review under an explicit [`CandidateCompilation`],
 /// retaining binding-independent source preparation in the caller's store. A

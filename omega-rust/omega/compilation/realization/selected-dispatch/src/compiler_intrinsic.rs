@@ -88,13 +88,11 @@ pub(crate) fn row_execution_identity(
     // boundary operator or a top-level `boundary requirement` machine.
     if matches!(schema, ProviderSchemaDeclaration::BoundaryOperator(_))
         || (matches!(schema, ProviderSchemaDeclaration::BoundaryRequirement(_))
-            && provider_planning::IntrinsicRequirement::by_symbol(
-                checked,
-                requirement_symbol,
-            )
-            .is_some_and(|requirement| {
-                requirement.kind == provider_planning::IntrinsicRequirementKind::TopLevelRequirement
-            }))
+            && provider_planning::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
+                .is_some_and(|requirement| {
+                    requirement.kind
+                        == provider_planning::IntrinsicRequirementKind::TopLevelRequirement
+                }))
     {
         return derive_selected_compiler_intrinsic_execution_identity(
             checked,

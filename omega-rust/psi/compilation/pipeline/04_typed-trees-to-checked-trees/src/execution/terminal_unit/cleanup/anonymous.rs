@@ -118,16 +118,8 @@ fn validate_permissions_at(
                     segments: segments.to_vec(),
                 };
                 let (reference, path) =
-                    projected_argument_path(
-            program,
-            state,
-            statement_index,
-            &place,
-            None,
-            None
-        )?;
-                dropped.push((path, base_type_identity(program, reference, &[],
-        &[])?));
+                    projected_argument_path(program, state, statement_index, &place, None, None)?;
+                dropped.push((path, base_type_identity(program, reference, &[], &[])?));
             }
             _ => return None,
         }
@@ -167,11 +159,11 @@ pub(crate) fn projected_temporary_residuals(
         || argument.path.is_empty()
         || program.type_multiplicity(owner_type) != Multiplicity::Affine
         || !validation::has_contents(
-        program,
-        owner_type,
-        &[],
-        validation::ContentsRequirement::BorrowFree
-    )
+            program,
+            owner_type,
+            &[],
+            validation::ContentsRequirement::BorrowFree,
+        )
         || crate::checks::type_carries_linear_obligation(program, owner_type)
     {
         return None;

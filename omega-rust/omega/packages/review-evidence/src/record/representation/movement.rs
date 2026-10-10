@@ -23,9 +23,7 @@ pub enum PackageReviewSystemVEightbyteClass {
 
 pub type PackageReviewBoundaryCallingPolicy = calling_conventions::CallingPolicy;
 
-
 pub type PackageReviewMachineRegister = calling_conventions::MachineRegister;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewIndirectPointerLocation {
@@ -94,8 +92,8 @@ impl PackageReviewBoundaryValuePlacement {
     }
 }
 
-pub(crate) type PackageReviewOpaqueRepresentationMovementRole = provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationMovementRole;
-
+pub(crate) type PackageReviewOpaqueRepresentationMovementRole =
+    provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationMovementRole;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewOpaqueRepresentationPathElement {

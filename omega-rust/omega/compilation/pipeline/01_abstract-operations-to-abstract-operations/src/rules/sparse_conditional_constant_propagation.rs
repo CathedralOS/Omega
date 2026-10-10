@@ -94,9 +94,8 @@ pub use range_against_range::{
 };
 
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
-    ScalarConstantFactIdentity,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
 use optimization_unit::NodeLocation;
 use semantic_vocabulary::BlockId;
@@ -155,10 +154,14 @@ pub(super) fn constant_evaluation_contract(
     rule_name: &'static [u8],
     safety_class: OptimizationSafetyClass,
 ) -> OptimizationRuleContract {
-    crate::rules::standard_rule_contract(rule_name, SCCP_PASS_NAME, 1,
-                AnalysisSet::new([AnalysisKind::ScalarConstants]),
-                AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
-                safety_class)
+    crate::rules::standard_rule_contract(
+        rule_name,
+        SCCP_PASS_NAME,
+        1,
+        AnalysisSet::new([AnalysisKind::ScalarConstants]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
+        safety_class,
+    )
 }
 
 /// The contract shared by the range-comparison families: proof-certified,
@@ -167,10 +170,14 @@ pub(super) fn range_comparison_contract(
     identity: &'static [u8],
     analyses: AnalysisSet,
 ) -> OptimizationRuleContract {
-    crate::rules::standard_rule_contract(identity, SCCP_PASS_NAME, 1,
-                analyses,
-                AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
-                OptimizationSafetyClass::ProofCertified)
+    crate::rules::standard_rule_contract(
+        identity,
+        SCCP_PASS_NAME,
+        1,
+        analyses,
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
+        OptimizationSafetyClass::ProofCertified,
+    )
 }
 
 pub(super) fn integer_constant(

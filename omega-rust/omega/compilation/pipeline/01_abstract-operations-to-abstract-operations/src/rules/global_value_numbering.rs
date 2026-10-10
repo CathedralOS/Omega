@@ -10,8 +10,8 @@
 
 use std::collections::BTreeMap;
 
-use optimization_core::{AcceptedObligationFactIdentity, 
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
+use optimization_core::{
+    AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
     OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
@@ -23,9 +23,9 @@ use semantic_vocabulary::OperationId;
 use expression_keys::ScalarExpressionRow;
 use semantic_vocabulary::{BlockId, MachineId, ScalarType, ValueId};
 
-use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::EffectSummaryAnalysis;
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::catalog::BuiltInRuleRegistration;
 
 mod bitwise_absorbing_literal_identity;
@@ -91,25 +91,33 @@ pub(super) fn same_block_contract(
     rule_name: &'static [u8],
     safety: OptimizationSafetyClass,
 ) -> OptimizationRuleContract {
-    crate::rules::standard_rule_contract(rule_name, GLOBAL_VALUE_NUMBERING_PASS_NAME, 1,
-                AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-                AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-                safety)
+    crate::rules::standard_rule_contract(
+        rule_name,
+        GLOBAL_VALUE_NUMBERING_PASS_NAME,
+        1,
+        AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+        safety,
+    )
 }
 
 pub(super) fn dominating_contract(
     rule_name: &'static [u8],
     safety: OptimizationSafetyClass,
 ) -> OptimizationRuleContract {
-    crate::rules::standard_rule_contract(rule_name, GLOBAL_VALUE_NUMBERING_PASS_NAME, 1,
-                AnalysisSet::new([
+    crate::rules::standard_rule_contract(
+        rule_name,
+        GLOBAL_VALUE_NUMBERING_PASS_NAME,
+        1,
+        AnalysisSet::new([
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::Dominators,
             AnalysisKind::UseDefinition,
             AnalysisKind::EffectSummaries,
         ]),
-                AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-                safety)
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+        safety,
+    )
 }
 
 pub(super) fn phi_translated_contract(
@@ -481,8 +489,7 @@ pub(super) fn collect_compatible_policy_scalar_rows(
     let mut redundants = Vec::new();
     for block in &function.blocks {
         for (index, node) in block.nodes.iter().enumerate() {
-            let node_index =
-                u32::try_from(index).expect("optimization node index fits u32");
+            let node_index = u32::try_from(index).expect("optimization node index fits u32");
             let location = NodeLocation {
                 machine: function.machine,
                 block: block.id,
@@ -490,13 +497,7 @@ pub(super) fn collect_compatible_policy_scalar_rows(
             };
             if let Some((key, operation, result, scalar_type)) =
                 expression_keys::compatible_policy_scalar_leader(&node.operation)
-                && exact_pure_scalar_effect(
-                    unit,
-                    effects,
-                    function.machine,
-                    block.id,
-                    node_index,
-                )
+                && exact_pure_scalar_effect(unit, effects, function.machine, block.id, node_index)
                 && !function.facts.iter().any(|fact| {
                     matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
                         if *support == operation)
@@ -508,13 +509,7 @@ pub(super) fn collect_compatible_policy_scalar_rows(
                 expression_keys::compatible_policy_scalar_redundant(&node.operation)
                 && let Ok(obligation_fact) =
                     accepted_obligation_fact(unit, function.machine, operation)
-                && exact_pure_scalar_effect(
-                    unit,
-                    effects,
-                    function.machine,
-                    block.id,
-                    node_index,
-                )
+                && exact_pure_scalar_effect(unit, effects, function.machine, block.id, node_index)
             {
                 redundants.push((
                     key,

@@ -79,7 +79,7 @@ pub(super) fn validate_type_shape(
                 );
             }
             require_unique_nonempty_identities(
-                fields.iter().map(|field| field.identity.as_str()),
+                fields.iter().map(|field| field.identity),
                 "structural field identity",
             )?;
             let mut destinations = Vec::new();
@@ -171,7 +171,7 @@ pub(super) fn validate_type_shape(
                     {
                         return malformed("structural field references an unknown structural type");
                     }
-                    StructuralFieldType::Erased { type_identity } if type_identity.is_empty() => {
+                    StructuralFieldType::Erased { type_identity } if type_identity.is_absent() => {
                         return malformed(
                             "opaque structural field type must have a nonempty type identity",
                         );
@@ -204,7 +204,7 @@ pub(super) fn validate_type_shape(
         }
         StructuralTypeShape::Sum { cases } => {
             require_unique_nonempty_identities(
-                cases.iter().map(|case| case.identity.as_str()),
+                cases.iter().map(|case| case.identity),
                 "structural case identity",
             )?;
             if cases.is_empty() {
@@ -212,7 +212,7 @@ pub(super) fn validate_type_shape(
             }
             for case in cases {
                 require_unique_nonempty_identities(
-                    case.fields.iter().map(|field| field.identity.as_str()),
+                    case.fields.iter().map(|field| field.identity),
                     "structural case payload field identity",
                 )?;
                 for field in &case.fields {
@@ -232,7 +232,7 @@ pub(super) fn validate_type_shape(
                             );
                         }
                         StructuralFieldType::Erased { type_identity }
-                            if !field.relevance.is_erased() || type_identity.is_empty() =>
+                            if !field.relevance.is_erased() || type_identity.is_absent() =>
                         {
                             return malformed(
                                 "opaque structural case payload must have erased relevance and a nonempty type identity",
@@ -248,11 +248,11 @@ pub(super) fn validate_type_shape(
         }
         StructuralTypeShape::Mixed { fields, cases } => {
             require_unique_nonempty_identities(
-                fields.iter().map(|field| field.identity.as_str()),
+                fields.iter().map(|field| field.identity),
                 "mixed structural field identity",
             )?;
             require_unique_nonempty_identities(
-                cases.iter().map(|case| case.identity.as_str()),
+                cases.iter().map(|case| case.identity),
                 "mixed structural case identity",
             )?;
             if cases.is_empty() {
@@ -260,7 +260,7 @@ pub(super) fn validate_type_shape(
             }
             for case in cases {
                 require_unique_nonempty_identities(
-                    case.fields.iter().map(|field| field.identity.as_str()),
+                    case.fields.iter().map(|field| field.identity),
                     "mixed structural case payload field identity",
                 )?;
             }
@@ -282,7 +282,7 @@ pub(super) fn validate_type_shape(
                         );
                     }
                     StructuralFieldType::Erased { type_identity }
-                        if !field.relevance.is_erased() || type_identity.is_empty() =>
+                        if !field.relevance.is_erased() || type_identity.is_absent() =>
                     {
                         return malformed(
                             "opaque mixed structural field must have erased relevance and a nonempty type identity",
@@ -581,7 +581,7 @@ mod authored_storage_envelope_tests {
     fn field_geometry_requires_the_record_envelope_in_every_field_roster() {
         let field = StructuralFieldDeclaration {
             id: StructuralFieldId::new(1).expect("field identity"),
-            identity: "value".into(),
+            identity: terminal_psi::TerminalIdentityIndex(291),
             relevance: BindingRelevance::Relevant,
             field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
             storage: Some(AuthoredFieldStorage::Fragmented(
@@ -598,7 +598,7 @@ mod authored_storage_envelope_tests {
         };
         let case = StructuralCaseDeclaration {
             id: StructuralCaseId::new(1).expect("case identity"),
-            identity: "present".into(),
+            identity: terminal_psi::TerminalIdentityIndex(826),
             fields: vec![field.clone()],
         };
         for shape in [
@@ -645,12 +645,12 @@ mod authored_storage_envelope_tests {
             .push(terminal_psi::StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: scalar_type,
-                identity: "integer".into(),
+                identity: terminal_psi::TerminalIdentityIndex(77),
                 shape: StructuralTypeShape::PrimitiveScalar(integer),
             });
         let field = StructuralFieldDeclaration {
             id: StructuralFieldId::new(1).expect("field"),
-            identity: "value".into(),
+            identity: terminal_psi::TerminalIdentityIndex(291),
             relevance: BindingRelevance::Relevant,
             field_type: StructuralFieldType::Structural(scalar_type),
             storage: None,
@@ -683,7 +683,7 @@ mod authored_storage_envelope_tests {
             .push(terminal_psi::StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: element,
-                identity: "element".into(),
+                identity: terminal_psi::TerminalIdentityIndex(599),
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                     semantic_vocabulary::IntegerType::new(
                         semantic_vocabulary::IntegerSign::Signed,
@@ -697,12 +697,12 @@ mod authored_storage_envelope_tests {
             .push(terminal_psi::StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: array,
-                identity: "array".into(),
+                identity: terminal_psi::TerminalIdentityIndex(941),
                 shape: StructuralTypeShape::FixedArray { element, length: 2 },
             });
         let field = StructuralFieldDeclaration {
             id: StructuralFieldId::new(1).expect("field"),
-            identity: "elements".into(),
+            identity: terminal_psi::TerminalIdentityIndex(535),
             relevance: BindingRelevance::Relevant,
             field_type: StructuralFieldType::Structural(array),
             storage: None,

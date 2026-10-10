@@ -56,7 +56,7 @@ fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
     target.graph.structural_types = vec![StructuralTypeDeclaration {
         scalar_restriction: None,
         id: identity,
-        identity: "test::BoundedBytes".into(),
+        identity: terminal_psi::TerminalIdentityIndex(1),
         shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
             capacity: 48,
             access: Some(StructuralAccess::SharedBorrow),
@@ -128,13 +128,13 @@ fn projected_primitive_publication_retains_path_and_requires_native_replay() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: parameter.structural_type,
-            identity: "test::Bytes".into(),
+            identity: terminal_psi::TerminalIdentityIndex(2),
             shape: StructuralTypeShape::FixedArray { element, length: 2 },
         },
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: element,
-            identity: "test::Byte".into(),
+            identity: terminal_psi::TerminalIdentityIndex(3),
             shape: StructuralTypeShape::PrimitiveScalar(scalar),
         },
     ]
@@ -268,14 +268,23 @@ fn runtime_element_field_publication_rebuilds_the_declared_field() {
                 index: selector,
                 obligation: semantic_vocabulary::ObligationId::new(3).unwrap(),
             },
-            Segment::Field(leaf.into()),
+            Segment::Field(terminal_psi::TerminalIdentityIndex(match leaf {
+                "cell" => 2,
+                "byte" => 3,
+                _ => 1,
+            })),
         ]
     };
     let cell = StructuralTypeId::new(2).unwrap();
     let field = |raw, identity: &str, field_type| StructuralFieldDeclaration {
         storage: None,
         id: StructuralFieldId::new(raw).unwrap(),
-        identity: identity.into(),
+        identity: terminal_psi::TerminalIdentityIndex(match identity {
+            "Bytes" | "Cells" => 2,
+            "Byte" | "Cell" => 3,
+            "inner" => 6,
+            _ => 1,
+        }),
         relevance: BindingRelevance::Relevant,
         field_type,
     };
@@ -283,7 +292,7 @@ fn runtime_element_field_publication_rebuilds_the_declared_field() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: parameter.structural_type,
-            identity: "test::Cells".into(),
+            identity: terminal_psi::TerminalIdentityIndex(4),
             shape: StructuralTypeShape::FixedArray {
                 element: cell,
                 length: 2,
@@ -292,7 +301,7 @@ fn runtime_element_field_publication_rebuilds_the_declared_field() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: cell,
-            identity: "test::Cell".into(),
+            identity: terminal_psi::TerminalIdentityIndex(5),
             shape: StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![
@@ -600,7 +609,9 @@ fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
         let source = StructuralArgument {
             place: function.structural_parameters[0].place,
             access,
-            path: vec![terminal_psi::StructuralPathSegment::Field("inner".into())],
+            path: vec![terminal_psi::StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(6),
+            )],
         };
         let field = StructuralFieldId::new(1).unwrap();
         function.operations[0] = AbstractOperation::StructuralByteSequenceFieldLength {
@@ -709,13 +720,13 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: owner.structural_type,
-            identity: "test::Bytes".into(),
+            identity: terminal_psi::TerminalIdentityIndex(2),
             shape: StructuralTypeShape::FixedArray { element, length: 2 },
         },
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: element,
-            identity: "test::Byte".into(),
+            identity: terminal_psi::TerminalIdentityIndex(3),
             shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
         },
     ]
@@ -757,9 +768,9 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
                 boundary,
                 provider: ProviderCandidateConformance {
                     boundary,
-                    requirement_identity: "Factory::produce".into(),
-                    provider_identity: "Provider".into(),
-                    candidate_identity: "Provider::produce".into(),
+                    requirement_identity: terminal_psi::TerminalIdentityIndex(7),
+                    provider_identity: terminal_psi::TerminalIdentityIndex(8),
+                    candidate_identity: terminal_psi::TerminalIdentityIndex(9),
                     candidate: callee,
                     signature: ProviderSignature::empty(),
                     refinement: ProviderRefinement::empty(),
@@ -888,7 +899,9 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
         let source = StructuralArgument {
             place: owner.place,
             access: StructuralAccess::Owned,
-            path: vec![StructuralPathSegment::Field("inner".into())],
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(6),
+            )],
         };
         let field = StructuralFieldId::new(1).unwrap();
         function.operations[0] = AbstractOperation::StructuralByteSequenceFieldLength {
@@ -944,13 +957,13 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
         stored_target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
             scalar_restriction: None,
             id: owner.structural_type,
-            identity: "test::OwnedBuffer".into(),
+            identity: terminal_psi::TerminalIdentityIndex(10),
             shape: terminal_psi::StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
                     storage: None,
                     id: field,
-                    identity: "bytes".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(11),
                     relevance: terminal_psi::BindingRelevance::Relevant,
                     field_type: terminal_psi::StructuralFieldType::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
@@ -1090,7 +1103,7 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
         target.graph.structural_types = vec![StructuralTypeDeclaration {
             scalar_restriction: None,
             id: parameter.structural_type,
-            identity: "test::OwnedBytes".into(),
+            identity: terminal_psi::TerminalIdentityIndex(12),
             shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
                 capacity: 16,
             }),
@@ -1205,7 +1218,9 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
         let destination = StructuralArgument {
             place: function.structural_parameters[0].place,
             access,
-            path: vec![StructuralPathSegment::Field("inner".into())],
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(6),
+            )],
         };
         let field = StructuralFieldId::new(1).unwrap();
         function.operations[0] = AbstractOperation::StructuralByteSequenceFieldStore {
@@ -1324,7 +1339,9 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     let field = StructuralFieldId::new(1).unwrap();
     let length = ValueId::new(1).unwrap();
     let obligation = ObligationId::new(1).unwrap();
-    let holder_path = vec![StructuralPathSegment::Field("holder".into())];
+    let holder_path = vec![StructuralPathSegment::Field(
+        terminal_psi::TerminalIdentityIndex(13),
+    )];
     let result = StructuralOperationResult {
         qualification_establishments: Vec::new(),
         place: carrier,
@@ -1363,13 +1380,13 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: root_type,
-            identity: "test::Root".into(),
+            identity: terminal_psi::TerminalIdentityIndex(14),
             shape: StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
                     storage: None,
                     id: StructuralFieldId::new(2).unwrap(),
-                    identity: "holder".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(13),
                     relevance: BindingRelevance::Relevant,
                     field_type: StructuralFieldType::Structural(holder_type),
                 }],
@@ -1378,7 +1395,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: reference_type,
-            identity: "test::HolderReference".into(),
+            identity: terminal_psi::TerminalIdentityIndex(15),
             shape: StructuralTypeShape::Reference {
                 referent: holder_type,
                 access: StructuralAccess::MutableBorrow,
@@ -1387,13 +1404,13 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: holder_type,
-            identity: "test::Holder".into(),
+            identity: terminal_psi::TerminalIdentityIndex(16),
             shape: StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
                     storage: None,
                     id: field,
-                    identity: "text".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(17),
                     relevance: BindingRelevance::Relevant,
                     field_type: StructuralFieldType::ByteSequence(
                         ByteSequenceCarrier::BoundedOwned { capacity: 16 },
@@ -1478,7 +1495,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     fields.push(StructuralFieldDeclaration {
         storage: None,
         id: StructuralFieldId::new(3).unwrap(),
-        identity: "sibling".into(),
+        identity: terminal_psi::TerminalIdentityIndex(18),
         relevance: BindingRelevance::Relevant,
         field_type: StructuralFieldType::Structural(holder_type),
     });
@@ -1488,7 +1505,9 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         .origins
         .push(target_operations::TargetReferenceOrigin {
             root,
-            path: vec![StructuralPathSegment::Field("sibling".into())],
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(18),
+            )],
         });
     assert!(replacement_retained(
         &function,
@@ -1707,7 +1726,9 @@ fn assert_reference_field_read_retains_carrier(
                     source.access = StructuralAccess::SharedBorrow;
                 } else {
                     source.place = function.structural_parameters[0].place;
-                    source.path = vec![StructuralPathSegment::Field("holder".into())];
+                    source.path = vec![StructuralPathSegment::Field(
+                        terminal_psi::TerminalIdentityIndex(13),
+                    )];
                 }
             }
             "producer" => {
@@ -1801,7 +1822,7 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
     let structural_types = vec![StructuralTypeDeclaration {
         scalar_restriction: None,
         id: structural_type,
-        identity: "test::ReturnedBytes".into(),
+        identity: terminal_psi::TerminalIdentityIndex(19),
         shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
             capacity: 16,
         }),
@@ -1943,7 +1964,9 @@ fn indexed_byte_publication_retains_every_operand_and_writable_access() {
         let destination = StructuralArgument {
             place: function.structural_parameters[0].place,
             access,
-            path: vec![StructuralPathSegment::Field("inner".into())],
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(6),
+            )],
         };
         function.operations[0] = AbstractOperation::StructuralByteSequenceFieldByteStore {
             psi_operation,
@@ -2048,13 +2071,13 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
         target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
             scalar_restriction: None,
             id: function.structural_parameters[0].structural_type,
-            identity: "Root".into(),
+            identity: terminal_psi::TerminalIdentityIndex(20),
             shape: terminal_psi::StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
                     storage: None,
                     id: carrier_field,
-                    identity: "child".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(21),
                     relevance: terminal_psi::BindingRelevance::Relevant,
                     field_type: terminal_psi::StructuralFieldType::Structural(child),
                 }],
@@ -2068,26 +2091,28 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             .push(terminal_psi::StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: child,
-                identity: "Child".into(),
+                identity: terminal_psi::TerminalIdentityIndex(22),
                 shape: terminal_psi::StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
                         storage: None,
                         id: carrier_field,
-                        identity: "value".into(),
+                        identity: terminal_psi::TerminalIdentityIndex(23),
                         relevance: terminal_psi::BindingRelevance::Relevant,
                         field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
                     }],
                 },
             });
         let source = scalar_field_read_source_mut(&mut target.graph, 0);
-        source
-            .path
-            .push(StructuralPathSegment::Field("child".into()));
+        source.path.push(StructuralPathSegment::Field(
+            terminal_psi::TerminalIdentityIndex(21),
+        ));
         assert!(retained(&function, &function.operations[0], &target));
         for path in [
             Vec::new(),
-            vec![StructuralPathSegment::Field("other".into())],
+            vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(24),
+            )],
         ] {
             let mut changed = target.clone();
             let source = scalar_field_read_source_mut(&mut changed.graph, 0);
@@ -2119,13 +2144,13 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
             terminal_psi::StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: function.structural_parameters[0].structural_type,
-                identity: "Root".into(),
+                identity: terminal_psi::TerminalIdentityIndex(20),
                 shape: terminal_psi::StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
                         storage: None,
                         id: maps_field,
-                        identity: "maps".into(),
+                        identity: terminal_psi::TerminalIdentityIndex(25),
                         relevance: terminal_psi::BindingRelevance::Relevant,
                         field_type: terminal_psi::StructuralFieldType::Structural(array),
                     }],
@@ -2134,19 +2159,19 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
             terminal_psi::StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: array,
-                identity: "Maps".into(),
+                identity: terminal_psi::TerminalIdentityIndex(26),
                 shape: terminal_psi::StructuralTypeShape::FixedArray { element, length: 2 },
             },
             terminal_psi::StructuralTypeDeclaration {
                 scalar_restriction: None,
                 id: element,
-                identity: "Map".into(),
+                identity: terminal_psi::TerminalIdentityIndex(27),
                 shape: terminal_psi::StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![terminal_psi::StructuralFieldDeclaration {
                         storage: None,
                         id: leaf,
-                        identity: "value".into(),
+                        identity: terminal_psi::TerminalIdentityIndex(23),
                         relevance: terminal_psi::BindingRelevance::Relevant,
                         field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
                     }],
@@ -2156,7 +2181,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
         .into();
         let source = scalar_field_read_source_mut(&mut target.graph, 0);
         source.path = vec![
-            StructuralPathSegment::Field("maps".into()),
+            StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(25)),
             StructuralPathSegment::FixedIndex(1),
         ];
         assert!(retained(&function, &function.operations[0], &target));
@@ -2164,14 +2189,16 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
         // element projection, in either segment kind.
         for path in [
             Vec::new(),
-            vec![StructuralPathSegment::Field("maps".into())],
+            vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(25),
+            )],
             vec![
-                StructuralPathSegment::Field("maps".into()),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(25)),
                 StructuralPathSegment::FixedIndex(0),
             ],
             vec![
-                StructuralPathSegment::Field("maps".into()),
-                StructuralPathSegment::Field("1".into()),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(25)),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(28)),
             ],
             vec![StructuralPathSegment::FixedIndex(1)],
         ] {
@@ -2223,7 +2250,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
                     storage: None,
                     id: leaf,
-                    identity: "value".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(23),
                     relevance: terminal_psi::BindingRelevance::Relevant,
                     field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
                 }],
@@ -2278,9 +2305,9 @@ fn owned_parameter_field_membership_keeps_exact_value_access_and_graph_replay() 
                     0 => source.access = StructuralAccess::SharedBorrow,
                     1 => changed.graph.parameters[0].access = StructuralAccess::SharedBorrow,
                     2 => source.place = PlaceId::new(2).unwrap(),
-                    3 => source
-                        .path
-                        .push(StructuralPathSegment::Field("nested".into())),
+                    3 => source.path.push(StructuralPathSegment::Field(
+                        terminal_psi::TerminalIdentityIndex(29),
+                    )),
                     4 => result.value = ValueId::new(2).unwrap(),
                     _ => *field = StructuralFieldId::new(2).unwrap(),
                 }
@@ -2392,9 +2419,9 @@ fn structural_field_membership_requires_exact_source_result_type_access_path_and
                 }
                 3 => source.place = PlaceId::new(2).unwrap(),
                 4 => source.access = StructuralAccess::MutableBorrow,
-                5 => source
-                    .path
-                    .push(StructuralPathSegment::Field("nested".to_owned())),
+                5 => source.path.push(StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(29),
+                )),
                 // A record read relabeled as a case payload read would move
                 // selection to an overlay offset the carrier never named.
                 6 => *case = Some(semantic_vocabulary::StructuralCaseId::new(1).unwrap()),

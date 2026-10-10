@@ -12,6 +12,8 @@ use terminal_psi::{StructuralAffineDiscard, StructuralTypeShape, TerminalAffineC
 impl OperationFrame<'_, '_> {
     pub(super) fn retire_selection_complements(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         complements: &[CheckedUnitSelectedReferenceRetirementPlan],
     ) -> Result<(), LoweringError> {
         let mut regions = Vec::new();
@@ -37,6 +39,7 @@ impl OperationFrame<'_, '_> {
                     ))?;
                 let types = self.structural_types.declarations();
                 let path = structural_paths::lower_static_argument_path(
+                    identities,
                     &complement.path,
                     root_type,
                     types,
@@ -63,6 +66,7 @@ impl OperationFrame<'_, '_> {
                         continue;
                     };
                     let (prefix, case) = structural_cases::resolve_at(
+                        identities,
                         types,
                         root_type,
                         &complement.path[..position],
@@ -107,6 +111,7 @@ impl OperationFrame<'_, '_> {
         }
         if !regions.is_empty() {
             self.evaluation.continue_cleanup_regions(
+                identities,
                 self.checked,
                 regions,
                 self.values,

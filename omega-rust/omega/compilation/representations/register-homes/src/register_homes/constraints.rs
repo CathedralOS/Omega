@@ -1,8 +1,9 @@
 //! Allocation candidate policies and exact constraints on physical homes.
 
 pub mod allocator_availability;
-pub use allocator_availability::{ AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan,
-    AllocatorAvailabilityPolicy, RegisterClassAvailability, allocator_availability_identity,
+pub use allocator_availability::{
+    AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
+    RegisterClassAvailability, allocator_availability_identity,
 };
 pub mod allocation_legality;
 pub use allocation_legality::{

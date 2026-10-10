@@ -1078,7 +1078,10 @@ fn terminal_authority_closure_review_identity(
     digest.finish().into()
 }
 
-fn encode_authority_classes(digest: &mut crate::provider_evidence::digest_encoder::DomainDigestEncoder, disposition: &TerminalAuthorityDisposition) {
+fn encode_authority_classes(
+    digest: &mut crate::provider_evidence::digest_encoder::DomainDigestEncoder,
+    disposition: &TerminalAuthorityDisposition,
+) {
     digest.raw(&(disposition.classes().len() as u64).to_be_bytes());
     for class in disposition.classes() {
         digest.byte(class.canonical_tag());

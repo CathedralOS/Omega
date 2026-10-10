@@ -73,7 +73,13 @@ pub(crate) fn build_dynamic_conformance_facts(
 pub(crate) fn normalized_dynamic_row_identities(
     program: &dyn ::validation::CheckingInput,
     row: &typed_trees::trait_definition::ConformanceRow,
-) -> Result<(typed_trees::type_identity::CallableIdentityId, typed_trees::type_identity::CallableIdentityId), diagnostics::Diagnostic> {
+) -> Result<
+    (
+        typed_trees::type_identity::CallableIdentityId,
+        typed_trees::type_identity::CallableIdentityId,
+    ),
+    diagnostics::Diagnostic,
+> {
     let mut declaring_traits = program
         .traits()
         .iter()

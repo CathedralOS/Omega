@@ -39,7 +39,10 @@ pub(crate) fn structural_signature(
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-) -> Option<(Option<typed_trees::type_identity::TypeIdentityId>, Vec<CheckedUnitStructuralParameterPlan>)> {
+) -> Option<(
+    Option<typed_trees::type_identity::TypeIdentityId>,
+    Vec<CheckedUnitStructuralParameterPlan>,
+)> {
     let (attachment, structural, scalar) =
         structural_signature_for_partial_affine(program, shapes, state, binders, false, false)?;
     scalar.is_empty().then_some((attachment, structural))

@@ -1,7 +1,7 @@
 use crate::candidates::provenance_realized_at;
 use optimization_unit::{
-    NodeLocation, OwnershipFrontierSite, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiRealizationSite, ValueDefinition,
+    NodeLocation, OwnershipFrontierSite, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiRealizationSite, ValueDefinition,
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -98,8 +98,18 @@ pub(crate) fn reconstruct_linear_thread_accounting(
     };
     let mut affected = BTreeSet::from([predecessor.block, empty.block]);
     let mut realized = vec![
-        provenance_realized_at(predecessor_site, output_site, &predecessor_edge.provenance, &predecessor_edge.fuel),
-        provenance_realized_at(empty_site, output_site, &empty_edge.provenance, &empty_edge.fuel),
+        provenance_realized_at(
+            predecessor_site,
+            output_site,
+            &predecessor_edge.provenance,
+            &predecessor_edge.fuel,
+        ),
+        provenance_realized_at(
+            empty_site,
+            output_site,
+            &empty_edge.provenance,
+            &empty_edge.fuel,
+        ),
     ];
     effect_audit(
         function,
@@ -142,8 +152,18 @@ pub(crate) fn reconstruct_path_thread_accounting(
                     machine: function.machine,
                     edge: edge.psi_edge,
                 };
-                realized.push(provenance_realized_at(site, site, &edge.provenance, &edge.fuel));
-                realized.push(provenance_realized_at(outgoing_site, site, &outgoing.provenance, &outgoing.fuel));
+                realized.push(provenance_realized_at(
+                    site,
+                    site,
+                    &edge.provenance,
+                    &edge.fuel,
+                ));
+                realized.push(provenance_realized_at(
+                    outgoing_site,
+                    site,
+                    &outgoing.provenance,
+                    &outgoing.fuel,
+                ));
             }
         }
     }
@@ -183,7 +203,12 @@ fn effect_audit(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+                    realized.push(provenance_realized_at(
+                        site,
+                        site,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;

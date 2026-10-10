@@ -6,10 +6,10 @@
 //! in for checking this value immediately before this store.
 
 use super::{
-    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PlaceId, ScalarType, StructuralFieldId, StructuralFieldType,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeId, StructuralTypeShape, ValueId, allocate_dense, obligation_id,
-    terminal_scalar_type, unsupported,
+    CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PlaceId, ScalarType,
+    StructuralFieldId, StructuralFieldType, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueId, allocate_dense,
+    obligation_id, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -137,6 +137,7 @@ pub(crate) fn source_range_decided(
 /// parameter, independently of the ordered source expression. Callers
 /// validate and emit that expression in its current scalar namespace.
 pub(crate) fn lower_structural_scalar_store_place(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     primitive_type: checked_trees::types::PrimitiveType,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &checked_trees::CheckedMemberIdentity,
@@ -145,6 +146,7 @@ pub(crate) fn lower_structural_scalar_store_place(
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
     let scalar_type = terminal_scalar_type(primitive_type)?;
     let (steps, field) = lower_structural_field_place_steps(
+        identities,
         carrier_path,
         field_identity,
         parameter,
@@ -158,6 +160,7 @@ pub(crate) fn lower_structural_scalar_store_place(
 /// caller checks the produced result's multiplicity, qualifications, and
 /// claims — so only the carrier geometry and field type compose here.
 pub(crate) fn lower_structural_scalar_store_local(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     primitive_type: checked_trees::types::PrimitiveType,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &checked_trees::CheckedMemberIdentity,
@@ -165,8 +168,13 @@ pub(crate) fn lower_structural_scalar_store_local(
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
     let scalar_type = terminal_scalar_type(primitive_type)?;
-    let (steps, field) =
-        lower_structural_field_steps(root_type, carrier_path, field_identity, structural_types)?;
+    let (steps, field) = lower_structural_field_steps(
+        identities,
+        root_type,
+        carrier_path,
+        field_identity,
+        structural_types,
+    )?;
     LoweredStructuralScalarStore::at_field(scalar_type, steps, field)
 }
 
@@ -174,6 +182,7 @@ pub(crate) fn lower_structural_scalar_store_local(
 /// borrowed parameter independently of payload type, for routes whose
 /// carrier names no runtime element.
 pub(crate) fn lower_structural_field_place<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &checked_trees::CheckedMemberIdentity,
     parameter: &StructuralParameterDeclaration,
@@ -186,6 +195,7 @@ pub(crate) fn lower_structural_field_place<'a>(
     LoweringError,
 > {
     let (steps, field) = lower_structural_field_place_steps(
+        identities,
         carrier_path,
         field_identity,
         parameter,
@@ -200,6 +210,7 @@ pub(crate) fn lower_structural_field_place<'a>(
 /// Reconstruct the exact carrier and relevant field below an exclusive
 /// borrowed parameter independently of payload type.
 pub(crate) fn lower_structural_field_place_steps<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &checked_trees::CheckedMemberIdentity,
     parameter: &StructuralParameterDeclaration,
@@ -213,6 +224,7 @@ pub(crate) fn lower_structural_field_place_steps<'a>(
 > {
     validate_root_access(parameter)?;
     lower_structural_field_steps(
+        identities,
         parameter.structural_type,
         carrier_path,
         field_identity,
@@ -247,6 +259,7 @@ pub(crate) fn validate_root_access(
 /// root's current ownership or exclusive-borrow authority. The carrier names
 /// no runtime element.
 pub(crate) fn lower_structural_field_path<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     root_type: StructuralTypeId,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &checked_trees::CheckedMemberIdentity,
@@ -258,8 +271,13 @@ pub(crate) fn lower_structural_field_path<'a>(
     ),
     LoweringError,
 > {
-    let (steps, field) =
-        lower_structural_field_steps(root_type, carrier_path, field_identity, structural_types)?;
+    let (steps, field) = lower_structural_field_steps(
+        identities,
+        root_type,
+        carrier_path,
+        field_identity,
+        structural_types,
+    )?;
     Ok((
         crate::emission::runtime_elements::static_segments(steps)?,
         field,
@@ -297,6 +315,7 @@ fn structural_field_root(
 /// windows. The explicit reference crossing describes pointer geometry only;
 /// operation admission and independent replay establish mutation authority.
 pub(crate) fn lower_structural_field_steps<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     root_type: StructuralTypeId,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &checked_trees::CheckedMemberIdentity,
@@ -320,7 +339,9 @@ pub(crate) fn lower_structural_field_steps<'a>(
             else {
                 return unsupported("field path case owner is not a sum");
             };
-            let mut matching = cases.iter().filter(|case| case.identity == identity.spelling());
+            let mut matching = cases
+                .iter()
+                .filter(|case| case.identity == identities.intern(&identity.spelling()));
             let selected = matching
                 .next()
                 .ok_or(LoweringError::Unsupported("field path case is absent"))?;
@@ -352,7 +373,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
                 let carriers = fields
                     .iter()
                     .filter(|field| {
-                        field.identity == identity.spelling()
+                        field.identity == identities.intern(&identity.spelling())
                             && !field.relevance.is_erased()
                             && matches!(field.field_type, StructuralFieldType::Structural(_))
                     })
@@ -364,7 +385,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
                     unreachable!("carrier shape was checked above")
                 };
                 steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
-                    identity.spelling(),
+                    identities.intern(&identity.spelling()),
                 )));
                 nested
             }
@@ -393,7 +414,10 @@ pub(crate) fn lower_structural_field_steps<'a>(
     };
     let matching = fields
         .iter()
-        .filter(|field| field.identity == field_identity.spelling() && !field.relevance.is_erased())
+        .filter(|field| {
+            field.identity == identities.intern(&field_identity.spelling())
+                && !field.relevance.is_erased()
+        })
         .collect::<Vec<_>>();
     let [field] = matching.as_slice() else {
         return unsupported("structural scalar store field is absent or ambiguous");
@@ -455,6 +479,7 @@ pub(crate) enum WindowLeaf<'a> {
 /// the last segment: a field leaf keeps the field-hole spelling Terminal
 /// already admits, and an element leaf selects the element type.
 pub(crate) fn lower_window_path<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     root_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     structural_types: &'a [StructuralTypeDeclaration],
@@ -473,7 +498,8 @@ pub(crate) fn lower_window_path<'a>(
                     // The leaf resolves by identity alone: a scalar leaf is a
                     // window the caller rejects on the leaf's declared type.
                     let mut leafs = fields.iter().filter(|field| {
-                        field.identity == identity.spelling() && !field.relevance.is_erased()
+                        field.identity == identities.intern(&identity.spelling())
+                            && !field.relevance.is_erased()
                     });
                     let leaf = leafs.next();
                     if leaf.is_none() || leafs.next().is_some() {
@@ -482,7 +508,7 @@ pub(crate) fn lower_window_path<'a>(
                     return Ok((steps, WindowLeaf::Field(leaf.expect("leaf checked above"))));
                 }
                 let mut carriers = fields.iter().filter(|field| {
-                    field.identity == identity.spelling()
+                    field.identity == identities.intern(&identity.spelling())
                         && !field.relevance.is_erased()
                         && matches!(field.field_type, StructuralFieldType::Structural(_))
                 });
@@ -492,7 +518,7 @@ pub(crate) fn lower_window_path<'a>(
                 }
                 let carrier = carrier.expect("carrier presence was checked above");
                 steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
-                    identity.spelling(),
+                    identities.intern(&identity.spelling()),
                 )));
                 let Some(nested) = carrier.field_type.as_structural() else {
                     unreachable!("carrier shape was checked above")

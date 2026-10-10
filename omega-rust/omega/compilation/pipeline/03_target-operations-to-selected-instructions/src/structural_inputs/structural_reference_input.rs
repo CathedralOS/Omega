@@ -513,7 +513,7 @@ pub(crate) fn primitive_geometry(
             .shape
             .direct_fields()
         {
-            let field = terminal_psi::live_field_by_identity(fields, identity)?;
+            let field = terminal_psi::live_field_by_identity(fields, *identity)?;
             if field.field_type.scalar_type() == Some(scalar) {
                 return scalar_field_geometry(
                     root,
@@ -581,7 +581,7 @@ fn contiguous_primitive_read_geometry(
     let fields = find_structural_type(declarations, carrier_type)?
         .shape
         .direct_fields()?;
-    let field = terminal_psi::live_field_by_identity(fields, identity)?;
+    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
     // The complete read established eligibility; this suffix independently
     // reconstructs the declared scalar width, field offset and region bounds.
     if field.field_type.scalar_type() != Some(scalar) {
@@ -1111,7 +1111,7 @@ pub(crate) fn stored_view_field_argument(
     else {
         return None;
     };
-    let field = terminal_psi::live_field_by_identity(fields, name)?;
+    let field = terminal_psi::live_field_by_identity(fields, *name)?;
     byte_view_field_descriptor(source.structural_type, prefix, field.id, declarations)
 }
 
@@ -1386,7 +1386,7 @@ pub(crate) fn projected_scalar_codec(
         let fields = find_structural_type(declarations, parent)?
             .shape
             .direct_fields()?;
-        let field = terminal_psi::field_by_identity(fields, identity)?;
+        let field = terminal_psi::field_by_identity(fields, *identity)?;
         return scalar_field_codec(root, prefix, field.id, declarations);
     }
     let (selected, _, _) = runtime_projection(root, path, declarations)?;
@@ -1409,7 +1409,7 @@ pub(crate) fn projected_scalar_fragments<'declarations>(
     let fields = find_structural_type(declarations, parent)?
         .shape
         .direct_fields()?;
-    let field = terminal_psi::field_by_identity(fields, identity)?;
+    let field = terminal_psi::field_by_identity(fields, *identity)?;
     scalar_field_fragments(root, prefix, field.id, declarations)
 }
 
@@ -1766,9 +1766,9 @@ fn project_with_leaf_shape(
     .and_then(|(selected, offset, elements)| elements.is_empty().then_some((selected, offset)))
 }
 
-enum Projection<'a> {
+enum Projection {
     Case(semantic_vocabulary::StructuralCaseId),
-    FieldName(&'a str),
+    FieldName(terminal_psi::TerminalIdentityIndex),
     FixedIndex(u64),
     RuntimeIndex(
         semantic_vocabulary::ValueId,
@@ -1777,10 +1777,10 @@ enum Projection<'a> {
     Unsupported,
 }
 
-impl<'a> From<&'a StructuralPathSegment> for Projection<'a> {
-    fn from(segment: &'a StructuralPathSegment) -> Self {
+impl From<&StructuralPathSegment> for Projection {
+    fn from(segment: &StructuralPathSegment) -> Self {
         match segment {
-            StructuralPathSegment::Field(name) => Self::FieldName(name),
+            StructuralPathSegment::Field(name) => Self::FieldName(*name),
             StructuralPathSegment::Case(case) => Self::Case(*case),
             StructuralPathSegment::FixedIndex(position) => Self::FixedIndex(*position),
             StructuralPathSegment::RuntimeIndex { index, obligation } => {
@@ -1793,7 +1793,7 @@ impl<'a> From<&'a StructuralPathSegment> for Projection<'a> {
 
 fn project_inner<'a>(
     root: StructuralTypeId,
-    path: impl Iterator<Item = Projection<'a>>,
+    path: impl Iterator<Item = Projection>,
     declarations: &[StructuralTypeDeclaration],
     leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
@@ -2112,7 +2112,7 @@ pub(crate) fn element_leaf_projection(
         else {
             return None;
         };
-        let field = terminal_psi::field_by_identity(fields, identity)?;
+        let field = terminal_psi::field_by_identity(fields, *identity)?;
         if field.field_type.scalar_type() == Some(scalar) {
             return scalar_field_geometry(element, prefix, field.id, scalar, declarations, false);
         }

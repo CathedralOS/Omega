@@ -160,7 +160,9 @@ fn parse_carry_policy<'tokens, 'source>(
             }
         }
         input = rest;
-        let Some(next) = input.take_comma()? else { break };
+        let Some(next) = input.take_comma()? else {
+            break;
+        };
         input = next;
         continue;
     }

@@ -400,8 +400,7 @@ pub(super) fn byte_store_collection(
     ) {
         return None;
     }
-    operand(program, machine, state, indexed.collection,
-        None)
+    operand(program, machine, state, indexed.collection, None)
 }
 
 /// `operand` served by the resolver's once-computed whole-program call plans
@@ -678,10 +677,8 @@ pub(super) fn record(
     }
     if unequal {
         let (Some(left), Some(right)) = (
-            operand(program, machine, state, left,
-        None),
-            operand(program, machine, state, right,
-        None),
+            operand(program, machine, state, left, None),
+            operand(program, machine, state, right, None),
         ) else {
             return;
         };
@@ -707,8 +704,7 @@ pub(super) fn record(
     ))
     .chain(equal.then_some((right, right_meaning, left)))
     {
-        let Some(value) = operand(program, machine, state, value_expression,
-        None) else {
+        let Some(value) = operand(program, machine, state, value_expression, None) else {
             continue;
         };
         // An observed ceiling need not have a repeatable identity. Its finite
@@ -718,8 +714,7 @@ pub(super) fn record(
         // retains its exact identity and ordinary write invalidation.
         let carrier_ceiling =
             ceiling_meaning.and_then(|(primitive, _)| integer_carrier_ceiling(primitive));
-        for ceiling in operand(program, machine, state, ceiling_expression,
-        None)
+        for ceiling in operand(program, machine, state, ceiling_expression, None)
             .into_iter()
             .chain(carrier_ceiling)
         {
@@ -767,13 +762,11 @@ pub(super) fn same_place(
     let Some(state) = state else {
         return false;
     };
-    let Some(left) = operand(program, machine, state, left,
-        None) else {
+    let Some(left) = operand(program, machine, state, left, None) else {
         return false;
     };
     matches!(left, Operand::Place { .. })
-        && operand(program, machine, state, right,
-        None).is_some_and(|right| left == right)
+        && operand(program, machine, state, right, None).is_some_and(|right| left == right)
 }
 
 pub(super) fn subtract_floor(
@@ -788,10 +781,8 @@ pub(super) fn subtract_floor(
         return None;
     }
     let state = state?;
-    let left = operand(program, machine, state, left,
-        None)?;
-    let right = operand(program, machine, state, right,
-        None)?;
+    let left = operand(program, machine, state, left, None)?;
+    let right = operand(program, machine, state, right, None)?;
     environment
         .ordered_values
         .iter()
@@ -814,8 +805,8 @@ pub(super) fn excludes_integer_value(
     if environment.ordered_values.is_empty() {
         return false;
     }
-    let Some(subject) = state.and_then(|state| operand(program, machine, state, expression,
-        None)) else {
+    let Some(subject) = state.and_then(|state| operand(program, machine, state, expression, None))
+    else {
         return false;
     };
     environment.ordered_values.iter().any(|relation| {
@@ -854,8 +845,8 @@ pub(super) fn refine_place_interval(
     if environment.ordered_values.is_empty() {
         return interval;
     }
-    let Some(subject) = state.and_then(|state| operand(program, machine, state, expression,
-        None)) else {
+    let Some(subject) = state.and_then(|state| operand(program, machine, state, expression, None))
+    else {
         return interval;
     };
     for relation in &environment.ordered_values {
@@ -914,8 +905,7 @@ pub(super) fn unsigned_increase_fits(
     if low < 0 || high < low {
         return false;
     }
-    let Some(value) = operand(program, machine, state, value,
-        None) else {
+    let Some(value) = operand(program, machine, state, value, None) else {
         return false;
     };
     composed_ceiling_gap(&environment.ordered_values, &value, high, |operand| {

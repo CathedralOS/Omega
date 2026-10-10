@@ -170,7 +170,7 @@ impl ContractExpressionEvaluator<'_, '_> {
                 self.boolean_value_in_owner(resolved, resolved_owner)
                     .map(crate::checks::contracts::prover::ScalarValue::Boolean)
             },
-            &|_, _| true
+            &|_, _| true,
         )?;
         let crate::checks::contracts::prover::ScalarValue::Boolean(value) = value else {
             return None;
@@ -212,10 +212,9 @@ impl ContractExpressionEvaluator<'_, '_> {
                         let owner_symbol = match owner {
                             BooleanExpressionOwner::Caller => self.caller_machine.symbol,
                             BooleanExpressionOwner::Contract => {
-                                let Some((target_machine, _)) = validation::find_state(
-                                    self.program,
-                                    self.target_symbol,
-                                ) else {
+                                let Some((target_machine, _)) =
+                                    validation::find_state(self.program, self.target_symbol)
+                                else {
                                     return false;
                                 };
                                 target_machine.symbol

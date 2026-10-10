@@ -445,7 +445,10 @@ impl BuildMachineFilesystemScope {
     /// or sponsorship alone. Generic sponsors may point at existing host data.
     /// Here every read uses captured membership, and the only write root belongs
     /// to a fresh private session whose shared owner also handles cleanup.
-    pub(crate) fn is_private_snapshot_execution(&self, access: &BuildMachineFilesystemAccess) -> bool {
+    pub(crate) fn is_private_snapshot_execution(
+        &self,
+        access: &BuildMachineFilesystemAccess,
+    ) -> bool {
         let BuildMachineFilesystemAccess::CapturedScoped {
             sponsor: Some(sponsor),
             grants,

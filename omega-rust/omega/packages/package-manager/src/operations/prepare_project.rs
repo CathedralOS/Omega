@@ -51,7 +51,6 @@ pub(super) struct PreparedProjectTarget {
 }
 
 impl PreparedLocalProject {
-
     /// Split for a multi-target route: every requested target's section beside
     /// the shared entry path and source closure.
     pub(super) fn into_target_review_parts(

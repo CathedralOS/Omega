@@ -134,7 +134,7 @@ fn contract_scoped(expression: &CheckedBooleanExpression) -> bool {
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
         CheckedBooleanExpression::Not(operand) => contract_scoped(operand),
-        facts::checked_boolean_triple_pattern!(left,right, ..) => {
+        facts::checked_boolean_triple_pattern!(left, right, ..) => {
             contract_scoped(left) && contract_scoped(right)
         }
         CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {

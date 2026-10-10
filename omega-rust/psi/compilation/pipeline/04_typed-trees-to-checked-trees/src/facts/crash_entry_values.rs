@@ -68,31 +68,24 @@ pub(crate) fn entry_boolean_predicate(
 ) -> Option<checked_trees::CheckedBooleanExpression> {
     let (machine, state) =
         validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
-    crate::values::lower_entry_predicate(
-        program,
-        operators,
-        machine,
-        state,
-        expression,
-        &|leaf| {
-            let place = validation::canonical_place_from_expression_in_state(
-                program,
-                state_symbol,
-                before_statement,
-                leaf,
-            )?;
-            if !admit_subject(&place) {
-                return None;
-            }
-            entry_parameter_place_before_statement(
-                program,
-                machine_symbol,
-                state_symbol,
-                before_statement,
-                &place,
-            )
-        },
-    )
+    crate::values::lower_entry_predicate(program, operators, machine, state, expression, &|leaf| {
+        let place = validation::canonical_place_from_expression_in_state(
+            program,
+            state_symbol,
+            before_statement,
+            leaf,
+        )?;
+        if !admit_subject(&place) {
+            return None;
+        }
+        entry_parameter_place_before_statement(
+            program,
+            machine_symbol,
+            state_symbol,
+            before_statement,
+            &place,
+        )
+    })
 }
 
 pub(super) fn entry_operand(
@@ -201,15 +194,19 @@ pub(super) fn operand_entry_provenance(
                 // hold across its whole storage, and the index must carry
                 // its own entry operand — otherwise the read element is not
                 // the place the leaf names.
-                if literal_projection::entry_value(program,
+                if literal_projection::entry_value(
+                    program,
                     machine_symbol,
                     state_symbol,
                     before_statement,
                     operand_place,
                     0,
-        &mut |_, _, expression| {
-            crate::facts::crash_entry_values::literal_projection::literal_index(program, expression)
-        })
+                    &mut |_, _, expression| {
+                        crate::facts::crash_entry_values::literal_projection::literal_index(
+                            program, expression,
+                        )
+                    },
+                )
                 .is_some()
                 {
                     return true;
@@ -329,15 +326,19 @@ fn entry_operand_projected_at(
                 // projection `entry_operand_at` consults first — the saved
                 // initializer supplies the element's entry operand, over
                 // which the operand's member spine still applies.
-                if let Some(value) = literal_projection::entry_value(program,
+                if let Some(value) = literal_projection::entry_value(
+                    program,
                     machine_symbol,
                     state_symbol,
                     before_statement,
                     operand_place,
                     depth + 1,
-        &mut |_, _, expression| {
-            crate::facts::crash_entry_values::literal_projection::literal_index(program, expression)
-        }) {
+                    &mut |_, _, expression| {
+                        crate::facts::crash_entry_values::literal_projection::literal_index(
+                            program, expression,
+                        )
+                    },
+                ) {
                     return Some(spine.iter().fold(value, |receiver, step| match step {
                         OperandSpineStep::Member(member) => CrashPredicateExpression::Member {
                             receiver: Box::new(receiver),
@@ -567,7 +568,8 @@ fn entry_operand_at(
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Indexed(_) | ExpressionNode::Member(_)
-    ) && let Some(value) = literal_projection::entry_value(program,
+    ) && let Some(value) = literal_projection::entry_value(
+        program,
         machine_symbol,
         state_symbol,
         before_statement,
@@ -575,7 +577,8 @@ fn entry_operand_at(
         depth,
         &mut |_, _, expression| {
             crate::facts::crash_entry_values::literal_projection::literal_index(program, expression)
-        }) {
+        },
+    ) {
         return Some(value);
     }
     match program.expression_table.expression(expression) {
@@ -980,16 +983,18 @@ fn observation_requires_write_scan(
             referee,
             ..
         } => has_contents(
-        program,
-        *referee,
-        &[],
-        validation::ContentsRequirement::StableObservation)
+            program,
+            *referee,
+            &[],
+            validation::ContentsRequirement::StableObservation,
+        )
         .then_some(true),
         _ => has_contents(
-        program,
-        type_reference,
-        &[],
-        validation::ContentsRequirement::StableObservation)
+            program,
+            type_reference,
+            &[],
+            validation::ContentsRequirement::StableObservation,
+        )
         .then_some(false),
     };
     if stable.is_some() || field_path.is_empty() {

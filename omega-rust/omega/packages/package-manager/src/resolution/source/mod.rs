@@ -18,17 +18,17 @@ pub(crate) mod workspace_path;
 pub(crate) use custody::PackageSourceCustody;
 pub(crate) use custody::{CHECKED_SOURCE_CACHE_LANE, COMPILED_REVIEW_CACHE_LANE};
 pub(crate) use error::ResolvePackageSourceError;
+pub(crate) use git::GitPackageSourceRequest;
 pub(crate) use git::resolve_selected_git_package_source_from_pin_in_lanes;
 pub(crate) use git::resolve_selected_git_project_source_from_pin_in_lanes;
 pub(crate) use git::workspace::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
-pub(crate) use git::GitPackageSourceRequest;
 pub(crate) use git::{
     resolve_selected_git_package_source_at_revision_in_lanes,
     resolve_selected_git_project_source_at_revision_in_lanes,
 };
 pub(crate) use local::{
-    bind_staged_external_local_project_source,
-    resolve_external_local_project_source};
+    bind_staged_external_local_project_source, resolve_external_local_project_source,
+};
 pub(crate) use local::{
     capture_external_local_project_source, recover_cached_external_local_source,
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
@@ -84,8 +84,6 @@ macro_rules! package_source_surface_accessors {
         ) -> &[DependencySourceRequest] {
             self.dependency_projections.requests(purpose)
         }
-
-
 
         pub const fn dependency_projections(&self) -> &DependencyProjections {
             &self.dependency_projections

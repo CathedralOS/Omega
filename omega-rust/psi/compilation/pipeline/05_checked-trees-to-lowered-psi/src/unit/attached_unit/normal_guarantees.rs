@@ -14,6 +14,7 @@ use symbols::SymbolHandle;
 use terminal_psi::{TerminalMachineResult, ValueDeclaration};
 
 pub(crate) fn lower(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: SymbolHandle,
     parameters: &[ValueDeclaration],
@@ -81,7 +82,7 @@ pub(crate) fn lower(
         },
         ..*views
     };
-    contracts::clauses(&guarantees, &namespace, erased, &views)?
+    contracts::clauses(identities, &guarantees, &namespace, erased, &views)?
         .into_iter()
         .map(|proposition| {
             Ok(ContractClause {

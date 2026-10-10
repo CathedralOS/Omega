@@ -23,11 +23,7 @@ pub struct PackageReviewTraitParent {
     pub(crate) arguments: Vec<PackageReviewTypeIdentity>,
 }
 
-impl PackageReviewTraitParent {
-
-
-
-}
+impl PackageReviewTraitParent {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageReviewTraitRequirement {

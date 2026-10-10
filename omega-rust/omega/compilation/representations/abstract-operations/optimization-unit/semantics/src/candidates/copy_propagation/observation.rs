@@ -103,7 +103,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         Ok(())
     };
 
-match &mut normalized {
+    match &mut normalized {
         O::Jump {
             target, bindings, ..
         } => normalize_bindings(*target, bindings)?,

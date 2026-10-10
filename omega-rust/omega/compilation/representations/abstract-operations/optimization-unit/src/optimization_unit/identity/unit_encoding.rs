@@ -44,7 +44,7 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
     bytes.slice(&unit.structural_types, encode_structural_type);
     bytes.slice(unit.structural_types.referents(), |bytes, referent| {
         bytes.id(referent.id);
-        bytes.string(&referent.identity);
+        bytes.u32(referent.identity.0);
     });
     bytes.slice(unit.structural_domains.as_ref(), encode_structural_domain);
     bytes.slice(unit.services.as_ref(), encode_service_declaration);
@@ -68,11 +68,11 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
         bytes.bytes(b"omega.psi-optimization-dynamic-dispatch.v1\0");
         bytes.slice(&unit.dynamic_dispatch.interfaces, |bytes, interface| {
             bytes.u32(interface.id);
-            bytes.string(&interface.identity);
+            bytes.u32(interface.identity.0);
             bytes.slice(&interface.slots, |bytes, slot| {
                 bytes.u32(slot.slot);
-                bytes.string(&slot.declaring_trait_identity);
-                bytes.string(&slot.requirement_identity);
+                bytes.u32(slot.declaring_trait_identity.0);
+                bytes.u32(slot.requirement_identity.0);
                 bytes.slice(&slot.family_tuple, |bytes, value| bytes.string(value));
                 bytes.slice(&slot.scalar_parameters, |bytes, scalar_type| {
                     encode_scalar_type(bytes, *scalar_type);
@@ -95,7 +95,7 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
         bytes.slice(&unit.dynamic_dispatch.tables, |bytes, table| {
             bytes.u32(table.id);
             bytes.u32(table.interface);
-            bytes.string(&table.implementation_identity);
+            bytes.u32(table.implementation_identity.0);
             bytes.slice(&table.rows, |bytes, machine| {
                 encode_optional(bytes, machine.as_ref(), |bytes, machine| bytes.id(*machine));
             });
@@ -105,14 +105,14 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
 
 fn encode_service_declaration(bytes: &mut CanonicalBytes, service: &ServiceDeclaration) {
     bytes.id(service.id);
-    bytes.string(&service.identity);
+    bytes.u32(service.identity.0);
     encode_ids(bytes, &service.parents);
 }
 
 fn encode_root_service_reach(bytes: &mut CanonicalBytes, reach: &TerminalRootServiceReach) {
     encode_ids(bytes, &reach.concrete);
     bytes.slice(&reach.installation_dependencies, |bytes, dependency| {
-        bytes.string(&dependency.requirement_identity);
+        bytes.u32(dependency.requirement_identity.0);
         encode_ids(bytes, &dependency.upper_bound);
     });
 }

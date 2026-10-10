@@ -11,12 +11,13 @@ pub(crate) mod roles;
 pub(crate) use identity::{AliasName, PackageKey, PackageName};
 
 pub(crate) use dependencies::edit::{
-    plan_dependency_addition_from_source, plan_dependency_replacement_from_source};
-pub use dependencies::{ DependencyPurpose, PackageSelection,
+    plan_dependency_addition_from_source, plan_dependency_replacement_from_source,
 };
 pub(crate) use dependencies::{
     BuildDependencyEditPlan, BuildFileReplacement, DependencyProjectionError,
-    DependencySourceRequest};
+    DependencySourceRequest,
+};
+pub use dependencies::{DependencyPurpose, PackageSelection};
 pub use roles::{
     ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
     PackageDeclaration, WorkspaceDeclaration, WorkspaceMemberPath, extract_build_declaration,

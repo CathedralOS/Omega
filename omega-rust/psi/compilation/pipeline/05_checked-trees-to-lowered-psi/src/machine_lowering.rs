@@ -45,15 +45,17 @@ use crate::unit::attached_unit;
 /// Preserve source custody, install evidence, validate the completed module,
 /// and attach debug companions before returning unsealed Psi.
 pub fn lower_machine(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: TerminalMachineSelection<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<LoweredPsi, LoweringError> {
     let selection = select_terminal_machine(checked, machine)?;
-    let mut lowered = lower_terminal_selection(checked, selection, exact_toolchain_sources)?;
-    boundary_applications::retain(checked, exact_toolchain_sources, &mut lowered)
+    let mut lowered =
+        lower_terminal_selection(identities, checked, selection, exact_toolchain_sources)?;
+    boundary_applications::retain(identities, checked, exact_toolchain_sources, &mut lowered)
         .map_err(LoweringError::Unsupported)?;
-    callback_applications::retain(checked, exact_toolchain_sources, &mut lowered)
+    callback_applications::retain(identities, checked, exact_toolchain_sources, &mut lowered)
         .map_err(LoweringError::Unsupported)?;
     Ok(lowered)
 }
@@ -63,7 +65,10 @@ pub fn lower_machine(
 pub(crate) fn nominal_cleanup_subject(
     checked: &CheckedTrees,
     source: symbols::SymbolHandle,
-    type_ids: &[(typed_trees::type_identity::TypeIdentityId, semantic_vocabulary::StructuralTypeId)],
+    type_ids: &[(
+        typed_trees::type_identity::TypeIdentityId,
+        semantic_vocabulary::StructuralTypeId,
+    )],
 ) -> Result<Option<semantic_vocabulary::StructuralTypeId>, LoweringError> {
     let rendered = type_ids
         .iter()
@@ -77,7 +82,9 @@ pub(crate) fn nominal_cleanup_subject(
     nominal_cleanup_subject_from_types(
         checked,
         source,
-        rendered.iter().map(|(identity, id)| (identity.as_str(), *id)),
+        rendered
+            .iter()
+            .map(|(identity, id)| (identity.as_str(), *id)),
     )
 }
 
@@ -137,10 +144,12 @@ fn retain_nominal_cleanup_roles(
         let expected = nominal_cleanup_subject_from_types(
             checked,
             *source,
-            module
-                .structural_types
-                .iter()
-                .map(|declaration| (declaration.identity.as_str(), declaration.id)),
+            module.structural_types.iter().map(|declaration| {
+                (
+                    module.identities.text(declaration.identity).unwrap_or(""),
+                    declaration.id,
+                )
+            }),
         )?;
         // Nominal ownership survives elision of an unused hook argument; it
         // does not manufacture an implicit receiver or storage declaration.
@@ -151,6 +160,7 @@ fn retain_nominal_cleanup_roles(
 }
 
 fn lower_terminal_selection(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
@@ -159,7 +169,7 @@ fn lower_terminal_selection(
         terminal: mut lowered,
         completion,
         source_machine_ids,
-    } = lower_selected_machine(checked, selection)?;
+    } = lower_selected_machine(identities, checked, selection)?;
     if lowered.semantic_module.target_machine_families.len()
         != crate::unit::attached_unit::target_families::runtime_families(checked)?.len()
     {
@@ -170,6 +180,7 @@ fn lower_terminal_selection(
         .map(|(source, _)| *source)
         .collect::<Vec<_>>();
     declarations::retain(
+        identities,
         checked,
         exact_toolchain_sources,
         &source_machine_ids,
@@ -178,24 +189,28 @@ fn lower_terminal_selection(
     .map_err(LoweringError::Unsupported)?;
     retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)?;
     retain_admitted_reborrow_root_handoffs(
+        identities,
         checked,
         &source_machines,
         &source_machine_ids,
         &mut lowered.semantic_module,
     )?;
     closed_reach_applications::retain_closed_reach_applications(
+        identities,
         checked,
         &source_machine_ids,
         &lowered.source_call_occurrences,
         &mut lowered.semantic_module,
     )?;
     retain_selected_placed_view_inputs(
+        identities,
         checked,
         selection.machine,
         lowered.semantic_module.entry,
         &mut lowered.semantic_module,
     )?;
     reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
+        identities,
         checked,
         selection.machine,
         lowered.semantic_module.entry,
@@ -204,12 +219,14 @@ fn lower_terminal_selection(
         &mut lowered.semantic_module.reborrow_restored_call_uses,
     )?;
     suspension_call_plan::retain_suspension_call_plans(
+        identities,
         checked,
         &source_machines,
         &lowered.source_call_occurrences,
         &mut lowered.semantic_module,
     )?;
     retained_borrow_custody::retain_foreign_borrow_custodies(
+        identities,
         checked,
         &mut lowered.semantic_module,
     )?;
@@ -219,6 +236,7 @@ fn lower_terminal_selection(
     // sources. A crash-qualified use the closure cannot join fails closed
     // here rather than lowering crash-free.
     operation_crash_contracts::retain_operation_crash_contracts(
+        identities,
         checked,
         &source_machines,
         &source_machine_ids,
@@ -234,17 +252,19 @@ fn lower_terminal_selection(
         &lowered.semantic_module,
     )?;
     crate::retention::conformance_applications::lower_closed_conformance_applications(
+        identities,
         checked,
         &source_machines,
         &mut lowered.semantic_module,
     )?;
     crate::unit::dynamic_dispatch::lower_dynamic_dispatch_catalog(
+        identities,
         checked,
         &source_machines,
         &mut lowered.semantic_module,
     )?;
-    retain_float_meanings(checked, &source_machine_ids, &mut lowered)?;
-    lower_and_install_evidence_artifacts(checked, selection.machine, &mut lowered)?;
+    retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
+    lower_and_install_evidence_artifacts(identities, checked, selection.machine, &mut lowered)?;
     // Proof-only quotient correspondence rows join module identity before
     // validation; a nonempty table is then refused by the execution gate below
     // until executable quotient lowering exists.

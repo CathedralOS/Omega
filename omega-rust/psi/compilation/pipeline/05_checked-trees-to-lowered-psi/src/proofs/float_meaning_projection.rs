@@ -176,6 +176,7 @@ pub fn lower_float_meaning_projection(
 /// or a route whose scalar signature does not exactly preserve the source
 /// shape, retains the checked transitional fallback.
 pub(crate) fn resolve_direct_float_source_binding(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine_bindings: &[(symbols::SymbolHandle, MachineId)],
     terminal_machines: &[TerminalMachine],
@@ -307,6 +308,7 @@ pub(crate) fn resolve_direct_float_source_binding(
                 return Err(invalid_source());
             }
             let (root, path, actual) = crate::proofs::crash_routes::lower_structural_member_path(
+                identities,
                 leaf.field.parameter_position,
                 &leaf.field.path,
                 &terminal_machine.structural_parameters,

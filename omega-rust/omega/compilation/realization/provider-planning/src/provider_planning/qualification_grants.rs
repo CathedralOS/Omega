@@ -141,10 +141,7 @@ pub(super) fn validate(
             .copied()
             .filter(|grant| {
                 crate::service_schema::schema_binds_exact_boundary_trait(
-                    crate::ProviderPlanningContext::new(
-                        checked,
-                        source::DependencyScope::Product,
-                    ),
+                    crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
                     &grant.selected_plan.schema,
                     owner,
                 )

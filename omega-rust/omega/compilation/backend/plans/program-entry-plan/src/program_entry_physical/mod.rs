@@ -28,12 +28,11 @@ pub use exact_macos::{
     exact_macos_arm64_physical_contract_package_source_digest,
 };
 pub use exact_macos_x86_64::{
-    MACOS_X86_64_ADDRESS_TYPE_IDENTITY, MACOS_X86_64_I32_TYPE_IDENTITY, exact_macos_x86_64_physical_boundary_entry_plan,
+    MACOS_X86_64_ADDRESS_TYPE_IDENTITY, MACOS_X86_64_I32_TYPE_IDENTITY,
+    exact_macos_x86_64_physical_boundary_entry_plan,
     exact_macos_x86_64_physical_contract_package_source_digest,
 };
-pub use exact_uefi::{
-    exact_uefi_x64_physical_contract_package_source_digest,
-};
+pub use exact_uefi::exact_uefi_x64_physical_contract_package_source_digest;
 pub use exact_windows_x86_64::{
     WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY, WINDOWS_X86_64_U32_TYPE_IDENTITY,
     exact_windows_x86_64_physical_boundary_entry_plan,

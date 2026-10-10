@@ -24,6 +24,7 @@ pub(crate) struct Slot {
 pub(super) use crate::unit::attached_unit::view_ranges::range;
 
 pub(crate) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
@@ -60,22 +61,24 @@ pub(crate) fn prepare(
                 let bytes = range.family
                     == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
                 if let Some(existing) = slots.iter().find(|slot| slot.expression == expression) {
-                    let declaration =
-                        terminal_psi::structural_type_by_identity(
-                    types,
-                    &checked
-                        .type_identity_text(argument.type_identity)
-                        .unwrap_or_default(),
-                )
-                            .ok_or(LoweringError::Unsupported(
-                            "computed range has no structural type namespace",
-                        ))?;
+                    let declaration = terminal_psi::structural_type_by_identity(
+                        types,
+                        identities.intern(
+                            &checked
+                                .type_identity_text(argument.type_identity)
+                                .unwrap_or_default(),
+                        ),
+                    )
+                    .ok_or(LoweringError::Unsupported(
+                        "computed range has no structural type namespace",
+                    ))?;
                     if existing.structural_type != declaration.id || existing.bytes != bytes {
                         return unsupported("computed range occurrence has conflicting types");
                     }
                     continue;
                 }
                 slots.push(reserve(
+                    identities,
                     checked,
                     root.state,
                     root.statement_ordinal,
@@ -90,6 +93,7 @@ pub(crate) fn prepare(
 }
 
 fn reserve(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     statement: u32,
@@ -102,15 +106,17 @@ fn reserve(
     let bytes =
         range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
     let declaration = terminal_psi::structural_type_by_identity(
-                    types,
-                    &checked
-                        .type_identity_text(argument.type_identity)
-                        .unwrap_or_default(),
-                )
-        .ok_or(LoweringError::Unsupported(
-            "computed range has no structural type namespace",
-        ))?;
-    let storage = view_ranges::storage(checked, state, statement, argument, types)?;
+        types,
+        identities.intern(
+            &checked
+                .type_identity_text(argument.type_identity)
+                .unwrap_or_default(),
+        ),
+    )
+    .ok_or(LoweringError::Unsupported(
+        "computed range has no structural type namespace",
+    ))?;
+    let storage = view_ranges::storage(identities, checked, state, statement, argument, types)?;
     let whole_view = storage
         .requires_establishment()
         .then(|| super::super::allocate_dense(next_place).map(super::super::place_id))
@@ -130,6 +136,7 @@ impl super::Expansion<'_> {
     /// temporaries only after the ordinary descriptor operation consumes them.
     pub(super) fn subslice(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: &CheckedUnitStructuralArgumentPlan,
         slot: &Slot,
         input_types: &[super::QualifiedScalarType],
@@ -146,6 +153,7 @@ impl super::Expansion<'_> {
             return unsupported("computed range disagrees with its descriptor reservation");
         }
         let (mut source, establishment) = slot.storage.bind(
+            identities,
             self.checked,
             site.state,
             site.bindings,
@@ -166,7 +174,7 @@ impl super::Expansion<'_> {
             } = segment {
                 for value in std::iter::once(selector).chain(extent.iter_mut()) {
                     let operand = super::Argument::Value(value.clone());
-                    let value_type = self.argument_type(&operand, site, input_types)?;
+                    let value_type = self.argument_type(identities, &operand, site, input_types)?;
                     *value = super::parameter(endpoint_types.len(), value_type);
                     endpoints.push(operand);
                     endpoint_types.push(value_type);
@@ -179,15 +187,18 @@ impl super::Expansion<'_> {
                 continue;
             };
             let argument = match endpoint {
-                checked_trees::CheckedCallScalarArgument::Pure(value) => super::Argument::Value(
-                    site.bindings
-                        .expression(&self.checked.facts.proven_scalar_indexes, &value)?,
-                ),
+                checked_trees::CheckedCallScalarArgument::Pure(value) => {
+                    super::Argument::Value(site.bindings.expression(
+                        identities,
+                        &self.checked.facts.proven_scalar_indexes,
+                        &value,
+                    )?)
+                }
                 checked_trees::CheckedCallScalarArgument::Computation(handle) => {
                     super::Argument::Computation(handle)
                 }
             };
-            let value_type = self.argument_type(&argument, site, input_types)?;
+            let value_type = self.argument_type(identities, &argument, site, input_types)?;
             if value_type.scalar_type != scalar_type {
                 return unsupported("computed range endpoint lost its count type");
             }
@@ -222,7 +233,7 @@ impl super::Expansion<'_> {
             structural_effects: vec![effect],
             terminator: LoweredScalarBranchTerminator::jump(target, super::parameters(input_types)),
         });
-        let entry = self.sequence(&endpoints, input_types, finish, site, active)?;
+        let entry = self.sequence(identities, &endpoints, input_types, finish, site, active)?;
         let Some(establishment) = establishment else {
             return Ok(entry);
         };

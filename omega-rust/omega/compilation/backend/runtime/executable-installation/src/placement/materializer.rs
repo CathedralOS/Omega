@@ -15,10 +15,7 @@ pub(crate) struct MaterializedArtifactBytes {
 }
 
 impl MaterializedArtifactBytes {
-
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
-
 }
-

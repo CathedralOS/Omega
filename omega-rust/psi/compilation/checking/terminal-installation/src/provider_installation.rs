@@ -207,7 +207,8 @@ fn admit_provider_selections(
                 .is_some()
             || !module.provider_candidates.iter().any(|candidate| {
                 candidate.boundary == selection.boundary
-                    && candidate.provider_identity == selection.provider_identity
+                    && module.identities.text(candidate.provider_identity)
+                        == Some(selection.provider_identity.as_str())
                     && candidate.candidate == selection.candidate
             })
         {

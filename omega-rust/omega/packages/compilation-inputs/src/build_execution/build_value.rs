@@ -7,8 +7,7 @@ mod initial;
 mod optimization;
 mod vocabulary;
 
-pub use configuration::{ EvaluatedBuildSettings,
-};
+pub use configuration::EvaluatedBuildSettings;
 pub(super) use vocabulary::{build_reaches_filesystem_facet, is_build_machine};
 
 use super::BuildMachineFilesystemScope;

@@ -170,13 +170,10 @@ pub(crate) fn named_provider_row<'a>(
     let typed = context.typed;
     let definition = named_provider(context, plan)?;
     let mut matching = definition.rows.iter().filter(|entry| {
-        let Some(owner) = typed
-            .trait_definition_by_symbol(entry.declaring_trait)
-        else {
+        let Some(owner) = typed.trait_definition_by_symbol(entry.declaring_trait) else {
             return false;
         };
-        let Some(requirement) = typed
-            .trait_machine_signature_by_symbol(owner, entry.requirement)
+        let Some(requirement) = typed.trait_machine_signature_by_symbol(owner, entry.requirement)
         else {
             return false;
         };
@@ -203,9 +200,7 @@ pub fn provider_row_matches(
         let Some(entry) = named_provider_row(context, plan, row) else {
             return false;
         };
-        let Some(realization) = typed
-            .machine(entry.realization_machine)
-        else {
+        let Some(realization) = typed.machine(entry.realization_machine) else {
             return false;
         };
         let realization_states = typed.machine_states(realization);

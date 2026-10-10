@@ -24,7 +24,9 @@ pub(crate) fn parse_optional_parameters<'tokens, 'source>(
             parameters.push(handle);
             input = rest;
 
-            let Some(next) = input.take_comma()? else { break };
+            let Some(next) = input.take_comma()? else {
+                break;
+            };
 
             input = next;
 

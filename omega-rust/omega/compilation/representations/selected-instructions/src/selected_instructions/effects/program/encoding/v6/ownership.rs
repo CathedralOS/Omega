@@ -97,13 +97,9 @@ fn decode_path(
     let mut path = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {
         path.push(match cursor.byte()? {
-            1 => {
-                let length = cursor.length()?;
-                let bytes = cursor.take(length)?;
-                let name = std::str::from_utf8(bytes)
-                    .map_err(|_| PreAllocationMachineEffectDecodeError::InvalidField)?;
-                terminal_psi::StructuralPathSegment::Field(name.to_owned())
-            }
+            1 => terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(
+                cursor.u32()?,
+            )),
             2 => terminal_psi::StructuralPathSegment::FixedIndex(cursor.u64()?),
             3 => terminal_psi::StructuralPathSegment::Referent,
             4 => terminal_psi::StructuralPathSegment::FixedByteRange {
@@ -148,9 +144,11 @@ mod tests {
         let mut previous_encoding = None;
         for path in [
             Vec::new(),
-            vec![StructuralPathSegment::Field("children".into())],
+            vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(1),
+            )],
             vec![
-                StructuralPathSegment::Field("children".into()),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1)),
                 StructuralPathSegment::FixedIndex(1),
             ],
         ] {
@@ -194,7 +192,7 @@ mod tests {
             place: PlaceId::new(1).unwrap(),
             structural_type: StructuralTypeId::new(2).unwrap(),
             path: vec![
-                StructuralPathSegment::Field("payload".into()),
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1)),
                 StructuralPathSegment::FixedIndex(3),
                 StructuralPathSegment::Referent,
                 StructuralPathSegment::FixedByteRange { start: 4, end: 8 },

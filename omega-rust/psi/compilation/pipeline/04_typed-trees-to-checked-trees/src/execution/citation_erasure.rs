@@ -20,7 +20,8 @@ pub(crate) fn retire_fact_only_citations(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 if validation::is_fact_only_citation(program, statement) {
                     facts.flow.control.retire_calls(

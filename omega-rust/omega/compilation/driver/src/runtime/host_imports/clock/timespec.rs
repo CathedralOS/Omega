@@ -38,7 +38,9 @@ pub(super) fn admit(
     let access_valid = match implementation {
         ClockImplementation::ReadTimespec => parameter.access == StructuralAccess::MutableBorrow,
         ClockImplementation::Nanosleep => matches!(
-            parameter.access,terminal_psi::reading_borrow_pair_pattern!()),
+            parameter.access,
+            terminal_psi::reading_borrow_pair_pattern!()
+        ),
         _ => false,
     };
     if !access_valid

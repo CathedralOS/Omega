@@ -83,10 +83,8 @@ pub fn derive_symbolic_materialization_with_inner_layouts(
     context: MaterializationContext,
     mut resolve: impl FnMut(RelocationTarget) -> Option<u64>,
 ) -> Result<SymbolicMaterializationPlan, MaterializationDiagnostic> {
-    let byte_len = crate::materialization::fixed_layout_byte_len(
-        layout,
-        "symbolic materialization",
-    )?;
+    let byte_len =
+        crate::materialization::fixed_layout_byte_len(layout, "symbolic materialization")?;
     let placement = context
         .placement
         .joined_with_layout(layout.align, byte_len)?;

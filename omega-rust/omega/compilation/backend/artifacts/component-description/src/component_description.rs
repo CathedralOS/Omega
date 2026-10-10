@@ -780,13 +780,23 @@ pub(crate) fn derive_component_inventory(
         let declaration = declarations
             .get(boundary)
             .ok_or(DescribeError::UndeclaredBoundary(*boundary))?;
-        called_requirement_identities.push(declaration.identity.clone());
+        called_requirement_identities.push(
+            module
+                .identities
+                .text(declaration.identity)
+                .unwrap_or_default()
+                .to_string(),
+        );
         for schema in &declaration.program_local_root_introductions {
             custody.push(CustodyConstraint {
                 kind: CustodyKind::ProgramLocalRootIntroduction,
                 identity: format!(
                     "root-introduction:{}:{}",
-                    declaration.identity, schema.argument_index,
+                    module
+                        .identities
+                        .text(declaration.identity)
+                        .unwrap_or_default(),
+                    schema.argument_index,
                 ),
                 evidence: CustodyEvidence::ModuleDerived,
             });
@@ -794,7 +804,13 @@ pub(crate) fn derive_component_inventory(
         for (index, _guarantee) in declaration.content_guarantees.iter().enumerate() {
             custody.push(CustodyConstraint {
                 kind: CustodyKind::BoundaryContentGuarantee,
-                identity: format!("content-guarantee:{}:{index}", declaration.identity),
+                identity: format!(
+                    "content-guarantee:{}:{index}",
+                    module
+                        .identities
+                        .text(declaration.identity)
+                        .unwrap_or_default()
+                ),
                 evidence: CustodyEvidence::ModuleDerived,
             });
         }
@@ -809,7 +825,10 @@ pub(crate) fn derive_component_inventory(
                 "placed-view:{}:{}:{}",
                 input.machine.get(),
                 input.position,
-                input.view_identity,
+                module
+                    .identities
+                    .text(input.view_identity)
+                    .unwrap_or_default(),
             ),
             evidence: CustodyEvidence::ModuleDerived,
         });
@@ -820,7 +839,10 @@ pub(crate) fn derive_component_inventory(
             identity: format!(
                 "reborrow-handoff:{}:{}",
                 handoff.machine.get(),
-                handoff.direct_root_lifetime_identity,
+                module
+                    .identities
+                    .text(handoff.direct_root_lifetime_identity)
+                    .unwrap_or_default(),
             ),
             evidence: CustodyEvidence::ModuleDerived,
         });
@@ -880,7 +902,11 @@ pub(crate) fn derive_component_inventory(
             bound.sort();
             bound.dedup();
             InstallationServiceBound {
-                requirement_identity: dependency.requirement_identity.clone(),
+                requirement_identity: module
+                    .identities
+                    .text(dependency.requirement_identity)
+                    .unwrap_or_default()
+                    .to_string(),
                 bound,
             }
         })
@@ -901,11 +927,25 @@ pub(crate) fn derive_component_inventory(
     for candidate in &module.provider_candidates {
         export_contracts.push(ExportContract {
             identity: requirement_export_identity(
-                &candidate.requirement_identity,
-                &candidate.provider_identity,
-                &candidate.candidate_identity,
+                module
+                    .identities
+                    .text(candidate.requirement_identity)
+                    .unwrap_or_default(),
+                module
+                    .identities
+                    .text(candidate.provider_identity)
+                    .unwrap_or_default(),
+                module
+                    .identities
+                    .text(candidate.candidate_identity)
+                    .unwrap_or_default(),
             ),
-            contract_identity: requirement_contract_identity(&candidate.requirement_identity),
+            contract_identity: requirement_contract_identity(
+                module
+                    .identities
+                    .text(candidate.requirement_identity)
+                    .unwrap_or_default(),
+            ),
         });
     }
     export_contracts.sort();

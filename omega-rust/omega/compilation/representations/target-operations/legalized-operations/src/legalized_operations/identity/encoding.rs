@@ -22,7 +22,6 @@ pub fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
     }
 }
 
-
 pub(super) fn encode_ids(bytes: &mut Vec<u8>, values: impl IntoIterator<Item = u64>) {
     let values = values.into_iter().collect::<Vec<_>>();
     encode_len(bytes, values.len());

@@ -107,7 +107,6 @@ impl Extent {
         self.sharing
     }
 
-
     pub fn split_at(self, lower_length: u64) -> Result<(Self, Self), SplitError> {
         if lower_length == 0 || lower_length >= self.length {
             return Err(SplitError {

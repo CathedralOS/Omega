@@ -98,14 +98,14 @@ pub(crate) fn partial_affine_root_type(
                 result,
                 ..
             }
-            | abstract_operations::establish_record_or_case_pattern!(psi_operation,
-                result, ..) if *psi_operation == producer
-                && result.place == place
-                && result.structural_type == structural_type
-                && result.multiplicity == StructuralMultiplicity::Affine
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty() =>
+            | abstract_operations::establish_record_or_case_pattern!(psi_operation, result, ..)
+                if *psi_operation == producer
+                    && result.place == place
+                    && result.structural_type == structural_type
+                    && result.multiplicity == StructuralMultiplicity::Affine
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty() =>
             {
                 Some(structural_type)
             }

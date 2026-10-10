@@ -144,9 +144,7 @@ pub(crate) fn decode_darwin_read_byte(bytes: &[u8]) -> Option<u32> {
     if bytes.len() != DARWIN_READ_BYTE_LEAF_BYTES {
         return None;
     }
-    let word = |start: usize| -> Option<u32> {
-        crate::codec_bytes::u32_at(bytes, start)
-    };
+    let word = |start: usize| -> Option<u32> { crate::codec_bytes::u32_at(bytes, start) };
     let home = word(5)?;
     let payload = home.checked_add(4)?;
     if !home.is_multiple_of(4)

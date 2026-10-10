@@ -67,8 +67,7 @@ impl<'a> Elaborator<'a> {
                     ))),
                 }
             }
-            ExpressionNode::Binary(binary) if binary.operator.is_arithmetic() =>
-            {
+            ExpressionNode::Binary(binary) if binary.operator.is_arithmetic() => {
                 let binary = *binary;
                 match carrier {
                     ScalarCarrier::Integer => self.integer_operation_term(handle, &binary),

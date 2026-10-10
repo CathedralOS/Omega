@@ -40,7 +40,10 @@ pub(crate) fn encode_terminal_register_home_content(plan: &RegisterHomePlan) -> 
             "register-home identity",
         );
         for assignment in &function.assignments {
-            crate::codec_bytes::push_encoded(&mut bytes, assignment.virtual_register.0.to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                &mut bytes,
+                assignment.virtual_register.0.to_le_bytes(),
+            );
             crate::codec_bytes::push_encoded(&mut bytes, assignment.class.0.to_le_bytes());
             crate::codec_bytes::push_encoded(&mut bytes, assignment.view.0.to_le_bytes());
         }

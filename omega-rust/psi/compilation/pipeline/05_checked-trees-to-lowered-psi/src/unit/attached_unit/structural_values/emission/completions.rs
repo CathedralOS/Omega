@@ -13,17 +13,19 @@ impl Emission<'_, '_, '_> {
     /// the place back — the tail every already-built structural value shares.
     pub(super) fn completed(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         place: PlaceId,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         if let Some(continuation) = continuation {
-            self.complete_value(place, None, continuation)?;
+            self.complete_value(identities, place, None, continuation)?;
         }
         Ok(place)
     }
 
     pub(super) fn complete_value(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         selected: PlaceId,
         projection: Option<&ProjectedMove>,
         continuation: &ValueContinuation,
@@ -103,7 +105,9 @@ impl Emission<'_, '_, '_> {
             return unsupported("owned selection has untransported residual candidates");
         }
         let selected_path = projection
-            .map(|projected| projected.lowered_path(self.type_ids, self.structural_types))
+            .map(|projected| {
+                projected.lowered_path(identities, self.type_ids, self.structural_types)
+            })
             .transpose()?
             .unwrap_or_default();
         structural_arguments.push(StructuralArgument {
@@ -132,10 +136,7 @@ impl Emission<'_, '_, '_> {
                         "projected selection root disagrees with its moved argument",
                     );
                 }
-                let moved = [(
-                    projected.path.as_slice(),
-                    projected.leaf_type_identity,
-                )];
+                let moved = [(projected.path.as_slice(), projected.leaf_type_identity)];
                 super::residual_complement::complement(
                     &self
                         .checked
@@ -152,6 +153,7 @@ impl Emission<'_, '_, '_> {
                     Ok(terminal_psi::StructuralAffineDiscard {
                         place: selected,
                         path: lower_static_argument_path(
+                            identities,
                             &residual.path,
                             lookup_type_id(self.type_ids, &projected.root_type_identity)?,
                             self.structural_types,

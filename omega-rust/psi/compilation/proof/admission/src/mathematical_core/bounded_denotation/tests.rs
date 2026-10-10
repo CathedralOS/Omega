@@ -9,12 +9,12 @@ use semantic_vocabulary::{
 };
 use terminal_psi::PrimitiveJudgment;
 
+use super::test_utilities::denote_via_assumption_premise;
 use super::{
     AcceptedPremise, AcceptedProofRule, BoundedDenotation, BoundedDenotationError, Elaboration,
     ProofError, ProofNode, ProofRule, Proposition, PropositionContext, ScalarTerm, Term,
     denote_bounded_certificate, verify_bounded_certificate,
 };
-use super::test_utilities::denote_via_assumption_premise;
 use crate::mathematical_core::{
     Budget, DEFAULT_CONVERSION_STEPS, certificate_assumption_closure,
     verify_mathematical_certificate,

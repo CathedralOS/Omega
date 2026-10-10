@@ -6,10 +6,10 @@ use super::super::{
 };
 use super::parameters::call_index_selectors;
 use super::{
-    CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError,
-    OperationResult, PlaceId, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, ValueDeclaration, allocate_dense, argument_evaluation,
-    lookup_type_id, lower_checked_crash_route_buckets, lower_structural_arguments,
+    CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, OperationResult,
+    PlaceId, StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeId, ValueDeclaration, allocate_dense, argument_evaluation, lookup_type_id,
+    lower_checked_crash_route_buckets, lower_structural_arguments,
     lower_structural_crash_route_buckets, place_id, primitive_locals, unsupported,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
@@ -85,6 +85,7 @@ impl PreparedCall {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     operation: &CheckedUnitEffectOperationPlan,
     target: Target<'_>,
@@ -131,6 +132,7 @@ pub(super) fn prepare(
         .iter()
         .map(|argument| {
             crate::scalar_lowering::contracts::checked_proof_term(
+                identities,
                 checked,
                 argument,
                 caller_erased_proof_parameters,
@@ -152,9 +154,10 @@ pub(super) fn prepare(
                 return unsupported("erased Unit call actual must be a pure checked expression");
             };
             crate::proofs::crash_routes::checked_scalar_term(
+                identities,
                 expression,
-                caller_scalar_values,
                 caller_erased_scalar_parameters,
+                caller_scalar_values,
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -179,12 +182,14 @@ pub(super) fn prepare(
         call_index_selectors(structural_arguments, evaluated_selectors)?.into_iter();
 
     let claim_transfers = emitted_claim_transfers(
+        identities,
         claim_transfers,
         calls.claims.bindings(),
         target.parameters,
         structural_types,
     )?;
     let terminal_arguments = lower_structural_arguments(
+        identities,
         checked,
         structural_arguments,
         structural_types,
@@ -203,16 +208,18 @@ pub(super) fn prepare(
     )?;
 
     let crash_continuations = prepare_crash_continuations(
+        identities,
         Target { ..target },
         &crate::unit::effective_crash_routes(checked, *target_machine)?,
         &terminal_scalar_values,
         &terminal_arguments,
         structural_types,
-        |argument, _| {
+        |identities, argument, _| {
             if call_byte_places.contains(&argument.place) {
                 Ok(Vec::new())
             } else {
                 structural_crash_route_argument_prefix(
+                    identities,
                     argument,
                     parameters,
                     local_places,
@@ -266,12 +273,14 @@ pub(crate) fn prepare_requirement_obligations(
 /// physical argument prefix; none may lower structural guards as scalar terms.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_crash_continuations(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     target: Target<'_>,
     routes: &[checked_trees::CrashRouteBucket],
     terminal_scalar_values: &[ValueDeclaration],
     terminal_arguments: &[StructuralArgument],
     structural_types: &[StructuralTypeDeclaration],
     mut prefix: impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
         &StructuralArgument,
         usize,
     ) -> Result<
@@ -299,7 +308,7 @@ pub(crate) fn prepare_crash_continuations(
     let mut crash_continuations = {
         let target_routes = routes.to_vec();
         if target.parameters.is_empty() {
-            lower_checked_crash_route_buckets(&target_routes, terminal_scalar_values)?
+            lower_checked_crash_route_buckets(identities, &target_routes, terminal_scalar_values)?
         } else {
             // Only structural crash substitution reads the callee's runtime
             // requirements, instantiated at this call. A callee without
@@ -320,6 +329,7 @@ pub(crate) fn prepare_crash_continuations(
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             lower_structural_crash_route_buckets(
+                identities,
                 &target_routes,
                 terminal_scalar_values,
                 target.predicate_parameters,
@@ -342,7 +352,7 @@ pub(crate) fn prepare_crash_continuations(
                 return Ok(None);
             };
             let argument = &terminal_arguments[index];
-            Ok(Some((argument.place, prefix(argument, index)?)))
+            Ok(Some((argument.place, prefix(identities, argument, index)?)))
         })?;
     }
     Ok(crash_continuations)
@@ -350,6 +360,7 @@ pub(crate) fn prepare_crash_continuations(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_structural(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
@@ -389,6 +400,7 @@ pub(super) fn emit_structural(
             .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
             .collect::<Result<Vec<_>, _>>()?,
         projected_qualifications: super::parameters::lower_projected_qualifications(
+            identities,
             validation::structural_result_projected_qualifications(
                 &checked.typed,
                 checked
@@ -411,6 +423,7 @@ pub(super) fn emit_structural(
         )?,
         claims: crate::emission::claim_bindings::emit_call_result_claims(
             &crate::emission::claim_bindings::prepare_call_result_claims(
+                identities,
                 &custody.result_claims,
                 structural_type,
                 structural_types,

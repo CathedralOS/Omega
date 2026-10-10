@@ -54,7 +54,9 @@ pub(crate) fn producer_closure_digest(
         })
         .collect::<Result<Vec<_>, String>>()?;
     entries.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.2.cmp(&right.2)));
-    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(b"omega.evaluated-binding-producer-closure.sha256.v1\0");
+    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.evaluated-binding-producer-closure.sha256.v1\0",
+    );
     hash_u64(&mut hash, entries.len() as u64);
     for (identity, package, source) in entries {
         hash.bytes(identity.as_bytes());
@@ -94,7 +96,9 @@ fn stable_source_digest(source: &SourceFile) -> Result<[u8; 32], String> {
             ));
         }
     };
-    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(b"omega.evaluated-binding-user-source.sha256.v1\0");
+    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.evaluated-binding-user-source.sha256.v1\0",
+    );
     match source.package_identity {
         Some(package) => {
             hash.byte(1);
@@ -113,7 +117,9 @@ pub(crate) fn evaluation_digest(
     usage: EvaluationUsage,
     value: &BuildTimeValue,
 ) -> EvaluatedBindingEvaluationDigest {
-    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(b"omega.evaluated-binding-evaluation.sha256.v1\0");
+    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.evaluated-binding-evaluation.sha256.v1\0",
+    );
     hash.bytes(target.identity().as_str().as_bytes());
     hash_field(&mut hash, &closure.as_bytes());
     hash.raw(&CURRENT_EVALUATION_SEMANTICS.marker().to_le_bytes());
@@ -130,7 +136,9 @@ pub(crate) fn materialization_digest(
     value: &BuildTimeValue,
     locator: [u8; 32],
 ) -> EvaluatedBindingMaterializationDigest {
-    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(b"omega.evaluated-binding-materialization.sha256.v1\0");
+    let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.evaluated-binding-materialization.sha256.v1\0",
+    );
     hash.raw(&MATERIALIZER_SCHEMA_VERSION.to_le_bytes());
     hash.bytes(target.identity().as_str().as_bytes());
     hash_field(&mut hash, &vocabulary);
@@ -205,7 +213,10 @@ fn encode_value(hash: &mut crate::digest_encoder::DomainDigestEncoder, value: &B
     }
 }
 
-fn encode_fields(hash: &mut crate::digest_encoder::DomainDigestEncoder, fields: &[(String, BuildTimeValue)]) {
+fn encode_fields(
+    hash: &mut crate::digest_encoder::DomainDigestEncoder,
+    fields: &[(String, BuildTimeValue)],
+) {
     hash_u64(hash, fields.len() as u64);
     for (name, value) in fields {
         hash_field(hash, name.as_bytes());

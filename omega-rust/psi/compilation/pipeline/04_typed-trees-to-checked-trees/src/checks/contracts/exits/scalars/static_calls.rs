@@ -140,10 +140,12 @@ impl ExitScalars<'_, '_> {
                     ) {
                         continue;
                     }
-                    let candidate =
-                        StaticResult::Value(evaluate_scalar(self.program, value, &mut |_| None,
-            &|_, _| true
-        )?);
+                    let candidate = StaticResult::Value(evaluate_scalar(
+                        self.program,
+                        value,
+                        &mut |_| None,
+                        &|_, _| true,
+                    )?);
                     if result.as_ref().is_some_and(|prior| prior != &candidate) {
                         return None;
                     }

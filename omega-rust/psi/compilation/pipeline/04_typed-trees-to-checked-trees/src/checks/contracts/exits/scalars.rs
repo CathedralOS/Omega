@@ -9,7 +9,7 @@ use typed_trees::{expression::ExpressionHandle, machine::Machine};
 
 use super::super::{
     prover::{
-        ScalarValue, evaluate_checked_scalar, evaluate_scalar, evaluate_for_atoms,
+        ScalarValue, evaluate_checked_scalar, evaluate_for_atoms, evaluate_scalar,
         has_builtin_operators, semantic_contexts_prove_boolean_expression,
     },
     return_values::{exit_return_expression, is_result_reference},
@@ -543,20 +543,23 @@ impl ExitScalars<'_, '_> {
             .or_else(|| self.closed_call_value(expression))
             .or_else(|| self.closed_static_call_value(expression))
             .or_else(|| {
-                evaluate_scalar(self.program, expression, &mut |leaf| {
-                    let place = canonical_place_from_expression_in_state(
-                        self.program,
-                        self.exit.state_symbol,
-                        self.exit.statement_index,
-                        leaf,
-                    )?;
-                    if !stable_segments(&place.segments) {
-                        return None;
-                    }
-                    self.value_at_place(&place)
-                },
-            &|_, _| true
-        )
+                evaluate_scalar(
+                    self.program,
+                    expression,
+                    &mut |leaf| {
+                        let place = canonical_place_from_expression_in_state(
+                            self.program,
+                            self.exit.state_symbol,
+                            self.exit.statement_index,
+                            leaf,
+                        )?;
+                        if !stable_segments(&place.segments) {
+                            return None;
+                        }
+                        self.value_at_place(&place)
+                    },
+                    &|_, _| true,
+                )
             })
     }
 

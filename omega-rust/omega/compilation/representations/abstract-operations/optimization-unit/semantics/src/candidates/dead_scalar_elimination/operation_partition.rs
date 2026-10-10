@@ -111,10 +111,8 @@ pub(crate) fn independently_validated_dead_scalar_shape(
         ) => Some((*psi_operation, *result, ScalarType::Boolean, None)),
         (
             DeadScalarFamily::UnconditionallyTotal,
-            abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation,
-                result, ..)
-            | abstract_operations::integer_equal_less_pair_pattern!(psi_operation,
-                result, ..)
+            abstract_operations::boolean_not_or_equal_pair_pattern!(psi_operation, result, ..)
+            | abstract_operations::integer_equal_less_pair_pattern!(psi_operation, result, ..)
             | O::IntegerLessOrEqual {
                 psi_operation,
                 result,
@@ -123,12 +121,18 @@ pub(crate) fn independently_validated_dead_scalar_shape(
         ) => Some((*psi_operation, *result, ScalarType::Boolean, None)),
         (
             DeadScalarFamily::UnconditionallyTotal,
-            abstract_operations::bitwise_not_and_pair_pattern!(psi_operation,
+            abstract_operations::bitwise_not_and_pair_pattern!(
+                psi_operation,
                 result,
-                scalar_type, ..)
-            | abstract_operations::bitwise_or_xor_pair_pattern!(psi_operation,
+                scalar_type,
+                ..
+            )
+            | abstract_operations::bitwise_or_xor_pair_pattern!(
+                psi_operation,
                 result,
-                scalar_type, ..),
+                scalar_type,
+                ..
+            ),
         ) => Some((
             *psi_operation,
             *result,

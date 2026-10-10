@@ -143,8 +143,8 @@ pub enum PackageReviewByteSequencePredicate {
     NonEmpty,
 }
 
-pub type PackageReviewCollectionViewOperation = language_semantics::declaration_selection::CollectionViewOperation;
-
+pub type PackageReviewCollectionViewOperation =
+    language_semantics::declaration_selection::CollectionViewOperation;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractCallTarget {
@@ -230,7 +230,6 @@ impl PackageReviewOperatorCoordinate {
         &self.identity
     }
 
-
     pub fn result_dispatch(&self) -> &str {
         &self.result_dispatch
     }
@@ -263,11 +262,7 @@ pub enum PackageReviewContractOperatorMeaning {
     Declared(PackageReviewOperatorCoordinate),
 }
 
-impl PackageReviewContractCallTarget {
-
-
-
-}
+impl PackageReviewContractCallTarget {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractExpression {
@@ -388,6 +383,4 @@ pub struct PackageReviewConstructorField {
     pub(crate) value: PackageReviewContractExpression,
 }
 
-impl PackageReviewConstructorField {
-
-}
+impl PackageReviewConstructorField {}

@@ -35,8 +35,8 @@ pub(crate) use names::{call_target_label, machine_name, symbol_name};
 pub(crate) use operators::{
     boolean_expression_has_polarity, instantiate_operator_contract_expression_label,
 };
-pub(crate) use propositions::proposition_label_sources;
 pub(crate) use places::{
     borrow_access_label, joined_place_label, semantic_boolean_fact_label,
     semantic_fact_requirement_label,
 };
+pub(crate) use propositions::proposition_label_sources;

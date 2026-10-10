@@ -3,7 +3,8 @@ pub(crate) use super::authority_expressions::{
     PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
     PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
     PackageReviewPrimitiveType, PackageReviewRuntimeIndex, PackageReviewScalarExpression,
-    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment};
+    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
+};
 use super::{contracts::PackageReviewContractExpression, identity::PackageReviewNominalIdentity};
 
 /// A compiler-owned risk class for authority exposed by a reviewed package.
@@ -128,9 +129,7 @@ pub(crate) enum PackageReviewProgressSubject {
     Parameter(u32),
 }
 
-impl PackageReviewProgressSubject {
-
-}
+impl PackageReviewProgressSubject {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PackageReviewProgressPremise {

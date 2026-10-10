@@ -86,7 +86,8 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                 .constraint(*key)
                 .unwrap_or_else(|| panic!("environment missing selected call row {key:?}"));
             let declaration = catalog
-                .catalog().declaration(*key)
+                .catalog()
+                .declaration(*key)
                 .unwrap_or_else(|| panic!("effect catalog missing call declaration {key:?}"));
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::Call, "{key:?}");

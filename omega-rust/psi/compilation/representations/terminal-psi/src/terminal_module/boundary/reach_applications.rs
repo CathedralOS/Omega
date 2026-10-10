@@ -6,12 +6,13 @@
 //! No generic execution, body-based narrowing, or additional selection identity
 //! is introduced. Calls retain their ordinary execution and fuel semantics.
 
+use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::{MachineId, OperationId, ServiceId};
 
 /// One concrete machine's closed substitution of an original reach dependency.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosedReachApplication {
-    pub template_identity: String,
+    pub template_identity: TerminalIdentityIndex,
     pub template_commitment: [u8; 32],
     pub specialization_commitment: [u8; 32],
     /// Full declaration order, including unused and non-machine parameters.
@@ -36,7 +37,7 @@ pub struct ClosedReachMachineBinding {
     /// None denotes a structural contract with a fixed, non-variable row.
     pub nominal_requirement: Option<String>,
     pub upper_bound: Vec<ServiceId>,
-    pub selected_identity: String,
+    pub selected_identity: TerminalIdentityIndex,
     pub selected_contract_commitment: [u8; 32],
     /// The selected public/effective contract, never inferred from emitted body
     /// operations. An inert declaration remains observable to substitution.
@@ -53,7 +54,7 @@ pub struct ClosedReachMachineBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosedReachSchema {
-    pub template_identity: String,
+    pub template_identity: TerminalIdentityIndex,
     pub template_commitment: [u8; 32],
 }
 
@@ -77,11 +78,11 @@ pub struct ClosedReachCallApplication {
 /// Only argument selection, without duplicating requirement rows or call graphs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClosedReachArgument {
-    Type(String),
-    Const(String),
-    Proposition(String),
+    Type(TerminalIdentityIndex),
+    Const(TerminalIdentityIndex),
+    Proposition(TerminalIdentityIndex),
     Machine {
-        identity: String,
+        identity: TerminalIdentityIndex,
         contract_commitment: [u8; 32],
     },
 }

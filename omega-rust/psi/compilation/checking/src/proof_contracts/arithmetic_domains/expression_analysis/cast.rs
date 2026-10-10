@@ -190,12 +190,9 @@ fn require_float_to_integer_denotation(
     let owner = walk.owner;
     // Unchanged denotation is not a guarantee about a truncated result.
     // Every value permitted by the source facts must be integral and fit.
-    if !super::super::float_source_bounds(
-        walk.program,
-        walk.environment,
-        cast.value,
-        &|value| {
-            walk.state.and_then(|state| {
+    if !super::super::float_source_bounds(walk.program, walk.environment, cast.value, &|value| {
+        walk.state
+            .and_then(|state| {
                 crate::value_custody::expression_types::expression_result_type_reference(
                     walk.program,
                     walk.machine,
@@ -211,8 +208,7 @@ fn require_float_to_integer_denotation(
                     value,
                 )
             })
-        }
-    )
+    })
     .is_some_and(|bounds| bounds.is_exact_integer(target))
     {
         diagnostics.push(Diagnostic::error(format!(

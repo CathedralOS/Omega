@@ -7,6 +7,7 @@
 
 pub mod target_operations;
 pub use abstract_operations::ValueBinding;
+pub(crate) use target_operations::TargetX86ScalarFmaSettlement;
 pub use target_operations::{
     AbstractResult, BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, BoundarySettlementBinding, BoundarySettlementRealization,
@@ -32,8 +33,7 @@ pub use target_operations::{
     TargetStructuralHomeRequirement, TargetStructuralParameter, TargetStructuralReturnSource,
     TargetStructuralRuntimeIndex, TargetUnitOperation, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
-    TargetUnitWriteOnlyPrimitiveStoreSource, TargetViewExtent,
-    TerminalPsiProvenance, boundary, calls, control_flow, conventional_float_class_layout,
-    operations, provenance, selector_carrier_type, storage, values,
+    TargetUnitWriteOnlyPrimitiveStoreSource, TargetViewExtent, TerminalPsiProvenance, boundary,
+    calls, control_flow, conventional_float_class_layout, operations, provenance,
+    selector_carrier_type, storage, values,
 };
-pub(crate) use target_operations::{ TargetX86ScalarFmaSettlement};

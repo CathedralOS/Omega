@@ -66,7 +66,7 @@ pub fn decode_debug_map(
         };
         let byte_len = reader.u64()?;
         let digest = DebugSourceDigest::from_bytes(reader.array()?);
-        let path = reader.string("debug source path")?;
+        let path = reader.string("debug source path")? /* debug source path */;
         files.push(DebugSourceFile {
             id,
             origin,

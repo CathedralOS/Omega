@@ -158,7 +158,7 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
             }
             StructuralPathSegment::Field(identity) => {
                 bytes.push(1);
-                encode_string(bytes, identity);
+                bytes.extend_from_slice(&identity.0.to_le_bytes());
             }
             StructuralPathSegment::FixedIndex(index) => {
                 bytes.push(2);
@@ -233,7 +233,7 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
 
 pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDeclaration) {
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
-    encode_string(bytes, &declaration.identity);
+    bytes.extend_from_slice(&declaration.identity.0.to_le_bytes());
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => bytes.push(11),
         StructuralTypeShape::Reference { referent, access } => {
@@ -290,7 +290,7 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             encode_len(bytes, cases.len());
             for case in cases {
                 crate::codec_bytes::push_encoded(bytes, case.id.get().to_le_bytes());
-                encode_string(bytes, &case.identity);
+                bytes.extend_from_slice(&case.identity.0.to_le_bytes());
                 encode_structural_fields(bytes, &case.fields);
             }
         }
@@ -300,7 +300,7 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             encode_len(bytes, cases.len());
             for case in cases {
                 crate::codec_bytes::push_encoded(bytes, case.id.get().to_le_bytes());
-                encode_string(bytes, &case.identity);
+                bytes.extend_from_slice(&case.identity.0.to_le_bytes());
                 encode_structural_fields(bytes, &case.fields);
             }
         }
@@ -360,7 +360,7 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
     encode_len(bytes, fields.len());
     for field in fields {
         crate::codec_bytes::push_encoded(bytes, field.id.get().to_le_bytes());
-        encode_string(bytes, &field.identity);
+        bytes.extend_from_slice(&field.identity.0.to_le_bytes());
         bytes.push(match field.relevance {
             BindingRelevance::Relevant => 1,
             BindingRelevance::Erased => 2,
@@ -498,7 +498,7 @@ fn encode_scalar_restriction(bytes: &mut Vec<u8>, field_type: &StructuralFieldTy
         }
         StructuralFieldType::Erased { type_identity } => {
             bytes.push(5);
-            encode_string(bytes, type_identity);
+            bytes.extend_from_slice(&type_identity.0.to_le_bytes());
         }
     }
 }

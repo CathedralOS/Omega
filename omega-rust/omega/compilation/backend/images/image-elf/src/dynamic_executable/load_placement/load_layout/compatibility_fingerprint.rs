@@ -90,8 +90,6 @@ const fn target_tag(target: TargetProfile) -> u8 {
     }
 }
 
-
-
 pub(crate) fn checked_align(value: u64, alignment: u64, context: &str) -> Result<u64, Diagnostic> {
     if alignment <= 1 {
         return Ok(value);
@@ -101,6 +99,6 @@ pub(crate) fn checked_align(value: u64, alignment: u64, context: &str) -> Result
         "ELF placement alignment is not a power of two",
     )?;
     let mask = alignment - 1;
-    crate::dynamic_executable::checked::checked_sum_u64(value, mask, context, "Elf64_Off").map(|sum| sum & !mask)
+    crate::dynamic_executable::checked::checked_sum_u64(value, mask, context, "Elf64_Off")
+        .map(|sum| sum & !mask)
 }
-

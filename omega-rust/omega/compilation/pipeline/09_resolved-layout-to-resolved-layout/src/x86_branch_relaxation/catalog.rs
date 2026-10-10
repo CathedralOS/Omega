@@ -6,14 +6,15 @@ use optimization_core::{
 };
 use target::Architecture;
 
-pub(crate) type FunctionRelativeLayoutRuleCatalogEntry = OptimizationCatalogDescriptor<Architecture>;
+pub(crate) type FunctionRelativeLayoutRuleCatalogEntry =
+    OptimizationCatalogDescriptor<Architecture>;
 
 /// The single function-relative-layout enable/order/applicability catalog.
-pub(crate) const FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG: [FunctionRelativeLayoutRuleCatalogEntry; 1] =
-    [FunctionRelativeLayoutRuleCatalogEntry::new(
-        Optimization::X86RelaxConditionalBranchesToRel8V1,
-        Architecture::X86_64,
-    )];
+pub(crate) const FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG: [FunctionRelativeLayoutRuleCatalogEntry;
+    1] = [FunctionRelativeLayoutRuleCatalogEntry::new(
+    Optimization::X86RelaxConditionalBranchesToRel8V1,
+    Architecture::X86_64,
+)];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeLayoutCatalogError {
@@ -71,7 +72,10 @@ mod tests {
                 optimization.execution_phase() == OptimizationExecutionPhase::FunctionRelativeLayout
             })
             .collect::<Vec<_>>();
-        assert_eq!(declared, FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG.map(|entry| entry.optimization()));
+        assert_eq!(
+            declared,
+            FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG.map(|entry| entry.optimization())
+        );
         let selections = OptimizationSelections::new(
             FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG.map(|entry| entry.optimization()),
         )

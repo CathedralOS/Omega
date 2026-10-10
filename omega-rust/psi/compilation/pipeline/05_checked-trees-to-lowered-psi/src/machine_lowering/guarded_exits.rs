@@ -70,7 +70,8 @@ pub(crate) fn reject_unguarded_outcome_guarantees(
     module: &TerminalModule,
 ) -> Result<(), LoweringError> {
     let exact_payloadless_entry = source_machines == [entry]
-        && module.machine(module.entry)
+        && module
+            .machine(module.entry)
             .and_then(exact_payloadless_return_guard)
             .is_some();
     if checked

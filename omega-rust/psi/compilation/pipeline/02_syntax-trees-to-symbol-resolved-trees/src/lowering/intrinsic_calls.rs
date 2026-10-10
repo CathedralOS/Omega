@@ -15,8 +15,7 @@ use crate::resolution::lowerer::{Lowerer, PendingAuthoredExpression};
 use diagnostics::Diagnostic;
 use source::{SourceSpan, Span};
 use symbol_resolved_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
-    TableCallExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
 };
 use symbol_resolved_trees::name::DiagnosticName;
 use symbols::BuiltinFunction;

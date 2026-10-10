@@ -47,8 +47,7 @@ pub fn owning_machine_is_retained(program: &TypedTrees, symbol: SymbolHandle) ->
     while current.is_valid() {
         let entry = program.symbols.get(current);
         if entry.kind == SymbolKind::Machine {
-            return program
-                .machine(current).is_some();
+            return program.machine(current).is_some();
         }
         current = entry.parent;
     }

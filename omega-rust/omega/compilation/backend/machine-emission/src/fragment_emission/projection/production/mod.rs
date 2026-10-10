@@ -27,10 +27,9 @@ pub(super) fn emit(
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     for function in &selected.functions {
-        let resolved = layout.function(function.machine)
-            .ok_or(ResolvedFragmentEmissionError::MissingFunction(
-                function.machine,
-            ))?;
+        let resolved = layout.function(function.machine).ok_or(
+            ResolvedFragmentEmissionError::MissingFunction(function.machine),
+        )?;
         fragments
             .functions
             .push(ordinary_function::emit(function, resolved)?);

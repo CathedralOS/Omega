@@ -37,7 +37,6 @@ use crate::proof_contracts::contract_entailment::law_conformance::slot_bindings:
     carrier_slot_bindings, rewrite_slot_applications,
 };
 
-
 pub(crate) fn check_law_conformance(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -157,20 +156,8 @@ pub(crate) fn check_law_conformance(
             continue;
         };
         let (Some(law_left), Some(law_right)) = (
-            structural_term(
-            program,
-            None,
-            None,
-            binary.left,
-            None
-        ),
-            structural_term(
-            program,
-            None,
-            None,
-            binary.right,
-            None
-        ),
+            structural_term(program, None, None, binary.left, None),
+            structural_term(program, None, None, binary.right, None),
         ) else {
             continue; // out-of-language law conjunct: nothing to enforce yet
         };
@@ -212,20 +199,8 @@ pub(crate) fn check_law_conformance(
                 return None;
             };
             let (Some(proven_left), Some(proven_right)) = (
-                structural_term(
-            program,
-            None,
-            None,
-            proven_binary.left,
-            None
-        ),
-                structural_term(
-            program,
-            None,
-            None,
-            proven_binary.right,
-            None
-        ),
+                structural_term(program, None, None, proven_binary.left, None),
+                structural_term(program, None, None, proven_binary.right, None),
             ) else {
                 return None;
             };

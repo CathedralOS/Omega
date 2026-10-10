@@ -36,6 +36,7 @@ impl LoweredUnitClaims {
 /// lookup continues custody and never manufactures a replacement claim.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_return_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -124,6 +125,7 @@ pub(super) fn lower_return_claims(
         return Ok(claims);
     }
     lower_owned_transfer_claims(
+        identities,
         checked,
         machine,
         state,
@@ -141,6 +143,7 @@ pub(super) fn lower_return_claims(
 /// field reseating can change that roster without changing the physical home.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_owned_transfer_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -152,6 +155,7 @@ pub(super) fn lower_owned_transfer_claims(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
     lower_owned_operand_claims(
+        identities,
         checked,
         machine,
         state,
@@ -174,6 +178,7 @@ pub(super) fn lower_owned_transfer_claims(
 /// of importing the unconditional permission stream into an arm.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_owned_operand_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -299,7 +304,12 @@ pub(super) fn lower_owned_operand_claims(
         };
         claims.push(terminal_psi::StructuralResultClaimBinding {
             claim: lookup_claim_id(bindings, event.claim_identity)?,
-            path: lower_static_argument_path(relative, structural_type, structural_types)?,
+            path: lower_static_argument_path(
+                identities,
+                relative,
+                structural_type,
+                structural_types,
+            )?,
         });
     }
     if let Some((_, receipt)) = selection {
@@ -371,7 +381,12 @@ pub(super) fn lower_owned_operand_claims(
                         ))?;
                 claims.push(terminal_psi::StructuralResultClaimBinding {
                     claim: lookup_claim_id(bindings, claim.claim_identity)?,
-                    path: lower_static_argument_path(relative, structural_type, structural_types)?,
+                    path: lower_static_argument_path(
+                        identities,
+                        relative,
+                        structural_type,
+                        structural_types,
+                    )?,
                 });
             }
         }
@@ -433,6 +448,7 @@ pub(super) fn validate_entry_claims(
 }
 
 pub(super) fn lower_unit_entry_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     claims: &[CheckedUnitEntryClaimPlan],
@@ -476,6 +492,7 @@ pub(super) fn lower_unit_entry_claims(
             claim: id,
             input: parameter.place,
             path: lower_static_argument_path(
+                identities,
                 &claim.path,
                 parameter.structural_type,
                 structural_types,

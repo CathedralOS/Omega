@@ -9,8 +9,7 @@ pub(super) fn derive(
 ) -> Result<Vec<&SelectedBlock>, OptimizedResolvedSelectedFormLayoutError> {
     let invalid =
         || OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine);
-    let entry = function.block(function.entry_block)
-        .ok_or_else(invalid)?;
+    let entry = function.block(function.entry_block).ok_or_else(invalid)?;
     if policy == SelectedFunctionLayoutPolicy::SingleEntryBlockV1
         && (function.blocks.len() != 1
             || !matches!(entry.terminator, SelectedTerminator::Return { .. }))

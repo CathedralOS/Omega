@@ -393,4 +393,3 @@ fn declared_field_with_symbol<'program>(
             }
         })
 }
-

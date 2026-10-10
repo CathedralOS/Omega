@@ -1,6 +1,7 @@
 //! Composed unit control plans: state plans, natural ranks, value returns and
 //! closed-sum successors.
 
+use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
     CheckedByteSequenceCarrier, CheckedCallScalarArgument,
     CheckedProviderAttachmentRequirementPlan, CheckedReferenceResultSourcePlan,
@@ -14,9 +15,8 @@ use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use crate::{CheckedScalarExpression, ClosedScalarContractValue};
 use language_semantics::{Multiplicity, SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
-use typed_trees::types::PrimitiveType;
 use typed_trees::type_identity::TypeIdentityId;
-use crate::checked_trees::CheckedMemberIdentity;
+use typed_trees::types::PrimitiveType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedComposedUnitControlMachinePlan {

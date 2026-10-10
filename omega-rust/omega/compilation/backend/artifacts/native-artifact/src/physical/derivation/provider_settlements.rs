@@ -92,14 +92,14 @@ pub(crate) fn derive_admitted_provider_settlement_child(
     if *boundary != occurrence.boundary()
         || settlement.invocation_site != occurrence.invocation_site()
         || settlement.boundary != *boundary
-        || declaration.identity != requirement_identity
+        || module.identities.text(declaration.identity) != Some(requirement_identity)
         || !arguments.is_empty()
         || *structural_arguments != settlement.arguments
         || *completion_receipts != settlement.completion_receipts
     {
         return Err("installed D41 settlement changed its semantic operation custody");
     }
-    if !settlement_completion_custody_is_exact(settlement) {
+    if !settlement_completion_custody_is_exact(settlement, &module.identities) {
         return Err("installed D41 settlement changed its completion custody");
     }
     let function = object

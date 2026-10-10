@@ -38,6 +38,7 @@ pub(super) fn transfer_range(
 /// performs it.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     statement_ordinal: u32,
@@ -61,6 +62,7 @@ pub(super) fn emit(
         "Unit graph subslice transfer lost its range",
     ))?;
     let storage = view_ranges::storage(
+        identities,
         checked,
         state.state,
         statement_ordinal,
@@ -72,6 +74,7 @@ pub(super) fn emit(
         .then(|| allocate_dense(&mut catalogs.next_place).map(place_id))
         .transpose()?;
     let (source, establishment) = storage.bind(
+        identities,
         checked,
         state.state,
         bindings,
@@ -96,6 +99,7 @@ pub(super) fn emit(
     let mut calls = catalogs.scalar_calls.emission_context();
     let result_type = source.structural_type;
     let result = view_ranges::emit(
+        identities,
         checked,
         site,
         source,

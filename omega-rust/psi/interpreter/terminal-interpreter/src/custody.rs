@@ -1051,7 +1051,7 @@ pub(crate) fn inline_structural_field<'a>(
         ) => &find_structural_case(cases, case)?.fields,
         _ => return None,
     };
-    terminal_psi::live_field_by_identity(fields, identity)
+    terminal_psi::live_field_by_identity(fields, *identity)
 }
 
 pub(crate) fn bind_entry_claims(

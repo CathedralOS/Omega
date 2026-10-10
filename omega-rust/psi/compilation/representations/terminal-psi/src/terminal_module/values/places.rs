@@ -32,6 +32,7 @@
 //! "some element of this array": it may overlap any sibling index, and a write
 //! through it forgets the facts observed beneath the array's root.
 
+use crate::terminal_module::TerminalIdentityIndex;
 use crate::{OperationKind, StructuralAccess};
 use semantic_vocabulary::{ObligationId, PlaceId, StructuralCaseId, StructuralPlaceKind, ValueId};
 
@@ -41,7 +42,7 @@ pub enum StructuralPathSegment {
     /// its field. Geometry alone grants no authority: the consuming operation
     /// independently proves this exact case active at the original root.
     Case(StructuralCaseId),
-    Field(String),
+    Field(TerminalIdentityIndex),
     FixedIndex(u64),
     /// A call-scoped borrowed window into fixed byte-array backing. It must
     /// end the path; consumers independently check `start <= end <= extent`.
@@ -71,7 +72,7 @@ impl Default for StructuralPathSegment {
     fn default() -> Self {
         // Arena zero is absent, not a projection. An empty field is invalid
         // under the structural path contract, so its dummy grants no access.
-        Self::Field(String::new())
+        Self::Field(TerminalIdentityIndex::ABSENT)
     }
 }
 
@@ -163,7 +164,7 @@ pub fn is_static_structural_path(path: &[StructuralPathSegment]) -> bool {
 /// runtime element's bound is the obligation the store owns.
 pub fn is_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
     path.iter().all(|segment| match segment {
-        StructuralPathSegment::Field(identity) => !identity.is_empty(),
+        StructuralPathSegment::Field(identity) => !identity.is_absent(),
         StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => true,
         StructuralPathSegment::Case(_)
         | StructuralPathSegment::FixedByteRange { .. }
@@ -188,23 +189,11 @@ pub fn is_bounded_structural_scalar_store_path(path: &[StructuralPathSegment]) -
         .unwrap_or(path.len());
     let index_count = path.len() - first_index;
     path[..first_index].iter().all(
-        |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
+        |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_absent()),
     ) && path[first_index..]
         .iter()
         .all(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
         && index_count <= 1
-}
-
-impl From<String> for StructuralPathSegment {
-    fn from(identity: String) -> Self {
-        Self::Field(identity)
-    }
-}
-
-impl From<&str> for StructuralPathSegment {
-    fn from(identity: &str) -> Self {
-        Self::Field(identity.to_owned())
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -746,7 +735,11 @@ mod tests {
     }
 
     fn field(identity: &str) -> StructuralPathSegment {
-        StructuralPathSegment::Field(identity.to_owned())
+        let index = match identity {
+            "record" => 1,
+            _ => 0,
+        };
+        StructuralPathSegment::Field(crate::TerminalIdentityIndex(index))
     }
 
     fn runtime() -> StructuralPathSegment {
@@ -775,7 +768,9 @@ mod tests {
             vec![StructuralPathSegment::Referent],
             vec![field("record"), StructuralPathSegment::Referent],
             vec![StructuralPathSegment::FixedByteRange { start: 0, end: 1 }],
-            vec![StructuralPathSegment::Field(String::new())],
+            vec![StructuralPathSegment::Field(crate::TerminalIdentityIndex(
+                0,
+            ))],
         ] {
             assert!(!is_structural_scalar_store_path(&path), "{path:?}");
         }
@@ -813,7 +808,9 @@ mod tests {
             vec![field("record"), StructuralPathSegment::Referent],
             vec![StructuralPathSegment::Referent, field("record")],
             // An empty identity names no record field.
-            vec![StructuralPathSegment::Field(String::new())],
+            vec![StructuralPathSegment::Field(crate::TerminalIdentityIndex(
+                0,
+            ))],
         ] {
             assert!(!is_bounded_structural_scalar_store_path(&path), "{path:?}");
         }

@@ -313,32 +313,26 @@ fn collect_comparison_pairs(
     result_type: &impl Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
     pairs: &mut Vec<FloatLandingPair>,
 ) {
-    crate::expression_traversal::visit_pre_order(
-        program,
-        vec![expression],
-        |_, node| {
-            if let ExpressionNode::Binary(binary) = node
-                && matches!(
-                    binary.operator,
-                    typed_trees::expression::BinaryOperator::Equal
-                        | typed_trees::expression::BinaryOperator::NotEqual
-                        | typed_trees::expression::BinaryOperator::Less
-                        | typed_trees::expression::BinaryOperator::LessOrEqual
-                        | typed_trees::expression::BinaryOperator::Greater
-                        | typed_trees::expression::BinaryOperator::GreaterOrEqual
-                )
-            {
-                for (typed, anonymous) in
-                    [(binary.left, binary.right), (binary.right, binary.left)]
-                {
-                    if let Some(declared) = result_type(typed) {
-                        pairs.push((anonymous, declared));
-                    }
+    crate::expression_traversal::visit_pre_order(program, vec![expression], |_, node| {
+        if let ExpressionNode::Binary(binary) = node
+            && matches!(
+                binary.operator,
+                typed_trees::expression::BinaryOperator::Equal
+                    | typed_trees::expression::BinaryOperator::NotEqual
+                    | typed_trees::expression::BinaryOperator::Less
+                    | typed_trees::expression::BinaryOperator::LessOrEqual
+                    | typed_trees::expression::BinaryOperator::Greater
+                    | typed_trees::expression::BinaryOperator::GreaterOrEqual
+            )
+        {
+            for (typed, anonymous) in [(binary.left, binary.right), (binary.right, binary.left)] {
+                if let Some(declared) = result_type(typed) {
+                    pairs.push((anonymous, declared));
                 }
             }
-            false
-        },
-    );
+        }
+        false
+    });
 }
 
 fn land_float_value_for_type(

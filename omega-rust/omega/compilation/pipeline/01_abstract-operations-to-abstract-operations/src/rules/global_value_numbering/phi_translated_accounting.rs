@@ -41,7 +41,12 @@ pub(super) fn phi_translated_cse_accounting(
                 machine: function.machine,
                 edge: edge.psi_edge,
             };
-            provenance.push(provenance_realized_at(site, site, &edge.provenance, &edge.fuel));
+            provenance.push(provenance_realized_at(
+                site,
+                site,
+                &edge.provenance,
+                &edge.fuel,
+            ));
         }
     }
     for (index, node) in block.nodes.iter().enumerate().skip(node_position + 1) {
@@ -75,7 +80,12 @@ pub(super) fn phi_translated_cse_accounting(
                 block: later.id,
                 node: u32::try_from(index).ok()?,
             });
-            provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+            provenance.push(provenance_realized_at(
+                site,
+                site,
+                &node.provenance,
+                &node.fuel,
+            ));
         }
     }
     provenance.sort_by_key(|row| {
@@ -149,8 +159,7 @@ where
     let mut complete = true;
     for source in &function.blocks {
         for (owner_index, owner) in source.nodes.iter().enumerate() {
-            let owner_index =
-                u32::try_from(owner_index).expect("optimization node index fits u32");
+            let owner_index = u32::try_from(owner_index).expect("optimization node index fits u32");
             for edge in owner
                 .successors
                 .iter()
@@ -183,8 +192,7 @@ where
                     .filter(|(candidate_key, location, _, _, candidate_type)| {
                         candidate_key == &translated_key
                             && *candidate_type == scalar_type
-                            && ((location.block == source.id
-                                && location.node < owner_index)
+                            && ((location.block == source.id && location.node < owner_index)
                                 || (location.block != source.id
                                     && block_dominates(
                                         machine_dominators,
@@ -219,7 +227,7 @@ where
     incoming.sort_by_key(|row| (row.edge, row.source));
     let (affected_blocks, provenance) =
         phi_translated_cse_accounting(function, redundant, &incoming)?;
-    let parameter_position = u32::try_from(block.parameters.len())
-        .expect("optimization block parameter count fits u32");
+    let parameter_position =
+        u32::try_from(block.parameters.len()).expect("optimization block parameter count fits u32");
     Some((incoming, affected_blocks, provenance, parameter_position))
 }

@@ -58,6 +58,7 @@ impl TerminalRuntimeProvisions {
         host: Vec<TerminalRuntimeHostProvision>,
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
         selected: &effects::SelectedProviderPlanFacts,
+        identities: &terminal_psi::TerminalIdentityTable,
         target_slot: target::ProgramEntrySlotDeclaration,
     ) -> Result<Self, &'static str> {
         let mut host_requirements = Vec::new();
@@ -75,7 +76,7 @@ impl TerminalRuntimeProvisions {
                 .ok_or("runtime host provision lost its exact boundary declaration")?;
             if matching.next().is_some()
                 || !selected.selected_row_matches_requirement(
-                    &boundary.identity,
+                    identities.text(boundary.identity).unwrap_or_default(),
                     binding.requirement_identity(),
                     binding.provider_plan_report_identity(),
                 )
@@ -84,7 +85,10 @@ impl TerminalRuntimeProvisions {
             }
             host_requirements.push(RuntimeHostRequirement {
                 boundary: boundary.id,
-                boundary_identity: boundary.identity.clone(),
+                boundary_identity: identities
+                    .text(boundary.identity)
+                    .unwrap_or_default()
+                    .to_owned(),
                 selected_requirement_identity: binding.requirement_identity().to_owned(),
                 provider_plan_report_identity: binding.provider_plan_report_identity(),
             });
@@ -108,7 +112,7 @@ impl TerminalRuntimeProvisions {
             for boundary in boundaries {
                 if plan.schema.methods.iter().any(|method| {
                     selected.selected_row_matches_requirement(
-                        &boundary.identity,
+                        identities.text(boundary.identity).unwrap_or_default(),
                         &method.requirement_identity,
                         plan.report_fingerprint(),
                     )
@@ -144,13 +148,14 @@ impl TerminalRuntimeProvisions {
         declaration: &terminal_psi::BoundaryMachineDeclaration,
         selected_requirement: &str,
         provider_plan_report_identity: u64,
+        identities: &terminal_psi::TerminalIdentityTable,
     ) -> bool {
         let mut matching = self
             .host_requirements
             .iter()
             .filter(|row| row.boundary == declaration.id);
         matching.next().is_some_and(|row| {
-            row.boundary_identity == declaration.identity
+            identities.text(declaration.identity) == Some(row.boundary_identity.as_str())
                 && row.selected_requirement_identity == selected_requirement
                 && row.provider_plan_report_identity == provider_plan_report_identity
         }) && matching.next().is_none()

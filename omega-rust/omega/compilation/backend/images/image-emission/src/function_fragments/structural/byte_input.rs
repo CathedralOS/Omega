@@ -355,21 +355,21 @@ mod tests {
                 structural_types: vec![terminal_psi::StructuralTypeDeclaration {
                     scalar_restriction: None,
                     id: structural_type,
-                    identity: "ByteRead".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(1),
                     shape: StructuralTypeShape::Sum {
                         cases: vec![
                             terminal_psi::StructuralCaseDeclaration {
                                 id: StructuralCaseId::new(1).unwrap(),
-                                identity: "Eof".into(),
+                                identity: terminal_psi::TerminalIdentityIndex(2),
                                 fields: vec![],
                             },
                             terminal_psi::StructuralCaseDeclaration {
                                 id: StructuralCaseId::new(2).unwrap(),
-                                identity: "Byte".into(),
+                                identity: terminal_psi::TerminalIdentityIndex(3),
                                 fields: vec![terminal_psi::StructuralFieldDeclaration {
                                     storage: None,
                                     id: StructuralFieldId::new(1).unwrap(),
-                                    identity: "payload".into(),
+                                    identity: terminal_psi::TerminalIdentityIndex(4),
                                     relevance: terminal_psi::BindingRelevance::Relevant,
                                     field_type: terminal_psi::StructuralFieldType::Scalar(
                                         scalar_type,

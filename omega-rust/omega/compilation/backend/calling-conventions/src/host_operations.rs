@@ -3,7 +3,6 @@
 
 pub(crate) mod external_bindings;
 
-
 /// The process-wide interner for CUSTOM operation names (M2 blocker 1:
 /// the closed catalog generalized). A name outside the built-in catalog
 /// interns to a stable index for the life of the process, so the key stays

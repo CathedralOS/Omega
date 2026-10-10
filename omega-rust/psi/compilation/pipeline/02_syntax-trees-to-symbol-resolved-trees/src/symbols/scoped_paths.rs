@@ -17,7 +17,6 @@ const SCOPED_PATH_MEMBER_KINDS: &[SymbolKind] = &[
     SymbolKind::Const,
 ];
 
-
 pub(super) fn resolve_state_scoped_table_path(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,

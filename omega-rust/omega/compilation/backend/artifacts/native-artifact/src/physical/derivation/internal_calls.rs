@@ -238,7 +238,7 @@ pub(crate) fn derive_boundary_internal_call_child(
         let [conformance] = conformances.as_slice() else {
             return Err("installed provider internal call cannot rejoin one provider conformance");
         };
-        if conformance.requirement_identity != requirement_identity {
+        if module.identities.text(conformance.requirement_identity) != Some(requirement_identity) {
             return Err("installed provider internal call changed its requirement");
         }
         InternalCallSelection::Provider { conformance, plan }
@@ -372,14 +372,28 @@ pub(crate) fn derive_boundary_internal_call_child(
                 plan.plan_digest(),
                 target,
                 *boundary,
-                &conformance.provider_identity,
-                &conformance.candidate_identity,
+                module
+                    .identities
+                    .text(conformance.provider_identity)
+                    .unwrap_or_default(),
+                module
+                    .identities
+                    .text(conformance.candidate_identity)
+                    .unwrap_or_default(),
                 &custody,
             );
             let role = BoundaryTraitSettlementRole::InstalledProviderInternalCall {
                 boundary: *boundary,
-                provider_identity: conformance.provider_identity.clone(),
-                candidate_identity: conformance.candidate_identity.clone(),
+                provider_identity: module
+                    .identities
+                    .text(conformance.provider_identity)
+                    .unwrap_or_default()
+                    .to_string(),
+                candidate_identity: module
+                    .identities
+                    .text(conformance.candidate_identity)
+                    .unwrap_or_default()
+                    .to_string(),
                 call: custody,
             };
             PhysicalChildParent::BoundaryTraitSettlement(

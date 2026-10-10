@@ -1,13 +1,13 @@
 use crate::record::{
-    PackagePolicyConformanceShape, PackagePolicyDataShape,
-    PackagePolicyDomainShape, PackagePolicyOperatorShape, PackagePolicyTraitRequirement,
-    PackagePolicyTraitShape, PackagePolicyTypeParameter, PackageReviewCallableContract,
-    PackageReviewCallableParameter, PackageReviewConformanceBound, PackageReviewContractFact,
-    PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataProperties,
-    PackageReviewDomainClassification,
+    PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
+    PackagePolicyOperatorShape, PackagePolicyTraitRequirement, PackagePolicyTraitShape,
+    PackagePolicyTypeParameter, PackageReviewCallableContract, PackageReviewCallableParameter,
+    PackageReviewConformanceBound, PackageReviewContractFact, PackageReviewDataKind,
+    PackageReviewDataMember, PackageReviewDataProperties, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
     PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
-    PackageReviewTraitParent, PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity};
+    PackageReviewTraitParent, PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
+};
 
 impl PackagePolicyTraitShape {
     pub const fn identity(&self) -> &PackageReviewNominalIdentity {

@@ -22,7 +22,7 @@ pub(super) fn encode_signature(
     length(bytes, value.structural_types.referents().len());
     for referent in value.structural_types.referents() {
         crate::codec_bytes::push_encoded(bytes, referent.id.get().to_le_bytes());
-        encode_string(bytes, &referent.identity);
+        crate::codec_bytes::push_encoded(bytes, referent.identity.0.to_le_bytes());
     }
     length(bytes, value.parameters.len());
     for row in &value.parameters {
@@ -81,7 +81,7 @@ pub(super) fn decode_signature(
     for _ in 0..count {
         referents.push(terminal_psi::StructuralReferentIdentity {
             id: decode_id(cursor, StructuralTypeId::new)?,
-            identity: decode_string(cursor)?,
+            identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
         });
     }
     let count = cursor.length()?;
@@ -174,7 +174,7 @@ mod tests {
                 vec![terminal_psi::StructuralTypeDeclaration {
                     scalar_restriction: None,
                     id: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
-                    identity: "reference(closed-target)".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(1),
                     shape: terminal_psi::StructuralTypeShape::Reference {
                         referent: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                         access: terminal_psi::StructuralAccess::MutableBorrow,
@@ -182,7 +182,7 @@ mod tests {
                 }],
                 vec![terminal_psi::StructuralReferentIdentity {
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
-                    identity: "closed-target".into(),
+                    identity: terminal_psi::TerminalIdentityIndex(2),
                 }],
             ),
             parameters: Vec::new(),
@@ -200,7 +200,7 @@ mod tests {
             signature.structural_types.to_vec(),
             vec![terminal_psi::StructuralReferentIdentity {
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
-                identity: "different-closed-target".into(),
+                identity: terminal_psi::TerminalIdentityIndex(3),
             }],
         );
         let mut changed = Vec::new();

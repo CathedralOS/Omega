@@ -344,7 +344,6 @@ mod tests {
         validate_boundary_entry_plan, validate_boundary_entry_plan_with_callback_materializations,
     };
 
-
     #[test]
     fn nominal_native_parameter_identity_is_name_owned_and_order_independent() {
         let requirement = "package::Registrar::install#exact";

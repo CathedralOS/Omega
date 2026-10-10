@@ -10,9 +10,9 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     SameBlockTotalScalarCseRule,
     same_block_contract(
-                b"omega.psi-rule.same-block-obligation-free-total-scalar-cse.v1",
-                OptimizationSafetyClass::ExactOperationSemantics,
-            ),
+        b"omega.psi-rule.same-block-obligation-free-total-scalar-cse.v1",
+        OptimizationSafetyClass::ExactOperationSemantics,
+    ),
 );
 
 impl PsiOptimizationRule for SameBlockTotalScalarCseRule {

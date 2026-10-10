@@ -2,12 +2,11 @@
 
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
-    DominatingScalarCommonSubexpressionRewrite,
-    PsiOptimizationUnit, PsiRewriteCandidate,
+    DominatingScalarCommonSubexpressionRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
 };
 
-use crate::rules::global_value_numbering::collect_compatible_policy_scalar_rows;
 use crate::analyses::block_dominates;
+use crate::rules::global_value_numbering::collect_compatible_policy_scalar_rows;
 use crate::rules::global_value_numbering::dominating_contract;
 use crate::rules::node_elision::node_elision_accounting;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
@@ -15,9 +14,9 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 psi_rule_contract!(
     DominatorProofCertifiedCompatiblePolicyScalarGvnRule,
     dominating_contract(
-                b"omega.psi-rule.dominator-proof-certified-compatible-policy-scalar-gvn.v1",
-                OptimizationSafetyClass::ProofCertified,
-            ),
+        b"omega.psi-rule.dominator-proof-certified-compatible-policy-scalar-gvn.v1",
+        OptimizationSafetyClass::ProofCertified,
+    ),
 );
 
 impl PsiOptimizationRule for DominatorProofCertifiedCompatiblePolicyScalarGvnRule {

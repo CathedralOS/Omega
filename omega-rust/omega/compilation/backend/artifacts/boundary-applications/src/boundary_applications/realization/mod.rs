@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn checked_roles_require_strong_plan_and_contract_commitments() {
-        let identity = || NominalDeclarationIdentity::new("nominal".to_owned()).unwrap();
+        let identity = || NominalDeclarationIdentity::new(terminal_psi::TerminalIdentityIndex(6));
         let operation = OperationId::new(1).unwrap();
         assert!(
             BoundaryApplicationRealizationCompanion::new(

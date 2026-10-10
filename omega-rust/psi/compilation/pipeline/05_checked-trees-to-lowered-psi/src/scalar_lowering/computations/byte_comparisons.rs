@@ -39,6 +39,7 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn byte_literal_comparison(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         bytes: &[u8],
         negated: bool,
         subject: &CheckedUnitStructuralArgumentPlan,
@@ -125,6 +126,7 @@ impl Expansion<'_> {
             comparison = CheckedBooleanExpression::Not(Box::new(comparison));
         }
         let mut value = bindings.expression(
+            identities,
             &self.checked.facts.proven_scalar_indexes,
             &CheckedScalarExpression::Boolean(Box::new(comparison)),
         )?;
@@ -155,7 +157,15 @@ impl Expansion<'_> {
             )?;
         }
         match range_slot {
-            Some(slot) => self.subslice(subject, &slot, input_types, comparison, site, active),
+            Some(slot) => self.subslice(
+                identities,
+                subject,
+                &slot,
+                input_types,
+                comparison,
+                site,
+                active,
+            ),
             None => Ok(comparison),
         }
     }
@@ -163,6 +173,7 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn byte_predicate(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         predicate: terminal_psi::ByteSequencePredicate,
         subject: &CheckedUnitStructuralArgumentPlan,
         input_types: &[QualifiedScalarType],
@@ -246,6 +257,7 @@ impl Expansion<'_> {
             path,
         };
         let mut value = bindings.expression(
+            identities,
             &self.checked.facts.proven_scalar_indexes,
             &CheckedScalarExpression::Boolean(Box::new(evaluation)),
         )?;
@@ -275,7 +287,15 @@ impl Expansion<'_> {
             )?;
         }
         match range_slot {
-            Some(slot) => self.subslice(subject, &slot, input_types, evaluation, site, active),
+            Some(slot) => self.subslice(
+                identities,
+                subject,
+                &slot,
+                input_types,
+                evaluation,
+                site,
+                active,
+            ),
             None => Ok(evaluation),
         }
     }

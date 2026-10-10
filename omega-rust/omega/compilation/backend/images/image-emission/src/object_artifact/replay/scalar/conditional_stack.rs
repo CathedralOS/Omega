@@ -21,9 +21,10 @@ use super::conditional_regions::{
     collect_conditional_tree_regions, division_branches_in_region, validate_division_branch_regions,
 };
 use super::division_stack::replay_x86_scalar_division_region;
-use super::stack_mutation::{claimed_mutations_and_call_sites,
-    aarch64_control_flow_instruction, aarch64_unsupported_sp_write, replay_scalar_mutation,
-    validate_aarch64_scalar_mutation, validate_x86_scalar_mutation,
+use super::stack_mutation::{
+    aarch64_control_flow_instruction, aarch64_unsupported_sp_write,
+    claimed_mutations_and_call_sites, replay_scalar_mutation, validate_aarch64_scalar_mutation,
+    validate_x86_scalar_mutation,
 };
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 
@@ -202,13 +203,8 @@ pub(crate) fn validate_conditional_tree_scalar_stack(
     division_regions.extend(leaves.iter().copied());
     validate_division_branch_regions(machine, division_branches, &division_regions)?;
 
-    let (mut claimed, mut call_sites) = claimed_mutations_and_call_sites(
-        architecture,
-        machine,
-        bytes,
-        evidence,
-        calls,
-    )?;
+    let (mut claimed, mut call_sites) =
+        claimed_mutations_and_call_sites(architecture, machine, bytes, evidence, calls)?;
     let mut validated_calls = Vec::with_capacity(calls.len());
     let mut peak = 0;
     for (start, end, condition) in prefixes {
@@ -465,8 +461,7 @@ fn validate_conditional_call_site(
         CallSiteOwner::Operation(_) if allow_calls => {}
         CallSiteOwner::CleanupAction { edge, .. }
             if allow_calls
-                && scalar_affine_cleanup
-                    .is_some_and(|cleanup| cleanup.psi_edge == edge) => {}
+                && scalar_affine_cleanup.is_some_and(|cleanup| cleanup.psi_edge == edge) => {}
         _ => {
             return Err(ObjectError::UntypedScalarInternalCall { machine, offset });
         }

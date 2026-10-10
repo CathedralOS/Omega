@@ -11,9 +11,7 @@ pub(crate) struct PackageReviewRequirementRealization {
     pub(crate) alias: Option<String>,
 }
 
-impl PackageReviewRequirementRealization {
-
-}
+impl PackageReviewRequirementRealization {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewTraitRequirementParameter {

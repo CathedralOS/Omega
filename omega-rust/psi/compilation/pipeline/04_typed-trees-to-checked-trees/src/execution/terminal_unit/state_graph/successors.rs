@@ -1390,8 +1390,14 @@ fn case_payload_transfer(
                 type_identity: subject_identity,
                 access: CheckedStructuralAccess::SharedBorrow,
             },
-            case_identity: checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
-            field_identity: checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+            case_identity: checked_trees::CheckedMemberIdentity::of_member(
+                variant.identity,
+                variant.name.clone(),
+            ),
+            field_identity: checked_trees::CheckedMemberIdentity::of_member(
+                field.identity,
+                field.name.clone(),
+            ),
             path: Vec::new(),
         },
     )

@@ -46,9 +46,9 @@ pub(crate) fn validate_family_provider_custody(
         (row.head, &row.head_identity),
         (row.member, &row.member_identity),
     ] {
-        if !terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
-            .is_some_and(|declaration| declaration.identity == *identity)
-        {
+        if !terminal_psi::find_boundary_machine(&module.boundary_machines, boundary).is_some_and(
+            |declaration| module.identities.text(declaration.identity) == Some(identity.as_str()),
+        ) {
             return Err("physical family provider changed its exact callable declaration");
         }
     }
@@ -339,10 +339,11 @@ pub(crate) fn linux_write_line_custody_is_exact(
 /// checks exactly.
 pub(crate) fn settlement_completion_custody_is_exact(
     settlement: &machine_code::BoundarySettlementRecord,
+    identities: &terminal_psi::TerminalIdentityTable,
 ) -> bool {
     if settlement.arguments.iter().any(|argument| {
         argument.path.iter().any(
-            |segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(identity) if identity.is_empty()),
+            |segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(identity) if *identity == terminal_psi::TerminalIdentityIndex::ABSENT),
         )
     }) || settlement.completion_receipts.iter().any(|receipt| {
         usize::try_from(receipt.argument_index)
@@ -351,6 +352,7 @@ pub(crate) fn settlement_completion_custody_is_exact(
         return false;
     }
     if !image_emission::completion_receipts_have_exact_custody(
+        identities,
         &settlement.arguments,
         &settlement.completion_claim_sources,
         &settlement.completion_receipts,

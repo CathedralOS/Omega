@@ -24,6 +24,7 @@ impl Emission<'_, '_, '_> {
     /// whatever multiplicity the binding's carrier type declares.
     pub(super) fn direct_element_view(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
         region: &checked_trees::CheckedElementViewRegion,
         expression: checked_trees::expression::ExpressionHandle,
@@ -33,7 +34,7 @@ impl Emission<'_, '_, '_> {
             LoanAccess::Shared => StructuralMultiplicity::Unrestricted,
             LoanAccess::Mutable => StructuralMultiplicity::Affine,
         };
-        self.establish_element_view(source, region, expression, loan, multiplicity)
+        self.establish_element_view(identities, source, region, expression, loan, multiplicity)
     }
 
     /// Establish one element view inside a selection: the fresh `Unrestricted`
@@ -41,6 +42,7 @@ impl Emission<'_, '_, '_> {
     /// loan, and that parameter carries the binding's custody.
     pub(super) fn joined_element_view(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
         region: &checked_trees::CheckedElementViewRegion,
         expression: checked_trees::expression::ExpressionHandle,
@@ -53,9 +55,10 @@ impl Emission<'_, '_, '_> {
         // caller already repointed `structural_type` and `multiplicity` at the
         // field's declared custody.
         let Some(continuation) = continuation else {
-            return self.direct_element_view(source, region, expression, loan);
+            return self.direct_element_view(identities, source, region, expression, loan);
         };
         let place = self.establish_element_view(
+            identities,
             source,
             region,
             expression,
@@ -81,6 +84,7 @@ impl Emission<'_, '_, '_> {
     /// argument through the readable-loan binder, which admits either access.
     pub(super) fn establish_element_view(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
         region: &checked_trees::CheckedElementViewRegion,
         expression: checked_trees::expression::ExpressionHandle,
@@ -99,6 +103,7 @@ impl Emission<'_, '_, '_> {
                 return unsupported("element range cannot replace a representation-byte region");
             }
             let storage = view_ranges::storage(
+                identities,
                 self.checked,
                 self.state,
                 self.statement,
@@ -111,6 +116,7 @@ impl Emission<'_, '_, '_> {
                 .then(|| allocate_dense(self.next_place).map(place_id))
                 .transpose()?;
             let (bound, establishment) = storage.bind(
+                identities,
                 self.checked,
                 self.state,
                 &bindings,
@@ -127,6 +133,7 @@ impl Emission<'_, '_, '_> {
             }
             let place = place_id(allocate_dense(self.next_place)?);
             self.temporary_places.push(view_ranges::emit(
+                identities,
                 self.checked,
                 view_ranges::ViewRangeSite {
                     state: self.state,
@@ -182,12 +189,20 @@ impl Emission<'_, '_, '_> {
         let (machine, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
         let parameters = self.checked.state_parameters(authored);
         let argument = match loan {
-            LoanAccess::Shared => {
-                bindings.shared_structural_argument(self.checked, source, machine, parameters)?
-            }
-            LoanAccess::Mutable => {
-                bindings.borrowed_structural_argument(self.checked, source, machine, parameters)?
-            }
+            LoanAccess::Shared => bindings.shared_structural_argument(
+                identities,
+                self.checked,
+                source,
+                machine,
+                parameters,
+            )?,
+            LoanAccess::Mutable => bindings.borrowed_structural_argument(
+                identities,
+                self.checked,
+                source,
+                machine,
+                parameters,
+            )?,
         };
         // The descriptor captures the byte endpoints now. Later field writes
         // and state transfers keep this formed region; they never reread the
@@ -196,6 +211,7 @@ impl Emission<'_, '_, '_> {
             checked_trees::CheckedElementViewRegion::WholeCollection => None,
             checked_trees::CheckedElementViewRegion::RepresentationBytes { start, end } => {
                 let start = self.scalar(
+                    identities,
                     CheckedScalarExpressionRole::RepresentationViewOffset { expression },
                     *start,
                     self.sources.len(),

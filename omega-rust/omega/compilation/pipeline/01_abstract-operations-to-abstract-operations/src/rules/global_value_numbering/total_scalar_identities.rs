@@ -4,8 +4,8 @@
 
 use abstract_operations::{AbstractOperation, IntegerArithmeticOperator, IntegerOverflowPolicy};
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
     NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind,
@@ -118,10 +118,14 @@ const INVALIDATED_ANALYSES: [AnalysisKind; 2] =
     [AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries];
 
 pub(super) fn exact_total_scalar_identity(identity: &'static [u8]) -> OptimizationRuleContract {
-    crate::rules::standard_rule_contract(identity, GLOBAL_VALUE_NUMBERING_PASS_NAME, 1,
-                AnalysisSet::new(REQUIRED_ANALYSES),
-                AnalysisInvalidationSet::new(INVALIDATED_ANALYSES),
-                OptimizationSafetyClass::ExactOperationSemantics)
+    crate::rules::standard_rule_contract(
+        identity,
+        GLOBAL_VALUE_NUMBERING_PASS_NAME,
+        1,
+        AnalysisSet::new(REQUIRED_ANALYSES),
+        AnalysisInvalidationSet::new(INVALIDATED_ANALYSES),
+        OptimizationSafetyClass::ExactOperationSemantics,
+    )
 }
 
 pub(super) fn all_ones(scalar_type: IntegerType) -> IntegerValue {

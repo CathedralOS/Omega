@@ -196,7 +196,7 @@ pub(super) fn disposition_actions(
             statement_index,
             &place,
             None,
-            None
+            None,
         )?
         .1
     };
@@ -225,16 +225,16 @@ pub(super) fn disposition_actions(
         };
         let (reference, relative_path) =
             crate::execution::terminal_unit::calls::projected_argument_path(
-            program,
-            disposition.state,
-            statement_index,
-            &validation::CanonicalPlace {
+                program,
+                disposition.state,
+                statement_index,
+                &validation::CanonicalPlace {
                     root: facts::PlaceRoot::TypeReference(reference),
                     segments: relative_segments.to_vec(),
                 },
-            None,
-            None
-        )?;
+                None,
+                None,
+            )?;
         moved.push((relative_path, shapes.add_type(reference, &binders, &[])?));
     }
     let mut hooks = Vec::new();
@@ -263,13 +263,13 @@ pub(super) fn disposition_actions(
             };
             let (selected_reference, relative_path) =
                 crate::execution::terminal_unit::calls::projected_argument_path(
-            program,
-            disposition.state,
-            statement_index,
-            &selected_place,
-            None,
-            None
-        )?;
+                    program,
+                    disposition.state,
+                    statement_index,
+                    &selected_place,
+                    None,
+                    None,
+                )?;
             let selected_type = shapes.add_type(selected_reference, &binders, &[])?;
             let mut selected_path = path.clone();
             selected_path.extend(relative_path);
@@ -305,12 +305,7 @@ pub(super) fn disposition_actions(
             .collect::<Vec<_>>();
         let boundaries = hooks
             .iter()
-            .map(|hook| {
-                Some((
-                    hook.path.strip_prefix(path.as_slice())?,
-                    hook.type_identity,
-                ))
-            })
+            .map(|hook| Some((hook.path.strip_prefix(path.as_slice())?, hook.type_identity)))
             .collect::<Option<Vec<_>>>()?;
         let types = shapes
             .types
@@ -419,9 +414,12 @@ fn checked_case_segments(
             CheckedUnitStructuralPathSegment::Field(identity) => {
                 let field = if let Some(fields) = payload_fields.take() {
                     let fields: &[typed_trees::data::DataField] = fields;
-                    fields
-                        .iter()
-                        .find(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity)?
+                    fields.iter().find(|field| {
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        ) == *identity
+                    })?
                 } else {
                     let reference = validation::canonical_place_type_reference(
                         program,
@@ -436,7 +434,12 @@ fn checked_case_segments(
                         .data_members(owner)
                         .iter()
                         .find_map(|member| match member {
-                            DataMember::Field(field) if checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity => {
+                            DataMember::Field(field)
+                                if checked_trees::CheckedMemberIdentity::of_member(
+                                    field.identity,
+                                    field.name.clone(),
+                                ) == *identity =>
+                            {
                                 Some(field)
                             }
                             _ => None,
@@ -466,7 +469,12 @@ fn checked_case_segments(
                     .data_members(owner)
                     .iter()
                     .find_map(|member| match member {
-                        DataMember::Variant(case) if checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()) == *identity => {
+                        DataMember::Variant(case)
+                            if checked_trees::CheckedMemberIdentity::of_member(
+                                case.identity,
+                                case.name.clone(),
+                            ) == *identity =>
+                        {
                             Some(case)
                         }
                         _ => None,

@@ -155,7 +155,8 @@ pub fn build_function_fragment_object_artifact(
             scalar_structural_parameter_homes: Vec::new(),
             structural_return: None,
         });
-        let fragment = fragments.function(placed.machine)
+        let fragment = fragments
+            .function(placed.machine)
             .ok_or(Error::Mismatch("missing current fragment"))?;
         let mut rows = attribution::produce(fragment, abstracted)?;
         rows.extend(super::structural::settlement_attributions(

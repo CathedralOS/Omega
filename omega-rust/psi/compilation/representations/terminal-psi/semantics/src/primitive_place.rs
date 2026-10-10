@@ -262,7 +262,7 @@ pub fn primitive_read_field<'a>(
     else {
         return None;
     };
-    let field = terminal_psi::live_field(record.shape.direct_fields()?, identity)?;
+    let field = terminal_psi::live_field(record.shape.direct_fields()?, *identity)?;
     match field.field_type {
         StructuralFieldType::Scalar(ScalarType::Boolean) => {}
         StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {}
@@ -538,7 +538,7 @@ fn walk_primitive_projection<'a>(
                         _ => return None,
                     },
                 };
-                let field = terminal_psi::live_field(fields, identity)?;
+                let field = terminal_psi::live_field(fields, *identity)?;
                 step(Some(CanonicalStructuralPathSegment::Field(field.id)));
                 match field.field_type {
                     StructuralFieldType::Structural(child) => Position::Declared(child),

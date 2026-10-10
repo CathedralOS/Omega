@@ -128,7 +128,10 @@ impl StagedOptimizedResolvedSelectedFormLayout {
     }
 }
 
-fn declared_size_matches(knowledge: selected_instructions::MachineSizeKnowledge, actual: u64) -> bool {
+fn declared_size_matches(
+    knowledge: selected_instructions::MachineSizeKnowledge,
+    actual: u64,
+) -> bool {
     match knowledge {
         selected_instructions::MachineSizeKnowledge::ExactBytes(expected) => {
             u64::from(expected) == actual
@@ -144,8 +147,7 @@ fn declared_size_matches(knowledge: selected_instructions::MachineSizeKnowledge,
 }
 
 fn is_admitted_canonical_shape(function: &selected_instructions::SelectedFunction) -> bool {
-    !function.blocks.is_empty()
-        && function.block(function.entry_block).is_some()
+    !function.blocks.is_empty() && function.block(function.entry_block).is_some()
 }
 
 fn is_single_entry(function: &selected_instructions::SelectedFunction) -> bool {

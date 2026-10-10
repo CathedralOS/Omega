@@ -251,9 +251,11 @@ pub(super) fn machine_decrease_outcome_with(
     }
 
     match blocked_edge {
-        Some((source, destination)) => DecreaseOutcome::Rejected(
-            ranges::strict_decrease_message(program, source, destination),
-        ),
+        Some((source, destination)) => DecreaseOutcome::Rejected(ranges::strict_decrease_message(
+            program,
+            source,
+            destination,
+        )),
         None => DecreaseOutcome::Unproven,
     }
 }

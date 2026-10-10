@@ -133,12 +133,14 @@ impl<'a> IndexedWriteLeaf<'a> {
     /// and supplied to [`emit`] as an established value instead.
     pub(crate) fn lower_value(
         self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         bindings: &ScalarBindings,
         checked: &CheckedTrees,
         state: SymbolHandle,
         values: &[ValueDeclaration],
     ) -> Result<LoweredDirectExpression, LoweringError> {
         crate::emission::structural_scalar_store_source::direct_value(
+            identities,
             checked,
             state,
             self.statement_index,
@@ -227,6 +229,8 @@ impl<'a> IndexedWriteTarget<'a> {
     /// borrowed parameter, or none.
     pub(crate) fn destination(
         self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         parameters: &[(u32, StructuralParameterDeclaration)],
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<Destination, LoweringError> {
@@ -264,6 +268,7 @@ impl<'a> IndexedWriteTarget<'a> {
                     ))?;
                 let (path, field) =
                     crate::emission::structural_scalar_store::lower_structural_field_place(
+                        identities,
                         carrier_path,
                         field_identity,
                         parameter,
@@ -317,7 +322,8 @@ impl<'a> IndexedWriteTarget<'a> {
                     .ok_or(LoweringError::Unsupported(
                         "element-view write destination is not an element view",
                     ))?;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_structural_path(element_path)?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_structural_path(
+            identities,element_path)?;
                 let leaf = terminal_semantics::element_view_leaf(structural_types, element, &path)
                     .ok_or(LoweringError::Unsupported(
                         "element-view write path is not an admitted scalar leaf",

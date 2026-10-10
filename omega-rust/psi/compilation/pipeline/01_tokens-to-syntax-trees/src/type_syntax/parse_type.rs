@@ -207,7 +207,9 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 lifetime_arguments.push(lifetime);
                 input = rest;
 
-                let Some(next) = input.take_comma()? else { break };
+                let Some(next) = input.take_comma()? else {
+                    break;
+                };
 
                 input = next;
 
@@ -291,7 +293,9 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             arguments.push(argument);
             input = rest;
 
-            let Some(next) = input.take_comma()? else { break };
+            let Some(next) = input.take_comma()? else {
+                break;
+            };
 
             input = next;
 

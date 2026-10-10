@@ -2,9 +2,7 @@ use crate::declarations::symbols::TopLevelSymbols;
 use crate::value_custody::expression_types::{
     argument_matches_type_reference_handle, expression_type_name_handle,
 };
-use crate::value_custody::type_references::{
-    TypeReferenceOwner, validate_type_reference_handle,
-};
+use crate::value_custody::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 use diagnostics::Diagnostic;
 use std::fmt;
 use typed_trees::expression::ExpressionHandle;

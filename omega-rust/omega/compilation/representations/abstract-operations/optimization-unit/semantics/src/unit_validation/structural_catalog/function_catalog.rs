@@ -59,6 +59,7 @@ pub(crate) fn structural_root_key(kind: StructuralPlaceKind) -> ValidatorStructu
 
 pub(crate) fn validate_function_structural_catalog(
     function: &PsiOptimizationFunction,
+    identities: &terminal_psi::TerminalIdentityTable,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> Result<
@@ -261,9 +262,8 @@ pub(crate) fn validate_function_structural_catalog(
             // tuple compressed into ReturnStructural. Their one-to-one
             // recognition is validated together below.
             O::EstablishTrivialAffineLocal { .. } => None,
-            abstract_operations::establish_set_quint_pattern!(psi_operation,result, ..)
-            | abstract_operations::establish_record_or_case_pattern!(psi_operation,
-                result, ..)
+            abstract_operations::establish_set_quint_pattern!(psi_operation, result, ..)
+            | abstract_operations::establish_record_or_case_pattern!(psi_operation, result, ..)
             | O::EstablishZeroedStructural {
                 psi_operation,
                 result,
@@ -390,7 +390,10 @@ pub(crate) fn validate_function_structural_catalog(
                                 .map(|segment| match segment {
                                     terminal_psi::StructuralPathSegment::Field(identity) => {
                                         Some(semantic_vocabulary::ContentPlaceSegment::Field(
-                                            identity.clone(),
+                                            identities
+                                                .text(*identity)
+                                                .unwrap_or_default()
+                                                .to_string(),
                                         ))
                                     }
                                     terminal_psi::StructuralPathSegment::FixedIndex(index) => {

@@ -539,7 +539,7 @@ fn leaf_type(
             Some(fields) => fields,
             None => declaration.shape.direct_fields()?,
         };
-        let field = terminal_psi::live_field_by_identity(selected_fields, identity)?;
+        let field = terminal_psi::live_field_by_identity(selected_fields, *identity)?;
         current = match &field.field_type {
             StructuralFieldType::Structural(child) => *child,
             leaf => {

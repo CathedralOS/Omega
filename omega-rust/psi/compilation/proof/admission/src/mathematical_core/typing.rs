@@ -1332,7 +1332,6 @@ pub fn check_type(
 #[macro_export]
 macro_rules! argument_error_pair_pattern {
     () => {
-        $crate::CoreError::TypeMismatch { .. }
-            | $crate::CoreError::ArgumentTypeMismatch { .. }
+        $crate::CoreError::TypeMismatch { .. } | $crate::CoreError::ArgumentTypeMismatch { .. }
     };
 }

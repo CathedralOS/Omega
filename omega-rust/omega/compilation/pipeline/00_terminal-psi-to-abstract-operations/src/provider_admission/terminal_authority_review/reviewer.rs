@@ -48,7 +48,13 @@ impl<'a> Reviewer<'a> {
             .boundaries
             .get(&boundary)
             .ok_or_else(|| format!("reachable boundary {boundary:?} has no declaration"))?;
-        let requirement = declaration.identity.as_str();
+        let requirement = self
+            .context
+            .input
+            .plan()
+            .identities
+            .text(declaration.identity)
+            .unwrap_or_default();
         let (selected_plan, selected_row, specialization) =
             self.context.selected_requirement(requirement)?;
         match &selected_row.binding {
@@ -79,9 +85,9 @@ impl<'a> Reviewer<'a> {
                     .iter()
                     .find(|candidate| {
                         candidate.boundary == boundary
-                            && candidate.requirement_identity == requirement
-                            && candidate.provider_identity == selected_plan.provider_type
-                            && candidate.candidate_identity == realization_identity
+                            && self.context.input.plan().identities.text(candidate.requirement_identity) == Some(requirement)
+                            && self.context.input.plan().identities.text(candidate.provider_identity) == Some(selected_plan.provider_type.as_str())
+                            && self.context.input.plan().identities.text(candidate.candidate_identity) == Some(realization_identity)
                     })
                     .ok_or_else(|| {
                         format!(

@@ -11,7 +11,13 @@ impl BehaviorExclusion {
                 format!("crash cause {cause:?}")
             }
             Self::Service(service) => match module.service(service) {
-                Some(declaration) => format!("service `{}`", declaration.identity),
+                Some(declaration) => format!(
+                    "service `{}`",
+                    module
+                        .identities
+                        .text(declaration.identity)
+                        .unwrap_or_default()
+                ),
                 None => format!("service {service}"),
             },
             // A physical-class selection is a demand on the mechanism closure:
@@ -38,7 +44,12 @@ impl ProhibitedSite {
             } => {
                 let identity =
                     terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
-                        .map(|declaration| declaration.identity.as_str())
+                        .map(|declaration| {
+                            module
+                                .identities
+                                .text(declaration.identity)
+                                .unwrap_or("<undeclared boundary>")
+                        })
                         .unwrap_or("<undeclared boundary>");
                 format!("call to boundary `{identity}` (block {block}, operation {operation})")
             }

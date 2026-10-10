@@ -15,6 +15,7 @@ use terminal_psi::ProofOutputRuntimeResult;
 use typed_trees::closed_conformance_applications_of;
 
 pub(crate) fn lower_proof_output_calls(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     selected_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
@@ -42,6 +43,7 @@ pub(crate) fn lower_proof_output_calls(
                 invocation,
             )?;
             let static_requirement_dispatch = lower_static_requirement_dispatch(
+                identities,
                 checked,
                 terminal_machine,
                 semantic_module,
@@ -60,6 +62,7 @@ pub(crate) fn lower_proof_output_calls(
                             )
                         })?,
                         callee_proposition: terminal_proposition_application_id(
+                            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -77,6 +80,7 @@ pub(crate) fn lower_proof_output_calls(
                             "terminal proof-output source input has no canonical identity",
                         )?,
                         instantiated_proposition: terminal_proposition_application_id(
+                            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -100,6 +104,7 @@ pub(crate) fn lower_proof_output_calls(
                         })?,
                         output_field: callee_output.name.clone(),
                         callee_proposition: terminal_proposition_application_id(
+                            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -117,6 +122,7 @@ pub(crate) fn lower_proof_output_calls(
                         })
                         .transpose()?,
                         instantiated_proposition: terminal_proposition_application_id(
+                            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -152,6 +158,7 @@ pub(crate) fn lower_proof_output_calls(
                     .map(|dispatch| Ok(dispatch.public_requirement_identity.clone()))
                     .unwrap_or_else(|| {
                         checked_evidence_machine_identity(checked, invocation.target_machine_symbol)
+                            .map(|identity| identities.intern(&identity))
                     })?,
                 static_requirement_dispatch,
                 runtime_result,
@@ -166,6 +173,7 @@ pub(crate) fn lower_proof_output_calls(
 }
 
 fn lower_static_requirement_dispatch(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
@@ -255,13 +263,20 @@ fn lower_static_requirement_dispatch(
             row.realization_state,
         )? {
             expected_rows.push(terminal_psi::ClosedConformanceRow {
-                declaring_trait_identity: declaring_trait_identity.clone(),
-                public_requirement_identity: public_requirement_identity.clone(),
-                family_tuple: family_row.family_tuple,
-                requirement_identity: requirement_identity.clone(),
-                realization_identity: checked
-                    .symbols
-                    .display_path(family_row.realization_state, "::"),
+                declaring_trait_identity: identities.intern(&declaring_trait_identity.clone()),
+                public_requirement_identity: identities
+                    .intern(&public_requirement_identity.clone()),
+                family_tuple: family_row
+                    .family_tuple
+                    .iter()
+                    .map(|identity| identities.intern(identity))
+                    .collect(),
+                requirement_identity: identities.intern(&requirement_identity.clone()),
+                realization_identity: identities.intern(
+                    &checked
+                        .symbols
+                        .display_path(family_row.realization_state, "::"),
+                ),
                 realization_callable_identity: None,
             });
         }
@@ -271,9 +286,9 @@ fn lower_static_requirement_dispatch(
         .iter()
         .filter(|application| {
             application.owner == terminal_machine
-                && application.declaration_identity == declaration_identity
+                && application.declaration_identity == identities.intern(&declaration_identity)
                 && application.telescope.is_empty()
-                && application.trait_identity == trait_identity
+                && application.trait_identity == identities.intern(&trait_identity)
                 && application.trait_arguments == checked_application.trait_arguments
                 && application.rows.len() == expected_rows.len()
                 && application
@@ -300,7 +315,7 @@ fn lower_static_requirement_dispatch(
             "static requirement proof output lost its closed conformance application",
         ));
     }
-    if application.trait_identity != declaring_trait_identity {
+    if application.trait_identity != identities.intern(&declaring_trait_identity) {
         return unsupported(
             "static requirement proof output selected a different conformance trait",
         );
@@ -308,11 +323,11 @@ fn lower_static_requirement_dispatch(
     // A static requirement dispatch carries no tuple coordinate, so it joins
     // the application's nongeneric row for the requirement.
     let mut rows = application.rows.iter().filter(|row| {
-        row.declaring_trait_identity == declaring_trait_identity
-            && row.public_requirement_identity == public_requirement_identity
+        row.declaring_trait_identity == identities.intern(&declaring_trait_identity)
+            && row.public_requirement_identity == identities.intern(&public_requirement_identity)
             && row.family_tuple.is_empty()
-            && row.requirement_identity == requirement_identity
-            && row.realization_identity == realization_identity
+            && row.requirement_identity == identities.intern(&requirement_identity)
+            && row.realization_identity == identities.intern(&realization_identity)
     });
     if rows.next().is_none() || rows.next().is_some() {
         return unsupported(
@@ -322,13 +337,13 @@ fn lower_static_requirement_dispatch(
     let realization_callable_identity =
         checked_evidence_machine_identity(checked, dispatch.realization_machine)?;
     let mut bound_rows = application.rows.iter().filter(|row| {
-        row.declaring_trait_identity == declaring_trait_identity
-            && row.public_requirement_identity == public_requirement_identity
+        row.declaring_trait_identity == identities.intern(&declaring_trait_identity)
+            && row.public_requirement_identity == identities.intern(&public_requirement_identity)
             && row.family_tuple.is_empty()
-            && row.requirement_identity == requirement_identity
-            && row.realization_identity == realization_identity
-            && row.realization_callable_identity.as_deref()
-                == Some(realization_callable_identity.as_str())
+            && row.requirement_identity == identities.intern(&requirement_identity)
+            && row.realization_identity == identities.intern(&realization_identity)
+            && row.realization_callable_identity
+                == Some(identities.intern(&realization_callable_identity))
     });
     if bound_rows.next().is_none() || bound_rows.next().is_some() {
         return unsupported(
@@ -336,7 +351,7 @@ fn lower_static_requirement_dispatch(
         );
     }
     let mut callables = application.realization_callables.iter().filter(|callable| {
-        callable.source_callable_identity == realization_callable_identity
+        callable.source_callable_identity == identities.intern(&realization_callable_identity)
             && callable.machine == runtime_call.callee
     });
     if callables.next().is_none() || callables.next().is_some() {
@@ -347,11 +362,11 @@ fn lower_static_requirement_dispatch(
     Ok(Some(StaticRequirementDispatch {
         conformance_application_report_fingerprint: application.report_fingerprint,
         conformance_application_commitment: application.commitment,
-        public_requirement_identity,
-        declaring_trait_identity,
-        requirement_identity,
-        realization_identity,
-        realization_callable_identity,
+        public_requirement_identity: identities.intern(&public_requirement_identity),
+        declaring_trait_identity: identities.intern(&declaring_trait_identity),
+        requirement_identity: identities.intern(&requirement_identity),
+        realization_identity: identities.intern(&realization_identity),
+        realization_callable_identity: identities.intern(&realization_callable_identity),
         realization: runtime_call.callee,
     }))
 }
@@ -422,6 +437,7 @@ pub(crate) fn terminal_evidence_term_id(
 }
 
 pub(crate) fn terminal_proposition_application_id(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     term_ids: &[Option<EvidenceTermId>],
     declarations: &[PropositionDeclaration],
@@ -455,6 +471,7 @@ pub(crate) fn terminal_proposition_application_id(
                 .as_ref()
                 .map(|projection| {
                     evidence_projection_identity(
+                        identities,
                         checked,
                         projection,
                         terminal_evidence_term_id(
@@ -467,7 +484,7 @@ pub(crate) fn terminal_proposition_application_id(
                 .transpose()?;
             Ok(PropositionBinderArgumentIdentity {
                 kind: super::binder_argument_kind(argument.kind),
-                identity: argument.diagnostic_label.clone(),
+                identity: identities.intern(&argument.diagnostic_label.clone()),
                 evidence_projection,
             })
         })
@@ -475,7 +492,7 @@ pub(crate) fn terminal_proposition_application_id(
     let evidence_interface = application
         .evidence_interface
         .as_ref()
-        .map(|interface| lower_evidence_interface(checked, interface))
+        .map(|interface| lower_evidence_interface(identities, checked, interface))
         .transpose()?;
     applications
         .iter()

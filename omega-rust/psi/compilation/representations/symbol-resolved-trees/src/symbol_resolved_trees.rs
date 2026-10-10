@@ -790,9 +790,7 @@ impl SymbolResolvedTrees {
         self.roots
             .const_declarations
             .iter()
-            .find(|declaration| {
-                self.symbols.symbol_source_span(declaration.symbol) == Some(span)
-            })
+            .find(|declaration| self.symbols.symbol_source_span(declaration.symbol) == Some(span))
     }
 
     /// The machine declaration keyed `symbol`.

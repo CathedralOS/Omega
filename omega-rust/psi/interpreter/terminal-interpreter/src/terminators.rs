@@ -376,7 +376,7 @@ impl TerminalExecution<'_> {
                 let Some(case) = find_structural_case(cases, inhabited) else {
                     return Ok(false);
                 };
-                let Some(field) = terminal_psi::field_by_identity(&case.fields, identity) else {
+                let Some(field) = terminal_psi::field_by_identity(&case.fields, *identity) else {
                     return Ok(false);
                 };
                 let Some(next) = field.field_type.as_structural() else {

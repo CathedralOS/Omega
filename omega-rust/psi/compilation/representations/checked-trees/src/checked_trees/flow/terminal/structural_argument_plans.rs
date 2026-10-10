@@ -7,8 +7,8 @@ use crate::checked_trees::flow::terminal::{
 use crate::{CheckedScalarExpression, CheckedStorageRoot};
 use language_semantics::CarryPolicy;
 use symbols::SymbolHandle;
-use typed_trees::types::PrimitiveType;
 use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::types::PrimitiveType;
 
 /// Physical interpretation retained by one source-checked reference capture.
 /// A view begins at the source's actual projected address. Aggregate views
@@ -331,7 +331,9 @@ impl CheckedUnitStructuralArgumentPlan {
             | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
                 storage_type_identity,
                 ..
-            } => storage_type_identity.is_valid().then_some(*storage_type_identity),
+            } => storage_type_identity
+                .is_valid()
+                .then_some(*storage_type_identity),
             _ => None,
         }
     }

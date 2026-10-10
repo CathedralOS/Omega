@@ -13,9 +13,9 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     LiveProofCertifiedExactIntegerSelfSubtractEliminationRule,
     super::proof_check_elision_rule_contract(
-                b"omega.psi-rule.live-proof-certified-exact-integer-self-subtract-elimination.v1",
-                AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-            ),
+        b"omega.psi-rule.live-proof-certified-exact-integer-self-subtract-elimination.v1",
+        AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+    ),
     propose = propose_proof_certified_integer_constants,
     classify,
     IntegerType::zero,

@@ -160,8 +160,7 @@ fn encode_frontier_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
             }
             StructuralPathSegment::Field(identity) => {
                 bytes.push(1);
-                encode_frontier_len(bytes, identity.len());
-                bytes.extend_from_slice(identity.as_bytes());
+                crate::codec_bytes::push_encoded(bytes, identity.0.to_le_bytes());
             }
             StructuralPathSegment::FixedIndex(index) => {
                 bytes.push(2);

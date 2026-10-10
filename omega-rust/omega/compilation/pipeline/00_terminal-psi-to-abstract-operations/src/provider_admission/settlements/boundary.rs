@@ -74,7 +74,11 @@ pub(super) fn settle_boundary<'request>(
             request
                 .selected_provider_plans
                 .selected_row_matches_requirement(
-                    &boundary.identity,
+                    input
+                        .plan()
+                        .identities
+                        .text(boundary.identity)
+                        .unwrap_or_default(),
                     requirement,
                     evidence.provider_plan_report_identity(),
                 )

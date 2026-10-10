@@ -397,7 +397,6 @@ fn sealed_float_comparison_for_operands(
             })
 }
 
-
 /// Read the same selected comparison inside a declaration telescope. The
 /// source result query replaces executable place context; sealed IEEE identity
 /// and bound-call restrictions remain owned by this operation.

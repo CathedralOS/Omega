@@ -21,10 +21,7 @@ pub(super) fn selected_executions(
     let mut executions = Vec::new();
     for (handle, operator_use) in checked.facts.operators.uses.iter() {
         if operator_use.origin.machine_symbol().is_some_and(|symbol| {
-            !context.contains(symbol)
-                || !checked
-                    .typed
-                    .machine(symbol).is_some()
+            !context.contains(symbol) || !checked.typed.machine(symbol).is_some()
         }) {
             continue;
         }

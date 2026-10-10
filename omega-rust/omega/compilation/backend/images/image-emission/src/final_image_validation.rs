@@ -411,12 +411,11 @@ fn validate_callback_relocation_targets(
 ) -> Result<(), Diagnostic> {
     for call in &artifact.foreign_calls {
         for callback in &call.callback_addresses {
-            let function = artifact.function_on_machine(call.machine)
-                .ok_or_else(|| {
-                    Diagnostic::error(
-                        "callback registrar call has no exact semantic function in the final image",
-                    )
-                })?;
+            let function = artifact.function_on_machine(call.machine).ok_or_else(|| {
+                Diagnostic::error(
+                    "callback registrar call has no exact semantic function in the final image",
+                )
+            })?;
             let operation = match call.owner {
                 target_operations::CallSiteOwner::Operation(operation) => operation,
                 target_operations::CallSiteOwner::CleanupAction { .. }

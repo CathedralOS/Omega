@@ -163,7 +163,6 @@ impl BigInt {
         }
     }
 
-
     pub fn negate(&self) -> Self {
         Self {
             negative: !self.negative && !self.is_zero(),

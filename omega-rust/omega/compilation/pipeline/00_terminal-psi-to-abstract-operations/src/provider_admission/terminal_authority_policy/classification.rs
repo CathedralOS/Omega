@@ -217,7 +217,6 @@ fn empty_disposition() -> TerminalAuthorityDisposition {
     disposition([])
 }
 
-
 const fn float_format_tag(format: FloatFormat) -> u8 {
     match format {
         FloatFormat::F32 => 0,

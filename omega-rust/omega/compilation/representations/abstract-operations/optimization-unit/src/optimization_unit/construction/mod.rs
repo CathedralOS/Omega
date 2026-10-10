@@ -64,6 +64,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         proof_questions: Vec::new(),
         ownership_frontier_facts: Vec::new(),
         pruned_machines: Vec::new(),
+        identities: plan.identities.clone(),
         functions,
     };
     unit.identity = recompute_psi_optimization_unit_identity(&unit);

@@ -9,6 +9,7 @@
 //! requirement on the values a call may deliver to one direct scalar
 //! parameter.
 
+use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::{
     DomainSemanticId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
     MachineId, ScalarDomainId, ScalarQualificationSetId, ScalarType, ValueId,
@@ -35,7 +36,7 @@ pub struct ScalarQualificationCatalog {
 pub struct ScalarDomainDeclaration {
     pub id: ScalarDomainId,
     pub semantic_domain: DomainSemanticId,
-    pub identity: String,
+    pub identity: TerminalIdentityIndex,
     pub carrier: ScalarType,
     /// The authored declaration's establishment routes, canonically ordered
     /// and deduplicated. Each row names one authorized issuer by the
@@ -52,24 +53,30 @@ pub struct ScalarDomainDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarDomainEstablishmentRoute {
     /// Issuer is the exact checked trait requirement this identity names.
-    CheckedRequirement { requirement_identity: String },
+    CheckedRequirement {
+        requirement_identity: TerminalIdentityIndex,
+    },
     /// Issuer is the exact Unit boundary requirement this identity names.
-    BoundaryRequirement { requirement_identity: String },
+    BoundaryRequirement {
+        requirement_identity: TerminalIdentityIndex,
+    },
     /// Issuer is the exact machine this canonical callable identity names.
-    ExactMachine { machine_identity: String },
+    ExactMachine {
+        machine_identity: TerminalIdentityIndex,
+    },
 }
 
 impl ScalarDomainEstablishmentRoute {
-    /// The issuer identity string this route names.
-    pub fn identity(&self) -> &str {
+    /// The issuer identity handle this route names.
+    pub fn identity(&self) -> TerminalIdentityIndex {
         match self {
             Self::CheckedRequirement {
                 requirement_identity,
             }
             | Self::BoundaryRequirement {
                 requirement_identity,
-            } => requirement_identity,
-            Self::ExactMachine { machine_identity } => machine_identity,
+            } => *requirement_identity,
+            Self::ExactMachine { machine_identity } => *machine_identity,
         }
     }
 }

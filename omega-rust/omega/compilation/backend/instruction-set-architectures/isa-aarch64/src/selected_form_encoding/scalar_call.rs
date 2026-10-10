@@ -290,8 +290,7 @@ mod tests {
         let (physical, kind, alternative, _, _) = inputs();
         let catalog = crate::aarch64_register_constraint_catalog(&physical);
         for (arity, key) in aarch64_aapcs64_register_call_keys().into_iter().enumerate() {
-            let row = catalog.constraint(key)
-                .unwrap();
+            let row = catalog.constraint(key).unwrap();
             let operands = expected_operand_views(&physical, arity);
             assert_eq!(row.operands.len(), arity + 1);
             assert_eq!(

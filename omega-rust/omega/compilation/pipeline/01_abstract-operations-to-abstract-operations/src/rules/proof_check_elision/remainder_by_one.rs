@@ -8,13 +8,13 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     LiveProofCertifiedIntegerRemainderByOneEliminationRule,
     super::proof_check_elision_rule_contract(
-                b"omega.psi-rule.live-proof-certified-integer-remainder-by-one-elimination.v1",
-                AnalysisSet::new([
-                    AnalysisKind::ScalarConstants,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-            ),
+        b"omega.psi-rule.live-proof-certified-integer-remainder-by-one-elimination.v1",
+        AnalysisSet::new([
+            AnalysisKind::ScalarConstants,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+    ),
 );
 
 impl PsiOptimizationRule for LiveProofCertifiedIntegerRemainderByOneEliminationRule {

@@ -79,14 +79,30 @@ fn reference_origin_expansion_is_bounded(
             }
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {}
             TypeReferenceNode::Constrained { base_type, .. } => {
-                return visit(program, *base_type, depth + 1, visits, leaves, scopes, scope);
+                return visit(
+                    program,
+                    *base_type,
+                    depth + 1,
+                    visits,
+                    leaves,
+                    scopes,
+                    scope,
+                );
             }
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
             } => {
                 let before = *leaves;
-                visit(program, *element_type, depth + 1, visits, leaves, scopes, scope)?;
+                visit(
+                    program,
+                    *element_type,
+                    depth + 1,
+                    visits,
+                    leaves,
+                    scopes,
+                    scope,
+                )?;
                 let element_leaves = leaves.checked_sub(before)?;
                 if element_leaves == 0 {
                     return Some(());
@@ -100,7 +116,15 @@ fn reference_origin_expansion_is_bounded(
                 return (*leaves <= MAX_REFERENCE_ORIGIN_LEAVES).then_some(());
             }
             TypeReferenceNode::Slice { element_type } => {
-                return visit(program, *element_type, depth + 1, visits, leaves, scopes, scope);
+                return visit(
+                    program,
+                    *element_type,
+                    depth + 1,
+                    visits,
+                    leaves,
+                    scopes,
+                    scope,
+                );
             }
             _ => return Some(()),
         }
@@ -181,8 +205,7 @@ pub fn is_reference_record(
         if seen.contains(&reference) {
             return None;
         }
-        if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-        {
+        if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
             return None;
         }
         seen.push(reference);
@@ -206,7 +229,13 @@ pub fn is_reference_record(
             access,
             CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
         )
-    }) && visit(program, reference, &mut Vec::new(), &mut DeclarationScopes::default(), 0) == Some(true)
+    }) && visit(
+        program,
+        reference,
+        &mut Vec::new(),
+        &mut DeclarationScopes::default(),
+        0,
+    ) == Some(true)
 }
 
 /// Reconstruct a leaf's exact formal ingress. Structural parameter ordinals
@@ -437,7 +466,10 @@ pub fn borrowed_initializer_source(
                     return None;
                 }
                 segments.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ),
                 ));
                 owner_type = field.type_reference;
             }
@@ -791,9 +823,19 @@ fn aggregate_projection(
                         .iter()
                         .filter_map(|member| member.as_variant())
                         .find(|case| case.symbol == variant)?;
-                    path.push(Segment::Case(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone())));
+                    path.push(Segment::Case(
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            case.identity,
+                            case.name.clone(),
+                        ),
+                    ));
                 }
-                path.push(Segment::Field(checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())));
+                path.push(Segment::Field(
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ),
+                ));
                 selected = field.type_reference;
             }
             ExpressionNode::Indexed(indexed) => {
@@ -1086,7 +1128,10 @@ fn whole_reference_sources(
                                 _ => None,
                             })?;
                     path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        ),
                     ));
                     selected = field.type_reference;
                 }
@@ -1376,7 +1421,10 @@ pub fn record_carrier_sources(
                 typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
                 typed_trees::data::DataMember::Variant(case) => {
                     path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
-                        checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            case.identity,
+                            case.name.clone(),
+                        ),
                     ));
                     program.data_payload_fields(case)
                 }
@@ -1386,9 +1434,20 @@ pub fn record_carrier_sources(
                     continue;
                 }
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ),
                 ));
-                visit(program, field.type_reference, carrier, path, output, scopes, scope)?;
+                visit(
+                    program,
+                    field.type_reference,
+                    carrier,
+                    path,
+                    output,
+                    scopes,
+                    scope,
+                )?;
                 path.pop();
             }
             if matches!(member, typed_trees::data::DataMember::Variant(_)) {
@@ -1543,7 +1602,10 @@ fn aggregate_construction_sources(
                 (
                     field,
                     vec![checked_trees::CheckedUnitStructuralPathSegment::Case(
-                        checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            case.identity,
+                            case.name.clone(),
+                        ),
                     )],
                 )
             } else {
@@ -1576,19 +1638,25 @@ fn aggregate_construction_sources(
         }
         for member in fields {
             let field = member.as_field()?;
-            let mut matching = initializers
-                .iter()
-                .filter(|initializer| {
-                    program.closed_data_constructor_field(reference, literal.type_symbol, initializer.field_symbol)
-                        .is_some_and(|selected| selected.symbol == field.symbol)
-                });
+            let mut matching = initializers.iter().filter(|initializer| {
+                program
+                    .closed_data_constructor_field(
+                        reference,
+                        literal.type_symbol,
+                        initializer.field_symbol,
+                    )
+                    .is_some_and(|selected| selected.symbol == field.symbol)
+            });
             let initializer = matching.next()?;
             if matching.next().is_some() {
                 return None;
             }
             children.push((
                 vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ),
                 )],
                 initializer.value,
                 field.type_reference,
@@ -1801,7 +1869,9 @@ pub fn loan_place_segments(
     for segment in path {
         (selected, scope) = scopes.head(program, selected, scope);
         while let TypeReferenceNode::Constrained { base_type, .. }
-            | TypeReferenceNode::Reference { referee: base_type, .. } = program.type_reference_table.type_reference(selected)
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } = program.type_reference_table.type_reference(selected)
         {
             (selected, scope) = scopes.head(program, *base_type, scope);
         }
@@ -1817,7 +1887,10 @@ pub fn loan_place_segments(
                     .iter()
                     .find_map(|member| match member {
                         typed_trees::data::DataMember::Variant(case)
-                            if checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()) == *identity =>
+                            if checked_trees::CheckedMemberIdentity::of_member(
+                                case.identity,
+                                case.name.clone(),
+                            ) == *identity =>
                         {
                             Some(case)
                         }
@@ -1830,10 +1903,12 @@ pub fn loan_place_segments(
             }
             checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
                 let field = if let Some(case) = payload.take() {
-                    program
-                        .data_payload_fields(case)
-                        .iter()
-                        .find(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity)?
+                    program.data_payload_fields(case).iter().find(|field| {
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        ) == *identity
+                    })?
                 } else {
                     let (data, nested_scope) = scopes.definition(program, selected, scope)?;
                     scope = nested_scope;
@@ -1842,7 +1917,10 @@ pub fn loan_place_segments(
                         .iter()
                         .find_map(|member| match member {
                             typed_trees::data::DataMember::Field(field)
-                                if checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity =>
+                                if checked_trees::CheckedMemberIdentity::of_member(
+                                    field.identity,
+                                    field.name.clone(),
+                                ) == *identity =>
                             {
                                 Some(field)
                             }

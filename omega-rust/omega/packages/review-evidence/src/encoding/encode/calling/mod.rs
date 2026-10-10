@@ -10,7 +10,6 @@ use super::encoder::Encoder;
 pub(super) use super::type_identity;
 use crate::encoding::PackageReviewEncodingError;
 
-
 fn ordinal(encoder: &mut Encoder, ordinal: &u32) -> Result<(), PackageReviewEncodingError> {
     encoder.field("ordinal", |encoder| {
         encoder.u32(*ordinal);

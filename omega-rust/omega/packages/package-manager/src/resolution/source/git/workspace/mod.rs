@@ -17,7 +17,8 @@ pub(crate) use evidence::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelecti
 pub(crate) use planner::account_declaration_bytes;
 pub(crate) use planner::{
     MAX_BUILD_DECLARATION_BYTES, MAX_TOTAL_BUILD_DECLARATION_BYTES, MAX_WORKSPACE_MEMBERS,
-    discover_git_workspace, plan_git_workspace_selection};
+    discover_git_workspace, plan_git_workspace_selection,
+};
 pub(super) use source_projection::ManagerGitWorkspacePlanner;
 
 pub(super) fn git_workspace_declaration_limits() -> package_source::GitWorkspaceDeclarationLimits {
@@ -224,8 +225,6 @@ impl GitWorkspaceSelectionPlan {
     pub fn members(&self) -> &[GitWorkspaceMemberPlan] {
         self.workspace.members()
     }
-
-
 
     /// Replay the complete selection and require byte-for-byte declaration
     /// evidence and semantics to remain unchanged.

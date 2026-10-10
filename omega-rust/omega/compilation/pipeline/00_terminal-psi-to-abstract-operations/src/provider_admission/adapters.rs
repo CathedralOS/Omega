@@ -13,7 +13,12 @@ pub(crate) fn project_selected_provider_adapters(
     let relevant_requirements = terminal
         .provider_candidates
         .iter()
-        .map(|candidate| candidate.requirement_identity.as_str())
+        .map(|candidate| {
+            terminal
+                .identities
+                .text(candidate.requirement_identity)
+                .unwrap_or_default()
+        })
         .collect::<BTreeSet<_>>();
     project_selected_provider_adapters_for_requirements(selected, &relevant_requirements)
 }

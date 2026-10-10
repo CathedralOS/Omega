@@ -15,12 +15,11 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     BitwiseNeutralLiteralIdentityRule,
     exact_total_scalar_identity(
-                b"omega.psi-rule.live-obligation-free-integer-bitwise-neutral-literal-elimination.v1",
-            ),
+        b"omega.psi-rule.live-obligation-free-integer-bitwise-neutral-literal-elimination.v1",
+    ),
     propose = propose_total_scalar_identities,
     classify,
 );
-
 
 /// Return the six exact-width bitwise neutral laws in canonical operation and
 /// left-literal/right-literal order.

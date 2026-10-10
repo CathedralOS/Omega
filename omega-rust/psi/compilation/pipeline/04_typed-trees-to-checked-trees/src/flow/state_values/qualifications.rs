@@ -246,7 +246,11 @@ fn capture_place(
                 continue;
             }
             let predicate = match fact.payload {
-                facts::domain_membership_fields_pattern!(domain, domain_symbol, semantic_domain) if domain_symbol.is_valid() => CarriedPredicate::Domain {
+                facts::domain_membership_fields_pattern!(
+                    domain,
+                    domain_symbol,
+                    semantic_domain
+                ) if domain_symbol.is_valid() => CarriedPredicate::Domain {
                     domain,
                     domain_symbol,
                     semantic_domain,

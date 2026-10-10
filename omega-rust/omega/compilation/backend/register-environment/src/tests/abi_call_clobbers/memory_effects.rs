@@ -1,8 +1,7 @@
 use super::{
-    abi_case_context,
-    Architecture, BTreeSet, EffectRejection, RegisterConstraintKey,
-    baseline_target_register_environment, named_view, produced_effects,
-    scalar_abi_cases, validate_effects, validated_effects,
+    Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
+    baseline_target_register_environment, named_view, produced_effects, scalar_abi_cases,
+    validate_effects, validated_effects,
 };
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
@@ -109,9 +108,7 @@ fn floating_control_storage_binds_exact_architectural_state_on_every_target() {
         for (key, semantic) in floating_control_rules(&environment) {
             let restore = semantic == MachineSemanticKind::RestoreFloatingControl;
             let row = environment.constraint(key).unwrap();
-            let declaration = catalog
-                .catalog().declaration(key)
-                .unwrap();
+            let declaration = catalog.catalog().declaration(key).unwrap();
             let mut uses = stack.units.clone();
             if !restore {
                 uses.extend(&controls.units);
@@ -531,7 +528,8 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                 .constraint(*key)
                 .unwrap_or_else(|| panic!("environment missing selected memory row {key:?}"));
             let declaration = catalog
-                .catalog().declaration(*key)
+                .catalog()
+                .declaration(*key)
                 .unwrap_or_else(|| panic!("effect catalog missing memory declaration {key:?}"));
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::None, "{key:?}");

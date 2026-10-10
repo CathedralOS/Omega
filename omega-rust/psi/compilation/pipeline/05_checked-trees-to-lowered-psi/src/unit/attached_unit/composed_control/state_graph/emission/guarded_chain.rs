@@ -27,6 +27,7 @@ impl StateGraphEmission<'_, '_> {
     /// blocks, the staged drafts, and the namespace the first guard observes.
     pub(super) fn stage_guarded_chain(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         position: usize,
         arms: &[checked_trees::CheckedGuardedJumpArmPlan],
         values: &mut Vec<ValueDeclaration>,
@@ -63,6 +64,7 @@ impl StateGraphEmission<'_, '_> {
             // a successor or a completion can read its selected payloads.
             let reads_payloads = guarded_arm_may_read_payloads(arm);
             let guard = if let Some(expression) = evaluation.branch_guard(
+                identities,
                 checked,
                 state.state,
                 arm.statement_ordinal(),
@@ -80,9 +82,10 @@ impl StateGraphEmission<'_, '_> {
             } else {
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let guard = evaluation.guard_value(
+                    identities,
                     checked,
-                    owner,
                     state.state,
+                    owner,
                     arm.statement_ordinal(),
                     values,
                     next_value,

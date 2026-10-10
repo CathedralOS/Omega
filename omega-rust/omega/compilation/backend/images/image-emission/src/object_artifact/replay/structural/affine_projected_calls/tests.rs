@@ -23,14 +23,22 @@ fn index(value: u64) -> StructuralPathSegment {
 }
 
 fn field(identity: &str) -> StructuralPathSegment {
-    StructuralPathSegment::Field(identity.into())
+    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(match identity {
+        "first" => 1,
+        "items" => 2,
+        "last" => 3,
+        "missing" => 4,
+        "rows" => 5,
+        "tail" => 6,
+        _ => 0,
+    }))
 }
 
 fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
         scalar_restriction: None,
         id: type_id(value),
-        identity: format!("Type{value}"),
+        identity: terminal_psi::TerminalIdentityIndex(50 + value as u32),
         shape,
     }
 }
@@ -39,7 +47,15 @@ fn structural_field(value: u64, identity: &str, child: u64) -> StructuralFieldDe
     StructuralFieldDeclaration {
         storage: None,
         id: StructuralFieldId::new(value).unwrap(),
-        identity: identity.into(),
+        identity: terminal_psi::TerminalIdentityIndex(match identity {
+            "first" => 1,
+            "items" => 2,
+            "last" => 3,
+            "missing" => 4,
+            "rows" => 5,
+            "tail" => 6,
+            _ => 0,
+        }),
         relevance: BindingRelevance::Relevant,
         field_type: StructuralFieldType::Structural(type_id(child)),
     }
@@ -53,7 +69,7 @@ fn token() -> StructuralTypeDeclaration {
             fields: vec![StructuralFieldDeclaration {
                 storage: None,
                 id: StructuralFieldId::new(1).unwrap(),
-                identity: "value".into(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
                 relevance: BindingRelevance::Relevant,
                 field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
             }],

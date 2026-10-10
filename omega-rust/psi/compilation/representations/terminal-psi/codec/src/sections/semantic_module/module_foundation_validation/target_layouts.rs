@@ -6,7 +6,7 @@ use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use terminal_psi::{
     StructuralRecordStorage, StructuralTypeShape, TargetLayoutSchemaFieldKind,
-    TargetMachineCallable, TargetMachineSupply, TerminalModule,
+    TargetMachineCallable, TargetMachineSupply, TerminalIdentityIndex, TerminalModule,
 };
 
 pub(super) fn validate(
@@ -23,7 +23,7 @@ pub(super) fn validate(
     let mut records = BTreeSet::new();
     for application in &module.target_layout_applications {
         if application.id.0 == 0
-            || application.policy_identity.is_empty()
+            || application.policy_identity == TerminalIdentityIndex::ABSENT
             || !records.insert(application.record)
         {
             return malformed("layout application has absent or duplicate identity");

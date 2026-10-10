@@ -71,10 +71,7 @@ pub fn project_build_program(
                     || file.dependency_scope == DependencyScope::Build
             })
     };
-    if !original
-        .machine(entry).is_some()
-        || !in_build_context(entry)
-    {
+    if !original.machine(entry).is_some() || !in_build_context(entry) {
         return Err(vec![Diagnostic::error(
             "selected Build entry has no exact Build-context declaration custody",
         )]);

@@ -190,76 +190,84 @@ fn instantiated_live_value_proves(
 
     let parameters = target.contract_parameters(program);
     let arguments = validation::call_site_argument_expressions(program, call_site);
-    evaluate_scalar(program, expression, &mut |formal| {
-        let argument = match program.expression_table.expression(formal) {
-            ExpressionNode::Name(path)
-                if path.symbol.is_valid()
-                    && program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        == 1 =>
-            {
-                let position =
-                    typed_trees::signature::state_parameter_position(parameters, path.symbol)?;
-                *arguments.get(position)?
-            }
-            // A member or indexed projection of an explicit formal (`room.count`,
-            // `table[i]`) names the actual's storage, not a value the call
-            // expression computes. Substitute the formal's root for the
-            // argument's referent place and read the projection there.
-            _ => {
-                return projected_formal_leaf_value(
-                    program,
-                    semantic,
-                    contexts,
-                    caller_state_symbol,
-                    statement_index,
-                    parameters,
-                    arguments,
-                    formal,
-                );
-            }
-        };
-        evaluate_scalar(program, argument, &mut |leaf| {
-            // Local declarations are not current values. Read only assignment
-            // snapshots which survived the scheduled argument effects. Live
-            // scalar facts are spread across the entry contexts, so reads run
-            // over their union just like `assigned_values`' domain prover.
-            if let Some(place) = validation::canonical_place_from_expression_in_state(
+    evaluate_scalar(
+        program,
+        expression,
+        &mut |formal| {
+            let argument = match program.expression_table.expression(formal) {
+                ExpressionNode::Name(path)
+                    if path.symbol.is_valid()
+                        && program
+                            .expression_table
+                            .name_path_members(path.members)
+                            .len()
+                            == 1 =>
+                {
+                    let position =
+                        typed_trees::signature::state_parameter_position(parameters, path.symbol)?;
+                    *arguments.get(position)?
+                }
+                // A member or indexed projection of an explicit formal (`room.count`,
+                // `table[i]`) names the actual's storage, not a value the call
+                // expression computes. Substitute the formal's root for the
+                // argument's referent place and read the projection there.
+                _ => {
+                    return projected_formal_leaf_value(
+                        program,
+                        semantic,
+                        contexts,
+                        caller_state_symbol,
+                        statement_index,
+                        parameters,
+                        arguments,
+                        formal,
+                    );
+                }
+            };
+            evaluate_scalar(
                 program,
-                caller_state_symbol,
-                statement_index,
-                leaf,
-            ) && let Some(value) = super::prover::scalar_value_at_place(
-                program,
-                semantic,
-                contexts
-                    .iter()
-                    .map(|context| semantic.contexts.get(*context)),
-                &place,
-            ) {
-                return Some(value);
-            }
-            semantic.context_view(context).facts().find_map(|fact| {
-                let facts::FactPayload::BooleanValue {
-                    expression: guard,
-                    value,
-                } = fact.payload
-                else {
-                    return None;
-                };
-                [true, false]
-                    .into_iter()
-                    .find(|required| guard_values::proves(program, guard, value, leaf, *required))
-                    .map(ScalarValue::Boolean)
-            })
+                argument,
+                &mut |leaf| {
+                    // Local declarations are not current values. Read only assignment
+                    // snapshots which survived the scheduled argument effects. Live
+                    // scalar facts are spread across the entry contexts, so reads run
+                    // over their union just like `assigned_values`' domain prover.
+                    if let Some(place) = validation::canonical_place_from_expression_in_state(
+                        program,
+                        caller_state_symbol,
+                        statement_index,
+                        leaf,
+                    ) && let Some(value) = super::prover::scalar_value_at_place(
+                        program,
+                        semantic,
+                        contexts
+                            .iter()
+                            .map(|context| semantic.contexts.get(*context)),
+                        &place,
+                    ) {
+                        return Some(value);
+                    }
+                    semantic.context_view(context).facts().find_map(|fact| {
+                        let facts::FactPayload::BooleanValue {
+                            expression: guard,
+                            value,
+                        } = fact.payload
+                        else {
+                            return None;
+                        };
+                        [true, false]
+                            .into_iter()
+                            .find(|required| {
+                                guard_values::proves(program, guard, value, leaf, *required)
+                            })
+                            .map(ScalarValue::Boolean)
+                    })
+                },
+                &|_, _| true,
+            )
         },
-            &|_, _| true,
-        )
-    },
-            &|_, _| true,
-        ) == Some(ScalarValue::Boolean(true))
+        &|_, _| true,
+    ) == Some(ScalarValue::Boolean(true))
 }
 
 /// Read a callee projection's value on the actual referent. `room.count` under

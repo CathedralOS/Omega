@@ -142,7 +142,7 @@ impl TerminalExecution<'_> {
                 StructuralPathSegment::Field(identity) => {
                     let common = match &declaration.shape {
                         terminal_psi::record_or_mixed_shape_pattern!(fields) => {
-                            terminal_psi::field_by_identity(fields, identity)
+                            terminal_psi::field_by_identity(fields, *identity)
                         }
                         _ => None,
                     };
@@ -160,7 +160,7 @@ impl TerminalExecution<'_> {
                         }
                         let case = terminal_psi::find_structural_case(cases, actual.case)
                             .ok_or_else(malformed)?;
-                        terminal_psi::field_by_identity(&case.fields, identity)
+                        terminal_psi::field_by_identity(&case.fields, *identity)
                             .ok_or_else(malformed)?
                     };
                     let Some(child) = field.field_type.as_structural() else {

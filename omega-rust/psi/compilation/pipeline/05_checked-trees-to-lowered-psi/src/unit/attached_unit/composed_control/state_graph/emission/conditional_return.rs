@@ -24,6 +24,7 @@ impl StateGraphEmission<'_, '_> {
     /// structural exits carry actual continuation identity through `guarded`.
     pub(super) fn conditional_return_arm(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         position: usize,
         state_parameters: &[StructuralParameterDeclaration],
         arm_namespace: Vec<ValueDeclaration>,
@@ -72,7 +73,7 @@ impl StateGraphEmission<'_, '_> {
         operations.length_observations.field_bytes.clear();
         let mut terminator = match return_arm {
             checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
-                self.crash_completion(position, *statement_ordinal, next_edge)?
+                self.crash_completion(identities, position, *statement_ordinal, next_edge)?
             }
             checked_trees::CheckedConditionalReturnArm::Unit { .. } => Terminator::ReturnUnit {
                 edge: edge_id(allocate_dense(next_edge)?),
@@ -80,6 +81,7 @@ impl StateGraphEmission<'_, '_> {
             },
             checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
                 super::super::guarded::emit_return(
+                    identities,
                     checked,
                     plan,
                     state,
@@ -118,6 +120,7 @@ impl StateGraphEmission<'_, '_> {
                     .cloned()
                     .collect::<Vec<_>>();
                 super::super::super::emission::emit_call_operations(
+                    identities,
                     checked,
                     plan.machine,
                     state,
@@ -146,6 +149,7 @@ impl StateGraphEmission<'_, '_> {
                     match result {
                         checked_trees::CheckedUnitCallResult::Structural { .. } => {
                             super::super::guarded::complete_structural_return(
+                                identities,
                                 self.checked,
                                 state,
                                 super::super::cleanup::coordinate(
@@ -216,9 +220,10 @@ impl StateGraphEmission<'_, '_> {
                 };
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let value = arm_evaluation.source_value(
+                    identities,
                     checked,
-                    plan.machine,
                     state.state,
+                    plan.machine,
                     *statement_ordinal,
                     role,
                     &retained,
@@ -254,7 +259,8 @@ impl StateGraphEmission<'_, '_> {
                     ))?;
             let exit = super::super::cleanup::coordinate(state, statement_ordinal as usize, false)?;
             let mut regions = super::super::cleanup::for_exit_regions(
-            checked,
+                identities,
+                checked,
                 state,
                 exit,
                 self.catalogs,
@@ -263,15 +269,26 @@ impl StateGraphEmission<'_, '_> {
                 operations,
             )?;
             super::super::cleanup::selection(state, &arm_evaluation, operations, &mut regions)?;
-            let temporary_discards = dispatch_discards.iter().copied()
+            let temporary_discards = dispatch_discards
+                .iter()
+                .copied()
                 .filter(|place| !regions.iter().any(|region| region.action.place() == *place))
-                .map(|place| crate::unit::unit_cleanup::CleanupRegion::unconditional(
-                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
-                )).collect::<Vec<_>>();
+                .map(|place| {
+                    crate::unit::unit_cleanup::CleanupRegion::unconditional(
+                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
+                    )
+                })
+                .collect::<Vec<_>>();
             regions.splice(0..0, temporary_discards);
             let selected_cleanup = arm_evaluation.emit_cleanup_regions(
+                identities,
                 self.checked,
-                regions, &mut arm_values, next_value, next_block, next_edge, operations,
+                regions,
+                &mut arm_values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
             )?;
             match &mut terminator {
                 terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {

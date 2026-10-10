@@ -172,8 +172,7 @@ mod tests {
             variant: 0,
         };
         for key in crate::aarch64_linux_system_call_keys() {
-            let row = catalog.constraint(key)
-                .unwrap();
+            let row = catalog.constraint(key).unwrap();
             let views: Vec<_> = row
                 .operands
                 .iter()

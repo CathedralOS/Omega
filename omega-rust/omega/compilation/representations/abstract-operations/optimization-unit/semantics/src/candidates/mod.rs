@@ -20,8 +20,8 @@ use optimization_unit::{
 use crate::OptimizationUnitValidationError;
 
 pub(crate) mod case_membership_specialization;
-pub(crate) mod control_flow_cleanup;
 pub(crate) mod contract;
+pub(crate) mod control_flow_cleanup;
 pub(crate) mod copy_propagation;
 pub(crate) mod dead_scalar_elimination;
 pub(crate) mod field_value_specialization;
@@ -181,9 +181,7 @@ pub(crate) fn provenance_proven_unreachable_at(
 ) -> ProvenanceRewrite {
     ProvenanceRewrite {
         input,
-        disposition: optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(
-            unreachable_at,
-        ),
+        disposition: optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(unreachable_at),
         sources: sources.to_vec(),
         fuel: fuel.to_vec(),
     }

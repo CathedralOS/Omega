@@ -2,8 +2,7 @@
 
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
-    NodeLocation, PhiTranslatedScalarGvnRewrite, PsiOptimizationUnit,
-    PsiRewriteCandidate,
+    NodeLocation, PhiTranslatedScalarGvnRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
 };
 
 use super::expression_keys::total_scalar_expression;
@@ -15,9 +14,9 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 psi_rule_contract!(
     PhiTranslatedObligationFreeScalarGvnRule,
     phi_translated_contract(
-                b"omega.psi-rule.phi-translated-obligation-free-total-scalar-gvn.v1",
-                OptimizationSafetyClass::ExactOperationSemantics,
-            ),
+        b"omega.psi-rule.phi-translated-obligation-free-total-scalar-gvn.v1",
+        OptimizationSafetyClass::ExactOperationSemantics,
+    ),
 );
 
 impl PsiOptimizationRule for PhiTranslatedObligationFreeScalarGvnRule {

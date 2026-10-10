@@ -11,7 +11,7 @@ use crate::sections::semantic_module::wire::{
 use semantic_vocabulary::{ObligationId, StructuralPlaceKind};
 use terminal_psi::{
     NominalAffineCleanup, StructuralAffineDiscard, StructuralArgument, StructuralPathSegment,
-    TerminalAffineCleanupAction,
+    TerminalAffineCleanupAction, TerminalIdentityIndex,
 };
 
 pub(crate) fn encode_structural_arguments(
@@ -80,7 +80,7 @@ pub(crate) fn encode_structural_path(
             }
             StructuralPathSegment::Field(identity) => {
                 writer.u8(1);
-                writer.string("structural path field", identity)?;
+                writer.u32(identity.0);
             }
             StructuralPathSegment::FixedIndex(index) => {
                 writer.u8(2);
@@ -219,9 +219,9 @@ pub(crate) fn decode_structural_path(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<StructuralPathSegment>, CodecError> {
     decode_counted(reader, |reader| match reader.u8()? {
-        1 => Ok(StructuralPathSegment::Field(
-            reader.string("structural path field")?,
-        )),
+        1 => Ok(StructuralPathSegment::Field(TerminalIdentityIndex(
+            reader.u32()?,
+        ))),
         2 => Ok(StructuralPathSegment::FixedIndex(reader.u64()?)),
         3 => Ok(StructuralPathSegment::Referent),
         4 => Ok(StructuralPathSegment::FixedByteRange {
@@ -290,10 +290,15 @@ mod tests {
         for (path, retains_descendants) in [
             (Vec::new(), false),
             (Vec::new(), true),
-            (vec![StructuralPathSegment::Field("children".into())], false),
+            (
+                vec![StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(14),
+                )],
+                false,
+            ),
             (
                 vec![
-                    StructuralPathSegment::Field("children".into()),
+                    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(14)),
                     StructuralPathSegment::FixedIndex(1),
                 ],
                 false,

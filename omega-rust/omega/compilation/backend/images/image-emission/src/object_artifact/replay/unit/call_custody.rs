@@ -300,7 +300,7 @@ pub(crate) fn exact_borrowed_projection(
         || argument.fixed_array_length.is_some()
         || argument.element_stride.is_some()
         || argument.path.iter().any(|segment| {
-            matches!(segment, terminal_psi::StructuralPathSegment::Field(identity) if identity.is_empty())
+            matches!(segment, terminal_psi::StructuralPathSegment::Field(identity) if *identity == terminal_psi::TerminalIdentityIndex::ABSENT)
         })
     {
         return false;
@@ -675,7 +675,10 @@ pub(crate) fn expected_projected_copy_bytes(
                         0x81,
                         0xc0 | (destination & 7),
                     ]);
-                    crate::codec_bytes::push_encoded(&mut bytes, argument.source_byte_offset.to_le_bytes());
+                    crate::codec_bytes::push_encoded(
+                        &mut bytes,
+                        argument.source_byte_offset.to_le_bytes(),
+                    );
                 }
                 if let calling_conventions::IndirectPointerLocation::Stack {
                     stack_byte_offset,

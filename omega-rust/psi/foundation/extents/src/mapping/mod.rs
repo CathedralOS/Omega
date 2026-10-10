@@ -382,7 +382,6 @@ impl<'source> PendingMap<'source> {
         self.mapping.source.length()
     }
 
-
     pub fn source_rights(&self) -> &ExtentRights {
         self.mapping.source.rights()
     }
@@ -399,7 +398,6 @@ impl<'source> PendingMap<'source> {
         self.mapping.source.origin()
     }
 
-
     pub fn source_mode(&self) -> MappingSourceMode {
         self.mapping.source.mode()
     }
@@ -407,8 +405,6 @@ impl<'source> PendingMap<'source> {
     pub fn destination_base(&self) -> u64 {
         self.mapping.mapped.base()
     }
-
-
 
     pub fn mapped_rights(&self) -> &ExtentRights {
         self.mapping.mapped.rights()
@@ -425,10 +421,6 @@ impl<'source> PendingMap<'source> {
     pub fn mapped_era(&self) -> MappingEraId {
         self.mapping.mapped.era()
     }
-
-
-
-
 
     pub(crate) fn validate_activation_receipt(
         &self,

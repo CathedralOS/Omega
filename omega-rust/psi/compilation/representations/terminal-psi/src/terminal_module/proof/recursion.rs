@@ -1,3 +1,4 @@
+use crate::terminal_module::TerminalIdentityIndex;
 use semantic_vocabulary::ContractId;
 
 /// The closed proof-recursion relation vocabulary retained in Terminal Psi.
@@ -14,8 +15,8 @@ pub enum TerminalProofRankingRelation {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalProofRecursiveMember {
     pub contract: ContractId,
-    pub machine_identity: String,
-    pub rank_parameter_identity: String,
+    pub machine_identity: TerminalIdentityIndex,
+    pub rank_parameter_identity: TerminalIdentityIndex,
 }
 
 /// One field in the closed finite-inductive proof-type graph used to replay a
@@ -23,8 +24,8 @@ pub struct TerminalProofRecursiveMember {
 /// do not authorize runtime layout or projection.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalProofRecursiveField {
-    pub identity: String,
-    pub type_identity: String,
+    pub identity: TerminalIdentityIndex,
+    pub type_identity: TerminalIdentityIndex,
 }
 
 /// One nominal node in a recursive proof-data graph. The verifier requires
@@ -32,7 +33,7 @@ pub struct TerminalProofRecursiveField {
 /// back at the component's rank type.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalProofRecursiveType {
-    pub identity: String,
+    pub identity: TerminalIdentityIndex,
     pub fields: Vec<TerminalProofRecursiveField>,
 }
 
@@ -46,16 +47,16 @@ pub enum TerminalProofRecursiveTransitionLane {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalProofRecursiveCallSite {
     Statement {
-        state_identity: String,
+        state_identity: TerminalIdentityIndex,
         statement_index: u64,
     },
     Expression {
-        state_identity: String,
+        state_identity: TerminalIdentityIndex,
         statement_index: u64,
         expression_ordinal: u64,
     },
     Transition {
-        state_identity: String,
+        state_identity: TerminalIdentityIndex,
         statement_index: u64,
         lane: TerminalProofRecursiveTransitionLane,
     },
@@ -77,7 +78,7 @@ pub struct TerminalProofRecursiveEdge {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalProofRecursiveComponent {
     pub ranking_relation: TerminalProofRankingRelation,
-    pub rank_type_identity: String,
+    pub rank_type_identity: TerminalIdentityIndex,
     pub types: Vec<TerminalProofRecursiveType>,
     pub members: Vec<TerminalProofRecursiveMember>,
     pub edges: Vec<TerminalProofRecursiveEdge>,

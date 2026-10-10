@@ -1,7 +1,6 @@
 //! Relocation records and their origins, including the two semantic origins kept
 //! apart because their identity namespaces collide as raw integers.
 
-
 use crate::{ObjectSymbolHandle, SectionKind};
 use arena::{Arena, Handle};
 use target::NativeTarget;

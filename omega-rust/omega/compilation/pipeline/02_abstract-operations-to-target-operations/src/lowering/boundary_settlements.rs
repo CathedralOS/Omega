@@ -42,8 +42,7 @@ pub(super) fn claim_completion_only_boundary_is_exact(
         let Some(source) = parameters_by_place.get(&argument.place).copied() else {
             return false;
         };
-        let Some(caller_parameter) = function.structural_parameter(argument.place)
-        else {
+        let Some(caller_parameter) = function.structural_parameter(argument.place) else {
             return false;
         };
         let mut expected_qualifications = boundary_parameter.qualifications.clone();

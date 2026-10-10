@@ -4,9 +4,9 @@ use super::{
     HandleSpan, SymbolHandle,
 };
 use crate::CheckedUnitStructuralArgumentPlan;
-use typed_trees::types::PrimitiveType;
-use typed_trees::type_identity::TypeIdentityId;
 use crate::checked_trees::CheckedMemberIdentity;
+use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::types::PrimitiveType;
 
 pub type CheckedScalarComputationHandle = Handle<CheckedScalarComputation>;
 
@@ -96,14 +96,9 @@ impl CheckedScalarComputationPlans {
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
     ) -> impl Iterator<Item = &'plans CheckedScalarComputationRoot> {
-        self.roots
-            .iter()
-            .map(|(_, root)| root)
-            .filter(move |root| {
-                root.state == state
-                    && root.statement_ordinal == statement_ordinal
-                    && root.role == role
-            })
+        self.roots.iter().map(|(_, root)| root).filter(move |root| {
+            root.state == state && root.statement_ordinal == statement_ordinal && root.role == role
+        })
     }
 
     /// Root handles of computations owned by `machine`, in arena order.

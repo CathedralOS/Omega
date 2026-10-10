@@ -14,12 +14,11 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     SaturatingMultiplyZeroAnnihilationRule,
     exact_total_scalar_identity(
-                b"omega.psi-rule.live-obligation-free-saturating-integer-multiply-zero-annihilation.v1",
-            ),
+        b"omega.psi-rule.live-obligation-free-saturating-integer-multiply-zero-annihilation.v1",
+    ),
     propose = propose_total_scalar_identities,
     classify,
 );
-
 
 /// Return the two saturating multiplication annihilation laws in canonical
 /// left-zero/right-zero order. The zero operand is also the replacement.

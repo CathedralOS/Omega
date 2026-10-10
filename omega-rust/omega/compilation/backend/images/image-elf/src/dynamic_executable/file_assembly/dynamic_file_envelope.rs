@@ -15,10 +15,10 @@ use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
 use crate::bytes::{write_u16, write_u32, write_u64};
+use crate::constants::ELF64_SECTION_HEADER_SIZE;
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_u16, read_u32, read_u64, require,
 };
-use crate::constants::{ELF64_SECTION_HEADER_SIZE};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfLoadProgramHeader, ElfLoadProgramHeaderKind, ValidatedElfDynamicLoadLayout,
 };

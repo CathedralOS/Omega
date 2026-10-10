@@ -6,25 +6,25 @@ use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
 use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    IntegerConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite,
+    PsiRewriteCandidate,
 };
 use semantic_vocabulary::{MachineId, OperationId};
 
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::sparse_conditional_constant_propagation::{
-    constant_evaluation_contract, integer_constant, node_location
+    constant_evaluation_contract, integer_constant, node_location,
 };
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
     ExactIntegerCastConstantsRule,
     constant_evaluation_contract(
-                b"omega.psi-rule.exact-integer-cast-constants.v1",
-                OptimizationSafetyClass::ProofCertified,
-            ),
+        b"omega.psi-rule.exact-integer-cast-constants.v1",
+        OptimizationSafetyClass::ProofCertified,
+    ),
     propose = propose,
 );
-
 
 fn propose(
     unit: &PsiOptimizationUnit,
@@ -56,7 +56,11 @@ fn propose(
                 else {
                     continue;
                 };
-                let location = node_location(function.machine, block.id, u32::try_from(node_index).expect("optimization node indices are u32"));
+                let location = node_location(
+                    function.machine,
+                    block.id,
+                    u32::try_from(node_index).expect("optimization node indices are u32"),
+                );
                 candidates.push(
                     PsiRewriteCandidate::new_integer_evaluation(
                         unit.identity,

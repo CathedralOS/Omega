@@ -28,6 +28,7 @@ use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 /// its callers bind against. Structural parameters take places from
 /// `next_place`.
 pub(crate) fn lower_declarations(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
@@ -44,6 +45,7 @@ pub(crate) fn lower_declarations(
         // that roster; deriving and comparing it again would replay checking
         // against the same source in the same compilation.
         let parameters = lower_unit_parameters(
+            identities,
             &plan.structural_parameters,
             type_ids,
             structural_types,
@@ -56,8 +58,8 @@ pub(crate) fn lower_declarations(
             .map(|parameter| terminal_scalar_type(parameter.primitive_type))
             .collect::<Result<Vec<_>, _>>()?;
         let requires = lower_requirements(plan, &parameters, domain_ids)?;
-        let scalar_requires = lower_scalar_requires(plan, &scalar_parameters)?;
-        let scalar_ensures = lower_scalar_ensures(plan, &scalar_parameters)?;
+        let scalar_requires = lower_scalar_requires(identities, plan, &scalar_parameters)?;
+        let scalar_ensures = lower_scalar_ensures(identities, plan, &scalar_parameters)?;
         // Terminal call operands use packed structural positions; checked
         // predicates retain authored positions across interleaved scalar lanes.
         // Reuse the allocated places and types, changing only predicate lookup.
@@ -73,6 +75,7 @@ pub(crate) fn lower_declarations(
             )
             .collect::<Vec<_>>();
         let crash_routes = lower_boundary_crash_routes(
+            identities,
             checked,
             plan,
             &scalar_parameters,
@@ -93,7 +96,7 @@ pub(crate) fn lower_declarations(
                 &plan.structural_parameters,
             )?,
             id,
-            identity: identity.render(checked)?,
+            identity: identities.intern(&identity.render(checked)?),
             attachment: plan
                 .attachment_type_identity
                 .as_ref()
@@ -102,7 +105,13 @@ pub(crate) fn lower_declarations(
             scalar_parameters: scalar_parameters.clone(),
             crash_routes,
             structural_parameters: parameters.clone(),
-            result: lower_boundary_result(&plan.result, type_ids, structural_types, domain_ids)?,
+            result: lower_boundary_result(
+                identities,
+                &plan.result,
+                type_ids,
+                structural_types,
+                domain_ids,
+            )?,
             requires,
             program_local_root_introductions: lower_program_local_root_introductions(
                 checked,
@@ -193,13 +202,15 @@ pub(crate) fn validate_requirement_kind(
 /// routes' namespace), normalized as a callee's published requires are: no
 /// `true` rows, conjunctions split into rows, canonical order, no repeats.
 fn lower_scalar_requires(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     plan: &CheckedBoundaryMachinePlan,
     scalar_types: &[ScalarType],
 ) -> Result<Vec<Proposition>, LoweringError> {
-    lower_scalar_contract(&plan.scalar_requires, scalar_types)
+    lower_scalar_contract(identities, &plan.scalar_requires, scalar_types)
 }
 
 fn lower_scalar_ensures(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     plan: &CheckedBoundaryMachinePlan,
     scalar_types: &[ScalarType],
 ) -> Result<Vec<Proposition>, LoweringError> {
@@ -208,8 +219,9 @@ fn lower_scalar_ensures(
         namespace.push(terminal_scalar_type(result)?);
     }
     let formals = scalar_contract_formals(&namespace)?;
-    let predicate = |value| {
+    let mut predicate = |value| {
         crate::scalar_lowering::contracts::proposition(
+            identities,
             value,
             &formals,
             &[],
@@ -237,6 +249,7 @@ fn lower_scalar_ensures(
 }
 
 fn lower_scalar_contract(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     clauses: &[checked_trees::ClosedScalarContractValue],
     scalar_types: &[ScalarType],
 ) -> Result<Vec<Proposition>, LoweringError> {
@@ -248,6 +261,7 @@ fn lower_scalar_contract(
         .iter()
         .map(|row| {
             crate::scalar_lowering::contracts::clauses(
+                identities,
                 std::slice::from_ref(&Some(row.clone())),
                 &formals,
                 &[],
@@ -329,6 +343,7 @@ fn lower_requirements(
 }
 
 pub(super) fn lower_boundary_result(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     result: &CheckedBoundaryMachineResultPlan,
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -358,6 +373,7 @@ pub(super) fn lower_boundary_result(
                 })
                 .collect::<Result<Vec<_>, _>>()?,
             projected_qualifications: super::parameters::lower_projected_qualifications(
+                identities,
                 projected_qualifications,
                 domain_ids,
                 lookup_type_id(type_ids, type_identity)?,

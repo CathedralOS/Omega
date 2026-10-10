@@ -26,7 +26,9 @@ pub(super) fn index_structural_types(
                 declaration.id,
             ));
         }
-        if declaration.identity.is_empty() || !type_names.insert(declaration.identity.as_str()) {
+        if declaration.identity == terminal_psi::TerminalIdentityIndex::ABSENT
+            || !type_names.insert(declaration.identity)
+        {
             return Err(
                 OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
             );
@@ -52,7 +54,9 @@ pub(super) fn index_structural_types(
                 referent.id,
             ));
         }
-        if referent.identity.is_empty() || !type_names.insert(referent.identity.as_str()) {
+        if referent.identity == terminal_psi::TerminalIdentityIndex::ABSENT
+            || !type_names.insert(referent.identity)
+        {
             return Err(
                 OptimizationUnitValidationError::InvalidStructuralTypeIdentity(referent.id),
             );
@@ -214,8 +218,8 @@ pub(super) fn index_structural_domains<'unit>(
                 declaration.id,
             ));
         }
-        if declaration.identity.is_empty()
-            || !names.insert(declaration.identity.as_str())
+        if declaration.identity == terminal_psi::TerminalIdentityIndex::ABSENT
+            || !names.insert(declaration.identity)
             || !semantic_domains.insert((declaration.semantic_domain, declaration.carrier))
             || family_byte_predicates
                 .insert(declaration.semantic_domain, declaration.byte_predicate)
@@ -266,6 +270,7 @@ pub(super) fn index_structural_domains<'unit>(
                     declaration.semantic_domain,
                     declaration.carrier,
                     projection,
+                    &unit.identities,
                     types,
                 )
             })

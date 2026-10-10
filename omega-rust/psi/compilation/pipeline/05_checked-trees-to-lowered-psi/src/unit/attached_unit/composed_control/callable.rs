@@ -51,6 +51,7 @@ pub(in crate::unit::attached_unit) struct EmissionCounters<'a> {
 }
 
 pub(in crate::unit::attached_unit) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: CallableBody<'_>,
@@ -116,13 +117,14 @@ pub(in crate::unit::attached_unit) fn emit(
         .clone();
     let (mut machine, occurrences, scalar_block_invariants, qualification_coercions) =
         state_graph::emit(
+            identities,
             checked,
             plan,
             admitted,
             identity,
             parameters,
-            scalar_parameters,
             entry_erased_formals,
+            scalar_parameters,
             &mut catalogs,
         )?;
     // `requires` already carries the merged closed clause proposition ahead
@@ -146,6 +148,7 @@ pub(in crate::unit::attached_unit) fn emit(
         .first()
         .ok_or(LoweringError::Unsupported("Unit graph has no entry state"))?;
     machine.contract.ensures = super::super::normal_guarantees::lower(
+        identities,
         checked,
         entry.state,
         &machine.parameters,

@@ -120,8 +120,6 @@ impl DependencyProjections {
         self.product.authored_dependencies().len() + self.build.authored_dependencies().len()
     }
 
-
-
     /// Validate requester-local aliases for one purpose scope after every
     /// selected package name is known for that scope.
     pub fn validate_aliases(
@@ -183,8 +181,6 @@ impl BuildDependencyProjection {
             dependencies,
         }
     }
-
-
 
     pub fn build_dependencies(&self) -> &[DependencySourceRequest] {
         self.dependencies.requests(DependencyPurpose::Build)

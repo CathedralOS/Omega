@@ -379,6 +379,7 @@ pub fn fixture() -> Fixture {
                 exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
                 receiver: namespace,
                 target: Identifier::generated("select_representation"),
+                layout_query: None,
                 machine_arguments: vec![
                     named_argument(opaque_path, opaque),
                     named_argument(conformance_path, conformance),

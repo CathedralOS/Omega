@@ -57,18 +57,18 @@ mod tests {
         StructuralTypeDeclaration {
             scalar_restriction: None,
             id: StructuralTypeId::new(1).unwrap(),
-            identity: "ordinary five-case sum".into(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
             shape: StructuralTypeShape::Sum {
                 cases: (0..5)
                     .map(|index| StructuralCaseDeclaration {
                         id: StructuralCaseId::new(index + 1).unwrap(),
-                        identity: format!("case {index}"),
+                        identity: terminal_psi::TerminalIdentityIndex(10 + index as u32),
                         fields: if index == 0 {
                             vec![]
                         } else {
                             vec![StructuralFieldDeclaration {
                                 id: StructuralFieldId::new(index).unwrap(),
-                                identity: "sign".into(),
+                                identity: terminal_psi::TerminalIdentityIndex(2),
                                 relevance: BindingRelevance::Relevant,
                                 field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
                                 storage: None,

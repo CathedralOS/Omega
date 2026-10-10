@@ -19,10 +19,10 @@ psi_rule_contract!(
     /// events, and fuel settlement; only the operation and the recomputed unit
     /// identity differ. Machines holding an authenticated cyclic component stay
     /// frozen.
-CaseMembershipSpecializationRule,
+    CaseMembershipSpecializationRule,
     crate::rules::representation_specialization_contract(
-                b"omega.psi-rule.case-membership-specialization.v1",
-            ),
+        b"omega.psi-rule.case-membership-specialization.v1",
+    ),
 );
 
 impl PsiOptimizationRule for CaseMembershipSpecializationRule {

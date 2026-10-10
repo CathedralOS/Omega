@@ -3,6 +3,7 @@ use crate::candidates::rewrite_accounting::threading::{
     reconstruct_linear_thread_accounting, reconstruct_linear_thread_bindings,
     reconstruct_linear_thread_ownership_is_identity,
 };
+use crate::candidates::set_node_effect_link;
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_uses,
 };
@@ -10,7 +11,6 @@ use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
-use crate::candidates::set_node_effect_link;
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,

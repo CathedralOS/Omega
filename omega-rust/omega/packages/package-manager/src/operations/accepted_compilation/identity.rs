@@ -1,6 +1,5 @@
 //! Join the loaded compiler and the actually selected toolchain library.
 
-
 use crate::lock::PackageLockTarget;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,

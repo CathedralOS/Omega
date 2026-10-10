@@ -23,21 +23,18 @@ mod plan_computation;
 mod policy_implementations;
 
 pub use boundary_signatures::{
-    BoundaryCallbackBinder,
-    BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, BoundaryValueClass,
-    BoundaryValueField, BoundaryValueShape, MaterializedBoundarySignature,
+    BoundaryCallbackBinder, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
+    BoundaryValueClass, BoundaryValueField, BoundaryValueShape, MaterializedBoundarySignature,
 };
-pub(crate) use boundary_signatures::{ BoundaryDirectCallbackParameter, BoundaryNativeParameter};
+pub(crate) use boundary_signatures::{BoundaryDirectCallbackParameter, BoundaryNativeParameter};
 pub use callback_bindings::{
     BoundaryCallingPlanRealization, SelectedCallbackPlacement,
     close_outbound_callback_materializations, validate_nominal_callback_placement_bindings,
 };
 pub use callback_layout_catalog::BoundaryCallbackLayoutEntry;
-pub use opaque_representations::{ BoundaryOpaqueRepresentationMovementRole,
-    BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
+pub use opaque_representations::{
+    BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,
+    BoundaryOpaqueRepresentationUse,
 };
-pub use plan_computation::{
-    compute_boundary_calling_plans,
-};
-pub(crate) use plan_computation::{ 
-    evaluate_compatibility_boundary_entry_plan};
+pub use plan_computation::compute_boundary_calling_plans;
+pub(crate) use plan_computation::evaluate_compatibility_boundary_entry_plan;

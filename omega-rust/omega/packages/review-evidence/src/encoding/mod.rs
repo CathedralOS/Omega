@@ -8,18 +8,14 @@ mod recovery;
 pub use encode::membership::{PackagePolicyMembershipError, PackagePolicyMembershipLimits};
 pub use encode::restricted_build_request_acceptance_text;
 
-pub use recovery::{ PackagePolicyRecoveryLimits,
-};
-pub(crate) use recovery::{
-    PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};
+pub use recovery::PackagePolicyRecoveryLimits;
+pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};
 
 pub(crate) const PACKAGE_POLICY_BASELINE_VERSION: u16 = 12;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub(crate) const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 7;
 pub(crate) const EXTERNAL_SUPPLY_POLICY_MAGIC: &[u8] = b"OMEGA-EXTERNAL-SUPPLY-POLICY\0";
-
-
 
 pub(crate) const PACKAGE_CALLING_POLICY_VERSION: u16 = 7;
 pub(crate) const CALLING_POLICY_MAGIC: &[u8] = b"OMEGA-CALLING-POLICY\0";

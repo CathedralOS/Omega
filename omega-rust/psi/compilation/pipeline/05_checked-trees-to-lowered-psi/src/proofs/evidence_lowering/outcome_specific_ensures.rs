@@ -9,6 +9,7 @@ use crate::proofs::{
 };
 
 pub(crate) fn outcome_specific_ensure_rows(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     selected_machine: symbols::SymbolHandle,
     terminal_machine_id: MachineId,
@@ -98,7 +99,9 @@ pub(crate) fn outcome_specific_ensure_rows(
             ))?;
         let result_case = cases
             .iter()
-            .find_map(|case| (case.identity == case_identity.spelling()).then_some(case.id))
+            .find_map(|case| {
+                (case.identity == identities.intern(&case_identity.spelling())).then_some(case.id)
+            })
             .ok_or(LoweringError::Unsupported(
                 "guarded guarantee case is absent from the terminal result sum",
             ))?;

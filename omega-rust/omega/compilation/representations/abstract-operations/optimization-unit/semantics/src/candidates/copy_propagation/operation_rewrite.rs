@@ -20,7 +20,7 @@ pub(crate) fn rewrite_block_parameter_operation(
             }
         }
     };
-match operation {
+    match operation {
         O::Jump {
             target, bindings, ..
         } => {
@@ -56,7 +56,10 @@ match operation {
         // The receiving commitment names the completed source RHS. Until
         // this rewrite transports that correspondence through its validated
         // equality, retain the operand and let use validation keep its binding.
-        O::WriteOnlyPrimitiveStore { range_obligation: Some(_), .. } => {}
+        O::WriteOnlyPrimitiveStore {
+            range_obligation: Some(_),
+            ..
+        } => {}
         _ => crate::candidates::value_operand_rewrites::rewrite_value_operands(
             operation,
             &mut replace,

@@ -60,6 +60,7 @@ struct PayloadCaseDispatchArm {
 /// expression machinery pushes the state that evaluates the return and jumps
 /// the completion.
 fn push_arm_target(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
@@ -95,6 +96,7 @@ fn push_arm_target(
         })
     {
         expansion.retained_value(
+            identities,
             state,
             *statement_ordinal,
             role,
@@ -105,6 +107,7 @@ fn push_arm_target(
         )
     } else {
         expansion.retained_pure_value(
+            identities,
             state,
             *statement_ordinal,
             role,
@@ -159,6 +162,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     fn payload_case_dispatch(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         bindings: &crate::expression_preparation::bindings::ScalarBindings,
@@ -205,6 +209,7 @@ impl Evaluation {
             return Ok(None);
         }
         let LoweredDirectExpression::Boolean { expression: guard } = bindings.expression_at(
+            identities,
             checked,
             state,
             guard_statement_ordinal,
@@ -223,6 +228,7 @@ impl Evaluation {
             return Ok(None);
         }
         self.payload_dispatch_arm(
+            identities,
             checked,
             state,
             bindings,
@@ -241,6 +247,7 @@ impl Evaluation {
     /// leading case of one sum root.
     fn payload_reads_dispatch(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         bindings: &crate::expression_preparation::bindings::ScalarBindings,
@@ -276,13 +283,15 @@ impl Evaluation {
         {
             return Ok(None);
         }
-        let expression = bindings.expression_at(checked, state, *statement_ordinal, role)?;
+        let expression =
+            bindings.expression_at(identities, checked, state, *statement_ordinal, role)?;
         let Some((source, case)) =
             crate::emission::case_payload_dispatch::single_leading_case_read(&expression)
         else {
             return Ok(None);
         };
         self.payload_dispatch_arm(
+            identities,
             checked,
             state,
             bindings,
@@ -302,6 +311,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     fn payload_dispatch_arm(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         bindings: &crate::expression_preparation::bindings::ScalarBindings,
@@ -349,7 +359,8 @@ impl Evaluation {
             });
             payloads.push((field.id, QualifiedScalarType::from(scalar_type)));
         }
-        let expression = bindings.expression_at(checked, state, statement_ordinal, role)?;
+        let expression =
+            bindings.expression_at(identities, checked, state, statement_ordinal, role)?;
         if !crate::emission::case_payload_dispatch::direct_case_reads(
             std::slice::from_ref(&expression),
             source,
@@ -426,6 +437,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     fn case_dispatch_split(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
@@ -467,6 +479,7 @@ impl Evaluation {
         let (fallback_target, fallback_arguments) = if let Some(fallback) = fallback {
             (
                 push_arm_target(
+                    identities,
                     expansion,
                     checked,
                     state,
@@ -519,6 +532,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn scalar_control_result(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
@@ -545,7 +559,8 @@ impl Evaluation {
             terminal_scalar_type(control.primitive_type)?,
             qualifications,
         )?;
-        let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
+        let mut expansion =
+            self.scalar_computation_expansion(identities, checked, qualifications, machine);
         let mut completion_types = source_types.clone();
         completion_types.push(result_type);
         let completions = cleanups
@@ -579,6 +594,7 @@ impl Evaluation {
         let terminator = match &control.terminator {
             CheckedScalarStateTerminator::Return { statement_ordinal } => {
                 let target = push_arm_target(
+                    identities,
                     &mut expansion,
                     checked,
                     state,
@@ -606,6 +622,7 @@ impl Evaluation {
                 when_false,
             } => {
                 let true_dispatch = self.payload_case_dispatch(
+                    identities,
                     checked,
                     state,
                     &bindings,
@@ -615,6 +632,7 @@ impl Evaluation {
                     when_true,
                 )?;
                 let false_dispatch = match self.payload_case_dispatch(
+                    identities,
                     checked,
                     state,
                     &bindings,
@@ -640,6 +658,7 @@ impl Evaluation {
                     // case it observes is read from its deferred payload
                     // reads alone.
                     None => self.payload_reads_dispatch(
+                        identities,
                         checked,
                         state,
                         &bindings,
@@ -663,6 +682,7 @@ impl Evaluation {
                             );
                         }
                         self.case_dispatch_split(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -682,6 +702,7 @@ impl Evaluation {
                             &completions,
                         )?;
                         let false_target = push_arm_target(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -711,6 +732,7 @@ impl Evaluation {
                             &completions,
                         )?;
                         let other_target = push_arm_target(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -730,6 +752,7 @@ impl Evaluation {
                     }
                     (None, None) => {
                         let true_target = push_arm_target(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -740,6 +763,7 @@ impl Evaluation {
                             &completions,
                         )?;
                         let false_target = push_arm_target(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -750,19 +774,20 @@ impl Evaluation {
                             &completions,
                         )?;
                         crate::scalar_lowering::branch_states::guards::lower(
+                            identities,
                             checked,
                             state,
                             *guard_statement_ordinal,
                             &bindings,
                             &source_types,
                             (
-                                true_target,
+                                false_target,
                                 crate::scalar_lowering::computations::parameters(&source_types),
                                 Vec::new(),
                                 self.proof_formal_forwarding(),
                             ),
                             (
-                                false_target,
+                                true_target,
                                 crate::scalar_lowering::computations::parameters(&source_types),
                                 Vec::new(),
                                 self.proof_formal_forwarding(),
@@ -781,6 +806,7 @@ impl Evaluation {
                 let mut dispatches = Vec::with_capacity(arms.len());
                 for guard in arms.iter() {
                     dispatches.push(self.payload_case_dispatch(
+                        identities,
                         checked,
                         state,
                         &bindings,
@@ -800,6 +826,7 @@ impl Evaluation {
                         .map(|dispatch| dispatch.expect("all arms dispatch"))
                         .collect::<Vec<_>>();
                     self.case_dispatch_split(
+                        identities,
                         &mut expansion,
                         checked,
                         state,
@@ -821,6 +848,7 @@ impl Evaluation {
                                 &completions,
                             )?,
                             None => push_arm_target(
+                                identities,
                                 &mut expansion,
                                 checked,
                                 state,
@@ -835,6 +863,7 @@ impl Evaluation {
                     }
                     let mut next = if let Some(fallback) = fallback {
                         push_arm_target(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -875,19 +904,20 @@ impl Evaluation {
                                 self.proof_formal_forwarding(),
                             ),
                             None => crate::scalar_lowering::branch_states::guards::evaluate(
+                                identities,
                                 checked,
                                 state,
                                 guard_ordinal,
                                 &bindings,
                                 &source_types,
                                 (
-                                    target,
+                                    next,
                                     crate::scalar_lowering::computations::parameters(&source_types),
                                     Vec::new(),
                                     self.proof_formal_forwarding(),
                                 ),
                                 (
-                                    next,
+                                    target,
                                     crate::scalar_lowering::computations::parameters(&source_types),
                                     Vec::new(),
                                     self.proof_formal_forwarding(),
@@ -928,6 +958,7 @@ impl Evaluation {
         });
         let states = expansion.finish();
         self.single_completed_expansion(
+            identities,
             checked,
             &states,
             entry,

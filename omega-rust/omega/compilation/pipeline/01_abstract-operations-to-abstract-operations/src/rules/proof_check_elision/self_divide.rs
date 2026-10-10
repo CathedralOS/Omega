@@ -11,9 +11,9 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     LiveProofCertifiedIntegerSelfDivideEliminationRule,
     super::proof_check_elision_rule_contract(
-                b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1",
-                AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-            ),
+        b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1",
+        AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+    ),
     propose = propose_proof_certified_integer_constants,
     classify,
     IntegerType::one,

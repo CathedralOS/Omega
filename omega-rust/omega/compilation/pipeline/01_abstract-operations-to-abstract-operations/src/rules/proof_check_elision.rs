@@ -2,8 +2,8 @@
 
 use abstract_operations::IntegerArithmeticOperator;
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
     IntegerConstantRewrite, NodeLocation, PsiOptimizationUnit, PsiRealizationSite,
@@ -38,13 +38,14 @@ fn proof_check_elision_rule_contract(
     identity: &'static [u8],
     analyses: AnalysisSet,
 ) -> OptimizationRuleContract {
-    crate::rules::standard_rule_contract(identity, PROOF_CHECK_ELISION_PASS_NAME, 1,
-                analyses,
-                AnalysisInvalidationSet::new([
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
-                OptimizationSafetyClass::ProofCertified)
+    crate::rules::standard_rule_contract(
+        identity,
+        PROOF_CHECK_ELISION_PASS_NAME,
+        1,
+        analyses,
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+        OptimizationSafetyClass::ProofCertified,
+    )
 }
 
 pub(crate) use divide_by_one::LiveProofCertifiedIntegerDivideByOneEliminationRule;
@@ -156,7 +157,12 @@ fn propose_proof_certified_remainder_by_constant(
                         unit.identity,
                         contract,
                         vec![block.id],
-                        vec![provenance_realized_at(site, site, &node.provenance, &node.fuel)],
+                        vec![provenance_realized_at(
+                            site,
+                            site,
+                            &node.provenance,
+                            &node.fuel,
+                        )],
                         constant_fact,
                         obligation_fact,
                         -1,

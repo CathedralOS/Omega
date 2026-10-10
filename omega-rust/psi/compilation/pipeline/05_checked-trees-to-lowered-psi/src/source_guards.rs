@@ -255,7 +255,11 @@ fn calls_have_one_emitter_and_one_argument_constructor() {
     emitters.sort();
     constructors.sort();
     free_mints.sort();
-    assert_eq!(emitters.len(), 1, "exactly one direct-call construction: {emitters:?}");
+    assert_eq!(
+        emitters.len(),
+        1,
+        "exactly one direct-call construction: {emitters:?}"
+    );
     assert_eq!(
         constructors.len(),
         1,

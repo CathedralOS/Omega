@@ -38,7 +38,6 @@ pub(crate) fn lower_operator_definition(
     })
 }
 
-
 /// Whether a `machine` item is a top-level token-bearing boundary signature
 /// (`boundary machine + Owner::name(...);`): bodyless, boundary, tokened, and
 /// not the explicit `boundary requirement` form.

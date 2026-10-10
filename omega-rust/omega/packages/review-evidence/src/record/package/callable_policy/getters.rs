@@ -67,7 +67,6 @@ impl PackagePolicyCallable {
         &self.operator_realizations
     }
 
-
     pub fn contracts(&self) -> &[PackageReviewCallableContract] {
         &self.contracts
     }

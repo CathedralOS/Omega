@@ -50,7 +50,11 @@ pub(crate) fn expected_bytes(
         }
         for fragment in &home.source.locations {
             let (value_byte_offset, byte_size) = match *fragment {
-                calling_conventions::register_or_stack_pair_pattern!(value_byte_offset,byte_size, ..) => (value_byte_offset, byte_size),
+                calling_conventions::register_or_stack_pair_pattern!(
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                ) => (value_byte_offset, byte_size),
                 ValueLocation::Indirect { .. } => return None,
             };
             let destination = home_offset.checked_add(value_byte_offset)?;

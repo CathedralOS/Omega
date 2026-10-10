@@ -18,7 +18,10 @@ pub(super) fn reconstruct(
     types: &BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: typed_trees::type_identity::TypeIdentityId,
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], typed_trees::type_identity::TypeIdentityId)],
+    moved_paths: &[(
+        &[CheckedUnitStructuralPathSegment],
+        typed_trees::type_identity::TypeIdentityId,
+    )],
     max_residuals: usize,
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
     let borrowed = types

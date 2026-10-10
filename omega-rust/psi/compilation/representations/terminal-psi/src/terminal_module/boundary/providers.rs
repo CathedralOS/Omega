@@ -1,3 +1,4 @@
+use crate::terminal_module::TerminalIdentityIndex;
 use crate::{
     StructuralAccess, StructuralDomainRequirement, StructuralMultiplicity,
     StructuralPathQualification,
@@ -16,11 +17,11 @@ use semantic_vocabulary::{
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProviderCandidateConformance {
     pub boundary: BoundaryMachineId,
-    pub requirement_identity: String,
-    pub provider_identity: String,
+    pub requirement_identity: TerminalIdentityIndex,
+    pub provider_identity: TerminalIdentityIndex,
     /// Canonical checked-machine identity named by the selected
     /// `CheckedAdapter` row. The dense `candidate` ID is artifact-local.
-    pub candidate_identity: String,
+    pub candidate_identity: TerminalIdentityIndex,
     pub candidate: MachineId,
     pub signature: ProviderSignature,
     pub refinement: ProviderRefinement,

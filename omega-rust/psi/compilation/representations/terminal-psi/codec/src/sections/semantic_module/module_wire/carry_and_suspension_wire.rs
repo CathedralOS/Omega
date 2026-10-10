@@ -447,6 +447,9 @@ mod tests {
 
     #[test]
     fn suspension_storage_access_survives_wire_and_changes_identity() {
+        let table = terminal_psi::TerminalIdentityTable::from(
+            (0..64).map(|i| format!("identity-{i}")).collect::<Vec<_>>(),
+        );
         let mut encodings = Vec::new();
         let mut commitments = Vec::new();
         for access in [
@@ -472,7 +475,7 @@ mod tests {
                             StructuralPathSegment::Case(
                                 StructuralCaseId::new(5).expect("nonzero case"),
                             ),
-                            StructuralPathSegment::Field("values".to_owned()),
+                            StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(13)),
                             StructuralPathSegment::Referent,
                             StructuralPathSegment::FixedIndex(2),
                             StructuralPathSegment::FixedByteRange { start: 1, end: 4 },
@@ -521,10 +524,10 @@ mod tests {
                 repeated
             );
             assert_ne!(
-                suspension_frontier_commitment(&repeated),
-                suspension_frontier_commitment(&plan)
+                suspension_frontier_commitment(&table, &repeated),
+                suspension_frontier_commitment(&table, &plan)
             );
-            let commitment = suspension_frontier_commitment(&decoded);
+            let commitment = suspension_frontier_commitment(&table, &decoded);
             assert!(!encodings.contains(&encoded));
             assert!(!commitments.contains(&commitment));
             encodings.push(encoded);
@@ -554,6 +557,9 @@ mod tests {
 
     #[test]
     fn suspension_loan_graph_round_trips_capture_and_dependency_identity() {
+        let table = terminal_psi::TerminalIdentityTable::from(
+            (0..64).map(|i| format!("identity-{i}")).collect::<Vec<_>>(),
+        );
         use arena::HandleSpan;
         use terminal_psi::{
             TerminalSuspensionLoan, TerminalSuspensionLoanBacking, TerminalSuspensionLoanCapture,
@@ -621,10 +627,10 @@ mod tests {
         let mut selectors = Vec::new();
         decoded.visit_value_ids(|value| selectors.push(value));
         assert_eq!(selectors, vec![selector]);
-        let commitment = suspension_frontier_commitment(&plan);
+        let commitment = suspension_frontier_commitment(&table, &plan);
         let mut changed = plan.clone();
         changed.loans.occurrences.get_mut(child).supplier = Default::default();
-        assert_ne!(suspension_frontier_commitment(&changed), commitment);
+        assert_ne!(suspension_frontier_commitment(&table, &changed), commitment);
         changed = plan.clone();
         changed.loans.occurrences.get_mut(parent).capture =
             TerminalSuspensionLoanCapture::Reference {
@@ -634,7 +640,7 @@ mod tests {
                 source_access: StructuralAccess::Owned,
                 source_path: HandleSpan::empty(),
             };
-        assert_ne!(suspension_frontier_commitment(&changed), commitment);
+        assert_ne!(suspension_frontier_commitment(&table, &changed), commitment);
         changed = plan;
         changed.live_values[0].storage = TerminalSuspensionStorage::CallArgument;
         changed.loans.occurrences.get_mut(child).capture =
@@ -647,13 +653,16 @@ mod tests {
         let decoded = decode_suspension_call_plan(&mut Reader::new(&writer.finish()))
             .expect("decode actual capture");
         assert_eq!(decoded, changed);
-        let actual_commitment = suspension_frontier_commitment(&changed);
+        let actual_commitment = suspension_frontier_commitment(&table, &changed);
         changed.loans.occurrences.get_mut(child).capture =
             TerminalSuspensionLoanCapture::CallArgument {
                 live_value: 1,
                 path: HandleSpan::empty(),
             };
-        assert_ne!(suspension_frontier_commitment(&changed), actual_commitment);
+        assert_ne!(
+            suspension_frontier_commitment(&table, &changed),
+            actual_commitment
+        );
         let mut writer = Writer::default();
         encode_suspension_call_plan(&mut writer, &changed).expect("encode absent actual");
         assert!(decode_suspension_call_plan(&mut Reader::new(&writer.finish())).is_err());
@@ -662,7 +671,10 @@ mod tests {
                 live_value: 0,
                 path,
             };
-        assert_ne!(suspension_frontier_commitment(&changed), actual_commitment);
+        assert_ne!(
+            suspension_frontier_commitment(&table, &changed),
+            actual_commitment
+        );
         changed.live_values[0].storage = TerminalSuspensionStorage::Local;
         let mut writer = Writer::default();
         encode_suspension_call_plan(&mut writer, &changed).expect("encode wrong storage role");

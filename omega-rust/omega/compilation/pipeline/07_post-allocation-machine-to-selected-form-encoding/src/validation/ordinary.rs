@@ -1,6 +1,5 @@
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{terminator_instruction
-};
+use selected_instructions::terminator_instruction;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
@@ -76,4 +75,3 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     }
     Ok(())
 }
-

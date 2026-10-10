@@ -208,20 +208,19 @@ pub fn settle_selected_execution(
             .package_inputs
             .and_then(|inputs| inputs.accepted_semantic_binding(role))
     };
-    let resolve_service_binding = |binding: Option<
-        &package_compilation::AcceptedSemanticBinding,
-    >| {
-        binding
-            .map(|binding| {
-                crate::resolve_accepted_service_binding(
-                    &checked.program,
-                    settlement.calling_plans,
-                    binding,
-                )
-            })
-            .transpose()
-            .map_err(|diagnostic| vec![diagnostic])
-    };
+    let resolve_service_binding =
+        |binding: Option<&package_compilation::AcceptedSemanticBinding>| {
+            binding
+                .map(|binding| {
+                    crate::resolve_accepted_service_binding(
+                        &checked.program,
+                        settlement.calling_plans,
+                        binding,
+                    )
+                })
+                .transpose()
+                .map_err(|diagnostic| vec![diagnostic])
+        };
     let resolved_exit_bindings = crate::retain_selected_compiler_intrinsic_review_identities(
         &checked.program,
         settlement.calling_plans,

@@ -4,34 +4,40 @@ use std::collections::BTreeSet;
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationRuleContract, OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationSafetyClass,
 };
 use optimization_unit::{
-    ConstantConditionalRewrite, NodeLocation, ProvenanceRewrite,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    ConstantConditionalRewrite, NodeLocation, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
     reachable_blocks_after_conditional_fold,
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 
-use crate::rules::control_flow_cleanup::{provenance_proven_unreachable_at, provenance_realized_at};
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
+use crate::rules::control_flow_cleanup::{
+    provenance_proven_unreachable_at, provenance_realized_at,
+};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
     ConstantConditionalFoldRule,
-    crate::rules::standard_rule_contract(b"omega.psi-rule.constant-conditional-fold.v5", CONTROL_FLOW_CLEANUP_PASS_NAME, 5,
-                AnalysisSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::ScalarConstants,
-                ]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::ControlFlowGraph,
-                    AnalysisKind::CallGraph,
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-                OptimizationSafetyClass::ExactOperationSemantics),
+    crate::rules::standard_rule_contract(
+        b"omega.psi-rule.constant-conditional-fold.v5",
+        CONTROL_FLOW_CLEANUP_PASS_NAME,
+        5,
+        AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::ScalarConstants,
+        ]),
+        AnalysisInvalidationSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::CallGraph,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+        OptimizationSafetyClass::ExactOperationSemantics
+    ),
 );
 
 impl PsiOptimizationRule for ConstantConditionalFoldRule {
@@ -146,8 +152,18 @@ fn conditional_fold_accounting(
         .collect::<BTreeSet<_>>();
     let mut affected = BTreeSet::from([decision.block]);
     affected.extend(removed.iter().copied());
-    let mut realized = vec![provenance_realized_at(selected_site, selected_site, &selected.provenance, &selected.fuel)];
-    let mut unreachable = vec![provenance_proven_unreachable_at(rejected_site, rejected_site, &rejected.provenance, &rejected.fuel)];
+    let mut realized = vec![provenance_realized_at(
+        selected_site,
+        selected_site,
+        &selected.provenance,
+        &selected.fuel,
+    )];
+    let mut unreachable = vec![provenance_proven_unreachable_at(
+        rejected_site,
+        rejected_site,
+        &rejected.provenance,
+        &rejected.fuel,
+    )];
     let mut expected_effect = 0u64;
     for block in &function.blocks {
         if removed.contains(&block.id) {
@@ -159,14 +175,24 @@ fn conditional_fold_accounting(
                 };
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    unreachable.push(provenance_proven_unreachable_at(site, site, &node.provenance, &node.fuel));
+                    unreachable.push(provenance_proven_unreachable_at(
+                        site,
+                        site,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
                 for edge in &node.successors {
                     let site = PsiRealizationSite::Edge {
                         machine: function.machine,
                         edge: edge.psi_edge,
                     };
-                    unreachable.push(provenance_proven_unreachable_at(site, site, &edge.provenance, &edge.fuel));
+                    unreachable.push(provenance_proven_unreachable_at(
+                        site,
+                        site,
+                        &edge.provenance,
+                        &edge.fuel,
+                    ));
                 }
             }
             continue;
@@ -183,7 +209,12 @@ fn conditional_fold_accounting(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
+                    realized.push(provenance_realized_at(
+                        site,
+                        site,
+                        &node.provenance,
+                        &node.fuel,
+                    ));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;

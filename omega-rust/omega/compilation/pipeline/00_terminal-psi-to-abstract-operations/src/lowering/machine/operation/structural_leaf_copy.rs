@@ -125,7 +125,7 @@ fn resolve_copyable_path(
                 StructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields, .. },
             ) => {
-                let field = terminal_psi::live_field_by_identity(fields, identity)?;
+                let field = terminal_psi::live_field_by_identity(fields, *identity)?;
                 match &field.field_type {
                     StructuralFieldType::Structural(next) => *next,
                     leaf => {

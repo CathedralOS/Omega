@@ -33,7 +33,12 @@ pub(in crate::legalization) fn validate_boundary_origins(
                 let declaration = unit
                     .boundary_machine(*boundary)
                     .ok_or_else(LegalizationError::custody)?;
-                if binding.requirement_identity() != declaration.identity {
+                if binding.requirement_identity()
+                    != unit
+                        .identities
+                        .text(declaration.identity)
+                        .unwrap_or_default()
+                {
                     let input = input.ok_or_else(LegalizationError::custody)?;
                     let plan_commitment = match &binding.mechanism {
                         target_operations::NormalizedForeignCallMechanism::Import {
@@ -54,9 +59,11 @@ pub(in crate::legalization) fn validate_boundary_origins(
                                     profile.native_realization() == Some(native.target)
                                 })
                             && ((row.head == *boundary
-                                && row.head_identity == declaration.identity)
+                                && unit.identities.text(declaration.identity)
+                                    == Some(row.head_identity.as_str()))
                                 || (row.member == *boundary
-                                    && row.member_identity == declaration.identity))
+                                    && unit.identities.text(declaration.identity)
+                                        == Some(row.member_identity.as_str())))
                             && row.selected_requirement_identity == binding.requirement_identity()
                             && row.provider_plan_report_identity
                                 == binding.provider_plan_report_identity()

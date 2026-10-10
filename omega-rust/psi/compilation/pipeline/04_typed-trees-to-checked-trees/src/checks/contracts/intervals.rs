@@ -41,12 +41,7 @@ pub(super) fn guard_interval_for_label(
         {
             guard_interval_for_label(program, binary.left, subject_label)
         }
-        _ => comparison_bound(
-            program,
-            binary,
-            binary.operator,
-            subject_label
-        ),
+        _ => comparison_bound(program, binary, binary.operator, subject_label),
     }
 }
 
@@ -95,7 +90,6 @@ pub(super) fn negated_guard_interval_for_label(
         }
     }
 }
-
 
 /// `comparison_bound` under a caller-selected operator, so the negated arm
 /// can read the complement comparison the same way.

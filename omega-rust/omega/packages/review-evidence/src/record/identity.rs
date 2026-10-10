@@ -61,4 +61,3 @@ pub enum PackageReviewSemanticDependencyExposure {
 }
 
 pub type PackageReviewSemanticDependencyKind = checked_trees::CheckedSemanticDependencyKind;
-

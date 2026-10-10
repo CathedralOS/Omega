@@ -1,8 +1,7 @@
 //! Optimizer module role: executable entrance. Field-value specialization validation.
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet,
-    OptimizationSafetyClass,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 

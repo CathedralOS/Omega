@@ -1,6 +1,6 @@
 use super::baseline_tree;
-use crate::staged_output_tree::RetainedStagedOutputEntryKind;
 use crate::empty;
+use crate::staged_output_tree::RetainedStagedOutputEntryKind;
 use crate::tree_from_entries::{OutputTreeEntry, from_entries};
 use std::sync::Arc;
 

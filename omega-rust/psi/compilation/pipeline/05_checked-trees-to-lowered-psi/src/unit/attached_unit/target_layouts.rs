@@ -120,9 +120,7 @@ pub(super) fn lower(
         if argument_fields.len() != record_fields.len()
             || argument_fields.len() != schema_fields.len()
         {
-            return unsupported(
-                "target layout Schema argument changed its complete field inventory",
-            );
+            return unsupported("unsupported target layout Schema argument field inventory");
         }
         let mut captured_fields = Vec::with_capacity(argument_fields.len());
         for (position, field) in argument_fields.iter().enumerate() {
@@ -225,7 +223,7 @@ pub(super) fn lower(
                 || usize::try_from(geometry.validated_layout.align).ok() != Some(geometry.align)
                 || geometry.offsets.len() != record_fields.len()
             {
-                return unsupported("target layout alternative changed its validated geometry");
+                return unsupported("unsupported target layout alternative geometry");
             }
             let fields = record_fields
                 .iter()
@@ -296,7 +294,7 @@ fn validate_field_inventory(
             .live_data_fields(checked.typed.data_members(data))
             .map(|field| field.symbol))
     {
-        return unsupported("target layout changed its source/emitted live field inventory");
+        return unsupported("unsupported target layout source/emitted live field inventory");
     }
     Ok(())
 }

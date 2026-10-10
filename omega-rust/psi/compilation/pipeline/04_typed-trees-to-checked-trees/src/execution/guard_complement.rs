@@ -68,7 +68,9 @@ fn declared_cases(
         .data_members(sum)
         .iter()
         .map(|member| match member {
-            typed_trees::data::DataMember::Variant(case) => Some(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone())),
+            typed_trees::data::DataMember::Variant(case) => Some(
+                checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
+            ),
             typed_trees::data::DataMember::Field(_) => None,
         })
         .collect()

@@ -13,10 +13,10 @@
 use target::compatibility_fingerprint::Fnv1a;
 
 use super::super::checked::{self, CandidateValidationError};
+use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT};
 use crate::dynamic_executable::checked::{
     checked_product, checked_sum, read_u32, read_u64, require,
 };
-use crate::constants::{ELF64_SECTION_HEADER_SIZE, SECTION_COUNT};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfResolvedSectionHeaderPlacement, ElfSectionPlacementResolutionKind,
     ValidatedElfDynamicLoadLayout, public_section_kind,

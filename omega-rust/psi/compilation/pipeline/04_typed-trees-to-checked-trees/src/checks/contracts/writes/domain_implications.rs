@@ -637,11 +637,12 @@ fn domain_admits_zero_value_inner(
     active.push(domain_symbol);
     let admitted = facts.iter().all(|fact| match fact {
         typed_trees::domain::ProofFact::Expression(expression) => matches!(
-            super::super::prover::evaluate_scalar(program, *expression, &mut |leaf| {
-                zero_value_scalar_leaf(program, domain, leaf)
-            },
-            &|_, _| true
-        ),
+            super::super::prover::evaluate_scalar(
+                program,
+                *expression,
+                &mut |leaf| { zero_value_scalar_leaf(program, domain, leaf) },
+                &|_, _| true
+            ),
             Some(super::super::prover::ScalarValue::Boolean(true))
         ),
         typed_trees::domain::ProofFact::Membership(membership) => {

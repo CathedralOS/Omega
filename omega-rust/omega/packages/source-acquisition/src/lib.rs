@@ -25,9 +25,8 @@ pub mod tree;
 pub use error::SourceResolveError;
 pub use git::request::{GitSourceRequest, GitSourceRequestError, GitTransportProfile};
 pub use git::workspace::{
-    GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits,
-    GitWorkspaceProjectionError, GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult,
-    GitWorkspaceSelection,
+    GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
+    GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult, GitWorkspaceSelection,
 };
 pub use identity::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitObjectIdAlgorithm, GitTransport,
@@ -35,10 +34,8 @@ pub use identity::{
     SourceRelativePath, WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 pub use limits::LocalSourceLimits;
-pub use local::operations::{resolve_local_source};
-pub use local::resolution_observations::{ ResolvedLocalSnapshot,
-    ResolvedLocalSource,
-};
+pub use local::operations::resolve_local_source;
+pub use local::resolution_observations::{ResolvedLocalSnapshot, ResolvedLocalSource};
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 pub use source_resolver::{PrimaryGitChoices, SourceResolver};
 

@@ -25,10 +25,10 @@ psi_rule_contract!(
     /// read's result and retires the observation node, fusing the read's custody
     /// into the following node. Machines holding an authenticated cyclic
     /// component stay frozen.
-FieldValueSpecializationRule,
+    FieldValueSpecializationRule,
     crate::rules::representation_specialization_contract(
-                b"omega.psi-rule.field-value-specialization.v1",
-            ),
+        b"omega.psi-rule.field-value-specialization.v1",
+    ),
 );
 
 impl PsiOptimizationRule for FieldValueSpecializationRule {

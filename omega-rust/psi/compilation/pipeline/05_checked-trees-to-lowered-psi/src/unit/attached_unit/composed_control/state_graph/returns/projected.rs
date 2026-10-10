@@ -20,6 +20,7 @@ use terminal_psi::{
 /// existing edge transport transfers custody and independently checks cleanup;
 /// no reference establishment, origin selection or copy permission is invented.
 pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     binding: &StructuralBinding,
     source: semantic_vocabulary::PlaceId,
@@ -44,8 +45,7 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
             ));
         };
         *cleanup_actions = evaluation.emit_cleanup_regions(
-            checked,
-            regions, values, next_value, next_block, next_edge, operations,
+            identities, checked, regions, values, next_value, next_block, next_edge, operations,
         )?;
         return Ok((completion, None));
     }
@@ -73,14 +73,14 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
     let mut arrival_block = block;
     let mut arrival_parameters = Vec::new();
     let mut structural_parameters = vec![StructuralParameterDeclaration {
-            place,
-            position: 0,
-            structural_type: binding.structural_type(),
-            multiplicity: binding.multiplicity(),
-            access: StructuralAccess::Owned,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        }];
+        place,
+        position: 0,
+        structural_type: binding.structural_type(),
+        multiplicity: binding.multiplicity(),
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    }];
     let selected = regions.iter().any(|region| !region.conditions.is_empty());
     let capture_operation_end = operations.len();
     let mut operation_start = capture_operation_end;
@@ -96,7 +96,8 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
             blocks: &mut evaluation.blocks,
         }
         .emit(
-            &regions,
+            identities,
+            &mut Vec::new(),
             &mut Vec::new(),
             next_value,
             next_block,
@@ -112,6 +113,7 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
         parameters: arrival_parameters,
         erased_scalar_formals: Vec::new(),
         erased_proof_formals: crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+            identities,
             checked,
             &evaluation.erased_proof_formals,
         ),
@@ -135,11 +137,16 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
             erased_proof_arguments: (0..evaluation.erased_proof_formals.len())
-                .map(|position| Ok(semantic_vocabulary::ProofTerm::Formal {
-                    position: u32::try_from(position).map_err(|_| LoweringError::Unsupported(
-                        "projected return erased-proof roster exceeds u32",
-                    ))?,
-                })).collect::<Result<Vec<_>, LoweringError>>()?,
+                .map(|position| {
+                    Ok(semantic_vocabulary::ProofTerm::Formal {
+                        position: u32::try_from(position).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "projected return erased-proof roster exceeds u32",
+                            )
+                        })?,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?,
             structural_arguments: vec![StructuralArgument {
                 place: source,
                 path: binding.path().to_vec(),

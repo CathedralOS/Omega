@@ -1,7 +1,6 @@
 //! Bounds-checked byte cursor shared by the crate's record codecs.
 
-
-pub(crate) use optimization_core::cursor::{TakeError};
+pub(crate) use optimization_core::cursor::TakeError;
 pub(crate) struct Cursor<'encoded> {
     encoded: &'encoded [u8],
     offset: usize,

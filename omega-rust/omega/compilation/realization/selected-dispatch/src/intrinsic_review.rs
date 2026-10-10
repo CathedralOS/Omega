@@ -354,10 +354,7 @@ fn resolve_terminal_authority_permissions_for_symbol(
         )));
     };
     let Some(schema) = provider_planning::service_schema::from_typed(
-        provider_planning::ProviderPlanningContext::new(
-            checked,
-            source::DependencyScope::Product,
-        ),
+        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
         calling_plans,
         definition,
     ) else {

@@ -48,6 +48,7 @@ impl OperationFrame<'_, '_> {
     /// Emit one call and publish its result.
     pub(in crate::unit::attached_unit) fn emit_call(
         mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
         inputs: CallInputs<'_>,
     ) -> Result<(), LoweringError> {
@@ -59,6 +60,7 @@ impl OperationFrame<'_, '_> {
         // as explicit reference construction and storage observations do.
         for argument in &call.structural_arguments {
             self.evaluation.prepare_borrowed_argument(
+                identities,
                 self.checked,
                 self.state,
                 argument,
@@ -76,20 +78,20 @@ impl OperationFrame<'_, '_> {
                 CheckedUnitCallRoute::Module { .. },
                 CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
             ) => {
-                self.unit_call(operation, call, &inputs)?;
+                self.unit_call(identities, operation, call, &inputs)?;
                 Ok(())
             }
             (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(result)) => {
-                let value = self.scalar_call(operation, call, result, &inputs)?;
-                self.bind_scalar_result(call.coordinate, value)
+                let value = self.scalar_call(identities, operation, call, result, &inputs)?;
+                self.bind_scalar_result(identities, call.coordinate, value)
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
-                self.boundary_call(call, &inputs)?;
+                self.boundary_call(identities, call, &inputs)?;
                 Ok(())
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(result)) => {
-                let value = self.boundary_scalar_call(call, result, &inputs)?;
-                self.bind_scalar_result(call.coordinate, value)
+                let value = self.boundary_scalar_call(identities, call, result, &inputs)?;
+                self.bind_scalar_result(identities, call.coordinate, value)
             }
             (
                 CheckedUnitCallRoute::Boundary,
@@ -99,6 +101,7 @@ impl OperationFrame<'_, '_> {
                 },
             ) => {
                 self.boundary_structural_call(
+                    identities,
                     operation,
                     call,
                     binding,
@@ -112,9 +115,9 @@ impl OperationFrame<'_, '_> {
                     interface_identity, ..
                 },
                 _,
-            ) => self.dynamic_call(call, interface_identity, &inputs),
+            ) => self.dynamic_call(identities, call, interface_identity, &inputs),
         }?;
-        self.publish_loan_completions(call)
+        self.publish_loan_completions(identities, call)
     }
 
     /// A retained scalar call result is the next dense value, so it also
@@ -126,13 +129,14 @@ impl OperationFrame<'_, '_> {
     /// operation result without occupying a source position.
     pub(super) fn bind_scalar_result(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         coordinate: checked_trees::CheckedUnitCallCoordinate,
         value: ValueDeclaration,
     ) -> Result<(), LoweringError> {
         let names_local =
             crate::call_sites::initializes_immutable_local(self.checked, self.state, coordinate);
         let value = if names_local {
-            self.refine_scalar_local_value(coordinate.statement_index, value)?
+            self.refine_scalar_local_value(identities, coordinate.statement_index, value)?
         } else {
             value
         };
@@ -323,13 +327,8 @@ impl OperationFrame<'_, '_> {
         target: symbols::SymbolHandle,
     ) -> Result<(), LoweringError> {
         let (coordinate, frontier) = self.source_call_record(coordinate)?;
-        self.operations.record_source_call(
-            coordinate,
-            source_site,
-            operation,
-            target,
-            &frontier,
-        )
+        self.operations
+            .record_source_call(coordinate, source_site, operation, target, &frontier)
     }
 
     /// Join demanded source bindings through this state's authored namespace.
@@ -565,6 +564,7 @@ impl OperationFrame<'_, '_> {
     /// call that establishes the callee's owned result.
     fn unit_call(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
         call: &CheckedUnitCallPlan,
         inputs: &CallInputs<'_>,
@@ -578,13 +578,14 @@ impl OperationFrame<'_, '_> {
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
         let prepared = ordinary_calls::prepare(
+            identities,
             checked,
             operation,
             signatures::find(self.callees.signatures, *target_machine)?.call_target(),
-            inputs.evaluated_scalar_arguments,
             inputs.evaluated_selectors,
-            self.values,
+            inputs.evaluated_scalar_arguments,
             self.caller.erased_scalar_parameters,
+            self.values,
             self.caller.erased_proof_parameters,
             self.parameters,
             self.caller.local_places,
@@ -610,6 +611,7 @@ impl OperationFrame<'_, '_> {
             let register = matches!(self.results, StructuralResults::Dense(_));
             let frontier = self.suspension_source_frontier(*coordinate)?;
             let declaration = ordinary_calls::emit_structural(
+                identities,
                 checked,
                 self.state,
                 operation,
@@ -646,6 +648,8 @@ impl OperationFrame<'_, '_> {
     /// `emit_structural`, registering the member's own result binding.
     pub(super) fn establish_structural_value(
         self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -704,6 +708,7 @@ impl OperationFrame<'_, '_> {
             facts::PlaceRoot::Expression(occurrence.expression)
         };
         let prepared_claims = crate::emission::claim_bindings::prepare_establishment_claims(
+            identities,
             checked,
             machine,
             state,
@@ -721,7 +726,8 @@ impl OperationFrame<'_, '_> {
         // occurrence. Recursive construction and calls share normal frame
         // publication; no stale snapshot or second result home is introduced.
         let mut emit_operand =
-            |operand: &CheckedUnitEffectOperationPlan,
+            |identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+             operand: &CheckedUnitEffectOperationPlan,
              evaluated: Option<&[ValueDeclaration]>,
              evaluated_selectors: Option<&[ValueDeclaration]>,
              source_value_count: usize,
@@ -777,10 +783,11 @@ impl OperationFrame<'_, '_> {
                     },
                 };
                 if OperationFrame::lowers(operand) {
-                    frame.emit(operand)?;
+                    frame.emit(identities, operand)?;
                     return Ok(None);
                 }
                 frame.emit_call(
+                    identities,
                     operand,
                     CallInputs {
                         evaluated_scalar_arguments: evaluated,
@@ -806,6 +813,7 @@ impl OperationFrame<'_, '_> {
                 Ok(Some(declaration))
             };
         let declaration = structural_values::emit(
+            identities,
             checked,
             machine,
             state,
@@ -857,6 +865,7 @@ impl OperationFrame<'_, '_> {
     /// structural scalar call shape.
     fn scalar_call(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
         call: &CheckedUnitCallPlan,
         result: &checked_trees::CheckedUnitScalarResultBindingPlan,
@@ -921,13 +930,14 @@ impl OperationFrame<'_, '_> {
             self.results
                 .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
         let prepared = ordinary_calls::prepare(
+            identities,
             checked,
             operation,
             signature.call_target(),
-            inputs.evaluated_scalar_arguments,
             inputs.evaluated_selectors,
-            self.values,
+            inputs.evaluated_scalar_arguments,
             self.caller.erased_scalar_parameters,
+            self.values,
             self.caller.erased_proof_parameters,
             self.parameters,
             self.caller.local_places,

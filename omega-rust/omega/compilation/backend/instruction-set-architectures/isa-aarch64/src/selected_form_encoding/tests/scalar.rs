@@ -74,10 +74,6 @@ fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
     }
 }
 
-
-
-
-
 #[test]
 fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
@@ -183,16 +179,6 @@ fn zero_seeded_materialization_is_canonical_and_decoded_independently() {
         );
     }
 }
-
-
-
-
-
-
-
-
-
-
 
 #[test]
 fn bitwise_xor_preserves_exact_eor_registers_aliases_and_effects() {

@@ -424,16 +424,30 @@ impl<'artifact> TerminalExecution<'artifact> {
                 parameter.place,
             )
             .cloned()?;
+            // Host-supplied erased establishments arrive as identity text;
+            // resolve every segment against this module's sealed table —
+            // anything the producer never interned is malformed input, not
+            // a fresh identity.
+            let identities = &program.catalogs.identities;
             let established_fields = established_erased_fields
                 .iter()
                 .filter(|field| field.argument_index == *argument_index)
-                .map(
-                    |field| terminal_semantics::EstablishedErasedStructuralField {
-                        field_path: field.field_path.clone(),
-                        carrier_type_identity: field.carrier_type_identity.clone(),
-                    },
-                )
-                .collect::<Vec<_>>();
+                .map(|field| -> Result<_, TerminalInterpretError> {
+                    let field_path = field
+                        .field_path
+                        .iter()
+                        .map(|segment| identities.index_of(segment))
+                        .collect::<Option<Vec<_>>>()
+                        .ok_or_else(malformed)?;
+                    let carrier_type_identity = identities
+                        .index_of(&field.carrier_type_identity)
+                        .ok_or_else(malformed)?;
+                    Ok(terminal_semantics::EstablishedErasedStructuralField {
+                        field_path,
+                        carrier_type_identity,
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             execution.materialize_zeroed_structural_storage_with_established_fields(
                 &value,
                 &established_fields,

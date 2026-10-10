@@ -32,7 +32,7 @@ pub(crate) fn hash_structural_path(
             }
             terminal_psi::StructuralPathSegment::Field(identity) => {
                 digest.byte(1);
-                hash_bytes(digest, identity.as_bytes());
+                digest.raw(&identity.0.to_le_bytes());
             }
             terminal_psi::StructuralPathSegment::FixedIndex(index) => {
                 digest.byte(2);

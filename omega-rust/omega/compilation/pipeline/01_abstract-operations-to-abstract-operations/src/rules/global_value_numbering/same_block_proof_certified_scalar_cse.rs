@@ -10,9 +10,9 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 psi_rule_contract!(
     SameBlockProofCertifiedScalarCseRule,
     same_block_contract(
-                b"omega.psi-rule.same-block-proof-certified-total-scalar-cse.v1",
-                OptimizationSafetyClass::ProofCertified,
-            ),
+        b"omega.psi-rule.same-block-proof-certified-total-scalar-cse.v1",
+        OptimizationSafetyClass::ProofCertified,
+    ),
 );
 
 impl PsiOptimizationRule for SameBlockProofCertifiedScalarCseRule {

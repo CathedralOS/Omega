@@ -887,7 +887,9 @@ fn instantiate_proof_output_proposition(
     };
     let (binder_labels, argument_handles) =
         crate::labels::proposition_label_sources(application, program);
-    let argument_labels = argument_handles.iter().map(|argument| {
+    let argument_labels = argument_handles
+        .iter()
+        .map(|argument| {
             crate::checks::contracts::labels::instantiate_call_contract_expression_label(
                 program,
                 package.state_symbol,

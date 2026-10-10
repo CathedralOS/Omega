@@ -5,8 +5,9 @@ use super::{
     aarch64_darwin_mixed_unit_call_keys, aarch64_darwin_register_unit_call_keys,
 };
 use register_model::{
-    find_register_constraint,    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
+    find_register_constraint,
 };
 pub fn aarch64_indirect_aggregate_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
     let first = if darwin { 2300 } else { 2200 };

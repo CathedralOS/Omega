@@ -48,7 +48,6 @@ macro_rules! normalized_digest {
         pub struct $name([u8; 32]);
 
         impl $name {
-
             pub const fn digest(self) -> [u8; 32] {
                 self.0
             }
@@ -70,7 +69,6 @@ macro_rules! canonical_authority_digest {
         pub struct $name([u8; 32]);
 
         impl $name {
-
             pub const fn as_bytes(&self) -> &[u8; 32] {
                 &self.0
             }
@@ -108,20 +106,15 @@ pub(crate) struct ArtifactAuthorityCommitments {
     installation_scope: InstallationScopeDigest,
 }
 
-impl InstallationFactDigest {
-}
+impl InstallationFactDigest {}
 
-impl ReplacementFactDigest {
-}
+impl ReplacementFactDigest {}
 
-impl EntryContractDigest {
-}
+impl EntryContractDigest {}
 
-impl EntryReferenceFactDigest {
-}
+impl EntryReferenceFactDigest {}
 
-impl RetirementFactDigest {
-}
+impl RetirementFactDigest {}
 
 macro_rules! non_authoritative_fingerprint64 {
     ($name:ident, $label:literal) => {

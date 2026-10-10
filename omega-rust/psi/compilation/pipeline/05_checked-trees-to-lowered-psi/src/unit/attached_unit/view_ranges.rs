@@ -123,6 +123,8 @@ impl RangeStorage {
     /// borrowing reuses the ordinary place join, including its access checks.
     pub(crate) fn bind(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         bindings: &ScalarBindings,
@@ -153,6 +155,7 @@ impl RangeStorage {
             .into_iter()
             .map(LoweredElementPathSegment::Static)
             .chain(collection_path(
+                identities,
                 &self.collection,
                 bindings,
                 root,
@@ -202,6 +205,7 @@ impl RangeStorage {
 /// projection against the root's declared storage, so record members and
 /// selected case payloads lower alike.
 fn collection_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
     bindings: &ScalarBindings,
     root: semantic_vocabulary::StructuralTypeId,
@@ -211,7 +215,7 @@ fn collection_path(
         PreparedStructuralPathSegment, prepare_argument_path,
     };
     let mut runtime_indices = 0;
-    prepare_argument_path(path, root, declarations)?
+    prepare_argument_path(identities, path, root, declarations)?
         .into_iter()
         .map(|segment| match segment {
             PreparedStructuralPathSegment::Static(segment) => {
@@ -234,7 +238,7 @@ fn collection_path(
                         bindings.runtime_index_local(position)?
                     }
                     checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
-                        bindings.runtime_index_field(&field)?
+                        bindings.runtime_index_field(identities, &field)?
                     }
                     _ => {
                         return unsupported("collection view cannot borrow an assignment selector");
@@ -255,6 +259,7 @@ fn collection_path(
 /// Resolve the collection's declared type before reserving descriptor storage.
 /// This does not confer a loan or discharge range bounds.
 pub(crate) fn storage(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     _statement: u32,
@@ -283,7 +288,9 @@ pub(crate) fn storage(
     else {
         return unsupported("range storage has no range operation");
     };
-    let identity = checked.type_identity_text(*storage_type_identity).unwrap_or_default();
+    let identity = checked
+        .type_identity_text(*storage_type_identity)
+        .unwrap_or_default();
     let symbol = match range.root {
         checked_trees::CheckedStorageRoot::Parameter { index } => checked
             .state_parameters(authored)
@@ -302,13 +309,22 @@ pub(crate) fn storage(
         checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
         | checked_trees::CheckedStorageRoot::ViewLocal { symbol } => symbol,
     };
-    let collection = terminal_psi::structural_type_by_identity(declarations, &identity).ok_or(
-        LoweringError::Unsupported("range collection has no exact Terminal type"),
-    )?;
-    let view = terminal_psi::structural_type_by_identity(declarations, &checked.type_identity_text(argument.type_identity).unwrap_or_default())
-        .ok_or(LoweringError::Unsupported(
-            "range result has no exact Terminal type",
-        ))?;
+    let collection =
+        terminal_psi::structural_type_by_identity(declarations, identities.intern(&identity))
+            .ok_or(LoweringError::Unsupported(
+                "range collection has no exact Terminal type",
+            ))?;
+    let view = terminal_psi::structural_type_by_identity(
+        declarations,
+        identities.intern(
+            &checked
+                .type_identity_text(argument.type_identity)
+                .unwrap_or_default(),
+        ),
+    )
+    .ok_or(LoweringError::Unsupported(
+        "range result has no exact Terminal type",
+    ))?;
     let collection_element = match collection.shape {
         terminal_psi::StructuralTypeShape::FixedArray { element, .. } => Some(element),
         terminal_psi::StructuralTypeShape::ByteSequence(
@@ -432,6 +448,7 @@ pub(crate) struct ViewRangeSite<'a> {
 /// retire after formation; the source loan prevents replacement meanwhile.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     site: ViewRangeSite<'_>,
     source: ViewRangeSource,
@@ -472,9 +489,10 @@ pub(crate) fn emit(
     {
         if let Some(value) = value {
             let completed = evaluation.source_value(
+                identities,
                 checked,
-                machine.symbol,
                 site.state,
+                machine.symbol,
                 site.statement,
                 role,
                 value,

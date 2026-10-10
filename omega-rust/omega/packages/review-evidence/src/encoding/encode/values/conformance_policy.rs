@@ -1,12 +1,13 @@
 //! Canonical semantic conformance applications, without compiler receipts.
 
-use super::identity::encode_nominal;use super::super::type_identity;
+use super::super::type_identity;
+use super::identity::encode_nominal;
 
-use crate::encoding::encode::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::encode::encoder::Encoder;
 use crate::record::{
-    PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument};
-
+    PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
+};
 
 pub(crate) fn encode_application(
     encoder: &mut Encoder,
@@ -62,7 +63,6 @@ fn ordinal(encoder: &mut Encoder, ordinal: &u32) -> Result<(), PackageReviewEnco
     Ok(())
 }
 
-
 fn const_argument(
     encoder: &mut Encoder,
     argument: &PackagePolicyConformanceConstArgument,
@@ -71,7 +71,8 @@ fn const_argument(
         PackagePolicyConformanceConstArgument::Evaluated {
             parameter_carrier,
             declared_carrier,
-            canonical_value_encoding} => {
+            canonical_value_encoding,
+        } => {
             encoder.tag("evaluated", 0);
             encoder.field("parameter_carrier", |encoder| {
                 type_identity(encoder, parameter_carrier)
@@ -86,7 +87,8 @@ fn const_argument(
         PackagePolicyConformanceConstArgument::CallerBinder {
             parameter_carrier,
             binder,
-            binder_carrier} => {
+            binder_carrier,
+        } => {
             encoder.tag("caller_binder", 1);
             encoder.field("parameter_carrier", |encoder| {
                 type_identity(encoder, parameter_carrier)

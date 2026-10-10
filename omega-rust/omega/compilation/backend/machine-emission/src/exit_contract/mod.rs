@@ -28,7 +28,6 @@ pub use machine_code::{
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedWholeFunctionExitContract {
     contract: std::sync::Arc<WholeFunctionExitContract>,

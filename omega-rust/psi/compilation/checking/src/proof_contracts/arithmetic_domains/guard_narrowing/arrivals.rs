@@ -415,14 +415,11 @@ fn condition_belongs_to_state(
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_) => true,
         ExpressionNode::Call(_) => {
-            ordered_values::operand(program, machine, state, expression, frames)
-                .is_some()
+            ordered_values::operand(program, machine, state, expression, frames).is_some()
         }
         _ => false,
     }
 }
-
-
 
 /// A captured invocation supplies immutable entry values. This uses the same
 /// arrival joins and effect transfer as body checking; descendant calls retain
@@ -569,8 +566,7 @@ pub(crate) fn inferred_normal_return_interval(
         return None;
     }
     let frames = CallFrameResolver::new(program);
-    let incoming =
-        incoming_environments(program, machine, frames.as_ref(), Some((entry, actuals)));
+    let incoming = incoming_environments(program, machine, frames.as_ref(), Some((entry, actuals)));
     let mut combined: Option<Interval> = None;
     for state in program.machine_states(machine) {
         let statements = program.statement_table.statements(state.statement_nodes);

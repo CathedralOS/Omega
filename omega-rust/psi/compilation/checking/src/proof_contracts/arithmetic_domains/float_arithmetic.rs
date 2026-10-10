@@ -36,11 +36,7 @@ pub(crate) fn float_source_proves_integer_conversion(
     value: ExpressionHandle,
     target: PrimitiveType,
 ) -> bool {
-    float_source_bounds(
-            program,
-            environment,
-            value,
-            &|value| {
+    float_source_bounds(program, environment, value, &|value| {
         state
             .and_then(|state| {
                 crate::value_custody::expression_types::expression_result_type_reference(
@@ -48,8 +44,8 @@ pub(crate) fn float_source_proves_integer_conversion(
                 )
             })
             .or_else(|| declared_place_type_raw(program, machine, state, value))
-    }
-        ).is_some_and(|bounds| {
+    })
+    .is_some_and(|bounds| {
         bounds.minimum.is_finite()
             && bounds.maximum.is_finite()
             && float_interval_fits_integer(bounds.minimum.trunc(), bounds.maximum.trunc(), target)
@@ -87,7 +83,6 @@ impl FloatSourceBounds {
         self.minimum >= unit_spacing || self.maximum <= -unit_spacing
     }
 }
-
 
 /// The same source enclosure query for a declaration telescope without an
 /// executable state. The callback supplies selected result types only; live

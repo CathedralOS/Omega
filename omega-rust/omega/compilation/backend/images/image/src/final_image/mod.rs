@@ -12,25 +12,24 @@ mod root;
 mod symbols;
 
 pub use data_regions::{
-    FinalDataRegion, FinalDataRegionOrigin, FinalInitializedDataDigest,
-    PlacedDataGapBytesDigest, PlacedDataRegionBytesDigest,
-    PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, place_data_extent,
-    place_data_regions, validate_placed_data_region_inventory,
-};
-pub use executable_regions::{
-    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest, PlacedExecutableGapBytesDigest, PlacedExecutableRegion,
-    PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
-    PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest, place_executable_regions,
-    validate_placed_executable_region_inventory,
+    FinalDataRegion, FinalDataRegionOrigin, FinalInitializedDataDigest, PlacedDataGapBytesDigest,
+    PlacedDataRegionBytesDigest, PlacedDataRegionInventory, PlacedDataRegionInventoryDigest,
+    place_data_extent, place_data_regions, validate_placed_data_region_inventory,
 };
 pub(crate) use executable_regions::digest_bytes;
+pub use executable_regions::{
+    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest,
+    PlacedExecutableGapBytesDigest, PlacedExecutableRegion, PlacedExecutableRegionBytesDigest,
+    PlacedExecutableRegionInventory, PlacedExecutableRegionInventoryDigest,
+    StateFootprintEvidenceDigest, place_executable_regions,
+    validate_placed_executable_region_inventory,
+};
 pub use layout::FinalImageLayout;
 pub use memory::FinalImageMemory;
 pub use relocations::{FinalImageRelocation, FinalImageRelocationTable};
 pub use root::FinalImage;
+pub(crate) use symbols::FinalImageSymbolTable;
 pub use symbols::{
     FinalImageImport, FinalImageImportPlan, FinalImageSection, FinalImageSymbol,
-    FinalImageSymbolDigest, FinalImageSymbolHandle,
-    final_image_symbol_digest,
+    FinalImageSymbolDigest, FinalImageSymbolHandle, final_image_symbol_digest,
 };
-pub(crate) use symbols::{ FinalImageSymbolTable};

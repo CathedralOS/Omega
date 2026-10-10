@@ -75,7 +75,10 @@ pub(crate) fn encode_terminal_recovery_classification_content(
                     future_uses,
                 } => {
                     bytes.push(0);
-                    crate::codec_bytes::push_encoded(&mut bytes, defining_instruction.0.to_le_bytes());
+                    crate::codec_bytes::push_encoded(
+                        &mut bytes,
+                        defining_instruction.0.to_le_bytes(),
+                    );
                     crate::codec_bytes::push_encoded(&mut bytes, source_value.get().to_le_bytes());
                     legalized_operations::encode_integer(&mut bytes, *value);
                     encode_provenance(&mut bytes, provenance);
@@ -85,10 +88,22 @@ pub(crate) fn encode_terminal_recovery_classification_content(
                         "recovery-classification identity",
                     );
                     for future_use in future_uses {
-                        crate::codec_bytes::push_encoded(&mut bytes, future_use.block.0.to_le_bytes());
-                        crate::codec_bytes::push_encoded(&mut bytes, future_use.point.0.to_le_bytes());
-                        crate::codec_bytes::push_encoded(&mut bytes, future_use.instruction.0.to_le_bytes());
-                        crate::codec_bytes::push_encoded(&mut bytes, future_use.operand.to_le_bytes());
+                        crate::codec_bytes::push_encoded(
+                            &mut bytes,
+                            future_use.block.0.to_le_bytes(),
+                        );
+                        crate::codec_bytes::push_encoded(
+                            &mut bytes,
+                            future_use.point.0.to_le_bytes(),
+                        );
+                        crate::codec_bytes::push_encoded(
+                            &mut bytes,
+                            future_use.instruction.0.to_le_bytes(),
+                        );
+                        crate::codec_bytes::push_encoded(
+                            &mut bytes,
+                            future_use.operand.to_le_bytes(),
+                        );
                     }
                 }
                 RecoveryClassification::NoAdmittedRecovery { reason } => {

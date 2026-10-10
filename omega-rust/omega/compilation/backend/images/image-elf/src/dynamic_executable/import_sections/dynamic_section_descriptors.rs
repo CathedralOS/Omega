@@ -20,7 +20,7 @@ use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::import_sections::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;
 use diagnostics::Diagnostic;
 
-use crate::constants::{SHF_ALLOC};
+use crate::constants::SHF_ALLOC;
 const SHT_PROGBITS: u32 = 1;
 const SHT_STRTAB: u32 = 3;
 const SHT_HASH: u32 = 5;

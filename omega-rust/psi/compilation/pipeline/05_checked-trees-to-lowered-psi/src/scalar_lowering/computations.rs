@@ -119,10 +119,12 @@ impl<'a> Expansion<'a> {
     /// lowering its computations.
     pub(crate) fn enter_proof_scope(
         mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         roster: &[checked_trees::CheckedErasedProofParameterPlan],
     ) -> Self {
         self.erased_proof_formals =
             crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                identities,
                 self.checked,
                 roster,
             );
@@ -172,6 +174,7 @@ impl<'a> Expansion<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn call_arguments(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         state: symbols::SymbolHandle,
         coordinate: checked_trees::CheckedUnitCallCoordinate,
         arguments: &[checked_trees::CheckedCallScalarArgument],
@@ -197,15 +200,26 @@ impl<'a> Expansion<'a> {
                 LoweringError::Unsupported("scalar call argument ordinal exceeds u32")
             })?;
             operands.push(match argument {
-                checked_trees::CheckedCallScalarArgument::Pure(expression) => Argument::Value(
-                    bindings.expression(&self.checked.facts.proven_scalar_indexes, expression)?,
-                ),
+                checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+                    Argument::Value(bindings.expression(
+                        identities,
+                        &self.checked.facts.proven_scalar_indexes,
+                        expression,
+                    )?)
+                }
                 checked_trees::CheckedCallScalarArgument::Computation(root) => {
                     Argument::Computation(*root)
                 }
             });
         }
-        self.sequence(&operands, source_types, target, &site, &mut Vec::new())
+        self.sequence(
+            identities,
+            &operands,
+            source_types,
+            target,
+            &site,
+            &mut Vec::new(),
+        )
     }
 
     /// Preserve the input prefix while a pure operand's selective expression
@@ -213,6 +227,7 @@ impl<'a> Expansion<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn retained_pure_value(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         state: symbols::SymbolHandle,
         statement: u32,
         role: CheckedScalarExpressionRole,
@@ -221,11 +236,13 @@ impl<'a> Expansion<'a> {
         result_type: QualifiedScalarType,
         target: usize,
     ) -> Result<usize, LoweringError> {
-        let expression = bindings.expression_at(self.checked, state, statement, role)?;
+        let expression =
+            bindings.expression_at(identities, self.checked, state, statement, role)?;
         if expression.value_type(source_types)? != result_type {
             return unsupported("retained scalar operand disagrees with its destination type");
         }
         self.argument(
+            identities,
             &Argument::Value(expression),
             source_types,
             target,
@@ -241,6 +258,7 @@ impl<'a> Expansion<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn retained_value(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         state: symbols::SymbolHandle,
         statement: u32,
         role: CheckedScalarExpressionRole,
@@ -266,7 +284,14 @@ impl<'a> Expansion<'a> {
         if roots.next().is_some() {
             return unsupported("scalar computation root custody is duplicated or mismatched");
         }
-        self.retained_root(root, bindings, source_types, result_type, target)
+        self.retained_root(
+            identities,
+            root,
+            bindings,
+            source_types,
+            result_type,
+            target,
+        )
     }
 
     /// Complete one retained root through the same scheduling owner as a source
@@ -275,6 +300,7 @@ impl<'a> Expansion<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn retained_root(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         root: &checked_trees::CheckedScalarComputationRoot,
         bindings: &storage::ScalarBindings,
         source_types: &[QualifiedScalarType],
@@ -305,21 +331,29 @@ impl<'a> Expansion<'a> {
         }
         if let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } = root.role {
             calls::consume_pure_call_arguments(
+                identities,
                 self.checked,
                 site.bindings,
                 root.state,
-                root.statement_ordinal,
                 binding_ordinal,
+                root.statement_ordinal,
                 root.root,
             )?;
         }
         let argument = Argument::Computation(root.root);
-        if self.argument_type(&argument, &site, source_types)? != result_type {
+        if self.argument_type(identities, &argument, &site, source_types)? != result_type {
             return unsupported("scalar computation result disagrees with its destination");
         }
         // Unlike a state transfer, the following statements retain every prior
         // completed value, including immutable snapshots of overwritten storage.
-        self.argument(&argument, source_types, target, &site, &mut Vec::new())
+        self.argument(
+            identities,
+            &argument,
+            source_types,
+            target,
+            &site,
+            &mut Vec::new(),
+        )
     }
 
     pub(crate) fn push(&mut self, mut state: LoweredScalarBranchState) -> usize {
@@ -331,6 +365,7 @@ impl<'a> Expansion<'a> {
 
     fn argument_type(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: &Argument,
         site: &Site<'_>,
         source_types: &[QualifiedScalarType],
@@ -338,6 +373,7 @@ impl<'a> Expansion<'a> {
         match argument {
             Argument::Value(value) => value.value_type(source_types),
             Argument::Computation(handle) => computation_value_type(
+                identities,
                 self.checked,
                 self.qualifications,
                 *handle,
@@ -349,6 +385,7 @@ impl<'a> Expansion<'a> {
 
     fn sequence(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         arguments: &[Argument],
         input_types: &[QualifiedScalarType],
         target: usize,
@@ -358,12 +395,19 @@ impl<'a> Expansion<'a> {
         let mut prefixes = vec![input_types.to_vec()];
         for argument in arguments {
             let mut next = prefixes.last().expect("input prefix").clone();
-            next.push(self.argument_type(argument, site, input_types)?);
+            next.push(self.argument_type(identities, argument, site, input_types)?);
             prefixes.push(next);
         }
         let mut continuation = target;
         for (index, argument) in arguments.iter().enumerate().rev() {
-            continuation = self.argument(argument, &prefixes[index], continuation, site, active)?;
+            continuation = self.argument(
+                identities,
+                argument,
+                &prefixes[index],
+                continuation,
+                site,
+                active,
+            )?;
         }
         Ok(continuation)
     }
@@ -409,6 +453,7 @@ impl<'a> Expansion<'a> {
 
     fn argument(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: &Argument,
         input_types: &[QualifiedScalarType],
         target: usize,
@@ -430,7 +475,7 @@ impl<'a> Expansion<'a> {
         if active.contains(handle) {
             return unsupported("scalar computation contains a cycle");
         }
-        let result_type = self.argument_type(argument, site, input_types)?;
+        let result_type = self.argument_type(identities, argument, site, input_types)?;
         if let Some((_, position)) = self.completed.iter().find(|(node, _)| node == handle) {
             if input_types.get(*position) != Some(&result_type) {
                 return unsupported("completed computation disagrees with its carried value");
@@ -452,6 +497,7 @@ impl<'a> Expansion<'a> {
                 subject,
                 ..
             } => self.byte_literal_comparison(
+                identities,
                 &literal,
                 negated,
                 &subject,
@@ -462,13 +508,22 @@ impl<'a> Expansion<'a> {
             )?,
             CheckedScalarComputationKind::ByteSequencePredicate {
                 predicate, subject, ..
-            } => self.byte_predicate(predicate, &subject, input_types, target, site, active)?,
+            } => self.byte_predicate(
+                identities,
+                predicate,
+                &subject,
+                input_types,
+                target,
+                site,
+                active,
+            )?,
             CheckedScalarComputationKind::StructuralField {
                 receiver_value,
                 subject,
                 field,
                 ..
             } => self.structural_field(
+                identities,
                 receiver_value,
                 &subject,
                 field,
@@ -477,16 +532,27 @@ impl<'a> Expansion<'a> {
                 target,
                 site,
             )?,
-            CheckedScalarComputationKind::CaseMembership { subject, case, .. } => {
-                self.case_membership(&subject, case, input_types, target, site, active)?
-            }
+            CheckedScalarComputationKind::CaseMembership { subject, case, .. } => self
+                .case_membership(
+                    identities,
+                    &subject,
+                    case,
+                    input_types,
+                    target,
+                    site,
+                    active,
+                )?,
             CheckedScalarComputationKind::SelectedComparison {
                 operator_use,
                 left,
                 right,
             } => {
-                let operand_type =
-                    self.argument_type(&Argument::Computation(left), site, input_types)?;
+                let operand_type = self.argument_type(
+                    identities,
+                    &Argument::Computation(left),
+                    site,
+                    input_types,
+                )?;
                 let mut tested_types = input_types.to_vec();
                 tested_types.extend([operand_type, operand_type]);
                 let binding = self.comparison_binding(
@@ -496,6 +562,7 @@ impl<'a> Expansion<'a> {
                 )?;
                 let comparison = self.binding(&tested_types, input_types.len(), target, binding);
                 self.sequence(
+                    identities,
                     &[Argument::Computation(left), Argument::Computation(right)],
                     input_types,
                     comparison,
@@ -505,9 +572,9 @@ impl<'a> Expansion<'a> {
             }
             CheckedScalarComputationKind::Qualification { operand, .. } => {
                 let operand = Argument::Computation(operand);
-                let operand_type = self.argument_type(&operand, site, input_types)?;
+                let operand_type = self.argument_type(identities, &operand, site, input_types)?;
                 if operand_type == result_type {
-                    self.argument(&operand, input_types, target, site, active)?
+                    self.argument(identities, &operand, input_types, target, site, active)?
                 } else {
                     let mut operand_types = input_types.to_vec();
                     operand_types.push(operand_type);
@@ -528,7 +595,7 @@ impl<'a> Expansion<'a> {
                             structural_arguments: Vec::new(),
                         },
                     });
-                    self.argument(&operand, input_types, qualify, site, active)?
+                    self.argument(identities, &operand, input_types, qualify, site, active)?
                 }
             }
             CheckedScalarComputationKind::AuthoredCast {
@@ -540,7 +607,7 @@ impl<'a> Expansion<'a> {
                 // exact conversion applies once. Result qualifications remain
                 // on the receiving edge and cannot alter this payload.
                 let operand = Argument::Computation(operand);
-                let operand_type = self.argument_type(&operand, site, input_types)?;
+                let operand_type = self.argument_type(identities, &operand, site, input_types)?;
                 // Conversion bindings bind the operand's bare carrier: an
                 // operand that still carries domains erases them on a
                 // qualification edge before the conversion state.
@@ -605,9 +672,10 @@ impl<'a> Expansion<'a> {
                         },
                     })
                 };
-                self.argument(&operand, input_types, bound, site, active)?
+                self.argument(identities, &operand, input_types, bound, site, active)?
             }
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => self.dispatch(
+                identities,
                 subject,
                 arms,
                 result_type,
@@ -617,9 +685,11 @@ impl<'a> Expansion<'a> {
                 active,
             )?,
             CheckedScalarComputationKind::Value(expression) => {
-                let expression = site
-                    .bindings
-                    .expression(&self.checked.facts.proven_scalar_indexes, &expression)?;
+                let expression = site.bindings.expression(
+                    identities,
+                    &self.checked.facts.proven_scalar_indexes,
+                    &expression,
+                )?;
                 if expression.value_type(input_types)? != result_type {
                     return unsupported("scalar computation value carrier disagrees");
                 }
@@ -637,9 +707,10 @@ impl<'a> Expansion<'a> {
                 when_false,
                 ..
             } => self.selection(
-                condition,
+                identities,
                 when_true,
                 when_false,
+                condition,
                 result_type,
                 input_types,
                 target,
@@ -651,7 +722,9 @@ impl<'a> Expansion<'a> {
                 // in the destination carrier; the authored cast keeps source
                 // custody while the branch shape reuses ordinary selection.
                 let operand = Argument::Computation(operand);
-                if self.argument_type(&operand, site, input_types)? != ScalarType::Boolean.into() {
+                if self.argument_type(identities, &operand, site, input_types)?
+                    != ScalarType::Boolean.into()
+                {
                     return unsupported(
                         "Boolean-to-integer conversion operand is not a scalar Boolean",
                     );
@@ -701,7 +774,7 @@ impl<'a> Expansion<'a> {
                         when_false_erased_proof_arguments: Vec::new(),
                     },
                 });
-                self.argument(&operand, input_types, dispatch, site, active)?
+                self.argument(identities, &operand, input_types, dispatch, site, active)?
             }
             CheckedScalarComputationKind::Call {
                 source_call,
@@ -712,6 +785,7 @@ impl<'a> Expansion<'a> {
                 temporary_cleanups,
                 claim_transfers,
             } => self.call(
+                identities,
                 source_call,
                 &callee,
                 call_ordinal,
@@ -742,15 +816,27 @@ impl<'a> Expansion<'a> {
                     .collect::<Vec<_>>();
                 let mut operand_types = input_types.to_vec();
                 for operand in &operands {
-                    operand_types.push(self.argument_type(operand, site, input_types)?);
+                    operand_types.push(self.argument_type(
+                        identities,
+                        operand,
+                        site,
+                        input_types,
+                    )?);
                 }
-                let expression = site.bindings.clone().with_computation_operands(
-                    input_types.len(),
-                    operand_types[input_types.len()..]
-                        .iter()
-                        .map(|value| value.scalar_type),
-                )
-                .expression(&self.checked.facts.proven_scalar_indexes, &expression)?;
+                let expression = site
+                    .bindings
+                    .clone()
+                    .with_computation_operands(
+                        input_types.len(),
+                        operand_types[input_types.len()..]
+                            .iter()
+                            .map(|value| value.scalar_type),
+                    )
+                    .expression(
+                        identities,
+                        &self.checked.facts.proven_scalar_indexes,
+                        &expression,
+                    )?;
                 if expression.value_type(&operand_types)? != result_type {
                     return unsupported("scalar computation application carrier disagrees");
                 }
@@ -761,7 +847,7 @@ impl<'a> Expansion<'a> {
                     target,
                     LoweredScalarBinding::Expression(expression),
                 );
-                self.sequence(&operands, input_types, apply, site, active)?
+                self.sequence(identities, &operands, input_types, apply, site, active)?
             }
         };
         active.pop();

@@ -25,7 +25,15 @@ fn structural_type(raw: u64) -> StructuralTypeId {
 }
 
 fn field(name: &str) -> StructuralPathSegment {
-    StructuralPathSegment::Field(name.to_owned())
+    // The custody structures under test compare segments by index equality;
+    // names map to fixed table positions rather than a shared module table.
+    let index = match name {
+        "left" => 1,
+        "right" => 2,
+        "middle" => 3,
+        _ => 0,
+    };
+    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(index))
 }
 
 fn parameter(
