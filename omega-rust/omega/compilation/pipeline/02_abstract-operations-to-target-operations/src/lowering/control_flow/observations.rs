@@ -35,25 +35,23 @@ pub(super) fn lower(
             // A live byte-owner address join observes its own storage. The
             // semantic operation, not the pointer layout, determines whether
             // this is a metadata or payload observation.
-            if !prepared.parameter(*source).is_some()
+            if prepared.parameter(*source).is_none()
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
                 && !bounded_owner_storage(function, structural_types, live, *source)
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            if !matches!(operation, AbstractOperation::ByteSequenceSubslice { .. }) {
-                byte_views::lower_byte_observation_with_lengths(
-                    operation,
-                    function,
-                    structural_types,
-                    &prepared.parameters,
-                    live.element_view_backings(),
-                    &mut values,
-                    &live.lengths,
-                    &mut provenance.operations,
-                )?;
-            }
+            byte_views::lower_byte_observation_with_lengths(
+                operation,
+                function,
+                structural_types,
+                &prepared.parameters,
+                live.element_view_backings(),
+                &mut values,
+                &live.lengths,
+                &mut provenance.operations,
+            )?;
         }
         AbstractOperation::ByteSequencePredicate { operand, .. } => {
             byte_sequence_operand_gate(function, structural_types, prepared, live, operand)?;
@@ -126,7 +124,7 @@ pub(super) fn lower(
             }
         }
         AbstractOperation::ElementViewRead { source, .. } => {
-            if !prepared.parameter(*source).is_some()
+            if prepared.parameter(*source).is_none()
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
             {
@@ -341,7 +339,7 @@ pub(super) fn lower(
             };
             use terminal_psi::TrappingIntegerOperation as T;
             let (left, right) = match *primitive {
-                terminal_psi::trapping_arith_set_pattern!(left,right, ..) => {
+                terminal_psi::trapping_arith_set_pattern!(left, right, ..) => {
                     if operand_type != scalar_type {
                         return Err(LoweringError::ValueTypeMismatch(*result));
                     }
@@ -699,7 +697,7 @@ fn byte_sequence_operand_gate(
 ) -> Result<(), LoweringError> {
     match operand {
         terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-            if !prepared.parameter(*source).is_some()
+            if prepared.parameter(*source).is_none()
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
                 && !bounded_owner_storage(function, structural_types, live, *source)
