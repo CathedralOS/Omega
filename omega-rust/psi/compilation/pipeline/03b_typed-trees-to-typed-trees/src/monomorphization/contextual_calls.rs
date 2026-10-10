@@ -7,6 +7,7 @@
 //! machine roster so checking sees the exact occurrence, not a globally changed
 //! declaration. No contract is inferred from a provider's body.
 
+mod applications;
 mod invocations;
 mod providers;
 mod static_operands;
@@ -26,13 +27,18 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             super::applications::retain_authored_call(program, invocation.site, invocation.owner);
         let mut selected = invocation.machine_arguments.clone();
         let mut replaced = false;
-        for (argument, expected) in selected.iter_mut().zip(&invocation.requirements) {
+        for (ordinal, (argument, expected)) in selected
+            .iter_mut()
+            .zip(&invocation.requirements)
+            .enumerate()
+        {
             let Some(entry) = providers::close(
                 program,
                 argument.symbol,
                 expected,
                 &invocation.types,
                 application,
+                ordinal,
             )?
             else {
                 continue;

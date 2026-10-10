@@ -14,6 +14,7 @@ pub(super) fn close(
     expected: &StateSignature,
     caller_types: &[(SymbolHandle, TypeReferenceHandle)],
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ordinal: usize,
 ) -> Result<Option<SymbolHandle>, Vec<Diagnostic>> {
     if !program.state_signature_type_parameters(expected).is_empty() {
         return Ok(None);
@@ -98,17 +99,6 @@ pub(super) fn close(
             Some(_) => {}
         }
     }
-    // A symbolic caller still owns its generic schema. Executable cloning waits
-    // until every inferred operand is closed, including compound types.
-    if provider
-        .type_bindings
-        .iter()
-        .chain(&provider.const_bindings)
-        .flatten()
-        .any(|reference| super::static_operands::is_open(program, *reference))
-    {
-        return Ok(None);
-    }
     if provider.conflicted
         || provider.type_bindings.iter().any(Option::is_none)
         || provider.const_bindings.iter().any(Option::is_none)
@@ -117,20 +107,66 @@ pub(super) fn close(
     {
         return Ok(None);
     }
+    // Admission consumes the complete determined symbolic tuple, not the
+    // original universal declaration. Executable instances still require closed
+    // operands; a caller's const binder is not a cache key or a concrete value.
+    if provider
+        .type_bindings
+        .iter()
+        .chain(&provider.const_bindings)
+        .flatten()
+        .any(|reference| super::static_operands::is_open(program, *reference))
+    {
+        let bindings = super::super::applications::candidate_bindings(&provider);
+        if program.applied_machine_callable_matches(
+            application,
+            ordinal,
+            selected,
+            &bindings,
+            expected,
+            caller_types,
+        ) {
+            return Ok(None);
+        }
+        super::applications::retain_view(
+            program,
+            &provider,
+            &state,
+            application,
+            ordinal,
+            selected,
+            expected,
+            caller_types,
+        )?;
+        return Ok(Some(selected));
+    }
     let existing = saved_calls::candidate_instance(program, program, &provider)
         .map(|instance| instance.instance);
     if let Some(existing) = existing {
-        let ordinal = provider
+        let state_ordinal = provider
             .template
             .state_symbols
             .iter()
             .position(|symbol| *symbol == selected);
-        return Ok(program
+        let entry = program
             .machine_by_symbol(existing)
             .and_then(|machine| {
-                ordinal.and_then(|ordinal| program.machine_states(machine).get(ordinal))
+                state_ordinal.and_then(|ordinal| program.machine_states(machine).get(ordinal))
             })
-            .map(|state| state.symbol));
+            .map(|state| state.symbol);
+        if let Some(entry) = entry {
+            super::applications::retain_view(
+                program,
+                &provider,
+                &state,
+                application,
+                ordinal,
+                entry,
+                expected,
+                caller_types,
+            )?;
+        }
+        return Ok(entry);
     }
     let Some(identity) = normalized_machine_identity(program, &program.machines()[machine_index])
     else {
@@ -139,16 +175,34 @@ pub(super) fn close(
         )]);
     };
     let commitment = accepted_template_commitment(program, machine_index);
-    let ordinal = program
+    let instance_ordinal = program
         .machine_specializations
         .iter()
         .filter(|instance| instance.template == provider.template.template_symbol)
         .count();
     let states = super::super::body_cloning::clone_specialized_machine(
-        None, program, &provider, ordinal, identity, commitment,
+        None,
+        program,
+        &provider,
+        instance_ordinal,
+        identity,
+        commitment,
     )?;
-    Ok(states
+    let entry = states
         .into_iter()
         .find(|(original, _)| *original == selected)
-        .map(|(_, concrete)| concrete))
+        .map(|(_, concrete)| concrete);
+    if let Some(entry) = entry {
+        super::applications::retain_view(
+            program,
+            &provider,
+            &state,
+            application,
+            ordinal,
+            entry,
+            expected,
+            caller_types,
+        )?;
+    }
+    Ok(entry)
 }

@@ -51,6 +51,8 @@ pub(super) fn validate_selected_callable_shape(
     parameter: &TypeParameter,
     requirement: &typed_trees::signature::StateSignature,
     selected_symbol: SymbolHandle,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ordinal: usize,
     selected_name: &str,
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
@@ -58,6 +60,26 @@ pub(super) fn validate_selected_callable_shape(
 ) {
     if let Some((actual_machine, actual_state)) = machine_and_state(program, index, selected_symbol)
     {
+        if let Some(applied) =
+            program.applied_machine_callable(application, ordinal, selected_symbol)
+        {
+            let label = format!(
+                "machine argument `{}` for `{generic_call}`",
+                actual_machine.name
+            );
+            validate_callable_formation(
+                program,
+                &label,
+                parameter,
+                applied.required,
+                &CallableParts::of_signature(program, applied.selected),
+                generic_types,
+                bindings,
+                &mut Vec::new(),
+                diagnostics,
+            );
+            return;
+        }
         validate_callable_shape(
             program,
             generic_call,

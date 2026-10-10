@@ -7,9 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 1.7, "load1_start": 1.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
-# context: {"cpus": 5, "jobs": "1", "load1_end": 2.56, "load1_start": 2.71, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
-# context: {"cpus": 10, "jobs": "1", "load1_end": 2.39, "load1_start": 2.17, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 3.11, "load1_start": 2.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1661,6 +1659,11 @@ fail/generics/const_data_where_fact_false rejected 195ms expected @d09b20d6b400+
 	data `FixedBuffer<0>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/const_generic_runtime_argument rejected 265ms expected @2d8ed253669f
 	a value call to generic machine `prefix_count` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+fail/generics/contextual_static_machine_open_const_type_bound rejected 305ms expected @af65e4684ce5+wt
+	generic machine `accepts` has a call tuple that does not satisfy its authored type bounds
+fail/generics/contextual_static_machine_unused_const_binder rejected 315ms expected @af65e4684ce5+wt
+	machine argument `accepts` for `apply` does not refine `Callback`: its callable signature expects 0 generic parameter(s), got 2
+	machine argument `accepts` for `apply` does not refine `Callback`: parameter 0 expects `&[u8; Count]`, got `&Kind`
 fail/generics/data_equation_constructor_binder_carrier_domain rejected 18ms expected @1843c1a8677b+wt
 	generic data `Box` where type equation constructor const binder has a different declared carrier
 fail/generics/equation_named_array_actual_boolean rejected 13ms expected @5025d41fde63+wt
@@ -3910,6 +3913,8 @@ pass/generics/closed_generic_local_field_observation_exit checked 3179ms check-t
 pass/generics/closed_indexed_quantity checked 6308ms check-target:macos_arm64 @82ec69a91ce
 pass/generics/closed_sum_case_membership checked 292ms @2d8ed253669f
 pass/generics/const_data_param checked 288ms @2d8ed253669f
+pass/generics/contextual_static_machine_const_scopes_exit checked 3376ms check-target:macos_arm64 @af65e4684ce5+wt
+pass/generics/contextual_static_machine_open_const_exit checked 3368ms check-target:macos_arm64 @af65e4684ce5+wt
 pass/generics/declared_range_endpoint_inference checked 3910ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/erased_static_arguments_keep_lexical_scope_exit checked 1367ms check-target:macos_arm64 @e31dda2664298bc891b76cde9f607ecf2a1f5973
 pass/generics/foreign_case_membership_dispatch_exit checked 4364ms check-target:macos_arm64 @cfe60a3a242

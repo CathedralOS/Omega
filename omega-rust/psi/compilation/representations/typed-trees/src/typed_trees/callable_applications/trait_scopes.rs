@@ -2,7 +2,7 @@
 //! machine satisfaction edges. Consumers borrow these signatures after freezing;
 //! they neither mutate declarations nor infer an authored fixed type argument.
 
-use super::{AppliedCallableSignature, CallableApplication};
+use super::{AppliedCallableOwner, AppliedCallableSignature, CallableApplication};
 use crate::{TypedTrees, signature, trait_definition::AppliedTraitScope};
 use symbols::SymbolHandle;
 
@@ -17,14 +17,19 @@ impl TypedTrees {
         self.applied_callable_signatures
             .iter()
             .find_map(|(_, prepared)| {
-                if prepared.trait_definition != application.declaration.symbol
+                let AppliedCallableOwner::Trait {
+                    declaration,
+                    arguments,
+                } = &prepared.owner
+                else {
+                    return None;
+                };
+                if *declaration != application.declaration.symbol
                     || prepared.signature.symbol != requirement
                 {
                     return None;
                 }
-                let arguments = self
-                    .type_reference_table
-                    .type_reference_handles(prepared.arguments);
+                let arguments = self.type_reference_table.type_reference_handles(*arguments);
                 let prepared_scope =
                     AppliedTraitScope::new(self, application.declaration, arguments)?;
                 application
@@ -141,8 +146,10 @@ impl TypedTrees {
                 .insert_type_reference_handles(arguments);
             self.applied_callable_signatures
                 .insert(AppliedCallableSignature {
-                    trait_definition: trait_symbol,
-                    arguments,
+                    owner: AppliedCallableOwner::Trait {
+                        declaration: trait_symbol,
+                        arguments,
+                    },
                     signature: applied,
                 });
         }

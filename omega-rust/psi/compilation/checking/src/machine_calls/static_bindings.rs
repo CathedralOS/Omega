@@ -60,6 +60,18 @@ pub fn validate_static_machine_bindings(
     applications.retain(|handle| handle.is_valid());
     applications.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     applications.dedup();
+    // A symbolic selected provider has no executable specialization yet. Its
+    // occurrence-owned tuple still owes every declared bound, including unused
+    // binders. Only views reachable from live calls become obligations.
+    let providers = applications
+        .iter()
+        .flat_map(|application| {
+            program
+                .applied_machine_callables(*application)
+                .map(|view| view.provider)
+        })
+        .collect::<Vec<_>>();
+    applications.extend(providers);
     for handle in applications {
         let application = program.expression_table.static_machine_application(handle);
         let bindings = program

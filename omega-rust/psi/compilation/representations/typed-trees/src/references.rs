@@ -476,6 +476,11 @@ pub fn visit_static_machine_bindings(
     if !application.is_valid() {
         return;
     }
+    for applied in program.applied_machine_callables(application) {
+        visit_static_machine_bindings(program, retained, applied.provider);
+        visit_signature(program, retained, applied.required);
+        visit_signature(program, retained, applied.selected);
+    }
     for selected in program
         .expression_table
         .static_machine_application_selected_machines(application)

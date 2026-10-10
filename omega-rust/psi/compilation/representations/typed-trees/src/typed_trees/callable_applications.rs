@@ -1,10 +1,13 @@
 //! Apply an authored callable telescope before typed trees are frozen.
 //!
-//! A nominal application owns fresh lexical binders and complete substituted
+//! An application owns fresh lexical binders and complete substituted
 //! contracts, not merely substituted runtime carriers. Declaration rows stay
 //! immutable: sharing their binder symbols would make global queries depend on
 //! which application happened to be prepared last.
+//! Trait scopes own universal requirement views; static selection occurrences
+//! own determined provider tuples. Neither view is an admission or an instance.
 
+mod machine_selections;
 mod payloads;
 mod signatures;
 mod trait_scopes;
@@ -14,9 +17,40 @@ use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct AppliedCallableSignature {
-    trait_definition: SymbolHandle,
-    arguments: arena::HandleSpan<types::TypeReferenceHandle>,
+    owner: AppliedCallableOwner,
     signature: signature::StateSignature,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+enum AppliedCallableOwner {
+    #[default]
+    Absent,
+    Trait {
+        declaration: SymbolHandle,
+        arguments: arena::HandleSpan<types::TypeReferenceHandle>,
+    },
+    MachineSelection {
+        invocation: crate::static_applications::StaticMachineApplicationHandle,
+        ordinal: usize,
+        selected: SymbolHandle,
+        provider: crate::static_applications::StaticMachineApplicationHandle,
+        required: signature::StateSignature,
+        source_required: signature::StateSignature,
+        caller_operands: arena::HandleSpan<CallableSubstitution>,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct CallableSubstitution {
+    parameter: SymbolHandle,
+    actual: types::TypeReferenceHandle,
+}
+
+/// A symbolic application is a checking view, not an executable instance.
+pub struct AppliedMachineCallable<'a> {
+    pub provider: crate::static_applications::StaticMachineApplicationHandle,
+    pub required: &'a signature::StateSignature,
+    pub selected: &'a signature::StateSignature,
 }
 
 #[derive(Default)]

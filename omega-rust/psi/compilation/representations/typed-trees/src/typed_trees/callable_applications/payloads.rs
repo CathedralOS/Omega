@@ -95,9 +95,16 @@ impl CallableApplication {
                         {
                             match program.type_reference_table.type_reference(*argument) {
                                 types::TypeReferenceNode::Named { symbol, name } => {
-                                    types::FixedArrayLength::ConstParameter {
-                                        symbol: *symbol,
-                                        name: name.clone(),
+                                    if let Some(value) = program
+                                        .type_reference_table
+                                        .anonymous_numeric_literal_value(*argument)
+                                    {
+                                        types::FixedArrayLength::Literal(value)
+                                    } else {
+                                        types::FixedArrayLength::ConstParameter {
+                                            symbol: *symbol,
+                                            name: name.clone(),
+                                        }
                                     }
                                 }
                                 types::TypeReferenceNode::ConstExpression(expression) => {

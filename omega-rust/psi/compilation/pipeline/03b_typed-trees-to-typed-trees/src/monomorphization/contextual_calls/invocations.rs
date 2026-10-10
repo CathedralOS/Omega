@@ -8,6 +8,7 @@ use super::super::{
 use symbols::SymbolKind;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::signature::StateSignature;
+mod operands;
 
 pub(super) struct Invocation {
     pub site: CallSite,
@@ -164,66 +165,9 @@ fn proposal(
     if requirements.len() != machine_arguments.len() {
         return None;
     }
-    let type_parameters = parameters
-        .iter()
-        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-        .map(|parameter| (parameter.symbol, parameter.name.as_str().to_owned()))
-        .collect::<Vec<_>>();
-    let selected_types = selected
-        .iter()
-        .filter_map(|argument| {
-            if argument.type_reference.is_valid() {
-                return Some(argument.type_reference);
-            }
-            if argument.symbol.is_valid()
-                && matches!(
-                    program.symbols.get(argument.symbol).kind,
-                    SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
-                )
-                && !program
-                    .data_type_parameter_by_symbol(argument.symbol)
-                    .is_some_and(|parameter| !matches!(parameter.kind, TypeParameterKind::Type))
-            {
-                return program
-                    .type_reference_table
-                    .find_named_type_reference(argument.symbol);
-            }
-            None
-        })
-        .collect::<Vec<_>>();
-    if selected_types.len() > type_parameters.len() {
-        return None;
-    }
-    let mut types = type_parameters
-        .iter()
-        .zip(selected_types)
-        .map(|((symbol, _), actual)| (*symbol, actual))
-        .collect::<Vec<_>>();
-    let mut proposals = Vec::new();
-    let mut constants = Vec::new();
-    for (required, argument) in runtime.iter().zip(arguments) {
-        if let Some(actual) =
-            validation::expression_result_type_reference(program, caller, state, *argument)
-        {
-            super::super::infer_static_bindings(
-                program,
-                *required,
-                actual,
-                &type_parameters,
-                &[],
-                None,
-                0,
-                &mut proposals,
-                &mut constants,
-            );
-        }
-    }
-    for (_, ordinal, actual) in proposals {
-        let symbol = type_parameters[ordinal].0;
-        if !types.iter().any(|(parameter, _)| *parameter == symbol) {
-            types.push((symbol, actual));
-        }
-    }
+    let types = operands::derive(
+        program, caller, state, site, parameters, selected, &runtime, arguments,
+    )?;
     Some(Invocation {
         site,
         owner: caller.symbol,
