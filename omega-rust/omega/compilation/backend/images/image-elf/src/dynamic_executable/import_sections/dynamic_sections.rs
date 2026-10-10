@@ -695,11 +695,7 @@ fn validate_gnu_hash_reachability(hash: &ElfGnuHash, names: &[&[u8]]) -> Result<
     Ok(())
 }
 
-fn require_equal(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
-}
+use super::super::checked::require as require_equal;
 
 fn elf_hash(bytes: &[u8]) -> u32 {
     let mut hash = 0u32;
