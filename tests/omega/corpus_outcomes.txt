@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 5.22, "load1_start": 3.85, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 1.7, "load1_start": 1.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -430,19 +430,21 @@ fail/borrows/nested_reference_live_source_write rejected 145ms expected @21b6591
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3)
 fail/borrows/nested_result_retains_operand_loan rejected 326ms expected @f0ed096e2456+wt
 	state `observe` receives `value` as mutable more than once
-fail/borrows/plain_read_during_live_exclusive_loan rejected 587ms expected @89af21767c32+wt
+fail/borrows/plain_read_during_live_exclusive_loan rejected 376ms expected @4aa20431b027
 	statement 3 reads `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 2 reads `items[2]` while local borrow `middle` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 reads `cell.value` while local borrow `selection` is still active (borrowed at statement 1; its last use is at statement 3)
+	cannot prove requires contract for call zero from read_through_parent_view: middle.len >= 1 (needs fact `view.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/borrows/primitive_aggregate_live_owner_read rejected 853ms expected @99b41199ec38
 	state `observe` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 259ms expected @51b4aa0b5a70+wt
 	cannot prove default-domain field requirement for return from Packet::main at statement 1: packet.bytes requires [u8; N]::Ascii
-fail/borrows/read_positions_during_live_exclusive_loan rejected 624ms expected @89af21767c32+wt
+fail/borrows/read_positions_during_live_exclusive_loan rejected 374ms expected @4aa20431b027
+	state `truth` receives `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 reads `value` while local borrow `borrowed` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 2 reads `value` while local borrow `lent` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 3 reads `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/borrows/record_exclusive_view_backing_write rejected 419ms expected @7c9a1dd8dd3b
 	statement 2 mutates `values[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/record_exclusive_view_fields_overlap rejected 417ms expected @7c9a1dd8dd3b
@@ -513,8 +515,9 @@ fail/borrows/shared_observation_does_not_discharge_linear_owner rejected 881ms e
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/borrows/shared_record_byte_write_before_last_observation rejected 2344ms expected @81c668e34445+wt
 	statement 2 mutates `row.text` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/shared_reference_carrier_writable_call rejected 1751ms expected @ceb70d0df240+wt
+fail/borrows/shared_reference_carrier_writable_call rejected 744ms expected @4aa20431b027
 	mutable argument `messages` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+	mutable argument `selection` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/static_subject_delayed_loan rejected 372ms expected @cbe9ad8ebf41+wt
 	state `bump` receives `main` as mutable more than once
 fail/borrows/static_whole_record_field_overlap rejected 372ms expected @cbe9ad8ebf41+wt
@@ -2906,7 +2909,7 @@ pass/borrows/nested_reference_leaf_projection_exit checked 1599ms check-target:m
 pass/borrows/owned_byte_value_call_exit checked 3786ms check-target:macos_arm64 @316799d840c3+wt
 pass/borrows/owned_nested_record_copy_exit checked 6433ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/owner_byte_read_during_shared_record_loan_exit checked 1789ms check-target:macos_arm64 @fef76bc46fc7+wt
-pass/borrows/plain_read_after_exclusive_loan_last_use_exit checked 5249ms check-target:macos_arm64 @89af21767c32+wt
+pass/borrows/plain_read_after_exclusive_loan_last_use_exit checked 2438ms check-target:macos_arm64 @4aa20431b027
 pass/borrows/projected_claim_owner_shared_observation_exit checked 1781ms check-target:macos_arm64 @5889f8b8208f+wt
 pass/borrows/projected_indexed_member_loan checked 1332ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/projected_local_member_loan checked 1270ms check-target:macos_arm64 @2d8ed253669f
@@ -3902,7 +3905,7 @@ pass/generics/runtime_container_setter_matrix_exit checked 1388ms check-target:m
 pass/generics/runtime_copied_indexed_case_subject_exit checked 2169ms check-target:macos_arm64 @0c36a0fe0b35
 pass/generics/runtime_equation_named_array_actual_exit checked 4788ms check-target:linux_x86_64 @5025d41fde63+wt
 pass/generics/runtime_finite_recursive_reference_catalog_exit checked 2468ms check-target:macos_arm64 @f5eade25e1fd+wt
-pass/generics/runtime_case_qualified_reference_storage_exit checked 2325ms check-target:macos_arm64 @d09b20d6b400+wt
+pass/generics/runtime_case_qualified_reference_storage_exit checked 2469ms check-target:macos_arm64 @4aa20431b027
 pass/generics/runtime_forwarded_value_contract_exit checked 507ms check-target:macos_arm64 @fbbbc025398+wt
 pass/generics/runtime_generic_carrier_binder_equation_exit checked 4877ms check-target:linux_x86_64 @bb32bdfc8620+wt
 pass/generics/runtime_generic_carrier_equation_context_exit checked 5144ms check-target:linux_x86_64 @bb32bdfc8620+wt
