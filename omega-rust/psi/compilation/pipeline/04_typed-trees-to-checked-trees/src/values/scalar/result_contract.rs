@@ -1002,6 +1002,90 @@ impl ParameterRangeRequirements {
     }
 }
 
+/// A bracketed state range is a predicate over the complete arrival telescope.
+/// Closed endpoints share the existing interval normalization, including an
+/// exclusive constant just outside the carrier. Dynamic endpoints retain the
+/// authored strict comparison: introducing a runtime predecessor would add a
+/// partial operation the range itself does not perform. This is interval
+/// meaning, not a selected source comparison occurrence or a new range
+/// admission judgment.
+pub(crate) fn lower_state_declared_range_predicate(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameter: symbols::SymbolHandle,
+    minimum: ExpressionHandle,
+    maximum: ExpressionHandle,
+    end_inclusive: bool,
+) -> Option<CheckedBooleanExpression> {
+    let parameters = program.state_parameters(state);
+    let index = parameters
+        .iter()
+        .position(|candidate| candidate.symbol == parameter)?;
+    let authored = &parameters[index];
+    if authored.relevance.is_erased()
+        || authored.is_const
+        || program.arithmetic_domain_for_type_reference(authored.type_reference)
+            != ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let primitive_type = program.primitive_type_reference(authored.type_reference)?;
+    if !is_integer(primitive_type) {
+        return None;
+    }
+    let position = parameters[..index]
+        .iter()
+        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
+        .count();
+    if let (Some(minimum), Some(maximum)) = (
+        validation::closed_integer_range_bound(program, minimum),
+        validation::closed_integer_range_maximum(program, maximum, end_inclusive),
+    ) {
+        return closed_integer_entry_range(program, authored, position, minimum, maximum)
+            .map(|(predicate, _)| predicate);
+    }
+    let mut remaining = 4096;
+    let context = ContractPredicates {
+        program,
+        operators,
+        owner: machine.symbol,
+        result_type: TypeReferenceHandle::invalid(),
+        parameters,
+        allow_result: false,
+        remaining: &mut remaining,
+    };
+    let endpoint = |expression| {
+        if let Some((value, reference)) = context.integer_term(expression, 0) {
+            let primitive = program.primitive_type_reference(reference)?;
+            return (is_integer(primitive) && scalar_expression_type(&value) == Some(primitive))
+                .then_some(value);
+        }
+        lower_contract_integer_literal(program, operators, expression, primitive_type)
+    };
+    let subject = CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    Some(CheckedBooleanExpression::And {
+        left: Box::new(construct_integer_comparison(
+            BinaryOperator::LessOrEqual,
+            endpoint(minimum)?,
+            subject.clone(),
+        )?),
+        right: Box::new(construct_integer_comparison(
+            if end_inclusive {
+                BinaryOperator::LessOrEqual
+            } else {
+                BinaryOperator::Less
+            },
+            subject,
+            endpoint(maximum)?,
+        )?),
+    })
+}
+
 /// A non-entry state's scalar parameter membership in an exactly-interval
 /// domain, as the closed predicate its authored `requires` row would lower
 /// to: the same interval clause a bracketed range produces, indexed in the

@@ -615,7 +615,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         self.execute_scalar_array_establishment(operation, elements)?;
                                         OperationFlow::Advance
                                     }
-                                    OperationKind::EstablishPrimitiveLocal { value } => {
+                                    OperationKind::EstablishPrimitiveLocal { value, .. } => {
                                         self.execute_primitive_establishment(operation, value)?;
                                         OperationFlow::Advance
                                     }

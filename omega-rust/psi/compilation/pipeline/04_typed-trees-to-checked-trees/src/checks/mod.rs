@@ -63,9 +63,9 @@ pub(crate) mod termination;
 
 use diagnostics::Diagnostic;
 use language_core::OperatorSpelling;
-use typed_trees::expression::BinaryOperator;
 pub(crate) use operators::{named_operator_route_is_false, operator_route_is_false};
 use symbols::SymbolHandle;
+use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
 
 pub(crate) use multiplicity::prepare_permission_events;
@@ -192,7 +192,7 @@ pub(crate) fn check_checked_facts_recording(
     indexed_writes::record_assignment_indexes(program, facts);
 
     if let Err(mut termination_diagnostics) =
-        termination::check_machine_termination(program, call_frames.as_ref())
+        termination::check_machine_termination(&facts.termination.rank_arrivals)
     {
         diagnostics.append(&mut termination_diagnostics);
     }

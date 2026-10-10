@@ -290,7 +290,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             right,
             addend,
         } => values.extend([*left, *right, *addend]),
-        O::EstablishPrimitiveLocal { value }
+        O::EstablishPrimitiveLocal { value, .. }
         | O::WriteOnlyPrimitiveStore { value, .. }
         | O::StructuralScalarFieldStore { value, .. } => values.push(*value),
         O::BoundaryCall { arguments, .. } => values.extend(arguments),

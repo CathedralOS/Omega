@@ -30,14 +30,13 @@ pub fn arithmetic_entry_requirement_is_covered(
     {
         return false;
     }
-    let Some(bindings) = integer_bindings(program, root) else {
-        return false;
-    };
-    let mut engine = Engine::strict(program, machine, &bindings);
-    let lengths = lengths::bindings(program, machine, root, None);
-    lengths::install(program, machine, root, root, &lengths, &mut engine, &[goal]).is_some()
-        && engine.strict_symbol_bindings_are_valid()
-        && engine.collect_comparisons(&[goal], &mut Vec::new())
+    // Coverage recognizes the same complete declared observation language as
+    // ordinary invocation obligations, including exact record fields and
+    // projected descriptor lengths. It supplies no proof: the caller must
+    // still consume the retained complete EntryInvariant judgment for this
+    // exact body. A partial scalar-only setup would lose that authority when
+    // the authored requirement projects through an otherwise ordinary value.
+    prepare_requirement(program, machine, root, goal).is_some()
 }
 
 /// Declaration-shaped obligations are prepared once by the same selected
@@ -227,6 +226,7 @@ pub fn prove_arithmetic_call_requirement(
     hypotheses: &[(ExpressionHandle, bool)],
     goal: ExpressionHandle,
     arguments: &[ExpressionHandle],
+    admitted: &checked_trees::CheckedRankArrivalPlan,
 ) -> bool {
     prove(
         program,
@@ -237,6 +237,7 @@ pub fn prove_arithmetic_call_requirement(
         hypotheses,
         goal,
         arguments,
+        admitted,
     )
     .unwrap_or(false)
 }
@@ -250,6 +251,7 @@ fn prove(
     hypotheses: &[(ExpressionHandle, bool)],
     goal: ExpressionHandle,
     arguments: &[ExpressionHandle],
+    admitted: &checked_trees::CheckedRankArrivalPlan,
 ) -> Option<bool> {
     // Resolve through the retained owner instead of substituting an entry
     // state's same-spelled formals for a named state's distinct declaration.
@@ -309,14 +311,13 @@ fn prove(
             program,
             caller,
             caller_state,
+            admitted,
         );
-    let mut carrier_equalities = Vec::new();
     let mut engine_bindings = caller_bindings.clone();
     if let Some((_, _, entry_parameters)) = &site_invariant
-        && let Some((bindings, equalities)) =
+        && let Some(bindings) =
             calls::telescoped_bindings(program, caller, caller_state, entry_parameters)
     {
-        carrier_equalities = equalities;
         engine_bindings = bindings;
     }
     let mut source_engine = Engine::strict(program, caller, &engine_bindings);
@@ -356,55 +357,24 @@ fn prove(
         &source_lengths,
         &mut source_engine,
     );
-    let mut substitutions = BTreeMap::new();
+    // Discover the demanded actual coordinates before collecting declaration
+    // facts, but do not normalize a rebuilt leaf yet. Its formation can need
+    // the caller's own declared bounds and surviving taken-branch facts.
+    // A forwarded record may not spell the demanded leaf in the actual, so
+    // retain that exact source coordinate in the same caller fact roster.
+    let mut field_actuals = Vec::new();
     for (parameter, argument) in parameters.iter().zip(arguments) {
         for field in goal_fields
             .coordinates()
             .filter(|field| field.parameter.symbol == parameter.symbol)
         {
-            // An exact carrier actual -- a formal forward, `&x`, or a
-            // member-target `p.f`/`&p.f` whose projection lands on the goal
-            // coordinate's root -- produces the caller-side coordinate itself,
-            // so its declared field bounds join the hypotheses; only a literal
-            // or computed actual falls to `actual`'s declaration walk.
-            let actual = if let Some(actual) =
-                field.field_actual_coordinate(program, caller_state, *argument, field.borrowed)
-            {
-                let value = actual.value();
-                source_fields.include(actual);
-                value
-            } else {
-                field.field_actual(
-                    program,
-                    caller,
-                    caller_state,
-                    &mut source_engine,
-                    *argument,
-                    field.borrowed,
-                )?
-            };
-            substitutions.insert(field.identity.clone(), actual);
-        }
-        if let Some(binding) = goal_bindings
-            .iter()
-            .find(|binding| binding.symbol == parameter.symbol)
-        {
-            let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
-                return None;
-            };
-            // The actual may carry a runtime quotient, remainder, or exact
-            // shift: mint each non-polynomial operand-pair atom the same way
-            // the range owner does before normalizing, so the substitution
-            // transports the exact operation instead of refusing the term.
-            meanings::install_nonpolynomial_terms(
-                program,
-                caller,
-                caller_state,
-                &mut source_engine,
-                *argument,
-                0,
-            )?;
-            substitutions.insert(identity.clone(), source_engine.normalize(*argument)?);
+            let coordinate =
+                field.field_actual_coordinate(program, caller_state, *argument, field.borrowed);
+            let value = coordinate.as_ref().map(fields::FieldCoordinate::value);
+            if let Some(coordinate) = coordinate {
+                source_fields.include(coordinate);
+            }
+            field_actuals.push((field, *argument, value));
         }
     }
     let mut comparisons = source_fields.comparisons(program);
@@ -440,24 +410,21 @@ fn prove(
     for (expression, holds) in hypotheses {
         collect_guard(&mut source_engine, expression, holds, &mut comparisons, 0)?;
     }
-    // The duplicated-carrier equalities and the member's proven rank-range
-    // membership are established site hypotheses: the member's own
-    // state-edge judgment proves them on every internal arrival, and an
-    // arrival that judgment cannot prove fails there rather than being
-    // assumed here.
-    comparisons.extend(carrier_equalities);
+    // The retained source judgment re-establishes membership on every
+    // arrival under one selected coordinate assignment. Lineage itself and
+    // other copies of the entry input confer no equality hypotheses.
     if let Some((measure, range_handle, entry_parameters)) = &site_invariant
         && let ExpressionNode::Range(range) = program.expression_table.expression(*range_handle)
     {
         let rank = if let RankingRangeMeasure::Field { subject, measure } = measure {
             // A field-view member's rank is the record's exact projection
-            // coordinate, telescoped from its entry formal onto the unique
-            // site carrier holding that role -- the same atom the member's
+            // coordinate, telescoped from its entry formal onto the selected
+            // site coordinate -- the same atom the member's
             // own edge judgment re-establishes membership on at every
             // internal arrival. Entry-spelled member chains inside the
             // authored endpoints (`countdown.limit`) resolve at the entry
             // scope and arrive on the same carrier, so their site atoms are
-            // what `normalize` reads below. A role with no unique carrier
+            // what `normalize` reads below. An unselected coordinate
             // resolves nothing and the site abstains, as before.
             program.machine_states(caller).first().and_then(|entry| {
                 let coordinate =
@@ -486,8 +453,7 @@ fn prove(
             // Every other measure still spells its endpoints -- and a
             // member-chain subject such as `pair.left` -- in the entry scope:
             // `remaining in 0..=limits.cap` reads `limits.cap`, which names no
-            // site atom until the projection telescopes onto the unique site
-            // carrier holding `limits`' role (`bounds.cap`). Install those
+            // site atom until the projection reads the exact selected arrival coordinate. Install those
             // member chains the same way the field arm does; a role with no
             // unique carrier resolves nothing and the site abstains, as
             // before. Bare-formal endpoints and subjects are already aliased
@@ -521,13 +487,12 @@ fn prove(
                     // telescope's length bindings name the slice formal, or
                     // the record-carried slice leaf, that holds its role at
                     // this site.
-                    let (length_roles, length_equalities) = calls::telescoped_length_bindings(
+                    let length_roles = calls::telescoped_length_bindings(
                         program,
                         caller,
                         caller_state,
                         entry_parameters,
                     );
-                    comparisons.extend(length_equalities);
                     lengths::parameter(program, entry, *subject).and_then(|parameter| {
                         length_roles
                             .iter()
@@ -556,8 +521,47 @@ fn prove(
     if !source_engine.install_hypotheses(comparisons) {
         return None;
     }
-    // Actual divisions minted above computed their intervals before the live
-    // hypotheses; tighten them now, as the range owner does after installing.
+    // Formation and normalization consume the caller's surviving facts,
+    // never the requirement being proved. Keep this ordering for constructed
+    // leaves too: divisor nonzero, intermediate landing and final carrier
+    // membership are independent obligations of the exact produced value.
+    let mut substitutions = BTreeMap::new();
+    for (field, argument, value) in field_actuals {
+        let actual = match value {
+            Some(value) => value,
+            None => field.field_actual(
+                program,
+                caller,
+                caller_state,
+                &mut source_engine,
+                argument,
+                field.borrowed,
+            )?,
+        };
+        substitutions.insert(field.identity.clone(), actual);
+    }
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        if let Some(binding) = goal_bindings
+            .iter()
+            .find(|binding| binding.symbol == parameter.symbol)
+        {
+            let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
+                return None;
+            };
+            // Retain runtime quotient, remainder and exact shift identities
+            // under the already-installed caller facts before substituting a
+            // completed scalar actual. No destination requirement is a premise.
+            meanings::install_nonpolynomial_terms(
+                program,
+                caller,
+                caller_state,
+                &mut source_engine,
+                *argument,
+                0,
+            )?;
+            substitutions.insert(identity.clone(), source_engine.normalize(*argument)?);
+        }
+    }
     source_engine.refresh_opaque_intervals();
     // Subslice geometry consumes established caller facts; the requirement's
     // own conclusion is never installed to form the next slice.

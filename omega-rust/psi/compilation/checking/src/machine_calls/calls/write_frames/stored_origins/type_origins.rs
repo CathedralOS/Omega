@@ -5,7 +5,7 @@
 //! knowledge of the opaque member's contents or their caller-visible effects.
 
 use super::super::isolation::concrete_nominal_type;
-use super::{FramePathPrecision, FramePlaceOrigin, StoredLocalOrigins, StoredWriteOrigin};
+use super::{FramePlaceOrigin, StoredLocalOrigins, StoredWriteOrigin};
 use crate::declarations::data_queries::data_definition_by_symbol;
 use facts::PlaceSegment;
 use symbols::{SymbolHandle, SymbolKind};
@@ -179,7 +179,8 @@ fn walk_declared_origins(
                     continue;
                 }
                 let segments = walk.segments(step);
-                let (path, precision) = storage_path(program, name, &segments);
+                let (path, precision) =
+                    super::super::place_paths::coordinate_storage_path(program, name, &segments);
                 origins.references.push(StoredWriteOrigin {
                     local_symbol: symbol,
                     local_path: path.clone(),
@@ -236,7 +237,9 @@ fn walk_declared_origins(
                     // inventory instead loses independently declared siblings.
                     if detail == OriginDetail::Paths {
                         let segments = walk.segments(step);
-                        let (path, _) = storage_path(program, name, &segments);
+                        let (path, _) = super::super::place_paths::coordinate_storage_path(
+                            program, name, &segments,
+                        );
                         origins.references.push(StoredWriteOrigin {
                             local_symbol: origins.local_symbol,
                             local_path: path,
@@ -310,25 +313,6 @@ fn walk_declared_origins(
         );
     }
     Some(origins)
-}
-
-fn storage_path(
-    program: &dyn crate::CheckingInput,
-    name: &str,
-    segments: &[PlaceSegment],
-) -> (String, FramePathPrecision) {
-    let mut path = name.to_owned();
-    for segment in segments {
-        match segment {
-            PlaceSegment::Field { symbol } => {
-                path.push('.');
-                path.push_str(program.symbols.name(*symbol));
-            }
-            PlaceSegment::Case { .. } => {}
-            _ => return (path, FramePathPrecision::CollectionCoarse),
-        }
-    }
-    (path, FramePathPrecision::Exact)
 }
 
 /// A disjoint owned field has no reference leaves, but an unknown field is

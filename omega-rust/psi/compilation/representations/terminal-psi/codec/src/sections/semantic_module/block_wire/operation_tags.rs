@@ -113,7 +113,8 @@ pub(super) const STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH: u8 = 59;
 /// `OperationKind::StructuralByteSequenceFieldByteStore`.
 pub(super) const STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE: u8 = 60;
 /// `OperationKind::EstablishPrimitiveLocal`.
-pub(super) const ESTABLISH_PRIMITIVE_LOCAL: u8 = 61;
+// Tag 61 is retired: it omitted declaration-owned receiving evidence.
+pub(super) const ESTABLISH_PRIMITIVE_LOCAL: u8 = 117;
 /// `OperationKind::PrimitiveScalarRead`.
 pub(super) const PRIMITIVE_SCALAR_READ: u8 = 62;
 /// `OperationKind::ByteSequenceWrite`.

@@ -1,0 +1,8 @@
+machine replace(mut value: u32[0..=4]) -> u32 {
+    value = 5;
+    (value)
+}
+
+machine main() {
+    let value: u32 = replace(3);
+}

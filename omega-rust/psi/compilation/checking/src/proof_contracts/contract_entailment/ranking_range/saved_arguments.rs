@@ -98,6 +98,59 @@ pub(super) fn install(
     }
 }
 
+/// A name admitted under exactly the bar `install` binds by: the symbol's
+/// one `let` in `state` is never written, never the root of an exclusive
+/// borrow, and reads only carriers that stay stable for the whole state.
+/// `meanings::builtin` asks this before it lets a local name carry builtin
+/// meaning -- the name then denotes the initializer's binding-time value,
+/// which `install` proves reachable by binding it. An initializer outside
+/// the strict arithmetic language still admits the name here and leaves it
+/// unbound there; downstream normalization fails closed on the unknown atom
+/// rather than substituting a different value.
+pub(super) fn saved<'a>(
+    program: &'a dyn crate::CheckingInput,
+    state: &State,
+    symbol: SymbolHandle,
+) -> Option<&'a typed_trees::statement::TableLocalData> {
+    let local = saved_local(program, state, symbol)?;
+    stable_references(program, state, local.initial_value).then_some(local)
+}
+
+/// An exact projection of a completed saved copy. This reads the completion
+/// owner in this declaration's identity frame, not the union of discovered
+/// arrival candidates. Only captured value transport can supply an alias;
+/// arithmetic and metadata dependencies retain their separate value judgment.
+pub(super) fn captured_coordinate(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<super::RankSubjectCoordinate> {
+    let place = crate::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        usize::MAX,
+        expression,
+    )?;
+    saved(program, state, place.root.as_symbol()?)?;
+    let (machine, _) = crate::find_state(program, state.symbol)?;
+    let completed = super::arrival_correspondence::completed_operand_coordinates(
+        program,
+        machine,
+        state,
+        usize::MAX,
+        expression,
+    )?;
+    let first = completed.first()?;
+    completed
+        .iter()
+        .all(|value| {
+            value.relative_path.is_empty()
+                && value.derivation == super::RankValueDerivation::CapturedCoordinate
+                && value.source == first.source
+        })
+        .then(|| first.source.clone())
+}
+
 /// A plain name occurrence and the symbol it resolves to; member chains and
 /// path heads are deliberately not plain names.
 fn plain_name(

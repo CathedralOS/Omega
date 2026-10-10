@@ -1,0 +1,18 @@
+data Countdown { remaining: u64 [0..=5]; }
+data Bundle { held: Countdown; spare: Countdown; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+machine walk(countdown: Countdown)
+terminates by countdown -> Countdown::Remaining in 0..=5;
+-> u64 {
+    transition countdown.remaining > 3 {
+        true -> iterate(Bundle { held: Countdown { remaining: 3 }, spare: Countdown { remaining: 4 } })
+        false -> countdown.remaining
+    }
+    state iterate(pending: Bundle) {
+        transition pending.held.remaining > 0 {
+            true -> iterate(Bundle { held: Countdown { remaining: pending.held.remaining - 1 }, spare: pending.spare })
+            false -> pending.held.remaining
+        }
+    }
+}
+machine main() { let result: u64 = walk(Countdown { remaining: 5 }); }

@@ -8,23 +8,119 @@ use symbols::SymbolHandle;
 use typed_trees::state::State;
 use typed_trees::statement::TransitionGuardNode;
 
+mod retained_correspondence;
 mod state_edges;
 
+/// Failure summary over attempted coherent assignments. A formed recurrent
+/// edge that fails descent takes diagnostic priority over an earlier-phase
+/// decline from another attempt. This does not certify other arrivals or a
+/// complete assignment; neither failure supplies an admitted coordinate.
+pub(super) enum RankArrivalFailure {
+    RangeOrFormation,
+    StrictDecrease,
+}
 
-pub(super) fn prove(
+#[derive(Clone)]
+pub(in crate::checks::termination) struct RankArrivalAdmission {
+    pub premises: validation::RankingRangePremises,
+    pub states: Vec<validation::RankStateBindings>,
+    pub origins: Vec<validation::StateEntryCorrespondence>,
+    pub edges: Vec<checked_trees::CheckedRankArrivalEdge>,
+}
+
+impl RankArrivalAdmission {
+    /// A body with only its initial entry has the declaration's identity
+    /// coordinates. There is no local transport to infer or arrival invariant
+    /// to assume. External calls still owe their own complete entry formation
+    /// and the call-component owner separately judges every recurrent call.
+    pub(in crate::checks::termination) fn entry_only(
+        program: &dyn validation::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+    ) -> Option<Self> {
+        let [_] = program.machine_states(machine) else {
+            return None;
+        };
+        if !graph::machine_adjacency(program, machine)
+            .first()?
+            .is_empty()
+        {
+            return None;
+        }
+        Self::root_identity(program, machine, Vec::new())
+    }
+
+    /// A source proof over one exact declaration frame retains its identity
+    /// coordinates. The caller supplies all independently judged exact local
+    /// edges; this constructor supplies no formation or descent premise.
+    pub(in crate::checks::termination) fn root_identity(
+        program: &dyn validation::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        edges: Vec<checked_trees::CheckedRankArrivalEdge>,
+    ) -> Option<Self> {
+        let [entry] = program.machine_states(machine) else {
+            return None;
+        };
+        let origins = validation::discover_rank_arrival_correspondence(program, machine)?;
+        let coordinates = program
+            .state_parameters(entry)
+            .iter()
+            .map(|parameter| {
+                let coordinate = validation::RankSubjectCoordinate {
+                    parameter: parameter.symbol,
+                    path: Vec::new(),
+                };
+                validation::RankCoordinateBinding {
+                    entry: coordinate.clone(),
+                    destination: coordinate,
+                }
+            })
+            .collect();
+        Some(Self {
+            premises: validation::RankingRangePremises::RankInvariant,
+            states: vec![validation::RankStateBindings {
+                state: entry.symbol,
+                coordinates,
+            }],
+            origins,
+            edges,
+        })
+    }
+}
+
+pub(super) fn admit(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     measure: DecreaseMeasure,
     order: &RankingOrder,
-    require_entry_invariant: bool,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> bool {
-    let Some(range) = program
+    accept: &mut dyn FnMut(&RankArrivalAdmission) -> bool,
+) -> Result<RankArrivalAdmission, RankArrivalFailure> {
+    let mut failure = RankArrivalFailure::RangeOrFormation;
+    admit_complete(
+        program,
+        machine,
+        measure,
+        order,
+        call_frames,
+        accept,
+        &mut failure,
+    )
+    .ok_or(failure)
+}
+
+fn admit_complete(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    measure: DecreaseMeasure,
+    order: &RankingOrder,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    accept: &mut dyn FnMut(&RankArrivalAdmission) -> bool,
+    failure: &mut RankArrivalFailure,
+) -> Option<RankArrivalAdmission> {
+    let range = program
         .ranking_expression_custody_for(machine.symbol)
         .and_then(|custody| custody.rank_range)
-    else {
-        return false;
-    };
+        .unwrap_or_default();
     if !matches!(
         order,
         RankingOrder::NatDescending
@@ -37,7 +133,7 @@ pub(super) fn prove(
     ) {
         // Arbitrary custom expressions and lexicographic ranges need their
         // exact produced-value projection, not an assumed operand polynomial.
-        return false;
+        return None;
     }
     let measure = match (order, measure) {
         (RankingOrder::IncreasingTo(limit), DecreaseMeasure::Distance { lower, upper })
@@ -81,39 +177,37 @@ pub(super) fn prove(
         (RankingOrder::BoundedDistance, DecreaseMeasure::Distance { lower, upper }) => {
             validation::RankingRangeMeasure::Distance { lower, upper }
         }
-        _ => return false,
+        _ => return None,
     };
     let states = program.machine_states(machine);
     let Some(root) = states.first() else {
-        return false;
+        return None;
     };
     // The entry obligation is independent of every edge's guards. In
     // particular, an acyclic body cannot pass vacuously through an empty SCC.
     if !validation::prove_ranking_range_entry(program, machine, root, range, measure) {
-        return false;
+        return None;
     }
     // The judgment reads only these entry formals' arrival values; every
     // prefix below is checked against the paths that carry them.
     let Some(premise_inputs) =
         validation::ranking_range_premise_symbols(program, machine, range, measure)
     else {
-        return false;
+        return None;
     };
     let mut owned_frames = None;
     let frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
     // A whole graph uses one inductive premise set. A failed edge cannot borrow
     // stronger assumptions from a different, incompletely proved attempt.
+    // Prefer a complete entry-invariant closure when it is independently
+    // established: later authored Requires may read only that retained regime.
     [
-        validation::RankingRangePremises::RankInvariant,
         validation::RankingRangePremises::EntryInvariant,
+        validation::RankingRangePremises::RankInvariant,
     ]
     .into_iter()
-    .filter(|premises| {
-        !require_entry_invariant
-            || matches!(premises, validation::RankingRangePremises::EntryInvariant)
-    })
-    .any(|premises| {
-        prove_edges(
+    .find_map(|premises| {
+        let states = prove_edges(
             program,
             machine,
             range,
@@ -121,36 +215,67 @@ pub(super) fn prove(
             frames,
             premises,
             &premise_inputs,
-        )
+            accept,
+            failure,
+        )?;
+        Some(RankArrivalAdmission {
+            premises,
+            states: states.states,
+            origins: states.origins,
+            edges: states.edges,
+        })
     })
 }
 
 /// The formals of `state` whose path must stay unwritten through a prefix:
 /// the root's own premise formals, or -- under a discovered telescope -- each
-/// slot whose entry role is a premise carrier, including every duplicated
-/// copy the judgment holds equal. Any other formal, such as a mutable scratch
+/// selected destination whose entry coordinate is a premise input. Any other formal, such as a mutable scratch
 /// input or a computed payload with no entry role, may be stored to before the
 /// transition: no hypothesis reads its arrival value, and the actual it feeds
 /// into the edge is read live. `None` for `entry_parameters` is the root's
 /// identity telescope.
-pub(super) fn protected_input_paths<'program>(
-    program: &'program dyn ::validation::CheckingInput,
+pub(super) fn protected_input_paths(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
     state: &State,
-    entry_parameters: Option<&[SymbolHandle]>,
+    entry_parameters: Option<&validation::RankStateBindings>,
     premise_inputs: &[SymbolHandle],
-) -> Vec<&'program str> {
-    program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .filter(|(position, parameter)| {
-            let role = entry_parameters.map_or(parameter.symbol, |roles| {
-                roles.get(*position).copied().unwrap_or_default()
-            });
-            role.is_valid() && premise_inputs.contains(&role)
-        })
-        .map(|(_, parameter)| parameter.name.as_str())
-        .collect()
+) -> Option<Vec<String>> {
+    let mut protected = Vec::new();
+    match entry_parameters {
+        None => {
+            for input in premise_inputs {
+                program.state_parameter_by_symbol(state, *input)?;
+                protected.push(validation::frame_coordinate_path(program, *input, &[])?);
+            }
+        }
+        Some(selected) => {
+            for binding in &selected.coordinates {
+                if !premise_inputs.contains(&binding.entry.parameter) {
+                    continue;
+                }
+                program.state_parameter_by_symbol(state, binding.destination.parameter)?;
+                let path = validation::frame_coordinate_path(
+                    program,
+                    binding.destination.parameter,
+                    &binding.destination.path,
+                )?;
+                if !protected.contains(&path) {
+                    protected.push(path);
+                }
+            }
+        }
+    }
+    for coordinate in
+        validation::ranking_range_state_constraint_coordinates(program, machine, state)?
+    {
+        let path =
+            validation::frame_coordinate_path(program, coordinate.parameter, &coordinate.path)?;
+        if !protected.contains(&path) {
+            protected.push(path);
+        }
+    }
+    Some(protected)
 }
 
 fn prove_edges<'program>(
@@ -161,16 +286,20 @@ fn prove_edges<'program>(
     frames: Option<&validation::CallFrameResolver<'program>>,
     premises: validation::RankingRangePremises,
     premise_inputs: &[SymbolHandle],
-) -> bool {
+    accept: &mut dyn FnMut(&RankArrivalAdmission) -> bool,
+    failure: &mut RankArrivalFailure,
+) -> Option<state_edges::SelectedCorrespondence> {
     let states = program.machine_states(machine);
     let Some(root) = states.first() else {
-        return false;
+        return None;
     };
     let edges = patterns::edges_to_state(program, root, root.symbol);
     if edges.is_empty() && states.len() == 1 && graph::machine_has_cycle(program, machine) {
-        return false;
+        return None;
     }
-    let protected = protected_input_paths(program, root, None, premise_inputs);
+    let protected = protected_input_paths(program, machine, root, None, premise_inputs)?;
+    let protected = protected.iter().map(String::as_str).collect::<Vec<_>>();
+    let mut root_edges = Vec::new();
     for edge in edges {
         let Some(evaluated_prefix) = preserved_entry_prefix(
             program,
@@ -180,7 +309,7 @@ fn prove_edges<'program>(
             edge.statement_ordinal,
             &protected,
         ) else {
-            return false;
+            return None;
         };
         let guards = edge
             .guards
@@ -198,22 +327,38 @@ fn prove_edges<'program>(
             &evaluated_prefix,
             edge.arguments,
         ) else {
-            return false;
+            return None;
         };
-        if !proof.membership_and_pinning || !proof.strictly_decreases {
-            return false;
+        if !proof.membership_and_pinning {
+            return None;
         }
+        if !proof.strictly_decreases {
+            *failure = RankArrivalFailure::StrictDecrease;
+            return None;
+        }
+        root_edges.push(checked_trees::CheckedRankArrivalEdge {
+            source: root.symbol,
+            destination: root.symbol,
+            statement_ordinal: u32::try_from(edge.statement_ordinal).ok()?,
+            target: edge.target,
+            non_increasing: proof.non_increasing,
+            strictly_decreases: proof.strictly_decreases,
+        });
     }
-    states.len() == 1
-        || state_edges::prove(
-            program,
-            machine,
-            range,
-            measure,
-            frames,
-            premises,
-            premise_inputs,
-        )
+    let mut selected = state_edges::select(
+        program,
+        machine,
+        range,
+        measure,
+        frames,
+        premises,
+        premise_inputs,
+        &root_edges,
+        accept,
+        failure,
+    )?;
+    selected.edges.extend(root_edges);
+    Some(selected)
 }
 
 fn preserved_entry_prefix<'program>(

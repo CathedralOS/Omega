@@ -445,7 +445,11 @@ pub(super) fn validate_establish_primitive_local(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let OperationKind::EstablishPrimitiveLocal { .. } = &operation.kind else {
+    let OperationKind::EstablishPrimitiveLocal {
+        value,
+        range_obligation,
+    } = &operation.kind
+    else {
         unreachable!("dispatched validate_establish_primitive_local")
     };
     let Some(result) = operation.result.structural() else {
@@ -460,8 +464,9 @@ pub(super) fn validate_establish_primitive_local(
         })
         || !module.structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
-                && declaration.scalar_restriction.is_none()
-                && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+                && declaration.scalar_restriction.is_some() == range_obligation.is_some()
+                && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(carrier)
+                    if super::declared_scalar_type(machine, *value) == Some(carrier))
         })
     {
         return malformed("primitive local result custody is noncanonical");

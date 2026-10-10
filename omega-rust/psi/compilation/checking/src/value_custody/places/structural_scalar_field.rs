@@ -55,60 +55,188 @@ pub struct StructuralScalarField {
     pub domain: ArithmeticDomain,
 }
 
-
 /// Resolve declaration-scoped observations under an explicit input telescope.
 /// This is the same field geometry query as an executable use-site read, but
 /// the caller owns the binder substitution and arrival availability. It grants
 /// neither an additional read permission nor a fresh runtime formal.
 pub fn structural_scalar_field_in_parameters(
     program: &dyn crate::CheckingInput,
-    machine: SymbolHandle,
-    state: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
-    bindings: &[(SymbolHandle, ExpressionHandle)],
+    bindings: &[(super::CanonicalPlace, super::CanonicalPlace)],
     expression: ExpressionHandle,
 ) -> Option<StructuralScalarField> {
-    structural_scalar_field(program, machine, state, expression, bindings, |receiver| {
-        let name = program.expression_table.name_path_node(receiver)?;
-        if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+    let coordinate = super::canonical_place_from_expression(program, expression)?;
+    let mut rebased = None;
+    for (formal, actual) in bindings {
+        if formal.root != coordinate.root {
+            continue;
+        }
+        let Some(suffix) = coordinate.segments.strip_prefix(formal.segments.as_slice()) else {
+            continue;
+        };
+        let mut segments = actual.segments.clone();
+        segments.extend_from_slice(suffix);
+        let actual = super::CanonicalPlace {
+            root: actual.root.clone(),
+            segments,
+        };
+        if rebased.as_ref().is_some_and(|selected| selected != &actual) {
             return None;
         }
-        let mut matches = parameters.iter().filter(|parameter| {
-            parameter.symbol == name.symbol
-                && !parameter.is_const
-                && !parameter.relevance.is_erased()
-        });
-        let parameter = matches.next()?;
-        if matches.next().is_some() {
-            return None;
-        }
-        let carrier =
-            match program
-                .type_reference_table
-                .type_reference(crate::peel_declared_constraints(
-                    program,
-                    parameter.type_reference,
-                )) {
-                TypeReferenceNode::Reference {
-                    referee,
-                    access:
-                        language_semantics::ReferenceAccess::Shared
-                        | language_semantics::ReferenceAccess::Mutable,
-                    ..
-                } => *referee,
-                TypeReferenceNode::Reference { .. } => return None,
-                _ => parameter.type_reference,
-            };
-        program.closed_data_definition(crate::peel_declared_constraints(program, carrier))?;
-        Some(StructuralSource {
-            root: facts::PlaceRoot::Symbol(parameter.symbol),
-            receiver_value: ExpressionHandle::invalid(),
-            statement_ordinal: 0,
-            type_reference: carrier,
-        })
-    })
+        rebased = Some(actual);
+    }
+    let coordinate = rebased.unwrap_or(coordinate);
+    let facts::PlaceRoot::Symbol(parameter) = coordinate.root else {
+        return None;
+    };
+    structural_scalar_field_at_coordinate(program, parameters, parameter, &coordinate.segments)
 }
 
+/// Observe an already selected formal-relative coordinate. The caller owns
+/// the parameter snapshot and coordinate admission; this shared declaration
+/// walk only elaborates its ordinary field geometry and scalar policy. No
+/// source expression or same-typed field search supplies the coordinate.
+pub fn structural_scalar_field_at_coordinate(
+    program: &dyn crate::CheckingInput,
+    parameters: &[typed_trees::signature::StateParameter],
+    parameter: SymbolHandle,
+    coordinate: &[facts::PlaceSegment],
+) -> Option<StructuralScalarField> {
+    let mut matches = parameters.iter().filter(|input| {
+        input.symbol == parameter && !input.is_const && !input.relevance.is_erased()
+    });
+    let input = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    let source_type =
+        match program
+            .type_reference_table
+            .type_reference(crate::peel_declared_constraints(
+                program,
+                input.type_reference,
+            )) {
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } if access.is_readable() => *referee,
+            TypeReferenceNode::Reference { .. } => return None,
+            _ => input.type_reference,
+        };
+    let mut carrier = source_type;
+    let mut path = Vec::new();
+    let mut selected_case = SymbolHandle::invalid();
+    for (ordinal, segment) in coordinate.iter().enumerate() {
+        carrier = readable_projection_carrier(program, carrier, &mut path)?;
+        match segment {
+            facts::PlaceSegment::Case { variant } => {
+                if selected_case.is_valid() {
+                    return None;
+                }
+                let record = program.closed_data_definition(carrier)?;
+                let mut cases = program
+                    .data_members(record)
+                    .iter()
+                    .filter_map(|member| member.as_variant())
+                    .filter(|case| case.symbol == *variant);
+                let case = cases.next()?;
+                if cases.next().is_some() {
+                    return None;
+                }
+                selected_case = case.symbol;
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
+                    case.path_identity(),
+                ));
+            }
+            facts::PlaceSegment::Field { symbol } => {
+                let record = program.closed_data_definition(carrier)?;
+                let fields = if selected_case.is_valid() {
+                    let case = program
+                        .data_members(record)
+                        .iter()
+                        .filter_map(|member| member.as_variant())
+                        .find(|case| case.symbol == selected_case)?;
+                    program.data_payload_fields(case).iter().collect::<Vec<_>>()
+                } else {
+                    program
+                        .data_members(record)
+                        .iter()
+                        .filter_map(|member| match member {
+                            DataMember::Field(field) => Some(field),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>()
+                };
+                let mut fields = fields.into_iter().filter(|field| field.symbol == *symbol);
+                let field = fields.next()?;
+                if fields.next().is_some()
+                    || field.relevance.is_erased()
+                    || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
+                    || program.symbols.get(field.symbol).parent
+                        != if selected_case.is_valid() {
+                            selected_case
+                        } else {
+                            record.symbol
+                        }
+                {
+                    return None;
+                }
+                if ordinal + 1 == coordinate.len() {
+                    let primitive_type = realized_scalar_carrier(program, field.type_reference)?;
+                    return Some(StructuralScalarField {
+                        root: facts::PlaceRoot::Symbol(parameter),
+                        receiver_value: ExpressionHandle::invalid(),
+                        statement_ordinal: 0,
+                        type_reference: source_type,
+                        carrier_type_reference: carrier,
+                        path,
+                        field: field.symbol,
+                        field_identity: field.path_identity(),
+                        primitive_type,
+                        domain: program.arithmetic_domain_for_type_reference(
+                            program
+                                .type_reference_table
+                                .dereferenced_type_reference(field.type_reference),
+                        ),
+                    });
+                }
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                    field.path_identity(),
+                ));
+                carrier = field.type_reference;
+                selected_case = SymbolHandle::invalid();
+            }
+            facts::PlaceSegment::FixedIndex { index } if !selected_case.is_valid() => {
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(carrier)
+                else {
+                    return None;
+                };
+                if index >= length {
+                    return None;
+                }
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(*index).ok()?,
+                ));
+                carrier = *element_type;
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+/// Resolve a field path below established storage or a fresh receiver value.
+/// Established storage is observed here, never equated with its initializer: member
+/// writes need not rebind the local, so absence of `mut` does not freeze fields.
+/// The caller must bind the expression to this authored statement's evaluation
+/// graph. Open generic owners, erased fields and scalar qualifications
+/// without a complete supported predicate require additional facts. Arithmetic
+/// policy changes operations, not storage: retain it alongside the observation.
+/// Restrictions stay on the independently reconstructed field declaration;
+/// construction and every store prove them. This query grants no membership:
+/// observing the established field reads its scalar carrier.
 pub fn structural_scalar_field(
     program: &dyn crate::CheckingInput,
     machine: SymbolHandle,

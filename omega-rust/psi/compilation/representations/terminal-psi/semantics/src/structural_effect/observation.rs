@@ -18,6 +18,7 @@ pub enum StructuralEffectObservation {
     PrimitiveLocalEstablished {
         destination: PlaceId,
         value: ValueId,
+        range_obligation: Option<semantic_vocabulary::ObligationId>,
     },
     /// Read one primitive leaf. A runtime-selected element in `path` names no
     /// single leaf, so the verifier retains an element-value equation only
@@ -270,7 +271,10 @@ pub fn structural_effect_leaf_observation_in(
         },
         (
             StructuralEffectAction::EstablishPrimitiveLocal,
-            OperationKind::EstablishPrimitiveLocal { value },
+            OperationKind::EstablishPrimitiveLocal {
+                value,
+                range_obligation,
+            },
         ) => {
             let result = operation.result.structural().ok_or(
                 OperationSemanticError::StructuralEffectResultShapeMismatch(tag),
@@ -278,6 +282,7 @@ pub fn structural_effect_leaf_observation_in(
             StructuralEffectObservation::PrimitiveLocalEstablished {
                 destination: result.place,
                 value: *value,
+                range_obligation: *range_obligation,
             }
         }
         (

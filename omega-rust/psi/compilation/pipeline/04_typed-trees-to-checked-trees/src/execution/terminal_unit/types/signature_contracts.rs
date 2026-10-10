@@ -24,12 +24,7 @@ pub(in crate::execution::terminal_unit) fn checked_state_contracts_have_plan(
             return contract.binding.is_none()
                 && plan.crash.structural_runtime_requirements().is_some();
         }
-        checked_structural_signature_has_plan(
-            program,
-            state,
-            structural_parameters,
-            contract,
-        )
+        checked_structural_signature_has_plan(program, state, structural_parameters, contract)
     })
 }
 
@@ -101,147 +96,6 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_has_plan
             ),
             _ => false,
         })
-}
-
-/// A static boundary requirement may carry the implicit membership contracts
-/// induced by qualified parameter types, plus authored `ensures result in
-/// <domain>` clauses whose every fact carries the established qualification
-/// authorization (`boundary_qualification_authorization` — a domain
-/// BoundaryRequirement route or carry permission pinned to this signature),
-/// but no other independently authored proof contract in this Terminal slice.
-/// Reconstruct the exact pair set from both surfaces so an omitted or extra
-/// membership cannot be hidden by lowering.
-pub(in crate::execution::terminal_unit) fn signature_contracts_are_exact_parameter_qualifications(
-    program: &dyn ::validation::CheckingInput,
-    owner_symbol: SymbolHandle,
-    signature: &typed_trees::signature::StateSignature,
-) -> bool {
-    let parameters = program.state_signature_parameters(signature);
-    let mut expected = Vec::<(usize, SemanticDomainId)>::new();
-    for (position, parameter) in parameters.iter().enumerate() {
-        let mut type_reference = parameter.type_reference;
-        loop {
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } => {
-                    for constraint in program.type_reference_table.constraints(*constraints) {
-                        let TypeConstraintNode::Domain(domain) = constraint else {
-                            return false;
-                        };
-                        if !domain.semantic_id.is_valid() {
-                            return false;
-                        }
-                        expected.push((position, domain.semantic_id));
-                    }
-                    type_reference = *base_type;
-                }
-                TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-                _ => break,
-            }
-        }
-    }
-
-    let mut actual = Vec::<(usize, SemanticDomainId)>::new();
-    for contract in program.state_signature_contracts(signature) {
-        // Crash ceilings have their own checked capsule and Terminal lane.
-        if matches!(contract.kind, SignatureContractKind::Crashes { .. })
-            && contract.binding.is_none()
-        {
-            continue;
-        }
-        // `ensures true` is the no-op postcondition the structural signature
-        // replay already treats as admissible; it asserts no outbound proof
-        // obligation this call edge could fail to carry.
-        if contract.kind == SignatureContractKind::Ensures
-            && contract.binding.is_none()
-            && program
-                .proof_facts
-                .span_or_empty(contract.facts)
-                .iter()
-                .all(|fact| {
-                    matches!(
-                        fact,
-                        ProofFact::Expression(expression)
-                            if matches!(
-                                program.expression_table.expression(*expression),
-                                ExpressionNode::Boolean(true)
-                            )
-                    )
-                })
-        {
-            continue;
-        }
-        if contract.kind != SignatureContractKind::Requires || contract.binding.is_some() {
-            // The one independently authored clause this slice admits is
-            // `ensures result in <domain>`: the domain must already
-            // authorize this signature through a BoundaryRequirement
-            // establishment route or a carry permission, which is exactly
-            // what the qualification-authorization evidence on the checked
-            // fact replays.
-            let authorized_ensures = contract.kind == SignatureContractKind::Ensures
-                && contract.facts.count() > 0
-                && (0..contract.facts.count()).all(|offset| {
-                    let fact = contract.facts.handle_at(offset);
-                    crate::facts::qualification_evidence::boundary_qualification_authorization(
-                        program,
-                        owner_symbol,
-                        signature,
-                        contract.kind.clone(),
-                        fact,
-                    )
-                    .is_some()
-                });
-            if authorized_ensures {
-                continue;
-            }
-            return false;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let Some(membership) = fact.as_membership() else {
-                return false;
-            };
-            let Some(path) = program.expression_table.name_path_node(membership.value) else {
-                return false;
-            };
-            if program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
-            {
-                return false;
-            }
-            // The clause names one authored parameter, and resolution has
-            // already said which: stage 02 assigns every trait-requirement
-            // contract name against this signature's own parameter roster
-            // (`symbols::contracts::assign_contract_reference_symbols`), and a
-            // single-member path's leaf symbol is that parameter's symbol.
-            // Both stages carry it verbatim, so the handle is the identity and
-            // the member spelling is only the diagnostic payload beside it.
-            let Some(position) = parameters
-                .iter()
-                .position(|parameter| parameter_is_root(parameter, path.symbol))
-            else {
-                return false;
-            };
-            if contract.token_count != 0 {
-                return false;
-            }
-            let Some(domain) = type_domain_semantic_id(
-                program,
-                parameters[position].type_reference,
-                membership.domain_symbol,
-            ) else {
-                return false;
-            };
-            actual.push((position, domain));
-        }
-    }
-    expected.sort_by_key(|(position, domain)| (*position, domain.0));
-    actual.sort_by_key(|(position, domain)| (*position, domain.0));
-    expected == actual
 }
 
 pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
@@ -425,9 +279,11 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
 /// a boundary requirement into the result's structural qualifications. The
 /// clause only counts when its fact replays the established qualification
 /// authorization (a `BoundaryRequirement` establishment route or carry
-/// permission naming this requirement); anything else was already refused by
-/// the exact-qualification gate above. A scalar or unit result cannot carry a
-/// structural domain qualification, so folding onto one refuses the plan
+/// permission naming this requirement). Source checking validates the subject
+/// and carrier, while this join must refuse membership whose authorization or
+/// result carrier it cannot retain. Ordinary Boolean guarantees grant no
+/// qualification and do not enter this operation. A scalar or unit result
+/// cannot carry a structural domain qualification, so folding onto one refuses the plan
 /// rather than silently dropping the authored custody.
 pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
     program: &dyn ::validation::CheckingInput,
@@ -444,6 +300,9 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
             continue;
         }
         for fact in contract.facts.handles() {
+            let Some(membership) = program.proof_facts.get(fact).as_membership() else {
+                continue;
+            };
             if crate::facts::qualification_evidence::boundary_qualification_authorization(
                 program,
                 owner_symbol,
@@ -453,11 +312,11 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
             )
             .is_none()
             {
-                continue;
+                // A source membership guarantee cannot disappear from the
+                // receiving signature or gain issuance authority through a
+                // matching carrier. Retain its exact authorized route or refuse.
+                return None;
             }
-            let Some(membership) = program.proof_facts.get(fact).as_membership() else {
-                continue;
-            };
             // Authorization also admits mutable output parameters, but this
             // plan carries result qualifications only. Until that separate
             // output effect is represented, decline rather than moving its

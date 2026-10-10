@@ -2,7 +2,7 @@
 //! fields and views, primitive and structural scalar stores, field reads and
 //! case membership.
 
-use super::{structural_place_type, validate_structural_path};
+use super::{declared_scalar_type, structural_place_type, validate_structural_path};
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
 

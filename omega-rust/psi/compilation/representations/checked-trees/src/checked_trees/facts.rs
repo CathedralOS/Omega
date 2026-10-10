@@ -135,8 +135,14 @@ pub use state_reference_custody::{StateReferenceCustodyFacts, StateReferenceCust
 pub use suspensions::{MachineSuspensionFact, SuspensionFacts};
 pub use synchronous_invocations::{MachineSynchronousInvocationFact, SynchronousInvocationFacts};
 pub use termination::{
-    BuildBoundProgressDemand, CheckedProofRankingRelation, CheckedProofRecursiveCallSite,
-    CheckedProofRecursiveComponent, CheckedProofRecursiveEdge, CheckedProofRecursiveMember,
-    CheckedProofRecursiveTransitionLane, MachineBuildBoundProgressDemands, MachineTerminationFact,
-    ProgressDemandCallSite, TerminationFacts,
+    BuildBoundProgressDemand, CheckedMachineRankCorrespondence, CheckedProofRankingRelation,
+    CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent, CheckedProofRecursiveEdge,
+    CheckedProofRecursiveMember, CheckedProofRecursiveTransitionLane, CheckedRankArrivalEdge,
+    CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
+    CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,
+    CheckedRankLocalCapture, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
+    CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
+    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedStateRankCorrespondence,
+    MachineBuildBoundProgressDemands, MachineTerminationFact, ProgressDemandCallSite,
+    TerminationFacts,
 };

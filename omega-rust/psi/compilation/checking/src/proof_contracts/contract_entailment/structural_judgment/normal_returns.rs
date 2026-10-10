@@ -3,11 +3,12 @@
 //! A runtime result is one occurrence, not a replayable mathematical call.
 //! Capture operands before substituting the selected public signature, prove
 //! its entry requirements, then import its unconditional normal guarantees.
-//! This environment belongs to one straight normal-return path; it is neither
+//! This environment belongs to one executed normal-return path; it is neither
 //! a loop invariant nor permission to replay mutable storage observations.
 
 use super::super::specification_calls::{
-    SelectedCallContract, owner_contracts, owner_parameters, owner_symbol, selected_call_contract,
+    SelectedCallContract, owner_contracts, owner_leading_operands, owner_parameter_scope,
+    owner_return_type, owner_symbol, selected_call_contract,
 };
 use super::selected_contracts::{bound_term, capture_equations, independent_application};
 use super::value_predicates::boolean_term;
@@ -21,6 +22,11 @@ use typed_trees::types::TypeReferenceHandle;
 
 pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'program> {
     pub value: StructuralTerm,
+    pub judge: StructuralJudge<'program>,
+}
+
+pub(in crate::proof_contracts::contract_entailment) struct NormalCallEntry<'program> {
+    pub arguments: Vec<StructuralTerm>,
     pub judge: StructuralJudge<'program>,
 }
 
@@ -40,8 +46,36 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
-        self.clone()
-            .evaluate_normal_paths(expression, environment, scope, 0)
+        self.clone().evaluate_normal_paths(
+            expression,
+            environment,
+            scope,
+            0,
+            ExpressionHandle::invalid(),
+            &mut Vec::new(),
+        )
+    }
+
+    /// Observe one exact call entry while executing its enclosing expression
+    /// through the same path scheduler. The snapshot precedes the callee's
+    /// guarantee intake; only already completed operands contribute facts.
+    pub(in crate::proof_contracts::contract_entailment) fn normal_call_entries(
+        &self,
+        expression: ExpressionHandle,
+        call: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<NormalCallEntry<'program>>> {
+        let mut entries = Vec::new();
+        self.clone().evaluate_normal_paths(
+            expression,
+            environment,
+            scope,
+            0,
+            call,
+            &mut entries,
+        )?;
+        (!entries.is_empty()).then_some(entries)
     }
 
     fn evaluate_normal_paths(
@@ -50,6 +84,8 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         depth: usize,
+        requested_call: ExpressionHandle,
+        entries: &mut Vec<NormalCallEntry<'program>>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
         if depth >= 64 || !program_expression_is_live(self.program, expression) {
             return None;
@@ -67,7 +103,14 @@ impl<'program> StructuralJudge<'program> {
         {
             let evaluate_right = binary.operator == BinaryOperator::And;
             let mut outcomes = Vec::new();
-            for left in self.evaluate_normal_paths(binary.left, environment, scope, depth + 1)? {
+            for left in self.evaluate_normal_paths(
+                binary.left,
+                environment,
+                scope,
+                depth + 1,
+                requested_call,
+                entries,
+            )? {
                 for truth in [false, true] {
                     let mut selected = left.judge.clone();
                     let guard_value = boolean_term(truth);
@@ -88,6 +131,8 @@ impl<'program> StructuralJudge<'program> {
                             environment,
                             scope,
                             depth + 1,
+                            requested_call,
+                            entries,
                         )? {
                             outcomes.push(right.at_expression(expression));
                         }
@@ -106,8 +151,14 @@ impl<'program> StructuralJudge<'program> {
         }
         if let ExpressionNode::Match(dispatch) = node {
             let mut outcomes = Vec::new();
-            let mut remaining =
-                self.evaluate_normal_paths(dispatch.subject, environment, scope, depth + 1)?;
+            let mut remaining = self.evaluate_normal_paths(
+                dispatch.subject,
+                environment,
+                scope,
+                depth + 1,
+                requested_call,
+                entries,
+            )?;
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 let mut next_remaining = Vec::new();
                 for subject in remaining {
@@ -119,6 +170,8 @@ impl<'program> StructuralJudge<'program> {
                             environment,
                             scope,
                             depth + 1,
+                            requested_call,
+                            entries,
                         )? {
                             let primitive = crate::match_subject_primitive_type(program, dispatch);
                             let equation_meaning = primitive.is_some_and(|primitive| {
@@ -173,6 +226,8 @@ impl<'program> StructuralJudge<'program> {
                                 environment,
                                 scope,
                                 depth + 1,
+                                requested_call,
+                                entries,
                             )? {
                                 outcomes.push(value.at_expression(expression));
                             }
@@ -183,6 +238,8 @@ impl<'program> StructuralJudge<'program> {
                             environment,
                             scope,
                             depth + 1,
+                            requested_call,
+                            entries,
                         )? {
                             outcomes.push(value.at_expression(expression));
                         }
@@ -228,7 +285,14 @@ impl<'program> StructuralJudge<'program> {
         for child in children_to_evaluate {
             let mut next = Vec::new();
             for (context, inputs) in contexts {
-                for path in context.evaluate_normal_paths(child, environment, scope, depth + 1)? {
+                for path in context.evaluate_normal_paths(
+                    child,
+                    environment,
+                    scope,
+                    depth + 1,
+                    requested_call,
+                    entries,
+                )? {
                     let mut inputs = inputs.clone();
                     inputs.push((child, path.value));
                     next.push((path.judge, inputs));
@@ -259,7 +323,13 @@ impl<'program> StructuralJudge<'program> {
                 } else {
                     None
                 };
-                judge.capture_normal_call(expression, call_inputs.as_deref(), scope);
+                if requested_call == expression {
+                    entries.push(NormalCallEntry {
+                        arguments: call_inputs.as_ref()?.clone(),
+                        judge: judge.clone(),
+                    });
+                }
+                judge.capture_normal_call(expression, call_inputs.as_deref(), environment, scope);
                 let mut value = if matches!(node, ExpressionNode::Atomic(_)) {
                     // The atomic owner distinguishes an observed load from
                     // update carriers. Its value is a fresh event, not the
@@ -337,10 +407,61 @@ impl<'program> StructuralJudge<'program> {
         self.intake_equation(left, right, 0);
     }
 
+    pub(in crate::proof_contracts::contract_entailment) fn reference_subject_term(
+        &self,
+        subject: &crate::machine_calls::calls::InvocationReferenceSubject,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<StructuralTerm> {
+        let program = self.program;
+        let source = &subject.source;
+        // The frame publishes a checked exact declaration path. Scope lookup
+        // only locates that root's current observation; no initializer replay
+        // or similarly spelled declaration may stand in for it.
+        let is_parameter = program
+            .state_parameter_by_symbol(scope.1, source.root)
+            .is_some();
+        let is_local = program
+            .state_local_declaration(scope.1, source.root)
+            .is_some();
+        if !(is_parameter || is_local) || !subject.type_reference.is_valid() {
+            return None;
+        }
+        let name = program.symbols.name(source.root);
+        let mut roots = environment.iter().filter(|(binding, _)| binding == name);
+        let mut value = roots.next()?.1.clone();
+        if roots.next().is_some() {
+            return None;
+        }
+        for segment in &source.segments {
+            match segment {
+                facts::PlaceSegment::Field { symbol } => {
+                    value = self.observed_field_term(value, program.symbols.name(*symbol), 0)?;
+                }
+                // The current structural term owner has no indexed or case
+                // projection observation. Exact origin/type alone cannot
+                // manufacture its value or erase an active-case obligation.
+                _ => return None,
+            }
+        }
+        if program
+            .primitive_type_reference(subject.type_reference)
+            .is_some()
+        {
+            Some(StructuralTerm::ObservedValue {
+                observed_type: subject.type_reference,
+                value: Box::new(value),
+            })
+        } else {
+            Some(value)
+        }
+    }
+
     fn capture_normal_call(
         &mut self,
         expression: ExpressionHandle,
         actuals: Option<&[StructuralTerm]>,
+        environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) {
         let program = self.program;
@@ -363,15 +484,27 @@ impl<'program> StructuralJudge<'program> {
         {
             return;
         }
-        // A reference argument names storage, not a detached value snapshot.
-        // Its mutable/post-state relation belongs to the live call-frame owner.
-        let parameters = owner_parameters(program, &owner);
-        if parameters.iter().any(|parameter| {
-            parameter.is_mutable
-                || crate::reference_shell(program, parameter.type_reference).is_some()
-        }) {
+        let Some(parameter_scope) = owner_parameter_scope(program, &owner) else {
+            return;
+        };
+        let parameters = parameter_scope.as_ref();
+        if parameters.iter().any(|parameter| parameter.is_mutable) {
             return;
         }
+        // References are live subjects. Only the frame owner can publish their
+        // exact prefix origins and preservation through this normal return.
+        // A written subject or replaced formal binding needs post-state facts,
+        // not the detached child term captured during operand evaluation.
+        let Some(machine) = program.machine(scope.0.symbol) else {
+            return;
+        };
+        let Some(subjects) =
+            crate::machine_calls::calls::CallFrameResolver::new(program).and_then(|frames| {
+                frames.expression_call_reference_subjects(machine, expression, parameters)
+            })
+        else {
+            return;
+        };
         if !independent_application(
             program,
             self.machine_symbol,
@@ -380,7 +513,14 @@ impl<'program> StructuralJudge<'program> {
         ) {
             return;
         }
-        let arguments = program.expression_table.expression_handles(call.arguments);
+        let leading_operands = owner_leading_operands(&owner);
+        let Some(arguments) = program
+            .expression_table
+            .expression_handles(call.arguments)
+            .get(leading_operands..)
+        else {
+            return;
+        };
         if arguments.len() != parameters.len() {
             return;
         }
@@ -391,23 +531,38 @@ impl<'program> StructuralJudge<'program> {
         // All actual values belong to the caller environment. Installing a
         // formal map before this capture would reinterpret another actual in
         // the callee's telescope.
-        let Some(actuals) = actuals.filter(|actuals| actuals.len() == arguments.len()) else {
+        let Some(actuals) = actuals
+            .and_then(|actuals| actuals.get(leading_operands..))
+            .filter(|actuals| actuals.len() == arguments.len())
+        else {
             return;
         };
-        let bindings = parameters
+        let Some(bindings) = parameters
             .iter()
             .zip(actuals)
-            .map(|(parameter, value)| (parameter.symbol, value.clone()))
-            .collect::<Vec<_>>();
+            .map(|(parameter, value)| {
+                let value = if crate::reference_shell(program, parameter.type_reference).is_some() {
+                    let subject = subjects
+                        .iter()
+                        .find(|subject| subject.parameter == parameter.symbol)?;
+                    if !subject.preserved_on_return {
+                        return None;
+                    }
+                    self.reference_subject_term(subject, environment, scope)?
+                } else {
+                    value.clone()
+                };
+                Some((parameter.symbol, value))
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return;
+        };
         let callable = match owner {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
             _ => owner_symbol(&owner),
         };
-        let result_type = match owner {
-            SelectedCallContract::Concrete(_, state) => state.return_type,
-            SelectedCallContract::Signature(signature) => signature.return_type,
-            SelectedCallContract::Operator(operator) => operator.return_type,
-        };
+        let result_type = owner_return_type(&owner);
         let Some(observed_type) =
             crate::expression_result_type_reference(program, scope.0, scope.1, expression)
         else {
@@ -465,8 +620,8 @@ impl<'program> StructuralJudge<'program> {
         };
         let tag_map = parameters
             .iter()
-            .zip(actuals)
-            .map(|(parameter, value)| (parameter.name.as_str().to_owned(), value.clone()))
+            .zip(&bindings)
+            .map(|(parameter, (_, value))| (parameter.name.as_str().to_owned(), value.clone()))
             .chain(std::iter::once((
                 crate::proof_contracts::contract_entailment::RESULT_BINDER.to_owned(),
                 captured.clone(),

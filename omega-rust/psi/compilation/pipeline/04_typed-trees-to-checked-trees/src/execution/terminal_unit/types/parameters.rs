@@ -82,7 +82,7 @@ pub(in crate::execution::terminal_unit) fn parameter_storage_plans(
         .map(|(scalar, parameter)| {
             let primitive_type = crate::values::mutable_scalar_parameter_type(program, parameter)?;
             if primitive_type != scalar.primitive_type
-                || !validation::is_plain_scalar_storage(program, parameter.type_reference)
+                || !super::supports_primitive_storage(program, parameter.type_reference)
             {
                 return None;
             }

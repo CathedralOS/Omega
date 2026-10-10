@@ -13,13 +13,15 @@
 //! `index < 8` and `requires index < bytes.len` all bound the cursor. A
 //! collection bound arrives equal only when the edge forwards the same loan.
 //!
-//! State correspondence still belongs to the existing rank telescope. This
-//! owner only reads its coordinates, and proves every actual cyclic occurrence.
+//! The one-state declaration uses its own exact parameter coordinates. This
+//! owner proves every actual cyclic occurrence and retains that same identity
+//! assignment; general transport belongs to complete arrival admission.
 //! An unavailable current value is a failed proof, not permission to reuse a
 //! syntax recognizer whose premises named the pre-write value.
 
-use super::{DecreaseMeasure, measure_entry_mappings, nat, patterns};
+use super::{DecreaseMeasure, RankArrivalAdmission, nat, patterns};
 use crate::checks::current_scalar_values::CurrentScalarValues;
+use crate::checks::termination::order::RankingOrder;
 use checked_trees::{CheckedNaturalRankMeasure, CheckedStateNaturalRank};
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
@@ -29,110 +31,47 @@ use typed_trees::state::State;
 use typed_trees::statement::TransitionTargetNode;
 use validation::ScopedArithmeticValue;
 
-pub(super) fn component_decreases(
-    program: &dyn ::validation::CheckingInput,
+/// The live scalar transfer owner covers mutable writes within one exact
+/// declaration frame. Its coordinate assignment is the entry declaration's
+/// identity, not a name/type mapping across states. General state transport
+/// uses the complete coordinate proof owner.
+pub(super) fn admit_root_cycle(
+    program: &dyn validation::CheckingInput,
     machine: &Machine,
-    component: &[usize],
+    order: &RankingOrder,
     measure: DecreaseMeasure,
     frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<bool> {
-    let states = program.machine_states(machine);
-    let mappings = measure_entry_mappings(program, machine, measure);
-    let mut found = false;
-    for &source_position in component {
-        let source = states.get(source_position)?;
-        for &target_position in component {
-            let target = states.get(target_position)?;
-            for edge in patterns::edges_to_state(program, source, target.symbol) {
-                let proven = edge_decreases(
-                    program,
-                    machine,
-                    source,
-                    target,
-                    measure,
-                    mappings
-                        .as_ref()
-                        .and_then(|rows| rows.get(source_position))
-                        .map(Vec::as_slice),
-                    mappings
-                        .as_ref()
-                        .and_then(|rows| rows.get(target_position))
-                        .map(Vec::as_slice),
-                    &edge,
-                    frames,
-                )?;
-                if !proven {
-                    return Some(false);
-                }
-                found = true;
-            }
+) -> Option<RankArrivalAdmission> {
+    let [root] = program.machine_states(machine) else {
+        return None;
+    };
+    let rank = scalar_rank(program, root, measure)?;
+    let mut judgments = Vec::new();
+    for edge in patterns::edges_to_state(program, root, root.symbol) {
+        if !prove_edge(program, machine, root, order, &rank, &rank, &edge, frames)? {
+            return None;
         }
+        judgments.push(checked_trees::CheckedRankArrivalEdge {
+            source: root.symbol,
+            destination: root.symbol,
+            statement_ordinal: u32::try_from(edge.statement_ordinal).ok()?,
+            target: edge.target,
+            non_increasing: true,
+            strictly_decreases: true,
+        });
     }
-    Some(found)
-}
-
-pub(super) fn edge_decreases(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    source: &State,
-    target: &State,
-    measure: DecreaseMeasure,
-    source_entries: Option<&[SymbolHandle]>,
-    target_entries: Option<&[SymbolHandle]>,
-    edge: &patterns::GuardedEdge<'_>,
-    frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<bool> {
-    let source_rank = scalar_rank(program, source, measure, source_entries)?;
-    let target_rank = scalar_rank(program, target, measure, target_entries)?;
-    if !same_measure(source_rank.measure, target_rank.measure) {
-        return Some(false);
+    if judgments.is_empty() {
+        return None;
     }
-    Some(
-        prove_edge(
-            program,
-            machine,
-            source,
-            &source_rank,
-            &target_rank,
-            edge,
-            frames,
-        )
-        .unwrap_or(false),
-    )
-}
-
-/// The ranks of both edge ends measure the same quantity. Distance bounds sit
-/// at each state's own parameter position and symbol, so only their kind and
-/// carrier must agree.
-fn same_measure(source: CheckedNaturalRankMeasure, target: CheckedNaturalRankMeasure) -> bool {
-    match (source, target) {
-        (
-            CheckedNaturalRankMeasure::UnsignedDistance {
-                primitive_type: source,
-                ..
-            },
-            CheckedNaturalRankMeasure::UnsignedDistance {
-                primitive_type: target,
-                ..
-            },
-        ) => source == target,
-        (
-            CheckedNaturalRankMeasure::CollectionLengthDistance { .. },
-            CheckedNaturalRankMeasure::CollectionLengthDistance { .. },
-        ) => true,
-        _ => source == target,
-    }
+    RankArrivalAdmission::root_identity(program, machine, judgments)
 }
 
 fn scalar_rank(
     program: &dyn ::validation::CheckingInput,
     state: &State,
     measure: DecreaseMeasure,
-    entries: Option<&[SymbolHandle]>,
 ) -> Option<CheckedStateNaturalRank> {
-    let rank = entries
-        .and_then(|entries| nat::carried_state_rank(program, state, measure, entries))
-        .or_else(|| nat::state_rank(program, state, measure))?;
+    let rank = nat::state_rank(program, state, measure)?;
     let exact = |position: u32| {
         program
             .state_parameters(state)
@@ -163,6 +102,7 @@ fn prove_edge(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     source: &State,
+    order: &RankingOrder,
     source_rank: &CheckedStateNaturalRank,
     target_rank: &CheckedStateNaturalRank,
     edge: &patterns::GuardedEdge<'_>,
@@ -241,7 +181,11 @@ fn prove_edge(
         return Some(
             relation(BinaryOperator::Less, &previous, &current_bound)
                 && relation(BinaryOperator::Greater, &next, &previous)
-                && relation(BinaryOperator::Equal, &arriving_bound, &current_bound),
+                && relation(BinaryOperator::Equal, &arriving_bound, &current_bound)
+                // BoundedDistance must remain a natural subtraction. The
+                // distinct IncreasingTo view clamps an overshoot to zero.
+                && (matches!(order, RankingOrder::IncreasingTo(_))
+                    || relation(BinaryOperator::LessOrEqual, &next, &arriving_bound)),
         );
     }
     if !matches!(

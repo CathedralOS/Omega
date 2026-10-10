@@ -1,0 +1,1 @@
+A guarded fresh countdown retains its entire declared `remaining` selector under a newly enclosing `held` field. The recurrent arrival decreases that selected field and forwards the independent sibling. This pins source admission; it has no authored runtime oracle.

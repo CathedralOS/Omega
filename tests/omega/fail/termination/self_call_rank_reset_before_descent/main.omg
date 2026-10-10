@@ -1,0 +1,12 @@
+machine reset(remaining: u32 [0..=4])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition { _ -> step(remaining + 1) }
+    state step(current: u32 [1..=5]) {
+        transition { _ -> (reset(current - 1)) }
+    }
+}
+
+machine main() {
+    let result: u32 = reset(3);
+}

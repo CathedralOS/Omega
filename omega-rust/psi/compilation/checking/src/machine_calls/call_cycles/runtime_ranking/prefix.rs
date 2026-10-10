@@ -12,7 +12,7 @@ use super::projection::{RankOrder, RankProjection};
 
 /// `premises` names the member's entry premise carriers (`None` when its
 /// witness resolves none, which rejects every store); `entry_parameters` is
-/// this state's discovered telescope, one entry role per non-self formal;
+/// this state's source-admitted coordinate readings;
 /// `arrival_premises` names the current-state carriers read by its own requires;
 /// `conserved_endpoints` says the component mixes ranged and unranged
 /// members, so every caller entry input may be read as a conserved endpoint.
@@ -22,7 +22,7 @@ pub(super) fn preserves_rank(
     state: &typed_trees::state::State,
     rank: &RankProjection,
     premises: Option<&[SymbolHandle]>,
-    entry_parameters: &[SymbolHandle],
+    entry_parameters: &crate::RankStateBindings,
     arrival_premises: &[SymbolHandle],
     conserved_endpoints: bool,
     statement: &StatementNode,
@@ -43,46 +43,58 @@ pub(super) fn preserves_rank(
     let Some(premises) = premises else {
         return false;
     };
-    // Scalar calls consume the call-site state's hypotheses and any pinned
-    // bounds as well as the subject. Every one of those facts names an entry
-    // premise carrier, so protect the formals that carry such a role here:
-    // the root's own premise formals, or a telescoped slot whose entry role
-    // is one. Two further readers assume a slot's arrival value without it
-    // being a premise. The site query binds one atom per entry role and
-    // installs the equality of every slot sharing that role -- discovery
-    // keeps a contested claim only for bare forwards, so the copies are equal
-    // exactly while neither is stored to -- and a mixed-range component's
-    // endpoint conservation compares each forwarded actual with the arrival
-    // atom of every caller entry input. Slots in those positions stay
-    // protected as well. Any other formal -- a mutable scratch input carrying
-    // a unique non-premise role, or a computed payload with no entry role --
-    // may be stored to, because no hypothesis reads its arrival value; the
-    // actual it feeds into the call is read live. Translate exact owned
-    // declarations to the caller-relative frame vocabulary only here.
-    let mut protected = program
-        .state_parameters(state)
-        .iter()
-        .zip(entry_parameters)
-        .filter(|(_, role)| {
-            role.is_valid()
-                && (conserved_endpoints
-                    || premises.contains(role)
-                    || entry_parameters
-                        .iter()
-                        .filter(|candidate| *candidate == *role)
-                        .take(2)
-                        .count()
-                        == 2)
-        })
-        .map(|(parameter, _)| parameter.name.as_str())
-        .collect::<Vec<_>>();
-    // A state's own hypotheses need no machine-entry role. Protect their
-    // carriers directly, including a receiver excluded from that telescope.
-    for parameter in program.state_parameters(state) {
-        if arrival_premises.contains(&parameter.symbol)
-            && !protected.contains(&parameter.name.as_str())
+    // Source facts name exact selected coordinates. Field paths stay precise
+    // at the shared frame adapter; collection indices retain its documented
+    // coarse containing-home policy. No equal-copy premise is reconstructed.
+    let mut protected = Vec::new();
+    for binding in &entry_parameters.coordinates {
+        if !conserved_endpoints && !premises.contains(&binding.entry.parameter) {
+            continue;
+        }
+        if program
+            .state_parameter_by_symbol(state, binding.destination.parameter)
+            .is_none()
         {
-            protected.push(parameter.name.as_str());
+            return false;
+        }
+        let Some(path) = crate::frame_coordinate_path(
+            program,
+            binding.destination.parameter,
+            &binding.destination.path,
+        ) else {
+            return false;
+        };
+        if !protected.contains(&path) {
+            protected.push(path);
+        }
+    }
+    // Authored state Requires are independently discharged at each arrival.
+    for parameter in program.state_parameters(state) {
+        if arrival_premises.contains(&parameter.symbol) {
+            let Some(path) = crate::frame_coordinate_path(program, parameter.symbol, &[]) else {
+                return false;
+            };
+            if !protected.contains(&path) {
+                protected.push(path);
+            }
+        }
+    }
+    // The shared arithmetic judgment also consumes this exact state's
+    // declared constraints. Their subject and dependent bounds are arrival
+    // observations, not live facts renewed after a prefix write.
+    let Some(constraints) =
+        crate::ranking_range_state_constraint_coordinates(program, machine, state)
+    else {
+        return false;
+    };
+    for coordinate in constraints {
+        let Some(path) =
+            crate::frame_coordinate_path(program, coordinate.parameter, &coordinate.path)
+        else {
+            return false;
+        };
+        if !protected.contains(&path) {
+            protected.push(path);
         }
     }
     let disjoint = |frame: NormalizedWriteFrame| {

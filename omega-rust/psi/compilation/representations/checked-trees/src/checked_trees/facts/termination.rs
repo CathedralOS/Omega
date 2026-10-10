@@ -6,8 +6,21 @@
 use language_semantics::MachineTerminationPlan;
 use symbols::SymbolHandle;
 
+mod arrival_correspondence;
+pub use arrival_correspondence::{
+    CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
+    CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
+    CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
+    CheckedRankPremiseRegime, CheckedRankReceivingCoordinate, CheckedRankValueDerivation,
+    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
+    CheckedRuntimeRankMember, CheckedStateRankCorrespondence,
+};
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TerminationFacts {
+    /// Coherent source-admitted arrival coordinates. Observation production
+    /// consumes this choice rather than rediscovering a carrier by type.
+    pub rank_arrivals: CheckedRankArrivalPlan,
     /// One exact-keyed entry per checked machine, in machine order.
     pub machines: Vec<MachineTerminationFact>,
     /// TPR6: call-specific provider-receiver progress demands retained by the

@@ -10,6 +10,12 @@ pub(crate) fn finalize_execution(
     // One frame resolver answers every planner that still classifies typed
     // call frames.
     let call_frames = validation::CallFrameResolver::new(program);
+    crate::execution::scalar_computations::record_rank_observations(program, &mut facts);
+    facts.flow.terminal_machines =
+        crate::execution::terminal_scalar::build_checked_terminal_machine_selections(
+            program,
+            &facts.termination.rank_arrivals,
+        );
     crate::execution::citation_erasure::retire_fact_only_citations(program, &mut facts);
     // This plan must be assembled only after multiplicity and carry checking:
     // their ownership events and claim policies are the authority for the

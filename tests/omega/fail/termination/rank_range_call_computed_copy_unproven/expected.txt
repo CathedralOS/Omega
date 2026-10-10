@@ -1,1 +1,0 @@
-rank range membership, pinned endpoints, or nonincrease is unproven at a call site

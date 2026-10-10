@@ -262,7 +262,6 @@ pub(crate) fn build_check_facts(
         &prepared.proof,
         &prepared.values.scalar_expressions,
         &validation_facts.exact_integer_casts,
-        call_frames.as_ref(),
     );
     let index_compatibility = index_compatibility::build_index_compatibility_facts(
         program,
@@ -311,11 +310,6 @@ pub(crate) fn build_check_facts(
         &values.scalar_expressions,
         &values.scalar_computations,
     );
-    flow.terminal_machines =
-        crate::execution::terminal_scalar::build_checked_terminal_machine_selections(
-            program,
-            call_frames.as_ref(),
-        );
     flow.terminal_debug =
         crate::execution::terminal_debug::build_checked_terminal_debug_plans(program);
     let dynamic_conformances = build_dynamic_conformance_facts(program)?;

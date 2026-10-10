@@ -79,23 +79,54 @@ pub(super) fn builtin(
             if !literal.type_symbol.is_valid() {
                 return None;
             }
-            for field in program.expression_table.struct_fields(literal.fields) {
-                builtin(program, machine, state, field.value, depth + 1)?;
-            }
-            // Constructor operands keep their resolved nominal carrier when
-            // checking an enclosing operator's selected declaration.
+            // Construction owns the complete typed operand roster. Its rank
+            // projection admits and forms the exact selected leaf separately;
+            // an unrelated payload need not belong to integer arithmetic.
+            // Whole-actual effects and formation stay with the source owners.
             Some(Some(
                 program
                     .type_reference_table
                     .find_named_type_reference(literal.type_symbol)?,
             ))
         }
+        ExpressionNode::ArrayLiteral(_) => {
+            Some(Some(crate::parameter_expression_result_type_reference(
+                program,
+                machine.symbol,
+                program.state_parameters(state),
+                expression,
+            )?))
+        }
         ExpressionNode::Indexed(indexed) => {
+            let collection_type = builtin(program, machine, state, indexed.collection, depth + 1)?;
+            if !program.expression_table.indexed_on_range(indexed) {
+                // An element read can be another arrival's payload without
+                // becoming a ranking coordinate. The shared place owner
+                // authenticates its selected builtin operation; the raw
+                // element type retains its arithmetic policy and constraints.
+                // Bounds, access and value preservation remain independent
+                // source obligations, not consequences of this carrier query.
+                if !crate::value_custody::places::place_has_builtin_coordinates(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                ) {
+                    return None;
+                }
+                builtin(program, machine, state, indexed.index, depth + 1)?;
+                return crate::value_custody::places::declared_indexed_projection_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .map(Some);
+            }
             // Range formation composes with its collection's meaning. The
             // length owner separately proves its geometry against that exact
             // collection; being a formal rather than an array or another
             // range is not part of the operation's meaning.
-            let collection_type = builtin(program, machine, state, indexed.collection, depth + 1)?;
             if !crate::value_custody::places::has_builtin_subslice_meaning(
                 program,
                 machine,

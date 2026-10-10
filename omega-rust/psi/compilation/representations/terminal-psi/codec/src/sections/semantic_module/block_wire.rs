@@ -105,9 +105,10 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::ReleaseReference { source, path } => {
             storage_operations::encode_release_reference(writer, source, path)?
         }
-        OperationKind::EstablishPrimitiveLocal { value } => {
-            value_operations::encode_establish_primitive_local(writer, value)?
-        }
+        OperationKind::EstablishPrimitiveLocal {
+            value,
+            range_obligation,
+        } => value_operations::encode_establish_primitive_local(writer, value, range_obligation)?,
         OperationKind::PrimitiveScalarRead { source, path } => {
             storage_operations::encode_primitive_scalar_read(writer, source, path)?
         }

@@ -33,7 +33,9 @@
 //! - `result_type` (an expression's result type, independent of its
 //!   destination), `reference_values` (reference type matching and mutable
 //!   reference forwarding), and `match_dispatch` (`match_case_dispatch`) are
-//!   read by other validators, checking and lowering. Structural edge traversal
+//!   read by other validators, checking and lowering. `scalar_observations`
+//!   interprets a selected builtin scalar read without changing a reference's
+//!   declared type or granting a referent value. Structural edge traversal
 //!   and occurrence collection belong to `crate::expression_traversal`.
 
 use diagnostics::Diagnostic;
@@ -62,6 +64,7 @@ mod value_classification;
 // Shared vocabulary: result types and reference type matching.
 mod reference_values;
 mod result_type;
+mod scalar_observations;
 
 pub use match_dispatch::match_subject_primitive_type;
 pub use match_dispatch::validate_match_dispatch;
@@ -80,6 +83,9 @@ pub(crate) use result_type::declaration_expression_result_type_reference;
 pub(crate) use result_type::domain_expression_result_type_reference;
 pub(crate) use result_type::{
     cast_result_type_reference, operand_arithmetic_domain, selected_operator_result_type_reference,
+};
+pub(crate) use scalar_observations::{
+    builtin_scalar_operand_references, scalar_observation_meaning,
 };
 
 pub(crate) use cast_validation::validate_cast_types;
@@ -137,7 +143,6 @@ pub fn argument_matches_type_reference_handle(
         &[],
     )
 }
-
 
 pub(crate) fn argument_matches_carrier(
     program: &dyn crate::CheckingInput,

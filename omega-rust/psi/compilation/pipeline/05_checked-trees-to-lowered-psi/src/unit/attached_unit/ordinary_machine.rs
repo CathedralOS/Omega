@@ -274,6 +274,7 @@ pub(super) fn emit(
         type_ids,
         structural_types,
         &mut next_place,
+        &mut next_call_obligation,
         &mut operations,
     )?;
     let primitive_local_places = parameter_storage
@@ -347,15 +348,6 @@ pub(super) fn emit(
             &plan.structural_parameters,
             &evaluation.structural_parameters,
         )?;
-    evaluation
-        .primitive_storage
-        .extend(parameter_storage.iter().map(|storage| {
-            (
-                storage.local.symbol,
-                storage.local.declaration.id,
-                storage.scalar_type,
-            )
-        }));
     // An ordinary body is one state: its namespace starts, like a composed
     // state's prefix, from its scalar formals before the first statement.
     // Authored locals then stay separate from anonymous operation results,
@@ -368,10 +360,7 @@ pub(super) fn emit(
         structural_types,
         &evaluation.place_observations,
     );
-    primitive_locals::register_mut_formal_storage_homes(
-        &mut evaluation.scalar_bindings,
-        &parameter_storage,
-    )?;
+    primitive_locals::register_mut_formal_storage_homes(&mut evaluation, &parameter_storage)?;
     let staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
     let staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
     let subslice_places = Vec::new();

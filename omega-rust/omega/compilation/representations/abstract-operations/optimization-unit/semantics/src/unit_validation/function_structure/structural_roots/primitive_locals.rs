@@ -53,6 +53,7 @@ pub(super) fn validate(
             psi_operation,
             result,
             value,
+            ..
         } => {
             local_matches(result, value.scalar_type)
                 && function.structural_places.iter().any(|place| {
@@ -66,7 +67,15 @@ pub(super) fn validate(
         }
         O::PrimitiveLocalStore {
             destination, value, ..
-        } => local(*destination).is_some_and(|result| local_matches(result, value.scalar_type)),
+        } => local(*destination).is_some_and(|result| {
+            // This retained operation has no receiving obligation. A home's
+            // valid initialization cannot authorize a later restricted write;
+            // those writes must carry the common store's exact range evidence.
+            local_matches(result, value.scalar_type)
+                && types
+                    .get(&result.structural_type)
+                    .is_some_and(|declaration| declaration.scalar_restriction.is_none())
+        }),
         O::PrimitiveScalarRead {
             source,
             path,

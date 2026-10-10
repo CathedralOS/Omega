@@ -29,7 +29,7 @@ mod value_predicates;
 
 pub(super) use place_types::{canonical_place_is_borrowable, needs_copied_place_root};
 pub(super) use value_predicates::{
-    is_borrowed_slice_view_value, is_fixed_array_value, is_record_value, is_structural_case_value,
+    is_fixed_array_value, is_record_value, is_structural_case_value,
 };
 
 impl Builder<'_, '_> {
@@ -334,16 +334,16 @@ impl Builder<'_, '_> {
             let returned = validation::call_target_return_type(self.program, call_target)?;
             if !value_predicates::structural_call_carrier_matches(self.program, returned, expected)
                 || !(validation::has_contents(
-        self.program,
-        returned,
-        &[],
-        validation::ContentsRequirement::StructuralConstruction
-    ) || validation::has_contents(
-        self.program,
-        returned,
-        &[],
-        validation::ContentsRequirement::LinearOwned
-    ) || validation::reference_result_custody::is_reference_record(
+                    self.program,
+                    returned,
+                    &[],
+                    validation::ContentsRequirement::StructuralConstruction,
+                ) || validation::has_contents(
+                    self.program,
+                    returned,
+                    &[],
+                    validation::ContentsRequirement::LinearOwned,
+                ) || validation::reference_result_custody::is_reference_record(
                     self.program,
                     returned,
                 ) || validation::borrowed_slice_view_result(self.program, returned))

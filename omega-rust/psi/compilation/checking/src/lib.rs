@@ -15,8 +15,8 @@ pub use machine_calls::attached_method_bounds::validate_selected_attached_method
 pub use machine_calls::{compiler_operations, contract_identities};
 pub use proof_contracts::{contract_structure, expression_owners, mathematical_applications};
 pub use value_custody::partial_affine_residuals::{
-    CaseSelectedCleanupRegion, CleanupCaseCondition, CleanupCaseReachability,
-    reconstruct_case_selected_regions, reconstruct,
+    CaseSelectedCleanupRegion, CleanupCaseCondition, CleanupCaseReachability, reconstruct,
+    reconstruct_case_selected_regions,
 };
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declaration_type_reference;
@@ -50,12 +50,12 @@ pub use machine_calls::structural_call_custody::{
     structural_result_projected_qualifications, structural_result_qualifications,
     structural_state_contract_scalar_predicates, view_result_carrier_qualifications,
 };
-pub use proof_contracts::arithmetic_domains::{Interval, WideInterval};
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     closed_interval_from_comparison, declared_domain_predicate_bounds,
     exact_declared_domain_carrier_interval, exact_declared_domain_interval,
 };
 pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
+pub use proof_contracts::arithmetic_domains::{Interval, WideInterval};
 pub use proof_contracts::collection_predicates::{length_member, premises_prove_expression};
 pub use proof_contracts::contract_entailment::{
     captured_collection_length, closed_collection_length, closed_collection_length_at_place,
@@ -69,9 +69,7 @@ pub use proof_contracts::domains::{
     scalar_interval_domains, scalar_membership_carrier, scalar_membership_predicates,
     scalar_state_contracts_are_qualifications, scalar_type_tags,
 };
-pub use proof_contracts::parameter_domains::{
-    parameter_domain_constraints,
-};
+pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
 pub use proof_contracts::signature_ensures::{
     collect_parameter_bound_comparisons, ensures_contract_expressions,
@@ -103,8 +101,7 @@ pub use value_custody::scalar_case_constructor::{
 pub use value_custody::scalar_representation_range::scalar_representation_range;
 pub use value_custody::source_liveness::statement_uses_symbol;
 pub use value_custody::storage_contents::{
-    ContentsRequirement, data_has_contents, has_contents,
-    has_owned_or_shared_view_fields,
+    ContentsRequirement, data_has_contents, has_contents, has_owned_or_shared_view_fields,
 };
 pub use value_custody::struct_literals::selected_construction_field_type;
 pub use value_custody::structural_identity::{
@@ -124,14 +121,14 @@ pub use value_custody::atomic_operations::{
     AtomicCarrierAccess, atomic_assignment_carrier, atomic_load_carrier, place_is_atomic_storage,
 };
 pub use value_custody::places::{
-    AttachedStorageRoot, StructuralScalarField, assignment_target_indexes,
+    AttachedStorageRoot, StructuralScalarField, StructuralSource, assignment_target_indexes,
     assignment_target_selectors, attached_storage_root, canonical_storage_label,
     collection_length_receiver, declaration_storage_label, declared_collection_extent,
     exact_attached_field, exact_attached_storage_field, exact_data_member_field, exact_self_field,
     expression_names_attached_storage, has_builtin_subslice_meaning,
     mutable_byte_slice_parameter_element, place_has_builtin_coordinates, saved_dispatch_call,
-    saved_dispatch_subject, structural_scalar_field, structural_scalar_field_in_parameters, structural_source,
-    subslice_expression,
+    saved_dispatch_subject, structural_scalar_field, structural_scalar_field_at_coordinate,
+    structural_scalar_field_in_parameters, structural_source, subslice_expression,
 };
 
 pub use proof_contracts::bound_expression_meaning::{
@@ -156,17 +153,18 @@ pub use crate::declarations::selection_authority::{
     DeclarationSelectionAuthority, validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
-    RankRelevance, ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
-    ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
-    ValidatedProofRecursiveTransitionLane, ValidatedRuntimeNaturalComponent,
-    ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState, internal_state_index,
-    machine_call_dependency_symbols, rank_relevance, validated_runtime_natural_components,
-    validated_runtime_recursive_components,
+    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofRankingRelation,
+    ValidatedProofRecursiveCallSite, ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge,
+    ValidatedProofRecursiveMember, ValidatedProofRecursiveTransitionLane,
+    ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
+    internal_state_index, machine_call_dependency_symbols, prepare_runtime_rank_components,
+    rank_relevance, retain_runtime_rank_component, retained_internal_rank_nonincrease,
+    retained_runtime_natural_components, retained_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
-    RecastSource, ValidatedSelfCallDescent, frame_paths_overlap, operand_call_plans,
-    state_reference_parameter_binding_is_stable,
+    RecastSource, ValidatedSelfCallDescent, frame_coordinate_path, frame_paths_overlap,
+    operand_call_plans, state_reference_parameter_binding_is_stable,
 };
 pub use crate::machine_calls::denotational_calls::{
     admit_specification_calls, expression_values_have_call_identity, normal_return_call_candidate,
@@ -329,15 +327,22 @@ pub use proof_contracts::arithmetic_domains::{
 pub use proof_contracts::contract_entailment::instantiated_value_call_requires_proven;
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
+pub use proof_contracts::contract_entailment::selected_value_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::structural_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::transparent_proposition_application_entailed;
 pub use proof_contracts::contract_entailment::{
-    ArithmeticCallObservation, RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises,
-    RankingRangeState, arithmetic_entry_requirement_is_covered, discover_state_entry_mappings,
-    discover_state_entry_mappings_preferring, prove_arithmetic_call_requirement,
+    ArithmeticCallObservation, RankArrivalCompatibility, RankArrivalCorrespondence,
+    RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport, RankLocalCapture,
+    RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate, RankValueDerivation,
+    RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
+    StateEntryCorrespondence, arithmetic_entry_requirement_is_covered,
+    discover_rank_arrival_correspondence, prove_arithmetic_call_requirement,
     prove_captured_arithmetic_call_requirement, prove_ranking_range_edge,
-    prove_ranking_range_entry, prove_ranking_range_transition, ranking_range_premise_symbols,
-    ranking_range_required_symbols, ranking_slice_length_observation,
+    prove_ranking_range_entry, prove_ranking_range_transition, ranking_coordinate_type,
+    ranking_range_arrival_preserves_roles, ranking_range_premise_symbols,
+    ranking_range_required_coordinates, ranking_range_required_symbols,
+    ranking_range_state_constraint_coordinates, ranking_slice_length_observation,
+    select_rank_arrival_correspondence,
 };
 pub use proof_contracts::contract_entailment::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
@@ -419,8 +424,8 @@ pub use machine_calls::calls::{
     call_site_evidence_arguments, call_target_parameters, call_target_return_type,
     call_target_state, call_target_symbol, call_target_type_parameters,
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state, find_machine,
-    find_machine_by_entry_state, find_machine_head, find_state_for_exit, find_state_in_machine,
-    find_state_on_machine, find_state, machine_parameter_signature_symbol,
+    find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
+    find_state_in_machine, find_state_on_machine, machine_parameter_signature_symbol,
     machine_state_by_symbols, machine_state_count, receiver_can_dispatch_to_machine,
     resolve_name_path_member_symbol, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,

@@ -5,7 +5,9 @@
 //! binder's admitted provider, and the replay substitutes them before the
 //! argument and result evidence is compared with the caller's concrete
 //! shapes. Owned arguments transfer into the boundary, and every live claim
-//! gets a normal-completion receipt at its argument.
+//! gets a normal-completion receipt at its argument. Source checking owns
+//! authored preconditions and normal guarantees; this planner retains the exact
+//! checked requirement commitment rather than replaying a contract shape gate.
 
 use crate::execution::terminal_unit::calls::view_subslice;
 
@@ -23,13 +25,8 @@ use crate::execution::terminal_unit::calls::structural_arguments::{
     call_claim_transfers, exact_structural_argument_access,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::types::{
-    base_type_identity, substituted_formal_type,
-};
-use crate::execution::terminal_unit::types::{
-    is_unit, signature_contracts_are_exact_parameter_qualifications,
-    structural_access_for_type_reference,
-};
+use crate::execution::terminal_unit::types::{base_type_identity, substituted_formal_type};
+use crate::execution::terminal_unit::types::{is_unit, structural_access_for_type_reference};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
@@ -244,8 +241,7 @@ pub(super) fn build(
             continue;
         }
         phase("call operation: boundary argument identity");
-        let target_identity =
-            base_type_identity(program, formal, &[], substitutions.as_slice())?;
+        let target_identity = base_type_identity(program, formal, &[], substitutions.as_slice())?;
         if let Some(literal) = byte_sequence_literal_argument(program, formal, *argument) {
             structural_arguments.push(literal);
             continue;
@@ -364,6 +360,29 @@ pub(super) fn build(
             )?);
             continue;
         }
+        // A reference operand lends the same established endpoint to a
+        // boundary requirement as to a checked body. Scalar formals live in
+        // the scalar lane, so the structural-only parameter presentation below
+        // cannot supply their home. The shared join retains the exact loan,
+        // declared referent and dense source coordinate without transferring
+        // the caller's custody.
+        phase("call operation: boundary borrowed storage");
+        let mut receiving_parameter = (*parameter).clone();
+        receiving_parameter.type_reference = formal;
+        if let Some(argument) = super::computation_arguments::borrowed_storage_argument(
+            program,
+            &facts.borrow,
+            machine.symbol,
+            state,
+            call,
+            &place,
+            &receiving_parameter,
+            None,
+        ) {
+            structural_arguments.push(argument);
+            continue;
+        }
+        phase("call operation: boundary argument parameter");
         let source =
             SourceParameter::resolve(caller_source_parameters, caller_parameters, source_symbol)?;
         let custody = source.custody(structural_access_for_type_reference(program, formal));
@@ -485,19 +504,11 @@ pub(super) fn build(
     } {
         return None;
     }
-    phase("call operation: boundary contracts");
-    if let BoundaryRequirement::Trait {
-        definition,
-        signature,
-    } = requirement
-        && !signature_contracts_are_exact_parameter_qualifications(
-            program,
-            definition.symbol,
-            signature,
-        )
-    {
-        return None;
-    }
+    // Source checking discharged the selected requirement's authored contracts.
+    // Its checked commitment remains on the declaration and call; execution
+    // planning must not re-admit the same contract through a structural-only
+    // whitelist. Parameter/result qualifications and actual call custody retain
+    // their independent representation joins above and below.
     // Suspension retains this ordinary call's incomplete operation, not a
     // different completion edge. Lowering joins the checked crossing and its
     // exact live frontier to the emitted call; unsupported storage and claims

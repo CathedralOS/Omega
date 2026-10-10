@@ -483,8 +483,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             mark(SuccessorGuard::EstablishedArgument);
             // A fresh composite argument — a record, case, or fixed-array
             // literal, or a call's structural result — has no custody root to
-            // name; the edge establishes the registered value into the
-            // parameter's storage. Its calls are planned exactly as a `let`
+            // name; the edge establishes its checked home and transfers or
+            // lends that home to the successor. Its calls are planned as a `let`
             // initializer's are, against this state's parameters and its own
             // earlier local results, and run on the selected edge only. A
             // whole owned operand naming an affine local moves it on this
@@ -493,15 +493,15 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             // own move roster subtracts it from this edge's cleanup. Nested
             // structural operands remain in the edge's operation sequence;
             // they run after selection through the ordinary call emitter.
-            if let Some(root) = facts.values.structural_values.root_for_expression(
-                    source.symbol,
-                    ordinal,
-                    expression,
-                )
-                && root.machine == machine.symbol
-                && (target.access == CheckedStructuralAccess::Owned
-                    || validation::slice_view_shell(program, root.type_reference, &[]).is_some())
-            {
+            if let Some(root) = control::structural_operands::evaluated_argument_root(
+                program,
+                facts,
+                machine.symbol,
+                source.symbol,
+                ordinal as usize,
+                expression,
+                target_parameters.get(target.position as usize)?,
+            ) {
                 let multiplicity = if target.access == CheckedStructuralAccess::Owned {
                     if program.normalized_type_identity(root.type_reference).as_str()
                         != target.type_identity
@@ -509,7 +509,9 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         return None;
                     }
                     target.multiplicity
-                } else {
+                } else if validation::slice_view_shell(program, root.type_reference, &[])
+                    .is_some()
+                {
                     // A descriptor is constructed here just as in a local
                     // initializer. Its mutable producer owes affine cleanup;
                     // the successor borrows it and does not acquire that debt.
@@ -538,6 +540,40 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         CheckedStructuralAccess::MutableBorrow => Multiplicity::Affine,
                         _ => return None,
                     }
+                } else {
+                    // The shared operand owner authenticates the referent,
+                    // not a copied reference descriptor. Preserve the actual
+                    // producer's custody: affine homes travel through the
+                    // successor loan-chain owner and die at that chain's end.
+                    // No nominal hook or linear debt may become a plain death.
+                    let multiplicity = validation::reference_result_custody::result_multiplicity(
+                        program,
+                        root.type_reference,
+                    );
+                    if target.access != CheckedStructuralAccess::SharedBorrow
+                        || target.multiplicity != Multiplicity::Unrestricted
+                        || !matches!(multiplicity, Multiplicity::Unrestricted | Multiplicity::Affine)
+                        || (multiplicity == Multiplicity::Affine
+                            && (!validation::has_contents(
+                                program,
+                                root.type_reference, &[],
+                                validation::ContentsRequirement::OwnedOrSharedView,
+                            ) || super::super::types::type_graph_requires_nominal_drop(
+                                program,
+                                root.type_reference,
+                                &[],
+                                &mut std::collections::BTreeSet::new(),
+                            )))
+                        || super::super::types::base_type_identity(
+                            program,
+                            root.type_reference,
+                            &[],
+                            &[],
+                        )? != target.type_identity
+                    {
+                        return None;
+                    }
+                    multiplicity
                 };
                 // Edge-local bindings number after the state's own results,
                 // so no source result ordinal is reused on this edge.
@@ -1025,8 +1061,7 @@ fn projected_value_subject(
         });
         let (result, _) = candidates.next()?;
         if candidates.next().is_some()
-            || super::super::types::base_type_identity(program, local.type_reference, &[],
-        &[])?
+            || super::super::types::base_type_identity(program, local.type_reference, &[], &[])?
                 != result.type_identity
         {
             return None;
@@ -1137,8 +1172,7 @@ fn projected_loan_transfer(
         return None;
     }
     let identity = borrowed_identity
-        .or_else(|| super::super::types::base_type_identity(program, projected_type, &[],
-        &[]));
+        .or_else(|| super::super::types::base_type_identity(program, projected_type, &[], &[]));
     if identity.is_some_and(|identity| declared_contains_reference(shapes, &identity)) {
         return None;
     }
@@ -1226,8 +1260,7 @@ fn case_payload_transfer(
         // The signature's structural identities are storage identities:
         // domain constraints and reference shells peel, so the comparison
         // uses the same base-identity convention argument presentation does.
-        super::super::types::base_type_identity(program, reference, &[],
-        &[])
+        super::super::types::base_type_identity(program, reference, &[], &[])
     };
     let shared_referee = {
         let mut cursor = field.type_reference;
@@ -1249,16 +1282,16 @@ fn case_payload_transfer(
         // the carrier travels as a descriptor copy whose loan stays with
         // the view's owner, not with the dispatched place.
         (validation::has_contents(
-        program,
-        field.type_reference,
-        &[],
-        validation::ContentsRequirement::NumericOwned
-    ) || validation::has_contents(
-        program,
-        field.type_reference,
-        &[],
-        validation::ContentsRequirement::OwnedOrSharedView
-    )) && normalized(field.type_reference)
+            program,
+            field.type_reference,
+            &[],
+            validation::ContentsRequirement::NumericOwned,
+        ) || validation::has_contents(
+            program,
+            field.type_reference,
+            &[],
+            validation::ContentsRequirement::OwnedOrSharedView,
+        )) && normalized(field.type_reference)
             .is_some_and(|identity| identity == target.type_identity)
     } else {
         target.access == CheckedStructuralAccess::SharedBorrow

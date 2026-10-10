@@ -253,7 +253,7 @@ pub(super) fn additive_addends(
 }
 
 pub(super) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) -> bool {
-    match term {
+    match term.semantic_value() {
         StructuralTerm::Projection { subject, .. } => term_uses_application(subject, op),
         StructuralTerm::ScalarBinary { left, right, .. } => {
             term_uses_application(left, op) || term_uses_application(right, op)
@@ -935,7 +935,7 @@ fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm
             &'term [typed_trees::expression::StaticMachineArgument],
         )>,
     ) -> bool {
-        match term {
+        match term.semantic_value() {
             StructuralTerm::Application {
                 result_type: _,
                 target,
@@ -971,9 +971,15 @@ fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm
     visit(left, &mut seen) && visit(right, &mut seen)
 }
 
-/// Literal scalar evaluation for a resolved term: once both operands reduce to
-/// `Integer`, the operation is a constant whose value the declared primitive
-/// and operand domain already fix. Exact/Trapping fold only inside the
+/// Scalar evaluation after the substituted operands retain their observation
+/// authority. Exact integer comparisons also consume the existing polynomial
+/// algebra over completed values: only a constant difference decides truth.
+/// Other policies remain whole value atoms, so wrapping or saturation cannot
+/// acquire integer reassociation. IEEE and selected callable meanings stay in
+/// their own operation owners.
+///
+/// Once both operands reduce to `Integer`, the operation is a constant whose
+/// value the declared primitive and operand domain already fix. Exact/Trapping fold only inside the
 /// representable range (out-of-range keeps the term -- the operation's own
 /// trap/proof obligation owns that edge); Wrapping reduces modulo 2^bits and
 /// reinterprets the residue under the result signedness; Saturating clamps.
@@ -989,6 +995,11 @@ pub(super) fn fold_scalar_binary(
     left: &StructuralTerm,
     right: &StructuralTerm,
 ) -> Option<StructuralTerm> {
+    let left = left.semantic_value();
+    let right = right.semantic_value();
+    if let Some(verdict) = completed_integer_comparison(operator, meaning, left, right) {
+        return Some(super::value_predicates::boolean_term(verdict));
+    }
     let (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) = (left, right) else {
         return None;
     };
@@ -1062,4 +1073,68 @@ pub(super) fn fold_scalar_binary(
             Some(StructuralTerm::Integer(value))
         }
     }
+}
+
+/// This is value normalization, not expression evaluation: the scalar term
+/// already retains builtin selection, carrier/policy and completed occurrences.
+/// The caller checks recursive observation authority before entering this owner.
+fn completed_integer_comparison(
+    operator: BinaryOperator,
+    meaning: [(
+        typed_trees::types::PrimitiveType,
+        numerics::arithmetic::ArithmeticDomain,
+    ); 2],
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+) -> Option<bool> {
+    use super::super::arithmetic_judgment::Polynomial;
+    use numerics::arithmetic::ArithmeticDomain;
+    use numerics::bignum::BigInt;
+
+    let primitive = meaning[0].0;
+    if !primitive.is_integer()
+        || meaning != [(primitive, ArithmeticDomain::Exact); 2]
+        || !matches!(
+            operator,
+            BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual
+        )
+    {
+        return None;
+    }
+    fn polynomial(
+        term: &StructuralTerm,
+        primitive: typed_trees::types::PrimitiveType,
+    ) -> Option<Polynomial> {
+        match term.semantic_value() {
+            StructuralTerm::Integer(value) => Some(Polynomial::constant(value.clone())),
+            StructuralTerm::ScalarBinary {
+                operator,
+                meaning,
+                left,
+                right,
+                ..
+            } if *meaning == [(primitive, ArithmeticDomain::Exact); 2] => match operator {
+                BinaryOperator::Add => {
+                    Some(polynomial(left, primitive)?.add(&polynomial(right, primitive)?))
+                }
+                BinaryOperator::Subtract => {
+                    Some(polynomial(left, primitive)?.sub(&polynomial(right, primitive)?))
+                }
+                BinaryOperator::Multiply => {
+                    polynomial(left, primitive)?.checked_mul(&polynomial(right, primitive)?)
+                }
+                _ => Some(Polynomial::atom(format!("{term:?}"))),
+            },
+            _ => Some(Polynomial::atom(format!("{term:?}"))),
+        }
+    }
+    let difference = polynomial(left, primitive)?
+        .sub(&polynomial(right, primitive)?)
+        .constant_value()?;
+    operator.evaluate_comparison(&difference, &BigInt::zero())
 }

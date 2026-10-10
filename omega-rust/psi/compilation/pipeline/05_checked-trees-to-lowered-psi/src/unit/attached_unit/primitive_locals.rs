@@ -48,15 +48,16 @@ pub(super) struct ParameterStorage {
     pub(super) scalar_type: semantic_vocabulary::ScalarType,
 }
 
-/// A `mut` formal's storage is lent, never a home rebuilt from the arriving
-/// value, so each storage binds as a mutable-borrow parameter home before the
-/// first statement.
+/// Publish every `mut` formal in the common structural home roster and register
+/// its scalar signature position for loans. It never enters the primitive
+/// referent table: that table is reserved for borrowed ingress. Publishing one
+/// owned home in both rosters would make current-content reads ambiguous.
 pub(super) fn register_mut_formal_storage_homes(
-    bindings: &mut crate::expression_preparation::bindings::ScalarBindings,
+    evaluation: &mut super::argument_evaluation::Evaluation,
     parameter_storage: &[ParameterStorage],
 ) -> Result<(), LoweringError> {
     for storage in parameter_storage {
-        bindings.register_scalar_parameter_home(
+        evaluation.scalar_bindings.register_scalar_parameter_home(
             u32::try_from(storage.position).map_err(|_| {
                 LoweringError::Unsupported("parameter storage position exceeds u32")
             })?,
@@ -64,18 +65,64 @@ pub(super) fn register_mut_formal_storage_homes(
             storage.scalar_type,
             terminal_psi::StructuralAccess::MutableBorrow,
         )?;
+        let StructuralPlaceKind::OperationResult {
+            structural_type, ..
+        } = storage.local.declaration.kind
+        else {
+            return unsupported("mutable formal storage has no established declaration");
+        };
+        let root = facts::PlaceRoot::Symbol(storage.local.symbol);
+        if evaluation
+            .structural_locals
+            .iter()
+            .any(|home| home.root == root)
+        {
+            return unsupported("mutable formal has duplicate original storage homes");
+        }
+        // Stores, projected consumers and loans resolve the established home,
+        // including its exact restricted declaration. The scalar binding only
+        // supplies its dense signature position; it is not another storage type.
+        evaluation.structural_locals.push(
+            crate::expression_preparation::bindings::StructuralLocalBinding {
+                result_binding_ordinal: None,
+                root,
+                structural_type,
+                argument: terminal_psi::StructuralArgument {
+                    place: storage.local.declaration.id,
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::Owned,
+                },
+            },
+        );
     }
     Ok(())
 }
 
-/// Establish storage for each `mut` scalar formal of an ordinary body or a
-/// composed state, initialized from the formal's incoming value. Checking
-/// reads such a formal only through its storage, so the storage dominates
-/// every statement, as a
-/// `let mut` local's establishment dominates the statements after its
-/// declaration. Later reads, stores and borrows name this place; the incoming
-/// value is never read again.
-///
+/// Retain the exact declared receiving restriction as an obligation over the
+/// initializer's completed SSA value. A declaration supplies the goal, never
+/// the fact that initialization satisfied it. Record fields and primitive homes
+/// use the same scalar receiving predicate; no source proof is replayed here.
+fn initialization_obligation(
+    declarations: &[StructuralTypeDeclaration],
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    next_obligation: &mut u64,
+) -> Result<Option<semantic_vocabulary::ObligationId>, LoweringError> {
+    let mut matching = declarations.iter().filter(|row| row.id == structural_type);
+    let declaration = matching.next().ok_or(LoweringError::Unsupported(
+        "primitive storage has no receiving declaration",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("primitive storage receiving declaration is ambiguous");
+    }
+    match &declaration.scalar_restriction {
+        None => Ok(None),
+        Some(terminal_psi::StructuralFieldType::BoundedInteger(_)) => Ok(Some(
+            crate::terminal_identities::obligation_id(allocate_dense(next_obligation)?),
+        )),
+        _ => unsupported("primitive storage has no supported initialization restriction"),
+    }
+}
+
 /// Mint the establishing operation and its declared place for one unrestricted
 /// primitive local: the producing operation and its `OperationResult` place
 /// are minted together so the operation roster and the storage roster agree.
@@ -84,7 +131,19 @@ pub(super) fn push_established_local(
     operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
     value: semantic_vocabulary::ValueId,
     structural_type: semantic_vocabulary::StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+    range_obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(semantic_vocabulary::PlaceId, StructuralPlaceDeclaration), LoweringError> {
+    let mut matching = declarations.iter().filter(|row| row.id == structural_type);
+    let declaration = matching.next().ok_or(LoweringError::Unsupported(
+        "primitive home has no declared receiving type",
+    ))?;
+    if matching.next().is_some()
+        || !matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+        || declaration.scalar_restriction.is_some() != range_obligation.is_some()
+    {
+        return unsupported("primitive home lost its receiving restriction obligation");
+    }
     let producer = operations.allocate();
     let place = place_id(allocate_dense(next_place)?);
     operations.push(Operation {
@@ -96,7 +155,10 @@ pub(super) fn push_established_local(
             structural_type,
             StructuralMultiplicity::Unrestricted,
         ),
-        kind: OperationKind::EstablishPrimitiveLocal { value },
+        kind: OperationKind::EstablishPrimitiveLocal {
+            value,
+            range_obligation,
+        },
     });
     Ok((
         place,
@@ -110,9 +172,9 @@ pub(super) fn push_established_local(
     ))
 }
 
-/// `let mut` local's establishment dominates the statements after its
-/// declaration. Later reads, stores and borrows name this place; the incoming
-/// value is never read again.
+/// Establish each mutable scalar formal from its exact incoming value before
+/// the first statement. Later reads, stores and loans name the same place;
+/// the incoming snapshot is never read as the current stored contents.
 pub(super) fn establish_parameter_storage(
     storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
@@ -120,6 +182,7 @@ pub(super) fn establish_parameter_storage(
     type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
     declarations: &[StructuralTypeDeclaration],
     next_place: &mut u64,
+    next_obligation: &mut u64,
     operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<Vec<ParameterStorage>, LoweringError> {
     storage
@@ -145,8 +208,16 @@ pub(super) fn establish_parameter_storage(
             {
                 return unsupported("parameter storage and its incoming value disagree");
             }
-            let (_, declaration) =
-                push_established_local(next_place, operations, value.id, structural_type)?;
+            let range_obligation =
+                initialization_obligation(declarations, structural_type, next_obligation)?;
+            let (_, declaration) = push_established_local(
+                next_place,
+                operations,
+                value.id,
+                structural_type,
+                declarations,
+                range_obligation,
+            )?;
             Ok(ParameterStorage {
                 position,
                 local: PrimitiveLocal {
@@ -240,21 +311,19 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("primitive local initializer and referent types disagree");
         }
-        let producer = self.operations.allocate();
-        let place = place_id(allocate_dense(self.next_place)?);
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: producer,
-            result: structural_result_declaration(
-                place,
-                structural_type,
-                StructuralMultiplicity::Unrestricted,
-            ),
-            kind: OperationKind::EstablishPrimitiveLocal {
-                value: initializer.id,
-            },
-        });
+        let range_obligation = initialization_obligation(
+            declarations,
+            structural_type,
+            &mut self.calls.next_obligation_identity,
+        )?;
+        let (place, declaration) = push_established_local(
+            self.next_place,
+            self.operations,
+            initializer.id,
+            structural_type,
+            declarations,
+            range_obligation,
+        )?;
         // Publish the original home once, rather than copying its initializer
         // or leaving constructor consumers with a private primitive index.
         self.evaluation.structural_locals.push(
@@ -271,13 +340,7 @@ impl OperationFrame<'_, '_> {
         );
         Ok(PrimitiveLocal {
             symbol: *symbol,
-            declaration: StructuralPlaceDeclaration {
-                id: place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                },
-            },
+            declaration,
         })
     }
 }
@@ -529,8 +592,14 @@ impl super::argument_evaluation::Evaluation {
             }
             return Ok(home.argument.place);
         }
-        let (place, declaration) =
-            push_established_local(next_place, operations, value.id, structural_type)?;
+        let (place, declaration) = push_established_local(
+            next_place,
+            operations,
+            value.id,
+            structural_type,
+            declarations,
+            None,
+        )?;
         places.push(declaration);
         self.primitive_storage
             .push((symbol, place, value.scalar_type));

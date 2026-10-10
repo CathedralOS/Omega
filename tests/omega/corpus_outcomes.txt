@@ -2600,8 +2600,6 @@ fail/termination/proof_joint_machine_cycle_unmeasured rejected 324ms expected @2
 	proof-only machine call cycle: `left`, `right` -- unmeasured proof machine in component; every member must declare `terminates by <param>;`, and every edge must pass a case-payload subterm of the caller's ranking subject
 fail/termination/rank_range_call_component_prefix_write rejected 111ms expected @c08960bee2b1+wt
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/rank_range_call_computed_copy_unproven rejected 115ms expected @c08960bee2b1+wt
-	machine call cycle: `Main::count`, `Main::step` -- rank range membership, pinned endpoints, or nonincrease is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/rank_range_declared_step_unbounded rejected 711ms expected @2d8ed253669f
 	terminating machine walk: cannot prove rank range `0..=9` for the rank produced by the selected view
 fail/termination/rank_range_endpoint_intervening_write rejected 255ms expected @c08960bee2b1+wt
@@ -4848,3 +4846,34 @@ fail/borrow/write_only_metadata_operand_observation rejected 299ms expected @820
 	machine `observe_producer` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
 pass/borrow/runtime_write_only_call_result_observation_exit checked 3539ms check-target:macos_arm64 @820be24a59a0+wt
 pass/borrow/stored_write_only_metadata checked 579ms @820be24a59a0+wt
+fail/constraints/bounded_mutable_initializer_outside_range rejected 218ms expected @83ed80e91feb
+	machine `main` state `entry` local `value` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
+fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts rejected 488ms expected @83ed80e91feb
+	cannot prove requires contract for call accept from bad: value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/control_flow/bounded_mutable_scalar_store_outside_range rejected 219ms expected @83ed80e91feb
+	cannot prove assignment value `5` satisfies bounded target `value` in `replace.entry`; expected 0..=4
+fail/termination/rank_arrival_formal_does_not_replace_subject rejected 489ms expected @83ed80e91feb
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival
+fail/termination/rank_arrival_opaque_child_does_not_prove_subject_absent rejected 490ms expected @83ed80e91feb
+	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
+fail/termination/rank_arrival_opaque_operand_does_not_prove_subject_absent rejected 494ms expected @83ed80e91feb
+	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
+fail/termination/rank_arrival_sibling_does_not_replace_subject rejected 495ms expected @83ed80e91feb
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival
+fail/termination/rank_arrival_unrelated_field_step rejected 512ms expected @83ed80e91feb
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival
+fail/termination/rank_state_dependent_bound_prefix_write rejected 518ms expected @83ed80e91feb
+	terminating machine walk: cannot prove rank range `0..=9` for the rank produced by the selected view
+fail/termination/self_call_rank_reset_before_descent rejected 440ms expected @83ed80e91feb
+	terminating machine reset: cannot prove strict rank decrease on a recurrent arrival
+pass/control_flow/runtime_bounded_scalar_storage_exit checked 3281ms check-target:macos_arm64 @83ed80e91feb
+pass/control_flow/runtime_completed_readonly_home_replacement_exit checked 3388ms check-target:macos_arm64 @83ed80e91feb
+pass/storage/runtime_bounded_effectful_initializer_exit checked 3180ms check-target:macos_arm64 @83ed80e91feb
+pass/termination/rank_arrival_captured_record_fields_exit checked 3298ms check-target:macos_arm64 @83ed80e91feb
+pass/termination/rank_arrival_fresh_nested_owner checked 516ms @83ed80e91feb
+pass/termination/rank_arrival_same_carrier_fields_exit checked 3372ms check-target:macos_arm64 @83ed80e91feb
+pass/termination/runtime_joint_rank_computed_copy_exit checked 3207ms check-target:macos_arm64 @83ed80e91feb
+pass/termination/runtime_nested_borrowed_rank_carrier_exit checked 3317ms check-target:macos_arm64 @83ed80e91feb
+pass/termination/runtime_rank_state_constraint_disjoint_write_exit checked 3365ms check-target:macos_arm64 @83ed80e91feb
+pass/termination/runtime_selected_boundary_requirement_identity_exit checked 3366ms check-target:macos_arm64 @83ed80e91feb
+pass/termination/runtime_selected_requirement_reference_identity_exit checked 3271ms check-target:macos_arm64 @83ed80e91feb

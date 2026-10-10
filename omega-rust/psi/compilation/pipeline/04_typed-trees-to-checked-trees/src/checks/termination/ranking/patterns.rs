@@ -45,6 +45,7 @@ pub(super) struct GuardFact {
 }
 
 pub(super) struct GuardedEdge<'program> {
+    pub(super) target: typed_trees::statement::TransitionTargetHandle,
     pub(super) statement_ordinal: usize,
     pub(super) is_continuation: bool,
     pub(super) guards: Vec<GuardFact>,
@@ -101,6 +102,7 @@ pub(super) fn edges_to_state<'program>(
                 });
             }
             edges.push(GuardedEdge {
+                target: target_handle,
                 statement_ordinal,
                 is_continuation,
                 guards,

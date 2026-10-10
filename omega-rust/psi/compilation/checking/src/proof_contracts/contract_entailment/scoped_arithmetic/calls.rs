@@ -165,11 +165,13 @@ impl<'program> ScopedCalls<'program> {
             let Some(owner) = selected_call_contract(self.program, call) else {
                 continue;
             };
-            let result_type = match owner {
-                SelectedCallContract::Concrete(_, state) => state.return_type,
-                SelectedCallContract::Signature(signature) => signature.return_type,
-                SelectedCallContract::Operator(operator) => operator.return_type,
-            };
+            // A selected dynamic slot is a runtime occurrence. Its public
+            // guarantees belong to the executed normal-return path, not a
+            // replayable mathematical application of selector + operands.
+            if matches!(owner, SelectedCallContract::DynamicSlot { .. }) {
+                continue;
+            }
+            let result_type = super::super::specification_calls::owner_return_type(&owner);
             let Some(primitive) = self
                 .program
                 .primitive_type_reference(result_type)
@@ -272,7 +274,8 @@ impl<'program> ScopedCalls<'program> {
                                 guarantee,
                             )
                         }
-                        SelectedCallContract::Signature(signature) => {
+                        SelectedCallContract::Signature(signature)
+                        | SelectedCallContract::DynamicSlot { signature, .. } => {
                             crate::has_builtin_parameter_bound_expression_meaning(
                                 self.program,
                                 signature.symbol,

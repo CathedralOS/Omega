@@ -1,59 +1,17 @@
-//! Export only requirements covered by a complete inductive graph judgment.
-use super::{
-    ExpressionHandle, resolve_machine_witness_subjects, resolve_machine_witness_view_arguments,
-};
-use crate::checks::termination::ranking::DecreaseMeasure;
-use crate::checks::termination::ranking::OrderResolution;
-use crate::checks::termination::ranking::RankingOrder;
-use crate::checks::termination::ranking::ranges;
+//! An independently required invocation may consume only the retained complete
+//! EntryInvariant judgment. RankInvariant does not establish extra entry facts,
+//! and this consumer never selects or reproves another coordinate assignment.
 
 pub(crate) fn proves_ranked_entry_requirement(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    goal: ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    goal: typed_trees::expression::ExpressionHandle,
+    admitted: &checked_trees::CheckedRankArrivalPlan,
 ) -> bool {
-    prove(program, machine, goal, call_frames).unwrap_or(false)
-}
-
-fn prove(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    goal: ExpressionHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<bool> {
-    if !validation::arithmetic_entry_requirement_is_covered(program, machine, goal) {
-        return None;
-    }
-    let root = program.machine_states(machine).first()?;
-    let witness = machine.termination_plan.implementation_witness.as_ref()?;
-    let subjects = resolve_machine_witness_subjects(program, machine)?;
-    let arguments = resolve_machine_witness_view_arguments(program, machine)?;
-    let OrderResolution::Resolved(order) =
-        RankingOrder::resolve_witness(program, root, witness, &subjects, &arguments)
-    else {
-        return None;
-    };
-    let measure = match (&order, subjects.as_slice()) {
-        (RankingOrder::IncreasingTo(limit), [subject]) => DecreaseMeasure::Distance {
-            lower: *subject,
-            upper: *limit,
-        },
-        (_, [subject]) => DecreaseMeasure::Single(*subject),
-        (_, [lower, upper]) => DecreaseMeasure::Distance {
-            lower: *lower,
-            upper: *upper,
-        },
-        _ => return None,
-    };
-    // This is not acceptance of an authored witness. The full graph establishes
-    // entry membership and re-establishes its entry premises on EVERY arrival.
-    // RankInvariant alone would not prove the extra required comparison.
-    Some(ranges::proves_entry_requirements(
-        program,
-        machine,
-        &order,
-        measure,
-        call_frames,
-    ))
+    validation::arithmetic_entry_requirement_is_covered(program, machine, goal)
+        && admitted
+            .for_body(machine.symbol, machine.states)
+            .is_some_and(|body| {
+                body.premise_regime == checked_trees::CheckedRankPremiseRegime::EntryInvariant
+            })
 }

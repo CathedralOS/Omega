@@ -1,6 +1,8 @@
 //! Runtime call components share an authored ranking. Nonincreasing edges may
 //! forward that rank, but must form a DAG: every complete cycle then contains
-//! a strict decrease. No source subject or public termination claim is added.
+//! a strict decrease. Source-complete candidate members constrain the search
+//! prefix; only a complete prefix supplies a publishable component decision.
+//! No source subject or public termination claim is added.
 
 mod comparison;
 mod meaning;
@@ -16,13 +18,11 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    RankingRangeMeasure, RankingRangePremises, call_member_premise_symbols,
-    discover_state_entry_mappings_preferring, mixed_call_endpoints_are_pinned,
-    positive_step_amount, prove_ranking_range_call, prove_ranking_range_call_entry,
-    ranking_range_required_symbols,
+    RankingRangeMeasure, call_member_premise_symbols, mixed_call_endpoints_are_pinned,
+    prove_ranking_range_call,
 };
 use comparison::Comparison;
-use projection::{RankOrder, RankProjection};
+use projection::RankProjection;
 
 /// Exact scalar coordinates from the runtime component judgment. These are
 /// transient query results, not another executable representation.
@@ -30,6 +30,7 @@ use projection::{RankOrder, RankProjection};
 pub struct ValidatedRuntimeNaturalState {
     pub state: SymbolHandle,
     pub parameter: SymbolHandle,
+    pub coordinate: crate::RankSubjectCoordinate,
     pub parameter_position: u32,
     pub primitive_type: typed_trees::types::PrimitiveType,
 }
@@ -124,35 +125,23 @@ fn dispatched_implementations(
         .collect()
 }
 
-pub(super) fn admitted_components(
-    program: &dyn crate::CheckingInput,
-    proof_only: &ProofOnlyClassification,
-    adjacency: &[Vec<usize>],
-) -> Vec<Vec<usize>> {
-    super::strongly_connected_components(adjacency)
-        .into_iter()
-        .filter(|component| {
-            component.len() > 1
-                && component
-                    .iter()
-                    .all(|index| !proof_only.is_proof_machine(program, &program.machines()[*index]))
-                && check_component(program, adjacency, component).is_ok()
-        })
-        .collect()
-}
-
-pub(super) fn check_component(
-    program: &dyn crate::CheckingInput,
-    adjacency: &[Vec<usize>],
-    component: &[usize],
-) -> Result<(), &'static str> {
-    project_component(program, adjacency, component).map(|_| ())
+/// A source-complete candidate for one exact authored body. These borrowed
+/// readings are search scratch; only the component's complete decision can
+/// publish them. Missing members supply no inductive ranking premise.
+pub struct RuntimeRankBodyWitness<'selection> {
+    pub machine: SymbolHandle,
+    pub body: arena::HandleSpan<State>,
+    pub states: &'selection [crate::RankStateBindings],
+    pub edges: &'selection [checked_trees::CheckedRankArrivalEdge],
+    pub entry_rank_formed: bool,
 }
 
 pub(super) fn project_component(
     program: &dyn crate::CheckingInput,
     adjacency: &[Vec<usize>],
     component: &[usize],
+    witnesses: &[RuntimeRankBodyWitness<'_>],
+    frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Result<Option<ValidatedRuntimeNaturalComponent>, &'static str> {
     let Some(ranks) = component
         .iter()
@@ -166,141 +155,79 @@ pub(super) fn project_component(
     }
     let mixed_ranges = ranks.iter().any(|rank| rank.range.is_valid())
         && ranks.iter().any(|rank| !rank.range.is_valid());
-    for (rank, index) in ranks.iter().zip(component) {
-        if rank.range.is_valid() {
-            let machine = &program.machines()[*index];
-            if !prove_ranking_range_call_entry(
-                program,
-                RankingRangeCallMember {
-                    machine,
-                    subject: rank.subject,
-                    paired_subject: rank.paired_subject,
-                    range: rank.range,
-                },
-            ) {
-                return Err("a member's initial rank range is unproven");
-            }
-        }
-    }
-    let frames = crate::machine_calls::calls::CallFrameResolver::new(program);
-    // Internal arrivals are owned by the member's own ranking judgment,
-    // which the checked stage applies to every member whose local state
-    // graph can still cycle and to every ranged member with internal
-    // arrivals. A call issued from a subordinate state still answers to
-    // this shared hypothesis, and it reads the member's authored range as
-    // that arrival's proven invariant: the site query installs the same
-    // membership facts the member's state-edge judgment re-establishes at
-    // each arrival, never a requires fact (entry-site evidence only) and
-    // never a destination requirement. The member's discovered
-    // telescope names the entry role each site formal carries, so
-    // authored subjects and endpoints normalize to the atom the site
-    // actually holds. The telescope must read the same correspondence the
-    // member's own state-edge judgment used, or a call hypothesis could
-    // name a different value than that witness proved. Every ranked
-    // subject is a preferred carrier -- a bounded distance ranks both --
-    // while a slice slot selects its sole collection dependency without a
-    // preference. Discovery keeps a contested claim only for a bare
-    // forward, plus a computed claimant on an entry the member's own
-    // arrival judgment holds equal: ranged members, under the
-    // rank-invariant premise set both premise modes share (an entry
-    // invariant attempt protects a superset). An unranged member's
-    // computed claimants stay role-less rather than borrowing equality
-    // evidence no judgment ran for. A record-subject struct view also
-    // names its fresh-record carrier: a dependency-free literal arrival
-    // into the unique record-typed slot still claims the role the field
-    // coordinate reads.
-    let member_discovery = component
+    let body_witnesses = component
         .iter()
-        .enumerate()
-        .map(|(position, index)| {
+        .map(|index| {
             let machine = &program.machines()[*index];
-            let rank = &ranks[position];
-            let preferred = rank_preferred_carriers(&rank);
-            let record_subject = rank.record_subject;
-            let required = if rank.range.is_valid() {
-                rank.measure.and_then(|measure| {
-                    ranking_range_required_symbols(
-                        program,
-                        machine,
-                        rank.range,
-                        measure,
-                        RankingRangePremises::RankInvariant,
-                    )
-                })
-            } else {
-                Some(Vec::new())
-            }?;
-            let mappings = discover_state_entry_mappings_preferring(
-                program,
-                machine,
-                &preferred,
-                record_subject,
-                &required,
-            )?;
-            Some((mappings, required))
-        })
-        .collect::<Option<Vec<_>>>();
-    let Some(member_discovery) = member_discovery else {
-        return Err("the ranking needs entry-to-state arrival evidence");
-    };
-    // A discovered role records DEPENDENCY, not equality: a slot that claimed
-    // an entry role through a computed actual denotes a derived value, not
-    // the value the role carried at invocation. Binding the authored subject
-    // or an endpoint to that slot would let an internal `hold(remaining + 1)`
-    // inflate the site carrier beyond the entry rank, so `step(carried - 1)`
-    // reads as a strict edge while the component cycle preserves the rank.
-    // Consumption therefore keeps a role only when every arrival preserves
-    // it: a bare forward of a formal still carrying the role, a
-    // direction-correct `carrier - positive`/`carrier + positive` descent for
-    // a subject role, or -- for a ranged member's required carriers -- a
-    // computed claimant the member's own arrival judgment proved equal to a
-    // bare-anchored sibling.
-    let mut member_mappings = Vec::with_capacity(member_discovery.len());
-    for (position, index) in component.iter().enumerate() {
-        let (mappings, required) = &member_discovery[position];
-        let bounds = carrier_bounds(
-            program,
-            &program.machines()[*index],
-            mappings,
-            &ranks[position],
-        );
-        let mut filtered = mappings.clone();
-        for (state_position, slots) in filtered.iter_mut().enumerate() {
-            // Required carriers keep a computed claimant only while a sibling
-            // slot still forwards the role bare: the member's own ranged
-            // arrival judgment proves such copies equal, so every claim then
-            // names the anchor's value.
-            let anchored = slots
-                .iter()
-                .zip(&bounds[state_position])
-                .filter(|(claimed, bound)| {
-                    claimed.is_valid()
-                        && required.contains(claimed)
-                        && **bound == CarrierBound::Equal
-                })
-                .map(|(claimed, _)| *claimed)
-                .collect::<Vec<_>>();
-            for (slot, role) in slots.iter_mut().enumerate() {
-                if !role.is_valid() {
-                    continue;
-                }
-                let kept = bound_allows(&ranks[position], *role, bounds[state_position][slot])
-                    || anchored.contains(role);
-                if !kept {
-                    *role = SymbolHandle::default();
-                }
+            let mut matches = witnesses.iter().filter(|witness| {
+                witness.machine == machine.symbol && witness.body == machine.states
+            });
+            let witness = matches.next();
+            if matches.next().is_some() {
+                return Err("the component has duplicate source body candidates");
             }
+            Ok(witness)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let complete = body_witnesses.iter().all(Option::is_some);
+    for (rank, witness) in ranks.iter().zip(&body_witnesses) {
+        if rank.range.is_valid() && witness.is_some_and(|witness| !witness.entry_rank_formed) {
+            return Err("a member's initial rank range is unproven");
         }
-        member_mappings.push(filtered);
     }
+    let member_mappings = component
+        .iter()
+        .zip(&body_witnesses)
+        .map(|(index, witness)| {
+            let Some(witness) = witness else {
+                return Ok(None);
+            };
+            let machine = &program.machines()[*index];
+            let rows = program
+                .machine_states(machine)
+                .iter()
+                .map(|state| {
+                    let mut matching = witness
+                        .states
+                        .iter()
+                        .filter(|row| row.state == state.symbol);
+                    let row = matching.next()?;
+                    matching.next().is_none().then(|| row.clone())
+                })
+                .collect::<Option<Vec<_>>>()
+                .ok_or("the ranking needs complete entry-to-state arrival evidence")?;
+            Ok(Some(rows))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let ranked_machines = component
         .iter()
         .map(|position| program.machines()[*position].symbol)
         .collect::<Vec<_>>();
     let relevance = super::rank_relevance(program, &ranked_machines)
         .ok_or("the ranking needs exact state recurrence topology")?;
-    let mut natural =
-        projection::natural_component(program, component, &ranks, &member_mappings, &relevance);
+    // A local hop inside a recursive call component owes nonincrease even
+    // when it is acyclic in its body's graph. Read the exact arithmetic result
+    // already retained at admission, never lineage bounds or step syntax.
+    for (index, witness) in component.iter().zip(&body_witnesses) {
+        if let Some(witness) = witness
+            && !super::rank_components::internal_rank_nonincrease(
+                program,
+                &program.machines()[*index],
+                witness.edges,
+            )
+        {
+            return Err("an internal arrival lacks its source component nonincrease result");
+        }
+    }
+    let mut natural = if complete {
+        let mappings = member_mappings
+            .iter()
+            .map(|rows| rows.as_ref().unwrap().clone())
+            .collect::<Vec<_>>();
+        projection::natural_component(program, component, &ranks, &mappings, &relevance)
+    } else {
+        None
+    };
     // A prefix store is judged against the premise carriers the call-site
     // judgment actually reads (subjects, endpoints, requires facts, and
     // constrained entries), located in each state through the same telescope,
@@ -331,7 +258,9 @@ pub(super) fn project_component(
         if states.is_empty() {
             return Err("a member has no checked entry state");
         }
-        let mappings = &member_mappings[position];
+        let Some(mappings) = &member_mappings[position] else {
+            continue;
+        };
         let mut observed = Vec::new();
         for (state_position, state) in states.iter().enumerate() {
             let mut guards = Vec::new();
@@ -384,7 +313,7 @@ pub(super) fn project_component(
                         &arrival_premises,
                         mixed_ranges,
                         statement,
-                        frames.as_ref(),
+                        frames,
                     ) {
                         continue;
                     }
@@ -483,8 +412,10 @@ pub(super) fn project_component(
                                     &relevance,
                                     state.symbol,
                                     target_symbol,
-                                    arguments,
+                                    transition.target,
                                     statement_ordinal,
+                                    machine,
+                                    body_witnesses[position].unwrap().edges,
                                 )
                             {
                                 natural = None;
@@ -621,7 +552,7 @@ pub(super) fn project_component(
                                 source: position,
                                 destination: callee_position,
                                 site_state: state,
-                                entry_parameters: &member_mappings[position][state_position],
+                                statement_ordinal,
                                 arguments,
                                 guards: site_guards,
                             });
@@ -650,7 +581,7 @@ pub(super) fn project_component(
             return Err("an internal call occurrence lacks a classified tail edge");
         }
     }
-    if mixed_ranges {
+    if complete && mixed_ranges {
         let members = ranks
             .iter()
             .zip(component)
@@ -661,7 +592,7 @@ pub(super) fn project_component(
                 range: rank.range,
             })
             .collect::<Vec<_>>();
-        if !mixed_call_endpoints_are_pinned(program, &members, &range_edges) {
+        if !mixed_call_endpoints_are_pinned(program, &members, &range_edges, frames) {
             return Err(
                 "dependent rank endpoints are not conserved through every mixed-component call",
             );
@@ -697,350 +628,39 @@ fn weak_edges_are_acyclic(adjacency: &[Vec<usize>]) -> bool {
         .all(|component| component.len() == 1 && !adjacency[component[0]].contains(&component[0]))
 }
 
-/// The ranged member's consumable invariant at one internal call site: the
-/// scalar measure its own ranking judgment selected, the authored range
-/// handle, and the discovered telescope for `state`. The ordinary
-/// callee-requirement check consumes the membership facts those inputs name
-/// -- the same arrival invariant the component-edge judgment installs for a
-/// call the coordinator checks -- never a requires fact, which stays
-/// entry-site evidence. `None` at the entry state (entry facts already
-/// apply there), when the member authors no supported scalar range, or when
-/// the two premise modes the member's own state-edge judgment may have run
-/// under discover different correspondences: then no single telescope is
-/// known proven at this site and the site abstains.
+/// Consume the one source-admitted coordinate witness for this exact body.
+/// Membership is an inductive fact only after every arrival has passed under
+/// the retained premise regime; discovery alternatives cannot supply it.
 pub(crate) fn ranged_member_site_invariant(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &State,
-) -> Option<(RankingRangeMeasure, ExpressionHandle, Vec<SymbolHandle>)> {
+    admitted: &checked_trees::CheckedRankArrivalPlan,
+) -> Option<(
+    RankingRangeMeasure,
+    ExpressionHandle,
+    crate::RankStateBindings,
+)> {
     let rank = RankProjection::resolve(program, machine)?;
     let measure = rank.measure?;
-    if !rank.range.is_valid() {
+    if !rank.range.is_valid() || program.machine_states(machine).first()?.symbol == state.symbol {
         return None;
     }
-    let position = program.state_position_by_symbol(machine.symbol, state.symbol)?;
-    if position == 0 {
-        return None;
-    }
-    // The preferred carriers mirror `check_component`: the formals the
-    // produced rank reads for this measure's order.
-    let preferred = rank_preferred_carriers(&rank);
-    let discover = |premises| {
-        let required =
-            ranking_range_required_symbols(program, machine, rank.range, measure, premises)?;
-        discover_state_entry_mappings_preferring(
-            program,
-            machine,
-            &preferred,
-            rank.record_subject,
-            &required,
-        )
-    };
-    let mappings = discover(RankingRangePremises::RankInvariant)?;
-    if discover(RankingRangePremises::EntryInvariant)? != mappings {
-        return None;
-    }
-    Some((measure, rank.range, mappings.get(position)?.clone()))
-}
-
-/// How a slot's arrival value may relate to its recorded entry role while the
-/// call judgment still consumes the claim. `Equal` carriers denote the role's
-/// value exactly; `AtMost`/`AtLeast` carriers keep the site value bounded by
-/// the invocation rank on the side the member's order reads -- a
-/// `carrier - positive` step shrinks a descending subject, a
-/// `carrier + positive` step grows an increasing one. The lattice meets the
-/// bounds of every arrival into the slot.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum CarrierBound {
-    /// No readable bound: the slot's role cannot be consumed at a call site.
-    None,
-    AtMost,
-    AtLeast,
-    Equal,
-}
-
-impl CarrierBound {
-    fn meet(self, other: CarrierBound) -> CarrierBound {
-        use CarrierBound::*;
-        match (self, other) {
-            (None, _) | (_, None) => None,
-            (Equal, bound) | (bound, Equal) => bound,
-            (AtMost, AtMost) => AtMost,
-            (AtLeast, AtLeast) => AtLeast,
-            (AtMost, AtLeast) | (AtLeast, AtMost) => None,
-        }
-    }
-}
-
-/// Whether the computed bound lets the component judgment consume the slot's
-/// recorded role. A premise carrier -- endpoints, requires inputs,
-/// constrained copies -- must denote the role exactly; a subject carrier may
-/// additionally arrive through the direction that order decreases.
-/// The preferred carriers for a rank's order — the formals a produced rank
-/// reads for this measure (parameter pair for a bounded distance, the
-/// record formal for a member-chain slice, the lone parameter otherwise).
-fn rank_preferred_carriers(rank: &RankProjection) -> Vec<SymbolHandle> {
-    match &rank.order {
-        RankOrder::BoundedDistance(_) => [rank.parameter, rank.paired_parameter]
-            .into_iter()
-            .filter(|symbol| symbol.is_valid())
-            .collect::<Vec<_>>(),
-        // A bare slice slot prefers no role; a member-chain slice subject
-        // is read off the record formal carrying it, so that formal is the
-        // preferred carrier.
-        RankOrder::SliceLength => [rank.record_subject]
-            .into_iter()
-            .filter(|symbol| symbol.is_valid())
-            .collect(),
-        _ => [rank.parameter]
-            .into_iter()
-            .filter(|symbol| symbol.is_valid())
-            .collect(),
-    }
-}
-
-fn bound_allows(rank: &RankProjection, role: SymbolHandle, bound: CarrierBound) -> bool {
-    match bound {
-        CarrierBound::Equal => true,
-        CarrierBound::AtMost => carrier_direction(rank, role) == CarrierBound::AtMost,
-        CarrierBound::AtLeast => carrier_direction(rank, role) == CarrierBound::AtLeast,
-        CarrierBound::None => false,
-    }
-}
-
-/// The direction a subject carrier may move while the call still transports a
-/// non-increasing rank: a natural or produced-scalar rank decreases as its
-/// subject does, an increasing-to rank decreases as its subject rises, and a
-/// bounded distance decreases as its lower subject rises or its upper
-/// subject falls. Every non-subject role stays `Equal`: a premise read
-/// through a moved slot names a different fact.
-fn carrier_direction(rank: &RankProjection, role: SymbolHandle) -> CarrierBound {
-    if role == rank.parameter {
-        // A record role names WHICH record the slot holds, never a moved
-        // scalar: `carrier - positive` cannot typecheck on a record, and a
-        // rebuilt literal still denotes the rank coordinate exactly. That
-        // covers a field view's subject formal and a member-chain subject's
-        // carrier formal alike.
-        if rank.record_subject.is_valid() {
-            return CarrierBound::Equal;
-        }
-        match &rank.order {
-            RankOrder::IncreasingTo(_) | RankOrder::BoundedDistance(_) => CarrierBound::AtLeast,
-            _ => CarrierBound::AtMost,
-        }
-    } else if role == rank.paired_parameter && matches!(rank.order, RankOrder::BoundedDistance(_)) {
-        // A member-chain upper subject's record role is exact-or-nothing
-        // like any other record carrier.
-        if rank.paired_record_subject.is_valid() {
-            CarrierBound::Equal
-        } else {
-            CarrierBound::AtMost
-        }
-    } else {
-        CarrierBound::Equal
-    }
-}
-
-/// Per-slot carrier bounds under the discovered telescope. Bounds shrink
-/// along the internal-arrival fixpoint: a slot keeps a bound only while
-/// EVERY arrival into it preserves the bound, so an unwitnessed shape fails
-/// closed to `None` rather than borrowing an equality no judgment ran for.
-fn carrier_bounds(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    mappings: &[Vec<SymbolHandle>],
-    rank: &RankProjection,
-) -> Vec<Vec<CarrierBound>> {
-    let states = program.machine_states(machine);
-    let mut bounds = mappings
+    let body = admitted.for_body(machine.symbol, machine.states)?;
+    let mut matches = admitted
+        .states
+        .span(body.states)?
         .iter()
-        .map(|slots| vec![CarrierBound::Equal; slots.len()])
-        .collect::<Vec<_>>();
-    let arrivals = internal_arrivals(program, machine);
-    loop {
-        let previous = bounds.clone();
-        for (source, destination, arguments) in &arrivals {
-            if *destination == 0 {
-                // The entry telescope is always the identity mapping; a
-                // back-edge does not restate its own formals.
-                continue;
-            }
-            let (Some(slots), Some(source_state), Some(source_slots)) = (
-                mappings.get(*destination),
-                states.get(*source),
-                mappings.get(*source),
-            ) else {
-                continue;
-            };
-            for (slot, role) in slots.iter().enumerate() {
-                if !role.is_valid() || bounds[*destination][slot] == CarrierBound::None {
-                    continue;
-                }
-                let arrival = carrier_arrival_bound(
-                    program,
-                    machine,
-                    source_state,
-                    &bounds[*source],
-                    source_slots,
-                    arguments.get(slot).copied(),
-                    *role,
-                    rank,
-                );
-                bounds[*destination][slot] = bounds[*destination][slot].meet(arrival);
-            }
-        }
-        if bounds == previous {
-            return bounds;
-        }
+        .filter(|row| row.state == state.symbol);
+    let row = matches.next()?;
+    if matches.next().is_some() {
+        return None;
     }
-}
-
-/// One arrival's contribution to a slot's carrier bound: a bare forward of a
-/// formal still carrying the role inherits that formal's bound, and a
-/// `carrier - positive`/`carrier + positive` step keeps the matching side.
-/// Any other shape -- arithmetic over several inputs, a projection, a
-/// literal, an operand call -- names no bound this judgment can read.
-/// A record-subject role under a custom struct view is exact-or-nothing:
-/// scalar arithmetic cannot reach it, so a bare forward or borrow of a
-/// role-carrying formal inherits, while a rebuilt literal or a record-typed
-/// projection keeps `Equal` -- the member's own edge judgment already
-/// proved that arrival's rank coordinate, and the slot's fresh atom is what
-/// the site reads.
-fn carrier_arrival_bound(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    source: &typed_trees::state::State,
-    source_bounds: &[CarrierBound],
-    source_slots: &[SymbolHandle],
-    argument: Option<ExpressionHandle>,
-    role: SymbolHandle,
-    rank: &RankProjection,
-) -> CarrierBound {
-    let Some(argument) = argument else {
-        return CarrierBound::None;
-    };
-    // The source formal position mirrors the telescope's own lookup: non-self
-    // slots in order, and a constant formal cannot carry a mutable role.
-    let formal_bound = |symbol: SymbolHandle| {
-        program
-            .state_parameters(source)
-            .iter()
-            .position(|parameter| parameter.symbol == symbol && !parameter.is_const)
-            .filter(|position| source_slots[*position] == role)
-            .and_then(|position| source_bounds.get(position).copied())
-            .unwrap_or(CarrierBound::None)
-    };
-    let bare_name = |expression: ExpressionHandle| match program
-        .expression_table
-        .expression(projection::unwrapped(program, expression))
-    {
-        ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
-            Some(name.symbol)
-        }
-        _ => None,
-    };
-    // The collection a windowed arrival reads: borrows and member chains
-    // resolve to their root formal, whose bound for this role decides what
-    // the subslice inherits.
-    let carrier_root = |mut expression: ExpressionHandle| loop {
-        match program
-            .expression_table
-            .expression(projection::unwrapped(program, expression))
-        {
-            ExpressionNode::Member(member) => expression = member.receiver,
-            ExpressionNode::Borrow(borrow) => expression = borrow.target,
-            ExpressionNode::Name(name)
-                if name.symbol.is_valid() && name.head_symbol == name.symbol =>
-            {
-                break Some(name.symbol);
-            }
-            _ => break None,
-        }
-    };
-    // A record role tracks WHICH record the slot holds, not a scalar bound.
-    // Every arrival shape the member's own edge judgment can prove for a
-    // projected coordinate -- a forward of the slot still carrying the role,
-    // a borrow of one, a rebuild literal, or a prefix projection of the
-    // coordinate's chain -- keeps the slot's claim exact. An operand call or
-    // an index read is a record only through a shape no coordinate walks, so
-    // it strips the role as always. The same arm covers a field view's
-    // subject formal, a member-chain subject's carrier formal, and a
-    // bounded distance's member-chain upper formal.
-    let record_role = (role == rank.parameter && rank.record_subject.is_valid())
-        || (role == rank.paired_parameter && rank.paired_record_subject.is_valid());
-    if record_role {
-        return match program
-            .expression_table
-            .expression(projection::unwrapped(program, argument))
-        {
-            ExpressionNode::Name(name)
-                if name.symbol.is_valid() && name.head_symbol == name.symbol =>
-            {
-                formal_bound(name.symbol)
-            }
-            ExpressionNode::Borrow(borrow) => carrier_arrival_bound(
-                program,
-                machine,
-                source,
-                source_bounds,
-                source_slots,
-                Some(borrow.target),
-                role,
-                rank,
-            ),
-            ExpressionNode::StructLiteral(_) | ExpressionNode::Member(_) => CarrierBound::Equal,
-            _ => CarrierBound::None,
-        };
-    }
-    match program
-        .expression_table
-        .expression(projection::unwrapped(program, argument))
-    {
-        ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
-            formal_bound(name.symbol)
-        }
-        ExpressionNode::Binary(binary) => {
-            let Some(symbol) = bare_name(binary.left) else {
-                return CarrierBound::None;
-            };
-            // The step amount is the strict-step half the telescope names: a
-            // positive literal or a formal whose declared range proves it
-            // nonzero. A zero-able operand is not divergence evidence.
-            let positive = positive_step_amount(program, source, binary.right);
-            let bound = formal_bound(symbol);
-            match (binary.operator, positive) {
-                (typed_trees::expression::BinaryOperator::Subtract, true) => {
-                    bound.meet(CarrierBound::AtMost)
-                }
-                (typed_trees::expression::BinaryOperator::Add, true) => {
-                    bound.meet(CarrierBound::AtLeast)
-                }
-                // `carrier + 0`/`carrier - 0` spell a computed claimant, not a
-                // bare forward: only a ranged member's own arrival judgment
-                // proves that copy equal to a required carrier, so it keeps
-                // the role through the anchored rule -- never by shape alone.
-                _ => CarrierBound::None,
-            }
-        }
-        // A window's produced length never exceeds its collection's: a
-        // builtin subslice into a slice carrier weakens the collection's
-        // bound to `AtMost`, matching the direction the ranked copy moved.
-        // The member's own edge judgment still proved the arrival's exact
-        // length before this bound can carry the role to a call site.
-        ExpressionNode::Indexed(indexed)
-            if crate::value_custody::places::has_builtin_subslice_meaning(
-                program,
-                machine,
-                Some(source),
-                projection::unwrapped(program, argument),
-            ) =>
-        {
-            carrier_root(indexed.collection).map_or(CarrierBound::None, |symbol| {
-                formal_bound(symbol).meet(CarrierBound::AtMost)
-            })
-        }
-        _ => CarrierBound::None,
-    }
+    Some((
+        measure,
+        rank.range,
+        crate::RankStateBindings::from_checked(admitted, row)?,
+    ))
 }
 
 /// Every authored internal arrival: `(source index, destination index,
@@ -1052,10 +672,37 @@ pub(crate) fn internal_arrivals<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<(usize, usize, &'program [ExpressionHandle])> {
+    internal_arrival_sites(program, machine)
+        .into_iter()
+        .map(|arrival| (arrival.source, arrival.destination, arrival.arguments))
+        .collect()
+}
+
+/// The exact authored occurrence and operand telescope of an internal arrival.
+/// Both rank discovery and edge checking use this inventory; parser copies or
+/// equal actual expressions do not collapse distinct incoming obligations.
+pub(crate) struct InternalArrival<'program> {
+    pub source: usize,
+    pub destination: usize,
+    pub statement_index: usize,
+    pub target: typed_trees::statement::TransitionTargetHandle,
+    pub arguments: &'program [ExpressionHandle],
+    pub recurrent: bool,
+}
+
+pub(crate) fn internal_arrival_sites<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> Vec<InternalArrival<'program>> {
     let states = program.machine_states(machine);
     let mut arrivals = Vec::new();
     for (source, state) in states.iter().enumerate() {
-        for statement in program.statement_table.statements(state.statement_nodes) {
+        for (statement_index, statement) in program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+        {
             let Some(transition) = statement.as_transition() else {
                 continue;
             };
@@ -1064,15 +711,30 @@ pub(crate) fn internal_arrivals<'program>(
                     program.statement_table.named_transition_target(target)
                 {
                     if let Some(destination) = internal_state_index(program, machine, path.symbol) {
-                        arrivals.push((
+                        arrivals.push(InternalArrival {
                             source,
                             destination,
-                            program.statement_table.expression_handles(arguments),
-                        ));
+                            statement_index,
+                            target,
+                            arguments: program.statement_table.expression_handles(arguments),
+                            recurrent: false,
+                        });
                     }
                 }
             }
         }
+    }
+    let mut adjacency = vec![Vec::new(); states.len()];
+    for arrival in &arrivals {
+        adjacency[arrival.source].push(arrival.destination);
+    }
+    let components = super::strongly_connected_components(&adjacency);
+    for arrival in &mut arrivals {
+        arrival.recurrent = components.iter().any(|component| {
+            component.contains(&arrival.source)
+                && component.contains(&arrival.destination)
+                && (component.len() > 1 || arrival.source == arrival.destination)
+        });
     }
     arrivals
 }
@@ -1087,17 +749,9 @@ pub fn internal_state_index(
     target_symbol: SymbolHandle,
 ) -> Option<usize> {
     if target_symbol == machine.symbol {
-        let entry_name = machine
-            .name
-            .as_str()
-            .rsplit("::")
-            .next()
-            .unwrap_or_default();
-        return program
-            .machine_states(machine)
-            .iter()
-            .position(|state| state.name.as_str() == entry_name)
-            .or_else(|| (!program.machine_states(machine).is_empty()).then_some(0));
+        // The retained machine body owns its first state as entry. A same-
+        // spelled subordinate state cannot replace that declaration identity.
+        return (!program.machine_states(machine).is_empty()).then_some(0);
     }
     typed_trees::state::state_position(program.machine_states(machine), target_symbol)
 }

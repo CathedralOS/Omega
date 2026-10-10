@@ -598,6 +598,7 @@ pub(super) fn lower(
             psi_operation,
             result,
             value,
+            ..
         } => {
             if !result.is_unrestricted_plain()
                 || !scalar_matches(result.structural_type, value.scalar_type)

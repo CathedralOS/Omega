@@ -5,11 +5,30 @@ use super::{
     Polynomial, ProofFact, SignatureContractKind, StrictArithmeticBindingValue,
     StrictArithmeticSymbolBinding, inductive_judgment,
 };
-use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 
+mod arrival_correspondence;
+mod arrival_selection;
+pub use arrival_selection::{
+    RankArrivalCompatibility, RankArrivalDemand, RankCoordinateBinding, RankStateBindings,
+    ranking_range_required_coordinates, select_rank_arrival_correspondence,
+};
 mod calls;
+pub use arrival_correspondence::{
+    RankArrivalCorrespondence, RankCoordinateTransport, RankLocalCapture, RankReceivingCoordinate,
+    RankSubjectCoordinate, RankValueDerivation, StateEntryCorrespondence,
+    ranking_range_arrival_preserves_roles,
+};
+
+/// Enumerate exact completed-arrival lineage and receiving locations. This is not a rank judgment;
+/// only the complete-edge owner may select and retain an accepted witness.
+pub fn discover_rank_arrival_correspondence(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+) -> Option<Vec<StateEntryCorrespondence>> {
+    arrival_correspondence::discover(program, machine)
+}
 mod coordinate;
 mod field_coordinates;
 mod fields;
@@ -21,14 +40,11 @@ mod projections;
 mod requirements;
 mod saved_arguments;
 mod state_aliases;
-mod telescope;
 
 pub use requirements::{
     ArithmeticCallObservation, arithmetic_entry_requirement_is_covered,
     prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
 };
-pub(crate) use telescope::positive_step_amount;
-pub use telescope::{discover_state_entry_mappings, discover_state_entry_mappings_preferring};
 mod identity_views;
 pub use identity_views::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
@@ -40,7 +56,6 @@ pub use identity_views::{
 pub(crate) use calls::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
     call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
-    prove_ranking_range_call_entry,
 };
 
 /// A collection descriptor's closed extent, using the same checked geometry
@@ -99,7 +114,7 @@ fn slice_rank_coordinate<'program>(
     program: &'program dyn crate::CheckingInput,
     root: &State,
     state: &'program State,
-    entry_parameters: Option<&[symbols::SymbolHandle]>,
+    entry_parameters: Option<&RankStateBindings>,
     subject: ExpressionHandle,
 ) -> Option<Option<lengths::SliceCoordinate<'program>>> {
     match lengths::SliceCoordinate::resolve_length(program, root, subject) {
@@ -110,10 +125,20 @@ fn slice_rank_coordinate<'program>(
         )?)),
         None => Some(
             match (entry_parameters, lengths::parameter(program, root, subject)) {
-                (Some(entries), Some(formal)) => {
-                    fields::unique_entry_carrier(program, state, entries, formal.symbol)
-                        .and_then(|carrier| lengths::slice_leaf_coordinate(program, carrier))
-                }
+                (Some(entries), Some(formal)) => entries
+                    .destination(&RankSubjectCoordinate {
+                        parameter: formal.symbol,
+                        path: Vec::new(),
+                    })
+                    .filter(|destination| !destination.path.is_empty())
+                    .and_then(|destination| {
+                        lengths::SliceCoordinate::at_coordinate(
+                            program,
+                            state,
+                            &destination,
+                            coordinate::CoordinateKind::Length,
+                        )
+                    }),
                 _ => None,
             },
         ),
@@ -129,7 +154,7 @@ pub fn ranking_slice_length_observation(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    entry_parameters: &[symbols::SymbolHandle],
+    entry_parameters: &RankStateBindings,
     subject: ExpressionHandle,
 ) -> Option<(
     symbols::SymbolHandle,
@@ -150,8 +175,14 @@ pub fn ranking_slice_length_observation(
         (coordinate.parameter, path)
     } else {
         let formal = lengths::parameter(program, root, subject)?;
-        let carrier =
-            fields::unique_entry_carrier(program, state, entry_parameters, formal.symbol)?;
+        let destination = entry_parameters.destination(&RankSubjectCoordinate {
+            parameter: formal.symbol,
+            path: Vec::new(),
+        })?;
+        if !destination.path.is_empty() {
+            return None;
+        }
+        let carrier = program.state_parameter_by_symbol(state, destination.parameter)?;
         lengths::is_slice(program, carrier.type_reference).then_some(())?;
         (carrier, Vec::new())
     };
@@ -298,7 +329,7 @@ pub fn prove_ranking_range_edge(
 #[derive(Clone, Copy)]
 pub struct RankingRangeState<'program> {
     pub state: &'program State,
-    pub entry_parameters: &'program [symbols::SymbolHandle],
+    pub entry_parameters: &'program RankStateBindings,
 }
 
 /// Every length binding is non-negative: each bound symbol satisfies
@@ -376,7 +407,7 @@ pub fn prove_ranking_range_transition(
 enum EdgeContext<'program> {
     Root,
     Transition {
-        source_parameters: &'program [symbols::SymbolHandle],
+        source_parameters: &'program RankStateBindings,
         destination: RankingRangeState<'program>,
     },
 }
@@ -386,6 +417,7 @@ enum EdgeContext<'program> {
 pub struct RankingRangeEdgeProof {
     pub membership_and_pinning: bool,
     pub strictly_decreases: bool,
+    pub non_increasing: bool,
 }
 
 /// The entry symbols whose current copies the edge judgment holds equal at
@@ -401,7 +433,7 @@ pub fn ranking_range_required_symbols(
     premises: RankingRangePremises,
 ) -> Option<Vec<symbols::SymbolHandle>> {
     let range = program.expression_table.range_node(range)?;
-    state_aliases::required_symbols(program, machine, range, measure, premises)
+    state_aliases::required_symbols(program, machine, Some(range), measure, premises)
 }
 
 /// The root formals, in every carrier, whose arrival value some range judgment
@@ -424,6 +456,83 @@ pub fn ranking_range_premise_symbols(
         None
     };
     state_aliases::premise_symbols(program, machine, range, measure, true)
+}
+
+/// Arrival-qualified observations consumed from this state's own constrained
+/// integer formals. Keep both each subject and the selected dependencies of
+/// its bounds unwritten until the proof site. These are preservation inputs,
+/// not entry correspondence or equality evidence.
+pub fn ranking_range_state_constraint_coordinates(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+) -> Option<Vec<RankSubjectCoordinate>> {
+    let mut expressions = Vec::new();
+    let mut parameters = Vec::new();
+    constrained_parameter_bound_expressions(
+        program,
+        state,
+        &mut expressions,
+        Some(&mut parameters),
+    );
+    let mut coordinates = parameters
+        .into_iter()
+        .map(|parameter| RankSubjectCoordinate {
+            parameter,
+            path: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let mut pending = expressions
+        .into_iter()
+        .map(|expression| (expression, 0))
+        .collect::<Vec<_>>();
+    while let Some((expression, depth)) = pending.pop() {
+        let node = program
+            .expression_table
+            .expression_at_depth(expression, depth)?;
+        let observed = crate::value_custody::places::collection_length_receiver(
+            program,
+            machine,
+            Some(state),
+            expression,
+        )
+        .unwrap_or(expression);
+        if matches!(
+            node,
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+        ) && let Some(place) = crate::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            usize::MAX,
+            observed,
+        ) && let Some(parameter) = place.root.as_symbol()
+            && program
+                .state_parameter_by_symbol(state, parameter)
+                .is_some()
+        {
+            // Selector values are independent observations even when the
+            // existing frame algebra coarsens their storage footprint.
+            for segment in &place.segments {
+                if let facts::PlaceSegment::Index { expression } = segment {
+                    pending.push((*expression, depth + 1));
+                }
+            }
+            let coordinate = RankSubjectCoordinate {
+                parameter,
+                path: place.segments,
+            };
+            if !coordinates.contains(&coordinate) {
+                coordinates.push(coordinate);
+            }
+            continue;
+        }
+        crate::expression_traversal::children(program, node, |child| {
+            if child.is_valid() {
+                pending.push((child, depth + 1));
+            }
+        });
+    }
+    Some(coordinates)
 }
 
 /// Establish the produced rank at entry, including an acyclic invocation.
@@ -515,10 +624,27 @@ fn subject_field_coordinates<'program>(
     program: &'program dyn crate::CheckingInput,
     root: &'program State,
     state: &'program State,
-    entry_parameters: Option<&[symbols::SymbolHandle]>,
+    entry_parameters: Option<&RankStateBindings>,
     subjects: &[ExpressionHandle],
 ) -> Option<field_coordinates::FieldCoordinates<'program>> {
     let mut coordinates = field_coordinates::FieldCoordinates::empty();
+    if let Some(entries) = entry_parameters {
+        for selected in &entries.coordinates {
+            if selected.entry.path.is_empty()
+                && ranking_coordinate_type(program, root, &selected.entry)
+                    .and_then(|reference| exact_integer_parameter(program, reference))
+                    .is_some()
+                && !selected.destination.path.is_empty()
+            {
+                coordinates.include(fields::FieldCoordinate::at_coordinate(
+                    program,
+                    state,
+                    &selected.destination,
+                    coordinate::CoordinateKind::Field,
+                )?);
+            }
+        }
+    }
     for subject in subjects {
         if let Some(coordinate) =
             fields::FieldCoordinate::resolve_field_projection(program, root, *subject)
@@ -540,44 +666,123 @@ fn subject_field_coordinates<'program>(
     Some(coordinates)
 }
 
-/// The natural coordinate a bare scalar `subject` takes at `state` when a
-/// record formal claims its entry role: the record's unique owned-path
-/// natural leaf, of the subject formal's exact width. A subject spelled as a
-/// member chain, an unclaimed or contested role, and a record without one
-/// matching leaf all keep no coordinate.
+/// A bare entry scalar may arrive at a selected field. The declaration
+/// confirms this exact path; it never searches for a matching integer leaf.
 fn carried_subject_coordinate<'program>(
     program: &'program dyn crate::CheckingInput,
     root: &'program State,
     state: &'program State,
-    entry_parameters: &[symbols::SymbolHandle],
+    entry_parameters: &RankStateBindings,
     subject: ExpressionHandle,
 ) -> Option<fields::FieldCoordinate<'program>> {
     let formal = fields::parameter(program, root, subject)?;
-    let carrier = fields::unique_entry_carrier(program, state, entry_parameters, formal.symbol)?;
-    carried_natural_coordinate(program, root, carrier, formal.symbol)
-}
-
-/// The natural coordinate `parameter`'s record assigns to `entry`'s role:
-/// the unique owned-path natural leaf whose exact width matches the entry
-/// formal's own carrier. A bare slot, a record with no such leaf or two, and
-/// a width the typed arrival could never carry all keep no coordinate.
-fn carried_natural_coordinate<'program>(
-    program: &'program dyn crate::CheckingInput,
-    root: &'program State,
-    parameter: &'program StateParameter,
-    entry: symbols::SymbolHandle,
-) -> Option<fields::FieldCoordinate<'program>> {
-    let entry_formal = program
-        .state_parameters(root)
-        .iter()
-        .find(|formal| formal.symbol == entry)?;
-    if entry_formal.is_const {
+    let destination = entry_parameters.destination(&RankSubjectCoordinate {
+        parameter: formal.symbol,
+        path: Vec::new(),
+    })?;
+    if destination.path.is_empty() {
         return None;
     }
-    let width = exact_integer_parameter(program, entry_formal.type_reference)?;
-    let coordinate = fields::integer_leaf_coordinate(program, parameter)?;
-    (exact_integer_parameter(program, coordinate.field.type_reference) == Some(width))
-        .then_some(coordinate)
+    fields::FieldCoordinate::at_coordinate(
+        program,
+        state,
+        &destination,
+        coordinate::CoordinateKind::Field,
+    )
+}
+
+/// The declared type of an exact retained coordinate, using ordinary place
+/// projection. This checks carrier correspondence; it grants no value fact.
+pub fn ranking_coordinate_type(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    coordinate: &RankSubjectCoordinate,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let parameter = program.state_parameter_by_symbol(state, coordinate.parameter)?;
+    if parameter.is_const {
+        return None;
+    }
+    crate::value_custody::places::project_type_reference_from_segments(
+        program,
+        parameter.type_reference,
+        &coordinate.path,
+    )
+}
+
+fn scalar_coordinate_value(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    coordinate: &RankSubjectCoordinate,
+    bindings: &[StrictArithmeticSymbolBinding],
+) -> Option<StrictArithmeticBindingValue> {
+    if coordinate.path.is_empty() {
+        return bindings
+            .iter()
+            .find(|binding| binding.symbol == coordinate.parameter)
+            .map(|binding| binding.value.clone());
+    }
+    let field = fields::FieldCoordinate::at_coordinate(
+        program,
+        state,
+        coordinate,
+        coordinate::CoordinateKind::Field,
+    )?;
+    Some(StrictArithmeticBindingValue::Atom {
+        identity: field.identity,
+        unsigned: true,
+    })
+}
+
+fn arrival_scalar_actual(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    destination_state: &State,
+    destination: &RankSubjectCoordinate,
+    engine: &mut Engine<'_>,
+    actual: ExpressionHandle,
+) -> Option<Polynomial> {
+    if destination.path.is_empty() {
+        meanings::install_nonpolynomial_terms(program, machine, state, engine, actual, 0)?;
+        return engine.normalize(actual);
+    }
+    let coordinate = fields::FieldCoordinate::at_coordinate(
+        program,
+        destination_state,
+        destination,
+        coordinate::CoordinateKind::Field,
+    )?;
+    coordinate.field_actual(program, machine, state, engine, actual, coordinate.borrowed)
+}
+
+fn arrival_length_actual(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    destination_state: &State,
+    destination: &RankSubjectCoordinate,
+    engine: &mut Engine<'_>,
+    actual: ExpressionHandle,
+    bindings: &[(symbols::SymbolHandle, String)],
+) -> Option<Polynomial> {
+    if destination.path.is_empty() {
+        return lengths::actual(program, machine, state, actual, bindings, engine);
+    }
+    let coordinate = lengths::SliceCoordinate::at_coordinate(
+        program,
+        destination_state,
+        destination,
+        coordinate::CoordinateKind::Length,
+    )?;
+    coordinate.arrived_length(
+        program,
+        machine,
+        state,
+        engine,
+        actual,
+        coordinate.borrowed,
+        bindings,
+    )
 }
 
 fn prove_edge(
@@ -698,20 +903,25 @@ fn prove_edge(
         }
         _ => None,
     };
-    let range = program.expression_table.range_node(range)?;
+    let range = if range.is_valid() {
+        Some(program.expression_table.range_node(range)?)
+    } else {
+        None
+    };
     // An endpoint that is not statically formed still owes a carrier-landing
     // proof under this edge's installed hypotheses; it is deferred, not
     // rejected, until that engine exists below. Every measure owes it: the
     // range reads the produced rank, whatever view produced it.
     let mut deferred_endpoints = Vec::new();
-    for endpoint in [range.start, range.end] {
+    for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
         if !fields::endpoint_statically_formed(program, machine, root, endpoint) {
             deferred_endpoints.push(endpoint);
         }
     }
     let admit_template = |expression| meanings::builtin(program, machine, root, expression, 0);
-    admit_template(range.start)?;
-    admit_template(range.end)?;
+    for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
+        admit_template(endpoint)?;
+    }
     match measure {
         RankingRangeMeasure::Single(subject)
         | RankingRangeMeasure::Computed { subject, .. }
@@ -740,7 +950,6 @@ fn prove_edge(
     for expression in evaluated_prefix {
         admit(*expression)?;
     }
-    let parameters = program.state_parameters(state);
     // A mutable parameter's live value equals its arrival value only while no
     // intervening write touches its path. The evaluated-prefix callers prove
     // that per edge with complete write frames disjoint from every premise
@@ -760,79 +969,21 @@ fn prove_edge(
     }
     let required_symbols =
         state_aliases::required_symbols(program, machine, range, measure, premises)?;
-    let mut bindings = integer_bindings(program, state)?;
-    let mut alias_comparisons = Vec::new();
-    if let Some(entry_parameters) = entry_parameters {
-        for (parameter, entry_symbol) in parameters.iter().zip(entry_parameters) {
-            if !entry_symbol.is_valid()
-                || (entry_parameters
-                    .iter()
-                    .filter(|candidate| *candidate == entry_symbol)
-                    .take(2)
-                    .count()
-                    != 1
-                    && !required_symbols.contains(entry_symbol))
-            {
-                // The two current slots remain independent. Do not choose a
-                // copy or infer equality from their shared entry ancestry.
-                continue;
-            }
-            let value = match bindings
-                .iter()
-                .find(|binding| binding.symbol == parameter.symbol)
-            {
-                Some(binding) => binding.value.clone(),
-                // A record formal carries a bare integer entry role through
-                // the unique natural leaf its declaration names: the role
-                // binds the produced coordinate there, not the record itself.
-                None => match carried_natural_coordinate(program, root, parameter, *entry_symbol) {
-                    Some(coordinate) => StrictArithmeticBindingValue::Atom {
-                        identity: coordinate.identity.clone(),
-                        unsigned: true,
-                    },
-                    // An unrelated payload contributes no arithmetic fact. The
-                    // strict engine cannot normalize either omitted symbol,
-                    // even inside an expression that would otherwise cancel
-                    // to zero.
-                    None => continue,
-                },
-            };
-            if let Some(existing) = bindings
-                .iter()
-                .find(|binding| binding.symbol == *entry_symbol)
-            {
-                let (
-                    StrictArithmeticBindingValue::Atom {
-                        identity: existing, ..
-                    },
-                    StrictArithmeticBindingValue::Atom {
-                        identity: current, ..
-                    },
-                ) = (&existing.value, &value)
-                else {
-                    return None;
-                };
-                if existing != current {
-                    alias_comparisons.push((
-                        BinaryOperator::Equal,
-                        Polynomial::atom(existing.clone()),
-                        Polynomial::atom(current.clone()),
-                    ));
-                }
-                continue;
-            }
-            bindings.push(StrictArithmeticSymbolBinding {
-                symbol: *entry_symbol,
-                value,
-            });
-        }
-    }
-    // Equality is a graph invariant only with complete source and destination
-    // coverage. An omitted auxiliary input cannot silently drop its copies'
-    // arrival obligations and become an equality premise in the next state.
+    let bindings = match entry_parameters {
+        Some(entries) => calls::telescoped_bindings(program, machine, state, entries)?,
+        None => integer_bindings(program, state)?,
+    };
     if required_symbols.iter().any(|symbol| {
         !bindings.iter().any(|binding| binding.symbol == *symbol)
-            || destination.is_some_and(|destination| !destination.entry_parameters.contains(symbol))
+            || destination.is_some_and(|destination| {
+                destination
+                    .entry_parameters
+                    .destination(&RankSubjectCoordinate {
+                        parameter: *symbol,
+                        path: Vec::new(),
+                    })
+                    .is_none()
+            })
     }) {
         return None;
     }
@@ -841,48 +992,47 @@ fn prove_edge(
         return None;
     }
     let length_bindings = lengths::bindings(program, machine, state, entry_parameters);
-    if !length_bindings.is_empty() || field_rank.is_some() || slice_rank.is_some() {
-        let expressions = projections::expressions(
+    let mut expressions = projections::expressions(
+        program,
+        machine,
+        root,
+        range,
+        measure,
+        premises,
+        arguments,
+        guards,
+        evaluated_prefix,
+    );
+    constrained_parameter_bound_expressions(program, state, &mut expressions, None);
+    lengths::install(
+        program,
+        machine,
+        state,
+        root,
+        &length_bindings,
+        &mut engine,
+        &expressions,
+    )?;
+    if let Some(field) = &mut field_rank {
+        field.install(
             program,
-            machine,
+            state,
             root,
-            range,
-            measure,
-            premises,
-            arguments,
-            guards,
-            evaluated_prefix,
-        );
-        lengths::install(
+            entry_parameters,
+            &mut engine,
+            &expressions,
+        )?;
+    }
+    if let Some(slice) = &mut slice_rank {
+        slice.install(
             program,
             machine,
             state,
             root,
-            &length_bindings,
+            entry_parameters,
             &mut engine,
             &expressions,
         )?;
-        if let Some(field) = &mut field_rank {
-            field.install(
-                program,
-                state,
-                root,
-                entry_parameters,
-                &mut engine,
-                &expressions,
-            )?;
-        }
-        if let Some(slice) = &mut slice_rank {
-            slice.install(
-                program,
-                machine,
-                state,
-                root,
-                entry_parameters,
-                &mut engine,
-                &expressions,
-            )?;
-        }
     }
     // Saved caller observations ride this site's scope: a state-local `let`
     // the saved-observation bar admits denotes the exact value its
@@ -897,6 +1047,17 @@ fn prove_edge(
             Vec::new()
         };
     let mut comparisons = auxiliary.clone();
+    // A state's own constrained formals are enforced by ordinary arrival
+    // formation. They remain facts of this exact source frame under either
+    // rank regime; only transported entry-template hypotheses require the
+    // separate invariant-preservation obligation below.
+    comparisons.extend(parameter_comparisons(
+        program,
+        machine,
+        state,
+        &mut engine,
+        &bindings,
+    )?);
     if let Some(field) = &field_rank {
         comparisons.extend(field.comparisons(program));
     }
@@ -905,7 +1066,6 @@ fn prove_edge(
         // `>= 0` fact is exactly what the bare-formal length bindings add.
         comparisons.extend(slice.comparisons());
     }
-    comparisons.extend(alias_comparisons);
     comparisons.extend(length_bound_comparisons(&length_bindings));
     for &(guard, holds) in guards {
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
@@ -937,11 +1097,17 @@ fn prove_edge(
     // coordinates as the rank. Bind non-polynomial term meaning after those
     // coordinates exist; declaration/flow formation and every arrival's
     // pinning remain independent obligations below.
-    for endpoint in [range.start, range.end] {
+    for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
         meanings::install_nonpolynomial_terms(program, machine, root, &mut engine, endpoint, 0)?;
     }
-    let floor = engine.normalize(range.start)?;
-    let ceiling = engine.normalize(range.end)?;
+    let floor = match range {
+        Some(range) => engine.normalize(range.start)?,
+        None => Polynomial::default(),
+    };
+    let ceiling = match range {
+        Some(range) => engine.normalize(range.end)?,
+        None => Polynomial::default(),
+    };
     let rank = match measure {
         RankingRangeMeasure::Single(subject) => engine.normalize(subject)?,
         RankingRangeMeasure::Computed {
@@ -969,33 +1135,33 @@ fn prove_edge(
             limit: upper,
         } => engine.normalize(upper)?.sub(&engine.normalize(lower)?),
     };
+    let clamped = matches!(measure, RankingRangeMeasure::IncreasingTo { .. });
     if arguments.is_some() {
-        // Every edge, including a root edge, consumes the established rank
-        // invariant. Entry-only premises never silently reappear at reentry.
-        comparisons.extend([
-            (
+        // Consume precisely the produced-value invariant established at each
+        // complete arrival. IncreasingTo's zero plateau supplies no raw
+        // distance >=0 premise; the shared semantic law retains that distinction.
+        if let Some(range) = range {
+            comparisons.extend(calls::arrival_invariant(
+                measure,
+                &rank,
+                &floor,
+                &ceiling,
+                range.end_inclusive,
+            ));
+        } else if !clamped {
+            comparisons.push((
                 BinaryOperator::GreaterOrEqual,
                 rank.clone(),
-                Polynomial::constant(BigInt::from_i64(0)),
-            ),
-            (BinaryOperator::GreaterOrEqual, rank.clone(), floor.clone()),
-            (
-                if range.end_inclusive {
-                    BinaryOperator::LessOrEqual
-                } else {
-                    BinaryOperator::Less
-                },
-                rank.clone(),
-                ceiling.clone(),
-            ),
-        ]);
+                Polynomial::default(),
+            ));
+        }
     }
     hypothesis_landed_endpoints(
         &mut engine,
         program,
         machine,
         root,
-        range.start,
+        range.map_or(Default::default(), |range| range.start),
         &floor,
         &ceiling,
         &deferred_endpoints,
@@ -1010,21 +1176,30 @@ fn prove_edge(
         RankingRangeMeasure::Computed { carrier, .. } => Some(carrier_maximum(carrier)?),
         _ => None,
     };
-    let entry_membership = {
-        let prove = |difference: Polynomial, minimum: i64| {
-            engine.prove_at_least(&engine.substituted(&difference), &BigInt::from_i64(minimum))
+    let rank_is_member = |value: &Polynomial| {
+        let natural = if let Some(range) = range {
+            calls::membership(
+                &engine,
+                measure,
+                value,
+                &floor,
+                &ceiling,
+                range.end_inclusive,
+            )
+        } else {
+            clamped || engine.prove_at_least(&engine.substituted(value), &BigInt::zero())
         };
-        prove(rank.clone(), 0)
-            && prove(rank.sub(&floor), 0)
-            && prove(ceiling.sub(&rank), i64::from(!range.end_inclusive))
-            && carrier_maximum
-                .as_ref()
-                .is_none_or(|maximum| prove(maximum.sub(&rank), 0))
+        natural
+            && carrier_maximum.as_ref().is_none_or(|maximum| {
+                engine.prove_at_least(&engine.substituted(&maximum.sub(value)), &BigInt::zero())
+            })
     };
+    let entry_membership = rank_is_member(&rank);
     let Some(arguments) = arguments else {
         return Some(RankingRangeEdgeProof {
             membership_and_pinning: entry_membership || engine.requires_unsatisfiable,
             strictly_decreases: false,
+            non_increasing: false,
         });
     };
     let mut substitutions = BTreeMap::new();
@@ -1032,19 +1207,9 @@ fn prove_edge(
     // numeric bindings must not shift a payload slot onto the next rank input.
     let target_parameters =
         program.state_parameters(destination.map_or(state, |destination| destination.state));
-    for (position, (parameter, argument)) in target_parameters.iter().zip(arguments).enumerate() {
-        let source_symbol = destination.map_or(parameter.symbol, |destination| {
-            destination.entry_parameters[position]
-        });
-        // One carrier can owe both kinds of produced coordinate: a record
-        // slot may claim a scalar endpoint leaf and the ranked collection's
-        // slice leaf at once. Each substituter owns only its own atoms, so a
-        // field match must not skip the slice coordinate's demanded actual.
-        // The scalar fallback below applies only when neither coordinate
-        // kind claims this slot's role.
-        let mut coordinate_matched = false;
+    for (parameter, argument) in target_parameters.iter().zip(arguments) {
         if let Some(field) = &field_rank {
-            coordinate_matched |= field.substitute(
+            field.substitute(
                 program,
                 machine,
                 state,
@@ -1053,123 +1218,100 @@ fn prove_edge(
                 parameter,
                 &required_symbols,
                 &mut engine,
-                source_symbol,
+                parameter.symbol,
                 *argument,
                 &mut substitutions,
             )?;
         }
         if let Some(slice) = &slice_rank {
-            coordinate_matched |= slice.substitute(
+            slice.substitute(
                 program,
                 machine,
                 state,
                 entry_parameters,
                 destination,
                 &mut engine,
-                source_symbol,
+                parameter.symbol,
                 *argument,
                 &length_bindings,
                 &mut substitutions,
             )?;
         }
-        if coordinate_matched {
-            continue;
-        }
-        if !source_symbol.is_valid()
-            || destination.is_some_and(|destination| {
-                destination
-                    .entry_parameters
-                    .iter()
-                    .filter(|candidate| **candidate == source_symbol)
-                    .take(2)
-                    .count()
-                    != 1
-                    && !required_symbols.contains(&source_symbol)
-            })
-        {
-            // No first/last-wins substitution for duplicated destinations.
-            // apply_argument_map rejects an omitted atom if the proof uses it.
-            continue;
-        }
-        if let Some((_, identity)) = length_bindings
-            .iter()
-            .find(|(symbol, _)| *symbol == source_symbol)
-        {
-            let actual = if lengths::is_slice(program, parameter.type_reference) {
-                lengths::actual(
+        let target_readings = match destination {
+            Some(destination) => destination
+                .entry_parameters
+                .coordinates
+                .iter()
+                .filter(|selected| selected.destination.parameter == parameter.symbol)
+                .cloned()
+                .collect::<Vec<_>>(),
+            None => vec![RankCoordinateBinding {
+                entry: RankSubjectCoordinate {
+                    parameter: parameter.symbol,
+                    path: Vec::new(),
+                },
+                destination: RankSubjectCoordinate {
+                    parameter: parameter.symbol,
+                    path: Vec::new(),
+                },
+            }],
+        };
+        for reading in target_readings {
+            if !reading.entry.path.is_empty() {
+                continue;
+            }
+            if let Some((_, identity)) = length_bindings
+                .iter()
+                .find(|(symbol, _)| *symbol == reading.entry.parameter)
+            {
+                let actual = arrival_length_actual(
                     program,
                     machine,
                     state,
-                    *argument,
-                    &length_bindings,
-                    &mut engine,
-                )?
-            } else {
-                // The destination slot is a record carrier: the produced
-                // length arrives at the record's unique slice leaf, read off
-                // the actual exactly as a projected subject does.
-                let coordinate = lengths::slice_leaf_coordinate(program, parameter)?;
-                coordinate.arrived_length(
-                    program,
-                    machine,
-                    state,
+                    destination.map_or(state, |destination| destination.state),
+                    &reading.destination,
                     &mut engine,
                     *argument,
-                    coordinate.borrowed,
                     &length_bindings,
-                )?
+                )?;
+                if let Some(existing) = substitutions.get(identity) {
+                    if !engine.requires_unsatisfiable
+                        && !comparison_proven(&engine, BinaryOperator::Equal, existing, &actual)
+                    {
+                        return None;
+                    }
+                } else {
+                    substitutions.insert(identity.clone(), actual);
+                }
+                continue;
+            }
+            let Some(binding) = bindings
+                .iter()
+                .find(|binding| binding.symbol == reading.entry.parameter)
+            else {
+                continue;
             };
-            substitutions.insert(identity.clone(), actual);
-            continue;
-        }
-        let Some(binding) = bindings
-            .iter()
-            .find(|binding| binding.symbol == source_symbol)
-        else {
-            continue;
-        };
-        let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
-            return None;
-        };
-        let actual = match fields::integer_leaf_coordinate(program, parameter) {
-            // The destination slot is a record carrier: the role's produced
-            // value is the leaf its declaration names, read off the actual.
-            Some(coordinate) => coordinate.field_actual(
+            let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
+                return None;
+            };
+            let actual = arrival_scalar_actual(
                 program,
                 machine,
                 state,
+                destination.map_or(state, |destination| destination.state),
+                &reading.destination,
                 &mut engine,
                 *argument,
-                coordinate.borrowed,
-            )?,
-            // A scalar destination's actual may itself be a quotient,
-            // remainder, or shift tree: bind each term's exact-integer
-            // meaning the same way the endpoints were bound above, so
-            // normalization keeps both operands' identity instead of
-            // refusing the term.
-            None => {
-                meanings::install_nonpolynomial_terms(
-                    program,
-                    machine,
-                    state,
-                    &mut engine,
-                    *argument,
-                    0,
-                )?;
-                engine.normalize(*argument)?
+            )?;
+            if let Some(existing) = substitutions.get(identity) {
+                if !engine.requires_unsatisfiable
+                    && !comparison_proven(&engine, BinaryOperator::Equal, existing, &actual)
+                {
+                    return None;
+                }
+            } else {
+                substitutions.insert(identity.clone(), actual);
             }
-        };
-        if let Some(existing) = substitutions.get(identity) {
-            // Source copies remain independent atoms. Their established
-            // equality may prove this arrival, but destination copies never
-            // become hypotheses for their own equality obligation.
-            if !engine.requires_unsatisfiable
-                && !comparison_proven(&engine, BinaryOperator::Equal, existing, &actual)
-            {
-                return None;
-            }
-        } else {
-            substitutions.insert(identity.clone(), actual);
         }
     }
     // Remainder/quotient atoms retain both operand polynomials, so the map
@@ -1210,12 +1352,13 @@ fn prove_edge(
         return Some(RankingRangeEdgeProof {
             membership_and_pinning: true,
             strictly_decreases: true,
+            non_increasing: true,
         });
     }
     // Normalization may cancel an undefined destination operation. Endpoint
     // equality alone cannot transport its formation, so replay every node
     // with the same simultaneous mapping used by the arrival's value proof.
-    for endpoint in [range.start, range.end] {
+    for endpoint in range.into_iter().flat_map(|range| [range.start, range.end]) {
         if !fields::endpoint_operations_land_after_arrival(
             &mut engine,
             program,
@@ -1244,19 +1387,34 @@ fn prove_edge(
     {
         return None;
     }
+    let next_membership = if let Some(range) = range {
+        calls::membership(
+            &engine,
+            measure,
+            &next_rank,
+            &floor,
+            &ceiling,
+            range.end_inclusive,
+        )
+    } else {
+        clamped || prove(next_rank.clone(), 0)
+    };
     let membership_and_pinning = entry_membership
-        && prove(next_rank.clone(), 0)
-        && prove(next_rank.sub(&floor), 0)
-        && prove(ceiling.sub(&next_rank), i64::from(!range.end_inclusive))
+        && next_membership
         && carrier_maximum
             .as_ref()
             .is_none_or(|maximum| prove(maximum.sub(&next_rank), 0));
-    // This same edge judgment owns strict decrease and natural-rank formation;
-    // callers need not fall back to a second syntactic `n > 0` recognizer.
-    let strictly_decreases = prove(rank.sub(&next_rank), 1) && prove(next_rank.clone(), 0);
+    let difference = rank.sub(&next_rank);
+    let natural_next = clamped || prove(next_rank.clone(), 0);
+    let non_increasing = natural_next
+        && (prove(difference.clone(), 0)
+            || (clamped && prove(Polynomial::default().sub(&next_rank), 0)));
+    let strictly_decreases =
+        natural_next && (!clamped || prove(rank.clone(), 1)) && prove(difference, 1);
     Some(RankingRangeEdgeProof {
         membership_and_pinning,
         strictly_decreases,
+        non_increasing,
     })
 }
 
@@ -1307,23 +1465,6 @@ pub(super) fn hypothesis_landed_endpoints(
         }
     }
     Some(())
-}
-
-/// The entry symbol paired to `parameter` over an entry-parameter telescope:
-/// `?` when no formal pairs it, `Ok(None)` when the role is empty (each
-/// caller continues), `Ok(Some(entry))` for a valid role.
-pub(super) fn coordinate_entry_symbol(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    entries: &[symbols::SymbolHandle],
-    parameter: symbols::SymbolHandle,
-) -> Option<Option<symbols::SymbolHandle>> {
-    let (_, entry) = program
-        .state_parameters(state)
-        .iter()
-        .zip(entries)
-        .find(|(candidate, _)| candidate.symbol == parameter)?;
-    Some(entry.is_valid().then_some(*entry))
 }
 
 pub(super) fn computed_rank(
@@ -1497,16 +1638,14 @@ fn root_has_incoming_transition(
                 let Some(transition) = statement.as_transition() else {
                     return false;
                 };
-                transition
-                    .targets()
-                    .any(|target| {
-                        match program.statement_table.transition_target(target) {
-                            TransitionTargetNode::Named { path, .. } => {
-                                path.symbol == root.symbol || path.symbol == machine.symbol
-                            }
-                            _ => false,
+                transition.targets().any(|target| {
+                    match program.statement_table.transition_target(target) {
+                        TransitionTargetNode::Named { path, .. } => {
+                            path.symbol == root.symbol || path.symbol == machine.symbol
                         }
-                    })
+                        _ => false,
+                    }
+                })
             })
     })
 }
@@ -1515,60 +1654,40 @@ fn validate_mapping(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    entry_parameters: &[symbols::SymbolHandle],
+    entry_parameters: &RankStateBindings,
 ) -> Option<()> {
     let states = program.machine_states(machine);
     let root = states.first()?;
-    if !states
-        .iter()
-        .any(|candidate| candidate.symbol == state.symbol)
+    if entry_parameters.state != state.symbol
+        || !states
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
     {
         return None;
     }
-    let root_parameters = program.state_parameters(root);
-    let parameters = program.state_parameters(state);
-    if entry_parameters.len() != parameters.iter().count() {
-        return None;
-    }
-    for (parameter, entry_symbol) in parameters.iter().zip(entry_parameters) {
-        if !parameter.symbol.is_valid()
-            || parameter.is_const
-            || parameters
-                .iter()
-                .filter(|candidate| candidate.symbol == parameter.symbol)
-                .take(2)
-                .count()
-                != 1
-            || (state.symbol != root.symbol
-                && root_parameters
-                    .iter()
-                    .any(|entry| entry.symbol == parameter.symbol))
-            || (state.symbol == root.symbol && parameter.symbol != *entry_symbol)
-        {
-            return None;
-        }
-        if !entry_symbol.is_valid() {
-            // No entry role: the slot's own typed binding still serves guards,
-            // but no root spelling and no entry constraint can reach it.
-            continue;
-        }
-        let entry = root_parameters
+    for (position, selected) in entry_parameters.coordinates.iter().enumerate() {
+        if entry_parameters.coordinates[..position]
             .iter()
-            .find(|entry| entry.symbol == *entry_symbol)?;
-        // A record slot has no integer carrier of its own: it may still carry
-        // a bare integer entry role when its declaration holds that role's
-        // value at one unique natural leaf of the entry's exact width.
-        if entry.is_const
-            || (exact_integer_parameter(program, entry.type_reference)
-                != exact_integer_parameter(program, parameter.type_reference)
-                && carried_natural_coordinate(program, root, parameter, *entry_symbol).is_none())
+            .any(|previous| previous.entry == selected.entry)
         {
             return None;
         }
+        let entry_type = ranking_coordinate_type(program, root, &selected.entry)?;
+        let destination_type = ranking_coordinate_type(program, state, &selected.destination)?;
+        if state.symbol == root.symbol && selected.entry != selected.destination {
+            return None;
+        }
+        if exact_integer_parameter(program, entry_type)
+            != exact_integer_parameter(program, destination_type)
+        {
+            return None;
+        }
+        // Ordinary typed arrivals own nonnumeric carrier compatibility. This
+        // query cannot infer an arithmetic value from two absent carriers.
+        if entry_parameters.destination(&selected.entry)? != selected.destination {
+            return None;
+        }
     }
-    // Two absent integer projections establish no payload type compatibility.
-    // Ordinary typed arrivals own that check; this query leaves both payload
-    // symbols unbound and can prove only the independently numeric rank.
     Some(())
 }
 

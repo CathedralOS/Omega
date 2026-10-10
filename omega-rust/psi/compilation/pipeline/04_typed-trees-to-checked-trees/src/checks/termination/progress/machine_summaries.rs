@@ -21,13 +21,10 @@ pub(crate) fn derive_machine_summary(
     machine: &typed_trees::machine::Machine,
     summaries: &[CheckedProgressSummary],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
 ) -> Option<CheckedProgressSummary> {
-    if !crate::checks::termination::infer_machine_checked_summary(
-        program,
-        machine,
-        call_frames,
-    )
-    .promises_termination()
+    if !crate::checks::termination::retained_machine_local_summary(machine, rank_arrivals)
+        .promises_termination()
     {
         return Some(no_guarantee(machine.symbol));
     }
@@ -218,9 +215,9 @@ pub(crate) fn selected_call_summary<'a>(
             build_bound_demands: &[],
         });
     }
-    let target_machine = program.machine_by_symbol(target_symbol).or_else(|| {
-        validation::find_state(program, target_symbol).map(|(machine, _)| machine)
-    })?;
+    let target_machine = program
+        .machine_by_symbol(target_symbol)
+        .or_else(|| validation::find_state(program, target_symbol).map(|(machine, _)| machine))?;
     match &target_machine.termination_plan.interface {
         language_semantics::TerminationInterface::Published(guarantee) => {
             let build_bound_demands = summaries
@@ -255,14 +252,14 @@ fn instantiate_call_premise(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressPremise> {
     let mut subject = call_argument_subject(
-            program,
-            machine,
-            state_flow,
-            call,
-            call_target_parameters(program, call.target_symbol)?,
-            premise.subject.root,
-            call_frames
-        )?;
+        program,
+        machine,
+        state_flow,
+        call,
+        call_target_parameters(program, call.target_symbol)?,
+        premise.subject.root,
+        call_frames,
+    )?;
     subject
         .projections
         .extend(premise.subject.projections.iter().copied());
@@ -271,7 +268,6 @@ fn instantiate_call_premise(
         subject,
     })
 }
-
 
 /// The single subject a call argument names, or `None` when it names none or
 /// when a dynamic selector leaves several — `call_argument_subjects`

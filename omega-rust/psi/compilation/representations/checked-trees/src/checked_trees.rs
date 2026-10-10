@@ -44,6 +44,14 @@ pub use borrow::{
     IncomingReferenceIdentity, ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::CheckedValueQualification;
+pub use facts::{
+    CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
+    CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
+    CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
+    CheckedRankPremiseRegime, CheckedRankReceivingCoordinate, CheckedRankValueDerivation,
+    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
+    CheckedRuntimeRankMember, CheckedStateRankCorrespondence,
+};
 
 pub use facts::{
     CheckedStoredIntegerWrite, ContextualCleanupApplication, ContextualCleanupDisposition,

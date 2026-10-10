@@ -420,7 +420,11 @@ reads and loans of the home carry them.
 
 An initialized primitive local uses an unrestricted, unqualified, claim-free
 `OperationResult` place. `EstablishPrimitiveLocal` consumes an exactly typed SSA
-initializer and establishes the referent; `PrimitiveScalarRead` produces a
+initializer and establishes the referent. A scalar-restricted declaration requires
+its optional receiving obligation at that exact initializer SSA value, using the
+same declaration-owned predicate as field construction and replacement. The
+restriction supplies no premise before initialization; runtime contents must
+satisfy it before the new home is published. `PrimitiveScalarRead` produces a
 fresh scalar observation of an established local or readable primitive borrow.
 Establishment must dominate every local use. A read is not equality with the
 initializer or a previous read: intervening stores and calls can change storage.

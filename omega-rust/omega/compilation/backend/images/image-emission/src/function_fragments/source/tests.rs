@@ -79,6 +79,7 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
             psi_operation: operation,
             result: result.clone(),
             value: scalar,
+            range_obligation: None,
         },
         AbstractOperation::PrimitiveLocalStore {
             psi_operation: operation,

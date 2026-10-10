@@ -168,7 +168,7 @@ fn descriptor_type(types: &[StructuralTypeDeclaration], identity: StructuralType
         ) || declaration.shape.is_borrowed_byte_view())
 }
 
-fn owned_affine_type(
+pub(super) fn owned_affine_type(
     parameters: &[StructuralParameterDeclaration],
     local_places: &[StructuralPlaceDeclaration],
     blocks: &[Block],

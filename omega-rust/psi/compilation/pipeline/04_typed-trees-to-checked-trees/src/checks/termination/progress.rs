@@ -113,6 +113,7 @@ pub(crate) fn analyze_checked_progress(
     proof_components: &[validation::ValidatedProofRecursiveComponent],
     self_call_descents: &[validation::ValidatedSelfCallDescent],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
 ) -> Result<Vec<CheckedProgressSummary>, Vec<Diagnostic>> {
     let summaries = components::derive_summaries(
         program,
@@ -121,6 +122,7 @@ pub(crate) fn analyze_checked_progress(
         proof_components,
         self_call_descents,
         call_frames,
+        rank_arrivals,
     );
 
     let mut diagnostics = Vec::new();
@@ -132,9 +134,7 @@ pub(crate) fn analyze_checked_progress(
         // Ranking diagnostics own local control-flow failure and can name the
         // missing or invalid witness precisely. Progress coverage begins only
         // after that independent obligation succeeds.
-        if !super::infer_machine_checked_summary(program, machine, call_frames)
-            .promises_termination()
-        {
+        if !super::retained_machine_local_summary(machine, rank_arrivals).promises_termination() {
             continue;
         }
         let Some(checked) = summaries

@@ -189,6 +189,7 @@ impl StateGraphEmission<'_, '_> {
                     continue;
                 }
                 let mut argument_path = Vec::new();
+                let mut completed_binding = None;
                 let place = match transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { ref operands, ref establishment } => {
                             // The edge performs its ordinary establishment
@@ -230,7 +231,11 @@ impl StateGraphEmission<'_, '_> {
                             )
                             .and_then(|()| {
                                 case_emission::result(state, result.binding_ordinal, operations)
-                                    .map(|binding| binding.place())
+                                    .map(|binding| {
+                                        let place = binding.place();
+                                        completed_binding = Some(binding.into_owned());
+                                        place
+                                    })
                             });
                             operations.structural_values = state_bindings;
                             edge_evaluation.current_structural_place(emitted?)
@@ -453,29 +458,35 @@ impl StateGraphEmission<'_, '_> {
                 // either keeps a view of its one lender's home or receives the
                 // moved storage; neither retains an entry home.
                 let chain_arrival = self.loan_chains.arrival(target, target_index as u32);
-                if chain_arrival.is_some()
-                    && let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                        subject:
-                            checked_trees::CheckedUnitStructuralArgumentPlan {
-                                source:
-                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                        binding_ordinal,
-                                    },
+                if chain_arrival.is_some() {
+                    let lender = match &transfer.source {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { .. } => {
+                            Some(std::borrow::Cow::Borrowed(completed_binding.as_ref().ok_or(
+                                LoweringError::Unsupported("Unit graph completed loan lost its emitted home"),
+                            )?))
+                        }
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                            subject: checked_trees::CheckedUnitStructuralArgumentPlan {
+                                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
                                 ..
                             },
-                        ..
+                        }
+                        | checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => {
+                            Some(case_emission::result(state, *binding_ordinal, operations)?)
+                        }
+                        _ => None,
+                    };
+                    if let Some(result) = lender {
+                        if !result.claims().is_empty()
+                            || !result.path().is_empty()
+                            || !argument_path.is_empty()
+                        {
+                            return unsupported(
+                                "Unit graph state loan chain home is not plain whole storage",
+                            );
+                        }
+                        self.loan_chains.lend(target, target_index as u32, place)?;
                     }
-                    | checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    } = transfer.source
-                {
-                    let result = case_emission::result(state, binding_ordinal, operations)?;
-                    if !result.claims().is_empty() || !argument_path.is_empty() {
-                        return unsupported(
-                            "Unit graph state loan chain home is not plain whole storage",
-                        );
-                    }
-                    self.loan_chains.lend(target, target_index as u32, place)?;
                 }
                 // Shared loan subjects keep their backing local's storage
                 // for the loan's duration exactly like mutable ones: the
@@ -560,7 +571,7 @@ impl StateGraphEmission<'_, '_> {
                         }
                     }
                 }
-                capture_parameters.push(StructuralParameterDeclaration {
+                let mut capture = StructuralParameterDeclaration {
                     place,
                     position: u32::try_from(capture_parameters.len()).map_err(|_| {
                         LoweringError::Unsupported("cleanup capture structural roster exceeds u32")
@@ -575,7 +586,12 @@ impl StateGraphEmission<'_, '_> {
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
-                });
+                };
+                // Private cleanup transport retains the same owner as the
+                // authored arrival, including a hidden affine readonly home.
+                self.loan_chains
+                    .declare(target, target_index as u32, &mut capture);
+                capture_parameters.push(capture);
                 structural_arguments.push(StructuralArgument {
                     place,
                     path: argument_path,

@@ -322,27 +322,6 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 /// open beneath a mutable-borrowed parameter or a completed owned home; a
 /// whole-root window needs the original exclusive parameter loan. A reference
 /// crossing without a following child selector still names a whole referent.
-/// The declared scalar type of a value anywhere it may be declared on the
-/// machine — machine parameters, the result, block parameters and operation
-/// results.
-fn declared_scalar_type(
-    machine: &TerminalMachine,
-    value: semantic_vocabulary::ValueId,
-) -> Option<ScalarType> {
-    machine
-        .parameters
-        .iter()
-        .chain(machine.result.scalar_ref())
-        .chain(machine.block_parameters())
-        .chain(machine.blocks.iter().flat_map(|block| {
-            block
-                .operations
-                .iter()
-                .filter_map(|candidate| candidate.result.scalar_ref())
-        }))
-        .find(|declaration| declaration.id == value)
-        .map(|declaration| declaration.scalar_type)
-}
 
 fn window_root_type(
     module: &TerminalModule,

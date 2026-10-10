@@ -42,7 +42,8 @@ pub(super) struct Builder<'program, 'plans> {
     pub(super) statement_index: usize,
     pub(super) parameters: &'program [StateParameter],
     /// Explicit declaration inputs for an observation outside statement execution.
-    pub(super) declaration_bindings: &'program [(SymbolHandle, ExpressionHandle)],
+    pub(super) declaration_bindings:
+        &'program [(validation::CanonicalPlace, validation::CanonicalPlace)],
     pub(super) declaration_parameters: &'program [StateParameter],
     pub(super) authored_parameters: &'program [StateParameter],
     pub(super) parameter_types: &'program [PrimitiveType],
@@ -69,15 +70,17 @@ impl Builder<'_, '_> {
             return false;
         }
         struct Bindings<'bindings> {
-            bindings: &'bindings [(SymbolHandle, ExpressionHandle)],
+            bindings: &'bindings [(validation::CanonicalPlace, validation::CanonicalPlace)],
             found: bool,
             visited: Vec<ExpressionHandle>,
         }
         impl Extend<SymbolHandle> for Bindings<'_> {
             fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
-                self.found |= symbols
-                    .into_iter()
-                    .any(|symbol| self.bindings.iter().any(|(formal, _)| *formal == symbol));
+                self.found |= symbols.into_iter().any(|symbol| {
+                    self.bindings
+                        .iter()
+                        .any(|(formal, _)| formal.root == facts::PlaceRoot::Symbol(symbol))
+                });
             }
         }
         impl typed_trees::references::TypedReferences for Bindings<'_> {
@@ -307,6 +310,26 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
+        if let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
+            && name.symbol == name.head_symbol
+            && self
+                .program
+                .expression_table
+                .name_path_members(name.members)
+                .len()
+                == 1
+        {
+            let mut selected = self.declaration_bindings.iter().filter(|(formal, _)| {
+                formal.root == facts::PlaceRoot::Symbol(name.symbol) && formal.segments.is_empty()
+            });
+            if let Some((_, coordinate)) = selected.next() {
+                if selected.next().is_some() {
+                    return None;
+                }
+                let coordinate = coordinate.clone();
+                return self.scalar_coordinate(expression, &coordinate, expected_type);
+            }
+        }
         if let Some(field) = self.structural_scalar_field(expression) {
             return (field.primitive_type == expected_type)
                 .then(|| self.structural_field(expression, field))

@@ -16,12 +16,18 @@ use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
 
+mod rank_components;
 mod rank_relevance;
+pub use rank_components::{
+    RuntimeRankComponents, prepare_runtime_rank_components, retain_runtime_rank_component,
+    retained_internal_rank_nonincrease, retained_runtime_natural_components,
+    retained_runtime_recursive_components,
+};
 pub(crate) mod runtime_ranking;
 pub use rank_relevance::{RankRelevance, rank_relevance};
 pub use runtime_ranking::{
-    ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
-    internal_state_index,
+    RuntimeRankBodyWitness, ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge,
+    ValidatedRuntimeNaturalState, internal_state_index,
 };
 
 /// The one closed ranking relation currently admitted for a proof-only call
@@ -404,59 +410,6 @@ fn collect_expression_dependency_symbols(
     }
 }
 
-/// Return the exact runtime machine components admitted by the call-cycle
-/// ranking judgment. The full graph includes proof dependencies, so a runtime
-/// subset of a mixed component cannot acquire independent admission. This
-/// query does not validate progress premises or single-machine recursion.
-pub fn validated_runtime_recursive_components(
-    program: &dyn crate::CheckingInput,
-) -> Vec<Vec<SymbolHandle>> {
-    let mut diagnostics = Vec::new();
-    let symbols = TopLevelSymbols::build(program, &mut diagnostics);
-    if diagnostics.iter().any(Diagnostic::is_error) {
-        return Vec::new();
-    }
-    let proof_only = crate::proof_only_classification(program);
-    let graph = build_machine_call_graph(program, &symbols, &proof_only);
-    runtime_ranking::admitted_components(program, &proof_only, &graph.edges)
-        .into_iter()
-        .map(|members| {
-            members
-                .into_iter()
-                .map(|member| program.machines()[member].symbol)
-                .collect()
-        })
-        .collect()
-}
-
-/// Re-run the runtime component judgment and retain its exact unsigned rank
-/// coordinates and edge comparisons. Acyclic callers are not component members.
-pub fn validated_runtime_natural_components(
-    program: &dyn crate::CheckingInput,
-) -> Vec<ValidatedRuntimeNaturalComponent> {
-    let mut diagnostics = Vec::new();
-    let symbols = TopLevelSymbols::build(program, &mut diagnostics);
-    if diagnostics.iter().any(Diagnostic::is_error) {
-        return Vec::new();
-    }
-    let proof_only = crate::proof_only_classification(program);
-    let graph = build_machine_call_graph(program, &symbols, &proof_only);
-    strongly_connected_components(&graph.edges)
-        .into_iter()
-        .filter(|component| {
-            component.len() > 1
-                && component.iter().all(|position| {
-                    !proof_only.is_proof_machine(program, &program.machines()[*position])
-                })
-        })
-        .filter_map(|component| {
-            runtime_ranking::project_component(program, &graph.edges, &component)
-                .ok()
-                .flatten()
-        })
-        .collect()
-}
-
 /// Temporary graph construction shared by validation and admission queries.
 struct MachineCallGraph {
     edges: Vec<Vec<usize>>,
@@ -506,7 +459,6 @@ pub(crate) fn validate_machine_call_cycles(
         index_of,
         proof_dependencies,
     } = build_machine_call_graph(program, symbols, &proof_only);
-    let runtime_components = runtime_ranking::admitted_components(program, &proof_only, &edges);
     let proof_components = build_validated_proof_recursive_components(
         program,
         symbols,
@@ -567,15 +519,10 @@ pub(crate) fn validate_machine_call_cycles(
                      of the caller's ranking subject"
                 )));
             }
-        } else if !runtime_components.contains(&members) {
-            let reason = runtime_ranking::check_component(program, &edges, &members)
-                .err()
-                .unwrap_or("runtime and proof-only machines cannot share a recursive component");
-            diagnostics.push(Diagnostic::error(format!(
-                "machine call cycle: `{names}` -- {reason}; runtime calls must be tail, \
-                 and every complete cycle must decrease the shared `terminates by ...` ranking"
-            )));
         }
+        // Runtime and mixed components keep their exact topology here. Their
+        // complete edge judgment waits for completed effects and each body's
+        // retained arrival choice. Proof recursion above remains early.
     }
     proof_components
 }

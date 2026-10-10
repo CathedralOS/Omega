@@ -43,9 +43,18 @@ pub use declaration_predicates::{
 pub enum StateScalarContractRow {
     /// An authored `requires` expression; the caller owns its closed lowering.
     Expression(typed_trees::expression::ExpressionHandle),
-    /// A scalar parameter's declared range or exactly-interval domain:
-    /// `minimum <= parameter <= maximum`. Both spellings require the same
-    /// independently checked arrival predicate.
+    /// A bracketed integer range retains its authored endpoint observations.
+    /// The state telescope supplies their exact subjects on every arrival;
+    /// dependent endpoints are not closed constants or invocation snapshots.
+    DeclaredRange {
+        parameter: SymbolHandle,
+        minimum: typed_trees::expression::ExpressionHandle,
+        maximum: typed_trees::expression::ExpressionHandle,
+        end_inclusive: bool,
+    },
+    /// A scalar parameter's exactly-interval domain:
+    /// `minimum <= parameter <= maximum`. The domain carries the same
+    /// independently checked arrival predicate as a closed bracketed range.
     Interval {
         parameter: SymbolHandle,
         minimum: numerics::bignum::BigInt,
@@ -96,8 +105,9 @@ pub fn restates_structural_parameter_qualification(
 /// Split a state's authored `requires` contracts into the membership rows that
 /// restate parameter domain qualifications and the scalar rows a proof lane
 /// may carry. Membership rows must still match the exact declared
-/// qualifications. Declared integer ranges and exactly-interval memberships
-/// become interval rows; every other contract shape remains out of scope.
+/// qualifications. Declared integer ranges retain endpoint observations;
+/// exactly-interval memberships become closed interval rows. Every other
+/// contract shape remains out of scope.
 pub fn structural_state_contract_scalar_predicates(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
@@ -310,9 +320,9 @@ pub fn state_finite_predicate(
     )
 }
 
-/// Read every constrained shell without narrowing endpoints to the host's i64
-/// window. References describe storage, not scalar arrival parameters; their
-/// invariants remain with the structural storage and loan checks.
+/// Retain every constrained shell's exact endpoint observations. References
+/// describe storage, not scalar arrival parameters; their invariants remain
+/// with the structural storage and loan checks.
 fn retain_declared_integer_ranges(
     program: &dyn crate::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
@@ -332,10 +342,11 @@ fn retain_declared_integer_ranges(
         {
             return None;
         }
-        predicates.push(StateScalarContractRow::Interval {
+        predicates.push(StateScalarContractRow::DeclaredRange {
             parameter: parameter.symbol,
-            minimum: crate::closed_integer_range_bound(program, minimum)?,
-            maximum: crate::closed_integer_range_maximum(program, maximum, end_inclusive)?,
+            minimum,
+            maximum,
+            end_inclusive,
         });
     }
     Some(())
@@ -986,18 +997,16 @@ fn structural_authored_arguments<'program>(
                                 .is_some_and(|entry| entry.symbol == target_state)
                         })
                 };
-                let mut named = transition
-                    .targets()
-                    .filter_map(
-                        |target| match program.statement_table.transition_target(target) {
-                            typed_trees::statement::TransitionTargetNode::Named {
-                                path,
-                                arguments,
-                                ..
-                            } if names_target(path.symbol) => Some(*arguments),
-                            _ => None,
-                        },
-                    );
+                let mut named = transition.targets().filter_map(|target| {
+                    match program.statement_table.transition_target(target) {
+                        typed_trees::statement::TransitionTargetNode::Named {
+                            path,
+                            arguments,
+                            ..
+                        } if names_target(path.symbol) => Some(*arguments),
+                        _ => None,
+                    }
+                });
                 let arguments = named
                     .next()
                     .ok_or("structural call occurrence has no authored statement")?;

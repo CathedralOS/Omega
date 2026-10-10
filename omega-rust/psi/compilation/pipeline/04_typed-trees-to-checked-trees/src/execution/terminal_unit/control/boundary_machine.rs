@@ -1,6 +1,10 @@
 //! Building boundary machines and their static boundary requirements.
+//!
+//! Source checking owns authored public contracts and provider refinement.
+//! Publication retains their exact checked commitment, runtime signature and
+//! custody; it does not recheck their source arrangement. Qualifying a result
+//! still requires its separately checked authorization route.
 
-use std::collections::BTreeSet;
 use crate::execution::terminal_unit::calls::{
     boundary_owner_scalar_signature, exact_external_leaf_boundary_requirement,
     free_structural_scalar_signature,
@@ -8,8 +12,8 @@ use crate::execution::terminal_unit::calls::{
 use crate::execution::terminal_unit::types::{
     ShapeCollector, boundary_borrowed_referent, boundary_domain_requirements,
     fold_authorized_result_domains, is_unit, machine_binders, parameter_qualifications,
-    projected_parameter_qualifications, signature_contracts_are_exact_parameter_qualifications,
-    state_flow, structural_access_for_type_reference, type_graph_requires_nominal_drop,
+    projected_parameter_qualifications, state_flow, structural_access_for_type_reference,
+    type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, substituted_formal_type};
 use crate::execution::terminal_unit::{
@@ -17,6 +21,7 @@ use crate::execution::terminal_unit::{
     CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralParameterPlan, SymbolHandle, is_reference,
 };
+use std::collections::BTreeSet;
 
 pub(crate) fn build_boundary_machine(
     program: &dyn ::validation::CheckingInput,
@@ -286,17 +291,11 @@ pub(crate) fn build_static_boundary_requirements(
                             None => nominal_use_backs_binder(ordinal, parameter),
                         }
                     });
-            // Suspension is retained on the ordinary call, with its exact
-            // frontier joined during lowering. The requirement's contract
-            // commitment below retains suspension and blocking independently;
-            // a provider cannot erase either demand by completing inline.
-            if !signature_contracts_are_exact_parameter_qualifications(
-                program,
-                definition.symbol,
-                signature,
-            ) {
-                continue;
-            }
+            // Authored contracts were checked against the selected public
+            // signature before executable planning. Publication retains that
+            // exact contract commitment; it does not require every predicate
+            // to be representable as a parameter qualification. Suspension and
+            // blocking stay independent demands even when a provider is inline.
             // A generic telescope the callback path cannot reach is still
             // planned when every checked call naming this requirement retains
             // a specialization resolving the whole telescope: each `Type`
@@ -414,8 +413,10 @@ pub(crate) fn build_static_boundary_requirements(
                 scalar_parameters,
                 result,
                 domain_requirements,
-                // Admission above accepted only contracts that are exact
-                // parameter qualifications, so no scalar predicate remains.
+                // Source checking owns these authored contracts. This declaration
+                // retains their exact commitment without publishing scalar
+                // consequences that the requirement projection did not derive.
+                // Parameter and result qualifications keep their own carriers.
                 scalar_ensures: Vec::new(),
                 scalar_requires: Vec::new(),
                 contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
@@ -784,9 +785,7 @@ pub(crate) fn boundary_result_plan(
         return Some(CheckedBoundaryMachineResultPlan::Scalar(scalar));
     }
     if is_reference(program, type_reference)
-        || type_graph_requires_nominal_drop(program, type_reference,
-        &[],
-        &mut BTreeSet::new())
+        || type_graph_requires_nominal_drop(program, type_reference, &[], &mut BTreeSet::new())
     {
         return None;
     }

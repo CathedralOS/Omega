@@ -263,6 +263,7 @@ fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
             },
         ),
         kind: OperationKind::EstablishPrimitiveLocal {
+            range_obligation: None,
             value: value_id(11),
         },
     };

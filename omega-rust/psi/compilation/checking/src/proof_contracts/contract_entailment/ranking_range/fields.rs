@@ -338,6 +338,27 @@ impl<'program> Coordinate<'program> {
             self.value(),
             Polynomial::default(),
         )];
+        // Carrier membership is independent of an authored rank range. The
+        // signed-window interval owner below retains narrower storage facts,
+        // but cannot represent an unrestricted u64 ceiling. Keep the exact
+        // declared carrier here so reconstructed field actuals can prove
+        // every operation forms without assuming a smaller arrival value.
+        if let Some(primitive) = exact_integer_parameter(program, self.field.type_reference)
+            && let Some((minimum, maximum)) = super::integer_carrier_bounds(primitive)
+        {
+            comparisons.extend([
+                (
+                    BinaryOperator::GreaterOrEqual,
+                    self.value(),
+                    Polynomial::constant(minimum),
+                ),
+                (
+                    BinaryOperator::LessOrEqual,
+                    self.value(),
+                    Polynomial::constant(maximum),
+                ),
+            ]);
+        }
         if let Some((minimum, maximum)) =
             crate::enforced_integer_type_bounds(program, self.field.type_reference)
         {
@@ -447,7 +468,9 @@ impl<'program> Coordinate<'program> {
         // leaf normalization keeps both operands' identity instead of
         // refusing the term.
         super::meanings::install_nonpolynomial_terms(program, machine, state, engine, current, 0)?;
-        engine.normalize(current)
+        super::meanings::builtin(program, machine, state, current, 0)?;
+        let value = engine.normalize(current)?;
+        endpoint_lands_under(engine, program, machine, state, current, &value).then_some(value)
     }
 
     /// The exact coordinate `expression` installs for this chain when the
@@ -544,7 +567,9 @@ impl<'program> Coordinate<'program> {
         // quotient, remainder, or exact shift, so each non-polynomial
         // operand-pair atom is minted before the leaf normalizes.
         super::meanings::install_nonpolynomial_terms(program, machine, state, engine, current, 0)?;
-        engine.normalize(current)
+        super::meanings::builtin(program, machine, state, current, 0)?;
+        let value = engine.normalize(current)?;
+        endpoint_lands_under(engine, program, machine, state, current, &value).then_some(value)
     }
 }
 
@@ -555,19 +580,37 @@ pub(super) fn projected_type(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    let (parameter, chain) = member_chain(program, state, expression)?;
-    let (mut owner, _) = record_referent(program, parameter.type_reference)?;
-    let mut declared = None;
-    for (symbol, spelled) in &chain {
-        let (_, field) = declared_field(program, owner, *symbol)?;
-        if field.name != **spelled {
+    let (machine, _) = crate::find_state(program, state.symbol)?;
+    let place = crate::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        usize::MAX,
+        expression,
+    )?;
+    let root = place.root.as_symbol()?;
+    if let Some(parameter) = program.state_parameter_by_symbol(state, root) {
+        if parameter.is_const {
             return None;
         }
-        declared = Some(field.type_reference);
-        owner = record_referent(program, field.type_reference)
-            .map_or(SymbolHandle::default(), |(next, _)| next);
+    } else {
+        // Local projection typing shares saved-value custody. This admits
+        // captured record fields without replaying a later mutable carrier.
+        super::saved_arguments::saved(program, state, root)?;
     }
-    declared
+    if place.segments.is_empty()
+        || !place.segments.iter().all(|segment| match segment {
+            facts::PlaceSegment::Field { symbol } => {
+                symbol.is_valid() && program.any_field_owner(*symbol).is_some()
+            }
+            facts::PlaceSegment::Case { variant } => {
+                variant.is_valid() && program.variant_owner(*variant).is_some()
+            }
+            _ => false,
+        })
+    {
+        return None;
+    }
+    crate::value_custody::places::declared_place_type_raw(program, machine, Some(state), expression)
 }
 
 /// The member chain of `expression` from its root formal outward, each step
@@ -644,7 +687,11 @@ pub(super) fn member_chain<'program>(
         return None;
     }
     chain.reverse();
-    Some((parameter(program, state, cursor)?, chain))
+    if let Some(parameter) = parameter(program, state, cursor) {
+        Some((parameter, chain))
+    } else {
+        captured_carrier(program, state, expression)
+    }
 }
 
 /// A coordinate survives only when the member chain's spelled hops name the
@@ -675,6 +722,34 @@ pub(super) fn rooted_carrier<'program>(
         return Some((parameter, Vec::new()));
     }
     member_chain(program, state, expression)
+        .or_else(|| captured_carrier(program, state, expression))
+}
+
+/// A completed saved record or selected leaf retains the exact source
+/// coordinate. Reconstruct its member chain from those declarations rather
+/// than assigning a local's destination field spelling to a source sibling.
+fn captured_carrier<'program>(
+    program: &'program dyn crate::CheckingInput,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(
+    &'program StateParameter,
+    Vec<(SymbolHandle, &'program Identifier)>,
+)> {
+    let coordinate = super::saved_arguments::captured_coordinate(program, state, expression)?;
+    let parameter = program.state_parameter_by_symbol(state, coordinate.parameter)?;
+    let mut chain = Vec::new();
+    let mut reference = parameter.type_reference;
+    for segment in coordinate.path {
+        let facts::PlaceSegment::Field { symbol } = segment else {
+            return None;
+        };
+        let (owner, _) = record_referent(program, reference)?;
+        let (_, field) = declared_field(program, owner, symbol)?;
+        chain.push((field.symbol, &field.name));
+        reference = field.type_reference;
+    }
+    Some((parameter, chain))
 }
 
 /// The record a formal's type declares, directly or as the referent of one
@@ -777,223 +852,4 @@ pub fn unique_literal_field(
         });
     let value = fields.next()?.value;
     fields.next().is_none().then_some(value)
-}
-
-/// The chain a `root`-anchored coordinate becomes when `parameter`'s record
-/// carries the role at a nested path: the formal's declaration contains one
-/// of this chain's boundary records at a unique field path, or the formal is
-/// itself a record this chain reaches partway. `steps` are the chain's
-/// record-typed intermediate fields and `chain` the full resolved field
-/// symbols including the leaf. Each candidate is a distinct reading of the
-/// same role, so zero or two stay role-less rather than guess which record
-/// the arrival meant.
-pub(super) fn nested_arrival_chain(
-    program: &dyn crate::CheckingInput,
-    parameter: &StateParameter,
-    root: SymbolHandle,
-    steps: &[&DataField],
-    chain: &[SymbolHandle],
-) -> Option<Vec<SymbolHandle>> {
-    let (formal_record, _) = record_referent(program, parameter.type_reference)?;
-    // `boundaries[i]` is the record this chain reaches after `chain[..i]`
-    // under its own root -- the owner `chain[i]` resolves against. A carrier
-    // formal can denote any of them through its own fields.
-    let mut boundaries = Vec::with_capacity(steps.len() + 1);
-    boundaries.push(root);
-    for step in steps {
-        let TypeReferenceNode::Named { symbol: next, .. } =
-            program.type_reference_table.type_reference(
-                program
-                    .type_reference_table
-                    .unconstrained_type_reference(step.type_reference),
-            )
-        else {
-            return None;
-        };
-        boundaries.push(*next);
-    }
-    let mut candidates: Vec<Vec<SymbolHandle>> = Vec::new();
-    for (boundary, target) in boundaries.iter().enumerate() {
-        let mut prefixes = Vec::new();
-        collect_record_paths(program, formal_record, *target, &mut prefixes);
-        for mut prefix in prefixes {
-            if boundary == 0 && prefix.is_empty() {
-                // The direct reading was already judged by the caller.
-                continue;
-            }
-            prefix.extend(&chain[boundary..]);
-            if !candidates.contains(&prefix) {
-                candidates.push(prefix);
-            }
-            if candidates.len() > 1 {
-                return None;
-            }
-        }
-    }
-    let [resolved] = candidates.as_slice() else {
-        return None;
-    };
-    Some(resolved.clone())
-}
-
-/// Every field path under `from`'s declaration that lands on record `to`,
-/// including the empty path when `from` is already `to`. Only owned exact
-/// record steps carry the descent -- a reference boundary or a leaf ends it,
-/// matching `for_parameter`'s chain resolution -- and a path that would
-/// revisit a record it already crossed reads a slot it left, not a new
-/// arrival. Collection stops at two: a second path already makes the
-/// carriage ambiguous, so no caller needs the rest.
-/// Depth-16 owned-record descent shared by the path collectors: `step`
-/// answers `(record_this_path, descend_into)` for each field — the walk owns
-/// the definition lookup, visited-record guard, path push/pop, and the
-/// two-path cap.
-fn for_each_record_field_path(
-    program: &dyn crate::CheckingInput,
-    from: SymbolHandle,
-    paths: &mut Vec<Vec<SymbolHandle>>,
-    step: impl Fn(&dyn crate::CheckingInput, &DataField) -> (bool, Option<SymbolHandle>),
-) {
-    fn visit(
-        program: &dyn crate::CheckingInput,
-        owner: SymbolHandle,
-        visiting: &mut Vec<SymbolHandle>,
-        path: &mut Vec<SymbolHandle>,
-        paths: &mut Vec<Vec<SymbolHandle>>,
-        depth: usize,
-        step: &dyn Fn(&dyn crate::CheckingInput, &DataField) -> (bool, Option<SymbolHandle>),
-    ) {
-        if paths.len() >= 2 || depth >= 16 {
-            return;
-        }
-        let Some(declaration) =
-            crate::declarations::data_queries::data_definition_by_symbol(program, owner)
-        else {
-            return;
-        };
-        visiting.push(owner);
-        for member in program.data_members(declaration) {
-            let Some(field) = member.as_field() else {
-                continue;
-            };
-            let (record, descend_into) = step(program, field);
-            path.push(field.symbol);
-            if record {
-                paths.push(path.clone());
-            }
-            if let Some(next) = descend_into
-                && !visiting.contains(&next)
-            {
-                visit(program, next, visiting, path, paths, depth + 1, step);
-            }
-            path.pop();
-            if paths.len() >= 2 {
-                break;
-            }
-        }
-        visiting.pop();
-    }
-    visit(
-        program,
-        from,
-        &mut Vec::new(),
-        &mut Vec::new(),
-        paths,
-        0,
-        &step,
-    );
-}
-
-pub(super) fn collect_record_paths(
-    program: &dyn crate::CheckingInput,
-    from: SymbolHandle,
-    to: SymbolHandle,
-    paths: &mut Vec<Vec<SymbolHandle>>,
-) {
-    if from == to {
-        paths.push(Vec::new());
-    }
-    for_each_record_field_path(program, from, paths, |program, field| {
-        let Some(next) = program
-            .type_reference_table
-            .unconstrained_named_symbol(field.type_reference)
-        else {
-            return (false, None);
-        };
-        // A step landing on the target records its own path even when the
-        // record is already crossed -- `x` and `x.y` both landing on the
-        // target are genuinely two readings.
-        (next == to, Some(next))
-    });
-}
-
-/// Every field path under `from`'s declaration that lands on a leaf `accept`
-/// names, reached through owned exact record steps exactly as
-/// `collect_record_paths` descends. A bare formal's role packed inside a
-/// record literal is legible only while that leaf path is unique: two
-/// candidate leaves make the carriage ambiguous, so collection stops at two
-/// and callers keep no coordinate rather than guess which leaf holds the
-/// role.
-pub(super) fn collect_leaf_paths(
-    program: &dyn crate::CheckingInput,
-    from: SymbolHandle,
-    accept: impl Fn(&dyn crate::CheckingInput, &DataField) -> bool,
-    paths: &mut Vec<Vec<SymbolHandle>>,
-) {
-    for_each_record_field_path(program, from, paths, |program, field| {
-        if accept(program, field) {
-            (true, None)
-        } else {
-            // A reference boundary or a scalar leaf ends the descent, matching
-            // `for_parameter`'s chain resolution.
-            let descend = program
-                .type_reference_table
-                .unconstrained_named_symbol(field.type_reference);
-            (false, descend)
-        }
-    });
-}
-
-/// The natural coordinate a bare integer entry role takes inside
-/// `parameter`'s record: the declaration must carry exactly one exact
-/// unsigned leaf reachable through owned record steps. The claim only locates
-/// the leaf -- membership, endpoints, and descent still prove independently,
-/// and a second admissible leaf keeps no coordinate rather than guessing.
-pub(super) fn integer_leaf_coordinate<'program>(
-    program: &'program dyn crate::CheckingInput,
-    parameter: &'program StateParameter,
-) -> Option<FieldCoordinate<'program>> {
-    let (root, _) = record_referent(program, parameter.type_reference)?;
-    let mut paths = Vec::new();
-    collect_leaf_paths(
-        program,
-        root,
-        |program, field| {
-            matches!(
-                exact_integer_parameter(program, field.type_reference),
-                Some(typed_trees::unsigned_integer_primitive_pattern!())
-            )
-        },
-        &mut paths,
-    );
-    let [path] = paths.as_slice() else {
-        return None;
-    };
-    FieldCoordinate::for_parameter(program, parameter, path, CoordinateKind::Field, true)
-}
-
-/// The unique non-self formal of `state` whose telescope slot claims `entry`,
-/// or none when the role is unclaimed or contested by a second carrier.
-pub(super) fn unique_entry_carrier<'program>(
-    program: &'program dyn crate::CheckingInput,
-    state: &'program State,
-    entry_parameters: &[SymbolHandle],
-    entry: SymbolHandle,
-) -> Option<&'program StateParameter> {
-    let mut carriers = program
-        .state_parameters(state)
-        .iter()
-        .zip(entry_parameters)
-        .filter_map(|(parameter, claimed)| (*claimed == entry).then_some(parameter));
-    let carrier = carriers.next()?;
-    carriers.next().is_none().then_some(carrier)
 }

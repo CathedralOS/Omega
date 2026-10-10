@@ -1,29 +1,26 @@
 //! Cross-machine scalar rank transport with optional authored ranges. Each side
 //! retains its own template; call substitution is not local-state correspondence.
 
-use super::super::{
-    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
-};
+use super::super::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
     MeasureBodyShape, Polynomial, RankingRangeMeasure, State, collect_guard, entry_comparisons,
-    exact_integer_parameter, field_coordinates, fields, find_declared_measure,
-    hypothesis_landed_endpoints, integer_bindings, lengths, meanings, measure_body_shape,
-    parameter_comparisons, projections, saved_arguments, validate_mapping,
+    exact_integer_parameter, field_coordinates, fields, find_declared_measure, integer_bindings,
+    lengths, meanings, measure_body_shape, parameter_comparisons, projections, saved_arguments,
+    validate_mapping,
 };
 use symbols::SymbolHandle;
 mod endpoint_pins;
 pub(crate) use endpoint_pins::{RankingRangeCallEdge, mixed_call_endpoints_are_pinned};
 
 /// The exact transition site inside the caller's machine. `state` is the state
-/// whose statements carry the call; `entry_parameters` is that state's
-/// discovered telescope: one entry parameter symbol per non-self formal
-/// (`SymbolHandle::default()` marks a formal with no entry role). Authored
-/// subjects and endpoints stay entry-spelled; the site aliases each carried
-/// role onto the atom for the formal that actually holds it here.
+/// whose statements carry the call; `entry_parameters` is the source-admitted
+/// assignment of full entry coordinates to that state's completed readings.
+/// Authored subjects and endpoints retain their exact entry identity; no type,
+/// duplicated leaf or arithmetic shape supplies a missing correspondence.
 pub(crate) struct RankingRangeCallSite<'program> {
     pub(crate) state: &'program State,
-    pub(crate) entry_parameters: &'program [SymbolHandle],
+    pub(crate) entry_parameters: &'program super::RankStateBindings,
 }
 
 pub(crate) struct RankingRangeCallMember<'program> {
@@ -42,174 +39,6 @@ pub(crate) enum RankingRangeCallProgress {
     /// A weak edge may preserve or decrease the rank. The component owner must
     /// prove that the graph of these edges contains no complete cycle.
     NonIncreasing,
-}
-
-/// Call components establish entry membership without installing the local
-/// state query's raw-distance induction hypothesis. IncreasingTo includes its
-/// zero plateau even when the entry cursor is already beyond its bound.
-pub(crate) fn prove_ranking_range_call_entry(
-    program: &dyn crate::CheckingInput,
-    member: RankingRangeCallMember<'_>,
-) -> bool {
-    let prove = || -> Option<bool> {
-        let (state, measure) = scalar_entry(program, &member)?;
-        admit_member(program, &member, state, measure)?;
-        let range = program.expression_table.range_node(member.range)?;
-        // Every authored range keeps the state-edge owner's endpoint
-        // formation bar: an exact integer formal, an exact declared
-        // projection, or a bounded integer expression -- never a selected
-        // computation. An endpoint declaration bounds alone cannot place is
-        // deferred, not rejected: the entry hypotheses installed below still
-        // owe it a carrier landing, exactly as at a state edge.
-        let mut deferred_endpoints = Vec::new();
-        for endpoint in [range.start, range.end] {
-            if !fields::endpoint_statically_formed(program, member.machine, state, endpoint) {
-                deferred_endpoints.push(endpoint);
-            }
-        }
-        let bindings = integer_bindings(program, state)?;
-        let mut engine = Engine::strict(program, member.machine, &bindings);
-        if !engine.strict_symbol_bindings_are_valid() {
-            return None;
-        }
-        // A field-view rank is the exact coordinate atom; authored member
-        // projections inside endpoints and requires facts bind to it before
-        // any hypothesis normalizes them. A member-chain scalar subject reads
-        // the same kind of coordinate: its chain resolves against the carrier
-        // formal's own declaration and binds here as the produced rank atom.
-        let field_rank = if let RankingRangeMeasure::Field { subject, measure } = measure {
-            let coordinate =
-                fields::FieldCoordinate::resolve_field(program, state, subject, measure)?;
-            let mut coordinates = field_coordinates::FieldCoordinates::new(coordinate);
-            let mut expressions = vec![range.start, range.end, subject];
-            expressions.extend(projections::entry_expressions(
-                program,
-                member.machine,
-                state,
-            ));
-            coordinates.install(program, state, state, None, &mut engine, &expressions)?;
-            Some(coordinates)
-        } else {
-            let subjects = scalar_subjects(&member, measure);
-            let mut coordinates =
-                member_subject_coordinates(program, state, state, None, &subjects)?;
-            let mut expressions = vec![range.start, range.end];
-            expressions.extend(subjects.iter().copied());
-            expressions.extend(projections::entry_expressions(
-                program,
-                member.machine,
-                state,
-            ));
-            coordinates.install(program, state, state, None, &mut engine, &expressions)?;
-            Some(coordinates)
-        };
-        // A slice over projected storage produces its length from the member
-        // chain's exact leaf coordinate, as at a named-state edge. Every other
-        // measure still owes authored `.len` spellings inside endpoints,
-        // requires facts, or view bounds the same auxiliary coordinates: a
-        // produced length is a non-polynomial input, not an operand polynomial.
-        let mut slice_rank = if let RankingRangeMeasure::SliceLength(subject) = measure {
-            lengths::SliceCoordinate::resolve_length(program, state, subject)
-                .map(lengths::SliceCoordinates::new)
-        } else {
-            Some(lengths::SliceCoordinates::empty())
-        };
-        if let Some(coordinates) = &mut slice_rank {
-            let mut expressions = vec![range.start, range.end];
-            if let RankingRangeMeasure::SliceLength(subject) = measure {
-                expressions.push(subject);
-            } else {
-                expressions.extend(scalar_subjects(&member, measure));
-            }
-            expressions.extend(projections::entry_expressions(
-                program,
-                member.machine,
-                state,
-            ));
-            coordinates.install(
-                program,
-                member.machine,
-                state,
-                state,
-                None,
-                &mut engine,
-                &expressions,
-            )?;
-        }
-        // A bare slice formal's `.len` names the produced length atom its
-        // formal binds here, whatever measure the member ranks by.
-        let length_bindings = lengths::bindings(program, member.machine, state, None);
-        if !length_bindings.is_empty() {
-            let mut expressions = vec![range.start, range.end];
-            expressions.extend(scalar_subjects(&member, measure));
-            expressions.extend(projections::entry_expressions(
-                program,
-                member.machine,
-                state,
-            ));
-            lengths::install(
-                program,
-                member.machine,
-                state,
-                state,
-                &length_bindings,
-                &mut engine,
-                &expressions,
-            )?;
-        }
-        let mut comparisons =
-            entry_comparisons(program, member.machine, state, &mut engine, &bindings)?;
-        if let Some(coordinates) = &field_rank {
-            comparisons.extend(coordinates.comparisons(program));
-        }
-        if let Some(coordinates) = &slice_rank {
-            comparisons.extend(coordinates.comparisons());
-        }
-        comparisons.extend(super::length_bound_comparisons(&length_bindings));
-        let coordinate = match measure {
-            RankingRangeMeasure::SliceLength(subject) => match &slice_rank {
-                Some(slice) => slice.value()?,
-                None => length_coordinate(program, state, subject, &length_bindings)?,
-            },
-            RankingRangeMeasure::Field { .. } => field_rank.as_ref()?.value()?,
-            _ => rank_coordinate(program, member.machine, &mut engine, measure)?,
-        };
-        for endpoint in [range.start, range.end] {
-            meanings::install_nonpolynomial_terms(
-                program,
-                member.machine,
-                state,
-                &mut engine,
-                endpoint,
-                0,
-            )?;
-        }
-        let floor = engine.normalize(range.start)?;
-        let ceiling = engine.normalize(range.end)?;
-        hypothesis_landed_endpoints(
-            &mut engine,
-            program,
-            member.machine,
-            state,
-            range.start,
-            &floor,
-            &ceiling,
-            &deferred_endpoints,
-            comparisons,
-        )?;
-        Some(
-            engine.requires_unsatisfiable
-                || (membership(
-                    &engine,
-                    measure,
-                    &coordinate,
-                    &floor,
-                    &ceiling,
-                    range.end_inclusive,
-                ) && forms_in_carrier(&engine, measure, &coordinate)),
-        )
-    };
-    prove() == Some(true)
 }
 
 /// The caller owns prefix stability and whole-component cycle coverage. This
@@ -304,8 +133,8 @@ pub(crate) fn prove_ranking_range_call(
         admit_source(*argument)?;
     }
     let at_entry = source.symbol == entry.symbol;
-    let (bindings, mut carrier_equalities) = if at_entry {
-        (integer_bindings(program, source)?, Vec::new())
+    let bindings = if at_entry {
+        integer_bindings(program, source)?
     } else {
         validate_mapping(
             program,
@@ -333,13 +162,12 @@ pub(crate) fn prove_ranking_range_call(
     if !at_entry {
         // The ranked slice subject stays entry-spelled: alias its entry
         // parameter to the site carrier's length atom.
-        let (roles, equalities) = telescoped_length_bindings(
+        let roles = telescoped_length_bindings(
             program,
             caller.machine,
             source,
             caller_site.entry_parameters,
         );
-        carrier_equalities.extend(equalities);
         for (symbol, identity) in roles {
             if !length_bindings.iter().any(|(bound, _)| *bound == symbol) {
                 length_bindings.push((symbol, identity));
@@ -453,19 +281,29 @@ pub(crate) fn prove_ranking_range_call(
                 )?;
                 Some(coordinate)
             }
-            // A bare slice subject can still name a coordinate at this site:
-            // its entry role may arrive packed inside a record carrier's
-            // unique slice leaf.
+            // Bare and projected descriptors use the same selected full
+            // coordinate; another slice leaf supplies no correspondence.
             None if !at_entry => lengths::parameter(program, entry, subject)
                 .and_then(|formal| {
-                    fields::unique_entry_carrier(
-                        program,
-                        source,
-                        caller_site.entry_parameters,
-                        formal.symbol,
-                    )
+                    caller_site
+                        .entry_parameters
+                        .destination(&super::RankSubjectCoordinate {
+                            parameter: formal.symbol,
+                            path: Vec::new(),
+                        })
                 })
-                .and_then(|carrier| lengths::slice_leaf_coordinate(program, carrier)),
+                .and_then(|destination| {
+                    if destination.path.is_empty() {
+                        None
+                    } else {
+                        lengths::SliceCoordinate::at_coordinate(
+                            program,
+                            source,
+                            &destination,
+                            super::coordinate::CoordinateKind::Length,
+                        )
+                    }
+                }),
             None => None,
         };
         match resolved {
@@ -518,7 +356,6 @@ pub(crate) fn prove_ranking_range_call(
         // member's authored range (installed below, once the rank is formed).
         parameter_comparisons(program, caller.machine, source, &mut engine, &bindings)?
     };
-    comparisons.extend(carrier_equalities);
     comparisons.extend(super::length_bound_comparisons(&length_bindings));
     if let Some(coordinates) = &field_ranks {
         // The produced coordinate's own natural bounds and declared field
@@ -918,7 +755,7 @@ pub(super) fn arrival_invariant(
     facts
 }
 
-fn membership(
+pub(super) fn membership(
     engine: &Engine<'_>,
     measure: RankingRangeMeasure,
     coordinate: &Polynomial,
@@ -1166,128 +1003,54 @@ pub(super) fn rank_coordinate(
     }
 }
 
-/// Site-scoped arithmetic atoms. Every site formal keeps its own binding;
-/// each carried entry role additionally binds to its first carrier's atom, so
-/// entry-spelled expressions normalize to the value the site holds. A role
-/// with several carriers denotes copies the telescope kept only because every
-/// arrival forwarded a bare name — a contested computed claim demotes before
-/// reaching this judgment — so the extra carriers hold that same value and
-/// contribute an explicit equality hypothesis rather than a second binding.
+/// Each site formal retains its own atom. Exact selected empty-entry
+/// coordinates additionally bind the entry template to that site's selected
+/// scalar value. Other descendants with the same ancestry remain independent;
+/// correspondence never supplies a duplicate-copy equality hypothesis.
 pub(super) fn telescoped_bindings(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    entry_parameters: &[SymbolHandle],
-) -> Option<(Vec<StrictArithmeticSymbolBinding>, Vec<Comparison>)> {
+    entry_parameters: &super::RankStateBindings,
+) -> Option<Vec<StrictArithmeticSymbolBinding>> {
     let root = program.machine_states(machine).first()?;
     let mut bindings = integer_bindings(program, state)?;
-    let mut equalities = Vec::new();
-    let formals = program.state_parameters(state).iter().collect::<Vec<_>>();
-    if formals.len() != entry_parameters.len() {
-        return None;
-    }
-    for (formal, role) in formals.iter().zip(entry_parameters) {
-        if !role.is_valid() {
+    for selected in &entry_parameters.coordinates {
+        if !selected.entry.path.is_empty() {
             continue;
         }
-        let (identity, unsigned) = match bindings
+        let entry = program.state_parameter_by_symbol(root, selected.entry.parameter)?;
+        if exact_integer_parameter(program, entry.type_reference).is_none() {
+            continue;
+        }
+        let value =
+            super::scalar_coordinate_value(program, state, &selected.destination, &bindings)?;
+        if let Some(existing) = bindings
             .iter()
-            .find(|binding| binding.symbol == formal.symbol)
+            .find(|binding| binding.symbol == entry.symbol)
         {
-            Some(binding) => {
-                let StrictArithmeticBindingValue::Atom { identity, unsigned } = &binding.value
-                else {
-                    continue;
-                };
-                (identity.clone(), *unsigned)
-            }
-            // A record formal carries a bare integer entry role through the
-            // unique natural leaf its declaration names; the role binds the
-            // produced coordinate there rather than the record itself.
-            None => match super::carried_natural_coordinate(program, root, formal, *role) {
-                Some(coordinate) => (coordinate.identity.clone(), true),
-                None => continue,
-            },
-        };
-        if let Some(existing) = bindings.iter().find(|binding| binding.symbol == *role) {
-            let StrictArithmeticBindingValue::Atom {
-                identity: existing, ..
-            } = &existing.value
-            else {
+            if existing.value != value {
                 return None;
-            };
-            if *existing != identity {
-                equalities.push((
-                    BinaryOperator::Equal,
-                    Polynomial::atom(existing.clone()),
-                    Polynomial::atom(identity.clone()),
-                ));
             }
             continue;
         }
         bindings.push(StrictArithmeticSymbolBinding {
-            symbol: *role,
-            value: StrictArithmeticBindingValue::Atom { identity, unsigned },
+            symbol: entry.symbol,
+            value,
         });
     }
-    Some((bindings, equalities))
+    Some(bindings)
 }
 
-/// The same role aliasing applied to produced length coordinates: each carried
-/// entry role of a slice-typed site formal binds its first carrier's length
-/// atom, and the remaining carriers contribute equalities between their length
-/// coordinates. A copied collection keeps the same produced length; a windowed
-/// or diverging claimant was already demoted by discovery.
+/// Length aliases use the same exact selected coordinates as scalar aliases.
+/// A second descriptor sharing ancestry contributes no equality premise.
 pub(super) fn telescoped_length_bindings(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    entry_parameters: &[SymbolHandle],
-) -> (Vec<(SymbolHandle, String)>, Vec<Comparison>) {
-    let bindings = lengths::bindings(program, machine, state, None);
-    let mut roles: Vec<(SymbolHandle, String)> = Vec::new();
-    let mut equalities = Vec::new();
-    let root = program.machine_states(machine).first();
-    for (formal, role) in program.state_parameters(state).iter().zip(entry_parameters) {
-        if !role.is_valid() {
-            continue;
-        }
-        let identity = match bindings.iter().find(|(symbol, _)| *symbol == formal.symbol) {
-            Some((_, identity)) => identity.clone(),
-            // A record carrier holds the collection at its declaration's
-            // unique slice leaf; the role binds the produced length there
-            // only when the role's own entry formal is a slice.
-            None => {
-                let Some(root_formal) = root.and_then(|root| {
-                    program
-                        .state_parameters(root)
-                        .iter()
-                        .find(|formal| formal.symbol == *role)
-                }) else {
-                    continue;
-                };
-                if !lengths::is_slice(program, root_formal.type_reference) {
-                    continue;
-                }
-                let Some(coordinate) = lengths::slice_leaf_coordinate(program, formal) else {
-                    continue;
-                };
-                coordinate.identity.clone()
-            }
-        };
-        if let Some((_, existing)) = roles.iter().find(|(symbol, _)| *symbol == *role) {
-            if *existing != identity {
-                equalities.push((
-                    BinaryOperator::Equal,
-                    Polynomial::atom(existing.clone()),
-                    Polynomial::atom(identity.clone()),
-                ));
-            }
-            continue;
-        }
-        roles.push((*role, identity));
-    }
-    (roles, equalities)
+    entry_parameters: &super::RankStateBindings,
+) -> Vec<(SymbolHandle, String)> {
+    lengths::bindings(program, machine, state, Some(entry_parameters))
 }
 
 /// The scalar expressions whose member chains may carry a produced rank or
@@ -1343,7 +1106,7 @@ fn member_subject_coordinates<'program>(
     program: &'program dyn crate::CheckingInput,
     authored: &'program State,
     site: &'program State,
-    entry_parameters: Option<&[SymbolHandle]>,
+    entry_parameters: Option<&super::RankStateBindings>,
     subjects: &[ExpressionHandle],
 ) -> Option<field_coordinates::FieldCoordinates<'program>> {
     let mut coordinates = field_coordinates::FieldCoordinates::empty();

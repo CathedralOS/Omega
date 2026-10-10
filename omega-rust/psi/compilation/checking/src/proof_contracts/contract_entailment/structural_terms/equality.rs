@@ -29,11 +29,29 @@ pub(in crate::proof_contracts::contract_entailment) fn has_identity_equality_mea
     let types = [binary.left, binary.right].map(|operand| {
         crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
     });
-    types.iter().all(|reference| {
-        reference.is_some_and(|reference| identity_carrier(program, reference, &mut Vec::new(), 0))
-    }) && typed_trees::operator::has_builtin_spelled_expression_meaning(
+    // Select with complete declaration types before interpreting a builtin
+    // scalar read. A reference overload still sees its descriptor type;
+    // readable scalar contents do not authorize aggregate descriptor identity.
+    if !typed_trees::operator::has_builtin_spelled_expression_meaning(
         program, scope, expression, spelling, &types,
-    )
+    ) {
+        return false;
+    }
+    let Some(types) = crate::value_custody::expression_types::builtin_scalar_operand_references(
+        program, binary, types, None,
+    ) else {
+        return false;
+    };
+    types.iter().all(|reference| {
+        let reference = *reference;
+        if let Some((primitive, _)) =
+            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+        {
+            !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+        } else {
+            identity_carrier(program, reference, &mut Vec::new(), 0)
+        }
+    })
 }
 
 fn identity_carrier(

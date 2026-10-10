@@ -374,8 +374,10 @@ pub(crate) fn primitive_store(
             }
         }
         abstract_operations::StructuralScalarStoreDestination::OwnedResult { result, .. } => {
-            if path.is_empty()
-                || !result.qualifications.is_empty()
+            // Whole primitive homes are the empty declared projection. The
+            // common multiplicity fence above protects whole replacement;
+            // geometry below authenticates the exact scalar endpoint.
+            if !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.qualification_establishments.is_empty()
                 || !result.claims.is_empty()

@@ -460,7 +460,8 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 58 | StructuralByteSequenceFieldStore | destination place id + structural path + field id + source place id + length value id + obligation id |
 | 59 | StructuralByteSequenceFieldLength | source place id + structural path + field id |
 | 60 | StructuralByteSequenceFieldByteStore | destination place id + structural path + field id + index value id + value id + length value id + obligation id |
-| 61 | EstablishPrimitiveLocal | value id |
+| 61 | retired | former primitive establishment without receiving evidence |
+| 117 | EstablishPrimitiveLocal | value id, optional receiving obligation id |
 | 62 | PrimitiveScalarRead | source place id; root-only form |
 | 63 | ByteSequenceWrite | destination place id + index value id + value id + length value id + obligation id |
 | 64 | EstablishScalarArray | counted value ids |

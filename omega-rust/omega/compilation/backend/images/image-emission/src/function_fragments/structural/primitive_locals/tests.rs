@@ -55,6 +55,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
             psi_operation: operation,
             result,
             value,
+            range_obligation: None,
         }],
     };
     let slot = LocalStorageSlotId::Structural { operation, place };

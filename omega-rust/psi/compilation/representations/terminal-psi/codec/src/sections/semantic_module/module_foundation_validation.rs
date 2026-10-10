@@ -21,7 +21,7 @@ mod value_foundations;
 
 use crate::codec_error::{CodecError, malformed};
 
-use semantic_vocabulary::{ClaimId, ServiceId, StructuralPlaceKind, StructuralTypeId};
+use semantic_vocabulary::{ClaimId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeSet;
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralArgument, StructuralFieldType,
@@ -29,6 +29,28 @@ use terminal_psi::{
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
     find_structural_case,
 };
+
+/// The declared scalar type of a value anywhere it may be declared on the
+/// machine — machine parameters, the result, block parameters and operation
+/// results.
+pub(super) fn declared_scalar_type(
+    machine: &TerminalMachine,
+    value: semantic_vocabulary::ValueId,
+) -> Option<ScalarType> {
+    machine
+        .parameters
+        .iter()
+        .chain(machine.result.scalar_ref())
+        .chain(machine.block_parameters())
+        .chain(machine.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .filter_map(|candidate| candidate.result.scalar_ref())
+        }))
+        .find(|declaration| declaration.id == value)
+        .map(|declaration| declaration.scalar_type)
+}
 
 /// Validate the closed representation foundation needed before the independent
 /// semantic verifier learns these operations. This checks identities, exact

@@ -1,0 +1,23 @@
+machine walk(remaining: u32 [0..=9])
+terminates by remaining in 0..=9;
+-> u32 {
+    transition { _ -> step(remaining, 4, 2, 0) }
+
+    state step(current: u32 [0..=9], mut ceiling: u32 [0..=4], scratch: u32 [0..=ceiling], mut unrelated: u32) {
+        unrelated = 1;
+        transition scratch > ceiling {
+            true -> step(current, 4, scratch, unrelated)
+            false -> (70)
+        }
+    }
+}
+
+machine main() crashes Trap {
+    let result: u32 = walk(7);
+    transition result == 70 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

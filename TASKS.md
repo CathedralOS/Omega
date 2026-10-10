@@ -1370,17 +1370,34 @@ defines the complete product bar.
   scalar result's published bound. Invalid selected extents, shared-to-exclusive
   access, late endpoint rereads and out-of-bound result guarantees reject.
 
+  Keep `pass/termination/runtime_nested_borrowed_rank_carrier_exit` and
+  `pass/control_flow/runtime_completed_readonly_home_replacement_exit` for
+  moved carrier homes, live borrowed backing and completed-home replacement.
+  `pass/termination/runtime_selected_boundary_requirement_identity_exit`
+  retains exact public identity guarantees through direct, nested and composed
+  checked boundary calls. Decreasing siblings and unrelated formals cannot
+  replace a transported rank; unknown operand completion cannot establish its
+  absence. Guarded fresh reception may retain the full declared selector under
+  a new containing owner.
+
   Remaining:
-  - Replace unique-carrier discovery with explicit arrival correspondence,
-    reusing nested carriers, moved scalar/slice/record copies and produced rank
-    facts; a same-typed or merely decreasing copy is not the ranked value.
-    Mixed ranged/unranged components need correspondence and endpoint
-    conservation. Recheck formation at every arrival: cancellation, equal
-    intervals or unoriented disequality do not prove divisor validity, overflow
-    freedom or identity. The interval-only fallback still needs one state.
-  - Carry published requirement postconditions through the exact selected
-    signature frames. Execute boundary/admitted/external selected-signature
-    frames in direct, nested and composed initializers.
+  - Carry published owned call-result field equations into demanded completed
+    arrival coordinates. An identity helper publishing
+    `ensures result.remaining == value.remaining` still cannot prove rank range
+    `0..=5` when the recurrent actual is a newly constructed countdown with
+    `held.remaining - 1`. Reuse captured normal-return equations for the exact
+    selected result and declared field route; do not infer caller arithmetic
+    from a private helper body. Qualification, endpoint conservation, actual
+    formation and complete-cycle descent remain independent obligations.
+  - Carry published postconditions through external selected-signature frames
+    in nested and composed initializers. The real libc absolute-value crossing
+    admits the direct identity observation on `i32` values in `0..=9`, but
+    cannot prove the nested/composed identity calls or the received rank range.
+    Keep `pass/providers/external_boundary_requirement_via_exit` as the genuine
+    host-binding control. Admitted relationships also need the real Build/root
+    trust acceptance to installation-roster join; native provider admission
+    still receives no assumed relationships. Build selection alone supplies
+    neither contract authority nor an admission receipt.
 
   Acceptance: `python tools/corpus_gate.py --filter termination/` with `--both`
   and `--native` on matching hosts; changed endpoints, stale copies,

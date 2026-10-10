@@ -20,8 +20,9 @@ pub(super) fn derive_summaries(
     proof_components: &[validation::ValidatedProofRecursiveComponent],
     self_call_descents: &[validation::ValidatedSelfCallDescent],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
 ) -> Vec<CheckedProgressSummary> {
-    let mut components = validation::validated_runtime_recursive_components(program);
+    let mut components = validation::retained_runtime_recursive_components(rank_arrivals);
     components.extend(proof_components.iter().map(|component| {
         component
             .members
@@ -31,7 +32,16 @@ pub(super) fn derive_summaries(
     }));
     // Only actual source-judged call descent closes a singleton assumption.
     // A ranked state cycle alone says nothing about a separate self call.
+    let proof_only = validation::proof_only_classification(program);
     for descent in self_call_descents {
+        let Some(machine) = program.machine_by_symbol(descent.machine) else {
+            continue;
+        };
+        if !proof_only.is_proof_machine(program, machine)
+            && !validation::retained_internal_rank_nonincrease(program, machine, rank_arrivals)
+        {
+            continue;
+        }
         if !components
             .iter()
             .any(|component| component.contains(&descent.machine))
@@ -58,13 +68,21 @@ pub(super) fn derive_summaries(
                     machine,
                     &previous,
                     call_frames,
+                    rank_arrivals,
                 )
                 .unwrap_or_else(|| no_guarantee(machine.symbol));
             }
         }
         for component in &components {
-            let derived =
-                derive_component(program, flow, semantic, component, &previous, call_frames);
+            let derived = derive_component(
+                program,
+                flow,
+                semantic,
+                component,
+                &previous,
+                call_frames,
+                rank_arrivals,
+            );
             for (index, machine) in program.machines().iter().enumerate() {
                 if component.contains(&machine.symbol) {
                     summaries[index] = derived[index].clone();
@@ -86,6 +104,7 @@ fn derive_component(
     component: &[SymbolHandle],
     external: &[CheckedProgressSummary],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
 ) -> Vec<CheckedProgressSummary> {
     let mut summaries = external.to_vec();
     let mut unavailable = vec![false; summaries.len()];
@@ -100,11 +119,7 @@ fn derive_component(
     for (index, machine) in program.machines().iter().enumerate() {
         if component.contains(&machine.symbol) {
             summaries[index].guarantee =
-                super::super::infer_machine_checked_summary(
-                    program,
-                    machine,
-                    call_frames,
-                );
+                super::super::retained_machine_local_summary(machine, rank_arrivals);
             summaries[index].build_bound_demands.clear();
             unavailable[index] = projection_limit.is_none();
         }
@@ -118,8 +133,16 @@ fn derive_component(
             let mut summary = if unavailable[index] {
                 no_guarantee(machine.symbol)
             } else {
-                derive_machine_summary(program, flow, semantic, machine, &previous, call_frames)
-                    .unwrap_or_else(|| no_guarantee(machine.symbol))
+                derive_machine_summary(
+                    program,
+                    flow,
+                    semantic,
+                    machine,
+                    &previous,
+                    call_frames,
+                    rank_arrivals,
+                )
+                .unwrap_or_else(|| no_guarantee(machine.symbol))
             };
             if let TerminationGuarantee::Terminates { premises } = &summary.guarantee
                 && premises.iter().any(|premise| {

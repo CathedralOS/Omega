@@ -39,6 +39,7 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: StructuralOperationResult,
         value: AbstractResult,
+        range_obligation: Option<semantic_vocabulary::ObligationId>,
     },
     /// Replace an established primitive local through its retained place identity.
     PrimitiveLocalStore {

@@ -47,7 +47,7 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
         .expression_table
         .expression_is_valid(local.initial_value)
         && crate::values::zeroed_scalar_local_initializer(program, local).is_none())
-        || !validation::is_plain_scalar_storage(program, local.type_reference)
+        || !super::super::types::supports_primitive_storage(program, local.type_reference)
         || program
             .primitive_type_reference(local.type_reference)
             .is_none()

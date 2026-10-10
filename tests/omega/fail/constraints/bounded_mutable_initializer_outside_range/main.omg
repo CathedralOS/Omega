@@ -1,0 +1,3 @@
+machine main() {
+    let mut value: u32 [0..=4] = 5;
+}

@@ -6,14 +6,14 @@ pub(super) fn expressions(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     root: &State,
-    range: &TableRangeExpression,
+    range: Option<&TableRangeExpression>,
     measure: RankingRangeMeasure,
     premises: RankingRangePremises,
     arguments: Option<&[ExpressionHandle]>,
     guards: &[(ExpressionHandle, bool)],
     evaluated_prefix: &[ExpressionHandle],
 ) -> Vec<ExpressionHandle> {
-    let mut expressions = vec![range.start, range.end];
+    let mut expressions = range.map_or_else(Vec::new, |range| vec![range.start, range.end]);
     super::push_measure_subjects(measure, &mut expressions);
     expressions.extend(arguments.unwrap_or_default());
     expressions.extend(guards.iter().map(|(expression, _)| *expression));

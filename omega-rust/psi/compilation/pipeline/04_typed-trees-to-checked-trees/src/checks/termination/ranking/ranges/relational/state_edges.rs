@@ -1,14 +1,20 @@
-//! Entry-rooted parameter transfers establish exact state telescopes. Every
-//! arrival then rechecks range membership; cyclic edges also owe strict descent.
+//! Select one exact coordinate assignment after proving every complete arrival.
+//! Candidate lineage does not establish equality or edge coverage. Constraints
+//! prune a partial assignment only when the relevant edge inputs are complete.
 
 use super::super::super::{graph, patterns};
-
-use super::{preserved_entry_prefix, protected_input_paths};
+use super::{RankArrivalFailure, preserved_entry_prefix, protected_input_paths};
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 
-pub(super) fn prove<'program>(
+pub(super) struct SelectedCorrespondence {
+    pub states: Vec<validation::RankStateBindings>,
+    pub origins: Vec<validation::StateEntryCorrespondence>,
+    pub edges: Vec<checked_trees::CheckedRankArrivalEdge>,
+}
+
+pub(super) fn select<'program>(
     program: &'program dyn ::validation::CheckingInput,
     machine: &'program Machine,
     range: ExpressionHandle,
@@ -16,178 +22,199 @@ pub(super) fn prove<'program>(
     frames: Option<&validation::CallFrameResolver<'program>>,
     premises: validation::RankingRangePremises,
     premise_inputs: &[SymbolHandle],
-) -> bool {
+    root_edges: &[checked_trees::CheckedRankArrivalEdge],
+    accept: &mut dyn FnMut(&super::RankArrivalAdmission) -> bool,
+    failure: &mut RankArrivalFailure,
+) -> Option<SelectedCorrespondence> {
     let states = program.machine_states(machine);
     let mut adjacency = graph::machine_adjacency(program, machine);
-    // Topology needs one pair per destination; the occurrence reader below
-    // still checks every distinct guarded transition to that destination.
     for targets in &mut adjacency {
         targets.sort_unstable();
         targets.dedup();
     }
     let entry_is_initial = !adjacency.iter().any(|targets| targets.contains(&0));
-    // Every entry a computed arrival may carry. A single-subject view names
-    // its one ranked carrier; a bounded distance ranks BOTH subjects, so a
-    // computed actual mentioning copies of each claims the role its earliest
-    // dependency names rather than staying role-less. A slice subject can
-    // never carry a scalar slot — the destination's type validation rejects
-    // the claim — while the slice slot itself selects its sole collection
-    // dependency without any preference.
-    let ranked_symbol = |subject: ExpressionHandle| {
-        // A member chain names the formal it is rooted at: `record.field`
-        // ranks that record formal's storage. Case projections and computed
-        // receivers stay opaque — the edge judgment resolves the exact chain.
-        let mut cursor = subject;
-        while let Some(member) = program.expression_table.member_node(cursor) {
-            cursor = member.receiver;
-        }
-        match program.expression_table.expression(cursor) {
-            ExpressionNode::Name(name)
-                if name.symbol.is_valid() && name.head_symbol == name.symbol =>
-            {
-                Some(name.symbol)
-            }
-            _ => None,
-        }
-    };
-    let mut preferred = Vec::new();
-    let mut record_subject = SymbolHandle::default();
-    match measure {
-        validation::RankingRangeMeasure::Single(subject)
-        | validation::RankingRangeMeasure::IncreasingTo { subject, .. } => {
-            preferred.extend(ranked_symbol(subject));
-        }
-        validation::RankingRangeMeasure::Computed { subject, .. } => {
-            preferred.extend(ranked_symbol(subject));
-            // A scalar view over a member chain reads its root formal's
-            // record; the telescope's fresh-literal claim needs that nominal
-            // root to locate a dependency-free record arrival.
-            if matches!(
-                program.expression_table.expression(subject),
-                ExpressionNode::Member(_)
-            ) {
-                record_subject = preferred.last().copied().unwrap_or_default();
-            }
-        }
-        validation::RankingRangeMeasure::Field { subject, .. } => {
-            preferred.extend(ranked_symbol(subject));
-            record_subject = preferred.first().copied().unwrap_or_default();
-        }
-        validation::RankingRangeMeasure::Distance { lower, upper } => {
-            preferred.extend(ranked_symbol(lower));
-            preferred.extend(ranked_symbol(upper));
-        }
-        // A slice over projected storage ranks its root formal's record
-        // slot: computed and literal arrivals of that record still claim
-        // the role through the same carriers a field subject uses.
-        validation::RankingRangeMeasure::SliceLength(subject) => {
-            if matches!(
-                program.expression_table.expression(subject),
-                ExpressionNode::Member(_)
-            ) {
-                preferred.extend(ranked_symbol(subject));
-                record_subject = preferred.last().copied().unwrap_or_default();
-            }
-        }
-    }
-    // The telescope is shared with the runtime call-component judgment: a
-    // call issued from a subordinate state must read the same entry roles as
-    // the member's own witness or the hypothesis would name a different value.
-    // Discovery resolves contested claims against the same required set the
-    // edge judgment enforces, so a duplicated required entry keeps every copy's
-    // equality obligation while any other contested claim demotes to a bare
-    // forward's unique carrier.
-    let Some(required) =
-        validation::ranking_range_required_symbols(program, machine, range, measure, premises)
-    else {
-        return false;
-    };
-    let Some(mappings) = validation::discover_state_entry_mappings_preferring(
+    let discovered = validation::discover_rank_arrival_correspondence(program, machine)?;
+    let required =
+        validation::ranking_range_required_coordinates(program, machine, range, measure, premises)?;
+    let relevance = validation::rank_relevance(program, &[machine.symbol])?;
+    let demands = states
+        .iter()
+        .filter(|state| relevance.requires_rank(state.symbol))
+        .flat_map(|state| {
+            required
+                .iter()
+                .map(move |entry| validation::RankArrivalDemand {
+                    state: state.symbol,
+                    entry: entry.clone(),
+                })
+        })
+        .collect::<Vec<_>>();
+    let components = graph::strongly_connected_components(&adjacency);
+    let mut accepted_edges = Vec::new();
+    let states = validation::select_rank_arrival_correspondence(
         program,
         machine,
-        &preferred,
-        record_subject,
-        &required,
-    ) else {
-        return false;
-    };
-    let Some(relevance) = validation::rank_relevance(program, &[machine.symbol]) else {
-        return false;
-    };
-    let components = graph::strongly_connected_components(&adjacency);
-    for (source_position, source) in states.iter().enumerate() {
-        // The same telescope that aliases entry roles onto this state's slots
-        // decides which slots a prefix store must leave untouched.
-        let protected = protected_input_paths(
-            program,
-            source,
-            Some(&mappings[source_position]),
-            premise_inputs,
-        );
-        for &target_position in &adjacency[source_position] {
-            if source_position == 0 && target_position == 0 {
-                continue;
-            }
-            let target = &states[target_position];
-            let cyclic = components.iter().any(|component| {
-                component.contains(&source_position)
-                    && component.contains(&target_position)
-                    && graph::component_is_cyclic(&adjacency, component)
-            });
-            for edge in patterns::edges_to_state(program, source, target.symbol) {
-                let Some(prefix) = preserved_entry_prefix(
+        &discovered,
+        &demands,
+        |selected| {
+            let mut complete = true;
+            let mut edge_judgments = Vec::new();
+            for (source_position, source) in states.iter().enumerate() {
+                let Some(source_bindings) = selected
+                    .iter()
+                    .find(|selection| selection.state == source.symbol)
+                else {
+                    return validation::RankArrivalCompatibility::Refuted;
+                };
+                let source_ready = !relevance.requires_rank(source.symbol)
+                    || required
+                        .iter()
+                        .all(|coordinate| source_bindings.destination(coordinate).is_some());
+                if !source_ready {
+                    complete = false;
+                    continue;
+                }
+                let Some(protected) = protected_input_paths(
                     program,
                     machine,
                     source,
-                    frames,
-                    edge.statement_ordinal,
-                    &protected,
+                    Some(source_bindings),
+                    premise_inputs,
                 ) else {
-                    return false;
+                    return validation::RankArrivalCompatibility::Refuted;
                 };
-                let guards = edge
-                    .guards
-                    .iter()
-                    .map(|guard| (guard.expression, guard.holds))
-                    .collect::<Vec<_>>();
-                // Prefix formation and write-frame preservation still apply.
-                // Only the rank arrival ends at a suffix that cannot return
-                // to recurrence, including through an ordinary value call.
-                if !relevance.requires_rank(target.symbol) {
-                    continue;
-                }
-                if !validation::prove_ranking_range_transition(
-                    program,
-                    machine,
-                    range,
-                    measure,
-                    if source_position == 0
-                        && entry_is_initial
-                        && matches!(premises, validation::RankingRangePremises::RankInvariant)
-                    {
-                        validation::RankingRangePremises::InitialEntry
-                    } else {
-                        premises
-                    },
-                    validation::RankingRangeState {
-                        state: source,
-                        entry_parameters: &mappings[source_position],
-                    },
-                    validation::RankingRangeState {
-                        state: target,
-                        entry_parameters: &mappings[target_position],
-                    },
-                    &guards,
-                    &prefix,
-                    edge.arguments,
-                )
-                .is_some_and(|proof| {
-                    proof.membership_and_pinning && (!cyclic || proof.strictly_decreases)
-                }) {
-                    return false;
+                let protected = protected.iter().map(String::as_str).collect::<Vec<_>>();
+                for &target_position in &adjacency[source_position] {
+                    if source_position == 0 && target_position == 0 {
+                        continue;
+                    }
+                    let target = &states[target_position];
+                    let Some(target_bindings) = selected
+                        .iter()
+                        .find(|selection| selection.state == target.symbol)
+                    else {
+                        return validation::RankArrivalCompatibility::Refuted;
+                    };
+                    let target_ready = !relevance.requires_rank(target.symbol)
+                        || required
+                            .iter()
+                            .all(|coordinate| target_bindings.destination(coordinate).is_some());
+                    if !target_ready {
+                        complete = false;
+                        continue;
+                    }
+                    let cyclic = components.iter().any(|component| {
+                        component.contains(&source_position)
+                            && component.contains(&target_position)
+                            && graph::component_is_cyclic(&adjacency, component)
+                    });
+                    for edge in patterns::edges_to_state(program, source, target.symbol) {
+                        let Some(prefix) = preserved_entry_prefix(
+                            program,
+                            machine,
+                            source,
+                            frames,
+                            edge.statement_ordinal,
+                            &protected,
+                        ) else {
+                            return validation::RankArrivalCompatibility::Refuted;
+                        };
+                        // Even a rankless suffix keeps prefix/formation custody.
+                        if !relevance.requires_rank(target.symbol) {
+                            continue;
+                        }
+                        if !validation::ranking_range_arrival_preserves_roles(
+                            program,
+                            machine,
+                            validation::RankingRangeState {
+                                state: source,
+                                entry_parameters: source_bindings,
+                            },
+                            validation::RankingRangeState {
+                                state: target,
+                                entry_parameters: target_bindings,
+                            },
+                            edge.statement_ordinal,
+                            edge.arguments,
+                        ) {
+                            return validation::RankArrivalCompatibility::Refuted;
+                        }
+                        let guards = edge
+                            .guards
+                            .iter()
+                            .map(|guard| (guard.expression, guard.holds))
+                            .collect::<Vec<_>>();
+                        let edge_premises = if source_position == 0
+                            && entry_is_initial
+                            && matches!(premises, validation::RankingRangePremises::RankInvariant)
+                        {
+                            validation::RankingRangePremises::InitialEntry
+                        } else {
+                            premises
+                        };
+                        let Some(proof) = validation::prove_ranking_range_transition(
+                            program,
+                            machine,
+                            range,
+                            measure,
+                            edge_premises,
+                            validation::RankingRangeState {
+                                state: source,
+                                entry_parameters: source_bindings,
+                            },
+                            validation::RankingRangeState {
+                                state: target,
+                                entry_parameters: target_bindings,
+                            },
+                            &guards,
+                            &prefix,
+                            edge.arguments,
+                        ) else {
+                            return validation::RankArrivalCompatibility::Refuted;
+                        };
+                        if !proof.membership_and_pinning {
+                            return validation::RankArrivalCompatibility::Refuted;
+                        }
+                        if cyclic && !proof.strictly_decreases {
+                            *failure = RankArrivalFailure::StrictDecrease;
+                            return validation::RankArrivalCompatibility::Refuted;
+                        }
+                        let Ok(statement_ordinal) = u32::try_from(edge.statement_ordinal) else {
+                            return validation::RankArrivalCompatibility::Refuted;
+                        };
+                        edge_judgments.push(checked_trees::CheckedRankArrivalEdge {
+                            source: source.symbol,
+                            destination: target.symbol,
+                            statement_ordinal,
+                            target: edge.target,
+                            non_increasing: proof.non_increasing,
+                            strictly_decreases: proof.strictly_decreases,
+                        });
+                    }
                 }
             }
-        }
-    }
-    true
+            if complete {
+                let mut edges = edge_judgments.clone();
+                edges.extend_from_slice(root_edges);
+                let candidate = super::RankArrivalAdmission {
+                    premises,
+                    states: selected.to_vec(),
+                    origins: discovered.clone(),
+                    edges,
+                };
+                if !accept(&candidate) {
+                    return validation::RankArrivalCompatibility::Refuted;
+                }
+                accepted_edges = edge_judgments;
+                validation::RankArrivalCompatibility::Complete
+            } else {
+                validation::RankArrivalCompatibility::Pending
+            }
+        },
+    )?;
+    Some(SelectedCorrespondence {
+        states,
+        origins: discovered,
+        edges: accepted_edges,
+    })
 }

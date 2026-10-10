@@ -67,11 +67,19 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             psi_operation,
             result,
             value,
+            range_obligation,
         } => {
             bytes.u8(65);
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
             encode_abstract_result(bytes, *value);
+            match range_obligation {
+                Some(obligation) => {
+                    bytes.u8(1);
+                    bytes.id(*obligation);
+                }
+                None => bytes.u8(0),
+            }
         }
         O::PrimitiveLocalStore {
             psi_operation,

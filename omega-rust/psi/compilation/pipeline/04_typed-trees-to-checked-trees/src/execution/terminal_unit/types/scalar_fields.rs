@@ -40,6 +40,27 @@ pub(crate) fn field_retains_scalar_restriction(
     )
 }
 
+/// Whether primitive storage can retain the declaration's complete receiving
+/// restriction. Parameters and local declarations establish the same storage;
+/// replacements use the exact assignment judgment against its retained range.
+/// A domain kept only in custody (such as Finite) is not an unrestricted store,
+/// and arbitrary predicates still require their declaration-owned operation.
+pub(in crate::execution::terminal_unit) fn supports_primitive_storage(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let Some(primitive) = program.primitive_type_reference(type_reference) else {
+        return false;
+    };
+    match retain_scalar_field(program, type_reference, &[], primitive, None) {
+        Some(CheckedUnitStructuralFieldType::Scalar(_)) => {
+            validation::is_plain_scalar_storage(program, type_reference)
+        }
+        Some(CheckedUnitStructuralFieldType::BoundedInteger(_)) => true,
+        _ => false,
+    }
+}
+
 /// The owner's interval-only `where` bound on `field`: the record's facts for
 /// a direct field, the selected case's facts for a payload field.
 fn stated_field_interval(

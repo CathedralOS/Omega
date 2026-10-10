@@ -80,14 +80,12 @@ fn prove(
             {
                 return None;
             }
-            validation::find_state(program, call.target_symbol).filter(
-                |(machine, state)| {
-                    program
-                        .machine_states(machine)
-                        .first()
-                        .is_some_and(|entry| entry.symbol == state.symbol)
-                },
-            )?
+            validation::find_state(program, call.target_symbol).filter(|(machine, state)| {
+                program
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == state.symbol)
+            })?
         }
         validation::CallSite::TransitionNamed {
             path,
@@ -122,6 +120,8 @@ fn prove(
         program,
         machine,
         state,
+        call.statement_index,
+        site,
         callee_state.symbol,
         parameters,
         &arguments,

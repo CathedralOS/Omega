@@ -23,6 +23,7 @@ pub(super) fn producer(
                 psi_operation,
                 result,
                 value,
+                ..
             } if result.place == place => Some((*psi_operation, result.clone(), *value)),
             _ => None,
         });

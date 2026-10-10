@@ -287,6 +287,8 @@ pub enum OperationKind {
     /// structural result. Later borrows name this place, not a copied SSA value.
     EstablishPrimitiveLocal {
         value: ValueId,
+        /// Receiving evidence for the exact declared scalar restriction.
+        range_obligation: Option<ObligationId>,
     },
     /// Observe an initialized primitive leaf. The structural path walks record
     /// fields and fixed-array elements to a primitive-scalar place; an element
@@ -1094,7 +1096,7 @@ impl OperationKind {
                     }
                 }
             }
-            Self::EstablishPrimitiveLocal { value }
+            Self::EstablishPrimitiveLocal { value, .. }
             | Self::WriteOnlyPrimitiveStore { value, .. }
             | Self::StructuralScalarFieldStore { value, .. }
             | Self::BooleanNot { operand: value }

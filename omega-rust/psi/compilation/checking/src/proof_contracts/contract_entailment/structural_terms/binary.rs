@@ -108,46 +108,20 @@ pub(crate) fn binary_term_in_scope(
             arguments: vec![left, right],
         });
     }
-    let parent_reference = || expression_type(expression);
-    let reference = |index: usize| {
-        references[index]
-            .or_else(|| {
-                crate::value_custody::literals::has_anonymous_numeric_results(
-                    program,
-                    [binary.left, binary.right][index],
-                )
-                .then_some(references[1 - index])
-                .flatten()
-            })
-            .or_else(|| {
-                crate::value_custody::literals::has_anonymous_numeric_results(
-                    program,
-                    [binary.left, binary.right][index],
-                )
-                .then(parent_reference)
-                .flatten()
-            })
-            .or_else(|| {
-                // Fully anonymous operand trees inherit the expression's
-                // expected (landed) type -- the same resolution integer landing
-                // applies when the operation is checked.
-                crate::value_custody::literals::has_anonymous_numeric_results(
-                    program,
-                    [binary.left, binary.right][index],
-                )
-                .then_some(expected)
-                .flatten()
-            })
-    };
-    let meaning = [reference(0)?, reference(1)?].map(|reference| {
-        Some((
-            program.primitive_type_reference(reference)?,
-            program.arithmetic_domain_for_type_reference(reference),
-        ))
-    });
+    if let Some(term) = super::builtin_anonymous_comparison_term(program, expression) {
+        return Some(term);
+    }
+    let references = crate::value_custody::expression_types::builtin_scalar_operand_references(
+        program, binary, references, expected,
+    )?;
+    let meaning = [
+        super::scalar_operand_meaning(program, references[0], &left)?,
+        super::scalar_operand_meaning(program, references[1], &right)?,
+    ];
     Some(StructuralTerm::ScalarBinary {
+        references,
         operator: binary.operator,
-        meaning: [meaning[0]?, meaning[1]?],
+        meaning,
         left: Box::new(left),
         right: Box::new(right),
     })

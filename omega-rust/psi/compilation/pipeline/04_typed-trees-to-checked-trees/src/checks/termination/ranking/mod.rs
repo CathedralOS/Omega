@@ -1,39 +1,18 @@
-//! Proof that a machine's `terminates by` ranking decreases, and the proven
-//! ranks exported to execution planning.
-//!
-//! `machine_decrease_outcome` is the judgment;
-//! `termination::check_machine_termination` calls it for
-//! each terminating machine whose ranking witness must be proved locally. It
-//! resolves the witness subjects and view arguments against the root state,
-//! resolves the ranking order through `RankingOrder::resolve_witness`
-//! (`super::order`), and picks the measure (one subject, or a two-subject
-//! distance). It then tries, in order:
-//!
-//! 1. `ranges::check`, when the witness declares a rank range;
-//! 2. a strict decrease on every edge inside each cyclic component. Plain Exact
-//!    scalar Nat ranks and distances to a scalar or constant bound compare
-//!    incoming and current values through the shared statement transfer
-//!    (`current_values`). Other representations and orders retain their own
-//!    judgments (`nat`, `slice`, `struct_view` or `lexicographic`);
-//! 3. `ranges::proves_relational_decrease`, when the witness declares a rank
-//!    range;
-//! 4. for a bounded distance, the same edges with the subjects swapped, which
-//!    reports the clause as an inverted distance.
-//!
-//! The `proven_*` functions project the same judgment into checked rank
-//! evidence for `execution`. `entry_requirements` answers whether a ranked
-//! graph judgment proves an entry requirement, for the contract checks.
-//! `machine_resolved_view_path` gives the resolved view spelling that
-//! `termination` records in the checked termination plan. `write_preservation`
-//! is shared by `ranges` and `struct_view`: whether write frames preserve a
-//! ranked input path.
+//! Source ranking resolves the selected well-founded order and judges complete
+//! arrivals under one coordinate assignment. The relational arithmetic owner
+//! retains optional authored endpoint formation and pinning. Current scalar
+//! transfer supplies writes in one exact declaration frame; mathematical and
+//! lexicographic orders keep their genuine source judgments. Observation
+//! metadata is projected only after source admission, not by execution.
 
 mod current_values;
 mod entry_requirements;
 mod lexicographic;
 mod nat;
+mod observations;
 mod patterns;
 mod ranges;
+pub(in crate::checks::termination) use ranges::RankArrivalAdmission;
 mod slice;
 mod struct_view;
 mod write_preservation;
@@ -52,7 +31,7 @@ use super::order::{AmbiguousDefault, OrderResolution, RankingOrder, decreasing_v
 /// clause, distinguishing the cases the caller renders as different diagnostics.
 pub(super) enum DecreaseOutcome {
     /// The decrease was proven across every cyclic edge.
-    Proven,
+    Proven(Option<ranges::RankArrivalAdmission>),
     /// The order resolved, but the decrease could not be proven.
     Unproven,
     /// A plain `terminates by value` clause whose decreasing value has no single
@@ -98,769 +77,27 @@ pub(super) enum DecreaseMeasure {
     },
 }
 
-/// Exact first-slice evidence exported to checked structural-control
-/// construction. The ranking checker remains the sole recognizer; consumers
-/// receive resolved state/parameter/edge coordinates only.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ProvenNatCountdownScc {
-    pub(crate) header_state: symbols::SymbolHandle,
-    pub(crate) header_rank_parameter_position: u32,
-    pub(crate) rank_primitive_type: typed_trees::types::PrimitiveType,
-    pub(crate) rank_lower_bound: u128,
-    pub(crate) rank_upper_bound: u128,
-    pub(crate) covered_cyclic_edges: Vec<ProvenNatCountdownEdge>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ProvenNatCountdownEdge {
-    pub(crate) source_state: symbols::SymbolHandle,
-    pub(crate) target_state: symbols::SymbolHandle,
-    pub(crate) statement_ordinal: u32,
-    pub(crate) source_rank_parameter_position: u32,
-    pub(crate) target_rank_parameter_position: u32,
-}
-
-pub(crate) fn proven_nat_countdown_sccs(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<ProvenNatCountdownScc>> {
-    let adjacency = graph::machine_adjacency(program, machine);
-    let cyclic_components = graph::strongly_connected_components(&adjacency)
-        .into_iter()
-        .filter(|component| graph::component_is_cyclic(&adjacency, component))
-        .collect::<Vec<_>>();
-    if cyclic_components.is_empty() {
-        return Some(Vec::new());
-    }
-    if !matches!(
-        machine_decrease_outcome(program, machine, call_frames),
-        DecreaseOutcome::Proven
-    ) {
-        return None;
-    }
-
-    let states = program.machine_states(machine);
-    let root_state = states.first()?;
-    let witness = machine.termination_plan.implementation_witness.as_ref()?;
-    let subjects = resolve_machine_witness_subjects(program, machine)?;
-    let [decreases] = subjects.as_slice() else {
-        return None;
-    };
-    let Some(decreases_path) = program.expression_table.name_path_node(*decreases) else {
-        return None;
-    };
-    let OrderResolution::Resolved(RankingOrder::NatDescending) =
-        RankingOrder::resolve_witness(program, root_state, witness, &[*decreases], &[])
-    else {
-        return None;
-    };
-
-    // A cyclic header may rename or reorder the ranked input — `pending`
-    // carrying the authored `remaining` — and the retained coordinates must
-    // name the carried formal. Discover the entry telescope the relational
-    // range judgment already proved; where it resolves the subject, the
-    // carried formal supplies both the header coordinate and the edge
-    // re-proof, and the bare name-match judgment never substitutes for it.
-    let entry_mappings =
-        measure_entry_mappings(program, machine, DecreaseMeasure::Single(*decreases));
-    let mut retained = Vec::with_capacity(cyclic_components.len());
-    for component in cyclic_components {
-        let [state_index] = component.as_slice() else {
-            return None;
-        };
-        let state = states.get(*state_index)?;
-        let state_entries = entry_mappings
-            .as_deref()
-            .and_then(|mappings| mappings.get(*state_index));
-        let carried = state_entries
-            .and_then(|entries| nat::carried_subject(program, state, entries, *decreases));
-        let decrease_name = program
-            .expression_table
-            .name_path_members(decreases_path.members)
-            .last()
-            .map(|member| member.as_str())
-            .unwrap_or_default();
-        let (header_rank_parameter_position, rank_parameter) = match carried {
-            Some((position, parameter)) => (position, parameter),
-            None => program
-                .state_parameters(state)
-                .iter()
-                .enumerate()
-                .find(|(_, parameter)| {
-                    parameter.symbol == decreases_path.symbol
-                        || parameter.name.as_str() == decrease_name
-                })?,
-        };
-        let rank_primitive_type =
-            program.primitive_type_reference(rank_parameter.type_reference)?;
-        let rank_upper_bound = unsigned_maximum(rank_primitive_type)?;
-
-        let mut covered_cyclic_edges = Vec::new();
-        for edge in patterns::edges_to_state(program, state, state.symbol) {
-            // The retained countdown coordinate currently names primary targets.
-            if edge.is_continuation {
-                return None;
-            }
-            let proof = match state_entries {
-                Some(entries) if carried.is_some() => nat::carried_direct_countdown_edge(
-                    program,
-                    state,
-                    &edge.guards,
-                    edge.arguments,
-                    *decreases,
-                    entries,
-                    entries,
-                )?,
-                _ => nat::direct_countdown_edge(
-                    program,
-                    state,
-                    state,
-                    &edge.guards,
-                    edge.arguments,
-                    *decreases,
-                )?,
-            };
-            if proof.source_parameter != rank_parameter.symbol {
-                return None;
-            }
-            let target_parameter = program
-                .state_parameters(state)
-                .iter()
-                .nth(proof.target_argument_index)?;
-            let target_rank_parameter_position = typed_trees::signature::state_parameter_position(
-                program.state_parameters(state),
-                target_parameter.symbol,
-            )?;
-            if target_parameter.symbol != rank_parameter.symbol {
-                return None;
-            }
-            covered_cyclic_edges.push(ProvenNatCountdownEdge {
-                source_state: state.symbol,
-                target_state: state.symbol,
-                statement_ordinal: u32::try_from(edge.statement_ordinal).ok()?,
-                source_rank_parameter_position: u32::try_from(header_rank_parameter_position)
-                    .ok()?,
-                target_rank_parameter_position: u32::try_from(target_rank_parameter_position)
-                    .ok()?,
-            });
-        }
-        if covered_cyclic_edges.is_empty() {
-            return None;
-        }
-        retained.push(ProvenNatCountdownScc {
-            header_state: state.symbol,
-            header_rank_parameter_position: u32::try_from(header_rank_parameter_position).ok()?,
-            rank_primitive_type,
-            rank_lower_bound: 0,
-            rank_upper_bound,
-            covered_cyclic_edges,
-        });
-    }
-    Some(retained)
-}
-
-/// Project the same Nat-descending judgment onto a fused state roster: the
-/// member set spans states authored under sibling machines, so the SCC and
-/// every edge resolve per member rather than inside one machine's adjacency.
-/// Each member still ranks its own authored formal through its own witness —
-/// the checker remains the sole recognizer.
-pub(crate) fn proven_fused_nat_countdown_sccs(
-    program: &dyn ::validation::CheckingInput,
-    member_states: &[symbols::SymbolHandle],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<ProvenNatCountdownScc>> {
-    if member_states.len() < 2 {
-        return None;
-    }
-    let members = member_states
-        .iter()
-        .map(|state| validation::find_state(program, *state))
-        .collect::<Option<Vec<_>>>()?;
-    let adjacency = members
-        .iter()
-        .map(|(_, source)| {
-            member_states
-                .iter()
-                .enumerate()
-                .filter_map(|(index, target)| {
-                    (!patterns::edges_to_state(program, source, *target).is_empty())
-                        .then_some(index)
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    let cyclic_components = graph::strongly_connected_components(&adjacency)
-        .into_iter()
-        .filter(|component| graph::component_is_cyclic(&adjacency, component))
-        .collect::<Vec<_>>();
-    if cyclic_components.is_empty() {
-        return Some(Vec::new());
-    }
-
-    // Only cyclic states need a rank. A finishing state may consume the
-    // component's other arguments without receiving its countdown subject.
-    // Requiring a rank there would make an acyclic exit change whether the
-    // same recursive component can be represented.
-    let mut member_ranks = Vec::with_capacity(members.len());
-    for (member_position, (member_machine, member_source)) in members.iter().enumerate() {
-        if !cyclic_components
-            .iter()
-            .any(|component| component.contains(&member_position))
-        {
-            member_ranks.push(None);
-            continue;
-        }
-        if !matches!(
-            machine_decrease_outcome(program, member_machine, call_frames),
-            DecreaseOutcome::Proven
-        ) {
-            return None;
-        }
-        let member_root = program.machine_states(member_machine).first()?;
-        let witness = member_machine
-            .termination_plan
-            .implementation_witness
-            .as_ref()?;
-        let subjects = resolve_machine_witness_subjects(program, member_machine)?;
-        let [decreases] = subjects.as_slice() else {
-            return None;
-        };
-        let Some(decreases_path) = program.expression_table.name_path_node(*decreases) else {
-            return None;
-        };
-        let OrderResolution::Resolved(RankingOrder::NatDescending) =
-            RankingOrder::resolve_witness(program, member_root, witness, &[*decreases], &[])
-        else {
-            return None;
-        };
-        let decrease_name = program
-            .expression_table
-            .name_path_members(decreases_path.members)
-            .last()
-            .map(|member| member.as_str())
-            .unwrap_or_default();
-        let (rank_parameter_position, rank_parameter) = program
-            .state_parameters(member_source)
-            .iter()
-            .enumerate()
-            .find(|(_, parameter)| {
-                parameter.symbol == decreases_path.symbol
-                    || parameter.name.as_str() == decrease_name
-            })?;
-        let rank_primitive_type =
-            program.primitive_type_reference(rank_parameter.type_reference)?;
-        member_ranks.push(Some((
-            *decreases,
-            rank_parameter_position,
-            rank_parameter,
-            rank_primitive_type,
-        )));
-    }
-
-    let mut retained = Vec::with_capacity(cyclic_components.len());
-    for component in cyclic_components {
-        // The plan's header is the earliest member in fused-graph order, so
-        // rejoined rosters compare element for element downstream.
-        let header_index = *component.iter().min()?;
-        let (_, header_rank_position, _, header_primitive) = member_ranks[header_index]?;
-        let rank_upper_bound = unsigned_maximum(header_primitive)?;
-
-        let mut covered_cyclic_edges = Vec::new();
-        for &source_index in &component {
-            let (decreases, source_rank_position, source_rank_parameter, source_primitive) =
-                member_ranks[source_index]?;
-            let (_, source) = members[source_index];
-            for &target_index in &component {
-                let (_, _, target_rank_parameter, target_primitive) = member_ranks[target_index]?;
-                let (_, target) = members[target_index];
-                for edge in patterns::edges_to_state(program, source, target.symbol) {
-                    // The retained countdown coordinate currently names
-                    // primary targets.
-                    if edge.is_continuation {
-                        return None;
-                    }
-                    let proof = nat::direct_countdown_edge(
-                        program,
-                        source,
-                        target,
-                        &edge.guards,
-                        edge.arguments,
-                        decreases,
-                    )?;
-                    if proof.source_parameter != source_rank_parameter.symbol
-                        || target_primitive != source_primitive
-                    {
-                        return None;
-                    }
-                    let target_parameter = program
-                        .state_parameters(target)
-                        .iter()
-                        .nth(proof.target_argument_index)?;
-                    let target_rank_parameter_position =
-                        typed_trees::signature::state_parameter_position(
-                            program.state_parameters(target),
-                            target_parameter.symbol,
-                        )?;
-                    if target_parameter.symbol != target_rank_parameter.symbol {
-                        return None;
-                    }
-                    covered_cyclic_edges.push(ProvenNatCountdownEdge {
-                        source_state: source.symbol,
-                        target_state: target.symbol,
-                        statement_ordinal: u32::try_from(edge.statement_ordinal).ok()?,
-                        source_rank_parameter_position: u32::try_from(source_rank_position).ok()?,
-                        target_rank_parameter_position: u32::try_from(
-                            target_rank_parameter_position,
-                        )
-                        .ok()?,
-                    });
-                }
-            }
-        }
-        if covered_cyclic_edges.is_empty() {
-            return None;
-        }
-        covered_cyclic_edges.sort_by_key(|edge| {
-            (
-                edge.source_state.arena_index(),
-                edge.source_state.generation(),
-                edge.target_state.arena_index(),
-                edge.target_state.generation(),
-                edge.statement_ordinal,
-            )
-        });
-        retained.push(ProvenNatCountdownScc {
-            header_state: members[header_index].1.symbol,
-            header_rank_parameter_position: u32::try_from(header_rank_position).ok()?,
-            rank_primitive_type: header_primitive,
-            rank_lower_bound: 0,
-            rank_upper_bound,
-            covered_cyclic_edges,
-        });
-    }
-    Some(retained)
-}
-
-/// Transport the existing fused countdown judgment into the shared state-rank
-/// carrier. Every cyclic edge was proved above and names its exact formal;
-/// this projection introduces no additional decrease recognizer.
-pub(crate) fn proven_fused_state_natural_ranks(
-    program: &dyn ::validation::CheckingInput,
-    member_states: &[symbols::SymbolHandle],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
-    let components =
-        proven_fused_nat_countdown_sccs(program, member_states, call_frames)?;
-    let mut ranks = Vec::<checked_trees::CheckedStateNaturalRank>::new();
-    for component in components {
-        for edge in component.covered_cyclic_edges {
-            let (_, state) = validation::find_state(program, edge.source_state)?;
-            let parameter = program
-                .state_parameters(state)
-                .get(edge.source_rank_parameter_position as usize)?;
-            let rank = checked_trees::CheckedStateNaturalRank {
-                observation: Default::default(),
-                state: state.symbol,
-                parameter: parameter.symbol,
-                parameter_position: edge.source_rank_parameter_position,
-                measure: checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
-                    primitive_type: component.rank_primitive_type,
-                },
-            };
-            if let Some(existing) = ranks.iter().find(|existing| existing.state == rank.state) {
-                if *existing != rank {
-                    return None;
-                }
-            } else {
-                ranks.push(rank);
-            }
-        }
-    }
-    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
-    Some(ranks)
-}
-
-fn unsigned_maximum(primitive: typed_trees::types::PrimitiveType) -> Option<u128> {
-    use typed_trees::types::PrimitiveType;
-    match primitive {
-        PrimitiveType::U8 => Some(u128::from(u8::MAX)),
-        PrimitiveType::U16 => Some(u128::from(u16::MAX)),
-        PrimitiveType::U32 => Some(u128::from(u32::MAX)),
-        PrimitiveType::U64 => Some(u128::from(u64::MAX)),
-        PrimitiveType::Bool
-        | PrimitiveType::F32
-        | PrimitiveType::F64
-        | PrimitiveType::I8
-        | PrimitiveType::I16
-        | PrimitiveType::I32
-        | PrimitiveType::I64
-        | PrimitiveType::Addr
-        | PrimitiveType::Selector => None,
-    }
-}
-
-/// Retain the existing slice-length judgment's exact subjects for shared
-/// state-graph production. This does not establish Terminal ranking authority.
-pub(crate) fn proven_slice_length_ranks(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
-    let witness = machine.termination_plan.implementation_witness.as_ref()?;
-    if witness.ranking_view != language_semantics::RankingViewId::SLICE_LENGTH
-        || !witness.view_arguments.is_empty()
-        || !matches!(
-            machine_decrease_outcome(program, machine, call_frames),
-            DecreaseOutcome::Proven
-        )
-    {
-        return None;
-    }
-    let subjects = resolve_machine_witness_subjects(program, machine)?;
-    let [subject] = subjects.as_slice() else {
-        return None;
-    };
-    let root = program.machine_states(machine).first()?;
-    let place =
-        validation::canonical_place_from_expression_in_state(program, root.symbol, 0, *subject)?;
-    let facts::PlaceRoot::Symbol(entry) = place.root else {
-        return None;
-    };
-    let required = match program
-        .ranking_expression_custody_for(machine.symbol)
-        .and_then(|custody| custody.rank_range)
-    {
-        Some(range) => validation::ranking_range_required_symbols(
-            program,
-            machine,
-            range,
-            validation::RankingRangeMeasure::SliceLength(*subject),
-            validation::RankingRangePremises::RankInvariant,
-        )?,
-        // An unranged witness has no invocation-fixed premises. Its
-        // slice may shrink, and a scalar element computed from it is
-        // a dependent payload rather than another slice carrier.
-        // The shared telescope demotes those duplicate dependencies
-        // unless a range obligation independently requires them.
-        None => Vec::new(),
-    };
-    let mappings = validation::discover_state_entry_mappings(program, machine, entry, &required)?;
-    let adjacency = graph::machine_adjacency(program, machine);
-    let states = program.machine_states(machine);
-    let mut ranks = Vec::new();
-    for component in graph::strongly_connected_components(&adjacency)
-        .into_iter()
-        .filter(|component| graph::component_is_cyclic(&adjacency, component))
-    {
-        for position in component {
-            let state = states.get(position)?;
-            let (parameter, parameter_position, _) = validation::ranking_slice_length_observation(
-                program,
-                machine,
-                state,
-                mappings.get(position)?,
-                *subject,
-            )?;
-            ranks.push(checked_trees::CheckedStateNaturalRank {
-                observation: Default::default(),
-                state: state.symbol,
-                parameter,
-                parameter_position,
-                measure: checked_trees::CheckedNaturalRankMeasure::SequenceLength {
-                    subject: *subject,
-                },
-            });
-        }
-    }
-    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
-    (!ranks.is_empty()).then_some(ranks)
-}
-
-/// Preserve an already-proven measure on the shared executable state graph:
-/// one rank for every state of every cyclic component, stated over that
-/// state's own parameters. This records the measure, not a fixed-work bound
-/// or Terminal proof; emission evaluates it and the verifier checks each edge.
-///
-/// The measure is the one `nat::edge_decrease_proven` saw decrease, so each
-/// edge inside a component is re-proved against it here: a machine accepted
-/// only through another tier (the relational rank-range judgment) keeps no
-/// shared ranks rather than a measure no edge proof names.
-pub(crate) fn proven_state_natural_ranks(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
-    let witness = machine.termination_plan.implementation_witness.as_ref()?;
-    if witness.ranking_view == language_semantics::RankingViewId::SLICE_LENGTH {
-        return proven_slice_length_ranks(program, machine, call_frames);
-    }
-    if !matches!(
-        machine_decrease_outcome(program, machine, call_frames),
-        DecreaseOutcome::Proven
-    ) {
-        return None;
-    }
-    let states = program.machine_states(machine);
-    let root_state = states.first()?;
-    let subjects = resolve_machine_witness_subjects(program, machine)?;
-    let view_arguments = resolve_machine_witness_view_arguments(program, machine)?;
-    let OrderResolution::Resolved(order) =
-        RankingOrder::resolve_witness(program, root_state, witness, &subjects, &view_arguments)
-    else {
-        return None;
-    };
-    if matches!(
-        order,
-        RankingOrder::CustomNatDescending { .. }
-            | RankingOrder::CustomScalarView { .. }
-            | RankingOrder::CustomStructView { .. }
-    ) {
-        return declared_view_ranks(program, machine, &order, &subjects);
-    }
-    // The same measures the edge prover reads: the countdown subject, or the
-    // `(lower, upper)` distance `Nat::IncreasingTo(limit)` shares with
-    // `Nat::BoundedDistance`.
-    let measure = match (order, subjects.as_slice()) {
-        (RankingOrder::NatDescending, [subject]) => DecreaseMeasure::Single(*subject),
-        (RankingOrder::BoundedDistance, [lower, upper]) => DecreaseMeasure::Distance {
-            lower: *lower,
-            upper: *upper,
-        },
-        (RankingOrder::IncreasingTo(limit), [cursor]) => DecreaseMeasure::Distance {
-            lower: *cursor,
-            upper: limit,
-        },
-        _ => return None,
-    };
-    // A cyclic state may rename or reorder the ranked input — a loop header's
-    // `pending` carries the authored `remaining` — and the executable rank
-    // must name the carried formal. Discover the entry telescope the
-    // relational range judgment already proved: one entry-parameter symbol
-    // per non-self formal of every state. Where the telescope resolves the
-    // subject, the carried formal supplies both the published rank and the
-    // edge re-proof; where no complete correspondence exists, the bare
-    // name-match judgment decides alone, exactly as before.
-    let entry_mappings = measure_entry_mappings(program, machine, measure);
-    let adjacency = graph::machine_adjacency(program, machine);
-    let mut ranks = Vec::new();
-    for component in graph::strongly_connected_components(&adjacency)
-        .into_iter()
-        .filter(|component| graph::component_is_cyclic(&adjacency, component))
-    {
-        for &source_position in &component {
-            let source = states.get(source_position)?;
-            let source_entries = entry_mappings
-                .as_deref()
-                .and_then(|mappings| mappings.get(source_position));
-            let carried_rank = source_entries
-                .and_then(|entries| nat::carried_state_rank(program, source, measure, entries));
-            let carried_subject_resolved = carried_rank.is_some();
-            ranks.push(carried_rank.or_else(|| nat::state_rank(program, source, measure))?);
-            for &target_position in &component {
-                let target = states.get(target_position)?;
-                for edge in patterns::edges_to_state(program, source, target.symbol) {
-                    // When the carried correspondence resolved the subject in
-                    // `source`, the same roles must decide the edge: a rank
-                    // published through the telescope is never paired with an
-                    // edge proof that named a different parameter.
-                    let proven = if let Some(proven) = current_values::edge_decreases(
-                        program,
-                        machine,
-                        source,
-                        target,
-                        measure,
-                        source_entries.map(Vec::as_slice),
-                        entry_mappings
-                            .as_deref()
-                            .and_then(|mappings| mappings.get(target_position))
-                            .map(Vec::as_slice),
-                        &edge,
-                        call_frames,
-                    ) {
-                        proven
-                    } else if carried_subject_resolved {
-                        source_entries
-                            .zip(
-                                entry_mappings
-                                    .as_deref()
-                                    .and_then(|mappings| mappings.get(target_position)),
-                            )
-                            .is_some_and(|(source_entries, target_entries)| {
-                                nat::carried_edge_decrease_proven(
-                                    program,
-                                    source,
-                                    &edge.guards,
-                                    edge.arguments,
-                                    measure,
-                                    source_entries,
-                                    target_entries,
-                                )
-                            })
-                    } else {
-                        nat::edge_decrease_proven(
-                            program,
-                            source,
-                            target,
-                            &edge.guards,
-                            edge.arguments,
-                            measure,
-                        )
-                    };
-                    if !proven {
-                        return None;
-                    }
-                }
-            }
-        }
-    }
-    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
-    (!ranks.is_empty()).then_some(ranks)
-}
-
-/// The selected declaration's already-proven rank travels through the same
-/// state telescope as its range judgment. The runtime observation is filled by
-/// the shared value producer; this row grants no new arithmetic formation.
-fn declared_view_ranks(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    order: &RankingOrder,
-    subjects: &[ExpressionHandle],
-) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
-    let [subject] = subjects else {
-        return None;
-    };
-    let root = program.machine_states(machine).first()?;
-    let place =
-        validation::canonical_place_from_expression_in_state(program, root.symbol, 0, *subject)?;
-    let facts::PlaceRoot::Symbol(entry) = place.root else {
-        return None;
-    };
-    let measure_symbol = match order {
-        RankingOrder::CustomNatDescending { measure }
-        | RankingOrder::CustomScalarView { measure, .. }
-        | RankingOrder::CustomStructView { measure, .. } => *measure,
-        _ => return None,
-    };
-    let measure = program
-        .measures()
-        .iter()
-        .find(|measure| measure.symbol == measure_symbol)?;
-    let primitive_type = program.primitive_type_reference(measure.return_type)?;
-    let range_measure = match order {
-        RankingOrder::CustomScalarView {
-            parameter,
-            body,
-            carrier,
-            ..
-        } => validation::RankingRangeMeasure::Computed {
-            subject: *subject,
-            parameter: *parameter,
-            body: *body,
-            carrier: *carrier,
-        },
-        RankingOrder::CustomStructView { measure, .. } => validation::RankingRangeMeasure::Field {
-            subject: *subject,
-            measure: *measure,
-        },
-        RankingOrder::CustomNatDescending { .. } => {
-            validation::RankingRangeMeasure::Single(*subject)
-        }
-        _ => return None,
-    };
-    let required = match program
-        .ranking_expression_custody_for(machine.symbol)
-        .and_then(|custody| custody.rank_range)
-    {
-        Some(range) => validation::ranking_range_required_symbols(
-            program,
-            machine,
-            range,
-            range_measure,
-            validation::RankingRangePremises::RankInvariant,
-        )?,
-        None => vec![entry],
-    };
-    let mappings = validation::discover_state_entry_mappings(program, machine, entry, &required)?;
-    let states = program.machine_states(machine);
-    let adjacency = graph::machine_adjacency(program, machine);
-    let mut ranks = Vec::new();
-    for component in graph::strongly_connected_components(&adjacency)
-        .into_iter()
-        .filter(|component| graph::component_is_cyclic(&adjacency, component))
-    {
-        for position in component {
-            let state = states.get(position)?;
-            let entries = mappings.get(position)?;
-            let mut positions = entries
-                .iter()
-                .enumerate()
-                .filter(|(_, symbol)| **symbol == entry);
-            let (parameter_position, _) = positions.next()?;
-            if positions.next().is_some() {
-                return None;
-            }
-            let parameter = program.state_parameters(state).get(parameter_position)?;
-            ranks.push(checked_trees::CheckedStateNaturalRank {
-                state: state.symbol,
-                parameter: parameter.symbol,
-                parameter_position: u32::try_from(parameter_position).ok()?,
-                measure: checked_trees::CheckedNaturalRankMeasure::DeclaredMeasure {
-                    measure: measure.symbol,
-                    primitive_type,
-                },
-                observation: Default::default(),
-            });
-        }
-    }
-    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
-    (!ranks.is_empty()).then_some(ranks)
-}
-
-/// The entry correspondence under which a machine-stated measure can name its
-/// subject inside a renamed or reordered cyclic state. The required set
-/// follows the range judgment's RankInvariant premises so the telescope
-/// resolves duplicated claims exactly as the membership proof did; a witness
-/// with no range still requires its own subject. `None` for a measure whose
-/// subjects are not single names, since those keep the name-based judgment.
-fn measure_entry_mappings(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    measure: DecreaseMeasure,
-) -> Option<Vec<Vec<symbols::SymbolHandle>>> {
-    let DecreaseMeasure::Single(subject) = measure else {
-        return None;
-    };
-    let name = program.expression_table.name_path_node(subject)?;
-    if !name.symbol.is_valid() || name.head_symbol != name.symbol {
-        return None;
-    }
-    let required = program
-        .ranking_expression_custody_for(machine.symbol)
-        .and_then(|custody| custody.rank_range)
-        .and_then(|range| {
-            validation::ranking_range_required_symbols(
-                program,
-                machine,
-                range,
-                validation::RankingRangeMeasure::Single(subject),
-                validation::RankingRangePremises::RankInvariant,
-            )
-        })
-        .unwrap_or_else(|| vec![name.symbol]);
-    validation::discover_state_entry_mappings(program, machine, name.symbol, &required)
-}
+pub(in crate::checks::termination) use observations::prepare_natural_observations;
 
 pub(super) fn machine_decrease_outcome(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> DecreaseOutcome {
+    machine_decrease_outcome_with(program, machine, call_frames, &mut |_| true)
+}
+
+pub(super) fn machine_decrease_outcome_with(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    accept: &mut dyn FnMut(&RankArrivalAdmission) -> bool,
+) -> DecreaseOutcome {
     let states = program.machine_states(machine);
     // The ranking clause is declared on the machine signature, so its names
     // resolve against the machine's root (entry) state.
     let Some(root_state) = states.first() else {
-        return DecreaseOutcome::Proven;
+        return DecreaseOutcome::Proven(None);
     };
     let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
         return DecreaseOutcome::Unproven;
@@ -910,11 +147,31 @@ pub(super) fn machine_decrease_outcome(
     };
 
     if let Some(range) = witness.rank_range.as_ref() {
-        match ranges::check(program, machine, range, &order, measure, call_frames) {
-            Ok(proof) if proof.strict_decrease_proven => return DecreaseOutcome::Proven,
-            Ok(_) => {}
+        match ranges::check(
+            program,
+            machine,
+            range,
+            &order,
+            measure,
+            call_frames,
+            accept,
+        ) {
+            Ok(arrival) => return DecreaseOutcome::Proven(Some(arrival)),
             Err(message) => return DecreaseOutcome::Rejected(message),
         }
+    }
+
+    if witness.rank_range.is_none()
+        && let Some(arrival) = ranges::admit_relational_decrease(
+            program,
+            machine,
+            &order,
+            measure,
+            call_frames,
+            accept,
+        )
+    {
+        return DecreaseOutcome::Proven(Some(arrival));
     }
 
     let adjacency = graph::machine_adjacency(program, machine);
@@ -942,17 +199,25 @@ pub(super) fn machine_decrease_outcome(
             })
     };
 
-    if proven_with(DistanceOrientation::Declared) {
-        return DecreaseOutcome::Proven;
+    if matches!(
+        order,
+        RankingOrder::NatDescending | RankingOrder::BoundedDistance | RankingOrder::IncreasingTo(_)
+    ) && let Some(arrival) =
+        current_values::admit_root_cycle(program, machine, &order, measure, call_frames)
+    {
+        if accept(&arrival) {
+            return DecreaseOutcome::Proven(Some(arrival));
+        }
     }
 
-    // A statically established range may still need the relational owner to
-    // prove its actual step. Keep this fallback after the ordinary fast path,
-    // and retain the relational owner's entry, pinning, and every-edge gates.
-    if witness.rank_range.is_some()
-        && ranges::proves_relational_decrease(program, machine, &order, measure, call_frames)
-    {
-        return DecreaseOutcome::Proven;
+    // Erased structural recursion and lexicographic orders have their genuine
+    // source proof vocabulary. Executable natural views instead need the one
+    // complete coordinate witness above; the former spelling/shape probes
+    // cannot supply a second scalar arrival route.
+    let structural_order = matches!(order, RankingOrder::Lexicographic(_))
+        || validation::proof_only_classification(program).is_proof_machine(program, machine);
+    if structural_order && proven_with(DistanceOrientation::Declared) {
+        return DecreaseOutcome::Proven(None);
     }
 
     // An unproven bounded-distance tuple is probed with its subjects swapped:
@@ -1056,19 +321,6 @@ fn component_has_proven_decrease<'p>(
         }
         _ => measure,
     };
-    // Plain scalar Nat ranks and every distance read the same current-value
-    // transfer as contracts. This reads the explicitly supplied current
-    // actuals; a store cannot turn an old positive guard into evidence about
-    // the new counter.
-    if matches!(
-        order,
-        RankingOrder::NatDescending | RankingOrder::BoundedDistance | RankingOrder::IncreasingTo(_)
-    ) && let Some(proven) =
-        current_values::component_decreases(program, machine, component, measure, call_frames)
-    {
-        return proven;
-    }
-
     // A direct self-loop on a single-state component can use the full set of
     // supported orders. Genuine multi-state cycles are proven edge-by-edge with
     // the Nat-descending prover, which is the order whose decrease is defined

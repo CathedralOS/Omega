@@ -26,7 +26,6 @@
 //! Every store evaluates its destination's runtime selectors before its
 //! value, as the authored assignment orders them.
 
-use super::super::primitive_locals::{self};
 use super::{
     OperationFrame, StructuralTypeRoster, allocate_structural_result, last_operation_id,
     operation_result_declaration, require_parameter_window_root, structural_type_declaration,
@@ -243,58 +242,45 @@ impl OperationFrame<'_, '_> {
                 )?
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
-                if path.is_empty() {
-                    let local = primitive_locals::find(self.primitive_locals, *symbol)?;
-                    crate::emission::primitive_store::Destination {
-                        place: local.declaration.id,
-                        path: Vec::new(),
-                        scalar_restriction: None,
-                    }
-                } else {
-                    // A projected store writes through an established
-                    // structural local's owned place: the declared carrier
-                    // supplies the walk, the binding table supplies storage.
-                    let (source, declared) =
-                        crate::expression_preparation::bindings::structural_local_by_root(
-                            &self.evaluation.structural_locals,
-                            facts::PlaceRoot::Symbol(*symbol),
-                        )
-                        .map(|local| (local.argument.clone(), local.structural_type))
-                        .ok_or(LoweringError::Unsupported(
-                            "primitive store lost its structural local destination",
-                        ))?;
-                    if source.access != StructuralAccess::Owned {
-                        return unsupported("primitive store local is not an owned place");
-                    }
-                    // The established home's own declared carrier supplies
-                    // the walk below it.
-                    let scalar_restriction =
-                        crate::emission::primitive_store::destination_restriction(
-                            declared,
-                            path,
-                            self.structural_types.declarations(),
-                        )?;
-                    let (steps, _) = crate::emission::primitive_store::lower_destination_path(
-                        declared,
-                        path,
-                        self.structural_types.declarations(),
-                    )?;
-                    // A projected owned alias contributes its own walk: the
-                    // destination is the leaf under the place that actually
-                    // holds the storage. The alias path is static by
-                    // construction, so it composes as ordinary steps.
-                    let mut composed = source
-                        .path
-                        .iter()
-                        .cloned()
-                        .map(crate::emission::runtime_elements::ProjectionStep::Static)
-                        .collect::<Vec<_>>();
-                    composed.extend(steps);
-                    crate::emission::primitive_store::Destination {
-                        place: source.place,
-                        path: composed,
-                        scalar_restriction,
-                    }
+                // Whole and projected stores resolve one original home. An
+                // empty projection still retains the declaration's receiving
+                // restriction; the carrier scalar type alone grants no store.
+                let mut homes = self
+                    .evaluation
+                    .structural_locals
+                    .iter()
+                    .filter(|home| home.root == facts::PlaceRoot::Symbol(*symbol));
+                let home = homes.next().ok_or(LoweringError::Unsupported(
+                    "primitive store lost its structural local destination",
+                ))?;
+                if homes.next().is_some() || home.argument.access != StructuralAccess::Owned {
+                    return unsupported("primitive store local has no unique owned home");
+                }
+                let source = home.argument.clone();
+                let declared = home.structural_type;
+                let scalar_restriction = crate::emission::primitive_store::destination_restriction(
+                    declared,
+                    path,
+                    self.structural_types.declarations(),
+                )?;
+                let (steps, _) = crate::emission::primitive_store::lower_destination_path(
+                    declared,
+                    path,
+                    self.structural_types.declarations(),
+                )?;
+                // An owned alias contributes its existing static prefix before
+                // this assignment's complete checked projection.
+                let mut composed = source
+                    .path
+                    .iter()
+                    .cloned()
+                    .map(crate::emission::runtime_elements::ProjectionStep::Static)
+                    .collect::<Vec<_>>();
+                composed.extend(steps);
+                crate::emission::primitive_store::Destination {
+                    place: source.place,
+                    path: composed,
+                    scalar_restriction,
                 }
             }
         };

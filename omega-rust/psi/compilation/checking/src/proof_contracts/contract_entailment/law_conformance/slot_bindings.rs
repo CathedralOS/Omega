@@ -114,6 +114,18 @@ pub(crate) fn rewrite_slot_applications(
     missing: &mut Vec<String>,
 ) -> StructuralTerm {
     match term {
+        StructuralTerm::ObservedValue {
+            observed_type,
+            value,
+        } => StructuralTerm::ObservedValue {
+            observed_type: *observed_type,
+            value: Box::new(rewrite_slot_applications(
+                value,
+                slot_names,
+                slot_bindings,
+                missing,
+            )),
+        },
         StructuralTerm::Application {
             result_type,
             target,
@@ -151,11 +163,13 @@ pub(crate) fn rewrite_slot_applications(
             }
         }
         StructuralTerm::ScalarBinary {
+            references,
             operator,
             meaning,
             left,
             right,
         } => StructuralTerm::ScalarBinary {
+            references: *references,
             operator: *operator,
             meaning: *meaning,
             left: Box::new(rewrite_slot_applications(
@@ -201,7 +215,8 @@ pub(crate) fn rewrite_slot_applications(
 }
 
 pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -> bool {
-    match term {
+    match term.semantic_value() {
+        StructuralTerm::ObservedValue { .. } => unreachable!("semantic_value strips observations"),
         StructuralTerm::ScalarBinary { left, right, .. } => {
             term_mentions_variable(left, variable) || term_mentions_variable(right, variable)
         }
@@ -233,7 +248,7 @@ pub(crate) fn diagnostic_shape_match(
     variables: &[String],
     bindings: &mut Vec<(String, StructuralTerm)>,
 ) -> bool {
-    match (pattern, term) {
+    match (pattern.semantic_value(), term.semantic_value()) {
         (StructuralTerm::Variable(name), _) if variables.iter().any(|v| v == name) => {
             if let Some((_, bound)) = bindings.iter().find(|(n, _)| n == name) {
                 bound == term
@@ -319,7 +334,8 @@ pub(crate) fn diagnostic_shape_match(
 
 /// Render a term back into citation-argument spelling.
 pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
-    match term {
+    match term.semantic_value() {
+        StructuralTerm::ObservedValue { .. } => unreachable!("semantic_value strips observations"),
         StructuralTerm::Variable(name) => name.clone(),
         StructuralTerm::BoundValue(symbol) => format!("<completed value {symbol:?}>"),
         StructuralTerm::CapturedValue {
@@ -363,6 +379,7 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
             meaning,
             left,
             right,
+            ..
         } => format!(
             "binary:{operator:?}:{meaning:?}({},{})",
             display_structural_term(left),

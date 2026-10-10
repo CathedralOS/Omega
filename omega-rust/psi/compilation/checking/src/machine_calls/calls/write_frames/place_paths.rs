@@ -131,3 +131,35 @@ fn raw_frame_place_path(
         )),
     }
 }
+
+/// Adapt an authenticated declaration coordinate to the shared caller frame
+/// vocabulary. Stored fields remain precise; collection selectors retain the
+/// existing conservative containing-region boundary. This supplies no source
+/// identity or read permission beyond the caller's selected coordinate.
+pub fn frame_coordinate_path(
+    program: &dyn crate::CheckingInput,
+    root: symbols::SymbolHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<String> {
+    root.is_valid().then_some(())?;
+    Some(coordinate_storage_path(program, program.symbols.name(root), segments).0)
+}
+
+pub(super) fn coordinate_storage_path(
+    program: &dyn crate::CheckingInput,
+    name: &str,
+    segments: &[facts::PlaceSegment],
+) -> (String, FramePathPrecision) {
+    let mut path = name.to_owned();
+    for segment in segments {
+        match segment {
+            facts::PlaceSegment::Field { symbol } => {
+                path.push('.');
+                path.push_str(program.symbols.name(*symbol));
+            }
+            facts::PlaceSegment::Case { .. } => {}
+            _ => return (path, FramePathPrecision::CollectionCoarse),
+        }
+    }
+    (path, FramePathPrecision::Exact)
+}

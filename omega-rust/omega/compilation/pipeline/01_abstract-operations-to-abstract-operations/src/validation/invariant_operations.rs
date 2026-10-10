@@ -297,6 +297,7 @@ pub(crate) fn admissible_invariant_primitive_local(
         psi_operation,
         result,
         value,
+        ..
     } = &node.operation
     else {
         return None;

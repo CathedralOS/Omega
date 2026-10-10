@@ -16,7 +16,7 @@ use typed_trees::expression::TableRangeExpression;
 pub(super) fn required_symbols(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    range: &TableRangeExpression,
+    range: Option<&TableRangeExpression>,
     measure: RankingRangeMeasure,
     premises: RankingRangePremises,
 ) -> Option<Vec<SymbolHandle>> {
@@ -24,7 +24,7 @@ pub(super) fn required_symbols(
     let mut symbols = premise_symbols(
         program,
         machine,
-        Some(range),
+        range,
         measure,
         matches!(premises, RankingRangePremises::EntryInvariant),
     )?;

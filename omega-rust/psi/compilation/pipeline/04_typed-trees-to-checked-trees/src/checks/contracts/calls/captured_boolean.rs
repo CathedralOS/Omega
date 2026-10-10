@@ -96,6 +96,32 @@ fn captured_contract_proven(
     expression_intervals: &[validation::ExpressionInterval],
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
+    // The exact normal-call prefix owns completed nested operands and their
+    // public guarantees. It must run before the source-replay fence: a call
+    // result need not be repeatable to establish this occurrence's requirement.
+    // Use the retained authored fact, not a replay of its substituted syntax.
+    if let typed_trees::domain::ProofFact::Expression(required) =
+        program.proof_facts.get(contract.fact)
+        && let Some((machine, caller_state)) =
+            validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)
+        && let Some(site) = validation::find_call_site(
+            program,
+            machine.symbol,
+            caller_state.symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )
+        && validation::selected_value_call_requirement_entailed(
+            program,
+            machine,
+            caller_state,
+            call.statement_index,
+            site,
+            *required,
+        )
+    {
+        return true;
+    }
     if call_values::proves_captured_arithmetic_requirement(program, facts, state, call, expression)
     {
         return true;

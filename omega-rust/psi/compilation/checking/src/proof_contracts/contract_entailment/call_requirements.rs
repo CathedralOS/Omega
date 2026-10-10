@@ -9,6 +9,12 @@
 //! Runtime calls reuse the traversal with opaque invocation results and exact
 //! builtin equality domains. Empty write frames alone do not make observations
 //! deterministic, and IEEE equality is not structural reflexivity.
+//!
+//! Acyclic state paths retain their incoming substitutions. Recurrent runtime
+//! states instead start at their own independently checked entry contract and
+//! stop at the requested occurrence, before any successor or future citation.
+//! Machine-entry assumptions are not state invariants merely because their
+//! declarations use the same names.
 
 use super::citations::{
     CitationFacts, CitationTarget, instantiate_citation, machine_requires_facts,
@@ -16,7 +22,7 @@ use super::citations::{
 use super::refuted_requires::instantiated_fact_judgment;
 use super::self_induction::intake_available_self_induction_hypotheses;
 use super::structural_case_arms::{
-    recognize_structural_case_arms, structural_arm_judge,
+    recognize_structural_case_arms, recognize_structural_state_requirement, structural_arm_judge,
 };
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use symbols::SymbolHandle;
@@ -44,33 +50,157 @@ pub fn structural_call_requirement_entailed(
     expression: ExpressionHandle,
     case_facts_only: bool,
 ) -> bool {
+    let Some(callee_machine) = program.machine_holding_state(callee.symbol) else {
+        return false;
+    };
+    structural_requirement_at_prefix(
+        program,
+        machine,
+        state,
+        statement_index,
+        in_transition_target,
+        callee.symbol,
+        program.state_parameters(callee),
+        Some(callee_machine),
+        ExpressionHandle::invalid(),
+        0,
+        arguments,
+        expression,
+        case_facts_only,
+    )
+}
+
+/// Selected expression calls share the structural prefix and execution-path
+/// owner. The exact public declaration supplies the telescope; the realized
+/// implementation cannot export a stronger private contract.
+pub fn selected_value_call_requirement_entailed(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    site: crate::machine_calls::calls::CallSite<'_>,
+    expression: ExpressionHandle,
+) -> bool {
+    let crate::machine_calls::calls::CallSite::Expression {
+        expression: call_expression,
+        call,
+    } = site
+    else {
+        return false;
+    };
+    let Some(owner) = super::specification_calls::selected_call_contract(program, call) else {
+        return false;
+    };
+    if !super::specification_calls::owner_contracts(program, &owner)
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .any(|fact| matches!(fact, typed_trees::domain::ProofFact::Expression(required) if *required == expression))
+    {
+        return false;
+    }
+    let callee_machine = match owner {
+        super::specification_calls::SelectedCallContract::Concrete(machine, _) => Some(machine),
+        _ => None,
+    };
+    let Some(parameter_scope) = super::specification_calls::owner_parameter_scope(program, &owner)
+    else {
+        return false;
+    };
+    let leading_operands = super::specification_calls::owner_leading_operands(&owner);
+    let Some(arguments) = program
+        .expression_table
+        .expression_handles(call.arguments)
+        .get(leading_operands..)
+    else {
+        return false;
+    };
+    structural_requirement_at_prefix(
+        program,
+        machine,
+        state.symbol,
+        statement_index,
+        false,
+        super::specification_calls::owner_symbol(&owner),
+        parameter_scope.as_ref(),
+        callee_machine,
+        call_expression,
+        leading_operands,
+        arguments,
+        expression,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn structural_requirement_at_prefix(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: SymbolHandle,
+    statement_index: usize,
+    in_transition_target: bool,
+    callee_owner: SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    callee_machine: Option<&Machine>,
+    call_expression: ExpressionHandle,
+    leading_operands: usize,
+    arguments: &[ExpressionHandle],
+    expression: ExpressionHandle,
+    case_facts_only: bool,
+) -> bool {
     let classification = crate::proof_only_classification(program);
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
     };
-    if !crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
+    let runtime_values = !classification.is_proof_machine(program, machine)
+        || callee_machine.is_none_or(|callee| !classification.is_proof_machine(program, callee));
+    let acyclic = crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
         program, machine, entry,
-    ) {
+    );
+    if !runtime_values && !acyclic {
         return false;
     }
-    let Some(callee_machine) = program.machines().iter().find(|candidate| {
-        typed_trees::state::state_by_symbol(program.machine_states(candidate), callee.symbol)
-            .is_some()
-    }) else {
+    // An acyclic invocation can retain its complete incoming substitutions and
+    // branch facts. A recurrent state instead starts from its independently
+    // established contract: first-arrival facts cannot describe every iteration.
+    let state_prefix = runtime_values && !acyclic;
+    let Some(caller_state) = program.state_in_machine(machine, state) else {
         return false;
     };
-    let runtime_values = !classification.is_proof_machine(program, machine)
-        || !classification.is_proof_machine(program, callee_machine);
-    let requires = machine_requires_facts(program, machine);
+    // Named-state contracts are induction obligations of each arrival. They
+    // do not acquire the machine entry's facts merely by sharing binder names.
+    let mut requires = if state_prefix && caller_state.symbol != entry.symbol {
+        Vec::new()
+    } else {
+        machine_requires_facts(program, machine)
+    };
+    if state_prefix {
+        requires.extend(
+            crate::proof_contracts::proof_facts::contract_expression_facts(
+                program,
+                program.state_contracts(caller_state).iter(),
+                typed_trees::signature::SignatureContractKind::Requires,
+            ),
+        );
+    }
     if case_facts_only && (!runtime_values || !case_fact_only(program, expression)) {
         return false;
     }
     if runtime_values
-        && (!runtime_equality_fact(program, callee_machine, callee, expression)
+        && (!(runtime_fact_for_parameters(program, callee_owner, parameters, expression)
+            || callee_machine.is_some_and(|machine| {
+                program
+                    .state_in_machine(machine, callee_owner)
+                    .is_some_and(|state| runtime_equality_fact(program, machine, state, expression))
+            }))
             || (!case_facts_only
-                && !requires
-                    .iter()
-                    .all(|fact| runtime_equality_fact(program, machine, entry, *fact))))
+                && !requires.iter().all(|fact| {
+                    runtime_equality_fact(
+                        program,
+                        machine,
+                        if state_prefix { caller_state } else { entry },
+                        *fact,
+                    )
+                })))
     {
         return false;
     }
@@ -78,13 +208,18 @@ pub fn structural_call_requirement_entailed(
         state,
         statement_index,
         in_transition_target,
-        callee,
+        callee_owner,
+        parameters,
+        call_expression,
+        leading_operands,
         arguments,
         expression,
         seen: false,
         proven: true,
     };
-    let mut judge = if runtime_values {
+    let mut judge = if state_prefix {
+        StructuralJudge::from_runtime_state_requires(program, machine, caller_state, &requires)
+    } else if runtime_values {
         StructuralJudge::from_runtime_requires(program, machine, &requires)
     } else if contains_case_premise(program, expression) {
         StructuralJudge::from_case_requires(program, machine, &requires)
@@ -95,14 +230,26 @@ pub fn structural_call_requirement_entailed(
         judge.restrict_to_case_facts();
     }
     let mut diagnostics = Vec::new();
-    let recognized = recognize_structural_case_arms(
-        program,
-        machine,
-        &judge,
-        &classification,
-        &mut diagnostics,
-        Some(&mut requirement),
-    );
+    let recognized = if state_prefix {
+        recognize_structural_state_requirement(
+            program,
+            machine,
+            caller_state,
+            &judge,
+            &classification,
+            &mut diagnostics,
+            &mut requirement,
+        )
+    } else {
+        recognize_structural_case_arms(
+            program,
+            machine,
+            &judge,
+            &classification,
+            &mut diagnostics,
+            Some(&mut requirement),
+        )
+    };
     recognized.is_some() && diagnostics.is_empty() && requirement.seen && requirement.proven
 }
 
@@ -110,7 +257,10 @@ pub(super) struct CallRequirement<'program> {
     pub(super) state: SymbolHandle,
     pub(super) statement_index: usize,
     pub(super) in_transition_target: bool,
-    callee: &'program State,
+    callee_owner: SymbolHandle,
+    parameters: &'program [typed_trees::signature::StateParameter],
+    call_expression: ExpressionHandle,
+    leading_operands: usize,
     arguments: &'program [ExpressionHandle],
     expression: ExpressionHandle,
     seen: bool,
@@ -130,7 +280,7 @@ impl CallRequirement<'_> {
         guarantees: &CitationFacts,
     ) {
         self.seen = true;
-        let mut site_judge = structural_arm_judge(program, machine, judge, hypotheses, equations);
+        let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
         if site_judge.hypotheses_contradictory {
             return;
         }
@@ -147,32 +297,128 @@ impl CallRequirement<'_> {
                 &mut site_judge,
             );
         }
-        let caller_state = program.state_in_machine(machine, self.state);
-        let parameters = program.state_parameters(self.callee);
-        let substitution = parameters
-            .iter()
-            .zip(self.arguments)
-            .map(|(parameter, argument)| {
-                let scope = caller_state.map(|state| (machine, state, parameter.type_reference));
-                let term = judge.callee_term_in_scope(scope, *argument, environment, 0)?;
-                Some((parameter.name.as_str().to_owned(), term))
-            })
-            .collect::<Option<Vec<_>>>();
-        self.proven &= parameters.len() == self.arguments.len()
-            && substitution.is_some_and(|substitution| {
-                matches!(
-                    instantiated_fact_judgment(
-                        program,
-                        &site_judge,
-                        self.callee.symbol,
-                        parameters,
-                        self.expression,
-                        &substitution,
-                        caller_state.map(|state| (machine, state)),
-                    ),
-                    StructuralJudgment::Proven
-                )
-            });
+        let Some(caller_state) = program.state_in_machine(machine, self.state) else {
+            self.proven = false;
+            return;
+        };
+        let entries = if self.call_expression.is_valid() {
+            let Some(statement) = program
+                .statement_table
+                .statements(caller_state.statement_nodes)
+                .get(self.statement_index)
+            else {
+                self.proven = false;
+                return;
+            };
+            let roots =
+                crate::machine_calls::calls::statement_value_expression_roots(program, statement);
+            let mut entries = Vec::new();
+            for root in roots.into_iter().filter(|root| {
+                crate::expression_owners::expression_contains(program, *root, self.call_expression)
+            }) {
+                let scope = (machine, caller_state, caller_state.return_type);
+                let Some(mut observed) =
+                    site_judge.normal_call_entries(root, self.call_expression, environment, scope)
+                else {
+                    self.proven = false;
+                    return;
+                };
+                entries.append(&mut observed);
+            }
+            entries
+        } else {
+            let arguments = self
+                .parameters
+                .iter()
+                .zip(self.arguments)
+                .map(|(parameter, argument)| {
+                    judge.callee_term_in_scope(
+                        Some((machine, caller_state, parameter.type_reference)),
+                        *argument,
+                        environment,
+                        0,
+                    )
+                })
+                .collect::<Option<Vec<_>>>();
+            let Some(arguments) = arguments else {
+                self.proven = false;
+                return;
+            };
+            vec![
+                super::structural_judgment::normal_returns::NormalCallEntry {
+                    arguments,
+                    judge: site_judge,
+                },
+            ]
+        };
+        self.proven &= !entries.is_empty();
+        for entry in entries {
+            let mut substitution = Vec::new();
+            let subjects = if self.call_expression.is_valid() {
+                let Some(owner_machine) = program.machine(machine.symbol) else {
+                    self.proven = false;
+                    return;
+                };
+                crate::machine_calls::calls::CallFrameResolver::new(program).and_then(|frames| {
+                    frames.expression_call_reference_subjects(
+                        owner_machine,
+                        self.call_expression,
+                        self.parameters,
+                    )
+                })
+            } else {
+                Some(Vec::new())
+            };
+            let Some(subjects) = subjects else {
+                self.proven = false;
+                return;
+            };
+            let Some(arguments) = entry.arguments.get(self.leading_operands..) else {
+                self.proven = false;
+                return;
+            };
+            if self.parameters.len() != arguments.len()
+                || self.parameters.len() != self.arguments.len()
+            {
+                self.proven = false;
+                return;
+            }
+            for (parameter, value) in self.parameters.iter().zip(arguments) {
+                let value = if self.call_expression.is_valid()
+                    && crate::reference_shell(program, parameter.type_reference).is_some()
+                {
+                    subjects
+                        .iter()
+                        .find(|subject| subject.parameter == parameter.symbol)
+                        .and_then(|subject| {
+                            entry.judge.reference_subject_term(
+                                subject,
+                                environment,
+                                (machine, caller_state, caller_state.return_type),
+                            )
+                        })
+                } else {
+                    Some(value.clone())
+                };
+                let Some(value) = value else {
+                    self.proven = false;
+                    return;
+                };
+                substitution.push((parameter.name.as_str().to_owned(), value));
+            }
+            self.proven &= matches!(
+                instantiated_fact_judgment(
+                    program,
+                    &entry.judge,
+                    self.callee_owner,
+                    self.parameters,
+                    self.expression,
+                    &substitution,
+                    Some((machine, caller_state)),
+                ),
+                StructuralJudgment::Proven,
+            );
+        }
     }
 }
 
@@ -216,8 +462,45 @@ fn runtime_equality_fact(
                 expression,
             )
         }
-        _ => false,
+        _ => runtime_fact_for_parameters(
+            program,
+            machine.symbol,
+            program.state_parameters(state),
+            expression,
+        ),
     }
+}
+
+fn runtime_fact_for_parameters(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+) -> bool {
+    if crate::parameter_expression_result_type_reference(program, owner, parameters, expression)
+        .and_then(|reference| program.primitive_type_reference(reference))
+        != Some(typed_trees::types::PrimitiveType::Bool)
+    {
+        return false;
+    }
+    if let Some(binary) = program.expression_table.binary_node(expression)
+        && binary.operator == BinaryOperator::And
+    {
+        return crate::has_builtin_parameter_bound_expression_meaning(
+            program, owner, parameters, expression,
+        ) && runtime_fact_for_parameters(program, owner, parameters, binary.left)
+            && runtime_fact_for_parameters(program, owner, parameters, binary.right);
+    }
+    matches!(
+        super::structural_terms::structural_term(
+            program,
+            None,
+            Some((owner, parameters)),
+            expression,
+            None
+        ),
+        Some(StructuralTerm::ScalarBinary { .. } | StructuralTerm::Constructor { .. }),
+    )
 }
 
 fn contains_case_premise(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
@@ -259,7 +542,7 @@ pub(super) fn establish_citation(
     target: &CitationTarget,
     arguments: &[StructuralTerm],
 ) {
-    let mut site_judge = structural_arm_judge(program, machine, judge, hypotheses, equations);
+    let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
     guarantees.intake(&mut site_judge);
     // Runtime invocations transport only checked tag guarantees. Their saved
     // results are individual values, not mathematical applications or an IH.

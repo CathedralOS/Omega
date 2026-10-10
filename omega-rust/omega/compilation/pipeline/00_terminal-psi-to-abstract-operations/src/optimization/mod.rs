@@ -54,26 +54,46 @@ fn source_checked_operation_facts(
                 // later rewrite cannot reuse the obligation for a different
                 // RHS or a changed receiving predicate. No proof replay occurs.
                 let receiving = function.block_nodes().find_map(|node| {
-                    let abstract_operations::AbstractOperation::WriteOnlyPrimitiveStore {
-                        psi_operation,
-                        destination,
-                        path,
-                        value,
-                        range_obligation,
-                    } = &node.operation
-                    else {
-                        return None;
+                    let (operation, retained_obligation, value, restriction) = match &node.operation
+                    {
+                        abstract_operations::AbstractOperation::WriteOnlyPrimitiveStore {
+                            psi_operation,
+                            destination,
+                            path,
+                            value,
+                            range_obligation,
+                        } => (
+                            *psi_operation,
+                            *range_obligation,
+                            value.value,
+                            terminal_semantics::primitive_projection_restriction(
+                                unit.structural_types.iter(),
+                                destination.structural_type(),
+                                path,
+                            )?,
+                        ),
+                        abstract_operations::AbstractOperation::EstablishPrimitiveLocal {
+                            psi_operation,
+                            result,
+                            value,
+                            range_obligation,
+                        } => (
+                            *psi_operation,
+                            *range_obligation,
+                            value.value,
+                            terminal_semantics::primitive_projection_restriction(
+                                unit.structural_types.iter(),
+                                result.structural_type,
+                                &[],
+                            )?,
+                        ),
+                        _ => return None,
                     };
-                    if *psi_operation != *support || *range_obligation != Some(*obligation) {
+                    if operation != *support || retained_obligation != Some(*obligation) {
                         return None;
                     }
-                    let restriction = terminal_semantics::primitive_projection_restriction(
-                        unit.structural_types.iter(),
-                        destination.structural_type(),
-                        path,
-                    )?;
                     Some(optimization_unit::SourceCheckedScalarReceiving {
-                        value: value.value,
+                        value,
                         restriction: restriction.clone(),
                     })
                 });

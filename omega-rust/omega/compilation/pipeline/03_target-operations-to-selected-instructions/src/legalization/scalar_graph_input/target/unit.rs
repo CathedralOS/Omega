@@ -339,10 +339,7 @@ pub(super) fn validate_operation(
             && *result_home
                 == super::super::aggregate_results::result_home(optimized, result.place, plan)?
             && super::super::aggregate_results::home_layout(result, plan).is_ok() => {}
-        (
-            _,
-            abstract_operations::move_or_store_structural_field_pattern!(),
-        ) => {
+        (_, abstract_operations::move_or_store_structural_field_pattern!()) => {
             borrowed_windows::validate(target, abstracted, optimized, sources, plan, custody)?;
         }
         // An empty-record local realizes no storage: the row is its exact
@@ -627,6 +624,7 @@ pub(super) fn validate_operation(
                 psi_operation: expected_operation,
                 result: expected,
                 value: expected_value,
+                ..
             },
         ) if psi_operation == expected_operation
             && result == expected

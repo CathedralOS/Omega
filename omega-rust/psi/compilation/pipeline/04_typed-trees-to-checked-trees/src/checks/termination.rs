@@ -1,44 +1,19 @@
-//! Machine termination: a machine that claims termination must prove the
-//! `terminates by` ranking of its local cycles. This module also derives the
-//! termination summary and plan that checked facts publish for each machine.
+//! Source termination admission and its retained checked decisions.
 //!
-//! `check_machine_termination` is the check;
-//! `checks::check_checked_facts_recording` runs it last.
-//! For each machine whose normalized termination plan publishes
-//! `Terminates` or carries a ranking witness, it:
+//! `admit_machine_rankings` runs once after completed effects and caller frames.
+//! Local complete candidates stay in one lazy search until required runtime
+//! call edges and every-cycle descent accept the same coordinates. It then
+//! retains the exact body judgments and complete component decision once.
+//! Progress reads those decisions while independently propagating other calls'
+//! selected interface promises. Final source checking reports the retained
+//! diagnostics; late value computation and execution selection only project
+//! accepted observations. They never select another carrier or replay descent.
 //!
-//! 1. skips the machine when it has no local cycle (`graph`) and its witness
-//!    declares no rank range;
-//! 2. rejects a local cycle with no ranking witness;
-//! 3. skips a single-state machine with no local cycle that belongs to a
-//!    validated runtime recursive call component, since the component
-//!    judgment already covers it;
-//! 4. otherwise reports the outcome of `ranking::machine_decrease_outcome`.
-//!
-//! Fact construction uses the rest.
-//! `facts::machine_facts::build_termination_facts` calls
-//! `progress::analyze_checked_progress`, which derives each
-//! machine's progress premises from its selected calls and rejects a
-//! published termination guarantee that the checked body does not support or
-//! whose premises do not cover them. It then calls
-//! `build_checked_termination_plan`, which records the checked
-//! summary and the resolved ranking view in the machine's plan.
-//! `infer_machine_checked_summary` gives the body-local summary alone:
-//! `Terminates` for a checked-body machine that either has no local cycle or
-//! proves its ranking, and
-//! `NoGuarantee` otherwise. `progress` calls it, and
-//! `package_review::infer_machine_termination_summary` exposes it to
-//! admission sites that run before checked lowering.
-//!
-//! `order` resolves the well-founded order a `terminates by` clause selects;
-//! `ranking` uses it, and the ambiguous-order diagnostic here words its
-//! failure reasons. The remaining exports are queries for other modules:
-//! `named_transition_target_state_index` (from `graph`) for execution
-//! planning, scalar value plans and crash entry facts, the `proven_*` rank
-//! functions for execution planning, and
-//! `proves_ranked_entry_requirement` for the contract
-//! checks' call bounds.
+//! Package semantic admission has its own pre-check invocation of the same
+//! source judgment; it cannot consume a later compile's retained facts. Proof
+//! recursion and runtime call topology remain independent early authorities.
 
+mod component_selection;
 mod graph;
 mod order;
 mod progress;
@@ -51,113 +26,218 @@ pub(crate) use progress::entry_covers_progress_premises;
 pub(crate) use graph::{
     machine_adjacency, named_transition_target_state_index, strongly_connected_components,
 };
-pub(crate) use ranking::proven_fused_state_natural_ranks;
-pub(crate) use ranking::proven_nat_countdown_sccs;
-pub(crate) use ranking::proven_slice_length_ranks;
-pub(crate) use ranking::proven_state_natural_ranks;
 pub(crate) use ranking::proves_ranked_entry_requirement;
 
 use crate::labels::machine_name;
 use diagnostics::Diagnostic;
 
-pub(crate) fn check_machine_termination(
+/// Admit source ranking once after independent effects and caller frames are
+/// complete. All exact authored bodies retain their local result; a selected
+/// relational witness additionally retains its coherent full coordinates.
+pub(crate) fn admit_machine_rankings(
     program: &dyn ::validation::CheckingInput,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
-    let ranked_call_components = validation::validated_runtime_recursive_components(program);
+) -> checked_trees::CheckedRankArrivalPlan {
+    let mut admitted = checked_trees::CheckedRankArrivalPlan::default();
+    let topology = validation::prepare_runtime_rank_components(program);
+    let mut components = topology
+        .as_ref()
+        .map(|topology| {
+            topology
+                .joint_components()
+                .map(|component| {
+                    component_selection::select(program, topology, component, call_frames)
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    for (position, machine) in program.machines().iter().enumerate() {
+        let cycle = graph::machine_has_cycle(program, machine);
+        let witness = machine.termination_plan.implementation_witness.as_ref();
+        let claimed = witness.is_some()
+            || matches!(
+                &machine.termination_plan.interface,
+                language_semantics::TerminationInterface::Published(
+                    language_semantics::TerminationGuarantee::Terminates { .. }
+                )
+            );
+        // A locally acyclic prefix can belong to a recurrent call component.
+        // Only a demanded arrival witness adds that obligation: an unused
+        // unbounded view cannot reject an ordinary acyclic body.
+        let needs_judgment = witness.is_some_and(|witness| {
+            cycle
+                || witness.rank_range.is_some()
+                || topology
+                    .as_ref()
+                    .is_some_and(|topology| topology.requires_arrival_witness(position))
+        });
+        let mut local_terminates =
+            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody && !cycle;
+        let mut entry_rank_formed = false;
+        let mut diagnostic = String::new();
+        if needs_judgment {
+            let component = components
+                .iter_mut()
+                .find(|component| component.positions.contains(&position));
+            let outcome = if let Some(component) = component {
+                if let Some(body) = component
+                    .bodies
+                    .iter()
+                    .position(|(member, _)| *member == position)
+                {
+                    Some(ranking::DecreaseOutcome::Proven(Some(
+                        component.bodies.remove(body).1,
+                    )))
+                } else {
+                    component
+                        .source_failures
+                        .iter()
+                        .position(|(member, _)| *member == position)
+                        .map(|failure| component.source_failures.remove(failure).1)
+                }
+            } else {
+                Some(ranking::machine_decrease_outcome(
+                    program,
+                    machine,
+                    call_frames,
+                ))
+            };
+            match outcome {
+                None => {
+                    local_terminates = false;
+                }
 
-    for machine in program.machines().iter().filter(|machine| {
-        // TPR3 slice 1: the checker gates on the NORMALIZED plan (decision
-        // 23) -- a machine claims termination when it authored the public
-        // guarantee or supplied a ranking witness.
-        let plan = &machine.termination_plan;
-        matches!(
-            &plan.interface,
-            language_semantics::TerminationInterface::Published(
-                language_semantics::TerminationGuarantee::Terminates { .. }
-            )
-        ) || plan.implementation_witness.is_some()
-    }) {
-        let has_local_cycle = graph::machine_has_cycle(program, machine);
-        if !has_local_cycle
-            && !machine
-                .termination_plan
-                .implementation_witness
-                .as_ref()
-                .is_some_and(|witness| witness.rank_range.is_some())
-        {
-            continue;
-        }
-
-        if machine.termination_plan.implementation_witness.is_none() {
-            diagnostics.push(Diagnostic::error(format!(
+                Some(ranking::DecreaseOutcome::Proven(arrival)) => {
+                    entry_rank_formed = witness.is_some_and(|witness| witness.rank_range.is_some());
+                    local_terminates =
+                        machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
+                    if let Some(arrival) = arrival
+                        && arrival.retain(&mut admitted, machine).is_none()
+                    {
+                        local_terminates = false;
+                        entry_rank_formed = false;
+                        diagnostic = format!(
+                            "internal: cannot retain ranked arrival witness for machine {}",
+                            machine_name(program, machine.symbol)
+                        );
+                    }
+                }
+                Some(ranking::DecreaseOutcome::Unproven) => {
+                    local_terminates = false;
+                    diagnostic = format!(
+                        "cannot prove the `terminates by` ranking for machine {}",
+                        machine_name(program, machine.symbol)
+                    );
+                }
+                Some(ranking::DecreaseOutcome::AmbiguousOrder(ambiguity)) => {
+                    local_terminates = false;
+                    diagnostic =
+                        ambiguous_order_message(&machine_name(program, machine.symbol), &ambiguity);
+                }
+                Some(ranking::DecreaseOutcome::InvertedDistance(inverted)) => {
+                    local_terminates = false;
+                    diagnostic = inverted_distance_message(
+                        &machine_name(program, machine.symbol),
+                        &inverted,
+                    );
+                }
+                Some(ranking::DecreaseOutcome::Rejected(message)) => {
+                    local_terminates = false;
+                    diagnostic = format!(
+                        "terminating machine {}: {message}",
+                        machine_name(program, machine.symbol)
+                    );
+                }
+            }
+        } else if claimed && cycle && witness.is_none() {
+            diagnostic = format!(
                 "terminating machine {} contains a recursive cycle but carries no \
                  ranking witness -- spell one with `terminates by <subjects> [-> View];` \
                  (decision 23)",
                 machine_name(program, machine.symbol)
-            )));
-            continue;
+            );
         }
-
-        // The whole-component judgment proves these members' cross-machine
-        // call edges and transported ranges, but it never inspects an internal
-        // state arrival: it trusts each member's own ranking judgment for the
-        // local graph. A member that can still loop internally -- through a
-        // subordinate-state backedge or a call
-        // naming this machine's entry -- must answer to the local-state
-        // induction rule for exactly those intra-machine edges. A ranged
-        // member with internal arrivals must answer to its state-edge
-        // judgment even without a local cycle: a component call issued from
-        // a subordinate state consumes the member's authored range as that
-        // arrival's invariant, and only this judgment re-establishes
-        // membership and endpoint pinning at each arrival. A single-state
-        // member owes nothing past the entry membership the component
-        // judgment already proved. Clamped call ranks on cross-machine edges
-        // stay component-owned, and external progress and ordinary contracts
-        // remain obligations of their existing checks.
-        if !has_local_cycle
-            && program.machine_states(machine).len() == 1
-            && ranked_call_components
-                .iter()
-                .any(|members| members.contains(&machine.symbol))
+        if local_terminates
+            && witness.is_some()
+            && admitted.for_body(machine.symbol, machine.states).is_none()
         {
-            continue;
-        }
-
-        match ranking::machine_decrease_outcome(program, machine, call_frames) {
-            ranking::DecreaseOutcome::Proven => {}
-            ranking::DecreaseOutcome::Unproven => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove the `terminates by` ranking for machine {}",
-                    machine_name(program, machine.symbol)
-                )));
-            }
-            ranking::DecreaseOutcome::AmbiguousOrder(ambiguity) => {
-                diagnostics.push(Diagnostic::error(ambiguous_order_message(
-                    &machine_name(program, machine.symbol),
-                    &ambiguity,
-                )));
-            }
-            ranking::DecreaseOutcome::InvertedDistance(inverted) => {
-                diagnostics.push(Diagnostic::error(inverted_distance_message(
-                    &machine_name(program, machine.symbol),
-                    &inverted,
-                )));
-            }
-            ranking::DecreaseOutcome::Rejected(message) => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "terminating machine {}: {message}",
-                    machine_name(program, machine.symbol)
-                )));
+            if let Some(identity) = ranking::RankArrivalAdmission::entry_only(program, machine) {
+                if identity.retain(&mut admitted, machine).is_none() {
+                    local_terminates = false;
+                    entry_rank_formed = false;
+                    diagnostic = format!(
+                        "internal: cannot retain initial rank coordinate for machine {}",
+                        machine_name(program, machine.symbol),
+                    );
+                }
             }
         }
+        let observations = if local_terminates && witness.is_some() {
+            ranking::prepare_natural_observations(program, machine, &admitted)
+                .map(|observations| admitted.observations.insert_many(observations))
+                .unwrap_or_default()
+        } else {
+            Default::default()
+        };
+        admitted
+            .judgments
+            .insert(checked_trees::CheckedRankBodyJudgment {
+                machine: machine.symbol,
+                body: machine.states,
+                local_terminates,
+                entry_rank_formed,
+                observations,
+                diagnostic,
+            });
     }
+    for component in components {
+        validation::retain_runtime_rank_component(
+            program,
+            &component.positions,
+            component.decision,
+            &mut admitted,
+        );
+    }
+    admitted
+}
 
+pub(crate) fn check_machine_termination(
+    admitted: &checked_trees::CheckedRankArrivalPlan,
+) -> Result<(), Vec<Diagnostic>> {
+    let diagnostics = admitted
+        .judgments
+        .iter()
+        .filter_map(|(_, judgment)| {
+            (!judgment.diagnostic.is_empty())
+                .then(|| Diagnostic::error(judgment.diagnostic.clone()))
+        })
+        .chain(admitted.runtime_components.iter().filter_map(|(_, row)| {
+            (!row.diagnostic.is_empty()).then(|| Diagnostic::error(row.diagnostic.clone()))
+        }))
+        .collect::<Vec<_>>();
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+/// Progress inference consumes the already admitted exact body's local
+/// result. Public promise selection remains independently owned by the call
+/// summary query; a private body result cannot strengthen a public interface.
+pub(crate) fn retained_machine_local_summary(
+    machine: &typed_trees::machine::Machine,
+    admitted: &checked_trees::CheckedRankArrivalPlan,
+) -> language_semantics::TerminationGuarantee {
+    if admitted
+        .judgment_for_body(machine.symbol, machine.states)
+        .is_some_and(|judgment| judgment.local_terminates)
+    {
+        language_semantics::TerminationGuarantee::Terminates {
+            premises: Vec::new(),
+        }
+    } else {
+        language_semantics::TerminationGuarantee::NoGuarantee
     }
 }
 
@@ -176,7 +256,6 @@ pub(crate) fn build_checked_termination_plan(
 
 pub(crate) use progress::analyze_checked_progress;
 
-
 pub(crate) fn infer_machine_checked_summary(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -191,7 +270,7 @@ pub(crate) fn infer_machine_checked_summary(
     } else if machine.termination_plan.implementation_witness.is_some() {
         matches!(
             ranking::machine_decrease_outcome(program, machine, call_frames),
-            ranking::DecreaseOutcome::Proven
+            ranking::DecreaseOutcome::Proven(_)
         )
     } else {
         false

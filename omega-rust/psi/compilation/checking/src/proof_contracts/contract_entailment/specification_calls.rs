@@ -68,39 +68,34 @@ impl<'program> SpecificationCaller<'program> {
         expression: ExpressionHandle,
     ) -> Option<StructuralTerm> {
         match self {
-            Self::Machine(machine, Some(state)) => {
-                super::structural_terms::structural_term(
-            program,
-            Some((machine, state, Default::default())),
-            None,
-            expression,
-            None
-        )
-            }
-            Self::Machine(machine, None) => {
-                super::structural_terms::structural_term(
-            program,
-            None,
-            Some((machine.symbol,
-                program
+            Self::Machine(machine, Some(state)) => super::structural_terms::structural_term(
+                program,
+                Some((machine, state, Default::default())),
+                None,
+                expression,
+                None,
+            ),
+            Self::Machine(machine, None) => super::structural_terms::structural_term(
+                program,
+                None,
+                Some((
+                    machine.symbol,
+                    program
                         .machine_states(machine)
                         .first()
                         .map(|entry| program.state_parameters(entry))
-                        .unwrap_or_default())),
-            expression,
-            None
-        )
-            }
-            Self::Declaration(symbol, parameters) => {
-                super::structural_terms::structural_term(
-            program,
-            None,
-            Some((symbol,
-                parameters)),
-            expression,
-            None
-        )
-            }
+                        .unwrap_or_default(),
+                )),
+                expression,
+                None,
+            ),
+            Self::Declaration(symbol, parameters) => super::structural_terms::structural_term(
+                program,
+                None,
+                Some((symbol, parameters)),
+                expression,
+                None,
+            ),
         }
     }
 }
@@ -205,8 +200,18 @@ fn validate_expression(
         return;
     }
     let mut arguments = Vec::new();
-    let parameters = owner_parameters(program, &contract_owner);
-    arguments.extend_from_slice(program.expression_table.expression_handles(call.arguments));
+    let Some(parameter_scope) = owner_parameter_scope(program, &contract_owner) else {
+        return;
+    };
+    let parameters = parameter_scope.as_ref();
+    let Some(actuals) = program
+        .expression_table
+        .expression_handles(call.arguments)
+        .get(owner_leading_operands(&contract_owner)..)
+    else {
+        return;
+    };
+    arguments.extend_from_slice(actuals);
     let substitution = parameters
         .iter()
         .zip(&arguments)
@@ -260,8 +265,10 @@ fn validate_expression(
         // dispatch record does not disqualify it; a concrete call keeps the
         // static-selection gate that requires the same shape.
         let arguments_select_plainly = call.machine_arguments.is_empty()
-            && (matches!(contract_owner, SelectedCallContract::Signature(..))
-                || call.static_requirement_dispatch.is_none());
+            && (matches!(
+                contract_owner,
+                SelectedCallContract::Signature(..) | SelectedCallContract::DynamicSlot { .. }
+            ) || call.static_requirement_dispatch.is_none());
         let proven = if let Some(required) = requirement.as_expression()
             && arguments_select_plainly
         {
@@ -317,6 +324,10 @@ fn validate_expression(
 pub(crate) enum SelectedCallContract<'program> {
     Concrete(&'program Machine, &'program State),
     Signature(&'program StateSignature),
+    DynamicSlot {
+        slot: &'program typed_trees::dynamic_traits::DynamicSlotSignature,
+        signature: &'program StateSignature,
+    },
     Operator(&'program typed_trees::operator::OperatorDefinition),
 }
 
@@ -343,6 +354,10 @@ pub(super) fn selected_contract_by_symbol(
 ) -> Option<SelectedCallContract<'_>> {
     if !symbol.is_valid() {
         return None;
+    }
+    if let Some(slot) = program.dynamic_slot_by_symbol(symbol) {
+        let signature = program.dynamic_slot_requirement(slot)?;
+        return Some(SelectedCallContract::DynamicSlot { slot, signature });
     }
     if let Some(signature) = signature_by_symbol(program, symbol) {
         return Some(SelectedCallContract::Signature(signature));
@@ -402,7 +417,8 @@ fn signature_by_symbol(
 pub(super) fn owner_symbol(owner: &SelectedCallContract<'_>) -> SymbolHandle {
     match owner {
         SelectedCallContract::Concrete(_, state) => state.symbol,
-        SelectedCallContract::Signature(signature) => signature.symbol,
+        SelectedCallContract::Signature(signature)
+        | SelectedCallContract::DynamicSlot { signature, .. } => signature.symbol,
         SelectedCallContract::Operator(operator) => operator.symbol,
     }
 }
@@ -410,7 +426,8 @@ pub(super) fn owner_symbol(owner: &SelectedCallContract<'_>) -> SymbolHandle {
 fn owner_name(program: &dyn crate::CheckingInput, owner: &SelectedCallContract<'_>) -> String {
     match owner {
         SelectedCallContract::Concrete(machine, _) => machine.name.as_str().to_owned(),
-        SelectedCallContract::Signature(signature) => signature.name.as_str().to_owned(),
+        SelectedCallContract::Signature(signature)
+        | SelectedCallContract::DynamicSlot { signature, .. } => signature.name.as_str().to_owned(),
         SelectedCallContract::Operator(operator) => {
             program.symbols.name(operator.symbol).to_owned()
         }
@@ -423,8 +440,60 @@ pub(super) fn owner_parameters<'program>(
 ) -> &'program [StateParameter] {
     match owner {
         SelectedCallContract::Concrete(_, state) => program.state_parameters(state),
-        SelectedCallContract::Signature(signature) => program.state_signature_parameters(signature),
+        SelectedCallContract::Signature(signature)
+        | SelectedCallContract::DynamicSlot { signature, .. } => {
+            program.state_signature_parameters(signature)
+        }
         SelectedCallContract::Operator(operator) => program.operator_parameters(operator),
+    }
+}
+
+/// The public contract keeps its declaration symbols while its types are
+/// instantiated by the exact selected slot. Slot symbols belong to invocation
+/// flow and cannot replace the original binders in authored contract facts.
+pub(super) fn owner_parameter_scope<'program>(
+    program: &'program dyn crate::CheckingInput,
+    owner: &SelectedCallContract<'program>,
+) -> Option<std::borrow::Cow<'program, [StateParameter]>> {
+    let declared = owner_parameters(program, owner);
+    let SelectedCallContract::DynamicSlot { slot, .. } = owner else {
+        return Some(std::borrow::Cow::Borrowed(declared));
+    };
+    let instantiated = slot.data_parameters();
+    if declared.len() != instantiated.len() {
+        return None;
+    }
+    let parameters = declared
+        .iter()
+        .zip(instantiated)
+        .map(|(declared, actual)| {
+            let mut parameter = declared.clone();
+            parameter.type_reference = actual.type_reference;
+            parameter
+        })
+        .collect();
+    Some(std::borrow::Cow::Owned(parameters))
+}
+
+pub(super) fn owner_leading_operands(owner: &SelectedCallContract<'_>) -> usize {
+    match owner {
+        // The selected slot owns this dispatch prefix; its data_parameters
+        // API exposes the corresponding complete instantiated telescope.
+        SelectedCallContract::DynamicSlot { slot, .. } => {
+            slot.parameters.len() - slot.data_parameters().len()
+        }
+        _ => 0,
+    }
+}
+
+pub(super) fn owner_return_type(
+    owner: &SelectedCallContract<'_>,
+) -> typed_trees::types::TypeReferenceHandle {
+    match owner {
+        SelectedCallContract::Concrete(_, state) => state.return_type,
+        SelectedCallContract::Signature(signature) => signature.return_type,
+        SelectedCallContract::DynamicSlot { slot, .. } => slot.return_type,
+        SelectedCallContract::Operator(operator) => operator.return_type,
     }
 }
 
@@ -445,7 +514,8 @@ pub(super) fn owner_contracts<'program>(
             },
             program.state_contracts(state),
         ),
-        SelectedCallContract::Signature(signature) => {
+        SelectedCallContract::Signature(signature)
+        | SelectedCallContract::DynamicSlot { signature, .. } => {
             (program.state_signature_contracts(signature), &[])
         }
         SelectedCallContract::Operator(operator) => (program.operator_contracts(operator), &[]),
@@ -479,13 +549,7 @@ fn structurally_substitutable_fact(
     if super::structural_terms::is_case_observation(program, expression) {
         // Classification is not a value operand. Exact selected meaning is
         // checked at intake/judgment in the declaration's own scope.
-        return structural_term(
-            program,
-            None,
-            None,
-            binary.left,
-            None
-        )
+        return structural_term(program, None, None, binary.left, None)
             .is_some_and(|term| term_has_complete_substitution(program, &term));
     }
     if binary.operator == BinaryOperator::And {
@@ -496,13 +560,7 @@ fn structurally_substitutable_fact(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
     ) && [binary.left, binary.right].iter().all(|operand| {
-        structural_term(
-            program,
-            None,
-            None,
-            *operand,
-            None
-        )
+        structural_term(program, None, None, *operand, None)
             .is_some_and(|term| term_has_complete_substitution(program, &term))
     })
 }
@@ -514,7 +572,9 @@ fn term_has_complete_substitution(
     program: &dyn crate::CheckingInput,
     term: &StructuralTerm,
 ) -> bool {
+    let term = term.semantic_value();
     match term {
+        StructuralTerm::ObservedValue { .. } => unreachable!("semantic_value strips observations"),
         StructuralTerm::BoundValue(_)
         | StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }
@@ -683,16 +743,12 @@ fn requirements_are_acyclic(
     for (fact, _) in applicable_requirements_of(program, owner) {
         fact_roots(program, fact, &mut pending);
     }
-    let cyclic = crate::expression_traversal::visit_pre_order(
-        program,
-        pending,
-        |_, node| {
-            matches!(node, ExpressionNode::Call(call)
-                if selected_call_contract(program, call).is_some_and(|nested| {
-                    !requirements_are_acyclic(program, &nested, active, complete)
-                }))
-        },
-    );
+    let cyclic = crate::expression_traversal::visit_pre_order(program, pending, |_, node| {
+        matches!(node, ExpressionNode::Call(call)
+        if selected_call_contract(program, call).is_some_and(|nested| {
+            !requirements_are_acyclic(program, &nested, active, complete)
+        }))
+    });
     active.pop();
     complete.push(symbol);
     !cyclic
@@ -703,21 +759,17 @@ fn requirement_parameters_are_bound(
     expression: ExpressionHandle,
     parameters: &[StateParameter],
 ) -> bool {
-    !crate::expression_traversal::visit_pre_order(
-        program,
-        vec![expression],
-        |_, node| {
-            let ExpressionNode::Name(path) = node else {
-                return false;
-            };
-            [path.head_symbol, path.symbol].iter().any(|symbol| {
-                program.symbols.get(*symbol).kind == SymbolKind::Parameter
-                    && !parameters
-                        .iter()
-                        .any(|parameter| parameter.symbol == *symbol)
-            })
-        },
-    )
+    !crate::expression_traversal::visit_pre_order(program, vec![expression], |_, node| {
+        let ExpressionNode::Name(path) = node else {
+            return false;
+        };
+        [path.head_symbol, path.symbol].iter().any(|symbol| {
+            program.symbols.get(*symbol).kind == SymbolKind::Parameter
+                && !parameters
+                    .iter()
+                    .any(|parameter| parameter.symbol == *symbol)
+        })
+    })
 }
 
 fn selected_machine(
@@ -745,7 +797,10 @@ fn arithmetic_requirement(
         ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
         ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
     };
-    let parameters = owner_parameters(program, callee);
+    let Some(parameter_scope) = owner_parameter_scope(program, callee) else {
+        return false;
+    };
+    let parameters = parameter_scope.as_ref();
     if parameters.len() != arguments.len() {
         return false;
     }
@@ -823,33 +878,29 @@ fn names_are_unambiguous(
         .copied()
         .collect::<Vec<_>>();
     let mut names: Vec<(String, SymbolHandle)> = Vec::new();
-    !crate::expression_traversal::visit_pre_order(
-        program,
-        pending,
-        |expression, node| {
-            let ExpressionNode::Name(name) = node else {
-                return false;
-            };
-            if let Some(head) = program
-                .expression_table
-                .name_path_members(name.members)
-                .first()
-            {
-                if let Some((_, symbol)) = names.iter().find(|(known, _)| known == head.as_str()) {
-                    if *symbol != name.head_symbol {
-                        return true;
-                    }
-                } else {
-                    names.push((head.as_str().to_owned(), name.head_symbol));
+    !crate::expression_traversal::visit_pre_order(program, pending, |expression, node| {
+        let ExpressionNode::Name(name) = node else {
+            return false;
+        };
+        if let Some(head) = program
+            .expression_table
+            .name_path_members(name.members)
+            .first()
+        {
+            if let Some((_, symbol)) = names.iter().find(|(known, _)| known == head.as_str()) {
+                if *symbol != name.head_symbol {
+                    return true;
                 }
-            }
-            let spelling = program.expression_table.display_name(expression);
-            if let Some((_, symbol)) = names.iter().find(|(known, _)| *known == spelling) {
-                *symbol != name.symbol
             } else {
-                names.push((spelling, name.symbol));
-                false
+                names.push((head.as_str().to_owned(), name.head_symbol));
             }
-        },
-    )
+        }
+        let spelling = program.expression_table.display_name(expression);
+        if let Some((_, symbol)) = names.iter().find(|(known, _)| *known == spelling) {
+            *symbol != name.symbol
+        } else {
+            names.push((spelling, name.symbol));
+            false
+        }
+    })
 }

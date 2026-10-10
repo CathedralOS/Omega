@@ -47,9 +47,9 @@ pub(crate) use call_arguments::{
     nested_structural_call_return_type, retain_nested_structural_call_arguments,
 };
 pub(crate) use contract_entry::{
-    lower_entry_predicate, lower_entry_scalar,
-    lower_machine_entry_boolean_expression, lower_machine_entry_crash_contract_expression,
-    lower_operator_crash_contract_expression, lower_signature_crash_contract_expression,
+    lower_entry_predicate, lower_entry_scalar, lower_machine_entry_boolean_expression,
+    lower_machine_entry_crash_contract_expression, lower_operator_crash_contract_expression,
+    lower_signature_crash_contract_expression,
 };
 pub(crate) use expression_facts::{
     occupies_scalar_position, operator_is_builtin, parameter_position, scalar_expression_type,
@@ -64,8 +64,8 @@ pub(crate) use machine_parameter_booleans::{
 pub(crate) use result_contract::{
     lower_callable_parameter_range_requirements, lower_callable_scalar_contract_predicate,
     lower_scalar_contract_predicate, lower_scalar_parameter_range_requirements,
-    lower_scalar_parameter_refinement_predicates, lower_state_interval_predicate,
-    lower_state_scalar_contract_predicate,
+    lower_scalar_parameter_refinement_predicates, lower_state_declared_range_predicate,
+    lower_state_interval_predicate, lower_state_scalar_contract_predicate,
 };
 pub(crate) use scalar_lowering::{
     landed_for_primitive, lower_state_scalar_expression, lower_unit_scalar_argument,

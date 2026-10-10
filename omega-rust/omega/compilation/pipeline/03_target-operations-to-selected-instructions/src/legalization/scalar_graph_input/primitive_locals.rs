@@ -38,6 +38,7 @@ pub(super) fn producer(
                 psi_operation,
                 result,
                 value,
+                ..
             } if result.place == place => Some((*psi_operation, result, *value)),
             _ => None,
         });
@@ -106,6 +107,7 @@ pub(super) fn validate(
                 psi_operation,
                 result,
                 value,
+                ..
             } => {
                 if !valid_result(function, *psi_operation, result)
                     || scalar(types, result.structural_type) != Some(value.scalar_type)

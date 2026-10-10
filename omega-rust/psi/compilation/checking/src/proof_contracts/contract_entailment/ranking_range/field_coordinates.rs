@@ -4,11 +4,10 @@
 //! copy equality.
 use super::{
     BTreeMap, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
-    RankingRangeState, State, comparison_proven, fields, projections,
+    RankingRangeState, State, fields, projections,
 };
 use fields::FieldCoordinate;
 use symbols::SymbolHandle;
-use typed_trees::expression::BinaryOperator;
 use typed_trees::signature::StateParameter;
 
 pub(super) struct FieldCoordinates<'program> {
@@ -63,7 +62,7 @@ impl<'program> FieldCoordinates<'program> {
         program: &'program dyn crate::CheckingInput,
         state: &State,
         root: &State,
-        entry_parameters: Option<&[SymbolHandle]>,
+        entry_parameters: Option<&super::RankStateBindings>,
         engine: &mut Engine<'_>,
         expressions: &[ExpressionHandle],
     ) -> Option<()> {
@@ -119,94 +118,51 @@ impl<'program> FieldCoordinates<'program> {
         program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
-        entry_parameters: Option<&[SymbolHandle]>,
+        entry_parameters: Option<&super::RankStateBindings>,
         destination: Option<RankingRangeState<'_>>,
         carrier: &'program StateParameter,
-        required: &[SymbolHandle],
+        _required: &[SymbolHandle],
         engine: &mut Engine<'_>,
-        formal: SymbolHandle,
+        _formal: SymbolHandle,
         argument: ExpressionHandle,
         substitutions: &mut BTreeMap<String, Polynomial>,
     ) -> Option<bool> {
         let mut matched = false;
         for coordinate in self.coordinates() {
-            let entry_symbol = match entry_parameters {
-                None => coordinate.parameter.symbol,
-                Some(entries) => match super::coordinate::arrived_entry_symbol(
-                    program,
-                    state,
-                    entries,
-                    coordinate,
-                    Some(required),
-                )? {
-                    Some(entry) => entry,
-                    // A role-less record serves its own guards only; its
-                    // fields never rewrite a template coordinate.
-                    None => continue,
-                },
+            let entry = match entry_parameters {
+                None => coordinate.location(program),
+                Some(entries) => {
+                    match super::coordinate::arrived_entry_coordinate(program, entries, coordinate)
+                    {
+                        Some(entry) => entry,
+                        None => continue,
+                    }
+                }
             };
-            if entry_symbol != formal {
+            let (arrival_state, target) = match destination {
+                Some(destination) => (
+                    destination.state,
+                    destination.entry_parameters.destination(&entry)?,
+                ),
+                None => (state, entry),
+            };
+            if target.parameter != carrier.symbol {
                 continue;
             }
-            // The destination formal's own coordinate walks the actual: a
-            // role arriving nested inside the carrier's record -- `pair.left`
-            // holding `countdown` -- or as a record this chain reaches
-            // partway reads the literal through the chain the destination's
-            // invariant names, not the source slot's own spelling. The
-            // destination's type likewise decides whether the actual arrives
-            // under one borrow: an owned source slot can feed a `&R` formal
-            // through `&x`, while the source coordinate's boundary says
-            // nothing about the arrival. A root edge re-fills the
-            // coordinate's own formal, so its boundary is the arrival's.
-            let actual = match destination {
-                Some(destination) => {
-                    let arrived = match coordinate.at_arrival(program, destination, entry_symbol) {
-                        Some(arrived) => arrived,
-                        None => {
-                            // Several destination slots claim the role: this
-                            // slot's own declaration is the carrier the
-                            // actual must fill. A claimant that cannot carry
-                            // the chain leaves the scalar substitution path
-                            // to read its actual.
-                            if !required.contains(&entry_symbol) {
-                                return None;
-                            }
-                            match coordinate.for_carrier(program, carrier) {
-                                Some(arrived) => arrived,
-                                None => continue,
-                            }
-                        }
-                    };
-                    arrived.field_actual(
-                        program,
-                        machine,
-                        state,
-                        engine,
-                        argument,
-                        arrived.borrowed,
-                    )?
-                }
-                None => coordinate.field_actual(
-                    program,
-                    machine,
-                    state,
-                    engine,
-                    argument,
-                    coordinate.borrowed,
-                )?,
-            };
-            if let Some(existing) = substitutions.get(&coordinate.identity) {
-                // A contested required role reaches this map once per
-                // claimant: every actual must agree with the first reading,
-                // the same re-proof the scalar destination arm runs for
-                // duplicated required copies.
-                if !engine.requires_unsatisfiable
-                    && !comparison_proven(engine, BinaryOperator::Equal, existing, &actual)
-                {
-                    return None;
-                }
-            } else {
-                substitutions.insert(coordinate.identity.clone(), actual);
+            let actual = super::arrival_scalar_actual(
+                program,
+                machine,
+                state,
+                arrival_state,
+                &target,
+                engine,
+                argument,
+            )?;
+            if substitutions
+                .insert(coordinate.identity.clone(), actual)
+                .is_some()
+            {
+                return None;
             }
             matched = true;
         }

@@ -38,15 +38,6 @@ pub(super) fn structural_call_carrier_matches(
 /// A case literal carrying non-scalar payload registers its construction root
 /// the same way a record literal does: each authored field keeps its own
 /// scalar or nested structural value under the selected case.
-
-// Classify the destination before inserting scalar operand roots. A scalar or
-// array Match must not leave partial structural plans when a later arm fails.
-// A match arm may also select an owned child projected by exact field or
-// fixed-index path; its structural node is a Projection over the root place,
-// which the owned-selection transfer evidence then checks path-for-path.
-/// A case literal carrying non-scalar payload registers its construction root
-/// the same way a record literal does: each authored field keeps its own
-/// scalar or nested structural value under the selected case.
 pub(in crate::execution::scalar_computations) fn is_structural_case_value(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
@@ -154,16 +145,16 @@ pub(in crate::execution::scalar_computations) fn is_record_value(
                 };
                 if !structural_call_carrier_matches(program, returned, expected)
                     || !(validation::has_contents(
-        program,
-        returned,
-        &[],
-        validation::ContentsRequirement::StructuralConstruction
-    ) || validation::has_contents(
-        program,
-        returned,
-        &[],
-        validation::ContentsRequirement::LinearOwned
-    ) || validation::reference_result_custody::is_reference_record(
+                        program,
+                        returned,
+                        &[],
+                        validation::ContentsRequirement::StructuralConstruction,
+                    ) || validation::has_contents(
+                        program,
+                        returned,
+                        &[],
+                        validation::ContentsRequirement::LinearOwned,
+                    ) || validation::reference_result_custody::is_reference_record(
                         program, returned,
                     ))
                 {
@@ -181,22 +172,6 @@ pub(in crate::execution::scalar_computations) fn is_record_value(
         }
     }
     true
-}
-
-/// A LocalData initializer whose declared type is a shared or mutable slice. The
-/// value itself is adjudicated by `slice_view_place`, which rejoins
-/// the checked loan the view holds; this only decides that the destination is
-/// a view at all, so the ordinary owned classifications keep every other local.
-pub(in crate::execution::scalar_computations) fn is_borrowed_slice_view_value(
-    program: &dyn ::validation::CheckingInput,
-    expected: TypeReferenceHandle,
-) -> bool {
-    crate::execution::terminal_unit::types::borrowed_slice_view_element(program, expected, &[])
-        .is_some()
-        || matches!(
-            crate::execution::terminal_unit::types::byte_sequence_carrier(program, expected, &[]),
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
-        )
 }
 
 /// A LocalData initializer copying one element of a borrowed view

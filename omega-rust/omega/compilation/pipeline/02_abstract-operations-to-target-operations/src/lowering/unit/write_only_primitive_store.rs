@@ -119,7 +119,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                 || !home.qualifications().is_empty()
                 || !home.projected_qualifications().is_empty()
                 || home.multiplicity() == StructuralMultiplicity::Linear
-                || path.is_empty()
+                || (path.is_empty() && home.multiplicity() != StructuralMultiplicity::Unrestricted)
             {
                 return Err(invalid());
             }

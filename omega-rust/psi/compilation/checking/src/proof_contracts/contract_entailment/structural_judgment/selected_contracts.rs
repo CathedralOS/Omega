@@ -91,7 +91,7 @@ impl StructuralJudge<'_> {
                 }
                 state.return_type
             }
-            SelectedCallContract::Signature(_) => {
+            SelectedCallContract::Signature(_) | SelectedCallContract::DynamicSlot { .. } => {
                 // Public interface selection does not itself establish that
                 // an abstract invocation has an observation-free denotation.
                 return None;
@@ -187,6 +187,7 @@ fn collect_applications<'term>(
     term: &'term StructuralTerm,
     applications: &mut Vec<&'term StructuralTerm>,
 ) {
+    let term = term.semantic_value();
     match term {
         StructuralTerm::Application { arguments, .. } => {
             for argument in arguments {
@@ -335,7 +336,25 @@ pub(super) fn capture_equations(
             0,
         ),
     ) {
-        equations.push((left, right));
+        let references = [binary.left, binary.right].map(|operand| {
+            crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
+        });
+        let Some(references) =
+            crate::value_custody::expression_types::builtin_scalar_operand_references(
+                program, binary, references, None,
+            )
+        else {
+            return;
+        };
+        if super::super::structural_terms::scalar_operand_is_observed(program, references[0], &left)
+            && super::super::structural_terms::scalar_operand_is_observed(
+                program,
+                references[1],
+                &right,
+            )
+        {
+            equations.push((left, right));
+        }
     }
 }
 
@@ -354,6 +373,9 @@ pub(super) fn bound_term(
 ) -> Option<StructuralTerm> {
     if depth >= 64 {
         return None;
+    }
+    if let Some(value) = super::super::proof_integer::anonymous_integer_value(program, expression) {
+        return Some(StructuralTerm::Integer(value));
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
@@ -425,13 +447,7 @@ pub(super) fn bound_term(
             })
         }
         ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {
-            super::super::structural_terms::structural_term(
-            program,
-            None,
-            None,
-            expression,
-            None
-        )
+            super::super::structural_terms::structural_term(program, None, None, expression, None)
         }
         ExpressionNode::Binary(binary) => {
             if !crate::has_builtin_parameter_bound_expression_meaning(
@@ -439,38 +455,58 @@ pub(super) fn bound_term(
             ) {
                 return None;
             }
-            let meaning = [binary.left, binary.right].map(|operand| {
-                let reference = crate::parameter_expression_result_type_reference(
+            if let Some(term) = super::super::structural_terms::builtin_anonymous_comparison_term(
+                program, expression,
+            ) {
+                return Some(term);
+            }
+            let references = [binary.left, binary.right].map(|operand| {
+                crate::parameter_expression_result_type_reference(
                     program, scope, parameters, operand,
-                )?;
-                Some((
-                    program.primitive_type_reference(reference)?,
-                    program.arithmetic_domain_for_type_reference(reference),
-                ))
+                )
             });
+            let references =
+                crate::value_custody::expression_types::builtin_scalar_operand_references(
+                    program, binary, references, None,
+                )?;
+            let left = bound_term(
+                program,
+                binary.left,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                result,
+                depth + 1,
+            )?;
+            let right = bound_term(
+                program,
+                binary.right,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                result,
+                depth + 1,
+            )?;
+            let meaning = [
+                super::super::structural_terms::scalar_operand_meaning(
+                    program,
+                    references[0],
+                    &left,
+                )?,
+                super::super::structural_terms::scalar_operand_meaning(
+                    program,
+                    references[1],
+                    &right,
+                )?,
+            ];
             Some(StructuralTerm::ScalarBinary {
+                references,
                 operator: binary.operator,
-                meaning: [meaning[0]?, meaning[1]?],
-                left: Box::new(bound_term(
-                    program,
-                    binary.left,
-                    scope,
-                    parameters,
-                    callable,
-                    bindings,
-                    result,
-                    depth + 1,
-                )?),
-                right: Box::new(bound_term(
-                    program,
-                    binary.right,
-                    scope,
-                    parameters,
-                    callable,
-                    bindings,
-                    result,
-                    depth + 1,
-                )?),
+                meaning,
+                left: Box::new(left),
+                right: Box::new(right),
             })
         }
         _ => None,

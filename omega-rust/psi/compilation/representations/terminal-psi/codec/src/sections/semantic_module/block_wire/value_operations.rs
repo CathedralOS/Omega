@@ -22,9 +22,11 @@ use terminal_psi::OperationKind;
 pub(super) fn encode_establish_primitive_local(
     writer: &mut Writer,
     value: ValueId,
+    range_obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ESTABLISH_PRIMITIVE_LOCAL);
     writer.id(value);
+    encode_optional_id(writer, range_obligation);
     Ok(())
 }
 
@@ -33,6 +35,7 @@ pub(super) fn decode_establish_primitive_local(
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::EstablishPrimitiveLocal {
         value: reader.id("ValueId")?,
+        range_obligation: decode_optional_id(reader, "ObligationId")?,
     })
 }
 

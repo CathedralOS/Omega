@@ -9,7 +9,7 @@ pub mod static_applications;
 
 impl super::TypedTrees {
     /// Rejoin the source qualifier to its exact selected callable declaration.
-    /// Bodyless named operators and boundary requirements have no machine state;
+    /// Bodyless named operators and trait requirements have no machine state;
     /// limiting this query to machine bodies invents a read of their namespace
     /// during nested argument evaluation. Keep unknown or instance qualifiers
     /// observable, and leave actual operands on the ordinary ordered read path.
@@ -28,26 +28,33 @@ impl super::TypedTrees {
         if crate::operator::selected_named_expression_call_has_no_runtime_receiver(self, call) {
             return true;
         }
+        let slot = self.dynamic_slot_by_symbol(call.target_symbol);
+        let requirement = slot.map_or(call.target_symbol, |slot| slot.requirement);
         let mut requirements = self
             .traits()
             .iter()
-            .filter(|owner| owner.is_boundary)
+            .filter(|owner| slot.is_none_or(|slot| slot.declaring_trait == owner.symbol))
             .flat_map(|owner| {
                 self.trait_machine_signatures(owner)
                     .iter()
-                    .filter(move |signature| signature.symbol == call.target_symbol)
+                    .filter(move |signature| signature.symbol == requirement)
                     .map(move |signature| (owner, signature))
             });
         let Some((owner, signature)) = requirements.next() else {
             return false;
         };
         let parameters = self.state_signature_parameters(signature);
+        let operand_count = match slot {
+            Some(slot) if slot.data_parameters().len() == parameters.len() => slot.parameters.len(),
+            Some(_) => return false,
+            None => parameters.len(),
+        };
         let arguments = self.expression_table.expression_handles(call.arguments);
         if requirements.next().is_some()
             || !call.target_symbol.is_valid()
             || arguments.len() != call.arguments.count() as usize
-            || arguments.len() != parameters.len()
-            || call.target.as_str() != signature.name.as_str()
+            || arguments.len() != operand_count
+            || (slot.is_none() && call.target.as_str() != signature.name.as_str())
         {
             return false;
         }

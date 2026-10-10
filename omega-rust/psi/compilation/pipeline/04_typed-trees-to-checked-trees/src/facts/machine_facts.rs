@@ -9,6 +9,7 @@ pub(crate) fn build_termination_facts(
     validation: &validation::ProgramValidationFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::TerminationFacts, Vec<diagnostics::Diagnostic>> {
+    let rank_arrivals = crate::checks::termination::admit_machine_rankings(program, call_frames);
     let summaries = crate::checks::termination::analyze_checked_progress(
         program,
         flow,
@@ -16,8 +17,10 @@ pub(crate) fn build_termination_facts(
         &validation.proof_recursive_components,
         &validation.self_call_descents,
         call_frames,
+        &rank_arrivals,
     )?;
     Ok(checked_trees::TerminationFacts {
+        rank_arrivals,
         machines: program
             .machines()
             .iter()

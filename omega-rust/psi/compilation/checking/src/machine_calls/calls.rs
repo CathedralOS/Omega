@@ -67,15 +67,15 @@ pub(crate) use recursion::{
     validate_self_recursive_call_positions,
 };
 use result_use::validate_result_use;
-pub(crate) use write_frames::CallFrameCaches;
 use write_frames::boundary_trait_call_signature;
 pub(crate) use write_frames::machine_state_by_symbol;
 pub(crate) use write_frames::named_state_transition_subgraph_is_acyclic;
 pub use write_frames::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
-    RecastSource, frame_paths_overlap, operand_call_plans,
+    RecastSource, frame_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable,
 };
+pub(crate) use write_frames::{CallFrameCaches, InvocationReferenceSubject};
 pub(crate) use write_frames::{
     boundary_trait_signature, expression_has_calls, free_machine_entry_state,
     statement_value_expression_roots,
@@ -385,7 +385,6 @@ fn validate_literal_argument_destination(
     }
 }
 
-
 /// A selected sealed float operation retains each evaluated operand policy
 /// through its result adapter. Spelled arithmetic and named requirements use
 /// the same identity and semantic-result contract; a namespace or float return
@@ -410,7 +409,6 @@ pub(crate) fn selected_float_operation_retains_argument_policy(
     crate::proof_contracts::float_projection_bindings::semantic_operations::
         is_sealed_toolchain_float_operator(program, operator)
 }
-
 
 /// The selected requirement owns type substitution; permission and value/domain
 /// validation remain common to ordinary and bounded calls.
@@ -792,7 +790,7 @@ mod topology;
 pub use topology::{
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
     call_target_type_parameters, find_machine, find_machine_by_entry_state, find_machine_head,
-    find_state_for_exit, find_state_in_machine, find_state_on_machine, find_state,
+    find_state, find_state_for_exit, find_state_in_machine, find_state_on_machine,
     machine_state_by_symbols, machine_state_count, terminal_callable_target,
 };
 mod receiver_topology;

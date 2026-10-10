@@ -29,7 +29,9 @@ use super::{
     retain_selected_sources, scalar_computation_local_at, structural_operands,
 };
 use crate::execution::terminal_unit::initialized_locals::initialized_local;
-use crate::execution::terminal_unit::types::parameter_qualifications;
+use crate::execution::terminal_unit::types::{
+    parameter_qualifications, supports_primitive_storage,
+};
 
 /// The sequence state a `let` statement reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
@@ -742,9 +744,9 @@ pub(super) fn plan(
     if let Some(primitive_type) = program.primitive_type_reference(local.type_reference) {
         if local.is_mutable {
             local_phase("statement sequence: local data: mutable primitive local: storage type");
-            // Arithmetic policy qualifies operations, not storage. Preserve the
-            // exact type below; other qualifications still need their own evidence.
-            if !validation::is_plain_scalar_storage(program, local.type_reference) {
+            // Storage keeps the complete declared receiving type. The same
+            // eligibility applies to mutable parameters and later replacements.
+            if !supports_primitive_storage(program, local.type_reference) {
                 return None;
             }
             // A call or ordered selection initializes storage through its

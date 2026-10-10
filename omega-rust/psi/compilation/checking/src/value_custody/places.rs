@@ -416,8 +416,9 @@ mod builtin_coordinates;
 mod exact_self_field;
 mod structural_scalar_field;
 pub use structural_scalar_field::{
-    StructuralScalarField, saved_dispatch_call, saved_dispatch_subject, structural_scalar_field, structural_source,
-    structural_scalar_field_in_parameters,
+    StructuralScalarField, StructuralSource, saved_dispatch_call, saved_dispatch_subject,
+    structural_scalar_field, structural_scalar_field_at_coordinate,
+    structural_scalar_field_in_parameters, structural_source,
 };
 mod member_paths;
 mod parameter_scoped;

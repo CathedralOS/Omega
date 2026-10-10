@@ -7,7 +7,7 @@
 use super::call_requirements::{CallRequirement, establish_citation};
 use crate::proof_contracts::contract_entailment::citations::{
     CitationFacts, CitationTarget, citation_argument_types, citation_call_in_statement,
-    instantiate_citation, is_citation_statement, machine_requires_facts,
+    instantiate_citation, is_citation_statement,
 };
 use crate::proof_contracts::contract_entailment::is_arm_pattern_marker;
 use crate::proof_contracts::contract_entailment::self_induction::intake_available_self_induction_hypotheses;
@@ -221,7 +221,6 @@ fn stage_citation_argument_terms(
 
 type PendingStructuralCitation = (CitationTarget, Vec<StructuralTerm>);
 
-
 pub(crate) fn recognize_structural_case_arms(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -263,6 +262,49 @@ pub(crate) fn recognize_structural_case_arms(
         CitationFacts::default(),
     )?;
     (!arms.is_empty() || requirement.is_some()).then_some(arms)
+}
+
+/// A runtime call obligation is local to one state invocation. All arrivals
+/// independently establish that state's Requires; only preceding statements
+/// and completed operands can contribute facts at this exact call occurrence.
+/// The same path walker stops there, so no recurrent successor is unrolled.
+pub(super) fn recognize_structural_state_requirement(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    judge: &StructuralJudge<'_>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    requirement: &mut CallRequirement<'_>,
+) -> Option<Vec<StructuralCaseArm>> {
+    let parameters = program.state_parameters(state);
+    let parameter_names = parameters
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let environment = parameter_names
+        .iter()
+        .map(|name| (name.clone(), StructuralTerm::Variable(name.clone())))
+        .collect();
+    recognize_structural_state_leaves(
+        program,
+        machine,
+        judge,
+        classification,
+        diagnostics,
+        program.machine_states(machine),
+        state,
+        &parameter_names,
+        environment,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        false,
+        &mut Vec::new(),
+        &mut 0,
+        &mut Some(requirement),
+        CitationFacts::default(),
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -334,8 +376,7 @@ fn recognize_structural_state_leaves_from(
     if start_index == 0 {
         path.push(state.symbol);
     }
-    let mut path_judge =
-        structural_arm_judge(program, machine, judge, &case_hypotheses, &case_equations);
+    let mut path_judge = structural_arm_judge(program, judge, &case_hypotheses, &case_equations);
     let judge = &mut path_judge;
 
     let result = (|| {
@@ -594,12 +635,12 @@ fn recognize_structural_state_leaves_from(
                     return None;
                 }
                 let raw_subject = structural_term(
-            program,
-            Some((machine, state, Default::default())),
-            None,
-            comparison.left,
-            None
-        )?;
+                    program,
+                    Some((machine, state, Default::default())),
+                    None,
+                    comparison.left,
+                    None,
+                )?;
                 let subject = judge.callee_term_in_scope(
                     Some((machine, state, Default::default())),
                     comparison.left,
@@ -683,13 +724,8 @@ fn recognize_structural_state_leaves_from(
                 );
                 continue;
             }
-            let mut branch_judge = structural_arm_judge(
-                program,
-                machine,
-                judge,
-                &branch_hypotheses,
-                &branch_equations,
-            );
+            let mut branch_judge =
+                structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
             let judge = &mut branch_judge;
             match program.statement_table.transition_target(transition.target) {
                 TransitionTargetNode::Value(value) => {
@@ -796,8 +832,7 @@ fn finalize_structural_case_arm(
     pending_citations: Vec<PendingStructuralCitation>,
     value: StructuralTerm,
 ) -> StructuralCaseArm {
-    let mut arm_judge =
-        structural_arm_judge(program, machine, judge, &case_hypotheses, &case_equations);
+    let mut arm_judge = structural_arm_judge(program, judge, &case_hypotheses, &case_equations);
     let vacuous = arm_judge.hypotheses_contradictory;
 
     // The induction hypothesis is available before an authored citation only
@@ -854,7 +889,6 @@ fn finalize_structural_case_arm(
 
 pub(super) fn structural_arm_judge<'program>(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     judge: &StructuralJudge<'program>,
     case_hypotheses: &[(String, StructuralTerm)],
     case_equations: &[(StructuralTerm, StructuralTerm)],
@@ -874,12 +908,16 @@ pub(super) fn structural_arm_judge<'program>(
             .substitutions
             .insert(0, (subject.clone(), constructor.clone()));
     }
-    let requires = machine_requires_facts(program, machine);
+    // The supplied judge owns the exact invocation premises. Re-importing the
+    // enclosing machine's entry contract would donate stale facts to a named
+    // recurrent state whose same-spelled formals are distinct declarations.
+    let requires = judge.premise_facts().to_vec();
     let vacuous = requires
         .iter()
         .any(|fact| matches!(arm_judge.judge(program, *fact), StructuralJudgment::Refuted));
     for fact in &requires {
         arm_judge.intake(program, *fact);
+        arm_judge.intake_preserved_predicate(*fact);
     }
     arm_judge.hypotheses_contradictory |= vacuous;
     arm_judge

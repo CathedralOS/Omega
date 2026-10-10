@@ -26,12 +26,8 @@ use checked_trees::{
 
 pub(crate) fn build_checked_terminal_machine_selections(
     program: &dyn ::validation::CheckingInput,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
 ) -> CheckedTerminalMachineSelections {
-    // The shared runtime rank judgment, including weak edges across
-    // machines, is what every body route ranks a cycle by: the state graph
-    // projects it (`runtime_component_ranks`).
-    let runtime_components = validation::validated_runtime_natural_components(program);
     CheckedTerminalMachineSelections {
         machines: program
             .machines()
@@ -45,41 +41,9 @@ pub(crate) fn build_checked_terminal_machine_selections(
                 signature: if !machine.type_parameters.is_empty()
                     || !machine.owned_data.is_empty()
                     || (machine.termination_plan.implementation_witness.is_some()
-                        // A machine whose states the shared runtime rank
-                        // judgment covers, or whose composed body ranks a
-                        // cycle through sibling machines by the fused
-                        // countdown, is ranked by that proof. Legacy
-                        // machine-local rank recognizers cannot veto it;
-                        // body planning and Terminal replay still validate
-                        // every cyclic edge.
-                        && !runtime_components.iter().any(|component| {
-                            component.states.iter().any(|rank| {
-                                typed_trees::state::state_by_symbol(program.machine_states(machine), rank.state).is_some()
-                            })
-                        })
-                        && crate::checks::termination::proven_slice_length_ranks(
-                            program,
-                            machine,
-                            call_frames,
-                        )
-                        .is_none()
-                        && crate::checks::termination::proven_nat_countdown_sccs(
-                            program,
-                            machine,
-                            call_frames,
-                        )
-                        .is_none_or(|components| components.is_empty())
-                        && crate::checks::termination::proven_state_natural_ranks(
-                            program,
-                            machine,
-                            call_frames,
-                        )
-                        .is_none()
-                        && !crate::execution::terminal_unit::fused_countdown_ranks(
-                            program,
-                            machine,
-                            call_frames,
-                        ))
+                        && crate::execution::terminal_unit::state_graph::natural_rank_plans(
+                            program, machine, rank_arrivals,
+                        ).is_none())
                     // Blocking retains the ordinary stack and call ABI.
                     // Its ceiling and acknowledgements are checked separately;
                     // unlike suspension it needs no continuation representation.
@@ -141,13 +105,14 @@ fn checked_successor(
     if transition.exit != TransitionExit::Ordinary {
         return None;
     }
-    let TransitionTargetNode::Named { path, .. } = program
-        .statement_table
-        .transition_target(if is_continuation {
-            transition.continuation
-        } else {
-            transition.target
-        })
+    let TransitionTargetNode::Named { path, .. } =
+        program
+            .statement_table
+            .transition_target(if is_continuation {
+                transition.continuation
+            } else {
+                transition.target
+            })
     else {
         return None;
     };

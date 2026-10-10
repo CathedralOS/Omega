@@ -585,7 +585,7 @@ pub(super) fn validate_source_projection(
     validate_owned_projection(program, slot, &source.segments[leaf.local_segments.len()..])
 }
 
-fn source_root_type(
+pub(super) fn source_root_type(
     program: &dyn crate::CheckingInput,
     state: &State,
     index: usize,

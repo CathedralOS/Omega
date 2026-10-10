@@ -13,12 +13,38 @@ use super::{StructuralTerm, is_arm_pattern_marker};
 mod binary;
 mod constructors;
 mod equality;
+mod scalar_operands;
 pub(super) use binary::binary_term_in_scope;
 pub(super) use constructors::{
     case_classifier, case_guard_classifier, case_value_term, constructor_literal_term,
     is_case_observation, zero_value_structural_term,
 };
 pub(super) use equality::{has_identity_equality_meaning, identity_equality_terms};
+pub(super) use scalar_operands::{
+    scalar_operand_is_observed, scalar_operand_meaning, term_is_unobserved_descriptor,
+};
+
+/// Both anonymous peers compare as exact rationals after builtin selection,
+/// without choosing a fixed carrier for either intermediate computation.
+pub(super) fn builtin_anonymous_comparison_term(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<StructuralTerm> {
+    crate::value_custody::literals::evaluate_anonymous_numeric_comparison(
+        program,
+        expression,
+        &[],
+        |source| {
+            source == expression
+                || crate::value_custody::literals::has_anonymous_operator_meaning(program, source)
+        },
+    )
+    .map(|value| StructuralTerm::Constructor {
+        data: "bool".to_owned(),
+        case: value.to_string(),
+        fields: Vec::new(),
+    })
+}
 
 /// Whether `haystack` contains `needle` as a subterm (occurs check for the
 /// rewrite orientation: a rewrite whose replacement contains its own pattern
@@ -28,7 +54,7 @@ pub(super) fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) 
     if haystack == needle {
         return true;
     }
-    match haystack {
+    match haystack.semantic_value() {
         StructuralTerm::Projection { subject, .. } => term_contains(subject, needle),
         StructuralTerm::ScalarBinary { left, right, .. } => {
             term_contains(left, needle) || term_contains(right, needle)
@@ -51,6 +77,13 @@ pub(super) fn unfold_constant_applications(
     term: StructuralTerm,
 ) -> StructuralTerm {
     match term {
+        StructuralTerm::ObservedValue {
+            observed_type,
+            value,
+        } => StructuralTerm::ObservedValue {
+            observed_type,
+            value: Box::new(unfold_constant_applications(program, *value)),
+        },
         StructuralTerm::Application {
             result_type,
             target,
@@ -95,11 +128,13 @@ pub(super) fn unfold_constant_applications(
                 .collect(),
         },
         StructuralTerm::ScalarBinary {
+            references,
             operator,
             meaning,
             left,
             right,
         } => StructuralTerm::ScalarBinary {
+            references,
             operator,
             meaning,
             left: Box::new(unfold_constant_applications(program, *left)),
@@ -143,13 +178,7 @@ fn constant_machine_constructor(
     else {
         return None;
     };
-    let term = structural_term(
-            program,
-            None,
-            None,
-            *value,
-            None
-        )?;
+    let term = structural_term(program, None, None, *value, None)?;
 
     fn is_closed(term: &StructuralTerm) -> bool {
         match term {
@@ -219,22 +248,15 @@ pub(super) fn structural_term_pair(
     program: &dyn crate::CheckingInput,
     binary: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(StructuralTerm, StructuralTerm)> {
-    Some((
-        structural_term(
-            program,
-            None,
-            None,
-            binary.left,
-            None
-        )?,
-        structural_term(
-            program,
-            None,
-            None,
-            binary.right,
-            None
-        )?,
-    ))
+    let left = structural_term(program, None, None, binary.left, None)?;
+    let right = structural_term(program, None, None, binary.right, None)?;
+    let references = [binary.left, binary.right].map(|expression| {
+        crate::proof_contracts::proof_embeddings::expression_type_reference(program, expression)
+            .unwrap_or_default()
+    });
+    (scalar_operand_is_observed(program, references[0], &left)
+        && scalar_operand_is_observed(program, references[1], &right))
+    .then_some((left, right))
 }
 
 /// Bind both sides in the declaration's own telescope before substituting
@@ -245,29 +267,21 @@ pub(super) fn structural_term_pair_for_parameters(
     parameters: &[typed_trees::signature::StateParameter],
     binary: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(StructuralTerm, StructuralTerm)> {
-    Some((
-        structural_term(
-            program,
-            None,
-            Some((owner, parameters)),
-            binary.left,
-            None
-        )?,
-        structural_term(
-            program,
-            None,
-            Some((owner, parameters)),
-            binary.right,
-            None
-        )?,
-    ))
+    let left = structural_term(program, None, Some((owner, parameters)), binary.left, None)?;
+    let right = structural_term(program, None, Some((owner, parameters)), binary.right, None)?;
+    let references = [binary.left, binary.right].map(|expression| {
+        crate::parameter_expression_result_type_reference(program, owner, parameters, expression)
+            .unwrap_or_default()
+    });
+    (scalar_operand_is_observed(program, references[0], &left)
+        && scalar_operand_is_observed(program, references[1], &right))
+    .then_some((left, right))
 }
 
 /// `structural_term` with an explicit declaring `(machine, state)` fallback for
 /// name-free binary operands and selected application result references. The
 /// runtime state binds actual source storage; abstract declaration telescopes
 /// use the parameter-frame form of `structural_term` and never borrow a caller's state.
-
 
 /// Compare selected scalar value operations in one exact declaration scope.
 /// Symbol leaves stay exact even though the specification equation vocabulary
@@ -323,7 +337,6 @@ pub(crate) fn source_operations_have_same_meaning(
     }
 }
 
-
 pub(super) fn structural_term(
     program: &dyn crate::CheckingInput,
     scope: Option<(
@@ -340,6 +353,9 @@ pub(super) fn structural_term(
 ) -> Option<StructuralTerm> {
     if let Some(term) = bindings.and_then(|bindings| bindings(expression)) {
         return Some(term);
+    }
+    if let Some(value) = super::proof_integer::anonymous_integer_value(program, expression) {
+        return Some(StructuralTerm::Integer(value));
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
@@ -560,6 +576,12 @@ fn static_call_receiver_for_target(
     call: &typed_trees::expression::TableCallExpression,
     target: symbols::SymbolHandle,
 ) -> bool {
+    // Invocation targets and public contract owners can differ. Keep the
+    // exact selected invocation's namespace authority (including its selector
+    // telescope) before querying the normalized declaration used by terms.
+    if program.call_has_no_runtime_receiver_for_target(call) {
+        return true;
+    }
     let mut selected = call.clone();
     selected.target_symbol = target;
     program.call_has_no_runtime_receiver_for_target(&selected)

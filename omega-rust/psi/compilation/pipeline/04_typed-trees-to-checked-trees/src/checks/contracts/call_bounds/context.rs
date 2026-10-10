@@ -155,12 +155,10 @@ fn prove(
     let head = validation::find_machine_head(program, call.target_symbol);
     let (callee, entry) = match head {
         Some(head) => head,
-        None => validation::find_state(program, call.target_symbol).filter(
-            |(machine, _)| {
-                machine.symbol == caller.machine_symbol
-                    && matches!(site, validation::CallSite::TransitionNamed { .. })
-            },
-        )?,
+        None => validation::find_state(program, call.target_symbol).filter(|(machine, _)| {
+            machine.symbol == caller.machine_symbol
+                && matches!(site, validation::CallSite::TransitionNamed { .. })
+        })?,
     };
     let parameters = program.state_parameters(entry);
     if head.is_some()
@@ -170,7 +168,7 @@ fn prove(
             program,
             callee,
             goal,
-            call_frames,
+            &facts.termination.rank_arrivals,
         )
     {
         return Some(true);
@@ -201,6 +199,7 @@ fn prove(
         &arithmetic_hypotheses,
         goal,
         arguments,
+        &facts.termination.rank_arrivals,
     ) {
         return Some(true);
     }

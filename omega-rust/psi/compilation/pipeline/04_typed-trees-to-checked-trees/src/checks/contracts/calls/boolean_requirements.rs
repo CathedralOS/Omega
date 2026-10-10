@@ -122,6 +122,8 @@ fn explicit_subject_call_requirement_proven(
         program,
         machine,
         state,
+        call_flow.statement_index,
+        site,
         call_flow.target_symbol,
         callee_parameters,
         &arguments,
@@ -136,8 +138,8 @@ fn selected_float_requirement(
     call_flow: &FlowCallFact,
     expression: ExpressionHandle,
 ) -> Option<bool> {
-    let (machine, state) = validation::find_state(program, call_flow.target_symbol)
-        .or_else(|| {
+    let (machine, state) =
+        validation::find_state(program, call_flow.target_symbol).or_else(|| {
             let machine = program.machine_by_symbol(call_flow.target_symbol)?;
             Some((machine, program.machine_states(machine).first()?))
         })?;

@@ -1,4 +1,4 @@
-//! Exclusive state loans of a local that a later (non-entry) state owns.
+//! State loans backed by completed storage whose lifetime crosses an arrival.
 //!
 //! A transition is a tail jump that never resumes the departed state
 //! (wiki/spec/language/state_contracts.md, "Bindings and arrivals"), and a
@@ -12,7 +12,7 @@
 //! original place and discards it once at every return. That cannot serve a
 //! later lender: a return reachable on a path that never visited the lender
 //! would discard a place that was never established. Instead, a chain is the
-//! set of exclusive state parameters connected by whole forwarding
+//! set of state parameters connected by whole forwarding
 //! (`next(score)` or `next(&mut score)` of a `&mut` parameter), and its
 //! storage dies where the chain ends: on every edge leaving a member state
 //! that does not carry the loan to another member, and at every return from a
@@ -45,8 +45,13 @@
 //! home: the home outlives every name derived from it, whereas transferred
 //! storage lives in one member parameter and a projection cannot move it.
 //! A shared loan of the local itself (`scan(&stream)`) starts a chain the
-//! same way when the storage is affine: the view is a derived member and the
-//! home dies where the last state holding it leaves. Shared views of
+//! same way when the storage is affine. Whole readonly arrivals can transport
+//! that home just like whole exclusive arrivals; readonly body access stays
+//! checked independently of the hidden owned block parameter. A projected
+//! member instead retains its lender home. The home dies where the last state
+//! holding it leaves. Completed edge operands are lenders too: their identity
+//! includes the source state, selected edge, and target operand coordinate,
+//! because sibling operand frames can reuse one result binding ordinal. Shared views of
 //! unrestricted storage have nothing to dispose of and keep the plain view
 //! route. An activation-entry local lent into a chain joins it as one more
 //! lender, provided no other edge retains it as an entry home.
@@ -64,8 +69,7 @@ use terminal_psi::{
     TerminalAffineCleanupAction, TerminalMachine, Terminator,
 };
 
-/// The exclusive loan chains of one composed-control machine that a later
-/// state's local backs.
+/// The state loan chains backed by completed owned storage.
 #[derive(Debug, Default)]
 pub(super) struct LoanChains {
     chains: Vec<LoanChain>,
@@ -115,6 +119,9 @@ pub(super) enum ChainArrival {
 enum LoanSource {
     /// The emitting state's own local, by result binding ordinal.
     Local(u32),
+    /// A completed value established on this exact edge. Its binding ordinal
+    /// is local to the edge's operand frame, not the source state's locals.
+    Completed(u32),
     /// A whole forward of the emitting state's parameter at a dense index.
     Parameter(u32),
     /// A projection below the emitting state's parameter at a dense index.
@@ -128,6 +135,9 @@ enum Arrival {
     Local {
         lender: usize,
         binding: u32,
+        /// Exact edge and target dense coordinate of a completed producer.
+        /// Several selected edges may reuse one scratch binding ordinal.
+        completed: Option<(usize, usize)>,
     },
     /// A whole forward of another candidate.
     Forward,
@@ -159,7 +169,7 @@ impl LoanChains {
         for (position, state) in plan.states.iter().enumerate() {
             let mut dense_nodes = Vec::with_capacity(state.structural_parameters.len());
             for (dense, parameter) in state.structural_parameters.iter().enumerate() {
-                // Shared parameters join as derived members; one seeds a chain
+                // Shared parameters join as whole or projected members; one seeds a chain
                 // only when it lends affine storage (`seeded` below).
                 let candidate = live.get(position).copied().unwrap_or(false)
                     && block_owned(position)
@@ -203,7 +213,7 @@ impl LoanChains {
             if !live.get(source).copied().unwrap_or(false) {
                 continue;
             }
-            for edge in state.successors() {
+            for (edge_index, edge) in state.successors().into_iter().enumerate() {
                 let target =
                     plan.state_position(edge.target_state)
                         .ok_or(LoweringError::Unsupported(
@@ -222,6 +232,7 @@ impl LoanChains {
                                 arrivals[destination].push(Arrival::Local {
                                     lender: source,
                                     binding,
+                                    completed: None,
                                 });
                             }
                             if !block_owned(source)
@@ -231,6 +242,15 @@ impl LoanChains {
                                 )
                             {
                                 entry_loans.entry(binding).or_default().push(destination);
+                            }
+                        }
+                        LoanSource::Completed(binding) => {
+                            if let Some(destination) = destination {
+                                arrivals[destination].push(Arrival::Local {
+                                    lender: source,
+                                    binding,
+                                    completed: Some((edge_index, dense)),
+                                });
                             }
                         }
                         LoanSource::Parameter(index) => match (node(source, index), destination) {
@@ -281,28 +301,54 @@ impl LoanChains {
             plan.states[position].structural_parameters[dense as usize].access
                 == CheckedStructuralAccess::MutableBorrow
         };
-        let local_result = |lender: usize, binding: u32| {
-            plan.states[lender]
-                .operations
-                .iter()
-                .filter_map(|operation| operation.discardable_structural_result())
-                .find(|(result, _)| result.binding_ordinal == binding)
-                .map(|(result, _)| result)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph state loan chain names no local result",
-                ))
+        let local_result = |lender: usize, binding: u32, completed: Option<(usize, usize)>| {
+            let result = if let Some((edge, dense)) = completed {
+                plan.states[lender]
+                    .successors()
+                    .into_iter()
+                    .nth(edge)
+                    .and_then(|edge| edge.transfers.get(dense))
+                    .and_then(|transfer| match &transfer.source {
+                        CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                            establishment,
+                            ..
+                        } => establishment.structural_result_binding(),
+                        _ => None,
+                    })
+                    .filter(|result| result.binding_ordinal == binding)
+            } else {
+                let mut matching = plan.states[lender]
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.discardable_structural_result())
+                    .map(|(result, _)| result)
+                    .filter(|result| result.binding_ordinal == binding);
+                let result = matching.next();
+                if matching.next().is_some() {
+                    None
+                } else {
+                    result
+                }
+            };
+            result.ok_or(LoweringError::Unsupported(
+                "Unit graph state loan chain names no exact completed home",
+            ))
         };
-        // A chain exists once any arrival lends a later state's local; an
-        // entry-only chain keeps the activation-entry route unchanged. A
+        // A chain exists once an arrival lends a later state's local or an
+        // edge-completed home. Entry locals keep the activation-entry route. A
         // shared loan seeds one only over an affine structural home, whose
         // death the chain must place; a view or unrestricted local has none.
         let mut seeded = BTreeSet::new();
         for (index, arrivals) in arrivals.iter().enumerate() {
             for arrival in arrivals {
-                if let Arrival::Local { lender, binding } = *arrival
-                    && block_owned(lender)
+                if let Arrival::Local {
+                    lender,
+                    binding,
+                    completed,
+                } = *arrival
+                    && (block_owned(lender) || completed.is_some())
                     && (exclusive(index)
-                        || local_result(lender, binding)
+                        || local_result(lender, binding, completed)
                             .is_ok_and(|result| result.multiplicity == Multiplicity::Affine))
                 {
                     seeded.insert(roots[index]);
@@ -327,7 +373,7 @@ impl LoanChains {
             let mut members = Vec::new();
             let mut lenders = BTreeSet::new();
             let mut multiplicity = None;
-            // A shared or projected member needs the lender home to outlive it.
+            // A projected member needs the lender home to outlive its selected path.
             let mut derived = false;
             for (index, &(position, dense)) in nodes.iter().enumerate() {
                 if roots[index] != root {
@@ -339,10 +385,13 @@ impl LoanChains {
                     ));
                 }
                 let parameter = &plan.states[position].structural_parameters[dense as usize];
-                derived |= !exclusive(index);
                 for arrival in &arrivals[index] {
-                    let (lender, binding) = match arrival {
-                        Arrival::Local { lender, binding } => (*lender, *binding),
+                    let (lender, binding, completed) = match arrival {
+                        Arrival::Local {
+                            lender,
+                            binding,
+                            completed,
+                        } => (*lender, *binding, *completed),
                         Arrival::Forward => continue,
                         Arrival::Projected => {
                             derived = true;
@@ -354,7 +403,7 @@ impl LoanChains {
                             ));
                         }
                     };
-                    let result = local_result(lender, binding)?;
+                    let result = local_result(lender, binding, completed)?;
                     if result.type_identity != parameter.type_identity {
                         return Err(LoweringError::Unsupported(
                             "Unit graph state loan chain changes its referent type",
@@ -374,7 +423,7 @@ impl LoanChains {
                             "Unit graph state loan chain mixes home multiplicities",
                         ));
                     }
-                    lenders.insert((lender, binding));
+                    lenders.insert((lender, binding, completed));
                 }
                 let place = state_views
                     .get(position)
@@ -389,7 +438,7 @@ impl LoanChains {
             // else would join different live homes, or re-establish a home
             // its own chain still holds.
             let backing = match lenders.iter().next() {
-                Some((lender, _))
+                Some((lender, _, _))
                     if lenders.len() == 1
                         && !members.iter().any(|(position, _, _)| position == lender) =>
                 {
@@ -687,9 +736,15 @@ fn retain_unless_lent(
     }
 }
 
-/// The successor argument's relation to a whole exclusive loan.
+/// The successor argument's relation to a retained whole home.
 fn loan_source(source: &CheckedStructuralControlTransferSourcePlan) -> LoanSource {
     match source {
+        CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment, .. } => {
+            establishment
+                .structural_result_binding()
+                .map(|result| LoanSource::Completed(result.binding_ordinal))
+                .unwrap_or(LoanSource::Other)
+        }
         CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => {
             LoanSource::Local(*binding_ordinal)
         }

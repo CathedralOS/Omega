@@ -168,7 +168,6 @@ pub(crate) mod types;
 
 use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;
 pub(crate) use calls::structural_computation_argument;
-pub(crate) use state_graph::fused_countdown_ranks;
 pub(crate) use types::{is_reference, strips_erased_parameter};
 
 /// Present when the planning pass ends in the candidate closure, which
@@ -273,14 +272,9 @@ pub(crate) fn build_checked_unit_effect_plans(
     // entries; the published roster below keeps each plan's `.machine` as the
     // consumer's own row rather than a second dispatcher. Attached callers
     // assemble later in `build_checked_nominal_affine_unit_cleanup_plans`.
-    for machine in program
-        .machines()
-        .iter()
-        .filter(|machine| {
-            machine.supply_mode == MachineSupplyMode::CheckedBody
-                && machine.attached_data.is_none()
-        })
-    {
+    for machine in program.machines().iter().filter(|machine| {
+        machine.supply_mode == MachineSupplyMode::CheckedBody && machine.attached_data.is_none()
+    }) {
         if let Some(plan) = build_nominal_affine_unit_cleanup_machine(
             program,
             facts,
@@ -894,7 +888,11 @@ fn body_route(
         !types::is_reference(program, type_reference)
             && crate::checks::type_multiplicity(program, type_reference) != Multiplicity::Linear
             && types::type_graph_requires_nominal_drop(
-                program, type_reference, &[], &mut std::collections::BTreeSet::new())
+                program,
+                type_reference,
+                &[],
+                &mut std::collections::BTreeSet::new(),
+            )
     };
     if statements.iter().any(|statement| match statement {
         StatementNode::Transition(_) => true,

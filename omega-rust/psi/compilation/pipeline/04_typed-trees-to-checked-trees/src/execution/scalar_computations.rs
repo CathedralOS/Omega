@@ -55,7 +55,6 @@ pub(crate) fn build_checked_value_computation_plans(
     proof: &ProofFacts,
     pure: &CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> (
     CheckedScalarComputationPlans,
     checked_trees::CheckedStructuralValuePlans,
@@ -129,13 +128,15 @@ pub(crate) fn build_checked_value_computation_plans(
                 .into_iter()
                 .rev()
                 {
-                    for (endpoint, role, ()) in crate::values::scalar::subslice_endpoints::subslice_endpoints(
-                        program,
-                        operators,
-                        expression,
-                        site,
-                        |_| Some(()),
-                    ) {
+                    for (endpoint, role, ()) in
+                        crate::values::scalar::subslice_endpoints::subslice_endpoints(
+                            program,
+                            operators,
+                            expression,
+                            site,
+                            |_| Some(()),
+                        )
+                    {
                         builder.record_root(
                             pure,
                             statement_ordinal,
@@ -711,71 +712,22 @@ pub(crate) fn build_checked_value_computation_plans(
                         let Some(expected_type) =
                             program.primitive_type_reference(parameter.type_reference)
                         else {
-                            // A composite argument needing fresh storage — a
-                            // literal, indexed copy, or call result — is
-                            // established only on its selected edge. Indexed
-                            // copies retain selector evaluation in the value
-                            // plan; field-only copies and whole-root transfers
-                            // retain their existing direct custody plans.
-                            // Retain its structural value so the successor
-                            // plan can name it as an established source; the
-                            // builder admits a call only when its declared
-                            // result is exactly the parameter's type.
+                            // Calls and named arrivals retain the same completed
+                            // structural operand. In particular a shared formal
+                            // lends a fresh referent home, while existing places
+                            // keep their original storage and loan identity.
+                            // Producer recognition must not depend on whether the
+                            // authored argument spells a constructor or a borrow
+                            // around one; target custody remains an edge obligation.
                             if !continuation
                                 && transition.exit
                                     == typed_trees::statement::TransitionExit::Ordinary
-                                && (structural_values::is_record_value(
-                                    program,
-                                    *argument,
-                                    parameter.type_reference,
-                                ) || structural_values::is_borrowed_slice_view_value(
-                                    program,
-                                    parameter.type_reference,
-                                ) || structural_values::is_structural_case_value(
-                                    program,
-                                    *argument,
-                                    parameter.type_reference,
-                                ) || (!crate::execution::terminal_unit::types::is_reference(
-                                    program,
-                                    parameter.type_reference,
-                                ) && structural_values::needs_copied_place_root(
-                                    program,
-                                    state.symbol,
-                                    statement_index,
-                                    *argument,
-                                    parameter.type_reference,
-                                )
-                                    && validation::canonical_place_from_expression_in_state(
-                                        program,
-                                        state.symbol,
-                                        statement_index,
-                                        *argument,
-                                    )
-                                    .is_some_and(|place| {
-                                        place.segments.iter().any(|segment| {
-                                            matches!(
-                                                segment,
-                                                facts::PlaceSegment::Index { .. }
-                                                    | facts::PlaceSegment::FixedIndex { .. }
-                                            )
-                                        })
-                                    }))
-                                    || matches!(
-                                        program.expression_table.expression(*argument),
-                                        ExpressionNode::ArrayLiteral(_) | ExpressionNode::Call(_)
-                                    ))
-                                && builder
-                                    .structural_values
-                                    .root_for_expression(state.symbol, statement_ordinal, *argument)
-                                    .is_none()
-                                && let Some(root) =
-                                    builder.structural_value(*argument, parameter.type_reference)
+                                && !parameter.is_const
+                                && !parameter.relevance.is_erased()
                             {
-                                builder.push_structural_root(
-                                    statement_ordinal,
+                                builder.retain_structural_argument(
                                     *argument,
                                     parameter.type_reference,
-                                    root,
                                 );
                             }
                             continue;
@@ -792,16 +744,25 @@ pub(crate) fn build_checked_value_computation_plans(
             }
         }
     }
+    (plans, structural_values)
+}
+
+/// Source-admitted observations append only after completed effects and final
+/// source requirements. Ordinary expression computation stays in its early
+/// production window; pruning and execution see this completed rank roster.
+pub(crate) fn record_rank_observations(
+    program: &dyn validation::CheckingInput,
+    facts: &mut checked_trees::CheckFacts,
+) {
     rank_observations::record(
         program,
-        operators,
-        flow,
-        borrow,
-        pure,
-        exact_integer_casts,
-        call_frames,
-        &mut plans,
-        &mut structural_values,
+        &facts.operators,
+        &facts.flow,
+        &facts.borrow,
+        &facts.values.scalar_expressions,
+        &facts.operators.exact_integer_casts,
+        &facts.termination.rank_arrivals,
+        &mut facts.values.scalar_computations,
+        &mut facts.values.structural_values,
     );
-    (plans, structural_values)
 }

@@ -47,10 +47,11 @@ pub(in crate::execution::terminal_unit) enum Operand<'facts> {
     },
 }
 
-/// An argument position carries an established value operand only
-/// when the checker retained a construction or copy rooted exactly at that
-/// expression for this statement and machine, typed to the matched formal.
-fn evaluated_value_root<'a>(
+/// Rejoin the checked value at one exact argument occurrence. Shared formals
+/// lend the completed referent home; slice formals retain their descriptor.
+/// This classification establishes neither a new loan nor temporary cleanup:
+/// the consuming call or state edge still owns those independent obligations.
+pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
     program: &dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
@@ -67,7 +68,7 @@ fn evaluated_value_root<'a>(
     {
         return None;
     }
-    let (argument, expected) = match program
+    let (argument, expected, lends_referent) = match program
         .type_reference_table
         .type_reference(parameter.type_reference)
     {
@@ -76,18 +77,34 @@ fn evaluated_value_root<'a>(
         typed_trees::types::TypeReferenceNode::Reference { .. }
             if validation::slice_view_shell(program, parameter.type_reference, &[]).is_some() =>
         {
-            (argument, parameter.type_reference)
+            (argument, parameter.type_reference, false)
         }
         typed_trees::types::TypeReferenceNode::Reference {
             access: language_semantics::ReferenceAccess::Shared,
             ..
-        } => crate::semantic::calls::shared_argument_referent(
-            program,
-            argument,
-            parameter.type_reference,
-        )?,
+        } => {
+            let referent = crate::semantic::calls::shared_argument_referent(
+                program,
+                argument,
+                parameter.type_reference,
+            )?;
+            // A loan of existing storage must keep that storage's identity.
+            // Only a completed value with no canonical stored home needs an
+            // argument establishment; a copied Name would be a new referent.
+            if validation::canonical_place_from_expression_in_state(
+                program,
+                state,
+                statement_index,
+                referent.0,
+            )
+            .is_some_and(|place| place.root.as_symbol().is_some())
+            {
+                return None;
+            }
+            (referent.0, referent.1, true)
+        }
         typed_trees::types::TypeReferenceNode::Reference { .. } => return None,
-        _ => (argument, parameter.type_reference),
+        _ => (argument, parameter.type_reference, false),
     };
     let root = facts.values.structural_values.root_for_expression(
         state,
@@ -108,6 +125,42 @@ fn evaluated_value_root<'a>(
     {
         return None;
     }
+    // Lending a projected referent must preserve its existing root/path, not
+    // establish a detached copy. A slice descriptor is itself a value, whose
+    // checked copy keeps the backing loan rather than copying its elements.
+    if lends_referent
+        && matches!(
+            facts.values.structural_values.nodes.get(root.root).kind,
+            checked_trees::CheckedStructuralValueKind::Projection { .. }
+        )
+    {
+        return None;
+    }
+    Some(root)
+}
+
+/// Ordinary calls collect a call through its existing producer route, rather
+/// than establishing a second whole operand. State-edge
+/// establishment can consume the same authenticated root with its own ordered
+/// producer/cleanup roster.
+fn evaluated_value_root<'a>(
+    program: &dyn ::validation::CheckingInput,
+    facts: &'a CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    argument: typed_trees::expression::ExpressionHandle,
+    parameter: &typed_trees::signature::StateParameter,
+) -> Option<&'a checked_trees::CheckedStructuralValueRoot> {
+    let root = evaluated_argument_root(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        argument,
+        parameter,
+    )?;
     // A call already owns a producer operation and result binding. Retaining
     // its value for computed consumers does not turn that operation into an
     // aggregate establishment; collect it through the ordinary call route.

@@ -112,6 +112,22 @@ pub struct CheckedStateNaturalRank {
     pub observation: crate::CheckedScalarComputationHandle,
 }
 
+impl Default for CheckedStateNaturalRank {
+    /// Arena's ZII dummy has no declaration, subject or executable observation.
+    /// It is excluded from the live roster and cannot denote an admitted rank.
+    fn default() -> Self {
+        Self {
+            state: SymbolHandle::invalid(),
+            parameter: SymbolHandle::invalid(),
+            parameter_position: 0,
+            measure: CheckedNaturalRankMeasure::SequenceLength {
+                subject: typed_trees::expression::ExpressionHandle::invalid(),
+            },
+            observation: crate::CheckedScalarComputationHandle::invalid(),
+        }
+    }
+}
+
 /// The measures the termination checker proves, each a total function of
 /// one state's parameters. A new order the checker learns belongs here as
 /// one more measure, not as another producer route.

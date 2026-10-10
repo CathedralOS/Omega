@@ -1,27 +1,12 @@
 //! Range constraints concern the produced rank, not its subject's carrier.
 
 use super::{DecreaseMeasure, RankingOrder};
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 
-mod endpoints;
 mod relational;
 
-pub(super) fn proves_entry_requirements(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    order: &RankingOrder,
-    measure: DecreaseMeasure,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> bool {
-    relational::prove(program, machine, measure, order, true, call_frames)
-}
-
-pub(super) struct RangeProof {
-    /// Only the relational tier also checks strict decrease on every exact
-    /// self-edge. Static membership must still pass the existing descent owner.
-    pub strict_decrease_proven: bool,
-}
+pub(in crate::checks::termination) use relational::RankArrivalAdmission;
 
 pub(super) fn check(
     program: &dyn ::validation::CheckingInput,
@@ -30,16 +15,14 @@ pub(super) fn check(
     order: &RankingOrder,
     measure: DecreaseMeasure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Result<RangeProof, String> {
-    if proves_range(program, machine, order, measure, call_frames) == Some(true) {
-        return Ok(RangeProof {
-            strict_decrease_proven: false,
-        });
-    }
-    if relational::prove(program, machine, measure, order, false, call_frames) {
-        return Ok(RangeProof {
-            strict_decrease_proven: true,
-        });
+    accept: &mut dyn FnMut(&RankArrivalAdmission) -> bool,
+) -> Result<RankArrivalAdmission, String> {
+    let failure = match relational::admit(program, machine, measure, order, call_frames, accept) {
+        Ok(arrival) => return Ok(arrival),
+        Err(failure) => failure,
+    };
+    if matches!(failure, relational::RankArrivalFailure::StrictDecrease) {
+        return Err("cannot prove strict rank decrease on a recurrent arrival".to_string());
     }
     // Diagnostics use the retained expression tree. Normalized witness labels
     // deliberately cover a smaller subset and may spell arithmetic as "value".
@@ -67,147 +50,16 @@ pub(super) fn check(
     ))
 }
 
-/// Static membership alone says nothing about progress. If the usual descent
-/// recognizer declines, reuse the complete relational entry-and-edge judgment;
-/// never promote its membership result without strict decrease and pinning.
-pub(super) fn proves_relational_decrease(
+/// An unbounded natural view uses the same complete relational source owner.
+/// Optional authored ranges add formation and pinning obligations to that
+/// owner; interval membership alone never produces an arrival witness.
+pub(super) fn admit_relational_decrease(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     order: &RankingOrder,
     measure: DecreaseMeasure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> bool {
-    relational::prove(program, machine, measure, order, false, call_frames)
-}
-
-fn proves_range(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    order: &RankingOrder,
-    measure: DecreaseMeasure,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<bool> {
-    // Source custody, not normalized display strings, selects the endpoints.
-    let custody = program.ranking_expression_custody_for(machine.symbol)?;
-    let range = program.expression_table.range_node(custody.rank_range?)?;
-    // Named-state transport needs a proof of the subject and endpoint bounds
-    // at each exact arrival; entry parameter declarations cannot stand in for it.
-    if program.machine_states(machine).len() != 1 {
-        return None;
-    }
-    let (rank, pinned_bound) = match (order, measure) {
-        (
-            RankingOrder::NatDescending | RankingOrder::CustomNatDescending { .. },
-            DecreaseMeasure::Single(subject),
-        ) => (bounds(program, machine, subject)?, None),
-        // A computed scalar view's rank is not the subject's interval; only
-        // the relational judgment produces it from the body.
-        (RankingOrder::CustomScalarView { .. }, _) => return None,
-        (RankingOrder::CustomStructView { field_type, .. }, DecreaseMeasure::Single(_)) => {
-            // Order resolution already joined the exact parameter, field and
-            // nominal carrier. Its store-enforced type range bounds the
-            // produced rank; reconstruction and descent remain separate checks.
-            let (low, high) = validation::enforced_integer_type_bounds(program, *field_type)?;
-            (validation::WideInterval::from_i64(low, high), None)
-        }
-        (RankingOrder::IncreasingTo(limit), DecreaseMeasure::Distance { lower, upper })
-            if *limit == upper =>
-        {
-            let subject = bounds(program, machine, lower)?;
-            let bound = bounds(program, machine, upper)?;
-            if subject.low < 0 || bound.low < 0 {
-                return None;
-            }
-            // The view produces natural distance, including zero after the
-            // cursor reaches its limit; it does not rank the cursor itself.
-            let rank = validation::WideInterval {
-                low: (bound.low - subject.high).max(0),
-                high: (bound.high - subject.low).max(0),
-            };
-            (rank, Some((upper, subject.low, bound.low)))
-        }
-        _ => return None,
-    };
-    if rank.low < 0 {
-        return None;
-    }
-    let floor = endpoint_bounds(program, machine, range.start, pinned_bound, call_frames)?;
-    let ceiling = endpoint_bounds(program, machine, range.end, pinned_bound, call_frames)?;
-    let floor_proven = floor.high <= rank.low;
-    let ceiling_proven = if range.end_inclusive {
-        rank.high <= ceiling.low
-    } else {
-        rank.high < ceiling.low
-    };
-    let view_ceiling_proven = pinned_bound.is_some_and(|(bound, subject_floor, bound_floor)| {
-        same_parameter(program, range.end, bound)
-            && (range.end_inclusive || (subject_floor > 0 && bound_floor > 0))
-    });
-    Some(floor_proven && (ceiling_proven || view_ceiling_proven))
-}
-
-
-fn endpoint_bounds(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    expression: ExpressionHandle,
-    pinned_bound: Option<(ExpressionHandle, i128, i128)>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<validation::WideInterval> {
-    // The IncreasingTo edge proof already pins this exact bound. Other scalar
-    // endpoints need their own occurrence and write-preservation judgment.
-    if let Some((bound, _, _)) = pinned_bound
-        && same_parameter(program, expression, bound)
-    {
-        return bounds(program, machine, expression);
-    }
-    endpoints::pinned_expression_bounds(program, machine, expression, call_frames)
-}
-
-fn same_parameter(
-    program: &dyn ::validation::CheckingInput,
-    left: ExpressionHandle,
-    right: ExpressionHandle,
-) -> bool {
-    match (
-        program.expression_table.expression(left),
-        program.expression_table.expression(right),
-    ) {
-        (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-            left.symbol.is_valid()
-                && left.head_symbol == left.symbol
-                && right.head_symbol == right.symbol
-                && left.symbol == right.symbol
-        }
-        _ => false,
-    }
-}
-
-fn bounds(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    expression: ExpressionHandle,
-) -> Option<validation::WideInterval> {
-    let state = program.machine_states(machine).first()?;
-    if let Some((low, high)) =
-        validation::immutable_integer_expression_bounds(program, machine, state, expression)
-    {
-        return (low <= high).then_some(validation::WideInterval::from_i64(low, high));
-    }
-    // The shared interval engine uses i64 endpoints and cannot bound an
-    // unrestricted u64 above. Widen to its carrier, never invent a range fact.
-    let name = program.expression_table.name_path_node(expression)?;
-    let parameter = program.state_parameters(state).iter().find(|parameter| {
-        (name.symbol.is_valid()
-            && name.head_symbol == name.symbol
-            && parameter.symbol == name.symbol)
-            && !parameter.is_mutable
-            && !parameter.is_const
-    })?;
-    (program.primitive_type_reference(parameter.type_reference)
-        == Some(typed_trees::types::PrimitiveType::U64))
-    .then_some(validation::WideInterval {
-        low: 0,
-        high: i128::from(u64::MAX),
-    })
+    accept: &mut dyn FnMut(&RankArrivalAdmission) -> bool,
+) -> Option<RankArrivalAdmission> {
+    relational::admit(program, machine, measure, order, call_frames, accept).ok()
 }

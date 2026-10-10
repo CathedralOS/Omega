@@ -1,782 +1,718 @@
-//! Conserved endpoint inputs through members that author no range of their own.
-//! Candidate slots name equal transported values, never inferred ranking views.
-//!
-//! An endpoint reads either an exact integer formal or the leaf coordinate a
-//! member projection names in the origin member's entry scope (`limits.cap`).
-//! The projected input is conserved through the same equality discipline as a
-//! scalar input: each edge must prove the actual installs the source carrier's
-//! own coordinate value, so a record that merely shares a field spelling --
-//! or a rebuilt literal with a different leaf -- cannot pin the endpoint.
-use super::super::super::SymbolHandle;
-use super::super::{RankingRangeState, StrictArithmeticBindingValue, comparison_proven};
-use super::{
-    BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
-    RankingRangeCallMember, State, collect_guard, entry_comparisons, exact_integer_parameter,
+//! Endpoint conservation is an equality relation over exact completed coordinates.
+//! The rank owner has already selected one arrival witness. This independent
+//! relation never supplies another rank assignment or a value-identity premise.
+//! Its domain comes from authored endpoint reads and completed actuals, not a
+//! unique leaf of a carrier type. Every local and cross-member arrival constrains
+//! the same relation; a missing literal/unsupported producer cannot erase an edge.
+
+use super::super::{
+    Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial, RankSubjectCoordinate, State,
+    arrival_correspondence, comparison_proven, coordinate::CoordinateKind, exact_integer_parameter,
     field_coordinates, fields, integer_bindings, lengths, meanings, parameter_comparisons,
-    projections, saved_arguments, scalar_entry, telescoped_bindings, validate_mapping,
+    saved_arguments,
 };
+use super::{BinaryOperator, RankingRangeCallMember};
+use typed_trees::statement::{StatementNode, TransitionGuardNode};
+
 pub(crate) struct RankingRangeCallEdge<'program> {
     pub source: usize,
     pub destination: usize,
-    /// The exact transition site inside the caller: its state and discovered
-    /// telescope. Conservation reads caller entry values through that site's
-    /// carriers, so an endpoint pinned at a subordinate arrival still names
-    /// the same transported input.
     pub site_state: &'program State,
-    pub entry_parameters: &'program [SymbolHandle],
+    pub statement_ordinal: usize,
     pub arguments: &'program [ExpressionHandle],
     pub guards: Vec<(ExpressionHandle, bool)>,
 }
 
-/// One input an authored endpoint reads in the origin member's entry scope.
-#[derive(PartialEq)]
-enum EndpointInput {
-    /// An exact integer formal the endpoint spells directly.
-    Scalar(SymbolHandle),
-    /// A member projection resolved to its exact field coordinate, indexing
-    /// the projected dependencies shared with every edge's equality table.
-    Projection(usize),
-    /// A `.len` leaf resolved to its produced length coordinate -- a
-    /// non-polynomial input indexing the length dependencies shared with
-    /// every edge's equality table.
-    Length(usize),
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ValueCoordinate {
+    state: usize,
+    location: RankSubjectCoordinate,
 }
 
-/// The produced-length coordinate one `.len` endpoint leaf reads: either the
-/// length of a bare slice formal's collection or the projected slice
-/// coordinate a member chain names. Conservation transports that produced
-/// value, never the collection's contents or a same-spelled accessor.
-enum LengthDependency<'program> {
-    /// `slice.len` on a bare slice formal.
-    Bare(SymbolHandle),
-    /// `root.steps…leaf.len` resolved to its exact projected coordinate.
-    Projected(lengths::SliceCoordinate<'program>),
+struct StateFrame<'program> {
+    machine: &'program Machine,
+    state: &'program State,
 }
 
-impl<'program> LengthDependency<'program> {
-    /// The origin formal the authored receiver names.
-    fn root_symbol(&self) -> SymbolHandle {
-        match self {
-            LengthDependency::Bare(symbol) => *symbol,
-            LengthDependency::Projected(coordinate) => coordinate.parameter.symbol,
-        }
-    }
-
-    /// Whether `formal`'s slot can carry this produced length at all: a slice
-    /// formal holds its own length; a record formal holds the length of the
-    /// unique slice leaf its declaration admits. Any other slot, or a record
-    /// with two candidate leaves, cannot name this coordinate.
-    fn carries(
-        &self,
-        program: &'program dyn crate::CheckingInput,
-        formal: &typed_trees::signature::StateParameter,
-    ) -> bool {
-        match self {
-            LengthDependency::Bare(_) => {
-                lengths::is_slice(program, formal.type_reference)
-                    || lengths::slice_leaf_coordinate(program, formal).is_some()
-            }
-            LengthDependency::Projected(coordinate) => {
-                coordinate.for_carrier(program, formal).is_some()
-            }
-        }
-    }
-
-    /// The produced length `formal`'s entry role carries at `site`: a slice
-    /// role reads the length atom the site bindings alias onto its carrier;
-    /// a record role or projected chain re-resolves the coordinate onto the
-    /// formal the telescope says holds the role.
-    fn site_value(
-        &self,
-        program: &'program dyn crate::CheckingInput,
-        site: RankingRangeState<'_>,
-        length_bindings: &[(SymbolHandle, String)],
-        formal: &typed_trees::signature::StateParameter,
-    ) -> Option<Polynomial> {
-        match self {
-            LengthDependency::Bare(_) => {
-                if lengths::is_slice(program, formal.type_reference) {
-                    let (_, identity) = length_bindings
-                        .iter()
-                        .find(|(symbol, _)| *symbol == formal.symbol)?;
-                    Some(Polynomial::atom(identity.clone()))
-                } else {
-                    lengths::slice_leaf_coordinate(program, formal)?
-                        .at_arrival(program, site, formal.symbol)
-                        .map(|coordinate| coordinate.value())
-                }
-            }
-            LengthDependency::Projected(coordinate) => coordinate
-                .at_arrival(program, site, formal.symbol)
-                .map(|coordinate| coordinate.value()),
-        }
-    }
-
-    /// The produced length `actual` installs at the destination's `formal`
-    /// slot: a slice slot reads the actual's own produced length (subslice
-    /// geometry included); a record slot walks the actual's forward, borrow,
-    /// or literal rebuild down to the unique slice leaf this dependency
-    /// names there.
-    fn actual_value(
-        &self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        site: &State,
-        engine: &mut Engine<'_>,
-        formal: &typed_trees::signature::StateParameter,
-        actual: ExpressionHandle,
-        length_bindings: &[(SymbolHandle, String)],
-    ) -> Option<Polynomial> {
-        match self {
-            LengthDependency::Bare(_) => {
-                if lengths::is_slice(program, formal.type_reference) {
-                    lengths::actual(program, machine, site, actual, length_bindings, engine)
-                } else {
-                    let coordinate = lengths::slice_leaf_coordinate(program, formal)?;
-                    coordinate.arrived_length(
-                        program,
-                        machine,
-                        site,
-                        engine,
-                        actual,
-                        coordinate.borrowed,
-                        length_bindings,
-                    )
-                }
-            }
-            LengthDependency::Projected(coordinate) => {
-                let coordinate = coordinate.for_carrier(program, formal)?;
-                coordinate.arrived_length(
-                    program,
-                    machine,
-                    site,
-                    engine,
-                    actual,
-                    coordinate.borrowed,
-                    length_bindings,
-                )
-            }
-        }
-    }
+struct Arrival<'program> {
+    source: usize,
+    destination: usize,
+    statement: usize,
+    arguments: &'program [ExpressionHandle],
+    guards: Vec<(ExpressionHandle, bool)>,
+    // A continuation executes its preceding callee first. Until the selected
+    // return frame is supplied here it cannot conserve a live prefix value.
+    after_call: bool,
 }
 
-/// Which source-carried values one destination slot's actual provably
-/// installs. `sources` indexes the caller's entry formals for scalar inputs;
-/// `projections[dependency][source]` records whether the actual's coordinate
-/// value equals the dependency's site value carried by that source formal;
-/// `lengths[dependency][source]` does the same for produced lengths.
-struct SlotEvidence {
-    sources: Vec<usize>,
-    projections: Vec<Vec<bool>>,
-    lengths: Vec<Vec<bool>>,
-}
-
-/// The caller supplies one strongly connected component and every intra-component
-/// occurrence, including parallel calls. Entry/range meaning and each edge's
-/// arithmetic obligations remain separate judgments.
-pub(crate) fn mixed_call_endpoints_are_pinned(
-    program: &dyn crate::CheckingInput,
-    members: &[RankingRangeCallMember<'_>],
-    edges: &[RankingRangeCallEdge<'_>],
+pub(crate) fn mixed_call_endpoints_are_pinned<'program>(
+    program: &'program dyn crate::CheckingInput,
+    members: &[RankingRangeCallMember<'program>],
+    calls: &[RankingRangeCallEdge<'program>],
+    frames: Option<&crate::CallFrameResolver<'program>>,
 ) -> bool {
     let prove = || -> Option<()> {
-        let entries = members
-            .iter()
-            .map(|member| scalar_entry(program, member).map(|(state, _)| state))
-            .collect::<Option<Vec<_>>>()?;
-        let parameters = entries
-            .iter()
-            .map(|state| program.state_parameters(state).iter().collect::<Vec<_>>())
-            .collect::<Vec<_>>();
-        // Discover every ranged member's endpoint inputs before building any
-        // edge table: a projected input adds a coordinate the actual must
-        // transport, so the dependencies decide which equalities each call
-        // owes.
-        let mut member_dependencies = Vec::new();
-        let mut projections: Vec<fields::FieldCoordinate<'_>> = Vec::new();
-        let mut length_dependencies: Vec<LengthDependency<'_>> = Vec::new();
-        for (origin, member) in members.iter().enumerate() {
+        let mut states = Vec::new();
+        let mut entries = Vec::new();
+        let mut arrivals = Vec::new();
+        let relevance = crate::rank_relevance(
+            program,
+            &members
+                .iter()
+                .map(|member| member.machine.symbol)
+                .collect::<Vec<_>>(),
+        )?;
+        for member in members {
+            let body = program.machine_states(member.machine);
+            if body.is_empty() {
+                return None;
+            }
+            let start = states.len();
+            entries.push(start);
+            states.extend(body.iter().map(|state| StateFrame {
+                machine: member.machine,
+                state,
+            }));
+            for arrival in
+                crate::machine_calls::call_cycles::runtime_ranking::internal_arrival_sites(
+                    program,
+                    member.machine,
+                )
+            {
+                // A rankless acyclic suffix cannot return to this component.
+                // Its ordinary actual formation remains the source owner's
+                // obligation; it need not retain a recurrent endpoint value.
+                if !relevance.requires_rank(body[arrival.destination].symbol) {
+                    continue;
+                }
+                let source = &body[arrival.source];
+                let statement = program
+                    .statement_table
+                    .statements(source.statement_nodes)
+                    .get(arrival.statement_index)?
+                    .as_transition()?;
+                let mut guards = Vec::new();
+                for preceding in program
+                    .statement_table
+                    .statements(source.statement_nodes)
+                    .iter()
+                    .take(arrival.statement_index)
+                {
+                    if let Some(transition) = preceding.as_transition()
+                        && let TransitionGuardNode::When(guard) = transition.guard
+                    {
+                        guards.push((guard, false));
+                    }
+                }
+                if let TransitionGuardNode::When(guard) = statement.guard {
+                    guards.push((guard, true));
+                }
+                arrivals.push(Arrival {
+                    source: start + arrival.source,
+                    destination: start + arrival.destination,
+                    statement: arrival.statement_index,
+                    arguments: arrival.arguments,
+                    guards,
+                    after_call: statement.continuation == arrival.target,
+                });
+            }
+        }
+        for call in calls {
+            let caller = members.get(call.source)?;
+            let body = program.machine_states(caller.machine);
+            let ordinal = typed_trees::state::state_position(body, call.site_state.symbol)?;
+            arrivals.push(Arrival {
+                source: entries[call.source] + ordinal,
+                destination: *entries.get(call.destination)?,
+                statement: call.statement_ordinal,
+                arguments: call.arguments,
+                guards: call.guards.clone(),
+                after_call: false,
+            });
+        }
+        let mut endpoints = Vec::new();
+        for (position, member) in members.iter().enumerate() {
             if !member.range.is_valid() {
                 continue;
             }
             let range = program.expression_table.range_node(member.range)?;
-            let mut inputs = Vec::new();
-            for endpoint in [range.start, range.end] {
-                endpoint_inputs(
+            for expression in [range.start, range.end] {
+                endpoint_reads(
                     program,
-                    member.machine,
-                    entries[origin],
-                    endpoint,
-                    &mut inputs,
-                    &mut projections,
-                    &mut length_dependencies,
+                    &states[entries[position]],
+                    entries[position],
+                    expression,
+                    &mut endpoints,
                     0,
                 )?;
             }
-            member_dependencies.push((origin, inputs));
         }
-        // Equality is independent of the shrinking endpoint candidates. Prepare
-        // each call's exact arithmetic once, not once per dependency or round.
-        let equalities = edges
-            .iter()
-            .map(|edge| {
-                argument_sources(program, members, edge, &projections, &length_dependencies)
-            })
-            .collect::<Option<Vec<_>>>()?;
-        for (origin, inputs) in member_dependencies {
-            for input in inputs {
-                let mut candidates = match input {
-                    EndpointInput::Scalar(symbol) => {
-                        let formal = parameters[origin]
-                            .iter()
-                            .find(|formal| formal.symbol == symbol)?;
-                        let carrier = exact_integer_parameter(program, formal.type_reference)?;
-                        pin_candidates(&parameters, origin, symbol, |formal| {
-                            exact_integer_parameter(program, formal.type_reference)
-                                == Some(carrier)
-                        })
-                    }
-                    EndpointInput::Projection(index) => {
-                        let dependency = &projections[index];
-                        pin_candidates(
-                            &parameters,
-                            origin,
-                            dependency.parameter.symbol,
-                            |formal| dependency.for_carrier(program, formal).is_some(),
-                        )
-                    }
-                    EndpointInput::Length(index) => {
-                        // A slice formal carries its own produced length; a
-                        // record formal carries the length of the unique
-                        // slice leaf its declaration admits. Both stay exact:
-                        // a slot with no such coordinate cannot pin the leaf.
-                        let dependency = &length_dependencies[index];
-                        pin_candidates(
-                            &parameters,
-                            origin,
-                            dependency.root_symbol(),
-                            |formal| dependency.carries(program, formal),
-                        )
-                    }
-                };
-                // The origin starts with its authored input only. Since the
-                // component is strongly connected, every surviving candidate
-                // is reached from that singleton. Intersecting every incoming
-                // occurrence prevents an unrooted cycle or parallel alternative
-                // from manufacturing a second possible endpoint value.
-                loop {
-                    let mut changed = false;
-                    for (edge, equalities) in edges.iter().zip(&equalities) {
-                        for (ordinal, evidence) in equalities.iter().enumerate() {
-                            if !candidates[edge.destination][ordinal] {
-                                continue;
-                            }
-                            let preserved = match input {
-                                EndpointInput::Scalar(_) => evidence
-                                    .sources
-                                    .iter()
-                                    .any(|source| candidates[edge.source][*source]),
-                                EndpointInput::Projection(index) => {
-                                    evidence.projections[index].iter().enumerate().any(
-                                        |(source, holds)| *holds && candidates[edge.source][source],
-                                    )
-                                }
-                                EndpointInput::Length(index) => {
-                                    evidence.lengths[index].iter().enumerate().any(
-                                        |(source, holds)| *holds && candidates[edge.source][source],
-                                    )
-                                }
-                            };
-                            if !preserved {
-                                candidates[edge.destination][ordinal] = false;
-                                changed = true;
-                            }
-                        }
-                    }
-                    if candidates
-                        .iter()
-                        .any(|candidates| !candidates.iter().any(|candidate| *candidate))
-                    {
-                        return None;
-                    }
-                    if !changed {
-                        break;
-                    }
-                }
-            }
+        for origin in endpoints {
+            conserve(program, &states, &arrivals, &origin, frames)?;
         }
         Some(())
     };
     prove().is_some()
 }
 
-/// The per-member formals that can pin an endpoint's carrier: every valid,
-/// non-const slot `admits` accepts, restricted at the origin member to the
-/// authored formal the dependency names. A `false` slot can never supply the
-/// endpoint's value along any edge.
-fn pin_candidates<'program>(
-    parameters: &[Vec<&'program typed_trees::signature::StateParameter>],
-    origin: usize,
-    root: SymbolHandle,
-    admits: impl Fn(&'program typed_trees::signature::StateParameter) -> bool,
-) -> Vec<Vec<bool>> {
-    parameters
-        .iter()
-        .enumerate()
-        .map(|(position, formals)| {
-            formals
-                .iter()
-                .map(|formal| {
-                    formal.symbol.is_valid()
-                        && !formal.is_const
-                        && admits(*formal)
-                        && (position != origin || formal.symbol == root)
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>()
-}
-
-/// Each destination slot retains every caller input proved equal to its actual.
-/// No destination requirement or candidate correspondence is an arithmetic
-/// premise. The component owner independently preserves the caller's prefix.
-/// At a subordinate site the caller's entry values normalize through that
-/// state's telescope: each entry role names the atom of the formal carrying it,
-/// and kept duplicated carriers share one value under their bare-forward
-/// equality. Requires clauses stay entry-site evidence; the site's own
-/// constrained-type facts hold on every arrival.
-///
-/// A projected endpoint input adds a second evidence row per slot: the
-/// destination formal's own resolution of the authored chain, walked over the
-/// actual (`FieldCoordinate::arrived`), must equal the site coordinate of a
-/// source formal carrying that input -- a forwarded record names its carrier's
-/// coordinate, a member actual or literal rebuild reads the leaf it installs.
-/// Member spellings inside the caller's own requires facts, guards, and
-/// actuals bind to those same coordinates first, so `bounds.cap` in a guard
-/// names the atom the endpoint reads.
-fn argument_sources<'program>(
-    program: &'program dyn crate::CheckingInput,
-    members: &[RankingRangeCallMember<'program>],
-    edge: &RankingRangeCallEdge<'program>,
-    projections: &[fields::FieldCoordinate<'program>],
-    length_dependencies: &[LengthDependency<'program>],
-) -> Option<Vec<SlotEvidence>> {
-    let caller = members.get(edge.source)?;
-    let callee = members.get(edge.destination)?;
-    let (entry, _) = scalar_entry(program, caller)?;
-    let (destination, _) = scalar_entry(program, callee)?;
-    let site = edge.site_state;
-    let parameters = program
-        .state_parameters(destination)
-        .iter()
-        .collect::<Vec<_>>();
-    if parameters.len() != edge.arguments.len() {
-        return None;
-    }
-    let at_entry = site.symbol == entry.symbol;
-    let (bindings, carrier_equalities) = if at_entry {
-        (integer_bindings(program, site)?, Vec::new())
-    } else {
-        validate_mapping(program, caller.machine, site, edge.entry_parameters)?;
-        telescoped_bindings(program, caller.machine, site, edge.entry_parameters)?
-    };
-    let mut engine = Engine::strict(program, caller.machine, &bindings);
-    if !engine.strict_symbol_bindings_are_valid() {
-        return None;
-    }
-    // Authored member projections in the caller's read surface bind to the
-    // coordinate their root formal's role arrives on: an endpoint field in a
-    // requires fact or guard, or a carrier projection inside a rebuilt actual.
-    // This is the same installation the call-site judgment performs, so both
-    // sides of an equality name one atom.
-    let mut coordinates = field_coordinates::FieldCoordinates::empty();
-    let mut expressions = Vec::new();
-    expressions.extend(edge.arguments.iter().copied());
-    expressions.extend(edge.guards.iter().map(|(guard, _)| *guard));
-    expressions.extend(projections::entry_expressions(
-        program,
-        caller.machine,
-        site,
-    ));
-    coordinates.install(
-        program,
-        site,
-        entry,
-        (!at_entry).then_some(edge.entry_parameters),
-        &mut engine,
-        &expressions,
-    )?;
-    // Produced lengths are non-polynomial inputs under the same discipline:
-    // authored `.len` leaves inside guards, actuals, or requires facts bind
-    // to the atom the site holds for the collection -- bare slice formals
-    // through the length bindings, member chains through their projected
-    // slice coordinate -- so both sides of an equality name one coordinate.
-    let length_bindings = lengths::bindings(
-        program,
-        caller.machine,
-        site,
-        (!at_entry).then_some(edge.entry_parameters),
-    );
-    if !length_bindings.is_empty() {
-        lengths::install(
-            program,
-            caller.machine,
-            site,
-            entry,
-            &length_bindings,
-            &mut engine,
-            &expressions,
-        )?;
-    }
-    let mut slice_coordinates = lengths::SliceCoordinates::empty();
-    slice_coordinates.install(
-        program,
-        caller.machine,
-        site,
-        entry,
-        (!at_entry).then_some(edge.entry_parameters),
-        &mut engine,
-        &expressions,
-    )?;
-    // Saved caller observations ride the same site scope: an admitted local
-    // denotes the exact value its initializer produced at binding time, so
-    // an endpoint equality naming the local normalizes to the bound
-    // polynomial rather than an unknown atom.
-    saved_arguments::install(program, caller.machine, site, &length_bindings, &mut engine);
-    let mut comparisons = if at_entry {
-        entry_comparisons(program, caller.machine, site, &mut engine, &bindings)?
-    } else {
-        parameter_comparisons(program, caller.machine, site, &mut engine, &bindings)?
-    };
-    comparisons.extend(carrier_equalities);
-    comparisons.extend(super::super::length_bound_comparisons(&length_bindings));
-    comparisons.extend(slice_coordinates.comparisons());
-    for &(guard, holds) in &edge.guards {
-        meanings::builtin(program, caller.machine, site, guard, 0)?;
-        collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
-    }
-    if !engine.install_hypotheses(comparisons) {
-        return None;
-    }
-    let source_formals = program.state_parameters(entry).iter().collect::<Vec<_>>();
-    let source_values = source_formals
-        .iter()
-        .map(|parameter| {
-            let binding = bindings
-                .iter()
-                .find(|binding| binding.symbol == parameter.symbol)?;
-            Some(match &binding.value {
-                StrictArithmeticBindingValue::Atom { identity, .. } => {
-                    Polynomial::atom(identity.clone())
-                }
-                StrictArithmeticBindingValue::Integer(value) => Polynomial::constant(value.clone()),
-            })
-        })
-        .collect::<Vec<_>>();
-    // The value a projected dependency holds through each source formal at
-    // this site: the authored chain re-resolved onto the formal carrying that
-    // entry role, direct or at its unique nested path. A formal whose role is
-    // unclaimed or contested at this site carries no dep value.
-    let source_projections = projections
-        .iter()
-        .map(|dependency| {
-            source_formals
-                .iter()
-                .map(|formal| {
-                    dependency
-                        .at_arrival(
-                            program,
-                            RankingRangeState {
-                                state: site,
-                                entry_parameters: edge.entry_parameters,
-                            },
-                            formal.symbol,
-                        )
-                        .map(|coordinate| coordinate.value())
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    // The produced length each source formal's role carries at this site, per
-    // `.len` dependency: a slice role reads its carrier's length atom, a
-    // record role its unique slice leaf's coordinate, a member chain its
-    // re-resolved projection. An unclaimed or contested role carries no
-    // length value for that dependency.
-    let source_lengths = length_dependencies
-        .iter()
-        .map(|dependency| {
-            source_formals
-                .iter()
-                .map(|formal| {
-                    dependency.site_value(
-                        program,
-                        RankingRangeState {
-                            state: site,
-                            entry_parameters: edge.entry_parameters,
-                        },
-                        &length_bindings,
-                        formal,
-                    )
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    parameters
-        .iter()
-        .zip(edge.arguments)
-        .map(|(parameter, argument)| {
-            meanings::builtin(program, caller.machine, site, *argument, 0)?;
-            // Normalize before vacuity: even an impossible arm cannot manufacture
-            // custody for a foreign symbol or an unsupported actual expression.
-            let sources = if exact_integer_parameter(program, parameter.type_reference).is_some() {
-                // The actual may be a quotient, remainder, or shift tree over
-                // caller inputs: mint each non-polynomial term's operand-pair
-                // atom the same way the endpoints were bound, or
-                // normalization refuses the term and the slot loses even the
-                // evidence it does carry.
-                meanings::install_nonpolynomial_terms(
-                    program,
-                    caller.machine,
-                    site,
-                    &mut engine,
-                    *argument,
-                    0,
-                )?;
-                let actual = engine.normalize(*argument)?;
-                source_values
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(position, value)| {
-                        let value = value.as_ref()?;
-                        (engine.requires_unsatisfiable
-                            || comparison_proven(&engine, BinaryOperator::Equal, &actual, value))
-                        .then_some(position)
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            let projections = projections
-                .iter()
-                .zip(&source_projections)
-                .map(|(dependency, values)| {
-                    let Some(coordinate) = dependency.for_carrier(program, parameter) else {
-                        return vec![false; values.len()];
-                    };
-                    let carried = coordinate.arrived_field(
-                        program,
-                        caller.machine,
-                        site,
-                        &mut engine,
-                        *argument,
-                        coordinate.borrowed,
-                    );
-                    carried_equals_each(&engine, carried, values)
-                })
-                .collect();
-            let lengths = length_dependencies
-                .iter()
-                .zip(&source_lengths)
-                .map(|(dependency, values)| {
-                    let carried = dependency.actual_value(
-                        program,
-                        caller.machine,
-                        site,
-                        &mut engine,
-                        parameter,
-                        *argument,
-                        &length_bindings,
-                    );
-                    carried_equals_each(&engine, carried, values)
-                })
-                .collect();
-            Some(SlotEvidence {
-                sources,
-                projections,
-                lengths,
-            })
-        })
-        .collect()
-}
-
-/// Whether `carried` provably equals each candidate source value — an
-/// unsatisfiable requires edge already proves every equality.
-fn carried_equals_each(
-    engine: &Engine<'_>,
-    carried: Option<Polynomial>,
-    values: &[Option<Polynomial>],
-) -> Vec<bool> {
-    values
-        .iter()
-        .map(|value| {
-            engine.requires_unsatisfiable
-                || matches!((&carried, value),
-                (Some(carried), Some(value))
-                    if comparison_proven(
-                        &engine,
-                        BinaryOperator::Equal,
-                        carried,
-                        value,
-                    ))
-        })
-        .collect()
-}
-
-fn direct_input(
+fn endpoint_reads(
     program: &dyn crate::CheckingInput,
+    frame: &StateFrame<'_>,
+    state: usize,
     expression: ExpressionHandle,
-    depth: usize,
-) -> Option<SymbolHandle> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
-    match node {
-        ExpressionNode::Atomic(atomic) => direct_input(program, atomic.value, depth + 1),
-        ExpressionNode::Name(path) if crate::is_single_segment_name_path(program, path) => {
-            Some(path.symbol)
-        }
-        _ => None,
-    }
-}
-
-/// The exact inputs an authored endpoint expression reads in `state`'s scope:
-/// scalar formals for bare names, field coordinates for member projections,
-/// produced length coordinates for `.len` leaves. Arithmetic combines inputs
-/// without adding new ones; any other spelling -- a call, an index, a `.len`
-/// on a computed or fixed-array receiver -- has no named input and keeps the
-/// endpoint undiscovered rather than guessing a carrier.
-fn endpoint_inputs<'program>(
-    program: &'program dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &'program State,
-    expression: ExpressionHandle,
-    inputs: &mut Vec<EndpointInput>,
-    projections: &mut Vec<fields::FieldCoordinate<'program>>,
-    length_dependencies: &mut Vec<LengthDependency<'program>>,
+    reads: &mut Vec<ValueCoordinate>,
     depth: usize,
 ) -> Option<()> {
     let node = program
         .expression_table
         .expression_at_depth(expression, depth)?;
     match node {
-        ExpressionNode::Integer(_) => Some(()),
-        ExpressionNode::Atomic(atomic) => endpoint_inputs(
-            program,
-            machine,
-            state,
-            atomic.value,
-            inputs,
-            projections,
-            length_dependencies,
-            depth + 1,
-        ),
-        ExpressionNode::Name(_) => {
-            let symbol = direct_input(program, expression, 0)?;
-            let parameter = program.state_parameter_by_symbol(state, symbol)?;
-            exact_integer_parameter(program, parameter.type_reference)?;
-            let input = EndpointInput::Scalar(symbol);
-            if !inputs.contains(&input) {
-                inputs.push(input);
-            }
-            Some(())
+        ExpressionNode::Integer(_) => {}
+        ExpressionNode::Atomic(atomic) => {
+            endpoint_reads(program, frame, state, atomic.value, reads, depth + 1)?;
         }
-        ExpressionNode::Member(member) => {
-            // A builtin `.len` reads the collection's produced length: a
-            // non-polynomial input conserved like a projection. A `.len`
-            // whose receiver resolves no slice formal or projected slice
-            // coordinate -- a computed value, a fixed array, a subslice --
-            // has no named input and stays undiscovered.
-            if member.case_variant.is_none()
-                && let Some(receiver) = crate::value_custody::places::collection_length_receiver(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                )
-            {
-                let dependency = if let Some(formal) = lengths::parameter(program, state, receiver)
-                {
-                    LengthDependency::Bare(formal.symbol)
-                } else {
-                    LengthDependency::Projected(lengths::SliceCoordinate::resolve_length(
-                        program, state, receiver,
-                    )?)
-                };
-                let index = match length_dependencies.iter().position(|existing| {
-                    match (existing, &dependency) {
-                        (LengthDependency::Bare(left), LengthDependency::Bare(right)) => {
-                            *left == *right
-                        }
-                        (LengthDependency::Projected(left), LengthDependency::Projected(right)) => {
-                            left.identity == right.identity
-                        }
-                        _ => false,
-                    }
-                }) {
-                    Some(index) => index,
-                    None => {
-                        length_dependencies.push(dependency);
-                        length_dependencies.len() - 1
-                    }
-                };
-                let input = EndpointInput::Length(index);
-                if !inputs.contains(&input) {
-                    inputs.push(input);
-                }
-                return Some(());
-            }
-            // A member projection's input is the exact leaf coordinate it
-            // reads: conservation transports that value, not the record
-            // spelling.
-            let coordinate =
-                fields::FieldCoordinate::resolve_field_projection(program, state, expression)?;
-            let index = match projections
-                .iter()
-                .position(|existing| existing.identity == coordinate.identity)
-            {
-                Some(index) => index,
-                None => {
-                    projections.push(coordinate);
-                    projections.len() - 1
-                }
-            };
-            let input = EndpointInput::Projection(index);
-            if !inputs.contains(&input) {
-                inputs.push(input);
-            }
-            Some(())
-        }
-        ExpressionNode::Binary(binary)
-            if crate::proof_contracts::contract_entailment::ranking_range::dependency_binary(
-                binary.operator,
-            ) =>
-        {
-            // Conservation follows both operand dependencies, not the
-            // operation's spelling or its output interval. Selected meaning,
-            // defined division, an in-width shift count, and carrier
-            // formation are separate call-range obligations; this traversal
-            // grants none of them.
-            endpoint_inputs(
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+            let receiver = crate::value_custody::places::collection_length_receiver(
                 program,
-                machine,
-                state,
-                binary.left,
-                inputs,
-                projections,
-                length_dependencies,
-                depth + 1,
+                frame.machine,
+                Some(frame.state),
+                expression,
+            )
+            .unwrap_or(expression);
+            let place = crate::canonical_place_from_expression_in_state(
+                program,
+                frame.state.symbol,
+                0,
+                receiver,
             )?;
-            endpoint_inputs(
+            let location = RankSubjectCoordinate {
+                parameter: place.root.as_symbol()?,
+                path: place.segments,
+            };
+            coordinate_kind(program, frame.state, &location)?;
+            let value = ValueCoordinate { state, location };
+            if !reads.contains(&value) {
+                reads.push(value);
+            }
+        }
+        ExpressionNode::Binary(binary) if super::super::dependency_binary(binary.operator) => {
+            endpoint_reads(program, frame, state, binary.left, reads, depth + 1)?;
+            endpoint_reads(program, frame, state, binary.right, reads, depth + 1)?;
+        }
+        _ => return None,
+    }
+    Some(())
+}
+
+#[derive(Clone, Copy)]
+enum ValueKind {
+    Integer,
+    Length,
+}
+
+fn coordinate_kind(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    coordinate: &RankSubjectCoordinate,
+) -> Option<ValueKind> {
+    let reference = super::super::ranking_coordinate_type(program, state, coordinate)?;
+    if exact_integer_parameter(program, reference).is_some() {
+        Some(ValueKind::Integer)
+    } else if lengths::is_slice(program, reference) {
+        Some(ValueKind::Length)
+    } else {
+        None
+    }
+}
+
+fn conserve<'program>(
+    program: &'program dyn crate::CheckingInput,
+    states: &[StateFrame<'program>],
+    arrivals: &[Arrival<'_>],
+    origin: &ValueCoordinate,
+    frames: Option<&crate::CallFrameResolver<'program>>,
+) -> Option<()> {
+    let mut domain = vec![origin.clone()];
+    // Completed operands seed exact observed leaves, including captured copies.
+    // A whole forwarded record is expanded only by a demanded suffix below.
+    let mut completions = Vec::new();
+    for arrival in arrivals {
+        let source = &states[arrival.source];
+        let destination = &states[arrival.destination];
+        let parameters = program.state_parameters(destination.state);
+        if parameters.len() != arrival.arguments.len() {
+            return None;
+        }
+        let mut row = Vec::new();
+        for (formal, actual) in parameters.iter().zip(arrival.arguments) {
+            let values = arrival_correspondence::completed_operand_coordinates(
                 program,
-                machine,
+                source.machine,
+                source.state,
+                arrival.statement,
+                *actual,
+            )
+            .unwrap_or_default();
+            for value in &values {
+                include_coordinate(
+                    program,
+                    states,
+                    origin,
+                    &mut domain,
+                    ValueCoordinate {
+                        state: arrival.source,
+                        location: value.source.clone(),
+                    },
+                );
+                include_coordinate(
+                    program,
+                    states,
+                    origin,
+                    &mut domain,
+                    ValueCoordinate {
+                        state: arrival.destination,
+                        location: RankSubjectCoordinate {
+                            parameter: formal.symbol,
+                            path: value.relative_path.clone(),
+                        },
+                    },
+                );
+            }
+            row.push(values);
+        }
+        completions.push(row);
+    }
+    // Demand-directed closure follows exact producer prefixes. An ancestry
+    // check declines genuinely recurrent path growth, not acyclic alternatives.
+    let mut pending = domain
+        .iter()
+        .cloned()
+        .map(|value| (value.clone(), vec![value]))
+        .collect::<Vec<_>>();
+    while let Some((destination, ancestry)) = pending.pop() {
+        for (arrival, completions) in arrivals.iter().zip(&completions) {
+            if arrival.destination != destination.state {
+                continue;
+            }
+            let parameters = program.state_parameters(states[arrival.destination].state);
+            let position = parameters
+                .iter()
+                .position(|formal| formal.symbol == destination.location.parameter)?;
+            for completion in &completions[position] {
+                let Some(suffix) = destination
+                    .location
+                    .path
+                    .strip_prefix(completion.relative_path.as_slice())
+                else {
+                    continue;
+                };
+                if !suffix.is_empty()
+                    && completion.derivation
+                        != checked_trees::CheckedRankValueDerivation::CapturedCoordinate
+                {
+                    continue;
+                }
+                let mut location = completion.source.clone();
+                location.path.extend_from_slice(suffix);
+                let source = ValueCoordinate {
+                    state: arrival.source,
+                    location,
+                };
+                if source.state == origin.state && source != *origin {
+                    continue;
+                }
+                if coordinate_kind(program, states[source.state].state, &source.location).is_none()
+                {
+                    continue;
+                }
+                if ancestry.iter().any(|ancestor| {
+                    ancestor.state == source.state
+                        && ancestor.location.parameter == source.location.parameter
+                        && source.location.path.len() > ancestor.location.path.len()
+                        && source.location.path.starts_with(&ancestor.location.path)
+                }) {
+                    return None;
+                }
+                if !domain.contains(&source) {
+                    domain.push(source.clone());
+                    let mut ancestry = ancestry.clone();
+                    ancestry.push(source.clone());
+                    pending.push((source, ancestry));
+                }
+            }
+        }
+    }
+    // Prove the equalities independently of this candidate relation. No role
+    // boolean or lineage row enters an arithmetic hypothesis.
+    let evidence = arrivals
+        .iter()
+        .map(|arrival| equality_edges(program, states, arrival, &domain, frames))
+        .collect::<Option<Vec<_>>>()?;
+    let mut retained = vec![true; domain.len()];
+    loop {
+        let mut changed = false;
+        for (arrival, equalities) in arrivals.iter().zip(&evidence) {
+            for (destination, value) in domain.iter().enumerate() {
+                if !retained[destination] || value.state != arrival.destination {
+                    continue;
+                }
+                if !equalities[destination]
+                    .iter()
+                    .any(|source| retained[*source])
+                {
+                    retained[destination] = false;
+                    changed = true;
+                }
+            }
+        }
+        // A cycle-only conservation relation is not rooted at the authored
+        // endpoint. Keep only productive equality transport from that origin.
+        let mut reached = vec![false; domain.len()];
+        reached[0] = retained[0];
+        loop {
+            let mut progress = false;
+            for equalities in &evidence {
+                for (destination, sources) in equalities.iter().enumerate() {
+                    if retained[destination]
+                        && !reached[destination]
+                        && sources.iter().any(|source| reached[*source])
+                    {
+                        reached[destination] = true;
+                        progress = true;
+                    }
+                }
+            }
+            if !progress {
+                break;
+            }
+        }
+        for (retained, reached) in retained.iter_mut().zip(reached) {
+            if *retained && !reached {
+                *retained = false;
+                changed = true;
+            }
+        }
+        if !retained[0]
+            || arrivals.iter().any(|arrival| {
+                !domain
+                    .iter()
+                    .zip(&retained)
+                    .any(|(value, retained)| *retained && value.state == arrival.destination)
+            })
+        {
+            return None;
+        }
+        if !changed {
+            return Some(());
+        }
+    }
+}
+
+fn include_coordinate(
+    program: &dyn crate::CheckingInput,
+    states: &[StateFrame<'_>],
+    origin: &ValueCoordinate,
+    domain: &mut Vec<ValueCoordinate>,
+    value: ValueCoordinate,
+) {
+    if (value.state != origin.state || value == *origin)
+        && coordinate_kind(program, states[value.state].state, &value.location).is_some()
+        && !domain.contains(&value)
+    {
+        domain.push(value);
+    }
+}
+
+fn equality_edges<'program>(
+    program: &'program dyn crate::CheckingInput,
+    states: &[StateFrame<'program>],
+    arrival: &Arrival<'_>,
+    domain: &[ValueCoordinate],
+    frames: Option<&crate::CallFrameResolver<'program>>,
+) -> Option<Vec<Vec<usize>>> {
+    let source = &states[arrival.source];
+    let destination = &states[arrival.destination];
+    let mut equalities = vec![Vec::new(); domain.len()];
+    if arrival.after_call {
+        return Some(equalities);
+    }
+    let bindings = integer_bindings(program, source.state)?;
+    let mut engine = Engine::strict(program, source.machine, &bindings);
+    if !engine.strict_symbol_bindings_are_valid() {
+        return None;
+    }
+    let expressions = arrival
+        .arguments
+        .iter()
+        .copied()
+        .chain(arrival.guards.iter().map(|(guard, _)| *guard))
+        .collect::<Vec<_>>();
+    let mut fields = field_coordinates::FieldCoordinates::empty();
+    fields.install(
+        program,
+        source.state,
+        source.state,
+        None,
+        &mut engine,
+        &expressions,
+    )?;
+    let lengths = lengths::bindings(program, source.machine, source.state, None);
+    lengths::install(
+        program,
+        source.machine,
+        source.state,
+        source.state,
+        &lengths,
+        &mut engine,
+        &expressions,
+    )?;
+    let mut slices = lengths::SliceCoordinates::empty();
+    slices.install(
+        program,
+        source.machine,
+        source.state,
+        source.state,
+        None,
+        &mut engine,
+        &expressions,
+    )?;
+    saved_arguments::install(program, source.machine, source.state, &lengths, &mut engine);
+    let mut comparisons = parameter_comparisons(
+        program,
+        source.machine,
+        source.state,
+        &mut engine,
+        &bindings,
+    )?;
+    comparisons.extend(fields.comparisons(program));
+    comparisons.extend(slices.comparisons());
+    comparisons.extend(super::super::length_bound_comparisons(&lengths));
+    // Guard reads denote live values. When a prefix writes, decline its guard
+    // hypotheses here rather than replaying them against arrival snapshots.
+    let empty_prefix = prefix_paths(program, source, arrival.statement, frames)?
+        .iter()
+        .all(Vec::is_empty);
+    if empty_prefix {
+        for &(guard, holds) in &arrival.guards {
+            meanings::builtin(program, source.machine, source.state, guard, 0)?;
+            super::super::collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
+        }
+        if source.state.symbol == program.machine_states(source.machine).first()?.symbol {
+            comparisons.extend(super::super::entry_comparisons(
+                program,
+                source.machine,
+                source.state,
+                &mut engine,
+                &bindings,
+            )?);
+        }
+    }
+    if !engine.install_hypotheses(comparisons) {
+        return None;
+    }
+    let writes = prefix_paths(program, source, arrival.statement, frames)?;
+    let source_values = domain
+        .iter()
+        .map(|value| {
+            if value.state != arrival.source {
+                return None;
+            }
+            let path = crate::frame_coordinate_path(
+                program,
+                value.location.parameter,
+                &value.location.path,
+            )?;
+            if writes
+                .iter()
+                .flatten()
+                .any(|write| crate::frame_paths_overlap(write, &path))
+            {
+                return None;
+            }
+            coordinate_value(
+                program,
+                source.state,
+                &value.location,
+                &bindings,
+                &lengths,
+                &mut engine,
+            )
+        })
+        .collect::<Vec<_>>();
+    let parameters = program.state_parameters(destination.state);
+    for (position, value) in domain.iter().enumerate() {
+        if value.state != arrival.destination {
+            continue;
+        }
+        let ordinal = parameters
+            .iter()
+            .position(|formal| formal.symbol == value.location.parameter)?;
+        let actual = *arrival.arguments.get(ordinal)?;
+        meanings::builtin(program, source.machine, source.state, actual, 0)?;
+        let carried = actual_value(
+            program,
+            source,
+            destination.state,
+            &value.location,
+            actual,
+            &lengths,
+            &mut engine,
+        );
+        let Some(carried) = carried else {
+            continue;
+        };
+        for (source_position, source_value) in source_values.iter().enumerate() {
+            if source_value.as_ref().is_some_and(|source_value| {
+                comparison_proven(&engine, BinaryOperator::Equal, &carried, source_value)
+            }) {
+                equalities[position].push(source_position);
+            }
+        }
+    }
+    Some(equalities)
+}
+
+fn coordinate_value(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    coordinate: &RankSubjectCoordinate,
+    bindings: &[super::super::super::StrictArithmeticSymbolBinding],
+    lengths: &[(symbols::SymbolHandle, String)],
+    engine: &mut Engine<'_>,
+) -> Option<Polynomial> {
+    match coordinate_kind(program, state, coordinate)? {
+        ValueKind::Integer if coordinate.path.is_empty() => {
+            let binding = bindings
+                .iter()
+                .find(|binding| binding.symbol == coordinate.parameter)?;
+            match &binding.value {
+                super::super::super::StrictArithmeticBindingValue::Atom { identity, .. } => {
+                    Some(Polynomial::atom(identity.clone()))
+                }
+                super::super::super::StrictArithmeticBindingValue::Integer(value) => {
+                    Some(Polynomial::constant(value.clone()))
+                }
+            }
+        }
+        ValueKind::Length if coordinate.path.is_empty() => lengths
+            .iter()
+            .find(|(symbol, _)| *symbol == coordinate.parameter)
+            .map(|(_, identity)| Polynomial::atom(identity.clone())),
+        ValueKind::Integer => {
+            let field = fields::FieldCoordinate::at_coordinate(
+                program,
                 state,
-                binary.right,
-                inputs,
-                projections,
-                length_dependencies,
-                depth + 1,
+                coordinate,
+                CoordinateKind::Field,
+            )?;
+            engine
+                .install_hypotheses(field.field_comparisons(program))
+                .then(|| field.value())
+        }
+        ValueKind::Length => Some(
+            lengths::SliceCoordinate::at_coordinate(
+                program,
+                state,
+                coordinate,
+                CoordinateKind::Length,
+            )?
+            .value(),
+        ),
+    }
+}
+
+fn actual_value(
+    program: &dyn crate::CheckingInput,
+    source: &StateFrame<'_>,
+    destination: &State,
+    coordinate: &RankSubjectCoordinate,
+    actual: ExpressionHandle,
+    lengths: &[(symbols::SymbolHandle, String)],
+    engine: &mut Engine<'_>,
+) -> Option<Polynomial> {
+    match coordinate_kind(program, destination, coordinate)? {
+        ValueKind::Integer if coordinate.path.is_empty() => {
+            meanings::install_nonpolynomial_terms(
+                program,
+                source.machine,
+                source.state,
+                engine,
+                actual,
+                0,
+            )?;
+            engine.normalize(actual)
+        }
+        ValueKind::Length if coordinate.path.is_empty() => lengths::actual(
+            program,
+            source.machine,
+            source.state,
+            actual,
+            lengths,
+            engine,
+        ),
+        ValueKind::Integer => {
+            let field = fields::FieldCoordinate::at_coordinate(
+                program,
+                destination,
+                coordinate,
+                CoordinateKind::Field,
+            )?;
+            field.arrived_field(
+                program,
+                source.machine,
+                source.state,
+                engine,
+                actual,
+                field.borrowed,
             )
         }
-        _ => None,
+        ValueKind::Length => {
+            let slice = lengths::SliceCoordinate::at_coordinate(
+                program,
+                destination,
+                coordinate,
+                CoordinateKind::Length,
+            )?;
+            slice.arrived_length(
+                program,
+                source.machine,
+                source.state,
+                engine,
+                actual,
+                slice.borrowed,
+                lengths,
+            )
+        }
     }
+}
+
+fn prefix_paths<'program>(
+    program: &'program dyn crate::CheckingInput,
+    source: &StateFrame<'program>,
+    through: usize,
+    frames: Option<&crate::CallFrameResolver<'program>>,
+) -> Option<Vec<Vec<String>>> {
+    let frames = frames?;
+    program
+        .statement_table
+        .statements(source.state.statement_nodes)
+        .iter()
+        .take(through + 1)
+        .map(|statement| {
+            let mut paths = frames
+                .statement_value_write_frame(source.machine, statement)
+                .into_complete_paths()?;
+            let own = match statement {
+                StatementNode::Assignment(_) => {
+                    Some(frames.assignment_write_frame(source.machine, statement))
+                }
+                StatementNode::Call(call) => Some(frames.may_write_frame(source.machine, call)),
+                _ => None,
+            };
+            if let Some(own) = own {
+                paths.extend(own.into_complete_paths()?);
+            }
+            Some(paths)
+        })
+        .collect()
 }

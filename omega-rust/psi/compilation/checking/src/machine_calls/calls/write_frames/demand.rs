@@ -5,6 +5,9 @@
 //! call validation, alias-origin inference, or transition fixed points.
 
 mod call_origins;
+mod normal_subjects;
+
+pub(crate) use normal_subjects::InvocationReferenceSubject;
 
 use super::boundary_calls::receiver_requires_boundary_frame;
 use super::caller_aliases::{

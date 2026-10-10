@@ -21,7 +21,7 @@ pub(super) fn record(
     borrow: &checked_trees::BorrowFacts,
     pure: &checked_trees::CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    admitted: &checked_trees::CheckedRankArrivalPlan,
     plans: &mut checked_trees::CheckedScalarComputationPlans,
     structural_values: &mut checked_trees::CheckedStructuralValuePlans,
 ) {
@@ -31,9 +31,7 @@ pub(super) fn record(
     let mut roster = Vec::<CheckedStateNaturalRank>::new();
     for machine in program.machines() {
         if let Some((ranks, _)) = crate::execution::terminal_unit::state_graph::natural_rank_plans(
-            program,
-            machine,
-            call_frames,
+            program, machine, admitted,
         ) {
             roster.extend(ranks);
         }
@@ -59,59 +57,75 @@ pub(super) fn record(
         for parameter in &mut inputs {
             parameter.is_mutable = false;
         }
-        let subject = match rank.measure {
-            CheckedNaturalRankMeasure::DeclaredMeasure { .. } => {
-                let Some(subjects) =
-                    typed_trees::ranking::resolve_machine_witness_subjects(program, owner)
-                else {
-                    continue;
-                };
-                let [subject] = subjects.as_slice() else {
-                    continue;
-                };
-                let Some(entry) = program.machine_states(owner).first() else {
-                    continue;
-                };
-                let Some(place) = validation::canonical_place_from_expression_in_state(
-                    program,
-                    entry.symbol,
-                    0,
-                    *subject,
-                ) else {
-                    continue;
-                };
-                let facts::PlaceRoot::Symbol(symbol) = place.root else {
-                    continue;
-                };
-                let Some(input) = inputs.get_mut(rank.parameter_position as usize) else {
-                    continue;
-                };
-                // Exact source role supplied by the rank owner, retaining
-                // this actual formal's complete type and namespace slot.
-                input.symbol = symbol;
-                Some(*subject)
-            }
-            _ => None,
+        let Some(body) = admitted.for_body(owner.symbol, owner.states) else {
+            continue;
         };
-        let declaration_binding = match rank.measure {
-            CheckedNaturalRankMeasure::DeclaredMeasure { measure, .. } => {
-                let definition = program
-                    .measures()
+        let mut rows = admitted
+            .states
+            .span_or_empty(body.states)
+            .iter()
+            .filter(|row| row.state == state.symbol);
+        let Some(row) = rows.next() else {
+            continue;
+        };
+        if rows.next().is_some() {
+            continue;
+        }
+        let Some(bindings) = validation::RankStateBindings::from_checked(admitted, row) else {
+            continue;
+        };
+        let place = |coordinate: &validation::RankSubjectCoordinate| validation::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(coordinate.parameter),
+            segments: coordinate.path.clone(),
+        };
+        let mut declaration_bindings = bindings
+            .coordinates
+            .iter()
+            .map(|binding| (place(&binding.entry), place(&binding.destination)))
+            .collect::<Vec<_>>();
+        let subject = typed_trees::ranking::resolve_machine_witness_subjects(program, owner)
+            .and_then(|subjects| subjects.first().copied());
+        if let CheckedNaturalRankMeasure::DeclaredMeasure { measure, .. } = rank.measure {
+            let definition = program
+                .measures()
+                .iter()
+                .find(|definition| definition.symbol == measure);
+            let Some((formal, subject)) = definition
+                .and_then(|definition| definition.parameter.as_ref())
+                .zip(subject)
+            else {
+                continue;
+            };
+            let Some(entry) = program.machine_states(owner).first() else {
+                continue;
+            };
+            let Some(subject) = validation::canonical_place_from_expression_in_state(
+                program,
+                entry.symbol,
+                0,
+                subject,
+            ) else {
+                continue;
+            };
+            let facts::PlaceRoot::Symbol(parameter) = subject.root else {
+                continue;
+            };
+            let template_bindings = bindings.declaration_bindings(
+                formal.symbol,
+                &validation::RankSubjectCoordinate {
+                    parameter,
+                    path: subject.segments,
+                },
+            );
+            if template_bindings.is_empty() {
+                continue;
+            }
+            declaration_bindings.extend(
+                template_bindings
                     .iter()
-                    .find(|definition| definition.symbol == measure);
-                definition
-                    .and_then(|definition| definition.parameter.as_ref())
-                    .filter(|formal| {
-                        program
-                            .primitive_type_reference(formal.type_reference)
-                            .is_none()
-                    })
-                    .zip(subject)
-                    .map(|(formal, subject)| (formal.symbol, subject))
-            }
-            _ => None,
-        };
-        let declaration_bindings = declaration_binding.as_slice();
+                    .map(|binding| (place(&binding.entry), place(&binding.destination))),
+            );
+        }
         let parameters = inputs
             .iter()
             .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
@@ -137,44 +151,57 @@ pub(super) fn record(
             parameters: &parameters,
             authored_parameters: &inputs,
             declaration_parameters: &inputs,
-            declaration_bindings,
+            declaration_bindings: &declaration_bindings,
             parameter_types: &parameter_types,
             locals: &[],
             plans,
             structural_values,
             integer_occurrences: Vec::new(),
         };
-        if let Some(root) = observation(&mut builder, rank, subject) {
+        if let Some(root) = observation(&mut builder, rank, subject, &bindings) {
             let _ = builder.push_scalar_root(CheckedScalarExpressionRole::RankObservation, root);
         }
     }
 }
 
-fn parameter(
+fn input_coordinate(
     builder: &mut Builder<'_, '_>,
-    authored_position: u32,
+    rank: &CheckedStateNaturalRank,
+    subject: Option<ExpressionHandle>,
+    bindings: &validation::RankStateBindings,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedScalarComputationHandle> {
-    let input = builder
-        .authored_parameters
-        .get(authored_position as usize)?;
-    let position = builder
-        .parameters
-        .iter()
-        .position(|parameter| parameter.symbol == input.symbol)?;
-    Some(builder.insert(
-        primitive_type,
-        CheckedScalarComputationKind::Value(CheckedScalarExpression::Parameter {
-            position,
-            primitive_type,
-        }),
-    ))
+    let subject = subject?;
+    let (owner, _) = validation::find_state(builder.program, builder.state)?;
+    let entry = builder.program.machine_states(owner).first()?;
+    let source = validation::canonical_place_from_expression_in_state(
+        builder.program,
+        entry.symbol,
+        0,
+        subject,
+    )?;
+    let facts::PlaceRoot::Symbol(parameter) = source.root else {
+        return None;
+    };
+    let coordinate = bindings.destination(&validation::RankSubjectCoordinate {
+        parameter,
+        path: source.segments,
+    })?;
+    if coordinate.parameter != rank.parameter {
+        return None;
+    }
+    let source = validation::CanonicalPlace {
+        root: facts::PlaceRoot::Symbol(coordinate.parameter),
+        segments: coordinate.path,
+    };
+    builder.scalar_coordinate(subject, &source, primitive_type)
 }
 
 fn observation(
     builder: &mut Builder<'_, '_>,
     rank: &CheckedStateNaturalRank,
     subject: Option<ExpressionHandle>,
+    bindings: &validation::RankStateBindings,
 ) -> Option<CheckedScalarComputationHandle> {
     match rank.measure {
         CheckedNaturalRankMeasure::DeclaredMeasure {
@@ -228,56 +255,15 @@ fn observation(
             }
         }
         CheckedNaturalRankMeasure::IntegerParameter { primitive_type } => {
-            parameter(builder, rank.parameter_position, primitive_type)
+            input_coordinate(builder, rank, subject, bindings, primitive_type)
         }
         CheckedNaturalRankMeasure::SequenceLength { subject } => {
-            let (owner, state) =
-                validation::find_state(builder.program, builder.state)?;
-            let root = builder.program.machine_states(owner).first()?;
-            let place = validation::canonical_place_from_expression_in_state(
-                builder.program,
-                root.symbol,
-                0,
-                subject,
-            )?;
-            let facts::PlaceRoot::Symbol(entry) = place.root else {
-                return None;
-            };
-            let required = match builder
-                .program
-                .ranking_expression_custody_for(owner.symbol)
-                .and_then(|custody| custody.rank_range)
-            {
-                Some(range) => validation::ranking_range_required_symbols(
-                    builder.program,
-                    owner,
-                    range,
-                    validation::RankingRangeMeasure::SliceLength(subject),
-                    validation::RankingRangePremises::RankInvariant,
-                )?,
-                // An unranged witness has no invocation-fixed premises. Its
-                // slice may shrink, and a scalar element computed from it is
-                // a dependent payload rather than another slice carrier.
-                // The shared telescope demotes those duplicate dependencies
-                // unless a range obligation independently requires them.
-                None => Vec::new(),
-            };
-            let mappings = validation::discover_state_entry_mappings(
-                builder.program,
-                owner,
-                entry,
-                &required,
-            )?;
-            let state_position = builder
-                .program
-                .machine_states(owner)
-                .iter()
-                .position(|candidate| candidate.symbol == state.symbol)?;
+            let (owner, state) = validation::find_state(builder.program, builder.state)?;
             let (parameter, position, expression) = validation::ranking_slice_length_observation(
                 builder.program,
                 owner,
                 state,
-                mappings.get(state_position)?,
+                bindings,
                 subject,
             )?;
             (parameter == rank.parameter && position == rank.parameter_position).then_some(())?;
@@ -288,11 +274,11 @@ fn observation(
         }
         CheckedNaturalRankMeasure::UnsignedDistance { primitive_type, .. }
         | CheckedNaturalRankMeasure::ConstantDistance { primitive_type, .. } => {
-            let lower = parameter(builder, rank.parameter_position, primitive_type)?;
+            let lower = input_coordinate(builder, rank, subject, bindings, primitive_type)?;
             distance(builder, lower, primitive_type)
         }
         CheckedNaturalRankMeasure::CollectionLengthDistance { .. } => {
-            let lower = parameter(builder, rank.parameter_position, PrimitiveType::U64)?;
+            let lower = input_coordinate(builder, rank, subject, bindings, PrimitiveType::U64)?;
             distance(builder, lower, PrimitiveType::U64)
         }
     }

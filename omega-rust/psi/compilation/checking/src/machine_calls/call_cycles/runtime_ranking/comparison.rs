@@ -80,12 +80,19 @@ fn site_role(
     site: &RankingRangeCallSite<'_>,
     symbol: SymbolHandle,
 ) -> SymbolHandle {
-    program
-        .state_parameters(site.state)
-        .iter()
-        .zip(site.entry_parameters)
-        .find_map(|(parameter, role)| (parameter.symbol == symbol).then_some(*role))
-        .unwrap_or(symbol)
+    if program
+        .state_parameter_by_symbol(site.state, symbol)
+        .is_none()
+    {
+        return symbol;
+    }
+    site.entry_parameters
+        .entry(&crate::RankSubjectCoordinate {
+            parameter: symbol,
+            path: Vec::new(),
+        })
+        .filter(|coordinate| coordinate.path.is_empty())
+        .map_or(SymbolHandle::default(), |coordinate| coordinate.parameter)
 }
 
 fn component_comparison(

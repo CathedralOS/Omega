@@ -72,97 +72,96 @@ pub(super) fn result_plan(
     .then_some(result)
 }
 
-/// Whether the composed body of `machine` ranks a cycle spelled through
-/// sibling machines' entries by the fused countdown judgment: its fused
-/// roster reaches beyond its own states and the judgment proves a component
-/// over it. Terminal machine selection asks this before any plan exists, so
-/// a machine ranked that way is not vetoed by the machine-local recognizers,
-/// which cannot see the cycle.
-pub(crate) fn fused_countdown_ranks(
-    program: &dyn ::validation::CheckingInput,
+/// Read one retained source observation roster for the authored owners in this
+/// composed graph. Fusion changes control placement, never the chosen measure
+/// coordinate or the source judgment. Weak call-component edges come from its
+/// same retained complete decision.
+pub(crate) fn natural_rank_plans(
+    program: &dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> bool {
-    let fused = fused_states(program, machine);
-    fused.len() != program.machine_states(machine).len()
-        && crate::checks::termination::proven_fused_state_natural_ranks(
-            program,
-            &fused
-                .iter()
-                .map(|(_, state)| state.symbol)
-                .collect::<Vec<_>>(),
-            call_frames,
-        )
-        .is_some_and(|ranks| !ranks.is_empty())
-}
-
-/// Project the shared runtime rank judgment onto a fused roster: the one
-/// runtime component whose states all lie in `members` ranks each of its
-/// states by its measured unsigned parameter, and its non-strict edges are
-/// the graph's preserving rank edges. The judgment has already proved every
-/// edge of the component, and the terminal machine selection exempts a
-/// machine it covers from the legacy machine-local rank recognizers
-/// (`terminal_scalar::build_checked_terminal_machine_selections`).
-fn runtime_component_ranks(
-    program: &dyn ::validation::CheckingInput,
-    members: &[symbols::SymbolHandle],
+    admitted: &checked_trees::CheckedRankArrivalPlan,
 ) -> Option<(
     Vec<checked_trees::CheckedStateNaturalRank>,
     Vec<checked_trees::CheckedRankEdgeCoordinate>,
 )> {
-    let components = validation::validated_runtime_natural_components(program);
-    let mut covering = components.iter().filter(|component| {
-        component
+    let fused = fused_states(program, machine);
+    let members = fused
+        .iter()
+        .map(|(_, state)| state.symbol)
+        .collect::<Vec<_>>();
+    let mut ranks = Vec::new();
+    for (owner, state) in &fused {
+        if owner.termination_plan.implementation_witness.is_none() {
+            continue;
+        }
+        let judgment = admitted.judgment_for_body(owner.symbol, owner.states)?;
+        if !judgment.local_terminates {
+            return None;
+        }
+        let observations = admitted.observations.span(judgment.observations)?;
+        let relevance = validation::rank_relevance(program, &[owner.symbol])?;
+        if relevance.requires_rank(state.symbol)
+            && !observations.iter().any(|rank| rank.state == state.symbol)
+        {
+            return None;
+        }
+        ranks.extend(
+            observations
+                .iter()
+                .filter(|rank| rank.state == state.symbol)
+                .cloned(),
+        );
+    }
+    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
+    for same_state in ranks.windows(2) {
+        if same_state[0].state == same_state[1].state && same_state[0] != same_state[1] {
+            return None;
+        }
+    }
+    ranks.dedup();
+    let mut weak = Vec::new();
+    for component in validation::retained_runtime_natural_components(admitted) {
+        if !component
             .states
             .iter()
             .any(|rank| members.contains(&rank.state))
-    });
-    let component = covering.next()?;
-    if covering.next().is_some()
-        || !component
+        {
+            continue;
+        }
+        if !component
             .states
             .iter()
             .all(|rank| members.contains(&rank.state))
-        || !component
-            .edges
-            .iter()
-            .all(|edge| members.contains(&edge.source) && members.contains(&edge.target))
-    {
-        return None;
-    }
-    let mut ranks = component
-        .states
-        .iter()
-        .map(|rank| {
-            matches!(
-                rank.primitive_type,
-                typed_trees::types::PrimitiveType::U8
-                    | typed_trees::types::PrimitiveType::U16
-                    | typed_trees::types::PrimitiveType::U32
-                    | typed_trees::types::PrimitiveType::U64
-            )
-            .then_some(checked_trees::CheckedStateNaturalRank {
-                observation: Default::default(),
-                state: rank.state,
-                parameter: rank.parameter,
-                parameter_position: rank.parameter_position,
-                measure: checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
-                    primitive_type: rank.primitive_type,
-                },
+            || !component
+                .edges
+                .iter()
+                .all(|edge| members.contains(&edge.source) && members.contains(&edge.target))
+        {
+            return None;
+        }
+        // Every projected component state keeps the exact source observation
+        // which its accepted coordinate witness produced.
+        if component.states.iter().any(|state| {
+            !ranks.iter().any(|rank| {
+                rank.state == state.state
+                    && rank.parameter == state.parameter
+                    && rank.parameter_position == state.parameter_position
             })
-        })
-        .collect::<Option<Vec<_>>>()?;
-    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
-    let mut weak = component
-        .edges
-        .iter()
-        .filter(|edge| !edge.strict)
-        .map(|edge| checked_trees::CheckedRankEdgeCoordinate {
-            source_state: edge.source,
-            target_state: edge.target,
-            statement_ordinal: edge.statement_ordinal,
-        })
-        .collect::<Vec<_>>();
+        }) {
+            return None;
+        }
+        weak.extend(
+            component
+                .edges
+                .iter()
+                .filter(|edge| !edge.strict)
+                .map(|edge| checked_trees::CheckedRankEdgeCoordinate {
+                    source_state: edge.source,
+                    target_state: edge.target,
+                    statement_ordinal: edge.statement_ordinal,
+                }),
+        );
+    }
     weak.sort_by_key(|edge| {
         (
             edge.source_state.arena_index(),
@@ -174,67 +173,6 @@ fn runtime_component_ranks(
     });
     weak.dedup();
     Some((ranks, weak))
-}
-
-/// One source rank roster shared by value observation production and graph
-/// planning. Fusion and source proof authority share this selection owner;
-/// observing an arrival introduces neither another ranking tier nor a new SCC.
-pub(crate) fn natural_rank_plans(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<(
-    Vec<checked_trees::CheckedStateNaturalRank>,
-    Vec<checked_trees::CheckedRankEdgeCoordinate>,
-)> {
-    let fused = fused_states(program, machine);
-    let states = program.machine_states(machine);
-    // Keep `fused_countdown_ranks` in step with this choice: terminal machine
-    // selection asks it before any plan exists.
-    let mut preserving_rank_edges = Vec::new();
-    let natural_ranks = if fused.len() != states.len()
-        && fused
-            .iter()
-            .any(|(owner, _)| owner.termination_plan.implementation_witness.is_some())
-    {
-        // Fusion must retain the whole component's judgment, including when
-        // an unranked dispatch machine reaches ranked callees. Acyclic exits
-        // carry no rank; the existing fused checker proves every cyclic edge.
-        // Its countdown cannot spell a cycle whose hops into a sibling keep
-        // the measured value (`remaining in 0..=9` through `step`); the shared
-        // runtime judgment proves those, and the graph keeps its weak edges.
-        let members = fused
-            .iter()
-            .map(|(_, state)| state.symbol)
-            .collect::<Vec<_>>();
-        match crate::checks::termination::proven_fused_state_natural_ranks(
-            program,
-            &members,
-            call_frames,
-        ) {
-            Some(ranks) => ranks,
-            None => {
-                let (ranks, weak) = runtime_component_ranks(program, &members)?;
-                preserving_rank_edges = weak;
-                ranks
-            }
-        }
-    } else if machine.termination_plan.implementation_witness.is_some() {
-        // Other retained witnesses belong to their existing producer until this
-        // path can preserve them. Never publish an unranked replacement.
-        let ranks = crate::checks::termination::proven_state_natural_ranks(
-            program,
-            machine,
-            call_frames,
-        )?;
-        if ranks.is_empty() {
-            return None;
-        }
-        ranks
-    } else {
-        Vec::new()
-    };
-    Some((natural_ranks, preserving_rank_edges))
 }
 
 /// Plans explicit state signatures and transitions, tracing the first declined operation.
@@ -298,7 +236,7 @@ pub(super) fn build_traced(
     }
     trace.phase("state graph: natural ranks");
     let (mut natural_ranks, preserving_rank_edges) =
-        natural_rank_plans(program, machine, call_frames)?;
+        natural_rank_plans(program, machine, &facts.termination.rank_arrivals)?;
     for rank in &mut natural_ranks {
         let (owner, _) = validation::find_state(program, rank.state)?;
         let root = facts.values.scalar_computations.root_at(
@@ -345,6 +283,21 @@ pub(super) fn build_traced(
                         &mut 4096,
                     )
                 }
+                validation::StateScalarContractRow::DeclaredRange {
+                    parameter,
+                    minimum,
+                    maximum,
+                    end_inclusive,
+                } => crate::values::lower_state_declared_range_predicate(
+                    program,
+                    &facts.operators,
+                    owner,
+                    state,
+                    parameter,
+                    minimum,
+                    maximum,
+                    end_inclusive,
+                ),
                 validation::StateScalarContractRow::Interval {
                     parameter,
                     minimum,
@@ -675,11 +628,11 @@ pub(super) fn build_traced(
                     let source_parameter =
                         &program.state_parameters(state)[parameter.position as usize];
                     let view_carrier = validation::has_contents(
-        program,
-        reference(),
-        &[],
-        validation::ContentsRequirement::OwnedOrSharedView
-    )
+                        program,
+                        reference(),
+                        &[],
+                        validation::ContentsRequirement::OwnedOrSharedView,
+                    )
                         && validation::reference_result_custody::stored_carrier_ingress_is_complete(
                             program,
                             facts,
@@ -761,24 +714,25 @@ pub(super) fn build_traced(
                     // across an ordinary call; access and qualifications
                     // remain checked above and by each successor transfer.
                     let borrowed_array_referent = matches!(
-                        borrowed_shell,
-                        Some(shell)
-                            if matches!(
-                                borrowed_carrier.map(|carrier| program.type_reference_table.type_reference(carrier)),
-                                Some(TypeReferenceNode::FixedArray { .. })
-                            ) && validation::has_contents(
-        program,
-        shell.referee,
-        &[],
-        validation::ContentsRequirement::NumericOwned
-    )
-                    ) && matches!(
-                        shapes
-                            .types
-                            .get(&parameter.type_identity)
-                            .map(|plan| &plan.shape),
-                        Some(checked_trees::CheckedUnitStructuralTypeShape::FixedArray { .. })
-                    );
+                                        borrowed_shell,
+                                        Some(shell)
+                                            if matches!(
+                                                borrowed_carrier.map(|carrier| program.type_reference_table.type_reference(carrier)),
+                                                Some(TypeReferenceNode::FixedArray { .. })
+                                            ) && validation::has_contents(
+                        program,
+                        shell.referee,
+                        &[],
+                        validation::ContentsRequirement::NumericOwned
+                    )
+                                    )
+                        && matches!(
+                            shapes
+                                .types
+                                .get(&parameter.type_identity)
+                                .map(|plan| &plan.shape),
+                            Some(checked_trees::CheckedUnitStructuralTypeShape::FixedArray { .. })
+                        );
                     // A borrowed bounded owner (`&[u8; N] in Utf8`) names the
                     // owner's carrier; the reference is this parameter's loan.
                     if !borrowed_named_referent
@@ -855,8 +809,9 @@ pub(super) fn build_traced(
     if whole_reference {
         trace.phase("state graph: reference result origins");
         plan.result_reference_sources =
-            validation::reference_result_custody::returned_reference_sources(program, &states[0],
-        None)?;
+            validation::reference_result_custody::returned_reference_sources(
+                program, &states[0], None,
+            )?;
     } else if matches!(
         result,
         checked_trees::CheckedControlResultPlan::Structural(_)
@@ -866,8 +821,9 @@ pub(super) fn build_traced(
         // origin relation. Comparing returning states' parameter ordinals loses
         // edge substitution; a one-state record gate loses ordinary control.
         plan.result_reference_sources =
-            validation::reference_result_custody::returned_reference_sources(program, &states[0],
-        None)?;
+            validation::reference_result_custody::returned_reference_sources(
+                program, &states[0], None,
+            )?;
     }
     plan.result = result;
     Some(plan)

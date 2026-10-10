@@ -352,10 +352,6 @@ pub(crate) fn validate_structural_root_operations(
                             destination,
                             abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter { .. }
                         )
-                        && (!matches!(
-                            destination,
-                            abstract_operations::StructuralScalarStoreDestination::OwnedResult { .. }
-                        ) || !path.is_empty())
                         && (destination.multiplicity()
                             == terminal_psi::StructuralMultiplicity::Unrestricted
                             || (!path.is_empty()

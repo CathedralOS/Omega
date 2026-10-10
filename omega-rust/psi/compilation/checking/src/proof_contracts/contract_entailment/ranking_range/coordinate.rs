@@ -6,7 +6,7 @@
 
 use super::fields::{
     declared_field, declared_spelling_verified, member_chain, member_coordinate_parts,
-    nested_arrival_chain, record_referent,
+    record_referent,
 };
 use super::{
     ExpressionHandle, Polynomial, PrimitiveType, RankingRangeState, State, exact_integer_parameter,
@@ -179,7 +179,7 @@ impl<'program> Coordinate<'program> {
         self,
         program: &'program dyn crate::CheckingInput,
         state: &State,
-        entry_parameters: &[SymbolHandle],
+        entry_parameters: &super::RankStateBindings,
         at_entry: bool,
     ) -> Option<Self> {
         if at_entry {
@@ -202,7 +202,7 @@ impl<'program> Coordinate<'program> {
         self,
         program: &'program dyn crate::CheckingInput,
         state: &State,
-        entry_parameters: Option<&[SymbolHandle]>,
+        entry_parameters: Option<&super::RankStateBindings>,
     ) -> Option<Self> {
         match entry_parameters {
             Some(entries) => self.at_arrival(
@@ -217,78 +217,62 @@ impl<'program> Coordinate<'program> {
         }
     }
 
-    /// The coordinate the arrival's parameter forwarding keeps: the entry
-    /// binding `entry_symbol` must resolve to exactly one of the arrival
-    /// state's parameters, which then answers `for_carrier`.
+    /// Resolve the selected arrival path against its exact formal. The
+    /// binding owns correspondence; declaration traversal only checks that
+    /// this selected path admits the same kind of produced value.
     pub(super) fn at_arrival(
         &self,
         program: &'program dyn crate::CheckingInput,
         arrival: RankingRangeState<'_>,
         entry_symbol: SymbolHandle,
     ) -> Option<Self> {
-        if !entry_symbol.is_valid() {
-            return None;
-        }
-        let mut parameters = program
-            .state_parameters(arrival.state)
-            .iter()
-            .zip(arrival.entry_parameters)
-            .filter_map(|(parameter, entry)| (*entry == entry_symbol).then_some(parameter));
-        let parameter = parameters.next()?;
-        if parameters.next().is_some() {
-            return None;
-        }
-        self.for_carrier(program, parameter)
+        let mut entry = self.location(program);
+        entry.parameter = entry_symbol;
+        let destination = arrival.entry_parameters.destination(&entry)?;
+        Self::at_coordinate(program, arrival.state, &destination, self.kind)
     }
 
-    /// The coordinate this chain names on `carrier`'s own record: the chain
-    /// resolved directly against the carrier's declaration, else the unique
-    /// nested path that declaration admits for the chain's boundary records.
-    /// These are the same two readings `at_arrival` keeps once a telescope
-    /// has located the role's carrier — `pair.left` carries `countdown`, or
-    /// the formal is itself a record this chain reaches partway. A caller
-    /// that already holds the formal asks this directly; two admissible
-    /// readings keep no coordinate rather than guess which record the
-    /// carriage meant.
-    pub(super) fn for_carrier(
+    pub(super) fn location(
         &self,
+        program: &dyn crate::CheckingInput,
+    ) -> super::RankSubjectCoordinate {
+        let mut path = Vec::new();
+        for field in self.steps.iter().chain([&self.field]) {
+            crate::value_custody::places::push_field_place_segments(
+                program,
+                &mut path,
+                field.symbol,
+            );
+        }
+        super::RankSubjectCoordinate {
+            parameter: self.parameter.symbol,
+            path,
+        }
+    }
+
+    pub(super) fn at_coordinate(
         program: &'program dyn crate::CheckingInput,
-        carrier: &'program StateParameter,
+        state: &State,
+        coordinate: &super::RankSubjectCoordinate,
+        kind: CoordinateKind,
     ) -> Option<Self> {
-        let chain = self.chain();
-        if let Some(coordinate) = Self::for_parameter(
-            program,
-            carrier,
-            &chain,
-            self.kind,
-            self.kind.natural_leaf_on_arrival(),
-        ) && coordinate.root == self.root
-        {
-            return Some(coordinate);
+        let parameter = program.state_parameter_by_symbol(state, coordinate.parameter)?;
+        let mut chain = Vec::new();
+        for segment in &coordinate.path {
+            match segment {
+                facts::PlaceSegment::Field { symbol } if symbol.is_valid() => chain.push(*symbol),
+                facts::PlaceSegment::Case { variant } if variant.is_valid() => {}
+                _ => return None,
+            }
         }
-        // The role may instead arrive nested inside the carrier formal's own
-        // record — `pair.bag` carries the collection's record — or as a
-        // record this chain descends partway. The formal's declaration must
-        // admit exactly one such reading; two readings leave the carriage
-        // ambiguous and keep no coordinate, exactly as the field owner does.
-        let chain = self.arrival_chain(program, carrier)?;
-        Self::for_parameter(
+        let result = Self::for_parameter(
             program,
-            carrier,
+            parameter,
             &chain,
-            self.kind,
-            self.kind.natural_leaf_on_arrival(),
-        )
-    }
-
-    /// The chain this coordinate becomes when `parameter`'s record carries
-    /// the role at a nested path; see [`nested_arrival_chain`].
-    fn arrival_chain(
-        &self,
-        program: &'program dyn crate::CheckingInput,
-        parameter: &'program StateParameter,
-    ) -> Option<Vec<SymbolHandle>> {
-        nested_arrival_chain(program, parameter, self.root, &self.steps, &self.chain())
+            kind,
+            kind.natural_leaf_on_arrival(),
+        )?;
+        (result.location(program) == *coordinate).then_some(result)
     }
 
     /// The polynomial atom this coordinate's identity denotes.
@@ -349,38 +333,13 @@ impl<'program> Coordinate<'program> {
     }
 }
 
-/// `parameter`'s arriving entry symbol with the coordinate's arrival
-/// confirmed — the shared entry resolution of the field/length template
-/// walks. `required` selects the lenient variant: a failed arrival on a
-/// required role still names the entry (a contested required role keeps
-/// every copy equal under the edge's alias hypotheses), while an
-/// unrequired role's contested copies resolve to no readable value.
-pub(super) fn arrived_entry_symbol<'program>(
-    program: &'program dyn crate::CheckingInput,
-    state: &'program State,
-    entries: &'program [SymbolHandle],
-    coordinate: &Coordinate<'program>,
-    required: Option<&[SymbolHandle]>,
-) -> Option<Option<SymbolHandle>> {
-    let Some(entry) =
-        super::coordinate_entry_symbol(program, state, entries, coordinate.parameter.symbol)?
-    else {
-        return Some(None);
-    };
-    let arrival = coordinate.at_arrival(
-        program,
-        RankingRangeState {
-            state,
-            entry_parameters: entries,
-        },
-        entry,
-    );
-    match required {
-        None => {
-            arrival?;
-        }
-        Some(required) if arrival.is_none() && !required.contains(&entry) => return None,
-        _ => {}
-    }
-    Some(Some(entry))
+/// Recover the exact entry coordinate represented by this selected reading.
+/// A current-state projection absent from the chosen witness serves its own
+/// guards only and contributes no template substitution.
+pub(super) fn arrived_entry_coordinate(
+    program: &dyn crate::CheckingInput,
+    entries: &super::RankStateBindings,
+    coordinate: &Coordinate<'_>,
+) -> Option<super::RankSubjectCoordinate> {
+    entries.entry(&coordinate.location(program))
 }

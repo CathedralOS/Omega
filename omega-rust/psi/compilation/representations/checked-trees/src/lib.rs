@@ -12,6 +12,15 @@ pub use checked_trees::{CheckedStructuralCaseRoot, CheckedStructuralCaseSubject}
 pub use checked_trees::CheckedValueQualification;
 
 pub use checked_trees::{
+    CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
+    CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
+    CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
+    CheckedRankPremiseRegime, CheckedRankReceivingCoordinate, CheckedRankValueDerivation,
+    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
+    CheckedRuntimeRankMember, CheckedStateRankCorrespondence,
+};
+
+pub use checked_trees::{
     CheckedStoredIntegerWrite, ContextualCleanupApplication, ContextualCleanupDisposition,
     ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
     StoredIntegerWriteSite,

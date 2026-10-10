@@ -129,6 +129,7 @@ impl Evaluation {
             }
             let mut carriers = types.iter().filter(|declaration| {
                 declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar_type)
+                    && declaration.scalar_restriction.is_none()
             });
             let structural_type = carriers
                 .next()
@@ -147,6 +148,8 @@ impl Evaluation {
                 operations,
                 value,
                 structural_type,
+                types,
+                None,
             )?;
             private_places.push(declaration);
             std::sync::Arc::make_mut(&mut self.place_observations)[position]

@@ -29,38 +29,16 @@ pub(super) fn lower(
             value,
             range_obligation,
         } => {
-            if let Some(local) = super::primitive_storage::local(machine, destination) {
-                let scalar_type =
-                    super::primitive_storage::scalar_type(structural_types, local.structural_type)
-                        .ok_or(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id))?;
-                if range_obligation.is_some()
-                    || !path.is_empty()
-                    || value_types.get(&value) != Some(&scalar_type)
-                {
-                    return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
-                }
-                return Ok(AbstractOperation::PrimitiveLocalStore {
-                    psi_operation: operation.id,
-                    destination,
-                    value: AbstractResult { value, scalar_type },
-                });
-            }
             let invalid = || LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id);
-            // A projected write into an owned array retains its actual
-            // producer. It must not acquire a fictitious entry parameter
-            // merely to share the store's addressing and leaf checks.
+            // Whole and projected primitive stores retain the actual declared
+            // root and its receiving obligation. An owned primitive home is
+            // the empty projection of that same root, not a second operation
+            // that erases restricted-store evidence or invents an ABI formal.
             let destination = super::primitive_storage::parameter(machine, destination)
                 .cloned()
                 .map(StructuralScalarStoreDestination::Parameter)
                 .or_else(|| {
-                    (!path.is_empty())
-                        .then(|| {
-                            super::structural_scalar_fields::owned_store_destination(
-                                machine,
-                                destination,
-                            )
-                        })
-                        .flatten()
+                    super::structural_scalar_fields::owned_store_destination(machine, destination)
                 })
                 .ok_or_else(invalid)?;
             let Some(scalar_type) = value_types.get(&value).copied() else {

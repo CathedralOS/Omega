@@ -100,7 +100,9 @@ mod structural_terms;
 mod transparent_applications;
 
 pub use arithmetic_judgment::integer_embedding_sources_equal;
-pub use call_requirements::structural_call_requirement_entailed;
+pub use call_requirements::{
+    selected_value_call_requirement_entailed, structural_call_requirement_entailed,
+};
 pub(crate) use const_ranges::{
     const_range_bound_is_admitted, selected_const_call_result_bounds, symbolic_range_contains,
     validate_const_range_call, validate_const_range_call_in_environment,
@@ -121,12 +123,18 @@ pub(crate) use proof_integer::{
     proof_integer_nonnegative, proof_nat_cast, validate_proof_fact_integer_casts,
 };
 pub use ranking_range::{
-    ArithmeticCallObservation, RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises,
-    RankingRangeState, arithmetic_entry_requirement_is_covered, discover_state_entry_mappings,
-    discover_state_entry_mappings_preferring, prove_arithmetic_call_requirement,
+    ArithmeticCallObservation, RankArrivalCompatibility, RankArrivalCorrespondence,
+    RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport, RankLocalCapture,
+    RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate, RankValueDerivation,
+    RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
+    StateEntryCorrespondence, arithmetic_entry_requirement_is_covered,
+    discover_rank_arrival_correspondence, prove_arithmetic_call_requirement,
     prove_captured_arithmetic_call_requirement, prove_ranking_range_edge,
-    prove_ranking_range_entry, prove_ranking_range_transition, ranking_range_premise_symbols,
-    ranking_range_required_symbols, ranking_slice_length_observation,
+    prove_ranking_range_entry, prove_ranking_range_transition, ranking_coordinate_type,
+    ranking_range_arrival_preserves_roles, ranking_range_premise_symbols,
+    ranking_range_required_coordinates, ranking_range_required_symbols,
+    ranking_range_state_constraint_coordinates, ranking_slice_length_observation,
+    select_rank_arrival_correspondence,
 };
 pub use ranking_range::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
@@ -136,8 +144,7 @@ pub use ranking_range::{
 };
 pub(crate) use ranking_range::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, mixed_call_endpoints_are_pinned, positive_step_amount,
-    prove_ranking_range_call, prove_ranking_range_call_entry,
+    call_member_premise_symbols, mixed_call_endpoints_are_pinned, prove_ranking_range_call,
 };
 pub use ranking_range::{
     captured_collection_length, closed_collection_length, closed_collection_length_at_place,
@@ -217,7 +224,6 @@ pub fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
             if local.role == language_core::LocalBindingRole::ArmPattern
     )
 }
-
 
 pub(crate) fn validate_machine_contract_entailment<'program>(
     program: &'program dyn crate::CheckingInput,
@@ -462,9 +468,15 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     let case_arms: Option<Vec<StructuralCaseArm>> = if sole_arm_result.is_some() {
         None
     } else {
-        recognize_structural_case_arms(program, machine, &structural, &proof_only, diagnostics,
-        None)
-            .or_else(|| recognize_guarded_structural_value_arms(program, machine, &structural))
+        recognize_structural_case_arms(
+            program,
+            machine,
+            &structural,
+            &proof_only,
+            diagnostics,
+            None,
+        )
+        .or_else(|| recognize_guarded_structural_value_arms(program, machine, &structural))
     };
     // This legacy term vocabulary is name-based. An authored entry parameter
     // takes precedence over the reserved result spelling in every conjunct,

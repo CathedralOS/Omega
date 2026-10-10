@@ -195,17 +195,13 @@ impl StateGraphEmission<'_, '_> {
                 &self.catalogs.type_ids,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
+                &mut self.catalogs.scalar_calls.next_call_obligation,
                 &mut operations,
             )?;
         for storage in &parameter_storage {
             self.catalogs
                 .temporary_places
                 .push(storage.local.declaration);
-            evaluation.primitive_storage.push((
-                storage.local.symbol,
-                storage.local.declaration.id,
-                storage.scalar_type,
-            ));
         }
         evaluation.parameter_storage = parameter_storage
             .iter()
@@ -225,7 +221,7 @@ impl StateGraphEmission<'_, '_> {
             &evaluation.place_observations,
         );
         super::super::super::super::primitive_locals::register_mut_formal_storage_homes(
-            &mut evaluation.scalar_bindings,
+            &mut evaluation,
             &parameter_storage,
         )?;
         evaluation.structural_types = self.catalogs.structural_types.as_ref().into();

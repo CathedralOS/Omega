@@ -179,7 +179,10 @@ pub(super) fn lower(
     values: &BTreeMap<ValueId, ScalarType>,
 ) -> Result<AbstractOperation, LoweringError> {
     match operation.kind {
-        OperationKind::EstablishPrimitiveLocal { value } => {
+        OperationKind::EstablishPrimitiveLocal {
+            value,
+            range_obligation,
+        } => {
             let invalid = || LoweringError::InvalidPrimitiveLocalEstablishment(operation.id);
             let result = operation.result.structural().ok_or_else(invalid)?;
             if local(machine, result.place) != Some(result) {
@@ -193,6 +196,7 @@ pub(super) fn lower(
                 psi_operation: operation.id,
                 result: result.clone(),
                 value: AbstractResult { value, scalar_type },
+                range_obligation,
             })
         }
         OperationKind::PrimitiveScalarRead { source, ref path } => {

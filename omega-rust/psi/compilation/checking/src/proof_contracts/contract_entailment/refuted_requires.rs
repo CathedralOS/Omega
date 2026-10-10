@@ -89,11 +89,23 @@ pub fn instantiated_value_call_requires_proven(
     program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
     caller_state: &typed_trees::state::State,
+    statement_index: usize,
+    site: crate::machine_calls::calls::CallSite<'_>,
     callee_owner: symbols::SymbolHandle,
     callee_parameters: &[typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
+    if super::call_requirements::selected_value_call_requirement_entailed(
+        program,
+        caller_machine,
+        caller_state,
+        statement_index,
+        site,
+        expression,
+    ) {
+        return true;
+    }
     let Some(map) = argument_term_map(
         program,
         caller_machine,
@@ -157,13 +169,7 @@ fn argument_term_map(
             return None;
         }
         let scope = Some((caller_machine, caller_state, parameter.type_reference));
-        let term = structural_term(
-            program,
-            scope,
-            None,
-            *argument,
-            None
-        )?;
+        let term = structural_term(program, scope, None, *argument, None)?;
         map.push((parameter.name.as_str().to_owned(), term));
     }
     Some(map)
@@ -258,6 +264,40 @@ pub(super) fn instantiated_fact_judgment(
     let Some(binary) = program.expression_table.binary_node(fact) else {
         return StructuralJudgment::Unknown;
     };
+    // A preserved runtime prefix can recognize the very same selected
+    // Boolean predicate after captured-actual substitution. This is truth
+    // transport, not an interval law or an equality on floating values.
+    if judge.has_runtime_body_values()
+        && crate::has_builtin_parameter_bound_expression_meaning(
+            program,
+            callee_owner,
+            callee_parameters,
+            fact,
+        )
+        && let Some(term @ StructuralTerm::ScalarBinary { .. }) =
+            super::structural_terms::structural_term(
+                program,
+                None,
+                Some((callee_owner, callee_parameters)),
+                fact,
+                None,
+            )
+    {
+        let term = StructuralJudge::substitute_term(&term, map);
+        match judge.judge_equation(
+            judge.resolve(term),
+            StructuralTerm::Constructor {
+                data: "bool".to_owned(),
+                case: "true".to_owned(),
+                fields: Vec::new(),
+            },
+            0,
+        ) {
+            StructuralJudgment::Proven => return StructuralJudgment::Proven,
+            StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
+            StructuralJudgment::Unknown => {}
+        }
+    }
     match binary.operator {
         BinaryOperator::And => {
             if !crate::has_builtin_parameter_bound_expression_meaning(

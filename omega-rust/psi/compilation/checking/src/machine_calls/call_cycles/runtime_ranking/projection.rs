@@ -620,7 +620,7 @@ pub(super) fn natural_component(
     program: &dyn crate::CheckingInput,
     component: &[usize],
     ranks: &[RankProjection],
-    mappings: &[Vec<Vec<SymbolHandle>>],
+    mappings: &[Vec<crate::RankStateBindings>],
     relevance: &super::super::RankRelevance,
 ) -> Option<super::ValidatedRuntimeNaturalComponent> {
     let mut states = Vec::new();
@@ -636,18 +636,30 @@ pub(super) fn natural_component(
             if !relevance.requires_rank(state.symbol) {
                 continue;
             }
-            let argument_position = roles.iter().position(|role| *role == rank.parameter)?;
+            let coordinates = crate::ranking_range_required_coordinates(
+                program,
+                &program.machines()[*machine_position],
+                rank.range,
+                rank.measure?,
+                crate::RankingRangePremises::RankInvariant,
+            )?;
+            let [entry_coordinate] = coordinates.as_slice() else {
+                return None;
+            };
+            let coordinate = roles.destination(entry_coordinate)?;
             let (position, parameter) = program
                 .state_parameters(state)
                 .iter()
                 .enumerate()
-                .nth(argument_position)?;
-            if unsigned_carrier_type(program, parameter.type_reference) != Some(primitive_type) {
+                .find(|(_, parameter)| parameter.symbol == coordinate.parameter)?;
+            let coordinate_type = crate::ranking_coordinate_type(program, state, &coordinate)?;
+            if unsigned_carrier_type(program, coordinate_type) != Some(primitive_type) {
                 return None;
             }
             states.push(super::ValidatedRuntimeNaturalState {
                 state: state.symbol,
                 parameter: parameter.symbol,
+                coordinate,
                 parameter_position: u32::try_from(position).ok()?,
                 primitive_type,
             });
@@ -668,53 +680,40 @@ pub(super) fn retain_internal_transfer(
     relevance: &super::super::RankRelevance,
     source: SymbolHandle,
     target: SymbolHandle,
-    arguments: &[ExpressionHandle],
+    target_handle: typed_trees::statement::TransitionTargetHandle,
     statement_ordinal: usize,
+    machine: &Machine,
+    judgments: &[checked_trees::CheckedRankArrivalEdge],
 ) -> bool {
     let target = program
         .machine(target)
         .and_then(|machine| program.machine_states(machine).first())
         .map_or(target, |state| state.symbol);
-    // An exit suffix cannot consume this rank again. Its ordinary admission
-    // remains checked, but it needs no incoming rank comparison.
     if !relevance.requires_rank(target) {
         return true;
     }
-    let Some(source_rank) = component.states.iter().find(|rank| rank.state == source) else {
-        return false;
-    };
-    let Some(target_rank) = component.states.iter().find(|rank| rank.state == target) else {
-        return false;
-    };
-    let Some(target_state) = program.state_by_symbol(target) else {
-        return false;
-    };
-    let Some(argument_position) = typed_trees::signature::state_parameter_position(
-        program.state_parameters(target_state),
-        target_rank.parameter,
-    ) else {
-        return false;
-    };
-    let Some(argument) = arguments.get(argument_position) else {
-        return false;
-    };
-    let Some(name) = program.expression_table.name_path_node(*argument) else {
-        return false;
-    };
-    if name.symbol != source_rank.parameter
-        || name.head_symbol != name.symbol
-        || name.members.count() != 1
+    if !component.states.iter().any(|rank| rank.state == source)
+        || !component.states.iter().any(|rank| rank.state == target)
     {
         return false;
     }
-    let Ok(statement_ordinal) = u32::try_from(statement_ordinal) else {
+    let mut matching = judgments.iter().filter(|edge| {
+        edge.source == source
+            && edge.destination == target
+            && edge.target == target_handle
+            && usize::try_from(edge.statement_ordinal).ok() == Some(statement_ordinal)
+    });
+    let Some(edge) = matching.next() else {
         return false;
     };
+    if matching.next().is_some() || !edge.non_increasing {
+        return false;
+    }
     component.edges.push(super::ValidatedRuntimeNaturalEdge {
         source,
         target,
-        statement_ordinal,
-        strict: false,
+        statement_ordinal: edge.statement_ordinal,
+        strict: edge.strictly_decreases,
     });
     true
 }

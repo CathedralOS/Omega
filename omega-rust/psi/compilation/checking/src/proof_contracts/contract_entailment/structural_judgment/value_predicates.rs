@@ -153,7 +153,7 @@ impl StructuralJudge<'_> {
             return None;
         }
         let term = self.resolve(self.declaration_term(expression)?);
-        match term {
+        match term.semantic_value() {
             StructuralTerm::Constructor { data, case, fields }
                 if data == "bool" && fields.is_empty() =>
             {

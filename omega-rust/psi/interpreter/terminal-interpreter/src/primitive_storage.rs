@@ -1187,7 +1187,15 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let scalar = self.scalar_value(value)?;
-        if scalar.scalar_type() != *expected || !terminal_scalar_belongs_to_type(scalar) {
+        let restriction = self
+            .program
+            .structural_types()
+            .get(&result.structural_type)
+            .and_then(|declaration| declaration.scalar_restriction.as_ref());
+        if scalar.scalar_type() != *expected
+            || !terminal_scalar_belongs_to_type(scalar)
+            || restriction.is_some_and(|restriction| !scalar.satisfies_field(restriction))
+        {
             return Err(malformed());
         }
         let identity = self.local_structural_identities.allocate()?;

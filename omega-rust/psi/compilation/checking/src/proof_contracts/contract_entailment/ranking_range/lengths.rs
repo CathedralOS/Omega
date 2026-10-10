@@ -4,7 +4,7 @@
 //! use the same evaluator without caller facts: a later observation cannot
 //! retroactively describe the descriptor captured by an earlier binding.
 use super::coordinate::{Coordinate, CoordinateKind};
-use super::fields::{collect_leaf_paths, record_referent, rooted_carrier, unique_literal_field};
+use super::fields::{rooted_carrier, unique_literal_field};
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
     Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, projections,
@@ -45,68 +45,62 @@ pub(super) fn bindings(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    entry_parameters: Option<&[SymbolHandle]>,
+    entry_parameters: Option<&super::RankStateBindings>,
 ) -> Vec<(SymbolHandle, String)> {
-    let mut bindings = Vec::new();
-    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
-        // Mutable slices are admitted on the same contract as `parameter`:
-        // callers evaluate the produced length facts over a prefix that is
-        // proven to preserve the parameter's path, so the arrival binding is
-        // still the value the edge observes.
-        if !parameter.symbol.is_valid()
-            || parameter.is_const
-            || !is_slice(program, parameter.type_reference)
-        {
-            continue;
-        }
-        let identity = format!("\0ranking:length:{:?}", parameter.symbol);
-        bindings.push((parameter.symbol, identity.clone()));
-        if let Some(entries) = entry_parameters {
-            let entry = entries[position];
-            if entry.is_valid()
-                && entry != parameter.symbol
-                && entries
-                    .iter()
-                    .filter(|candidate| **candidate == entry)
-                    .count()
-                    == 1
-            {
-                bindings.push((entry, identity));
-            }
-        }
-    }
-    // A bare slice formal may arrive packed inside a record literal: the
-    // formal claiming its entry role then holds the collection at the
-    // record's unique slice leaf, so the role's produced length reads the
-    // projected coordinate there rather than a guessed path.
+    let mut bindings = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            parameter.symbol.is_valid()
+                && !parameter.is_const
+                && is_slice(program, parameter.type_reference)
+        })
+        .map(|parameter| {
+            (
+                parameter.symbol,
+                format!("\0ranking:length:{:?}", parameter.symbol),
+            )
+        })
+        .collect::<Vec<_>>();
+    let Some(entries) = entry_parameters else {
+        return bindings;
+    };
     let Some(root) = program.machine_states(machine).first() else {
         return bindings;
     };
-    if let Some(entries) = entry_parameters {
-        for (parameter, entry) in program.state_parameters(state).iter().zip(entries) {
-            if !entry.is_valid()
-                || entries
-                    .iter()
-                    .filter(|candidate| **candidate == *entry)
-                    .count()
-                    != 1
-                || bindings.iter().any(|(symbol, _)| *symbol == *entry)
-            {
-                continue;
-            }
-            let Some(root_formal) = program
-                .state_parameters(root)
+    for selected in &entries.coordinates {
+        if !selected.entry.path.is_empty() {
+            continue;
+        }
+        let Some(entry) = program.state_parameter_by_symbol(root, selected.entry.parameter) else {
+            continue;
+        };
+        if !is_slice(program, entry.type_reference) {
+            continue;
+        }
+        let identity = if selected.destination.path.is_empty() {
+            bindings
                 .iter()
-                .find(|formal| formal.symbol == *entry)
-            else {
-                continue;
-            };
-            if !is_slice(program, root_formal.type_reference) {
-                continue;
+                .find(|(symbol, _)| *symbol == selected.destination.parameter)
+                .map(|(_, identity)| identity.clone())
+        } else {
+            SliceCoordinate::at_coordinate(
+                program,
+                state,
+                &selected.destination,
+                CoordinateKind::Length,
+            )
+            .map(|coordinate| coordinate.identity)
+        };
+        let Some(identity) = identity else {
+            continue;
+        };
+        if let Some((_, existing)) = bindings.iter().find(|(symbol, _)| *symbol == entry.symbol) {
+            if *existing != identity {
+                return Vec::new();
             }
-            if let Some(coordinate) = slice_leaf_coordinate(program, parameter) {
-                bindings.push((*entry, coordinate.identity.clone()));
-            }
+        } else {
+            bindings.push((entry.symbol, identity));
         }
     }
     bindings
@@ -370,8 +364,7 @@ pub(super) fn saved_length(
     {
         return None;
     }
-    let mut captured =
-        Engine::strict(program, machine, &engine.closed_symbol_bindings()?);
+    let mut captured = Engine::strict(program, machine, &engine.closed_symbol_bindings()?);
     evaluate_length(
         program,
         machine,
@@ -643,30 +636,6 @@ impl<'program> Coordinate<'program> {
     }
 }
 
-/// The produced-length coordinate a bare slice entry role takes inside
-/// `parameter`'s record: the declaration must hold exactly one slice leaf
-/// reachable through owned exact record steps. The claim only locates the
-/// leaf -- the arrival's field value, membership, and strict descent still
-/// prove independently -- and a second slice leaf keeps no coordinate rather
-/// than guessing which collection holds the role.
-pub(super) fn slice_leaf_coordinate<'program>(
-    program: &'program dyn crate::CheckingInput,
-    parameter: &'program StateParameter,
-) -> Option<SliceCoordinate<'program>> {
-    let (root, _) = record_referent(program, parameter.type_reference)?;
-    let mut paths = Vec::new();
-    collect_leaf_paths(
-        program,
-        root,
-        |program, field| is_slice(program, field.type_reference),
-        &mut paths,
-    );
-    let [path] = paths.as_slice() else {
-        return None;
-    };
-    SliceCoordinate::for_parameter(program, parameter, path, CoordinateKind::Length, false)
-}
-
 /// The projected slice coordinates one range judgment reads: the produced
 /// rank coordinate plus every auxiliary `.len` coordinate discovered while
 /// installing authored expressions. Binding spellings, declared facts, and
@@ -737,7 +706,7 @@ impl<'program> SliceCoordinates<'program> {
         machine: &Machine,
         state: &State,
         root: &State,
-        entry_parameters: Option<&[SymbolHandle]>,
+        entry_parameters: Option<&super::RankStateBindings>,
         engine: &mut Engine<'_>,
         expressions: &[ExpressionHandle],
     ) -> Option<()> {
@@ -805,7 +774,7 @@ impl<'program> SliceCoordinates<'program> {
         program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
-        entry_parameters: Option<&[SymbolHandle]>,
+        entry_parameters: Option<&super::RankStateBindings>,
         destination: Option<RankingRangeState<'_>>,
         engine: &mut Engine<'_>,
         formal: SymbolHandle,
@@ -815,55 +784,36 @@ impl<'program> SliceCoordinates<'program> {
     ) -> Option<bool> {
         let mut matched = false;
         for coordinate in self.coordinates() {
-            let entry_symbol = match entry_parameters {
-                None => coordinate.parameter.symbol,
-                Some(entries) => match super::coordinate::arrived_entry_symbol(
-                    program, state, entries, coordinate, None,
-                )? {
-                    Some(entry) => entry,
-                    // A role-less record serves its own guards only; its
-                    // projected slices never rewrite a template
-                    // coordinate.
-                    None => continue,
-                },
+            let entry = match entry_parameters {
+                None => coordinate.location(program),
+                Some(entries) => {
+                    match super::coordinate::arrived_entry_coordinate(program, entries, coordinate)
+                    {
+                        Some(entry) => entry,
+                        None => continue,
+                    }
+                }
             };
-            if entry_symbol != formal {
+            let (arrival_state, target) = match destination {
+                Some(destination) => (
+                    destination.state,
+                    destination.entry_parameters.destination(&entry)?,
+                ),
+                None => (state, entry),
+            };
+            if target.parameter != formal {
                 continue;
             }
-            // The destination formal's own coordinate walks the actual: a
-            // role arriving nested inside the carrier's record -- `pair.bag`
-            // holding the collection's record -- or as a record this chain
-            // reaches partway reads the literal through the chain the
-            // destination's invariant names, not the source slot's own
-            // spelling. The destination formal's own type likewise decides
-            // whether the actual arrives under one borrow: an owned source
-            // slot can feed a `&R` formal through `&x`, while the source
-            // coordinate's boundary says nothing about the arrival. A root
-            // edge re-fills the coordinate's own formal, so its boundary is
-            // the arrival's.
-            let actual = match destination {
-                Some(destination) => {
-                    let arrived = coordinate.at_arrival(program, destination, entry_symbol)?;
-                    arrived.arrived_length(
-                        program,
-                        machine,
-                        state,
-                        engine,
-                        argument,
-                        arrived.borrowed,
-                        bindings,
-                    )?
-                }
-                None => coordinate.arrived_length(
-                    program,
-                    machine,
-                    state,
-                    engine,
-                    argument,
-                    coordinate.borrowed,
-                    bindings,
-                )?,
-            };
+            let actual = super::arrival_length_actual(
+                program,
+                machine,
+                state,
+                arrival_state,
+                &target,
+                engine,
+                argument,
+                bindings,
+            )?;
             if substitutions
                 .insert(coordinate.identity.clone(), actual)
                 .is_some()

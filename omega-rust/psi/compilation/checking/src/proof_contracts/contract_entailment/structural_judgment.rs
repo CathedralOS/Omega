@@ -6,7 +6,7 @@ use super::{
 use typed_trees::types::TypeReferenceHandle;
 
 mod licenses;
-mod normal_returns;
+pub(super) mod normal_returns;
 mod selected_contracts;
 mod value_predicates;
 
@@ -29,9 +29,16 @@ pub(super) struct CaseGuarantee {
     case: SymbolHandle,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone)]
 pub(super) enum StructuralTerm {
     Variable(String),
+    /// A frame-authenticated scalar observation of an input referent. The
+    /// wrapped value retains its original identity; this declared type records
+    /// content authority, not reference descriptor identity or output origin.
+    ObservedValue {
+        observed_type: TypeReferenceHandle,
+        value: Box<StructuralTerm>,
+    },
     /// A completed call's exact local result. Its contract may classify this
     /// value, but neither its spelling nor its callee's body defines it here.
     BoundValue(SymbolHandle),
@@ -104,6 +111,9 @@ pub(super) enum StructuralTerm {
     /// A selected builtin operation, with substituted operands and original
     /// carrier/policy meaning. No scalar arithmetic is evaluated by this term.
     ScalarBinary {
+        /// Raw declarations authorize observation after each substitution;
+        /// selected meaning and value operands own scalar congruence.
+        references: [TypeReferenceHandle; 2],
         operator: BinaryOperator,
         meaning: [(
             typed_trees::types::PrimitiveType,
@@ -116,7 +126,24 @@ pub(super) enum StructuralTerm {
     Opaque(String),
 }
 
+#[path = "structural_judgment/term_identity.rs"]
+mod term_identity;
+
 impl StructuralTerm {
+    pub(super) fn semantic_value(&self) -> &Self {
+        match self {
+            Self::ObservedValue { value, .. } => value.semantic_value(),
+            _ => self,
+        }
+    }
+
+    fn into_semantic_value(self) -> Self {
+        match self {
+            Self::ObservedValue { value, .. } => (*value).into_semantic_value(),
+            other => other,
+        }
+    }
+
     /// Rebuild `self` with `map` applied over every argument — the
     /// variant-preserving argument rewrite the term walks share for
     /// `Application` and `CallProjection`.
@@ -161,6 +188,10 @@ pub(super) struct StructuralJudge<'program> {
     program: &'program dyn crate::CheckingInput,
     entry_machines: std::sync::Arc<EntryMachines>,
     machine_symbol: SymbolHandle,
+    // Runtime prefix facts belong to the current state invocation. Keep its
+    // declaration frame separate from the machine's dependency identity.
+    declaration_state: SymbolHandle,
+    premise_facts: Vec<ExpressionHandle>,
     normal_results: Vec<(ExpressionHandle, StructuralTerm)>,
     capture_sequence: usize,
     pub(super) normal_guarantees: Vec<(StructuralTerm, StructuralTerm)>,
@@ -193,6 +224,8 @@ impl Clone for StructuralJudge<'_> {
             program: self.program,
             entry_machines: std::sync::Arc::clone(&self.entry_machines),
             machine_symbol: self.machine_symbol,
+            declaration_state: self.declaration_state,
+            premise_facts: self.premise_facts.clone(),
             normal_results: self.normal_results.clone(),
             capture_sequence: self.capture_sequence,
             normal_guarantees: self.normal_guarantees.clone(),
@@ -234,6 +267,28 @@ impl<'program> StructuralJudge<'program> {
         let mut judge = Self::from_case_requires(program, judged_machine, requires);
         judge.runtime_body_values = true;
         judge
+    }
+
+    /// Every arrival proves this state's declared entry contract separately.
+    /// Its prefix may consume those facts without unrolling the state cycle or
+    /// importing the machine entry's unrelated invocation assumptions.
+    pub(super) fn from_runtime_state_requires(
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &typed_trees::state::State,
+        requires: &[ExpressionHandle],
+    ) -> Self {
+        let mut judge = Self::from_runtime_requires(program, machine, &[]);
+        judge.declaration_state = state.symbol;
+        judge.premise_facts.extend_from_slice(requires);
+        for fact in requires {
+            judge.intake(program, *fact);
+        }
+        judge
+    }
+
+    pub(super) fn premise_facts(&self) -> &[ExpressionHandle] {
+        &self.premise_facts
     }
 
     pub(super) fn has_runtime_body_values(&self) -> bool {
@@ -282,6 +337,8 @@ impl<'program> StructuralJudge<'program> {
                 || EntryMachines::of(program),
             ),
             machine_symbol: owner,
+            declaration_state: SymbolHandle::invalid(),
+            premise_facts: requires.to_vec(),
             normal_results: Vec::new(),
             capture_sequence: 0,
             normal_guarantees: Vec::new(),
@@ -316,23 +373,32 @@ impl<'program> StructuralJudge<'program> {
             .find(|definition| definition.symbol == self.machine_symbol)
         {
             return super::structural_terms::structural_term(
-            self.program,
-            None,
-            Some((definition.symbol,
-                &crate::mathematical_applications::ordinary_parameters(self.program, definition))),
-            expression,
-            None
-        );
+                self.program,
+                None,
+                Some((
+                    definition.symbol,
+                    &crate::mathematical_applications::ordinary_parameters(
+                        self.program,
+                        definition,
+                    ),
+                )),
+                expression,
+                None,
+            );
         }
         let machine = self.program.machine(self.machine_symbol)?;
-        let state = self.program.machine_states(machine).first()?;
+        let state = if self.declaration_state.is_valid() {
+            self.program
+                .state_in_machine(machine, self.declaration_state)?
+        } else {
+            self.program.machine_states(machine).first()?
+        };
         super::structural_terms::structural_term(
             self.program,
             None,
-            Some((machine.symbol,
-                self.program.state_parameters(state))),
+            Some((machine.symbol, self.program.state_parameters(state))),
             expression,
-            None
+            None,
         )
     }
 
@@ -367,13 +433,37 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         let machine = self.program.machine(self.machine_symbol)?;
-        let state = self.program.machine_states(machine).first()?;
+        let state = if self.declaration_state.is_valid() {
+            self.program
+                .state_in_machine(machine, self.declaration_state)?
+        } else {
+            self.program.machine_states(machine).first()?
+        };
         crate::parameter_expression_result_type_reference(
             self.program,
             machine.symbol,
             self.program.state_parameters(state),
             expression,
         )
+    }
+
+    fn declaration_term_pair(
+        &self,
+        binary: &typed_trees::expression::TableBinaryExpression,
+    ) -> Option<(StructuralTerm, StructuralTerm)> {
+        let left = self.declaration_term(binary.left)?;
+        let right = self.declaration_term(binary.right)?;
+        for (expression, term) in [(binary.left, &left), (binary.right, &right)] {
+            let reference = self.declaration_expression_type(expression)?;
+            if !super::structural_terms::scalar_operand_is_observed(
+                self.program,
+                reference,
+                &self.resolve(term.clone()),
+            ) {
+                return None;
+            }
+        }
+        Some((left, right))
     }
 
     fn has_identity_equality_meaning(&self, expression: ExpressionHandle) -> bool {
@@ -393,7 +483,13 @@ impl<'program> StructuralJudge<'program> {
         let Some(machine) = self.program.machine(self.machine_symbol) else {
             return false;
         };
-        let Some(state) = self.program.machine_states(machine).first() else {
+        let state = if self.declaration_state.is_valid() {
+            self.program
+                .state_in_machine(machine, self.declaration_state)
+        } else {
+            self.program.machine_states(machine).first()
+        };
+        let Some(state) = state else {
             return false;
         };
         super::structural_terms::has_identity_equality_meaning(
@@ -450,16 +546,37 @@ impl<'program> StructuralJudge<'program> {
             BinaryOperator::Equal
                 if !self.case_facts_only && self.has_identity_equality_meaning(fact) =>
             {
-                let Some((left, right)) = self
-                    .declaration_term(binary.left)
-                    .zip(self.declaration_term(binary.right))
-                else {
+                let Some((left, right)) = self.declaration_term_pair(binary) else {
                     return;
                 };
                 self.intake_case_equation(left.clone(), right.clone(), 0);
                 self.intake_equation(left, right, 0);
             }
             _ => {}
+        }
+    }
+
+    /// A preserved runtime prefix may retain a selected Boolean predicate as
+    /// truth. Entry hypotheses alone do not license this transport: the path
+    /// owner must first keep their subjects through every preceding effect.
+    pub(super) fn intake_preserved_predicate(&mut self, fact: ExpressionHandle) {
+        if self.case_facts_only {
+            return;
+        }
+        let program = self.program;
+        if let Some(binary) = program.expression_table.binary_node(fact)
+            && binary.operator == BinaryOperator::And
+            && self.has_boolean_connective_meaning(fact)
+        {
+            self.intake_preserved_predicate(binary.left);
+            self.intake_preserved_predicate(binary.right);
+        } else if self
+            .declaration_expression_type(fact)
+            .and_then(|reference| program.primitive_type_reference(reference))
+            == Some(typed_trees::types::PrimitiveType::Bool)
+            && let Some(term @ StructuralTerm::ScalarBinary { .. }) = self.declaration_term(fact)
+        {
+            self.intake_equation(term, value_predicates::boolean_term(true), 0);
         }
     }
 
@@ -478,6 +595,13 @@ impl<'program> StructuralJudge<'program> {
         }
         let left = self.resolve(left);
         let right = self.resolve(right);
+        if super::structural_terms::term_is_unobserved_descriptor(self.program, &left)
+            || super::structural_terms::term_is_unobserved_descriptor(self.program, &right)
+        {
+            return;
+        }
+        let left = left.into_semantic_value();
+        let right = right.into_semantic_value();
         match (&left, &right) {
             (
                 StructuralTerm::Constructor {
@@ -502,12 +626,22 @@ impl<'program> StructuralJudge<'program> {
                     }
                 }
             }
-            (StructuralTerm::Application { .. } | StructuralTerm::CapturedValue { .. }, _) => {
+            (
+                StructuralTerm::Application { .. }
+                | StructuralTerm::CapturedValue { .. }
+                | StructuralTerm::ScalarBinary { .. },
+                _,
+            ) => {
                 if !term_contains(&right, &left) {
                     self.rewrites.push((left, right));
                 }
             }
-            (_, StructuralTerm::Application { .. } | StructuralTerm::CapturedValue { .. }) => {
+            (
+                _,
+                StructuralTerm::Application { .. }
+                | StructuralTerm::CapturedValue { .. }
+                | StructuralTerm::ScalarBinary { .. },
+            ) => {
                 if !term_contains(&left, &right) {
                     self.rewrites.push((right, left));
                 }
@@ -537,7 +671,7 @@ impl<'program> StructuralJudge<'program> {
         // Keep its entire environment free of name-selected unfolding, not
         // just the final argument: a projected local could otherwise hide
         // where its constructor came from before the call-site gate sees it.
-        if !self.resolve_applications {
+        if !self.resolve_applications && !self.runtime_body_values {
             return self
                 .resolve_case_subject(term.clone(), depth)
                 .unwrap_or(term);
@@ -547,6 +681,15 @@ impl<'program> StructuralJudge<'program> {
         }
         for _ in 0..32 {
             match term {
+                StructuralTerm::ObservedValue {
+                    observed_type,
+                    value,
+                } => {
+                    return StructuralTerm::ObservedValue {
+                        observed_type,
+                        value: Box::new(self.resolve_at(*value, depth + 1)),
+                    };
+                }
                 StructuralTerm::CapturedValue { .. } => {
                     let Some((_, replacement)) =
                         self.rewrites.iter().find(|(source, _)| *source == term)
@@ -593,6 +736,11 @@ impl<'program> StructuralJudge<'program> {
                         machine,
                         arguments,
                     };
+                    // Runtime prefix transport owns captured occurrences,
+                    // not equations over a replayable application denotation.
+                    if !self.resolve_applications {
+                        return resolved;
+                    }
                     // Hypothesis rewrites first (the inductive hypothesis
                     // reduces the self-application), then unfolding.
                     if let Some((_, replacement)) = self
@@ -652,6 +800,9 @@ impl<'program> StructuralJudge<'program> {
                         field_name,
                         arguments,
                     };
+                    if !self.resolve_applications {
+                        return resolved;
+                    }
                     let StructuralTerm::CallProjection {
                         selections,
                         target,
@@ -683,6 +834,7 @@ impl<'program> StructuralJudge<'program> {
                     };
                 }
                 StructuralTerm::ScalarBinary {
+                    references,
                     operator,
                     meaning,
                     left,
@@ -690,15 +842,36 @@ impl<'program> StructuralJudge<'program> {
                 } => {
                     let left = self.resolve_at(*left, depth + 1);
                     let right = self.resolve_at(*right, depth + 1);
+                    let resolved = StructuralTerm::ScalarBinary {
+                        references,
+                        operator,
+                        meaning,
+                        left: Box::new(left.clone()),
+                        right: Box::new(right.clone()),
+                    };
+                    if !super::structural_terms::scalar_operand_is_observed(
+                        self.program,
+                        references[0],
+                        &left,
+                    ) || !super::structural_terms::scalar_operand_is_observed(
+                        self.program,
+                        references[1],
+                        &right,
+                    ) {
+                        return resolved;
+                    }
+                    if let Some((_, replacement)) = self
+                        .rewrites
+                        .iter()
+                        .find(|(pattern, _)| pattern == &resolved)
+                    {
+                        term = replacement.clone();
+                        continue;
+                    }
                     if let Some(folded) = fold_scalar_binary(operator, meaning, &left, &right) {
                         return folded;
                     }
-                    return StructuralTerm::ScalarBinary {
-                        operator,
-                        meaning,
-                        left: Box::new(left),
-                        right: Box::new(right),
-                    };
+                    return resolved;
                 }
                 StructuralTerm::Opaque(_)
                 | StructuralTerm::Integer(_)
@@ -957,12 +1130,12 @@ impl<'program> StructuralJudge<'program> {
                         return None;
                     }
                     let subject = super::structural_terms::structural_term(
-            program,
-            Some((machine, state, Default::default())),
-            None,
-            comparison.left,
-            None
-        )?;
+                        program,
+                        Some((machine, state, Default::default())),
+                        None,
+                        comparison.left,
+                        None,
+                    )?;
                     let StructuralTerm::Variable(subject_name) = subject else {
                         return None;
                     };
@@ -1012,6 +1185,54 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         None
+    }
+
+    /// Project an already observed value using an authenticated declared field.
+    /// Source expressions and live-frame subjects share the same term algebra;
+    /// neither route reconstructs a field read under a different program point.
+    fn observed_field_term(
+        &self,
+        receiver_term: StructuralTerm,
+        field_name: &str,
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        match self
+            .resolve_at(receiver_term, depth + 1)
+            .into_semantic_value()
+        {
+            StructuralTerm::Constructor { fields, .. } => fields
+                .iter()
+                .find(|(name, _)| name == field_name)
+                .map(|(_, term)| term.clone()),
+            // A field read off a SYMBOLIC receiver names the caller's
+            // possibly nested place in the shared Opaque vocabulary --
+            // exactly how the caller-side termifier spells `a.num.neg`
+            // (display name), so citations over the same place line up.
+            StructuralTerm::Variable(name) => {
+                Some(StructuralTerm::Opaque(format!("{name}.{}", field_name)))
+            }
+            StructuralTerm::Opaque(inner) => {
+                Some(StructuralTerm::Opaque(format!("{inner}.{}", field_name)))
+            }
+            StructuralTerm::BoundValue(subject) => Some(StructuralTerm::BoundProjection {
+                subject,
+                path: field_name.to_owned(),
+            }),
+            StructuralTerm::BoundProjection { subject, path } => {
+                Some(StructuralTerm::BoundProjection {
+                    subject,
+                    path: format!("{path}.{}", field_name),
+                })
+            }
+            StructuralTerm::Integer(_)
+            | StructuralTerm::Float(_)
+            | StructuralTerm::CapturedValue { .. }
+            | StructuralTerm::ObservedValue { .. }
+            | StructuralTerm::Projection { .. }
+            | StructuralTerm::ScalarBinary { .. }
+            | StructuralTerm::Application { .. }
+            | StructuralTerm::CallProjection { .. } => None,
+        }
     }
 
     /// Form an expression under its actual declaring machine/state before
@@ -1138,41 +1359,7 @@ impl<'program> StructuralJudge<'program> {
                     scope,
                     depth + 1,
                 )?;
-                match self.resolve_at(receiver_term, depth + 1) {
-                    StructuralTerm::Constructor { fields, .. } => fields
-                        .iter()
-                        .find(|(name, _)| name == member.member.as_str())
-                        .map(|(_, term)| term.clone()),
-                    // A field read off a SYMBOLIC receiver names the caller's
-                    // possibly nested place in the shared Opaque vocabulary --
-                    // exactly how the caller-side termifier spells `a.num.neg`
-                    // (display name), so citations over the same place line up.
-                    StructuralTerm::Variable(name) => Some(StructuralTerm::Opaque(format!(
-                        "{name}.{}",
-                        member.member.as_str()
-                    ))),
-                    StructuralTerm::Opaque(inner) => Some(StructuralTerm::Opaque(format!(
-                        "{inner}.{}",
-                        member.member.as_str()
-                    ))),
-                    StructuralTerm::BoundValue(subject) => Some(StructuralTerm::BoundProjection {
-                        subject,
-                        path: member.member.as_str().to_owned(),
-                    }),
-                    StructuralTerm::BoundProjection { subject, path } => {
-                        Some(StructuralTerm::BoundProjection {
-                            subject,
-                            path: format!("{path}.{}", member.member.as_str()),
-                        })
-                    }
-                    StructuralTerm::Integer(_)
-                    | StructuralTerm::Float(_)
-                    | StructuralTerm::CapturedValue { .. }
-                    | StructuralTerm::Projection { .. }
-                    | StructuralTerm::ScalarBinary { .. }
-                    | StructuralTerm::Application { .. }
-                    | StructuralTerm::CallProjection { .. } => None,
-                }
+                self.observed_field_term(receiver_term, member.member.as_str(), depth)
             }
             ExpressionNode::StructLiteral(literal) => {
                 super::structural_terms::constructor_literal_term(program, literal, |field| {
@@ -1302,6 +1489,13 @@ impl<'program> StructuralJudge<'program> {
         map: &[(String, StructuralTerm)],
     ) -> StructuralTerm {
         match term {
+            StructuralTerm::ObservedValue {
+                observed_type,
+                value,
+            } => StructuralTerm::ObservedValue {
+                observed_type: *observed_type,
+                value: Box::new(Self::substitute_term(value, map)),
+            },
             StructuralTerm::Integer(_)
             | StructuralTerm::Float(_)
             | StructuralTerm::BoundValue(_)
@@ -1312,11 +1506,13 @@ impl<'program> StructuralJudge<'program> {
                 path: path.clone(),
             },
             StructuralTerm::ScalarBinary {
+                references,
                 operator,
                 meaning,
                 left,
                 right,
             } => StructuralTerm::ScalarBinary {
+                references: *references,
                 operator: *operator,
                 meaning: *meaning,
                 left: Box::new(Self::substitute_term(left, map)),
@@ -1373,6 +1569,7 @@ impl<'program> StructuralJudge<'program> {
                         | StructuralTerm::Application { .. }
                         | StructuralTerm::CallProjection { .. }
                         | StructuralTerm::CapturedValue { .. }
+                        | StructuralTerm::ObservedValue { .. }
                         | StructuralTerm::ScalarBinary { .. }
                         | StructuralTerm::Projection { .. } => StructuralTerm::Projection {
                             subject: Box::new(replacement.clone()),
@@ -1409,6 +1606,7 @@ impl<'program> StructuralJudge<'program> {
         selected_target: SymbolHandle,
         found: &mut Vec<&'term StructuralTerm>,
     ) {
+        let term = term.semantic_value();
         match term {
             StructuralTerm::Projection { subject, .. } => {
                 Self::self_applications(subject, selected_target, found)
@@ -1537,31 +1735,7 @@ impl<'program> StructuralJudge<'program> {
                 if !self.has_identity_equality_meaning(fact) {
                     return StructuralJudgment::Unknown;
                 }
-                let pair = self
-                    .program
-                    .machine(self.machine_symbol)
-                    .and_then(|machine| self.program.machine_states(machine).first())
-                    .and_then(|state| {
-                        let parameters = self.program.state_parameters(state);
-                        Some((
-                            super::structural_terms::structural_term(
-            program,
-            None,
-            Some((self.machine_symbol,
-                parameters)),
-            binary.left,
-            None
-        )?,
-                            super::structural_terms::structural_term(
-            program,
-            None,
-            Some((self.machine_symbol,
-                parameters)),
-            binary.right,
-            None
-        )?,
-                        ))
-                    });
+                let pair = self.declaration_term_pair(binary);
                 let Some((left, right)) = pair else {
                     return StructuralJudgment::Unknown;
                 };
@@ -1601,7 +1775,13 @@ impl<'program> StructuralJudge<'program> {
                 crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
                     self.program,
                     machine,
-                    None,
+                    self.declaration_state
+                        .is_valid()
+                        .then(|| {
+                            self.program
+                                .state_in_machine(machine, self.declaration_state)
+                        })
+                        .flatten(),
                     expression,
                     comparison,
                 )
@@ -1634,10 +1814,9 @@ impl<'program> StructuralJudge<'program> {
         let Some(subject) = super::structural_terms::structural_term(
             self.program,
             None,
-            Some((scope,
-                parameters)),
+            Some((scope, parameters)),
             binary.left,
-            None
+            None,
         ) else {
             return StructuralJudgment::Unknown;
         };
@@ -1691,10 +1870,9 @@ impl<'program> StructuralJudge<'program> {
         let Some(subject) = super::structural_terms::structural_term(
             self.program,
             None,
-            Some((callee.symbol,
-                self.program.state_parameters(entry))),
+            Some((callee.symbol, self.program.state_parameters(entry))),
             binary.left,
-            None
+            None,
         ) else {
             return;
         };
@@ -1839,6 +2017,13 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         match term {
+            StructuralTerm::ObservedValue {
+                observed_type,
+                value,
+            } => Some(StructuralTerm::ObservedValue {
+                observed_type,
+                value: Box::new(self.resolve_case_subject(*value, depth + 1)?),
+            }),
             StructuralTerm::Variable(ref name) => match self
                 .case_substitutions
                 .iter()
@@ -1889,6 +2074,13 @@ impl<'program> StructuralJudge<'program> {
         if self.case_facts_only || depth >= 32 {
             return StructuralJudgment::Unknown;
         }
+        if super::structural_terms::term_is_unobserved_descriptor(self.program, &left)
+            || super::structural_terms::term_is_unobserved_descriptor(self.program, &right)
+        {
+            return StructuralJudgment::Unknown;
+        }
+        let left = left.into_semantic_value();
+        let right = right.into_semantic_value();
         if left == right {
             return StructuralJudgment::Proven;
         }
