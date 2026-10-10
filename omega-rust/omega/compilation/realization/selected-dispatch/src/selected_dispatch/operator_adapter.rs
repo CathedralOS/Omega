@@ -47,12 +47,12 @@ pub(super) fn resolve_checked_adapter_for_operator(
         .typed
         .symbols
         .symbol_package_identity(operator.symbol);
-    if plan.schema.trait_name != overload_identity
+    if plan.schema.identity_text(plan.schema.trait_name) != overload_identity
         || plan.schema.trait_package_identity != operator_package
         || method.name != "realize"
         || method.requirement_owner != overload_identity
         || method.requirement_owner_package_identity != operator_package
-        || method.requirement_identity != overload_identity
+        || plan.schema.identity_text(method.requirement_identity) != overload_identity
         || !plan.schema.row_binds_method(row, method)
     {
         return Err(Diagnostic::error(format!(
@@ -68,6 +68,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
     else {
         return Ok(None);
     };
+    let machine_identity = plan.identity_text(*machine_identity);
 
     if plan.provider_type.is_empty() {
         return Err(Diagnostic::error(format!(
