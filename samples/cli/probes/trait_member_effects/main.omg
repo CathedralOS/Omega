@@ -1,0 +1,23 @@
+use omega::language::core::binding;
+pub boundary trait Sink {
+    machine emit(value: i32) reaches Sink;
+    machine last() -> i32 reaches Sink;
+}
+data SinkProvider { }
+machine SinkProvider::emit(value: i32)
+satisfies Sink::emit {
+}
+machine SinkProvider::last() -> i32
+satisfies Sink::last {
+    7
+}
+pub data Main { sink: Binding<Sink>; }
+boundary machine Main::main(main: &mut Main)
+reaches Sink
+invokes Sink;
+{
+    main.sink.emit(3);
+    let seen: i32 = main.sink.last();
+    transition { _ -> done(main, seen) }
+    state done(main: &mut Main, kept: i32) -> i32 { kept }
+}
