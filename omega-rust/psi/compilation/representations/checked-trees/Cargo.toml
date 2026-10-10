@@ -12,6 +12,7 @@ path = "src/lib.rs"
 arena = { path = "../../../foundation/arena" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 access-plans = { path = "../../../foundation/access-plans" }
+optimization = { path = "../../../foundation/optimization-selections" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 flow-effects = { path = "../../../foundation/flow-effects" }
 facts = { path = "facts" }
@@ -22,4 +23,3 @@ proof-admission = { path = "../../proof/admission" }
 source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 typed-trees = { path = "../typed-trees" }
-sha2 = "0.10"

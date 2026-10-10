@@ -4,7 +4,7 @@
 //! replacing them with a second copy of the same source vocabulary.
 
 pub mod checked_trees;
-mod digest_encoder;
+pub(crate) use optimization::digest_encoder;
 
 pub use checked_trees::{CheckedCleanupCaseCondition, CheckedCleanupControlPlans};
 pub use checked_trees::{CheckedStructuralCaseRoot, CheckedStructuralCaseSubject};

@@ -67,7 +67,6 @@ dependencies = [
  "layout-plans",
  "optimization",
  "semantic-vocabulary",
- "sha2",
 ]
 
 [[package]]
@@ -333,9 +332,9 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "optimization",
  "proof-admission",
  "semantic-vocabulary",
- "sha2",
  "source",
  "symbols",
  "typed-trees",
@@ -353,9 +352,9 @@ dependencies = [
  "language-semantics",
  "lowered-psi",
  "numerics",
+ "optimization",
  "proof-admission",
  "semantic-vocabulary",
- "sha2",
  "source",
  "symbols",
  "terminal-codec",
@@ -1158,7 +1157,6 @@ name = "numerics"
 version = "0.1.0"
 dependencies = [
  "optimization",
- "sha2",
 ]
 
 [[package]]
@@ -1639,7 +1637,6 @@ name = "representation-selections"
 version = "0.1.0"
 dependencies = [
  "optimization",
- "sha2",
  "source",
  "symbols",
  "typed-trees",
@@ -2078,7 +2075,6 @@ dependencies = [
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
- "sha2",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2139,7 +2135,6 @@ dependencies = [
  "language-semantics",
  "optimization",
  "semantic-vocabulary",
- "sha2",
  "source",
 ]
 
@@ -2180,7 +2175,6 @@ dependencies = [
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
- "sha2",
  "terminal-psi",
 ]
 
@@ -2258,10 +2252,10 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "optimization",
  "proof",
  "proof-admission",
  "semantic-vocabulary",
- "sha2",
  "source",
  "symbols",
  "typed-trees",
@@ -2311,9 +2305,9 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "optimization",
  "proof-admission",
  "semantic-vocabulary",
- "sha2",
  "source",
  "symbols",
  "typed-trees",

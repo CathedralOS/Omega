@@ -9,6 +9,7 @@ name = "typed_trees_to_checked_trees"
 path = "src/lib.rs"
 
 [dependencies]
+optimization = { path = "../../../foundation/optimization-selections" }
 typed-trees-to-typed-trees = { path = "../03b_typed-trees-to-typed-trees" }
 arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
@@ -26,4 +27,3 @@ source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 typed-trees = { path = "../../representations/typed-trees" }
 validation = { path = "../../checking" }
-sha2 = "0.10"

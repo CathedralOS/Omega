@@ -386,7 +386,7 @@ pub use proof_contracts::proof_embeddings::{
 };
 
 mod declarations;
-mod digest_encoder;
+pub(crate) use optimization::digest_encoder;
 pub mod expression_traversal;
 mod frozen_program;
 mod machine_calls;

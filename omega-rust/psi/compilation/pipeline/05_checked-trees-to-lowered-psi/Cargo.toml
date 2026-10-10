@@ -14,6 +14,7 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 lowered-psi = { path = "../../representations/lowered-psi" }
 arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
+optimization = { path = "../../../foundation/optimization-selections" }
 typed-trees = { path = "../../representations/typed-trees" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 facts = { path = "../../representations/checked-trees/facts" }
@@ -27,5 +28,4 @@ terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 validation = { path = "../../checking" }
-sha2 = "0.10.9"
 
