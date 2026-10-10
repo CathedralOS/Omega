@@ -247,7 +247,7 @@ pub(crate) fn lower_unit_parameters(
                 ),
                 access: terminal_access(parameter.access),
                 qualifications,
-                projected_qualifications: lower_projected_qualifications(identities, &parameter.projected_qualifications, lookup_type_id(type_ids, &parameter.type_identity)?, type_ids, structural_types)?,
+                projected_qualifications: lower_projected_qualifications(identities, &parameter.projected_qualifications, domain_ids, lookup_type_id(type_ids, &parameter.type_identity)?, structural_types)?,
             })
         })
         .collect()
@@ -492,7 +492,7 @@ pub(crate) fn lower_structural_arguments(
                           place,
                           prefix: &[terminal_psi::StructuralPathSegment]| {
         let suffix =
-            crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(identities, checked, root, argument, structural_types)?;
+            crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(identities, checked, argument, root, structural_types)?;
         let path = prefix.iter().cloned().map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static).chain(suffix).collect::<Vec<_>>();
         crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
             &path,

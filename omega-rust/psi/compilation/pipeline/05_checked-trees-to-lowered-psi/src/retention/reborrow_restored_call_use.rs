@@ -229,15 +229,14 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                         "restored reborrow call ordinal exceeds Terminal range",
                     )
                 })?,
-                target_identity: identities.intern(
-            identities)?,
+                target_identity: identities.intern(&identity(checked, call.target_symbol)?),
             },
             call_target_machine: callee_id,
             source_machine_identity: identities.intern(
-            &identity(checked, member.owner_symbol)?),
+            &identity(checked, event.machine_symbol)?),
             source_state_identity: identities.intern(&identity(checked, event.state_symbol)?),
             direct_root_owner_identity: identities.intern(
-            identities)?,
+            &identity(checked, parent.owner_symbol)?),
             direct_root_owner_path: owner_path(identities, checked, &parent.owner_path)?,
             direct_root_place: place(
             identities, checked, &parent.captured_place)?,

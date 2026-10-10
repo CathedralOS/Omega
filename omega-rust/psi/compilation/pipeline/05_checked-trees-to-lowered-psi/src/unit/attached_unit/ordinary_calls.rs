@@ -182,15 +182,16 @@ pub(super) fn prepare(
         call_index_selectors(structural_arguments, evaluated_selectors)?.into_iter();
 
     let claim_transfers = emitted_claim_transfers(
+        identities,
         claim_transfers,
         calls.claims.bindings(),
-            identities,
         target.parameters,
         structural_types,
     )?;
-    let terminal_arguments = lower_structural_arguments(identities, checked, structural_arguments, structural_types, parameters, local_places, structural_result_places, &operations.structural_values.clone(), call_byte_places, primitive_local_places, structural_locals, Some(caller_scalar_values), Some(scalar_bindings), &mut selector_values, Some((next_value, operations)), Some(calls))?;
+    let terminal_arguments = lower_structural_arguments(identities, checked, structural_arguments, structural_types, parameters, local_places, structural_result_places, &operations.structural_values.clone(), call_byte_places, primitive_local_places, structural_locals, Some(scalar_bindings), Some(caller_scalar_values), &mut selector_values, Some(calls), Some((next_value, operations)))?;
 
     let crash_continuations = prepare_crash_continuations(
+        identities,
         Target { ..target },
         &crate::unit::effective_crash_routes(checked, *target_machine)?,
         &terminal_scalar_values,
