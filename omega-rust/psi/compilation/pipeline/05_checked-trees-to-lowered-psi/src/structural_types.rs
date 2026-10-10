@@ -98,16 +98,17 @@ pub(crate) fn lower_field_type(
 }
 
 pub(crate) fn lower_mixed_fields(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     fields: &[checked_trees::CheckedUnitStructuralFieldPlan],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     next_field: &mut u64,
 ) -> Result<Vec<StructuralFieldDeclaration>, LoweringError> {
-    let mut identities = BTreeSet::new();
+    let mut field_identities = BTreeSet::new();
     fields
         .iter()
         .map(|field| {
-            if !field.identity.is_valid() || !identities.insert(field.identity.clone()) {
+            if !field.identity.is_valid() || !field_identities.insert(field.identity.clone()) {
                 return unsupported("mixed structural type has duplicate field identities");
             }
             let field_type = lower_field_type(
@@ -124,24 +125,25 @@ pub(crate) fn lower_mixed_fields(
 }
 
 pub(crate) fn lower_mixed_cases(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     cases: &[checked_trees::CheckedUnitStructuralCasePlan],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     next_field: &mut u64,
     next_case: &mut u64,
 ) -> Result<Vec<StructuralCaseDeclaration>, LoweringError> {
-    let mut identities = BTreeSet::new();
+    let mut case_identities = BTreeSet::new();
     cases
         .iter()
         .map(|case| {
-            if !case.identity.is_valid() || !identities.insert(case.identity.clone()) {
+            if !case.identity.is_valid() || !case_identities.insert(case.identity.clone()) {
                 return unsupported("mixed structural type has duplicate case identities");
             }
             Ok(StructuralCaseDeclaration {
                 id: StructuralCaseId::new(allocate_dense(next_case)?)
                     .expect("allocated structural case identity is nonzero"),
                 identity: identities.intern(&case.identity.spelling()),
-                fields: lower_mixed_fields(checked, &case.fields, type_ids, next_field)?,
+                fields: lower_mixed_fields(identities, checked, &case.fields, type_ids, next_field)?,
             })
         })
         .collect()
@@ -168,7 +170,7 @@ pub(crate) fn unique_declaration<'a>(
 pub(crate) fn field_identity(
     structural_types: &[StructuralTypeDeclaration],
     field: semantic_vocabulary::StructuralFieldId,
-) -> Result<String, LoweringError> {
+) -> Result<terminal_psi::TerminalIdentityIndex, LoweringError> {
     structural_types
         .iter()
         .flat_map(|declaration| match &declaration.shape {
@@ -183,7 +185,7 @@ pub(crate) fn field_identity(
             _ => Vec::new(),
         })
         .find(|declaration| declaration.id == field)
-        .map(|declaration| declaration.identity.clone())
+        .map(|declaration| declaration.identity)
         .ok_or(LoweringError::Unsupported(
             "stored structural field has no declaration",
         ))

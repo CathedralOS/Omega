@@ -261,6 +261,7 @@ pub(super) fn for_exit_regions(
         })
         .collect::<Vec<_>>();
     let rows = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+        identities,
         checked,
         crate::unit::unit_cleanup::outstanding_actions(
             &selected_exit.actions,
@@ -270,7 +271,7 @@ pub(super) fn for_exit_regions(
         catalogs.cleanup_control,
         &catalogs.structural_types,
         &catalogs.type_ids,
-        |source, path| {
+        |identities, source, path| {
             let (place, root_type) =
                 evaluation.cleanup_storage(source, parameters, |binding_ordinal| {
                     let (_, result) = operations
@@ -283,7 +284,7 @@ pub(super) fn for_exit_regions(
                     Ok((result.place(), result.structural_type()))
                 })?;
             let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                path, root_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
+                identities, path, root_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
             )?;
             Ok((place, path))
         },

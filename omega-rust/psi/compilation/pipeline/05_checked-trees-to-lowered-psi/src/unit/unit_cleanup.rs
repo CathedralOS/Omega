@@ -58,6 +58,7 @@ pub(crate) fn lower_cleanup_conditions(
     selected: arena::HandleSpan<checked_trees::CheckedCleanupCaseCondition>,
     types: &[terminal_psi::StructuralTypeDeclaration],
     mut storage: impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
         &[checked_trees::CheckedUnitStructuralPathSegment],
     ) -> Result<
         (PlaceId, Vec<terminal_psi::StructuralPathSegment>),
@@ -86,7 +87,7 @@ pub(crate) fn lower_cleanup_conditions(
                         "cleanup condition lost its retained path",
                     ))?
             };
-            let (place, path) = storage(path)?;
+            let (place, path) = storage(identities, path)?;
             let structural_type = terminal_psi::structural_type_by_identity(
                 types,
                 identities.intern(&checked
@@ -157,6 +158,7 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
     types: &[terminal_psi::StructuralTypeDeclaration],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     mut storage: impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
         &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
         &[checked_trees::CheckedUnitStructuralPathSegment],
     ) -> Result<
@@ -173,7 +175,7 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
     let mut regions = actions
         .into_iter()
         .map(|action| {
-            let (place, path) = storage(action.source(), action.path())?;
+            let (place, path) = storage(identities, action.source(), action.path())?;
             let conditions =
                 lower_cleanup_conditions(
                     identities,
@@ -181,8 +183,8 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
                     control,
                     action.case_conditions(),
                     types,
-                    |path| {
-                    storage(action.source(), path)
+                    |builder, path| {
+                    storage(builder, action.source(), path)
                 },
                 )?;
             let lowered = match action {

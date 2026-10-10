@@ -741,7 +741,7 @@ impl Expansion<'_> {
                     action.case_conditions(
             ),
                     self.structural_types,
-                    |condition_path| {
+                    |identities, condition_path| {
                         let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, condition_path, slot.structural_type, self.structural_types, None, &mut std::iter::empty(), None)?;
                         Ok((slot.place, path))
                     },

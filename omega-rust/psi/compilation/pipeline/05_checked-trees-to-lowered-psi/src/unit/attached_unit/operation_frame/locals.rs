@@ -864,6 +864,7 @@ impl OperationFrame<'_, '_> {
         cleanup_actions: &[checked_trees::CheckedNormalCleanupAction],
     ) -> Result<(), LoweringError> {
         let actions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+            identities,
             self.checked,
             cleanup_actions,
             &self
@@ -874,7 +875,7 @@ impl OperationFrame<'_, '_> {
                 .cleanup_control,
             self.structural_types.declarations(),
             self.type_ids,
-            |source, selected_path| {
+            |identities, source, selected_path| {
                 let captured = match boundary {
                     checked_trees::CheckedUnitCleanupBoundary::Replacement {
                         statement_index,

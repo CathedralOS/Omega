@@ -255,6 +255,7 @@ pub(super) fn emit(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let (private_places, call_literal_count, mut operations) = establish_call_literals(
+        identities,
         checked,
         plan,
         plans,
@@ -626,6 +627,7 @@ pub(super) fn emit(
         // replaces their independently recorded production cleanup.
         let results = StructuralResults::Dense(&mut structural_result_places);
         let normal_regions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+            identities,
             checked,
             crate::unit::unit_cleanup::outstanding_actions(
                 normal_cleanup_actions,
@@ -635,7 +637,7 @@ pub(super) fn emit(
             &checked.facts.flow.terminal_unit_effects.cleanup_control,
             structural_types,
             type_ids,
-            |source, path| {
+            |identities, source, path| {
                 let (place, root_type) =
                     evaluation.cleanup_storage(
             source, parameters, |binding| {
@@ -643,7 +645,7 @@ pub(super) fn emit(
                         Ok((value.place, value.structural_type))
                     })?;
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    path, root_type, structural_types, None, &mut std::iter::empty(), None,
+                    identities, path, root_type, structural_types, None, &mut std::iter::empty(), None,
                 )?;
                 Ok((place, path))
             },
@@ -817,6 +819,7 @@ pub(super) fn emit(
                 };
                 let source = evaluation.current_structural_place(source);
                 let returned_claims = super::claims::lower_return_claims(
+                    identities,
                     checked,
                     plan.machine,
                     plan.state,
@@ -1180,6 +1183,7 @@ fn lower_structural_result_declaration(
             result.multiplicity),
         qualifications,
         projected_qualifications: parameters::lower_projected_qualifications(
+            identities,
             &validation::structural_result_projected_qualifications(&checked.typed, return_type)
                 .map_err(
             LoweringError::Unsupported)?,
@@ -1205,6 +1209,7 @@ fn lower_structural_result_declaration(
 /// prefix, followed by supporting literal places for fresh owned backing.
 /// Returns the declarations, prefix length and establishment operations.
 fn establish_call_literals(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
     plans: UnitPlans<'_>,
@@ -1302,6 +1307,7 @@ fn establish_call_literals(
                 }
             };
             crate::emission::structural_byte_sequence_store::emit_call_literal(
+                identities,
                 argument.byte_sequence_literal().ok_or(LoweringError::Unsupported("literal call payload is absent"))?,
                 lookup_type_id(type_ids, &argument.type_identity)?,
                 qualifications,
