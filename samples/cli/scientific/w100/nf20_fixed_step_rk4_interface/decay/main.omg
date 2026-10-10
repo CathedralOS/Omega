@@ -1,0 +1,33 @@
+use rk4;
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+data Context { rate: f64; }
+data Main { console: Binding<Console>; }
+machine rhs(context: &Context, time: f64, value: f64) -> f64 { context.rate * value }
+machine Main::main(main: &mut Main) reaches Console {
+    let context: Context = Context { rate: -2.0f64 };
+    let mut times: [f64; 42] = [0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 99.0f64];
+    let mut values: [f64; 42] = [0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 0.0f64, 99.0f64];
+    let result: Rk4Result = rk4_try_trace<Context, rhs>(&context, 0.0f64, 1.0f64, 0.025f64, 40, 40, &mut times[..], &mut values[..]);
+    let progress: Rk4Progress = rk4_progress(result);
+    transition progress.status == result.status && progress.completed == result.completed && progress.time == result.time && result.status == Rk4Status::Complete && result.completed == 40 && result.value >= 0.1353352632366127f64 && result.value <= 0.1353353032366127f64 && times[0] == 0.0f64 && values[0] == 1.0f64 && times[40] > 0.999999999999f64 && times[40] < 1.000000000001f64 && values[40] == result.value && values[41] == 99.0f64 && times[41] == 99.0f64 {
+        true -> controls(main, &context)
+        false -> bad(main)
+    }
+    state controls(main: &mut Main, context: &Context) {
+        let mut times: [f64; 1] = [99.0f64];
+        let mut values: [f64; 1] = [99.0f64];
+        let budget: Rk4Result = rk4_try_trace<Context, rhs>(context, 0.0f64, 1.0f64, 0.025f64, 40, 39, &mut times[..], &mut values[..]);
+        let capacity: Rk4Result = rk4_try_trace<Context, rhs>(context, 0.0f64, 1.0f64, 0.025f64, 40, 40, &mut times[..], &mut values[..]);
+        let invalid: Rk4Result = rk4_try_trace<Context, rhs>(context, 0.0f64, 1.0f64, 0.0f64, 0, 0, &mut times[..], &mut values[..]);
+        let untouched: bool = times[0] == 99.0f64 && values[0] == 99.0f64;
+        let zero: Rk4Result = rk4_try_trace<Context, rhs>(context, 2.0f64, 3.0f64, 0.025f64, 0, 0, &mut times[..], &mut values[..]);
+        transition untouched && budget.status == Rk4Status::StepBudget && capacity.status == Rk4Status::TraceCapacity && invalid.status == Rk4Status::InvalidStep && zero.status == Rk4Status::Complete && zero.completed == 0 && zero.time == 2.0f64 && zero.value == 3.0f64 && times[0] == 2.0f64 && values[0] == 3.0f64 {
+            true -> good(main)
+            false -> bad(main)
+        }
+    }
+    state good(main: &mut Main) { main.console.write_line("NF20 decay PASS"); main.console.exit_process(0); }
+    state bad(main: &mut Main) { main.console.write_line("NF20 decay FAIL"); main.console.exit_process(1); }
+}

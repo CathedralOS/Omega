@@ -1,0 +1,81 @@
+// NF20 scalar kernel. Callers supply static code separately from RHS data.
+// All trace storage is borrowed, never allocated. Admission failures write
+// nothing and invoke no callback; successful traces include the initial state.
+// NF01/NF02/NF09 vector and accuracy adapters are specified in the API note.
+use omega::language::core::float_operations;
+
+pub data Rk4Status [copy] {
+    case Complete;
+    case InvalidStep;
+    case StepBudget;
+    case TraceCapacity;
+}
+// Shared progress vocabulary also fits a borrowed vector state: no value copy.
+pub data Rk4Progress [copy] {
+    status: Rk4Status;
+    completed: u64;
+    time: f64;
+}
+pub data Rk4Result [copy] {
+    status: Rk4Status;
+    completed: u64;
+    time: f64;
+    value: f64;
+}
+
+pub machine rk4_progress(result: Rk4Result) -> Rk4Progress {
+    Rk4Progress { status: result.status, completed: result.completed, time: result.time }
+}
+
+pub machine rk4_step<Context, machine Rhs>(context: &Context, time: f64, value: f64, step: f64) -> f64
+where machine Rhs(context: &Context, time: f64, value: f64) -> f64;
+{
+    let first: f64 = Rhs(context, time, value);
+    let second: f64 = Rhs(context, time + step * 0.5f64, value + step * first * 0.5f64);
+    let third: f64 = Rhs(context, time + step * 0.5f64, value + step * second * 0.5f64);
+    let fourth: f64 = Rhs(context, time + step, value + step * third);
+    value + (step / 6.0f64) * (first + 2.0f64 * second + 2.0f64 * third + fourth)
+}
+
+pub machine rk4_try_trace<Context, machine Rhs>(context: &Context, initial_time: f64, initial_value: f64, step: f64, steps: u64, budget: u64, times: &mut [f64], values: &mut [f64]) -> Rk4Result
+where machine Rhs(context: &Context, time: f64, value: f64) -> f64;
+{
+    transition step > 0.0f64 {
+        true -> budget_check(context, initial_time, initial_value, step, steps, budget, times, values)
+        false -> (Rk4Result { status: Rk4Status::InvalidStep, completed: 0, time: initial_time, value: initial_value })
+    }
+    state budget_check(context: &Context, time: f64, value: f64, step: f64, steps: u64, budget: u64, times: &mut [f64], values: &mut [f64]) {
+        transition steps <= budget {
+            true -> capacity_check(context, time, value, step, steps, times, values)
+            false -> (Rk4Result { status: Rk4Status::StepBudget, completed: 0, time: time, value: value })
+        }
+    }
+    state capacity_check(context: &Context, time: f64, value: f64, step: f64, steps: u64, times: &mut [f64], values: &mut [f64]) {
+        transition steps < times.len && steps < values.len {
+            true -> start(context, time, value, step, steps, times, values)
+            false -> (Rk4Result { status: Rk4Status::TraceCapacity, completed: 0, time: time, value: value })
+        }
+    }
+    state start(context: &Context, time: f64, value: f64, step: f64, steps: u64, times: &mut [f64], values: &mut [f64])
+    requires steps < times.len requires steps < values.len {
+        times[0] = time;
+        values[0] = value;
+        transition { _ -> advance(context, time, value, step, steps, 0, times, values) }
+    }
+    state advance(context: &Context, time: f64, value: f64, step: f64, steps: u64, completed: u64, times: &mut [f64], values: &mut [f64])
+    requires steps < times.len requires steps < values.len requires completed <= steps {
+        transition completed < steps {
+            true -> calculate(context, time, value, step, steps, completed, times, values)
+            false -> (Rk4Result { status: Rk4Status::Complete, completed: completed, time: time, value: value })
+        }
+    }
+    state calculate(context: &Context, time: f64, value: f64, step: f64, steps: u64, completed: u64, times: &mut [f64], values: &mut [f64])
+    requires steps < times.len requires steps < values.len requires completed < steps {
+        let next_value: f64 = rk4_step<Context, Rhs>(context, time, value, step);
+        let next_time: f64 = time + step;
+        let next: u64 = completed + 1;
+        times[next] = next_time;
+        values[next] = next_value;
+        transition { _ -> advance(context, next_time, next_value, step, steps, next, times, values) }
+    }
+}

@@ -1,0 +1,13 @@
+{
+  "frozen_before_omega_execution": true,
+  "format": "IEEE f64; analytic constants rounded to nearest binary64",
+  "initial_time": 0.0,
+  "initial_value": 1.0,
+  "step": 0.025,
+  "steps": 40,
+  "relative_tolerance": 0.0,
+  "time_absolute_tolerance": 1e-12,
+  "decay": {"rhs": "y'=-2*y", "analytic": "exp(-2*t)", "expected": 0.1353352832366127, "absolute_tolerance": 2e-8},
+  "driven_growth": {"rhs": "y'=y+t", "analytic": "2*exp(t)-t-1", "expected": 3.43656365691809, "absolute_tolerance": 2e-8},
+  "vector_pending": {"rhs": "u'=u;v'=u-v", "initial": [1,0], "expected": [2.718281828459045,1.1752011936438014], "absolute_tolerance": 1e-8}
+}

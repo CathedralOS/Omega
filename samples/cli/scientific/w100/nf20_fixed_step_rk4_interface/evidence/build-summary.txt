@@ -1,0 +1,4 @@
+Base 26c92c17b8f4b21f39e14a5be57c85cfdec601de
+RUSTUP_HOME=/workspace/.rustup CARGO_HOME=/workspace/.cargo XDG_CACHE_HOME=/workspace/.cache PATH=/workspace/.cargo/bin:$PATH mbx build -p omega > /tmp/nf20-build.log 2>&1
+Exit 0; dev profile unoptimized; elapsed 4m 24s. Full log retained at /tmp/nf20-build.log.
+No Rust source changed.

@@ -1,0 +1,12 @@
+use rk4;
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+data Context { rate: f64; }
+data Main { console: Binding<Console>; }
+machine wrong(context: &Context, time: f64, value: f64) -> bool { true }
+machine Main::main(main: &mut Main) reaches Console {
+    let context: Context = Context { rate: 1.0f64 };
+    let value: f64 = rk4_step<Context, wrong>(&context, 0.0f64, 1.0f64, 0.025f64);
+    main.console.exit_process(0);
+}

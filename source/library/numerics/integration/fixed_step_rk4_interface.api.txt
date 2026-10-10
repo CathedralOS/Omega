@@ -1,0 +1,58 @@
+NF20 fixed-step RK4 interface checkpoint (2026-10-10)
+Base: 26c92c17b8f4b21f39e14a5be57c85cfdec601de
+
+Available scalar signatures:
+  rk4_step<Context, machine Rhs>(&Context, f64 time, f64 value, f64 step) -> f64
+  where Rhs(&Context, f64 time, f64 value) -> f64
+  rk4_try_trace<Context, machine Rhs>(&Context, f64 initial_time,
+    f64 initial_value, f64 step, u64 steps, u64 budget,
+    &mut [f64] times, &mut [f64] values) -> Rk4Result
+  Rk4Progress { status: Rk4Status, completed: u64, time: f64 }
+  rk4_progress(Rk4Result) -> Rk4Progress
+  Rk4Result { status: Rk4Status, completed: u64, time: f64, value: f64 }
+  Rk4Status = Complete | InvalidStep | StepBudget | TraceCapacity
+
+Caller supplies finite initial time, value, positive finite step, and a pure
+finite-valued RHS for every stage. This is a mathematical caller obligation,
+not a checked finite-value guarantee until NF02's interface is available.
+Raw step applies classical RK4 with four RHS calls at t,t+h/2,t+h/2,t+h.
+Try trace preflights positive step, steps <= budget and both lengths > steps;
+failures return the initial state, completed=0, leave traces untouched and
+invoke no RHS. Errors have the preceding priority. No allocation or implicit
+copy. Success records initial state plus all steps; untouched suffix is retained.
+Zero steps needs one trace slot, returns initial state, calls no RHS.
+No adaptive step, interpolation, event detection or endpoint clamping.
+
+DEPENDENCY REQUESTS -- absent from fetched main; names below are requirements,
+not competing definitions or claims that dependency owners have accepted them.
+NF01: exact package/module import plus rank-two column-major descriptor type;
+  checked_descriptor(rows:u64, columns:u64, backing_length:u64)
+    -> checked/try descriptor result
+  descriptor row count, column count, stride, required backing length access.
+NF02: exact signatures equivalent to
+  is_finite(value:f64)->bool
+  within_tolerance(actual:f64, expected:f64, absolute:f64, relative:f64)->bool
+  plus error policy for nonfinite RHS stage and non-advancing t+h.
+NF09: exact vector operation signatures equivalent to
+  try_copy(descriptor, source:&[f64], destination:&mut[f64])->checked/try result
+  try_axpy(descriptor, scale:f64, source:&[f64], destination:&mut[f64])
+    -> checked/try result
+  and scratch/alias validation rules.
+
+Shared-vector adapter requirement (pending these signatures):
+  rk4_try_vector<Context,machine Rhs>(&Context, descriptor,
+    initial_time:f64, step:f64, steps:u64, budget:u64,
+    state:&mut[f64], scratch:&mut[f64], trace_descriptor,
+    times:&mut[f64], trace_values:&mut[f64])->checked/try Rk4Progress
+  where Rhs(&Context,time:f64,descriptor,state:&[f64],derivative:&mut[f64])
+    -> checked/try result
+State has n rows, one column. Trace has n rows, steps+1 columns, column-major.
+Caller supplies disjoint state, scratch, time trace, value trace backings;
+scratch holds four derivatives plus one intermediate state (5*n scalars).
+NF01 checks all extent arithmetic; NF09 performs explicit copy/AXPY.
+Capacity/budget/descriptor admission occurs before any mutation or RHS call.
+Static RHS receives only explicit context and disjoint state/derivative slices.
+Finite-stage failure returns last fully committed state, count and trace prefix.
+Vector fixture: u'=u, v'=u-v; [u(0),v(0)]=[1,0]; h=.025,40 steps.
+Expected [e,(e-e^-1)/2]=[2.718281828459045,1.1752011936438014].
+Absolute tolerance 1e-8, relative tolerance 0, frozen before execution.
