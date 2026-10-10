@@ -129,11 +129,7 @@ fn walk(
                         return (true, complete);
                     }
                 }
-                ScalarTerm::BooleanField { .. }
-                | ScalarTerm::IntegerField { .. }
-                | ScalarTerm::IeeeFloatField { .. }
-                | ScalarTerm::ViewExtent { .. }
-                | ScalarTerm::ByteSequencePredicate { .. } => complete = false,
+                crate::scalar_term_predicate_quint_pattern!(..) => complete = false,
                 ScalarTerm::Boolean(_)
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::IeeeFloatLiteral(_) => {}

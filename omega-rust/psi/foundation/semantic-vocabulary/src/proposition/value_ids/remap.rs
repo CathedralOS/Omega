@@ -59,11 +59,7 @@ impl Proposition {
                 },
                 Pending::Scalar(term) => match term {
                     ScalarTerm::Value { id, .. } => *id = map(*id),
-                    ScalarTerm::BooleanField { .. }
-                    | ScalarTerm::IntegerField { .. }
-                    | ScalarTerm::IeeeFloatField { .. }
-                    | ScalarTerm::ViewExtent { .. }
-                    | ScalarTerm::ByteSequencePredicate { .. }
+                    crate::scalar_term_predicate_quint_pattern!(..)
                     | ScalarTerm::Boolean(_)
                     | ScalarTerm::Integer { .. }
                     | ScalarTerm::IeeeFloatLiteral(_) => {}

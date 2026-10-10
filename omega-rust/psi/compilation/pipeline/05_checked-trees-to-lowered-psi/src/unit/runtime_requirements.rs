@@ -351,11 +351,7 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
                 ScalarTerm::Boolean(_)
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::IeeeFloatLiteral(_)
-                | ScalarTerm::BooleanField { .. }
-                | ScalarTerm::IntegerField { .. }
-                | ScalarTerm::IeeeFloatField { .. }
-                | ScalarTerm::ViewExtent { .. }
-                | ScalarTerm::ByteSequencePredicate { .. } => Ok(()),
+                | semantic_vocabulary::scalar_term_predicate_quint_pattern!(..) => Ok(()),
                 _ => unsupported(
                     "runtime requirement scalar substitution encountered an unsupported term",
                 ),

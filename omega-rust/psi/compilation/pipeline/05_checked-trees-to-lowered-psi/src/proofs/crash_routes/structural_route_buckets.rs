@@ -11,7 +11,7 @@ use crate::proofs::crash_routes::structural_members::{
 };
 use crate::proofs::{
     BTreeMap, CanonicalStructuralPathSegment, CheckedBooleanExpression,
-    CheckedIntegerComparisonKind, CheckedScalarExpression, IeeeFloatFormat, LoweringError, PlaceId,
+    CheckedScalarExpression, IeeeFloatFormat, LoweringError, PlaceId,
     PrimitiveType, Proposition, ScalarTerm, ScalarType, StructuralParameterDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalCrashCause, ValueDeclaration,
     integer_landing_scalar_type, integer_scalar_type, integer_value, unsupported,
