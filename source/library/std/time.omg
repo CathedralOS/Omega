@@ -22,7 +22,7 @@
 //   runs in Wrapping-domained lets (obligation-free), whose values are only
 //   USED on the guard arms that prove them meaningful — the wrapped-compare
 //   idiom (`sum < a` iff the u64 add wrapped) needs no u64::MAX literal.
-// - The bounded `subsecond_nanoseconds` store happens in `*_emit` states whose
+// - The ranged `subsecond_nanoseconds` store happens in `*_emit` states whose
 //   SINGLE inbound edge is the `<= 999999999` guard: single-predecessor edge
 //   guards flow into the target state, so the store proves. The `false` arms
 //   are unreachable by construction but total (never a silent face).
@@ -72,12 +72,11 @@ pub machine Duration::from_seconds(seconds: u64) -> Duration {
 pub machine Duration::from_milliseconds(milliseconds: u64) -> Duration {
     // Flow-sensitive LETS carry the proofs (`% 1000` bounds the remainder,
     // the narrowing cast and `* 1000000` prove under it); constructing from
-    // the lets keeps each construction check on a named local whose
-    // initializer establishes its bound.
-    let scaled_wide: u64 = (milliseconds % 1000) * 1000000;
+    // the lets keeps each construction check on a named, ranged local.
+    let scaled_wide: u64 [0..=999000000] = (milliseconds % 1000) * 1000000;
     let scaled: u32 = narrow_u64_to_u32_exact(scaled_wide);
     let whole_seconds: u64 = milliseconds / 1000;
-    let sub: u32 = scaled % 1000000000;
+    let sub: u32 [0..=999999999] = scaled % 1000000000;
     Duration {
         seconds: whole_seconds,
         subsecond_nanoseconds: sub,
@@ -85,11 +84,11 @@ pub machine Duration::from_milliseconds(milliseconds: u64) -> Duration {
 }
 
 pub machine Duration::from_microseconds(microseconds: u64) -> Duration {
-    // Same construct-from-lets discipline as from_milliseconds.
-    let scaled_wide: u64 = (microseconds % 1000000) * 1000;
+    // Same construct-from-lets + ranged-let discipline as from_milliseconds.
+    let scaled_wide: u64 [0..=999999000] = (microseconds % 1000000) * 1000;
     let scaled: u32 = narrow_u64_to_u32_exact(scaled_wide);
     let whole_seconds: u64 = microseconds / 1000000;
-    let sub: u32 = scaled % 1000000000;
+    let sub: u32 [0..=999999999] = scaled % 1000000000;
     Duration {
         seconds: whole_seconds,
         subsecond_nanoseconds: sub,
@@ -97,10 +96,10 @@ pub machine Duration::from_microseconds(microseconds: u64) -> Duration {
 }
 
 pub machine Duration::from_nanoseconds(nanoseconds: u64) -> Duration {
-    let remainder_wide: u64 = nanoseconds % 1000000000;
+    let remainder_wide: u64 [0..=999999999] = nanoseconds % 1000000000;
     let remainder: u32 = narrow_u64_to_u32_exact(remainder_wide);
     let whole_seconds: u64 = nanoseconds / 1000000000;
-    let sub: u32 = remainder % 1000000000;
+    let sub: u32 [0..=999999999] = remainder % 1000000000;
     Duration {
         seconds: whole_seconds,
         subsecond_nanoseconds: sub,
@@ -219,7 +218,7 @@ pub machine Duration::checked_add(duration: &Duration, other: Duration) -> Durat
     }
     state add_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         // `% 1000000000` INLINE in the field value: construction checks are
-        // flow-insensitive, and modulo bounds by the divisor, so the bounded
+        // flow-insensitive, and modulo bounds by the divisor, so the ranged
         // store proves right here; the gate already ensured the mod is an
         // identity at runtime.
         DurationResult::Ok {
@@ -271,7 +270,7 @@ pub machine Duration::checked_subtract(duration: &Duration, other: Duration) -> 
         }
     }
     state subtract_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
-        // Inline `%` proves the bounded store flow-insensitively; the guarded
+        // Inline `%` bounds the ranged store flow-insensitively; the guarded
         // arms above ensured it is an identity at runtime.
         DurationResult::Ok {
             duration: Duration {
@@ -296,7 +295,7 @@ pub machine Duration::checked_multiply(duration: &Duration, factor: u32) -> Dura
         * (factor_wide as u64 in Wrapping);
     let nano_product: u64 = nano_product_wrapped as u64;
     let extra_seconds: u64 = nano_product / 1000000000;
-    let nano_remainder_wide: u64 = nano_product % 1000000000;
+    let nano_remainder_wide: u64 [0..=999999999] = nano_product % 1000000000;
     let nano_remainder: u32 = narrow_u64_to_u32_exact(nano_remainder_wide);
     // Division-free u64 overflow detection for seconds * factor via the
     // 32-bit split (the interpreter's div/mod on msb-set u64 was only just
@@ -367,7 +366,7 @@ pub machine Duration::divide(duration: &Duration, divisor: u32) -> DurationResul
         + (widen_u32_to_u64(duration.subsecond_nanoseconds) as u64 in Wrapping);
     let total_subnanoseconds: u64 = total_wrapped as u64;
     let sub_quotient_wide: u64 = total_subnanoseconds / safe_divisor;
-    let sub_quotient_bounded: u64 =
+    let sub_quotient_bounded: u64 [0..=999999999] =
         sub_quotient_wide % 1000000000;
     let sub_quotient: u32 = narrow_u64_to_u32_exact(sub_quotient_bounded);
     transition divisor_is_zero {
@@ -468,9 +467,9 @@ pub machine Duration::is_greater_than(duration: &Duration, other: Duration) -> b
 // subsecond nanoseconds since an UNSPECIFIED epoch. Opaque-by-convention --
 // only differences between two Instants from the same process are meaningful.
 // Same field shapes as Duration, so the subtraction machinery mirrors it.
-pub data Instant [copy] where subsecond_nanoseconds <= 999_999_999 {
+pub data Instant [copy] {
     seconds: u64;
-    subsecond_nanoseconds: u32;
+    subsecond_nanoseconds: u32 [0..=999_999_999];
 }
 
 pub data InstantResult [copy] {
@@ -657,9 +656,9 @@ pub machine Instant::duration_since(instant: &Instant, earlier: Instant) -> Dura
 // A point on the WALL clock (D7): signed Unix-epoch seconds (pre-1970
 // timestamps exist -- filesystem metadata bridges here) + subsecond
 // nanoseconds. ZII zero IS the Unix epoch.
-pub data SystemTime [copy] where subsecond_nanoseconds <= 999_999_999 {
+pub data SystemTime [copy] {
     seconds_since_unix_epoch: i64;
-    subsecond_nanoseconds: u32;
+    subsecond_nanoseconds: u32 [0..=999_999_999];
 }
 
 const SystemTime::UNIX_EPOCH: SystemTime = SystemTime { seconds_since_unix_epoch: 0, subsecond_nanoseconds: 0 };
@@ -940,10 +939,10 @@ invokes
     let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
     let scaled: u64 = scaled_wrapped as u64;
     let subnanos_wide: u64 = scaled / frequency;
-    // Initializer witness: the `%` bounds the local, which proves Instant's
-    // `where` bound at construction; it is an identity at runtime (the
-    // quotient is < 10^9 by math).
-    let subsecond: u32 = (subnanos_wide % 1000000000) as u32;
+    // Ranged-let witness: the `%` bounds the ranged store flow-insensitively
+    // (construction checks see only the let's declared range); it is an
+    // identity at runtime (the quotient is < 10^9 by math).
+    let subsecond: u32 [0..=999999999] = (subnanos_wide % 1000000000) as u32;
     Instant { seconds: whole_seconds, subsecond_nanoseconds: subsecond }
 }
 
@@ -951,8 +950,8 @@ invokes
 // the two per-target calibration constants, all conversion math here.
 // `unix = raw / units - offset`; the subtraction is a u64 wrapping let whose
 // value is only USED on the after-epoch arm the dominating compare proves
-// (the checked_subtract idiom); `% i64::MAX` is the initializer witness for
-// the i64 narrowing (real clocks sit ~1.7e9, the bound only tames the prover).
+// (the checked_subtract idiom); `% i64::MAX` is the ranged witness for the
+// i64 narrowing (real clocks sit ~1.7e9, the bound only tames the prover).
 // A host clock before 1970 reads as UNIX_EPOCH (degraded, never faulting).
 pub machine Time::system_time_now(time: &mut Time) -> SystemTime
 reaches
@@ -970,11 +969,11 @@ invokes
     let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
     let scaled: u64 = scaled_wrapped as u64;
     let subnanos_wide: u64 = scaled / units;
-    let subsecond: u32 = (subnanos_wide % 1000000000) as u32;
+    let subsecond: u32 [0..=999999999] = (subnanos_wide % 1000000000) as u32;
     let is_after_epoch: bool = platform_seconds >= offset;
     let unix_wrapped: u64 in Wrapping = (platform_seconds as u64 in Wrapping)
         - (offset as u64 in Wrapping);
-    let unix_bounded: u64 =
+    let unix_bounded: u64 [0..=9223372036854775806] =
         (unix_wrapped as u64) % 9223372036854775807;
     let unix_seconds: i64 = narrow_u64_to_i64_exact(unix_bounded);
     transition is_after_epoch {
@@ -1014,7 +1013,7 @@ invokes
     let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
     let scaled: u64 = scaled_wrapped as u64;
     let subnanos_wide: u64 = scaled / frequency;
-    let now_subsecond_wide: u64 =
+    let now_subsecond_wide: u64 [0..=999999999] =
         subnanos_wide % 1000000000;
     let now_subsecond: u32 = narrow_u64_to_u32_exact(now_subsecond_wide);
     let seconds_bigger: bool = now_seconds > start.seconds;
@@ -1075,7 +1074,7 @@ blocks;
         (seconds_scaled as u64 in Wrapping)
         + (widen_u32_to_u64(subsecond_milliseconds) as u64 in Wrapping);
     let total: u64 = total_wide as u64;
-    let capped: u64 = clamp(total, 0, 4294967295);
+    let capped: u64 [0..=4294967295] = clamp(total, 0, 4294967295);
     let milliseconds: u32 = narrow_u64_to_u32_exact(capped);
     block time.host.sleep(milliseconds);
     milliseconds

@@ -82,9 +82,22 @@ crashes Trap
         let place: bool = Typer::is_place(syntax, resolution, statement.target);
         let destination: u64 in Trapping = Typer::place_type(typer, syntax, statement.target);
         transition typer.output.accepted && place {
-            true -> admit(typer, syntax, destination, statement.value)
+            true -> assigned(typer, syntax, resolution, statement, destination)
             _ -> assign_rejected(typer, syntax, statement, place)
         }
+    }
+
+    state assigned(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement, destination: u64 in Trapping) {
+        let writable: bool = Typer::writable_place(typer, syntax, resolution, statement.target);
+        transition writable {
+            true -> admit(typer, syntax, destination, statement.value)
+            _ -> immutable(typer, syntax, statement)
+        }
+    }
+
+    state immutable(typer: &mut Typer, syntax: &SyntaxTrees, statement: Statement) {
+        let target: Expression = SyntaxTrees::expression(syntax, statement.target);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::ImmutablePlace, target.source_span);
     }
 
     state assign_rejected(typer: &mut Typer, syntax: &SyntaxTrees, statement: Statement, place: bool) {

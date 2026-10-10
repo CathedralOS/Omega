@@ -145,6 +145,9 @@ pub data TypeDiagnosticCode [copy] {
     case PropositionArgumentCount;
     // A transition or match whose arms leave a value unmatched.
     case UncoveredDispatch;
+    // An assignment to a place no mutable binding or exclusive reference
+    // reaches.
+    case ImmutablePlace;
 }
 
 pub data TypeDiagnostic [copy] {

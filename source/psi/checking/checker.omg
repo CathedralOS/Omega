@@ -270,8 +270,8 @@ crashes Trap
     }
 }
 
-// One machine: gather facts to a fixed point, then check every reached
-// body, then publish its local crash routes.
+// One machine: gather facts to a fixed point, then check every body,
+// then publish its local crash routes.
 pub machine Checker::check_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping)
 crashes Trap
 {
@@ -344,7 +344,7 @@ crashes Trap
 
     state revisit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
         let offset: u64 in Trapping = Checker::dequeue(checker);
-        Checker::walk_state(checker, syntax, resolution, typing, offset, false);
+        Checker::walk_state(checker, syntax, resolution, typing, offset, true, false);
         transition { _ -> drain(checker, syntax, resolution, typing, index, item) }
     }
 
@@ -365,16 +365,11 @@ crashes Trap
         }
     }
 
+    // A state no walk reached is still checked, from its parameters'
+    // carrier ranges and its own `requires` facts alone.
     state reached(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         let arrived: bool = Checker::was_reached(checker, offset);
-        transition arrived {
-            true -> checked(checker, syntax, resolution, typing, index, item, offset)
-            _ -> check_state(checker, syntax, resolution, typing, index, item, offset + 1)
-        }
-    }
-
-    state checked(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
-        Checker::walk_state(checker, syntax, resolution, typing, offset, true);
+        Checker::walk_state(checker, syntax, resolution, typing, offset, arrived, true);
         transition { _ -> check_state(checker, syntax, resolution, typing, index, item, offset + 1) }
     }
 
@@ -419,8 +414,17 @@ crashes Trap
 }
 
 // A state's places: its parameters, in order, so its integer parameters are
-// subjects 1, 2, ... as its arrival zone numbers them, then its arrival.
-machine Checker::walk_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, checking: bool)
+// subjects 1, 2, ... as its arrival zone numbers them, then its arrival when
+// a walk reached it (`arrival`).
+machine Checker::walk_state(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    offset: u64 in Trapping,
+    arrival: bool,
+    checking: bool
+)
 crashes Trap
 {
     let state: StateItem = SyntaxTrees::state_item(syntax, checker.first_state + offset);
@@ -429,7 +433,7 @@ crashes Trap
     Checker::open_places(checker);
     Checker::enter_parameters(checker, syntax, typing, state.first_parameter, state.parameter_count);
     let numbered: bool = Checker::enter_paths(checker, typing, offset, state.first_parameter);
-    transition numbered {
+    transition numbered && arrival {
         true -> arrived(checker, syntax, resolution, typing, offset, state, checking)
         _ -> opened(checker, syntax, resolution, typing, state, checking)
     }

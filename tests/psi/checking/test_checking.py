@@ -1246,6 +1246,27 @@ def main() -> None:
         "IndexOutOfBounds",
         b"a[i]",
     )
+    # Every state is checked: one no walk reaches from its parameters' carrier
+    # ranges and its own `requires` facts.
+    rejected(
+        program,
+        "unreached-state-is-checked",
+        b"machine f(a: &[u8; 4], i: u64) -> u8 { transition { _ -> 0 } state g(a: &[u8; 4], i: u64) -> u8 { a[i] } }",
+        "IndexOutOfBounds",
+        b"a[i]",
+    )
+    accepted(
+        program,
+        "unreached-state-assumes-its-requires",
+        b"machine f(a: &[u8; 4], i: u64) -> u8 { transition { _ -> 0 } state g(a: &[u8; 4], i: u64) -> u8 requires i < 4 { a[i] } }",
+    )
+    rejected(
+        program,
+        "inclusive-slice-end-is-an-index",
+        b"machine prefix(values: &[u8]) -> u64 { let end: i64 = -1; let view: &[u8] = &values[0..=end]; view.len }",
+        "IndexOutOfBounds",
+        b"values[0..=end]",
+    )
     accepted(program, "array-literal-index-within-its-extent", b"machine f() -> u8 { let a: [u8; 4] = [1, 2, 3, 4]; a[3] }")
     rejected(
         program,

@@ -33,7 +33,7 @@ DIAGNOSTICS = (
     "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
     "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
     "SatisfierMismatch", "SilentDiscard", "DiscardsNoCall", "PropositionArgumentCount",
-    "UncoveredDispatch",
+    "UncoveredDispatch", "ImmutablePlace",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length", "binder")
 ADAPTATIONS = ("", "landed", "lent", "qualified")
@@ -993,6 +993,37 @@ def main() -> None:
         b"2!2",
     )
 
+    # An assignment writes a `let mut` local, a `mut` parameter, or a place
+    # reached through an exclusive reference.
+    accepted(
+        program,
+        "assignments-to-writable-places",
+        b"data P { x: u8; }\nmachine f(mut count: u8, p: &mut P, a: &mut [u8; 2]) -> u8 {\n"
+        b"    let mut local: P = P { x: 1 };\n    count = 2;\n    local.x = 3;\n    p.x = 4;\n    a[0] = 5;\n    count\n}",
+        ((b"count!3", "u8"),),
+    )
+    rejected(
+        program,
+        "assignment-to-immutable-local",
+        b"machine f() -> u8 { let x: u8 = 1; x = 2; x }",
+        "ImmutablePlace",
+        b"x!2",
+    )
+    rejected(
+        program,
+        "assignment-to-immutable-parameter",
+        b"machine f(input: u8) -> u8 { input = 2; input }",
+        "ImmutablePlace",
+        b"input!2",
+    )
+    rejected(
+        program,
+        "assignment-through-shared-reference",
+        b"data P { x: u8; }\nmachine f(p: &P) -> u8 { p.x = 2; 0 }",
+        "ImmutablePlace",
+        b"p.x",
+    )
+
     # A value pattern, a literal or a path or name denoting no case, meets
     # the subject's type and selects by equality, so that type compares
     # intrinsically; it covers nothing.
@@ -1277,8 +1308,8 @@ def main() -> None:
         program,
         "assignment-through-a-shared-loan",
         b"machine set(n: &u64) { n = 99; }",
-        "MismatchedTypes",
-        b"99",
+        "ImmutablePlace",
+        b"n!3",
     )
 
     # A case's own `where` fact types over its payload fields and the

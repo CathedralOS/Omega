@@ -359,8 +359,10 @@ application is a Boolean statement that selects nothing: its arguments meet
 the proposition's parameters by ordinary admission, a generic proposition's
 bound as a generic machine call's are. Each construction field and pattern
 field records the member it denotes, a common or a payload field, found by
-one search ([`typing/calls.omg`](typing/calls.omg)); an assignment to a name
-holding an exclusive loan writes its referent. A machine that `satisfies` a
+one search ([`typing/calls.omg`](typing/calls.omg)); an assignment writes a
+`let mut` local, a `mut` parameter, or a place behind an exclusive
+reference (an assignment to a name holding an exclusive loan writes its
+referent), and any other target rejects as an immutable place. A machine that `satisfies` a
 requirement must have the requirement's signature with the trait's type
 parameters replaced by the clause's arguments, and its `via` payload, a
 `terminates by` witness's subjects and `Nat::IncreasingTo`'s limit type like
@@ -421,9 +423,11 @@ the states it jumps to and its callees' `requires` facts demand, with the
 fields a `where` fact names beside a demanded one
 ([`checking/demand.omg`](checking/demand.omg)), gathered to a
 fixed point and widened when a join keeps loosening around a cycle; a state
-no jump reaches owes nothing. Each reached body is then walked once more: an
+no jump reaches arrives with its parameters' carrier ranges and its own
+`requires` facts alone. Every body is then walked once more: an
 index lies in `0..len`, a range slice's start is at most its exclusive end
-and that end at most the length (an inclusive end is a valid index), an Exact (unqualified) operation's result fits its
+and that end at most the length (an inclusive end is a valid index, not
+negative), an Exact (unqualified) operation's result fits its
 carrier, an `as` conversion's value fits its target whatever the target's
 policy (`as` never changes the denoted value), a divisor is nonzero and a
 shift count

@@ -131,6 +131,7 @@ where
     signature_return_type: u64 in Trapping;
     parameter_name_start: u64 in Trapping;
     parameter_name_end: u64 in Trapping;
+    parameter_mutable: bool;
     // Expression stacks: operands, pending operators and open brackets, with
     // the arguments and construction fields staged until their bracket closes.
     expression_operands: [u64; 64] in Trapping;

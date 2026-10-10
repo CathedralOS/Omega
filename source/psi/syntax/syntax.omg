@@ -143,6 +143,8 @@ pub data DataItem [copy] {
 pub data Parameter [copy] {
     name: IdentifierSpan;
     type_reference: u64 in Trapping;
+    // `mut name: Type`: the body may assign the parameter.
+    is_mutable: bool;
     source_span: SourceSpan;
 }
 

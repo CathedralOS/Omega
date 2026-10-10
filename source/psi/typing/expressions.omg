@@ -814,6 +814,59 @@ crashes Trap
     }
 }
 
+// Whether an assignment may write the place `index`: the write passes through
+// an exclusive reference (a `&mut` value on its path, the place itself
+// included, writes its referent), or the place's root is a `let mut` local
+// or a `mut` parameter. Any other local or parameter, a pattern binder and a
+// shared reference's referent are read-only.
+pub machine Typer::writable_place(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> step(typer, syntax, resolution, index) }
+
+    state step(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping) -> bool {
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        let handle_type: u64 in Trapping = Typing::expression_type(&typer.output, handle);
+        let row: TypeRow = TypeTable::row(&typer.output.types, handle_type);
+        let exclusive: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Mutable;
+        let projected: bool = expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
+        transition exclusive {
+            true -> answer(true)
+            _ -> inner(typer, syntax, resolution, handle, expression, projected)
+        }
+    }
+
+    state inner(typer: &Typer, syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping, expression: Expression, projected: bool) -> bool {
+        transition projected {
+            true -> step(typer, syntax, resolution, expression.left)
+            _ -> root(syntax, resolution, handle)
+        }
+    }
+
+    state root(syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping) -> bool {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
+        transition binding {
+            ValueBinding::Local { statement } -> local(syntax, statement)
+            ValueBinding::Parameter { parameter } -> parameter(syntax, parameter)
+            _ -> answer(false)
+        }
+    }
+
+    state local(syntax: &SyntaxTrees, statement: u64 in Trapping) -> bool {
+        let declaration: Statement = SyntaxTrees::statement(syntax, statement);
+        transition { _ -> answer(declaration.is_mutable) }
+    }
+
+    state parameter(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> bool {
+        let declaration: Parameter = SyntaxTrees::parameter(syntax, parameter);
+        transition { _ -> answer(declaration.is_mutable) }
+    }
+
+    state answer(writable: bool) -> bool {
+        writable
+    }
+}
+
 // Binary operators (wiki/spec/language/numeric_values.md#arithmetic-and-comparisons).
 // `&&` and `||` take Booleans. Integer comparisons relate exact values of
 // any carriers; `==` and `!=` also compare Booleans and payload-free sums of

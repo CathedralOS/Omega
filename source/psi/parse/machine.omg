@@ -713,8 +713,8 @@ crashes Trap
     state done() {}
 }
 
-// `[(name: Type, ...)]`, the parameter list of a machine, state or
-// proposition head. The range lands in `signature_first_parameter` and
+// `[([mut] name: Type, ...)]`, the parameter list of a machine, state or
+// proposition head; `mut` lets the body assign the parameter. The range lands in `signature_first_parameter` and
 // `signature_parameter_count`.
 machine Parser::parse_parameters(parser: &mut Parser, input: &TokenStream)
 crashes Trap
@@ -747,7 +747,24 @@ crashes Trap
         Parser::reject_current(parser, input, ParseDiagnosticCode::ParameterCapacityExceeded);
     }
 
+    // `mut` before a name marks the parameter mutable; a parameter named
+    // `mut` is followed by its colon.
     state parameter_name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        let marked: bool = Parser::at_word(parser, input, "mut");
+        let named: bool = Parser::next_is_punctuation(parser, input, PunctuationKind::Colon);
+        parser.parameter_mutable = marked && !named;
+        transition marked && !named {
+            true -> mutable_name(parser, input, code)
+            _ -> parameter_named(parser, input, code)
+        }
+    }
+
+    state mutable_name(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        Parser::take_current(parser, input);
+        transition { _ -> parameter_named(parser, input, code) }
+    }
+
+    state parameter_named(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::expect_name(parser, input, code);
         transition parser.output.accepted {
             true -> parameter_colon(parser, input)
@@ -786,6 +803,7 @@ crashes Trap
         parser.output.parameters[parser.output.parameter_count] = Parameter {
             name: Parser::identifier_span(parser, parser.parameter_name_start, parser.parameter_name_end),
             type_reference: parser.type_result,
+            is_mutable: parser.parameter_mutable,
             source_span: Parser::source_span(parser, parser.parameter_name_start, parser.type_end)
         };
         parser.output.parameter_count = parser.output.parameter_count + 1;

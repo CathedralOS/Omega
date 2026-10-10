@@ -22,18 +22,14 @@ use omega::language::core::option;
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, shape, and declared identity (-1 in the numeric mirror when
 // unnumbered). Recursively nested fixed arrays composed of supported primitive
-// elements are one Repeated field. The `where` bounds keep policy arithmetic
-// Exact: a field is at most 4 KiB wide and its alignment is a nonzero power of
-// two at most 16. (Schema is compiler-built and passed BY VALUE into plan() --
-// it is never zero-initialized machine state, so the 0-excluding alignment
-// bound is sound.)
-pub data SchemaField
-where
-    size <= 4096 && align >= 1 && align <= 16
-{
+// elements are one Repeated field. Ranges keep policy arithmetic Exact: a field is at most 4 KiB wide
+// and its alignment is a nonzero power of two at most 16. (Schema is
+// compiler-built and passed BY VALUE into plan() -- it is never
+// zero-initialized machine state, so the 0-excluding alignment range is sound.)
+pub data SchemaField {
     key: u64;
-    size: u64;
-    align: u64;
+    size: u64 [0..=4096];
+    align: u64 [1..=16];
     identity: Optional<u64>;
     // Transitional compatibility mirror; -1 means unnumbered. New policies
     // consume `identity`.
@@ -56,31 +52,24 @@ pub data FieldKind {
 // One reflected sum case. Stable identity is schema metadata; declaration
 // position remains the independent home-layout discriminant. Payload fields
 // have their own numbered scope and tombstones.
-pub data SchemaCase
-where
-    payload_field_count <= 32 && retired_payload_identity_count <= 32
-{
+pub data SchemaCase {
     key: u64;
     identity: Optional<u64>;
     payload_fields: [SchemaField; 32];
-    payload_field_count: u64;
+    payload_field_count: u64 [0..=32];
     retired_payload_identities: [u64; 32];
-    retired_payload_identity_count: u64;
+    retired_payload_identity_count: u64 [0..=32];
 }
 
-pub data Schema
-where
-    field_count <= 32 && retired_field_identity_count <= 32
-        && case_count <= 32 && retired_case_identity_count <= 32
-{
+pub data Schema {
     fields: [SchemaField; 32];
-    field_count: u64;
+    field_count: u64 [0..=32];
     retired_field_identities: [u64; 32];
-    retired_field_identity_count: u64;
+    retired_field_identity_count: u64 [0..=32];
     cases: [SchemaCase; 32];
-    case_count: u64;
+    case_count: u64 [0..=32];
     retired_case_identities: [u64; 32];
-    retired_case_identity_count: u64;
+    retired_case_identity_count: u64 [0..=32];
 }
 
 // One field's PLACEMENT -- the closed vocabulary the compiler knows how to
@@ -265,9 +254,9 @@ pub data AccessFieldEntry {
 
 // Fixed capacity is a bootstrap carrier only. The compiler requires exactly
 // `field_count` canonical schema decisions and ignores the zero tail.
-pub data AccessPlan where field_count <= 32 {
+pub data AccessPlan {
     entries: [AccessFieldEntry; 32];
-    field_count: u64;
+    field_count: u64 [0..=32];
 }
 
 // The inaccessible seed is the only source constructor for a fresh access
@@ -411,9 +400,9 @@ terminates by fuel;
 
 // A normalized static set of boundary-service keys. Suspension and blocking
 // are independent contract axes and never enter this record.
-pub data BoundaryReach where service_count <= 32 {
+pub data BoundaryReach {
     services: [u64; 32];
-    service_count: u64;
+    service_count: u64 [0..=32];
 }
 
 pub data PlacementPlan {
@@ -440,9 +429,9 @@ pub data ExternalReadBehavior {
     case Destructive;
 }
 
-pub data TransferRules where rule_count <= 16 {
+pub data TransferRules {
     entries: [TransferRule; 16];
-    rule_count: u64;
+    rule_count: u64 [0..=16];
 }
 
 pub data ExternalCapability {
@@ -459,9 +448,9 @@ pub data AtomicTransferRule {
     operations: AtomicOperations;
 }
 
-pub data AtomicTransferRules where rule_count <= 16 {
+pub data AtomicTransferRules {
     entries: [AtomicTransferRule; 16];
-    rule_count: u64;
+    rule_count: u64 [0..=16];
 }
 
 pub data AtomicCapability {
@@ -477,9 +466,9 @@ pub data ResourceRegion {
     reach: BoundaryReach;
 }
 
-pub data ResourceProfile where region_count <= 32 {
+pub data ResourceProfile {
     regions: [ResourceRegion; 32];
-    region_count: u64;
+    region_count: u64 [0..=32];
 }
 
 // Settled placement identity and recovery vocabulary. `Placed<P, T>` is an

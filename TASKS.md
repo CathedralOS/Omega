@@ -6128,7 +6128,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   intrinsically comparable subject, and checking values a constant at its
   landed literal. A fixed-array literal joins its elements into one type,
   its extent its element count, and unlanded elements land level by level
-  at a destination of the literal's shape. A machine binder's
+  at a destination of the literal's shape. An assignment writes a `let mut`
+  local, a `mut` parameter or a place behind an exclusive reference, and
+  checking walks every state, an unreached one from its own `requires`
+  facts. A machine binder's
   call is typed through its contract, and a generic call's static machine
   arguments bind its machine binders, each argument's signature refining its
   contract under the call's bindings and binding the callee's other generic

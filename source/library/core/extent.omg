@@ -26,11 +26,15 @@ pub data Extent [linear] {
 pub domain Extent::Vacant;
 pub domain<P, T> Extent::Resident<P, T>;
 
-// Geometry is a transparent mathematical predicate. The endpoint lives in
-// unbounded proof Int, so a one-past endpoint may equal the exclusive bound
-// without becoming an address or narrowing the independent u64 count.
-pub let no_wrap(base: addr, length: u64): core::Strict<0> =
-    embed(base) + embed(length) <= addr::Bound;
+// TRANSITIONAL bootstrap spelling. This is a proof proposition, not a callable
+// boundary machine. Once the sealed target capsule exposes `addr::Bound`, write:
+//
+// pub proposition no_wrap(base: addr, length: u64) =
+//     embed(base) + embed(length) <= addr::Bound;
+//
+// The formula imports the embeddings' derived nonnegative/range facts. It is
+// never wrapping `addr` arithmetic and has no executable call surface.
+pub boundary machine no_wrap(base: addr, length: u64) -> bool;
 
 // `Granted` is authority evidence, not a structural invariant. Constructing
 // the geometry above does not establish it; checked transformations must
