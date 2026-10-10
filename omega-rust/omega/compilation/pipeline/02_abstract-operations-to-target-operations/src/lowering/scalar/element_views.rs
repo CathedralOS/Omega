@@ -421,7 +421,12 @@ pub(in crate::lowering) fn resolve_element_view(
     place: PlaceId,
     active: &mut Vec<PlaceId>,
 ) -> Result<(TargetElementView, StructuralTypeId, StructuralAccess), LoweringError> {
-    let invalid = || super::descriptor_operands::refusal(function, &(place, backings.homes.get(&place), values, lengths));
+    let invalid = || {
+        super::descriptor_operands::refusal(
+            function,
+            &(place, backings.homes.get(&place), values, lengths),
+        )
+    };
     if active.contains(&place) {
         return Err(invalid());
     }

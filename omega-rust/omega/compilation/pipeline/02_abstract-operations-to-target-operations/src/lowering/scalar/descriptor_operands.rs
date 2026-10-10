@@ -146,8 +146,12 @@ pub(in crate::lowering) fn refusal(
 ) -> LoweringError {
     if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
         let site = std::panic::Location::caller();
-        eprintln!("descriptor lowering refusal {:?} at {}:{}: {context:?}",
-            function.machine, site.file(), site.line());
+        eprintln!(
+            "descriptor lowering refusal {:?} at {}:{}: {context:?}",
+            function.machine,
+            site.file(),
+            site.line()
+        );
     }
     LoweringError::UnsupportedOperationInScalarFunction(function.machine)
 }
