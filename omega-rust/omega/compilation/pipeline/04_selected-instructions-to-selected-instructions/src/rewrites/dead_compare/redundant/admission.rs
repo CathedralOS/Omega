@@ -33,26 +33,15 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use register_model::RegisterUnitId;
-use selected_instructions::{
-    SelectedBlockId, SelectedFunction, SelectedInstructionId, VirtualRegisterId,
-};
+use selected_instructions::{SelectedInstructionId, VirtualRegisterId};
 
-use super::super::super::shifted_boundary_settlements;
-use super::super::DeadCompareError;
-use super::super::admission::{audit_stable_paths, canonical_compare_operands};
+use super::super::admission::{Admission, audit_stable_paths, canonical_compare_operands};
 use super::RedundantCompareError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::member_position;
 use crate::rewrites::condition_state::{
     adjacency, backward_cone, entry_index, instruction_at, reaching_events,
 };
-
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
-    pub block_index: usize,
-    pub block: SelectedBlockId,
-    pub compare_index: usize,
-}
 
 pub(super) fn admit<'source>(
     source: &'source impl ValidatedSelectedAnalysis,
@@ -186,34 +175,4 @@ pub(super) fn admit<'source>(
         block: block.id,
         compare_index,
     })
-}
-
-/// The one-function transformation shared by proposal and replay: remove
-/// the compare and shift boundary settlements over the removed ordinal —
-/// the same remap the dead family applies. Both sides compute it from the
-/// source, never from each other.
-pub(super) fn apply(
-    admitted: &Admission<'_>,
-    function: &mut SelectedFunction,
-) -> Result<(), RedundantCompareError> {
-    let block = function
-        .blocks
-        .get_mut(admitted.block_index)
-        .ok_or(RedundantCompareError::SourceMismatch)?;
-    if block.id != admitted.block {
-        return Err(RedundantCompareError::SourceMismatch);
-    }
-    function.boundary_settlements = shifted_boundary_settlements(
-        admitted.function,
-        admitted.block,
-        admitted.compare_index,
-        || DeadCompareError::SourceMismatch,
-        || DeadCompareError::IdentityOverflow,
-    )
-    .map_err(|error| match error {
-        DeadCompareError::IdentityOverflow => RedundantCompareError::IdentityOverflow,
-        _ => RedundantCompareError::SourceMismatch,
-    })?;
-    block.instructions.remove(admitted.compare_index);
-    Ok(())
 }

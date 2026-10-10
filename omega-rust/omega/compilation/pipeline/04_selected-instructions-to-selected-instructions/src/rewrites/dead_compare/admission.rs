@@ -319,16 +319,17 @@ pub(super) fn admit<'source>(
     })
 }
 
-pub(super) fn apply(
+pub(super) fn apply<E>(
     admitted: &Admission<'_>,
     function: &mut SelectedFunction,
-) -> Result<(), DeadCompareError> {
+    map_error: impl Fn(DeadCompareError) -> E,
+) -> Result<(), E> {
     let block = function
         .blocks
         .get_mut(admitted.block_index)
-        .ok_or(DeadCompareError::SourceMismatch)?;
+        .ok_or_else(|| map_error(DeadCompareError::SourceMismatch))?;
     if block.id != admitted.block {
-        return Err(DeadCompareError::SourceMismatch);
+        return Err(map_error(DeadCompareError::SourceMismatch));
     }
     function.boundary_settlements = super::super::shifted_boundary_settlements(
         admitted.function,
@@ -336,7 +337,8 @@ pub(super) fn apply(
         admitted.compare_index,
         || DeadCompareError::SourceMismatch,
         || DeadCompareError::IdentityOverflow,
-    )?;
+    )
+    .map_err(map_error)?;
     block.instructions.remove(admitted.compare_index);
     Ok(())
 }

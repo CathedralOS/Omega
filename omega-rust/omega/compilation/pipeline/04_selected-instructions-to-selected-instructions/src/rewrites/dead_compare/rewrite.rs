@@ -19,6 +19,10 @@ pub(crate) fn remove_dead_compare(
 ) -> Result<ValidatedDeadCompare, DeadCompareError> {
     let admitted = admission::admit(source, function_index, compare, environment, budget)?;
     let mut transformed = source.selected_plan().clone();
-    admission::apply(&admitted, &mut transformed.functions[function_index])?;
+    admission::apply(
+        &admitted,
+        &mut transformed.functions[function_index],
+        |error| error,
+    )?;
     super::validation::seal_dead_compare(source, function_index, compare, transformed)
 }

@@ -22,12 +22,11 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use register_model::RegisterUnitId;
 use selected_instructions::{
-    SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, VirtualRegisterId,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    VirtualRegisterId,
 };
 
-use super::super::DeadCompareError;
-use super::super::admission::{audit_stable_paths, canonical_compare_operands};
+use super::super::admission::{Admission, audit_stable_paths, canonical_compare_operands};
 use super::EquivalentCompareError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::condition_state::{
@@ -35,14 +34,6 @@ use crate::rewrites::condition_state::{
     reaching_events,
 };
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
-    pub block_index: usize,
-    pub block: SelectedBlockId,
-    pub compare_index: usize,
-}
-
-use super::super::super::shifted_boundary_settlements;
 /// The semantic right side a canonical compare subtracts: the second
 /// register operand for `CompareI64`, or the literal the form encodes —
 /// `CompareI64Zero` reads as `left - 0`.
@@ -264,34 +255,4 @@ pub(super) fn admit<'source>(
         block: block.id,
         compare_index,
     })
-}
-
-/// The one-function transformation shared by proposal and replay: remove
-/// the compare and shift boundary settlements over the removed ordinal —
-/// the same remap the dead family applies. Both sides compute it from the
-/// source, never from each other.
-pub(super) fn apply(
-    admitted: &Admission<'_>,
-    function: &mut SelectedFunction,
-) -> Result<(), EquivalentCompareError> {
-    let block = function
-        .blocks
-        .get_mut(admitted.block_index)
-        .ok_or(EquivalentCompareError::SourceMismatch)?;
-    if block.id != admitted.block {
-        return Err(EquivalentCompareError::SourceMismatch);
-    }
-    function.boundary_settlements = shifted_boundary_settlements(
-        admitted.function,
-        admitted.block,
-        admitted.compare_index,
-        || DeadCompareError::SourceMismatch,
-        || DeadCompareError::IdentityOverflow,
-    )
-    .map_err(|error| match error {
-        DeadCompareError::IdentityOverflow => EquivalentCompareError::IdentityOverflow,
-        _ => EquivalentCompareError::SourceMismatch,
-    })?;
-    block.instructions.remove(admitted.compare_index);
-    Ok(())
 }

@@ -2,6 +2,7 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedInstructionId;
 
+use super::super::DeadCompareError;
 use super::{EquivalentCompareError, ValidatedEquivalentCompare, admission};
 use crate::ValidatedSelectedAnalysis;
 
@@ -20,6 +21,13 @@ pub(crate) fn remove_equivalent_compare(
 ) -> Result<ValidatedEquivalentCompare, EquivalentCompareError> {
     let admitted = admission::admit(source, function_index, compare, environment, budget)?;
     let mut transformed = source.selected_plan().clone();
-    admission::apply(&admitted, &mut transformed.functions[function_index])?;
+    super::super::admission::apply(
+        &admitted,
+        &mut transformed.functions[function_index],
+        |error| match error {
+            DeadCompareError::IdentityOverflow => EquivalentCompareError::IdentityOverflow,
+            _ => EquivalentCompareError::SourceMismatch,
+        },
+    )?;
     super::validation::seal_equivalent_compare(source, function_index, compare, transformed)
 }
