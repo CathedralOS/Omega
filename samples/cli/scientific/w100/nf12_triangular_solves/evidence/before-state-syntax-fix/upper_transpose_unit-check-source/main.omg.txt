@@ -1,0 +1,225 @@
+// NF12 independent fixed-shape scientific customer. The rank-two descriptor
+// integration awaits NF01; these private three-row machines do not define it.
+use omega::language::core::float_operations;
+use omega::language::core::binding;
+use omega_language_std::console;
+use triangular_solves;
+
+machine near(actual: f64, expected: f64) -> bool {
+    abs(actual - expected) <= 0.000000000001
+}
+
+data Main {
+    console: Binding<Console>;
+    matrix: [f64; 9];
+    rhs: [f64; 6];
+}
+machine transposed_upper_three(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+requires offset <= 3 {
+    transition matrix[0] == 0.0 || matrix[4] == 0.0 || matrix[8] == 0.0 {
+        true -> rejected()
+        false -> row0(matrix, rhs, offset)
+    }
+    state rejected() -> bool { false }
+    state row0(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+    requires offset <= 3 {
+        transition triangular_try_pivot(rhs[offset + 0], matrix[0], false) {
+            TriangularPivotResult::Solved { value } -> store0(matrix, rhs, offset, value)
+            TriangularPivotResult::ZeroPivot -> rejected_pivot()
+        }
+    }
+    state store0(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64, value: f64) -> bool
+    requires offset <= 3 {
+        rhs[offset + 0] = value;
+        transition { _ -> row1(matrix, rhs, offset) }
+    }
+    state row1(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+    requires offset <= 3 {
+        transition triangular_try_pivot(rhs[offset + 1] - matrix[3] * rhs[offset + 0], matrix[4], false) {
+            TriangularPivotResult::Solved { value } -> store1(matrix, rhs, offset, value)
+            TriangularPivotResult::ZeroPivot -> rejected_pivot()
+        }
+    }
+    state store1(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64, value: f64) -> bool
+    requires offset <= 3 {
+        rhs[offset + 1] = value;
+        transition { _ -> row2(matrix, rhs, offset) }
+    }
+    state row2(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+    requires offset <= 3 {
+        transition triangular_try_pivot(rhs[offset + 2] - matrix[6] * rhs[offset + 0] - matrix[7] * rhs[offset + 1], matrix[8], false) {
+            TriangularPivotResult::Solved { value } -> store2(matrix, rhs, offset, value)
+            TriangularPivotResult::ZeroPivot -> rejected_pivot()
+        }
+    }
+    state store2(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64, value: f64) -> bool
+    requires offset <= 3 {
+        rhs[offset + 2] = value;
+        transition { _ -> (true) }
+    }
+    state rejected_pivot() -> bool { false }
+}
+machine upper_three(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+requires offset <= 3 {
+    transition matrix[0] == 0.0 || matrix[4] == 0.0 || matrix[8] == 0.0 {
+        true -> rejected()
+        false -> row0(matrix, rhs, offset)
+    }
+    state rejected() -> bool { false }
+    state row0(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+    requires offset <= 3 {
+        transition triangular_try_pivot(rhs[offset + 2], matrix[8], false) {
+            TriangularPivotResult::Solved { value } -> store0(matrix, rhs, offset, value)
+            TriangularPivotResult::ZeroPivot -> rejected_pivot()
+        }
+    }
+    state store0(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64, value: f64) -> bool
+    requires offset <= 3 {
+        rhs[offset + 2] = value;
+        transition { _ -> row1(matrix, rhs, offset) }
+    }
+    state row1(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+    requires offset <= 3 {
+        transition triangular_try_pivot(rhs[offset + 1] - matrix[7] * rhs[offset + 2], matrix[4], false) {
+            TriangularPivotResult::Solved { value } -> store1(matrix, rhs, offset, value)
+            TriangularPivotResult::ZeroPivot -> rejected_pivot()
+        }
+    }
+    state store1(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64, value: f64) -> bool
+    requires offset <= 3 {
+        rhs[offset + 1] = value;
+        transition { _ -> row2(matrix, rhs, offset) }
+    }
+    state row2(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+    requires offset <= 3 {
+        transition triangular_try_pivot(rhs[offset + 0] - matrix[6] * rhs[offset + 2] - matrix[3] * rhs[offset + 1], matrix[0], false) {
+            TriangularPivotResult::Solved { value } -> store2(matrix, rhs, offset, value)
+            TriangularPivotResult::ZeroPivot -> rejected_pivot()
+        }
+    }
+    state store2(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64, value: f64) -> bool
+    requires offset <= 3 {
+        rhs[offset + 0] = value;
+        transition { _ -> (true) }
+    }
+    state rejected_pivot() -> bool { false }
+}
+machine unit_upper_three(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+requires offset <= 3 {
+    transition { _ -> row0(matrix, rhs, offset) }
+    state row0(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+    requires offset <= 3 {
+        transition triangular_try_pivot(rhs[offset + 2], matrix[8], true) {
+            TriangularPivotResult::Solved { value } -> store0(matrix, rhs, offset, value)
+            TriangularPivotResult::ZeroPivot -> rejected_pivot()
+        }
+    }
+    state store0(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64, value: f64) -> bool
+    requires offset <= 3 {
+        rhs[offset + 2] = value;
+        transition { _ -> row1(matrix, rhs, offset) }
+    }
+    state row1(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+    requires offset <= 3 {
+        transition triangular_try_pivot(rhs[offset + 1] - matrix[7] * rhs[offset + 2], matrix[4], true) {
+            TriangularPivotResult::Solved { value } -> store1(matrix, rhs, offset, value)
+            TriangularPivotResult::ZeroPivot -> rejected_pivot()
+        }
+    }
+    state store1(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64, value: f64) -> bool
+    requires offset <= 3 {
+        rhs[offset + 1] = value;
+        transition { _ -> row2(matrix, rhs, offset) }
+    }
+    state row2(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64) -> bool
+    requires offset <= 3 {
+        transition triangular_try_pivot(rhs[offset + 0] - matrix[6] * rhs[offset + 2] - matrix[3] * rhs[offset + 1], matrix[0], true) {
+            TriangularPivotResult::Solved { value } -> store2(matrix, rhs, offset, value)
+            TriangularPivotResult::ZeroPivot -> rejected_pivot()
+        }
+    }
+    state store2(matrix: &[f64; 9], rhs: &mut [f64; 6], offset: u64, value: f64) -> bool
+    requires offset <= 3 {
+        rhs[offset + 0] = value;
+        transition { _ -> (true) }
+    }
+    state rejected_pivot() -> bool { false }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.matrix[0] = 2.0;
+    main.matrix[1] = 0.0;
+    main.matrix[2] = 0.0;
+    main.matrix[3] = (0.0 - 1.0);
+    main.matrix[4] = 4.0;
+    main.matrix[5] = 0.0;
+    main.matrix[6] = 3.0;
+    main.matrix[7] = 2.0;
+    main.matrix[8] = (0.0 - 2.0);
+    main.rhs[0] = 4.0;
+    main.rhs[1] = 2.0;
+    main.rhs[2] = 14.0;
+    main.rhs[3] = (0.0 - 2.0);
+    main.rhs[4] = 13.0;
+    main.rhs[5] = (0.0 - 1.0);
+    let first: bool = transposed_upper_three(&main.matrix, &mut main.rhs, 0);
+    let second: bool = transposed_upper_three(&main.matrix, &mut main.rhs, 3);
+    transition first
+        && second
+        && near(main.rhs[0], 2.0)
+        && near(main.rhs[1], 1.0)
+        && near(main.rhs[2], (0.0 - 3.0))
+        && near(main.rhs[3], (0.0 - 1.0))
+        && near(main.rhs[4], 3.0)
+        && near(main.rhs[5], 2.0)
+        && near(main.matrix[0] * main.rhs[0], 4.0)
+        && near(main.matrix[3] * main.rhs[0] + main.matrix[4] * main.rhs[1], 2.0)
+        && near(main.matrix[6] * main.rhs[0] + main.matrix[7] * main.rhs[1] + main.matrix[8] * main.rhs[2], 14.0)
+        && near(main.matrix[0] * main.rhs[3], (0.0 - 2.0))
+        && near(main.matrix[3] * main.rhs[3] + main.matrix[4] * main.rhs[4], 13.0)
+        && near(main.matrix[6] * main.rhs[3] + main.matrix[7] * main.rhs[4] + main.matrix[8] * main.rhs[5], (0.0 - 1.0)) {
+        true -> backward(main)
+        false -> bad(main)
+    }
+    state backward(main: &mut Main) reaches Console {
+        main.rhs[0] = (0.0 - 6.0);
+        main.rhs[1] = (0.0 - 2.0);
+        main.rhs[2] = 6.0;
+        main.rhs[3] = 1.0;
+        main.rhs[4] = 16.0;
+        main.rhs[5] = (0.0 - 4.0);
+        let first: bool = upper_three(&main.matrix, &mut main.rhs, 0);
+        let second: bool = upper_three(&main.matrix, &mut main.rhs, 3);
+        transition first && second && near(main.rhs[0], 2.0) && near(main.rhs[1], 1.0) && near(main.rhs[2], (0.0 - 3.0)) && near(main.rhs[3], (0.0 - 1.0)) && near(main.rhs[4], 3.0) && near(main.rhs[5], 2.0) { true -> unit(main) false -> bad(main) }
+    }
+    state unit(main: &mut Main) reaches Console {
+        main.matrix[0] = 0.0;
+        main.matrix[1] = 0.0;
+        main.matrix[2] = 0.0;
+        main.matrix[3] = (0.0 - 1.0);
+        main.matrix[4] = 0.0;
+        main.matrix[5] = 0.0;
+        main.matrix[6] = 3.0;
+        main.matrix[7] = 2.0;
+        main.matrix[8] = 0.0;
+        main.rhs[0] = (0.0 - 8.0);
+        main.rhs[1] = (0.0 - 5.0);
+        main.rhs[2] = (0.0 - 3.0);
+        let solved: bool = unit_upper_three(&main.matrix, &mut main.rhs, 0);
+        transition solved && near(main.rhs[0], 2.0) && near(main.rhs[1], 1.0) && near(main.rhs[2], (0.0 - 3.0)) { true -> negative_zero(main) false -> bad(main) }
+    }
+    state negative_zero(main: &mut Main) reaches Console {
+        transition triangular_try_pivot(1.0, F64::negate(0.0), false) {
+            TriangularPivotResult::ZeroPivot -> good(main)
+            _ -> bad(main)
+        }
+    }
+    state good(main: &mut Main) reaches Console {
+        main.console.write_line("PASS nf12 upper: transpose and backward two RHS, unit zero diagonal, negative zero status");
+        main.console.exit_process(0);
+    }
+    state bad(main: &mut Main) reaches Console {
+        main.console.write_line("FAIL nf12 upper");
+        main.console.exit_process(1);
+    }
+}

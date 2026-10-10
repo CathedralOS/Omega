@@ -1,0 +1,1 @@
+error: /tmp/nf12-core-check/upper_transpose_unit/main.omg:182:37: expected `{`, found identifier `crashes`

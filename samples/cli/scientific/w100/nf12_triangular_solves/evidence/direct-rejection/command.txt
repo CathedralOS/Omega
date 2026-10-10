@@ -1,0 +1,6 @@
+cwd: /workspace/Omega/.codex/worktrees/nf12
+environment: source /workspace/cloud-setup/activate.sh
+command: timeout 120 /workspace/Omega/target/debug/omega --check /tmp/nf12-unproved-pivot/main.omg
+exit: 1
+classification: intended source precondition rejection
+The same authored invalid main and library source were copied unchanged into a directory without build.omg. This establishes direct source rejection only; the complete project route remains custody-blocked.

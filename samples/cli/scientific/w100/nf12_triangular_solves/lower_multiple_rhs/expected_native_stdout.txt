@@ -1,0 +1,1 @@
+PASS nf12 lower: two RHS, residuals, late zero leaves RHS unchanged

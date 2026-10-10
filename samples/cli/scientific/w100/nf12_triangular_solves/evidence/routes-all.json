@@ -1,0 +1,151 @@
+[
+  {
+    "project": "lower_multiple_rhs",
+    "route": "check",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/debug/omega",
+      "--check",
+      "/workspace/Omega/.codex/worktrees/nf12/samples/cli/scientific/w100/nf12_triangular_solves/.prepared/lower_multiple_rhs/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf12",
+    "revision": "1b12ff26a2ec2c8602e8c533ea0c114543c07a23",
+    "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "elapsed_seconds": 0.008,
+    "exit_code": 1,
+    "timed_out": false,
+    "classification": "environment-cache-custody-refusal",
+    "source_sha256": {
+      "main.omg": "814fe21ef0c24263bd7f9494414f9ec169f6cc0592554d01152476c4eb534f82",
+      "build.omg": "a26cf34187fa27b614a9ee4879ed083d78aae7c94fda431cd6be0135932376c4",
+      "triangular_solves.omg": "4edd720748ed742b70a25a7d3049e9c7d8f94bcec17ab0579e57fa3bc4943a60"
+    }
+  },
+  {
+    "project": "lower_multiple_rhs",
+    "route": "native",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/debug/omega",
+      "run",
+      "/workspace/Omega/.codex/worktrees/nf12/samples/cli/scientific/w100/nf12_triangular_solves/.prepared/lower_multiple_rhs/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf12",
+    "revision": "1b12ff26a2ec2c8602e8c533ea0c114543c07a23",
+    "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "elapsed_seconds": 0.005,
+    "exit_code": 200,
+    "timed_out": false,
+    "classification": "environment-cache-custody-refusal",
+    "source_sha256": {
+      "main.omg": "814fe21ef0c24263bd7f9494414f9ec169f6cc0592554d01152476c4eb534f82",
+      "build.omg": "a26cf34187fa27b614a9ee4879ed083d78aae7c94fda431cd6be0135932376c4",
+      "triangular_solves.omg": "4edd720748ed742b70a25a7d3049e9c7d8f94bcec17ab0579e57fa3bc4943a60"
+    }
+  },
+  {
+    "project": "lower_multiple_rhs",
+    "route": "terminal",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/debug/omega",
+      "run",
+      "--both",
+      "/workspace/Omega/.codex/worktrees/nf12/samples/cli/scientific/w100/nf12_triangular_solves/.prepared/lower_multiple_rhs/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf12",
+    "revision": "1b12ff26a2ec2c8602e8c533ea0c114543c07a23",
+    "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "elapsed_seconds": 0.02,
+    "exit_code": 200,
+    "timed_out": false,
+    "classification": "environment-cache-custody-refusal",
+    "source_sha256": {
+      "main.omg": "814fe21ef0c24263bd7f9494414f9ec169f6cc0592554d01152476c4eb534f82",
+      "build.omg": "a26cf34187fa27b614a9ee4879ed083d78aae7c94fda431cd6be0135932376c4",
+      "triangular_solves.omg": "4edd720748ed742b70a25a7d3049e9c7d8f94bcec17ab0579e57fa3bc4943a60"
+    }
+  },
+  {
+    "project": "upper_transpose_unit",
+    "route": "check",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/debug/omega",
+      "--check",
+      "/workspace/Omega/.codex/worktrees/nf12/samples/cli/scientific/w100/nf12_triangular_solves/.prepared/upper_transpose_unit/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf12",
+    "revision": "1b12ff26a2ec2c8602e8c533ea0c114543c07a23",
+    "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "elapsed_seconds": 0.004,
+    "exit_code": 1,
+    "timed_out": false,
+    "classification": "environment-cache-custody-refusal",
+    "source_sha256": {
+      "main.omg": "86ca5aed7160c7d73bbf70064bec8aef44d4b1d5b6a892ff777b10ef273b5b08",
+      "build.omg": "471730703d22c87166cdcdf80a1b6fbca4421321b89a2b4fa7522f68106f385f",
+      "triangular_solves.omg": "4edd720748ed742b70a25a7d3049e9c7d8f94bcec17ab0579e57fa3bc4943a60"
+    }
+  },
+  {
+    "project": "upper_transpose_unit",
+    "route": "native",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/debug/omega",
+      "run",
+      "/workspace/Omega/.codex/worktrees/nf12/samples/cli/scientific/w100/nf12_triangular_solves/.prepared/upper_transpose_unit/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf12",
+    "revision": "1b12ff26a2ec2c8602e8c533ea0c114543c07a23",
+    "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "elapsed_seconds": 0.014,
+    "exit_code": 200,
+    "timed_out": false,
+    "classification": "environment-cache-custody-refusal",
+    "source_sha256": {
+      "main.omg": "86ca5aed7160c7d73bbf70064bec8aef44d4b1d5b6a892ff777b10ef273b5b08",
+      "build.omg": "471730703d22c87166cdcdf80a1b6fbca4421321b89a2b4fa7522f68106f385f",
+      "triangular_solves.omg": "4edd720748ed742b70a25a7d3049e9c7d8f94bcec17ab0579e57fa3bc4943a60"
+    }
+  },
+  {
+    "project": "upper_transpose_unit",
+    "route": "terminal",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/debug/omega",
+      "run",
+      "--both",
+      "/workspace/Omega/.codex/worktrees/nf12/samples/cli/scientific/w100/nf12_triangular_solves/.prepared/upper_transpose_unit/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf12",
+    "revision": "1b12ff26a2ec2c8602e8c533ea0c114543c07a23",
+    "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "elapsed_seconds": 0.008,
+    "exit_code": 200,
+    "timed_out": false,
+    "classification": "environment-cache-custody-refusal",
+    "source_sha256": {
+      "main.omg": "86ca5aed7160c7d73bbf70064bec8aef44d4b1d5b6a892ff777b10ef273b5b08",
+      "build.omg": "471730703d22c87166cdcdf80a1b6fbca4421321b89a2b4fa7522f68106f385f",
+      "triangular_solves.omg": "4edd720748ed742b70a25a7d3049e9c7d8f94bcec17ab0579e57fa3bc4943a60"
+    }
+  },
+  {
+    "project": "invalid_unproved_pivot",
+    "route": "rejection",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/debug/omega",
+      "--check",
+      "/workspace/Omega/.codex/worktrees/nf12/samples/cli/scientific/w100/nf12_triangular_solves/.prepared/invalid_unproved_pivot/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf12",
+    "revision": "1b12ff26a2ec2c8602e8c533ea0c114543c07a23",
+    "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "elapsed_seconds": 0.005,
+    "exit_code": 1,
+    "timed_out": false,
+    "classification": "environment-cache-custody-refusal",
+    "source_sha256": {
+      "main.omg": "ba8ff17d8838ccba76547d8840996b060498b8c5f69f09bef9a8bced75b7d412",
+      "build.omg": "5e9347de60d722fbcbdd08d6d539be79cf5ed392eb768a34bbaf3bc24e826900",
+      "triangular_solves.omg": "4edd720748ed742b70a25a7d3049e9c7d8f94bcec17ab0579e57fa3bc4943a60"
+    }
+  }
+]

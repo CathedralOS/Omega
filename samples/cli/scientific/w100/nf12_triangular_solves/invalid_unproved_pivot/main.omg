@@ -1,0 +1,8 @@
+// Intended rejection: checked division requires a proven nonzero pivot.
+// This control is separate from the valid runtime ZeroPivot status fixtures.
+use omega::language::core::float_operations;
+use triangular_solves;
+
+machine main() -> f64 {
+    triangular_checked_pivot(1.0, 0.0)
+}

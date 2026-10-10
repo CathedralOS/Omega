@@ -1,0 +1,1 @@
+compiled 26 source file(s) from /tmp/nf12-core-final-upper/main.omg; wrote_output=false

@@ -1,0 +1,44 @@
+[
+  {
+    "project": "lower_multiple_rhs",
+    "route": "native",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/debug/omega",
+      "run",
+      "/workspace/Omega/.codex/worktrees/nf12/samples/cli/scientific/w100/nf12_triangular_solves/.prepared/lower_multiple_rhs/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf12",
+    "revision": "26c92c17b8f4b21f39e14a5be57c85cfdec601de",
+    "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "elapsed_seconds": 0.008,
+    "exit_code": 200,
+    "timed_out": false,
+    "classification": "environment-cache-custody-refusal",
+    "source_sha256": {
+      "main.omg": "c3405eed790b3cc8fd320862a140565d46a721cb7434db43fbbf4249a11d85ce",
+      "build.omg": "a26cf34187fa27b614a9ee4879ed083d78aae7c94fda431cd6be0135932376c4",
+      "triangular_solves.omg": "4edd720748ed742b70a25a7d3049e9c7d8f94bcec17ab0579e57fa3bc4943a60"
+    }
+  },
+  {
+    "project": "upper_transpose_unit",
+    "route": "native",
+    "command": [
+      "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/debug/omega",
+      "run",
+      "/workspace/Omega/.codex/worktrees/nf12/samples/cli/scientific/w100/nf12_triangular_solves/.prepared/upper_transpose_unit/main.omg"
+    ],
+    "cwd": "/workspace/Omega/.codex/worktrees/nf12",
+    "revision": "26c92c17b8f4b21f39e14a5be57c85cfdec601de",
+    "host": "Linux-6.18.44-x86_64-with-glibc2.41",
+    "elapsed_seconds": 0.005,
+    "exit_code": 200,
+    "timed_out": false,
+    "classification": "environment-cache-custody-refusal",
+    "source_sha256": {
+      "main.omg": "a68d170924aca1b107392019a0277677fc51942274a1bc868d77c7f05e0ab485",
+      "build.omg": "471730703d22c87166cdcdf80a1b6fbca4421321b89a2b4fa7522f68106f385f",
+      "triangular_solves.omg": "4edd720748ed742b70a25a7d3049e9c7d8f94bcec17ab0579e57fa3bc4943a60"
+    }
+  }
+]

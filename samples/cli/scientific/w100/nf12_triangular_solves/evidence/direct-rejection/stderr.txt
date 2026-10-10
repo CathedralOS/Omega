@@ -1,0 +1,1 @@
+error: cannot prove requires contract for call triangular_checked_pivot from main: 0.0 != 0.0 (needs fact `diagonal != 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)

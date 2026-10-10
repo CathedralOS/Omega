@@ -1,0 +1,6 @@
+cwd: /workspace/Omega/.codex/worktrees/nf12
+environment: source /workspace/cloud-setup/activate.sh
+command: timeout 120 /workspace/Omega/target/debug/omega --check /tmp/nf12-core-final-upper/main.omg
+exit: 0
+classification: final upper source-only companion checked; NOT complete hosted sample check
+Transformation: remove Console imports and Binding field; remove console output and successful exit; replace failed exit with crash Trap; machine main declares crashes Trap. Numerical substitution code and assertions are preserved. Unit diagonal passes a literal placeholder rather than reading stored diagonal cells.

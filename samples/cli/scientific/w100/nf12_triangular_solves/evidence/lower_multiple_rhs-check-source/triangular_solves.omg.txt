@@ -1,0 +1,39 @@
+// NF12's descriptor-independent pivot operation. Forward/back substitution
+// uses the same operation after forming rhs minus the already-solved terms.
+// Unit diagonal returns that residual without reading or dividing by a pivot.
+// Zero (including negative zero) returns a status before the division state.
+// The rank-two entrypoint awaits NF01 descriptors and NF02 accuracy policy;
+// this file deliberately does not define either shared responsibility.
+use omega::language::core::float_operations;
+
+pub data TriangularPivotResult {
+    case Solved(value: f64);
+    case ZeroPivot;
+}
+
+pub machine triangular_try_pivot(residual: f64, diagonal: f64, unit_diagonal: bool) -> TriangularPivotResult {
+    transition unit_diagonal {
+        true -> unit(residual)
+        false -> inspect(residual, diagonal)
+    }
+    state unit(residual: f64) -> TriangularPivotResult {
+        TriangularPivotResult::Solved { value: residual }
+    }
+    state inspect(residual: f64, diagonal: f64) -> TriangularPivotResult {
+        transition diagonal == 0.0 {
+            true -> singular()
+            false -> divide(residual, diagonal)
+        }
+    }
+    state singular() -> TriangularPivotResult { TriangularPivotResult::ZeroPivot }
+    state divide(residual: f64, diagonal: f64) -> TriangularPivotResult {
+        TriangularPivotResult::Solved { value: residual / diagonal }
+    }
+}
+
+// The checked route makes the pivot obligation visible at the call boundary.
+// Callers unable to prove it must use triangular_try_pivot and match its status.
+pub machine triangular_checked_pivot(residual: f64, diagonal: f64) -> f64
+requires diagonal != 0.0 {
+    residual / diagonal
+}

@@ -1,0 +1,1 @@
+PASS nf12 upper: transpose and backward two RHS, unit zero diagonal, negative zero status

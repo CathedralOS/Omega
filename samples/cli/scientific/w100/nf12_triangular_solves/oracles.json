@@ -1,0 +1,240 @@
+{
+  "format": "nf12-frozen-oracles-v1",
+  "order": 3,
+  "layout": "column-major",
+  "solution_absolute_tolerance": 1e-12,
+  "residual_absolute_tolerance": 1e-12,
+  "relative_tolerance": 0,
+  "fixtures": [
+    {
+      "name": "lower_multiple_rhs",
+      "triangle": "lower",
+      "transpose": false,
+      "unit": false,
+      "matrix": [
+        2,
+        3,
+        -1,
+        0,
+        1,
+        4,
+        0,
+        0,
+        2
+      ],
+      "rhs": [
+        2,
+        1,
+        -3,
+        -2,
+        0,
+        17
+      ],
+      "solution": [
+        1,
+        -2,
+        3,
+        -1,
+        3,
+        2
+      ]
+    },
+    {
+      "name": "lower_transpose",
+      "triangle": "lower",
+      "transpose": true,
+      "unit": false,
+      "matrix": [
+        2,
+        3,
+        -1,
+        0,
+        1,
+        4,
+        0,
+        0,
+        2
+      ],
+      "rhs": [
+        -7,
+        10,
+        6
+      ],
+      "solution": [
+        1,
+        -2,
+        3
+      ]
+    },
+    {
+      "name": "upper_multiple_rhs",
+      "triangle": "upper",
+      "transpose": false,
+      "unit": false,
+      "matrix": [
+        2,
+        0,
+        0,
+        -1,
+        4,
+        0,
+        3,
+        2,
+        -2
+      ],
+      "rhs": [
+        -6,
+        -2,
+        6,
+        1,
+        16,
+        -4
+      ],
+      "solution": [
+        2,
+        1,
+        -3,
+        -1,
+        3,
+        2
+      ]
+    },
+    {
+      "name": "upper_transpose_multiple_rhs",
+      "triangle": "upper",
+      "transpose": true,
+      "unit": false,
+      "matrix": [
+        2,
+        0,
+        0,
+        -1,
+        4,
+        0,
+        3,
+        2,
+        -2
+      ],
+      "rhs": [
+        4,
+        2,
+        14,
+        -2,
+        13,
+        -1
+      ],
+      "solution": [
+        2,
+        1,
+        -3,
+        -1,
+        3,
+        2
+      ]
+    },
+    {
+      "name": "unit_lower",
+      "triangle": "lower",
+      "transpose": false,
+      "unit": true,
+      "matrix": [
+        0,
+        2,
+        -1,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0
+      ],
+      "rhs": [
+        2,
+        3,
+        -1
+      ],
+      "solution": [
+        2,
+        -1,
+        4
+      ]
+    },
+    {
+      "name": "unit_upper",
+      "triangle": "upper",
+      "transpose": false,
+      "unit": true,
+      "matrix": [
+        0,
+        0,
+        0,
+        -1,
+        0,
+        0,
+        3,
+        2,
+        0
+      ],
+      "rhs": [
+        -8,
+        -5,
+        -3
+      ],
+      "solution": [
+        2,
+        1,
+        -3
+      ]
+    },
+    {
+      "name": "zero_pivot_late",
+      "triangle": "lower",
+      "transpose": false,
+      "unit": false,
+      "matrix": [
+        2,
+        3,
+        -1,
+        0,
+        1,
+        4,
+        0,
+        0,
+        0
+      ],
+      "rhs": [
+        2,
+        1,
+        -3
+      ],
+      "status": "zero_pivot",
+      "pivot": 2,
+      "unchanged": true
+    },
+    {
+      "name": "negative_zero_pivot",
+      "triangle": "upper",
+      "transpose": false,
+      "unit": false,
+      "matrix": [
+        2,
+        0,
+        0,
+        -1,
+        4,
+        0,
+        3,
+        2,
+        -0.0
+      ],
+      "rhs": [
+        -6,
+        -2,
+        6
+      ],
+      "status": "zero_pivot",
+      "pivot": 2,
+      "unchanged": true
+    }
+  ]
+}
