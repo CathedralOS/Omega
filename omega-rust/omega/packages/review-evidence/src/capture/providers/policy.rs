@@ -122,7 +122,7 @@ fn project_plan(
             .rows
             .iter()
             .enumerate()
-            .filter(|(_, row)| row.requirement_identity == method.requirement_identity)
+            .filter(|(_, row)| row.requirement_identity == plan.schema.identity_text(method.requirement_identity))
             .map(|(index, _)| index)
             .collect::<Vec<_>>();
         if matching_rows.is_empty() && toolchain_settled {
@@ -135,6 +135,7 @@ fn project_plan(
         };
         methods.push(services::project(
             compilation,
+            &plan.schema,
             retained.provider.schema,
             retained.provider.provider_type,
             retained.provider.row_requirements[*index],
@@ -188,7 +189,7 @@ fn normalized_plan_name(
     };
     let generated = provider_planning::satisfies_plan_name(
         &plan.target,
-        &plan.schema.trait_name,
+        plan.schema.identity_text(plan.schema.trait_name),
         &plan.provider_type,
     );
     if plan.name != generated {

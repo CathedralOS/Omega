@@ -93,7 +93,7 @@ pub(super) fn project(
                 .filter(|(_, (original_index, plan))| {
                     let retained = &provenance[*original_index];
                     retained.provider.schema.symbol() == coordinate.symbol
-                        && retained.plan.schema.trait_name == coordinate.requirement_identity
+                        && retained.plan.schema.identity_text(retained.plan.schema.trait_name) == coordinate.requirement_identity
                         && retained.provider.provider_type == Some(selection.provider_type.symbol)
                         && plan.provider_type_declaration() == Some(&provider_type_declaration)
                         && selects(&retained.selected_by, authority, selection)

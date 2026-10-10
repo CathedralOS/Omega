@@ -145,7 +145,7 @@ pub(in crate::encoding::encode) fn method(
                         Ok(())
                     })?;
                     encoder.field("requirement_identity", |encoder| {
-                        encoder.string(&route.requirement_identity)
+                        encoder.string(method.identities.text(route.requirement_identity))
                     })
                 })
             })

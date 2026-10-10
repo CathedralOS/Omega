@@ -58,7 +58,7 @@ pub(super) fn resolve(
                         .symbol_package_identity(requirement.symbol)
                         == method.requirement_owner_package_identity
                         && compilation.trait_requirement_callable_identity_text(owner, requirement)
-                            == method.requirement_identity
+                            == schema.identity_text(method.requirement_identity)
                     {
                         matches.push(requirement.symbol);
                     }

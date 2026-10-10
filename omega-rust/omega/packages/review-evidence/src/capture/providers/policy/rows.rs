@@ -76,6 +76,7 @@ pub(super) fn project(
                 requirement_lifetime_partition: row.requirement_lifetime_partition.clone(),
                 binding: bindings::project(
                     compilation,
+                    &plan.identities,
                     &row.binding,
                     requirement_symbol,
                     realization_symbol,
