@@ -125,3 +125,32 @@ pub(crate) fn validate_candidate<C, T>(
     }
     Ok(validated(candidate))
 }
+
+/// Shared planning scaffold: derive contents (wrapping a derive failure into
+/// the caller's planning error), compute the compatibility fingerprint, build
+/// the candidate, validate it, and re-wrap a validation rejection the same
+/// way. Every dynamic-lane planner runs this same envelope.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn plan_candidate<P, C, D, V, E>(
+    plan: P,
+    derive_contents: impl Fn(&P) -> Result<D, Diagnostic>,
+    fingerprint: impl Fn(&P, &D) -> u64,
+    into_candidate: impl FnOnce(P, D, u64) -> C,
+    validate: impl FnOnce(C) -> Result<V, CandidateValidationError<C>>,
+    into_plan: impl FnOnce(C) -> P,
+    error: impl Fn(P, Diagnostic) -> E,
+) -> Result<V, E> {
+    let contents = match derive_contents(&plan) {
+        Ok(contents) => contents,
+        Err(diagnostic) => return Err(error(plan, diagnostic)),
+    };
+    let fingerprint = fingerprint(&plan, &contents);
+    let candidate = into_candidate(plan, contents, fingerprint);
+    match validate(candidate) {
+        Ok(validated) => Ok(validated),
+        Err(candidate_error) => Err(error(
+            into_plan(candidate_error.candidate),
+            candidate_error.diagnostic,
+        )),
+    }
+}

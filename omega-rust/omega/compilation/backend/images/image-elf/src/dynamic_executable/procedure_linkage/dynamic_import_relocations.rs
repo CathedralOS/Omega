@@ -187,29 +187,26 @@ pub(crate) fn plan_elf_procedure_linkage_relocations(
     ValidatedElfProcedureLinkageRelocationPlan,
     Box<ElfProcedureLinkageRelocationPlanningError>,
 > {
-    let contents = match derive_contents(&descriptors) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfProcedureLinkageRelocationPlanningError {
-                descriptors,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_linkage_compatibility_fingerprint =
-        non_authoritative_linkage_compatibility_fingerprint(&descriptors, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         descriptors,
-        contents,
-        non_authoritative_linkage_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfProcedureLinkageRelocationPlanningError {
-            descriptors: error.candidate.descriptors,
-            diagnostic: error.diagnostic,
-        })),
-    }
+        derive_contents,
+        |descriptors, contents| {
+            non_authoritative_linkage_compatibility_fingerprint(&descriptors, &contents)
+        },
+        |descriptors, contents, fingerprint| Candidate {
+            descriptors: descriptors,
+            contents: contents,
+            non_authoritative_linkage_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.descriptors,
+        |descriptors, diagnostic| {
+            Box::new(ElfProcedureLinkageRelocationPlanningError {
+                descriptors: descriptors,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn derive_contents(

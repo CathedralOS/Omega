@@ -149,29 +149,26 @@ struct Candidate {
 pub(crate) fn plan_elf_section_name_table(
     dynamic_table: ValidatedElfDynamicTableSectionDescriptorPlan,
 ) -> Result<ValidatedElfSectionNameTablePlan, Box<ElfSectionNameTablePlanningError>> {
-    let contents = match derive_contents(&dynamic_table) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfSectionNameTablePlanningError {
-                dynamic_table,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_table_compatibility_fingerprint =
-        non_authoritative_table_compatibility_fingerprint(&dynamic_table, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         dynamic_table,
-        contents,
-        non_authoritative_table_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfSectionNameTablePlanningError {
-            dynamic_table: error.candidate.dynamic_table,
-            diagnostic: error.diagnostic,
-        })),
-    }
+        derive_contents,
+        |dynamic_table, contents| {
+            non_authoritative_table_compatibility_fingerprint(&dynamic_table, &contents)
+        },
+        |dynamic_table, contents, fingerprint| Candidate {
+            dynamic_table: dynamic_table,
+            contents: contents,
+            non_authoritative_table_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.dynamic_table,
+        |dynamic_table, diagnostic| {
+            Box::new(ElfSectionNameTablePlanningError {
+                dynamic_table: dynamic_table,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn derive_contents(

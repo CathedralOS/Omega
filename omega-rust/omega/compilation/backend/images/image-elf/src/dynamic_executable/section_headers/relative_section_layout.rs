@@ -178,29 +178,26 @@ struct Candidate {
 pub(crate) fn plan_elf_relative_section_payload_layout(
     payloads: ValidatedElfIndexedSectionPayloadPlan,
 ) -> Result<ValidatedElfRelativeSectionPayloadLayout, Box<ElfRelativeSectionPayloadLayoutError>> {
-    let contents = match derive_contents(&payloads) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfRelativeSectionPayloadLayoutError {
-                payloads,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_layout_compatibility_fingerprint =
-        non_authoritative_layout_compatibility_fingerprint(&payloads, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         payloads,
-        contents,
-        non_authoritative_layout_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfRelativeSectionPayloadLayoutError {
-            payloads: error.candidate.payloads,
-            diagnostic: error.diagnostic,
-        })),
-    }
+        derive_contents,
+        |payloads, contents| {
+            non_authoritative_layout_compatibility_fingerprint(&payloads, &contents)
+        },
+        |payloads, contents, fingerprint| Candidate {
+            payloads: payloads,
+            contents: contents,
+            non_authoritative_layout_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.payloads,
+        |payloads, diagnostic| {
+            Box::new(ElfRelativeSectionPayloadLayoutError {
+                payloads: payloads,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn derive_contents(

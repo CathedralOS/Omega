@@ -153,29 +153,26 @@ struct Candidate {
 pub(crate) fn plan_elf_dynamic_section_roster(
     section_names: ValidatedElfSectionNameTablePlan,
 ) -> Result<ValidatedElfDynamicSectionRoster, Box<ElfDynamicSectionRosterPlanningError>> {
-    let contents = match derive_contents(&section_names) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfDynamicSectionRosterPlanningError {
-                section_names,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_roster_compatibility_fingerprint =
-        non_authoritative_roster_compatibility_fingerprint(&section_names, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         section_names,
-        contents,
-        non_authoritative_roster_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfDynamicSectionRosterPlanningError {
-            section_names: error.candidate.section_names,
-            diagnostic: error.diagnostic,
-        })),
-    }
+        derive_contents,
+        |section_names, contents| {
+            non_authoritative_roster_compatibility_fingerprint(&section_names, &contents)
+        },
+        |section_names, contents, fingerprint| Candidate {
+            section_names: section_names,
+            contents: contents,
+            non_authoritative_roster_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.section_names,
+        |section_names, diagnostic| {
+            Box::new(ElfDynamicSectionRosterPlanningError {
+                section_names: section_names,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn derive_contents(

@@ -70,4 +70,3 @@ fn hash_semantic_target(hash: &mut Fnv1a, target: ElfProcedureLinkageSemanticTar
         }
     }
 }
-

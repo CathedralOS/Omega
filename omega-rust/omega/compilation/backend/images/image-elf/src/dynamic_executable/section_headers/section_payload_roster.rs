@@ -147,29 +147,26 @@ struct Candidate {
 pub(crate) fn plan_elf_indexed_section_payloads(
     section_headers: ValidatedElfSectionHeaderTableTemplate,
 ) -> Result<ValidatedElfIndexedSectionPayloadPlan, Box<ElfIndexedSectionPayloadPlanningError>> {
-    let contents = match derive_contents(&section_headers) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfIndexedSectionPayloadPlanningError {
-                section_headers,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_payload_roster_compatibility_fingerprint =
-        non_authoritative_payload_roster_compatibility_fingerprint(&section_headers, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         section_headers,
-        contents,
-        non_authoritative_payload_roster_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfIndexedSectionPayloadPlanningError {
-            section_headers: error.candidate.section_headers,
-            diagnostic: error.diagnostic,
-        })),
-    }
+        derive_contents,
+        |section_headers, contents| {
+            non_authoritative_payload_roster_compatibility_fingerprint(&section_headers, &contents)
+        },
+        |section_headers, contents, fingerprint| Candidate {
+            section_headers: section_headers,
+            contents: contents,
+            non_authoritative_payload_roster_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.section_headers,
+        |section_headers, diagnostic| {
+            Box::new(ElfIndexedSectionPayloadPlanningError {
+                section_headers: section_headers,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn derive_contents(

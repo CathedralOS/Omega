@@ -187,29 +187,26 @@ pub(crate) fn plan_elf_dynamic_section_descriptors(
     payloads: ValidatedElfDynamicSectionPayloads,
 ) -> Result<ValidatedElfDynamicSectionDescriptorPlan, Box<ElfDynamicSectionDescriptorPlanningError>>
 {
-    let contents = match derive_contents(&payloads) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfDynamicSectionDescriptorPlanningError {
-                payloads,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_descriptor_compatibility_fingerprint =
-        non_authoritative_descriptor_compatibility_fingerprint(&payloads, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         payloads,
-        contents,
-        non_authoritative_descriptor_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfDynamicSectionDescriptorPlanningError {
-            payloads: error.candidate.payloads,
-            diagnostic: error.diagnostic,
-        })),
-    }
+        derive_contents,
+        |payloads, contents| {
+            non_authoritative_descriptor_compatibility_fingerprint(&payloads, &contents)
+        },
+        |payloads, contents, fingerprint| Candidate {
+            payloads: payloads,
+            contents: contents,
+            non_authoritative_descriptor_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.payloads,
+        |payloads, diagnostic| {
+            Box::new(ElfDynamicSectionDescriptorPlanningError {
+                payloads: payloads,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn derive_contents(

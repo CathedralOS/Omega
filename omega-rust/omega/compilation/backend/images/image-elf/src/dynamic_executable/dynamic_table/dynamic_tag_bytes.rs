@@ -131,29 +131,24 @@ struct Candidate {
 pub(crate) fn serialize_elf_dynamic_table(
     plan: ValidatedElfDynamicTagPlan,
 ) -> Result<ValidatedElfDynamicTablePayload, Box<ElfDynamicTableSerializationError>> {
-    let contents = match encode_contents(&plan) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfDynamicTableSerializationError {
-                plan,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_payload_compatibility_fingerprint =
-        non_authoritative_payload_compatibility_fingerprint(&plan, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         plan,
-        contents,
-        non_authoritative_payload_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfDynamicTableSerializationError {
-            plan: error.candidate.plan,
-            diagnostic: error.diagnostic,
-        })),
-    }
+        encode_contents,
+        |plan, contents| non_authoritative_payload_compatibility_fingerprint(&plan, &contents),
+        |plan, contents, fingerprint| Candidate {
+            plan: plan,
+            contents: contents,
+            non_authoritative_payload_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.plan,
+        |plan, diagnostic| {
+            Box::new(ElfDynamicTableSerializationError {
+                plan: plan,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn encode_contents(

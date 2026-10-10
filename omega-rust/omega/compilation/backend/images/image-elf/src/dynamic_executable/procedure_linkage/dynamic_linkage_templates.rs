@@ -32,12 +32,14 @@ pub(crate) use template_plans::{
 };
 
 pub(crate) use template_plans::{
-    ElfProcedureLinkageTemplatePlanningError, ValidatedElfProcedureLinkageTemplatePlan};
+    ElfProcedureLinkageTemplatePlanningError, ValidatedElfProcedureLinkageTemplatePlan,
+};
 
 use crate::dynamic_executable::procedure_linkage::dynamic_import_relocations::{ValidatedElfProcedureLinkageRelocationPlan};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::compatibility_fingerprint::non_authoritative_template_compatibility_fingerprint;
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::candidates::{Candidate, derive_contents};
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::template_validation::validate_candidate;
+use super::super::checked;
 
 const ELF64_RELA_SIZE: usize = 24;
 
@@ -87,27 +89,24 @@ pub(crate) fn plan_elf_procedure_linkage_templates(
     linkage: ValidatedElfProcedureLinkageRelocationPlan,
 ) -> Result<ValidatedElfProcedureLinkageTemplatePlan, Box<ElfProcedureLinkageTemplatePlanningError>>
 {
-    let contents = match derive_contents(&linkage) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfProcedureLinkageTemplatePlanningError {
-                linkage,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_template_compatibility_fingerprint =
-        non_authoritative_template_compatibility_fingerprint(&linkage, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         linkage,
-        contents,
-        non_authoritative_template_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfProcedureLinkageTemplatePlanningError {
-            linkage: error.candidate.linkage,
-            diagnostic: error.diagnostic,
-        })),
-    }
+        derive_contents,
+        |linkage, contents| {
+            non_authoritative_template_compatibility_fingerprint(&linkage, &contents)
+        },
+        |linkage, contents, fingerprint| Candidate {
+            linkage: linkage,
+            contents: contents,
+            non_authoritative_template_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.linkage,
+        |linkage, diagnostic| {
+            Box::new(ElfProcedureLinkageTemplatePlanningError {
+                linkage: linkage,
+                diagnostic,
+            })
+        },
+    )
 }

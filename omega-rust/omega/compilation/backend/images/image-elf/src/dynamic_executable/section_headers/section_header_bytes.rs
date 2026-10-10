@@ -151,29 +151,24 @@ struct Candidate {
 pub(crate) fn serialize_elf_section_header_table(
     roster: ValidatedElfDynamicSectionRoster,
 ) -> Result<ValidatedElfSectionHeaderTableTemplate, Box<ElfSectionHeaderTableSerializationError>> {
-    let contents = match encode_contents(&roster) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfSectionHeaderTableSerializationError {
-                roster,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_template_compatibility_fingerprint =
-        non_authoritative_template_compatibility_fingerprint(&roster, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         roster,
-        contents,
-        non_authoritative_template_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfSectionHeaderTableSerializationError {
-            roster: error.candidate.roster,
-            diagnostic: error.diagnostic,
-        })),
-    }
+        encode_contents,
+        |roster, contents| non_authoritative_template_compatibility_fingerprint(&roster, &contents),
+        |roster, contents, fingerprint| Candidate {
+            roster: roster,
+            contents: contents,
+            non_authoritative_template_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.roster,
+        |roster, diagnostic| {
+            Box::new(ElfSectionHeaderTableSerializationError {
+                roster: roster,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn encode_contents(

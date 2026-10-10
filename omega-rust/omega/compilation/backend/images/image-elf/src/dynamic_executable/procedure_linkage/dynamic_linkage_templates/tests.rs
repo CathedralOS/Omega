@@ -39,13 +39,22 @@ fn linkage(
     );
     for (index, fixture) in imports.iter().enumerate() {
         let symbol_handle = crate::test_support::insert_import_fixture(
-            &mut image, "__omega_template_import_", index, fixture.object, fixture.symbol,
-            fixture.version, target, "valid template locator",
+            &mut image,
+            "__omega_template_import_",
+            index,
+            fixture.object,
+            fixture.symbol,
+            fixture.version,
+            target,
+            "valid template locator",
         );
         crate::test_support::insert_text_call_relocations(
             &mut image,
             target,
-            fixture.instruction_offsets.iter().map(|offset| (*offset, symbol_handle)),
+            fixture
+                .instruction_offsets
+                .iter()
+                .map(|offset| (*offset, symbol_handle)),
         );
     }
     let interpreter =
