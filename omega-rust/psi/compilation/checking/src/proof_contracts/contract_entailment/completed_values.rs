@@ -9,7 +9,7 @@
 use super::citations::CitationFacts;
 use super::observed_projections::project_observed_value;
 use super::structural_case_arms::structural_arm_judge;
-use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
+use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{StructuralPrefixVisitor, observe_runtime_state_prefix};
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
@@ -252,11 +252,18 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
                 .judge
                 .completed_expression_values()
                 .iter()
-                .filter(|(expression, _)| *expression != self.expression)
+                .filter(|(expression, _)| {
+                    *expression != self.expression
+                        && crate::expression_owners::expression_contains(
+                            program,
+                            self.expression,
+                            *expression,
+                        )
+                })
                 .map(|(expression, value)| {
                     (
                         CompletedValueSource::Expression(*expression),
-                        outcome.judge.resolve(value.clone()),
+                        outcome.judge.completed_value_identity(value.clone()),
                     )
                 })
                 .collect::<Vec<_>>();
@@ -271,7 +278,7 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
                     if let Some(value) = project_observed_value(
                         program,
                         parameter.type_reference,
-                        outcome.judge.resolve(value.clone()),
+                        outcome.judge.completed_value_identity(value.clone()),
                         &candidate.path,
                     ) {
                         candidates.push((
@@ -279,7 +286,7 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
                                 symbol: parameter.symbol,
                                 path: candidate.path,
                             },
-                            outcome.judge.resolve(value),
+                            outcome.judge.completed_value_identity(value),
                         ));
                     }
                 }
@@ -291,22 +298,18 @@ impl StructuralPrefixVisitor for CompletedProjectionVisitor<'_> {
                     let Some(projected) = project_observed_value(
                         program,
                         self.reference,
-                        outcome.judge.resolve(outcome.value.clone()),
+                        outcome
+                            .judge
+                            .completed_value_identity(outcome.value.clone()),
                         &projection.path,
                     ) else {
                         return Vec::new();
                     };
-                    let projected = outcome.judge.resolve(projected);
+                    let projected = outcome.judge.completed_value_identity(projected);
                     candidates
                         .iter()
                         .filter_map(|(source, value)| {
-                            matches!(
-                                outcome
-                                    .judge
-                                    .judge_equation(projected.clone(), value.clone(), 0),
-                                StructuralJudgment::Proven,
-                            )
-                            .then_some(source.clone())
+                            (projected == *value).then_some(source.clone())
                         })
                         .collect::<Vec<_>>()
                 })

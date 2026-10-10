@@ -37,7 +37,7 @@ pub(super) fn project_observed_value(
                 let StructuralTerm::Constructor { case, .. } = value.semantic_value() else {
                     return None;
                 };
-                if case != program.symbols.name(*variant) {
+                if case.as_str() != program.symbols.name(*variant) {
                     return None;
                 }
             }

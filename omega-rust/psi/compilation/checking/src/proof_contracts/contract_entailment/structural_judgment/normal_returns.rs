@@ -43,6 +43,82 @@ impl<'program> StructuralJudge<'program> {
         &self.normal_results
     }
 
+    /// Resolve captured value identities without folding arithmetic or using
+    /// caller hypotheses. Discovery needs the producing operand structure;
+    /// ring equality cannot replace its intermediate formation obligations.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_value_identity(
+        &self,
+        value: StructuralTerm,
+    ) -> StructuralTerm {
+        self.completed_value_identity_at(value, 0)
+    }
+
+    fn completed_value_identity_at(&self, value: StructuralTerm, depth: usize) -> StructuralTerm {
+        if depth >= 64 {
+            return value;
+        }
+        let value = match value {
+            StructuralTerm::ObservedValue {
+                observed_type,
+                value,
+            } => StructuralTerm::ObservedValue {
+                observed_type,
+                value: Box::new(self.completed_value_identity_at(*value, depth + 1)),
+            },
+            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+                data,
+                case,
+                fields: fields
+                    .into_iter()
+                    .map(|(name, value)| (name, self.completed_value_identity_at(value, depth + 1)))
+                    .collect(),
+            },
+            StructuralTerm::ScalarBinary {
+                references,
+                operator,
+                meaning,
+                left,
+                right,
+            } => StructuralTerm::ScalarBinary {
+                references,
+                operator,
+                meaning,
+                left: Box::new(self.completed_value_identity_at(*left, depth + 1)),
+                right: Box::new(self.completed_value_identity_at(*right, depth + 1)),
+            },
+            StructuralTerm::Projection { subject, path } => {
+                let subject = self.completed_value_identity_at(*subject, depth + 1);
+                path.split('.')
+                    .try_fold(
+                        subject.clone(),
+                        super::super::observed_projections::project_field,
+                    )
+                    .unwrap_or(StructuralTerm::Projection {
+                        subject: Box::new(subject),
+                        path,
+                    })
+            }
+            value => value,
+        };
+        if !matches!(
+            value.semantic_value(),
+            StructuralTerm::CapturedValue { .. } | StructuralTerm::Projection { .. }
+        ) {
+            return value;
+        }
+        for (left, right) in &self.normal_guarantees {
+            for (pattern, replacement) in [(left, right), (right, left)] {
+                if pattern == &value
+                    && replacement != &value
+                    && !super::super::structural_terms::term_contains(replacement, &value)
+                {
+                    return self.completed_value_identity_at(replacement.clone(), depth + 1);
+                }
+            }
+        }
+        value
+    }
+
     /// Project normal outcomes under their own invocation facts. Every eager
     /// operand executes in order; selective operands fork the same path owner.
     /// No branch's hypotheses are donated to a different normal outcome.
