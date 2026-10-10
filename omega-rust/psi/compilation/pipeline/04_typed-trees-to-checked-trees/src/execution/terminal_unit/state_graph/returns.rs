@@ -115,13 +115,13 @@ pub(in crate::execution::terminal_unit) fn signature(
                         program,
                         reference,
                         &[],
-            validation::ContentsRequirement::CleanupOwned,
+                        validation::ContentsRequirement::CleanupOwned,
                     )
                     && !validation::has_contents(
                         program,
                         reference,
                         &[],
-            validation::ContentsRequirement::OwnedOrSharedView,
+                        validation::ContentsRequirement::OwnedOrSharedView,
                     ))))
     {
         return None;
@@ -166,7 +166,14 @@ pub(in crate::execution::terminal_unit) fn signature(
                 Multiplicity::Affine,
             )
         } else {
-            (shapes.add_type(reference, &[], &[])?, multiplicity)
+            // A completed aggregate owns its stored loan carriers even when
+            // source observations are reusable. Use the same result custody
+            // as an ordinary call binding; source type multiplicity alone
+            // misdeclares reference arrays as unrestricted graph results.
+            (
+                shapes.add_type(reference, &[], &[])?,
+                validation::reference_result_custody::result_multiplicity(program, reference),
+            )
         };
     // The contents judgments above establish storage, not transfer authority.
     // Reference-record storage may also carry linear claims and nominal
