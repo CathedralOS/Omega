@@ -338,7 +338,9 @@ impl ConstructorStorage {
     }
 
     /// Constructors and owned argument snapshots relocate every typed cell,
-    /// not only scalar fields. A snapshot may not duplicate loan custody.
+    /// not only scalar fields. A snapshot may copy shared descriptors but may
+    /// not duplicate exclusive permission. Physical paths use stored case
+    /// membership to recover each resident descriptor's actual declaration.
     pub(crate) fn stage_subtree(
         &mut self,
         execution: &TerminalExecution,
@@ -367,7 +369,23 @@ impl ConstructorStorage {
         for (home, referent) in &execution.reference_referents {
             if let Some(target) = relocate(home) {
                 if !transfers_custody {
-                    return Err(malformed());
+                    let carrier_type = execution.actual_storage_type_from_owner(home)?;
+                    if !execution
+                        .program
+                        .structural_types()
+                        .get(&carrier_type)
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::Reference {
+                                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                                    ..
+                                }
+                            )
+                        })
+                    {
+                        return Err(malformed());
+                    }
                 }
                 self.references.insert(target, referent.clone());
             }

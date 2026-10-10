@@ -58,9 +58,6 @@ impl TerminalExecution<'_> {
             }
             let transfers_custody =
                 self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
-            if transfers_custody && result.multiplicity == StructuralMultiplicity::Unrestricted {
-                return Err(malformed());
-            }
             let destination = StructuralRuntimePlace {
                 opaque_identity: value.opaque_identity,
                 path: vec![StructuralPathSegment::FixedIndex(

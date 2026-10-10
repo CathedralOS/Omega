@@ -245,11 +245,6 @@ impl TerminalExecution<'_> {
                     claim_operands.push((argument, claim_path.clone()));
                     let transfers_custody =
                         self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
-                    if transfers_custody
-                        && result.multiplicity == StructuralMultiplicity::Unrestricted
-                    {
-                        return Err(malformed());
-                    }
                     let child = ConstructorValue::resolve(self, argument)?;
                     if declaration.field_type
                         != StructuralFieldType::Structural(child.structural_type())
@@ -1397,17 +1392,14 @@ impl TerminalExecution<'_> {
         }
         // Unrestricted aggregates may also contain shared descriptor leaves.
         // Every copied runtime association must rejoin that exact declaration;
-        // cloning storage cannot amplify an exclusive permission.
+        // cloning storage cannot amplify an exclusive permission. Runtime paths
+        // omit Case, so the stored discriminator selects the declaration rather
+        // than treating a possible payload catalogue as resident storage.
         for carrier in self.reference_referents.keys().filter(|carrier| {
             carrier.opaque_identity == source_place.opaque_identity
                 && carrier.path.starts_with(&source_place.path)
         }) {
-            let relative = &carrier.path[source_place.path.len()..];
-            let reference_type = crate::custody::resolve_structural_path_type(
-                &self.program.structural_types(),
-                result.structural_type,
-                relative,
-            )?;
+            let reference_type = self.actual_storage_type(&leaf, carrier)?;
             if !self
                 .program
                 .structural_types()

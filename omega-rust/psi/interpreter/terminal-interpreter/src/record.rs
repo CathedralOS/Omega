@@ -4,6 +4,9 @@
 //! only their disjoint complement. Records, arrays and cases share that staged
 //! ownership transaction in `record/operands.rs`, so nesting neither remints a
 //! child's claim nor disposes it as an affine subtree.
+//! Carrier disposal multiplicity is not copyability: a consumed shared
+//! reference can enter an unrestricted aggregate. Psi admits the constructor;
+//! the transaction transfers actual debts and claims, not the parent's label.
 //! `record/storage.rs` stages the complete typed payload for constructors and
 //! independent owned call/block arguments; copying only scalar fields would
 //! drop nested array backing, case discriminators and primitive cells.
@@ -137,12 +140,7 @@ impl TerminalExecution<'_> {
                         {
                             return Err(malformed());
                         }
-                        self.stage_unrestricted_operand(
-                            argument,
-                            &mut frontier,
-                            &mut consumed,
-                            result,
-                        )?;
+                        self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
                         staged_bytes.insert(
                             crate::values::StructuralByteSequenceRuntimeField {
                                 parent: StructuralRuntimePlace::from(&value),
@@ -201,12 +199,8 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    let transfers_custody = self.stage_unrestricted_operand(
-                        argument,
-                        &mut frontier,
-                        &mut consumed,
-                        result,
-                    )?;
+                    let transfers_custody =
+                        self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
                     let mut member_path = value.path.clone();
                     member_path.push(StructuralPathSegment::Field(declaration.identity.clone()));
                     storage.stage(
