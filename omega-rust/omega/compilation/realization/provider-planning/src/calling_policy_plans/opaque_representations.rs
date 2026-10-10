@@ -1,6 +1,6 @@
 pub use layout::BoundaryOpaqueRepresentationUse;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BoundaryOpaqueRepresentationMovementRole {
     Parameter {
         formal_ordinal: u32,
