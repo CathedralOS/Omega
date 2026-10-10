@@ -66,14 +66,7 @@ pub(super) fn establish(
             8,
             SelectedMemoryAccessRole::ReadPlace,
         )?;
-        builder.emit(
-            SelectedInstructionKind::Load64 {
-                byte_offset: offset,
-            },
-            builder.constraints.keys.load64.ok_or(invalid())?,
-            &[input, loaded],
-            provenance(row),
-        )?;
+        builder.emit_load64(offset, input, loaded, provenance(row))?;
         input = loaded;
     }
     input = super::runtime_address::scale(
@@ -121,12 +114,7 @@ pub(super) fn establish(
             8,
             SelectedMemoryAccessRole::ReadPlace,
         )?;
-        builder.emit(
-            SelectedInstructionKind::Load64 { byte_offset: 0 },
-            builder.constraints.keys.load64.ok_or(invalid())?,
-            &[input, value],
-            provenance(row),
-        )?;
+        builder.emit_load64(0, input, value, provenance(row))?;
         value
     } else {
         input
@@ -141,12 +129,7 @@ pub(super) fn establish(
             8,
             SelectedMemoryAccessRole::ReadPlace,
         )?;
-        builder.emit(
-            SelectedInstructionKind::Load64 { byte_offset: 8 },
-            builder.constraints.keys.load64.ok_or(invalid())?,
-            &[input, codec],
-            provenance(row),
-        )?;
+        builder.emit_load64(8, input, codec, provenance(row))?;
         Some(codec)
     } else if let Some(codec) = address.codec {
         let register = transport_register(builder, result.place, 8)?;
@@ -244,14 +227,7 @@ pub(in crate::selection::construction::scalar_graph) fn load_pointer_word(
             byte_count: 8,
             role: SelectedMemoryAccessRole::ReadPlace,
         });
-    builder.emit(
-        SelectedInstructionKind::Load64 {
-            byte_offset: displacement,
-        },
-        builder.constraints.keys.load64.ok_or(invalid())?,
-        &[address, pointer],
-        provenance,
-    )?;
+    builder.emit_load64(displacement, address, pointer, provenance)?;
     Ok(pointer)
 }
 

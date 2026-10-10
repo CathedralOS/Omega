@@ -259,14 +259,7 @@ pub(super) fn cross_references(
             Written::None,
         )?;
         let loaded = super::transport_register(builder, place, slot.byte_offset)?;
-        builder.emit(
-            SelectedInstructionKind::Load64 {
-                byte_offset: displacement,
-            },
-            builder.constraints.keys.load64.ok_or(invalid())?,
-            &[address, loaded],
-            super::provenance(row),
-        )?;
+        builder.emit_load64(displacement, address, loaded, super::provenance(row))?;
         pointer = loaded;
         leaf_index = slot.indices.end;
     }
@@ -314,14 +307,7 @@ pub(super) fn scalar_reference(
         traversals,
         Written::None,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Load64 {
-            byte_offset: displacement,
-        },
-        builder.constraints.keys.load64.ok_or(invalid())?,
-        &[home, address],
-        super::provenance(row),
-    )?;
+    builder.emit_load64(displacement, home, address, super::provenance(row))?;
     let codec_offset = byte_offset.checked_add(8).ok_or(invalid())?;
     let codec = transport_register(builder, place, codec_offset)?;
     footprint(
@@ -333,12 +319,10 @@ pub(super) fn scalar_reference(
         traversals,
         Written::None,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Load64 {
-            byte_offset: displacement.checked_add(8).ok_or(invalid())?,
-        },
-        builder.constraints.keys.load64.ok_or(invalid())?,
-        &[home, codec],
+    builder.emit_load64(
+        displacement.checked_add(8).ok_or(invalid())?,
+        home,
+        codec,
         super::provenance(row),
     )?;
     Ok(Some((address, codec)))

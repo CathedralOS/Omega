@@ -146,12 +146,7 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
         8,
         SelectedMemoryAccessRole::ReadPlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Load64 { byte_offset: 0 },
-        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-        &[field, length],
-        provenance(row),
-    )?;
+    builder.emit_load64(0, field, length, provenance(row))?;
     let data = transport_register(
         builder,
         place,

@@ -121,14 +121,7 @@ pub(super) fn payload_pointer(
             indices,
             super::runtime_address::Written::None,
         )?;
-        builder.emit(
-            SelectedInstructionKind::Load64 {
-                byte_offset: offset,
-            },
-            builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-            &[root, payload],
-            provenance(row),
-        )?;
+        builder.emit_load64(offset, root, payload, provenance(row))?;
     }
     Ok(payload)
 }

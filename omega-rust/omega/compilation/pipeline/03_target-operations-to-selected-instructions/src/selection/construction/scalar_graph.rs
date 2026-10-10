@@ -703,6 +703,26 @@ impl Builder<'_> {
         )
     }
 
+    /// Every `Load64` emission shares the kind and its constraint-key lookup;
+    /// only the offset, operand pair, and provenance differ.
+    fn emit_load64(
+        &mut self,
+        byte_offset: u32,
+        source_pointer: VirtualRegisterId,
+        loaded: VirtualRegisterId,
+        provenance: SelectedInstructionProvenance,
+    ) -> Result<(), SelectedInstructionError> {
+        self.emit(
+            SelectedInstructionKind::Load64 { byte_offset },
+            self.constraints
+                .keys
+                .load64
+                .ok_or_else(|| SelectedInstructionError::custody())?,
+            &[source_pointer, loaded],
+            provenance,
+        )
+    }
+
     /// Every `Store` emission shares the kind and its constraint-key lookup;
     /// call sites differ only in offset, width, the operand pair, and the
     /// provenance they attach.

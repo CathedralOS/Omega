@@ -328,12 +328,7 @@ pub(super) fn backing_pointer(
         8,
         SelectedMemoryAccessRole::ReadPlace,
     )?;
-    builder.emit(
-        SelectedInstructionKind::Load64 { byte_offset: 0 },
-        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-        &[descriptor, pointer],
-        provenance(row),
-    )?;
+    builder.emit_load64(0, descriptor, pointer, provenance(row))?;
     Ok(pointer)
 }
 
@@ -390,14 +385,7 @@ fn byte_sequence_length(
         fuel: row.fuel.clone(),
         ..Default::default()
     };
-    builder.emit(
-        SelectedInstructionKind::Load64 {
-            byte_offset: length_byte_offset,
-        },
-        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-        &[input, output],
-        provenance,
-    )?;
+    builder.emit_load64(length_byte_offset, input, output, provenance)?;
     Ok(output)
 }
 

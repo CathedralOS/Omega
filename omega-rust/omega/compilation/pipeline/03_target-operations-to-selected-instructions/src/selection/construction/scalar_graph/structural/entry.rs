@@ -166,10 +166,10 @@ pub(in crate::selection) fn entry(
                 SelectedInstructionProvenance::default(),
             )?;
             let pointer = transport_register(builder, place, 0)?;
-            builder.emit(
-                SelectedInstructionKind::Load64 { byte_offset: 0 },
-                builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-                &[address, pointer],
+            builder.emit_load64(
+                0,
+                address,
+                pointer,
                 SelectedInstructionProvenance::default(),
             )?;
             builder.transport.pointers.push((place, pointer));

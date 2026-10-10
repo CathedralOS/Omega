@@ -242,14 +242,7 @@ pub(super) fn establish(
             indices,
             super::runtime_address::Written::None,
         )?;
-        builder.emit(
-            SelectedInstructionKind::Load64 {
-                byte_offset: field_offset,
-            },
-            builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-            &[base, pointer],
-            provenance(row),
-        )?;
+        builder.emit_load64(field_offset, base, pointer, provenance(row))?;
         pointer
     } else if field_offset == 0 {
         base
@@ -288,14 +281,7 @@ pub(super) fn establish(
                         indices,
                         super::runtime_address::Written::None,
                     )?;
-                    builder.emit(
-                        SelectedInstructionKind::Load64 {
-                            byte_offset: header,
-                        },
-                        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-                        &[base, pointer],
-                        provenance(row),
-                    )?;
+                    builder.emit_load64(header, base, pointer, provenance(row))?;
                     pointer
                 }
             };
