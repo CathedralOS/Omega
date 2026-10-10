@@ -2783,18 +2783,18 @@ crash and native exit behavior.
     of `source/library/alloc/bump.omg` reports
     `retained_buffer::Held.storage` already transferred and three
     `Extent::Granted` call-result qualifications unproved.
-  - Std console consumers now pass source checking and ordinary package review.
-    Universal target-layout alternatives and distinct emitted member identities
-    unblock canonical Terminal production; 34 of 36 previously rejected valid
-    fixtures in the affected layout/recast/target/termination subset now check.
-    The ordinary `cli_mvp` run reaches deployment selection, then refuses the
-    selected macOS `ConsoleNativeProvider::read_byte` intrinsic as an opaque
-    family member. Carry that exact selected boundary through existing native
-    and interpreter provider realization while preserving the portable head
-    contract. The two remaining mutable-equivalent domain/range recast rows
-    expose `MissingUnitStructuralType`; their source checking is unchanged.
-    Remeasure native console rows after selected opaque member execution works;
-    restored checking alone is not their runtime acceptance.
+  - Std console execution is restored on macOS ARM64: ordinary package review
+    and `omega run --both samples/cli/basics/cli_mvp/main.omg` print the exact
+    hello-world/prompt output and exit 0 in native code and the interpreter
+    with LF input. Exact opaque family members now use their selected provider
+    rows while retaining the portable head contract. Console byte input, bounded
+    line LF/full/partial-EOF cases, descriptor I/O, and clock execution agree
+    across both runtimes; an opaque family without a provider still rejects.
+    Universal target layouts and physical boundary identities also restore
+    checking for 34 of 36 previously rejected layout/recast/target/termination
+    fixtures. The two mutable-equivalent domain/range recast rows still expose
+    `MissingUnitStructuralType`; their source checking is unchanged. Other
+    deployment targets still need their own native execution measurements.
   - `pass/proofs/case_call_premises` still cannot prove `preserve_empty`'s
     `value in Tree::Empty` from `make_empty`'s guarantee at b7418d4022. Its
     callees are `terminates` proof machines, judged as applications rather
