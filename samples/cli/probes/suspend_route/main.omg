@@ -1,0 +1,47 @@
+// Suspension surface: `boundary data` declares a provider-owned
+// carrier; `boundary machine Sleeper::park(...) suspends;` declares
+// a suspending boundary operation; `suspend <call>` parks the
+// machine until the provider completes it. `suspends` is the
+// machine's declared effect — ordinary callers must declare it
+// too (or themselves be boundary reach).
+//
+//   * `pub boundary data Sleeper;` — boundary-owned data.
+//   * `boundary machine Sleeper::park(token: i32) suspends;` —
+//     bodyless suspending boundary decl.
+//   * `machine Worker::run(...) -> Token suspends` — declared
+//     suspending machine; `suspend Sleeper::park(7)` inside.
+//   * `token: Token in Carry::AcrossSuspend` — domain member on a
+//     param: suspend-crossing carry qualification.
+//   * `suspend block Task::finish(task)` shape is a boundary
+//     requirement in core::task — kept to the plain-call form here.
+//   * `hits` records the reached arm.
+//
+// Compile-checked only: suspending machines never run here — the
+// probe exercises declaration and reach accounting.
+
+use omega::language::core::task;
+
+pub boundary data Sleeper;
+
+boundary machine Sleeper::park(token: i32) suspends;
+
+pub domain Token::AcrossSuspend(token)
+requires
+    token.id > 0;
+
+pub data Token {
+    id: u64;
+}
+
+machine Worker::run(token: Token in AcrossSuspend) -> Token
+suspends;
+{
+    suspend Sleeper::park(7);
+    token
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 1;
+}
