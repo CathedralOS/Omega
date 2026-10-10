@@ -17,8 +17,9 @@ try_mutable_rank_two(backing_length: u64, descriptor: RankTwo) -> RankTwoAttempt
 try_index(backing_length: u64, descriptor: RankTwo,
           row: u64, column: u64) -> IndexAttempt
 IndexAttempt: Ok(index: u64) | Error(kind: ArrayError)
-try_contiguous_reshape(backing_length: u64, descriptor: RankTwo,
-                       rows: u64, columns: u64) -> RankTwoAttempt
+try_element_count(rows: u64, columns: u64) -> CountAttempt
+CountAttempt: Ok(count: u64) | Error(kind: ArrayError)
+is_column_major_contiguous(descriptor: RankTwo) -> bool
 These signatures may be NF01 machines or immutable descriptor-field accessors
 plus NF01 checked arithmetic/index/admission primitives; NF05 needs their actual
 module paths, exported names, result pattern syntax and proof domains.
