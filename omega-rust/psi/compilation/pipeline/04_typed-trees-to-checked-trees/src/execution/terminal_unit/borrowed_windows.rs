@@ -766,7 +766,10 @@ impl OpenWindows {
                     needs_displacement && produced.multiplicity == Multiplicity::Affine,
                 )
             };
-        if produced.multiplicity == Multiplicity::Linear && (needs_displacement || needs_cleanup) {
+        // An owned old value dies through its checked contextual disposition,
+        // including an owner-authorized linear hook. A borrowed displacement
+        // still needs a separate exact linear restoration contract.
+        if produced.multiplicity == Multiplicity::Linear && needs_displacement {
             return None;
         }
         let place = CheckedUnitStructuralArgumentPlan {
@@ -824,6 +827,7 @@ impl OpenWindows {
             }),
             cleanup: needs_cleanup.then(|| {
                 CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    selected_regions: Vec::new(),
                     boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement {
                         statement_index,
                         destination: place.clone(),

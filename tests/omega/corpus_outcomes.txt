@@ -5046,3 +5046,14 @@ fail/borrows/parent_use_before_disjoint_sibling_ends rejected 630ms expected @ed
 pass/borrows/disjoint_branch_closure_with_grandchild checked 4317ms check-target:macos_arm64 @edb462c792f9
 pass/borrows/runtime_disjoint_child_loans_restore_parent_exit checked 4295ms check-target:macos_arm64 @edb462c792f9
 pass/borrows/runtime_mutable_reference_captures_selector_exit checked 4288ms check-target:macos_arm64 @edb462c792f9
+pass/drops/runtime_selected_partial_owner_cleanup_exit checked 2954ms check-target:macos_arm64 @70cafb4c5975+wt
+fail/drops/selected_partial_cleanup_prerequisite rejected 914ms expected @70cafb4c5975+wt
+	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing pair.first.ready == true required by Token::drop clause `token.ready`
+fail/drops/selected_partial_replacement_old_cleanup_prerequisite rejected 906ms expected @70cafb4c5975+wt
+	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing pair.first.ready == true required by Token::drop clause `token.ready`
+fail/drops/selected_partial_requires_disposition rejected 338ms expected @70cafb4c5975+wt
+	cannot automatically dispose retained selected owner region: every live linear obligation requires an eligible disposition
+fail/drops/selected_replacement_old_cleanup_prerequisite rejected 526ms expected @70cafb4c5975+wt
+	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing token.ready == true required by Token::drop clause `token.ready`
+fail/ownership/selected_partial_owner_reuse rejected 299ms expected @70cafb4c5975+wt
+	cannot use `pair.first.value` in machine `choose` state `entry` (statement 2) after `pair.first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first

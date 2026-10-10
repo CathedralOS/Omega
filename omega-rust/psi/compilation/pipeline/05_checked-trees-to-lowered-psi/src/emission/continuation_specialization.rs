@@ -65,17 +65,28 @@ pub(crate) fn complete(
     mut rows: CompanionRows<'_>,
     mut counters: Counters<'_>,
 ) -> Result<Vec<IdentityMap>, LoweringError> {
-    if groups.is_empty() {
-        return Ok(Vec::new());
-    }
-    let topology = super::selected_continuations::prepare(
+    let Some(topology) = super::selected_continuations::prepare(
         machine.entry,
         &machine.structural_parameters,
         &machine.structural_places,
         &machine.blocks,
         types,
         groups,
-    )?;
+    )?
+    else {
+        return Ok(Vec::new());
+    };
+    // A projected frontier that already has one continuation per source block
+    // needs no identity work. Candidate groups can still redirect edges, so
+    // their ordinary specialization remains necessary even without clones.
+    if groups.is_empty() {
+        let mut retained = vec![false; machine.blocks.len()];
+        if topology.continuations.iter().all(|continuation| {
+            !std::mem::replace(&mut retained[continuation.original_block], true)
+        }) {
+            return Ok(Vec::new());
+        }
+    }
     let definitions = machine
         .blocks
         .iter()

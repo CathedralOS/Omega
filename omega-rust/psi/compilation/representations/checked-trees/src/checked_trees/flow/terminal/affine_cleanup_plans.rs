@@ -285,7 +285,7 @@ pub struct CheckedNormalExitCleanupPlan {
     /// Candidate owners retained by source checking across selected transfers.
     /// Their ordered actions run only where the exact emitted occurrence remains
     /// live at this death edge; this roster grants no transfer or birth authority.
-    pub selected_sources: Vec<CheckedUnitStructuralArgumentSourcePlan>,
+    pub selected_regions: Vec<super::CheckedUnitStructuralArgumentPlan>,
     pub exit: crate::FlowClaimJoinExit,
     pub actions: Vec<CheckedNormalCleanupAction>,
 }

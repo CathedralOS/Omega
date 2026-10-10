@@ -16,6 +16,7 @@ pub(crate) use anonymous::projected_temporary_residuals;
 mod cleanup_evidence;
 mod nominal_requirements;
 pub(super) mod normal_edges;
+mod order;
 mod partial_affine_cleanup;
 mod replacements;
 mod residuals;
@@ -279,7 +280,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             service_reach: state_flow.service_reach,
             operations: vec![CheckedUnitEffectOperationPlan::Complete {
                 normal_cleanup_actions: Vec::new(),
-                selected_normal_cleanup_sources: Vec::new(),
+                selected_normal_cleanup_regions: Vec::new(),
                 statement_index: 0,
                 trivial_affine_local_discard_ordinals: Vec::new(),
                 trivial_affine_discards: Vec::new(),

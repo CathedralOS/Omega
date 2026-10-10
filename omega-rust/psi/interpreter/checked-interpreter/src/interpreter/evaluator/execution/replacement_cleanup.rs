@@ -68,12 +68,18 @@ impl<'program> Evaluator<'program> {
                         ..
                     },
                 cleanup_actions,
+                selected_regions,
             } = operation
             else {
                 continue;
             };
             if *selected_statement as usize != statement_index {
                 continue;
+            }
+            if !selected_regions.is_empty() {
+                return Err(Halt::Unsupported(
+                    "unimplemented: checked-tree interpreter selected owner cleanup".into(),
+                ));
             }
             for action in cleanup_actions {
                 // Discard and home retirement have no nominal runtime body.

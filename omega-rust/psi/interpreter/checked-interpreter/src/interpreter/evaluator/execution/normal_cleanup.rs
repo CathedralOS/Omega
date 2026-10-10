@@ -37,11 +37,17 @@ impl<'program> Evaluator<'program> {
             for operation in &plan.operations {
                 let checked_trees::CheckedUnitEffectOperationPlan::Complete {
                     normal_cleanup_actions,
+                    selected_normal_cleanup_regions,
                     ..
                 } = operation
                 else {
                     continue;
                 };
+                if !selected_normal_cleanup_regions.is_empty() {
+                    return unsupported(
+                        "unimplemented: checked-tree interpreter selected owner cleanup",
+                    );
+                }
                 for action in normal_cleanup_actions {
                     let CheckedNormalCleanupAction::InvokeNominal(action) = action else {
                         continue;
@@ -150,6 +156,16 @@ impl<'program> Evaluator<'program> {
             .terminal_unit_effects
             .composed_for_machine(machine.symbol)
             .and_then(|plan| plan.state(state.symbol));
+        // This retiring comparison interpreter has no occurrence custody
+        // ledger. Refuse candidate deaths before execution rather than run an
+        // absent owner's hook; native and Terminal use the selected CFG.
+        if composed.is_some_and(|state| state.normal_exit_cleanups.iter().any(|row| !row.selected_regions.is_empty()))
+            || self.cleanup_operations(machine.symbol, state.symbol).iter().any(|operation| {
+                matches!(operation, checked_trees::CheckedUnitEffectOperationPlan::ContinuationCleanup { selected_regions, .. } if !selected_regions.is_empty())
+            })
+        {
+            return unsupported("unimplemented: checked-tree interpreter selected owner cleanup");
+        }
         for (_, dependency) in checked.facts.operational.cleanup_dependencies.iter() {
             if dependency.caller_machine == machine.symbol
                 && dependency.caller_state == state.symbol
@@ -177,6 +193,7 @@ impl<'program> Evaluator<'program> {
                         checked_trees::CheckedUnitEffectOperationPlan::ContinuationCleanup {
                             boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement { .. },
                             cleanup_actions,
+                            ..
                         } if cleanup_actions.iter().any(|action| matches!(action,
                             CheckedNormalCleanupAction::InvokeNominal(action)
                                 if action.cleanup_machine == dependency.target_machine
@@ -216,6 +233,11 @@ impl<'program> Evaluator<'program> {
                 .ok_or_else(|| {
                     Halt::Unsupported("normal cleanup has no exact outgoing edge plan".into())
                 })?;
+            if !row.selected_regions.is_empty() {
+                return unsupported(
+                    "unimplemented: checked-tree interpreter selected owner cleanup",
+                );
+            }
             for action in &row.actions {
                 let CheckedNormalCleanupAction::InvokeNominal(action) = action else {
                     continue;

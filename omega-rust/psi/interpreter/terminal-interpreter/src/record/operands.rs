@@ -32,8 +32,16 @@ impl TerminalExecution<'_> {
                 if frontier.len() == before {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
-            } else {
-                self.consume_affine_projection(frontier, argument)?;
+            } else if !crate::custody::consume_projected_affine_complement(
+                &self.program.structural_types(),
+                &self.structural_values,
+                &self.structural_cases,
+                frontier,
+                argument,
+            )? {
+                // The original frontier identified custody, so an earlier
+                // staged operand must not consume it a second time.
+                return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
             consumed.push(argument.clone());
         }

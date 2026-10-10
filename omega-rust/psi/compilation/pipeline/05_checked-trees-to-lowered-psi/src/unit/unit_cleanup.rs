@@ -159,7 +159,7 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
-    selected_sources: &[checked_trees::CheckedUnitStructuralArgumentSourcePlan],
+    selected_regions: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     control: &checked_trees::CheckedCleanupControlPlans,
     types: &[terminal_psi::StructuralTypeDeclaration],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
@@ -182,8 +182,14 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
         .into_iter()
         .map(|action| {
             let (place, path) = storage(identities, action.source(), action.path())?;
-            let selected_region = if selected_sources.contains(action.source()) {
-                let (place, path) = storage(identities, action.source(), &[])?;
+            let selected = selected_regions
+                .iter()
+                .filter(|region| {
+                    region.source == *action.source() && action.path().starts_with(&region.path)
+                })
+                .max_by_key(|region| region.path.len());
+            let selected_region = if let Some(region) = selected {
+                let (place, path) = storage(identities, &region.source, &region.path)?;
                 Some(terminal_psi::StructuralArgument {
                     place,
                     path,

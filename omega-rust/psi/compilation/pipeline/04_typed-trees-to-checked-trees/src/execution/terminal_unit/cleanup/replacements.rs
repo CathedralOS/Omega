@@ -26,7 +26,7 @@ pub(super) fn actions(
     parameters: &[CheckedUnitStructuralParameterPlan],
     operations: &[CheckedUnitEffectOperationPlan],
     operation_index: usize,
-) -> Option<Vec<CheckedNormalCleanupAction>> {
+) -> Option<super::temporary_actions::SelectedActions> {
     let CheckedUnitEffectOperationPlan::ContinuationCleanup {
         boundary:
             checked_trees::CheckedUnitCleanupBoundary::Replacement {
@@ -92,6 +92,7 @@ pub(super) fn actions(
         Some(validation::CanonicalPlace { root, segments })
     });
     let mut actions = Vec::new();
+    let mut selected_regions = Vec::new();
     for (disposition_handle, disposition) in
         facts
             .contextual_cleanup
@@ -153,6 +154,33 @@ pub(super) fn actions(
         // belong to their own stores.
         if !path.starts_with(&destination.path) && !destination.path.starts_with(&path) {
             continue;
+        }
+        if facts
+            .contextual_cleanup
+            .selected_dispositions
+            .iter()
+            .any(|(_, handle)| *handle == disposition_handle)
+        {
+            // A conditional old value is still selected at its original storage.
+            // Owned replacements clean in place; borrowing cannot manufacture an
+            // absent displaced value before this static continuation is chosen.
+            if displaced {
+                return None;
+            }
+            let mut region = super::actions::selected_region(
+                program,
+                facts,
+                shapes,
+                disposition_handle,
+                source.clone(),
+                replaced.then_some(destination.path.as_slice()),
+            )?;
+            if destination.path.starts_with(&region.path) {
+                region = destination.clone();
+            }
+            if !selected_regions.contains(&region) {
+                selected_regions.push(region);
+            }
         }
         for mut action in super::actions::disposition_actions(
             program,
@@ -225,6 +253,21 @@ pub(super) fn actions(
     if actions.is_empty() {
         return None;
     }
+    if selected_regions
+        .iter()
+        .any(|region| !region.path.is_empty())
+    {
+        // Owned selected replacements have no displaced temporary: these
+        // paths still name the original containing owner before its store.
+        super::order::merge(
+            program,
+            state,
+            *statement_index as usize,
+            root,
+            &mut actions,
+            &old_value.source,
+        )?;
+    }
     // The authenticated replacement join distinguishes the displaced value's
     // home from the retained containing record. A root rebind also ends its old
     // occurrence; a field store only ends that selected field value.
@@ -237,5 +280,8 @@ pub(super) fn actions(
             },
         );
     }
-    Some(actions)
+    Some(super::temporary_actions::SelectedActions {
+        actions,
+        selected_regions,
+    })
 }

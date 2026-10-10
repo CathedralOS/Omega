@@ -119,22 +119,7 @@ pub(super) fn complete(
     types: &[StructuralTypeDeclaration],
     extractions: &[(OperationId, StructuralArgument)],
 ) -> Result<(), LoweringError> {
-    if extractions.is_empty() && !blocks.iter().any(|block| {
-        block.operations.iter().any(|operation| {
-            matches!(&operation.kind, OperationKind::ReleaseReference { path, .. } if !path.is_empty())
-                || operands(&operation.kind).any(|argument| {
-                argument.access == StructuralAccess::Owned && !argument.path.is_empty()
-            })
-        }) || block
-            .terminator
-            .successor_block_arguments()
-            .iter()
-            .any(|arguments| {
-                arguments.iter().any(|argument| {
-                    argument.access == StructuralAccess::Owned && !argument.path.is_empty()
-                })
-            })
-    }) {
+    if transferred_roots(blocks, extractions).is_empty() {
         return Ok(());
     }
     let roots = parameters
@@ -324,6 +309,45 @@ pub(super) fn complete(
     Ok(())
 }
 
+/// The actual emitted operations that require projected custody completion.
+/// Continuation preparation uses the same roster before physical identities
+/// are allocated, so case-selected residual deaths cannot rejoin too early.
+pub(crate) fn transferred_roots(
+    blocks: &[Block],
+    extractions: &[(OperationId, StructuralArgument)],
+) -> BTreeSet<PlaceId> {
+    let mut roots = extractions
+        .iter()
+        .map(|(_, argument)| argument.place)
+        .collect::<BTreeSet<_>>();
+    for block in blocks {
+        for argument in block
+            .operations
+            .iter()
+            .flat_map(|operation| operands(&operation.kind))
+            .chain(
+                block
+                    .terminator
+                    .successor_block_arguments()
+                    .into_iter()
+                    .flatten(),
+            )
+        {
+            if argument.access == StructuralAccess::Owned && !argument.path.is_empty() {
+                roots.insert(argument.place);
+            }
+        }
+        for operation in &block.operations {
+            if let OperationKind::ReleaseReference { source, path } = &operation.kind
+                && !path.is_empty()
+            {
+                roots.insert(*source);
+            }
+        }
+    }
+    roots
+}
+
 pub(crate) fn operands(kind: &OperationKind) -> impl Iterator<Item = &StructuralArgument> {
     let stored = match kind {
         OperationKind::StoreStructuralField { value, .. } => Some(value),
@@ -454,24 +478,30 @@ fn complete_actions(
             _ => actions.push(action.clone()),
         }
     }
-    // Exact checked region actions can span conditional cleanup blocks. They
-    // neither finish the owner nor form an entire complement on each edge.
-    // Reconstructing that complement here used to close one case arm early
-    // and reject its join with inactive arms. This producer only expands whole
-    // placeholders; home retirement, not a projected leaf, ends the transfer
-    // history. Source checking and boundary verifiers own partition validity.
-    frontier.retain(|root| {
-        !actions.iter().any(|action| match action {
+    // A transferred subtree and a subtree whose selected cleanup completed
+    // have the same unavailable custody at the continuation. Preserve that
+    // exact hole until restoration or home retirement, so the optional hook's
+    // executed path can rejoin the path that transferred its receiver earlier.
+    // A parent hook retains its children and therefore creates no such hole.
+    for action in &actions {
+        match action {
             TerminalAffineCleanupAction::RetireHome(place)
-            | TerminalAffineCleanupAction::DiscardRoot(place) => *place == root.place,
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                cleanup.place == root.place
-                    && cleanup.path.is_empty()
-                    && !cleanup.retains_descendants
+            | TerminalAffineCleanupAction::DiscardRoot(place) => {
+                frontier.retain(|root| root.place != *place);
             }
-            TerminalAffineCleanupAction::DiscardResidual(_) => false,
-        })
-    });
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) if !cleanup.retains_descendants => {
+                if cleanup.path.is_empty() {
+                    frontier.retain(|root| root.place != cleanup.place);
+                } else {
+                    remove_path(frontier, cleanup.place, &cleanup.path)?;
+                }
+            }
+            TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                remove_path(frontier, discard.place, &discard.path)?;
+            }
+            TerminalAffineCleanupAction::InvokeNominal(_) => {}
+        }
+    }
     *cleanup_actions = actions;
     Ok(())
 }

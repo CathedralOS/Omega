@@ -42,6 +42,11 @@ fn selected_actions(
     Some(actions)
 }
 
+pub(in crate::execution::terminal_unit) struct SelectedActions {
+    pub actions: Vec<CheckedNormalCleanupAction>,
+    pub selected_regions: Vec<checked_trees::CheckedUnitStructuralArgumentPlan>,
+}
+
 /// Operation indices and their completed action streams, prepared while the
 /// candidate roster remains immutable. Statement/local retirement retains its
 /// independent, already selected disposition; only anonymous operand owners
@@ -55,7 +60,7 @@ pub(in crate::execution::terminal_unit) fn operations(
     state: SymbolHandle,
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     operations: &[CheckedUnitEffectOperationPlan],
-) -> Option<Vec<(usize, Vec<CheckedNormalCleanupAction>)>> {
+) -> Option<Vec<(usize, SelectedActions)>> {
     let mut replacements = Vec::new();
     for (operation_index, operation) in operations.iter().enumerate() {
         if matches!(
@@ -84,6 +89,7 @@ pub(in crate::execution::terminal_unit) fn operations(
         let CheckedUnitEffectOperationPlan::ContinuationCleanup {
             boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
             cleanup_actions,
+            ..
         } = operation
         else {
             continue;
@@ -161,21 +167,30 @@ pub(in crate::execution::terminal_unit) fn operations(
                 source.clone(),
             )?);
         }
-        replacements.push((operation_index, completed));
+        replacements.push((
+            operation_index,
+            SelectedActions {
+                actions: completed,
+                selected_regions: Vec::new(),
+            },
+        ));
     }
     Some(replacements)
 }
 
 pub(in crate::execution::terminal_unit) fn install(
     operations: &mut [CheckedUnitEffectOperationPlan],
-    replacements: Vec<(usize, Vec<CheckedNormalCleanupAction>)>,
+    replacements: Vec<(usize, SelectedActions)>,
 ) {
     for (operation_index, selected) in replacements {
         if let CheckedUnitEffectOperationPlan::ContinuationCleanup {
-            cleanup_actions, ..
+            cleanup_actions,
+            selected_regions,
+            ..
         } = &mut operations[operation_index]
         {
-            *cleanup_actions = selected;
+            *cleanup_actions = selected.actions;
+            *selected_regions = selected.selected_regions;
         }
     }
 }

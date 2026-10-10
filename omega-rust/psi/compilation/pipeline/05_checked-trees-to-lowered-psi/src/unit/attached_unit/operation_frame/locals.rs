@@ -963,12 +963,13 @@ impl OperationFrame<'_, '_> {
 
         boundary: &checked_trees::CheckedUnitCleanupBoundary,
         cleanup_actions: &[checked_trees::CheckedNormalCleanupAction],
+        selected_regions: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     ) -> Result<(), LoweringError> {
         let actions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
             identities,
             self.checked,
             cleanup_actions,
-            &[],
+            selected_regions,
             &self
                 .checked
                 .facts

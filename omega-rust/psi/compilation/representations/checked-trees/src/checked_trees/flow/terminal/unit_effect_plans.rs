@@ -282,6 +282,8 @@ pub enum CheckedUnitEffectOperationPlan {
     /// distinct source evidence needed to authenticate their lifetimes.
     ContinuationCleanup {
         boundary: CheckedUnitCleanupBoundary,
+        /// Exact candidate regions whose old values exist only on retained paths.
+        selected_regions: Vec<CheckedUnitStructuralArgumentPlan>,
         cleanup_actions: Vec<crate::CheckedNormalCleanupAction>,
     },
     /// One ordinary or boundary call with a Unit, scalar or structural
@@ -323,8 +325,8 @@ pub enum CheckedUnitEffectOperationPlan {
         /// and linear claims. These retain the owner's selected action order.
         normal_cleanup_actions: Vec<crate::CheckedNormalCleanupAction>,
         /// Exact candidate owners whose cleanup follows the selected live
-        /// frontier, with the same meaning as normal-edge `selected_sources`.
-        selected_normal_cleanup_sources: Vec<CheckedUnitStructuralArgumentSourcePlan>,
+        /// frontier, with the same meaning as normal-edge `selected_regions`.
+        selected_normal_cleanup_regions: Vec<CheckedUnitStructuralArgumentPlan>,
         /// Exact local declaration coordinates cleaned before parameters, in
         /// reverse declaration order.
         trivial_affine_local_discard_ordinals: Vec<u32>,
@@ -531,7 +533,7 @@ impl Default for CheckedStructuralValueCall {
             operation: CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 0,
                 normal_cleanup_actions: Vec::new(),
-                selected_normal_cleanup_sources: Vec::new(),
+                selected_normal_cleanup_regions: Vec::new(),
                 trivial_affine_local_discard_ordinals: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },

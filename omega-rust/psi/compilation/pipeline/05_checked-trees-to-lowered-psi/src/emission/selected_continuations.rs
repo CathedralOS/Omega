@@ -59,7 +59,7 @@ pub(crate) fn prepare(
     blocks: &[Block],
     types: &[StructuralTypeDeclaration],
     groups: &[SelectedCleanupGroup],
-) -> Result<Specialization, LoweringError> {
+) -> Result<Option<Specialization>, LoweringError> {
     let mut regions = Vec::new();
     for group in groups {
         if group.region.access != StructuralAccess::Owned {
@@ -71,12 +71,54 @@ pub(crate) fn prepare(
         validate_group(blocks, group)?;
     }
     let extractions = super::affine_cleanup::owned_extractions(parameters, places, blocks, types)?;
+    let mut projected_roots = super::affine_cleanup::transferred_roots(blocks, &extractions);
+    if !projected_roots.is_empty() {
+        // Projected completion also observes exact residual/nominal disposal.
+        // Preserve those roots through their actual discriminator branches,
+        // even when another root's transfer activated projected completion.
+        // Differing case payload holes meet only after restoration or the
+        // already scheduled home retirement; no inactive case is fabricated.
+        for action in blocks
+            .iter()
+            .flat_map(|block| block.terminator.cleanup_rosters())
+            .flat_map(|(_, actions)| actions)
+        {
+            match action {
+                TerminalAffineCleanupAction::DiscardResidual(discard)
+                    if !discard.path.is_empty() =>
+                {
+                    projected_roots.insert(discard.place);
+                }
+                TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                    if !cleanup.retains_descendants && !cleanup.path.is_empty() =>
+                {
+                    projected_roots.insert(cleanup.place);
+                }
+                _ => {}
+            }
+        }
+        for &place in &projected_roots {
+            let root = StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            };
+            if !regions.contains(&root) {
+                regions.push(root);
+            }
+        }
+    }
+    if regions.is_empty() {
+        return Ok(None);
+    }
     let entry = block_position(blocks, entry)?;
     let initial = regions
         .iter()
         .map(|region| {
             if parameters.iter().any(|parameter| {
-                parameter.place == region.place && parameter.access == StructuralAccess::Owned
+                parameter.place == region.place
+                    && (parameter.access == StructuralAccess::Owned
+                        || projected_roots.contains(&region.place))
             }) {
                 RegionState::Live
             } else {
@@ -94,7 +136,12 @@ pub(crate) fn prepare(
         let block = &blocks[continuations[position].original_block];
         let mut frontier = continuations[position].incoming.clone();
         for parameter in &block.structural_parameters {
-            if parameter.access == StructuralAccess::Owned {
+            // Projected tracking records storage availability, not permission
+            // to own a borrowed referent. Only the supplied candidate groups
+            // can select cleanup; every actual operand retains its access.
+            if parameter.access == StructuralAccess::Owned
+                || projected_roots.contains(&parameter.place)
+            {
                 establish(&regions, &mut frontier, parameter.place);
             }
         }
@@ -204,10 +251,10 @@ pub(crate) fn prepare(
         continuations[position].successors = successors;
         position += 1;
     }
-    Ok(Specialization {
+    Ok(Some(Specialization {
         entry: 0,
         continuations,
-    })
+    }))
 }
 
 fn establish(regions: &[StructuralArgument], frontier: &mut [RegionState], place: PlaceId) {

@@ -103,6 +103,7 @@ pub(super) fn account(
                 CheckedUnitEffectOperationPlan::ContinuationCleanup {
                     boundary,
                     cleanup_actions,
+                    ..
                 } => Some((operation_index, boundary, cleanup_actions)),
                 _ => None,
             })

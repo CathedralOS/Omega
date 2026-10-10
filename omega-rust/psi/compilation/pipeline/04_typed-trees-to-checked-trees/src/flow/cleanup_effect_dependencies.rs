@@ -736,3 +736,49 @@ fn select_type(
     }
     select_type(program, field.type_reference, &nested, suffix)
 }
+
+/// Canonical completed-owner cleanup order shared by prerequisite checking and
+/// executable partitions: parent hooks first, siblings in reverse declaration
+/// or fixed-index order. No region or array elements are expanded here.
+pub(crate) fn cleanup_path_order(
+    program: &dyn validation::CheckingInput,
+    path: &[PlaceSegment],
+) -> Option<Vec<usize>> {
+    path.iter()
+        .map(|segment| segment_order(program, *segment))
+        .collect()
+}
+
+fn segment_order(
+    program: &dyn ::validation::CheckingInput,
+    segment: PlaceSegment,
+) -> Option<usize> {
+    let ordinal = match segment {
+        PlaceSegment::FixedIndex { index } => index,
+        PlaceSegment::Field { symbol } | PlaceSegment::Case { variant: symbol } => {
+            program.data_definitions().iter().find_map(|data| {
+                for (ordinal, member) in program.data_members(data).iter().enumerate() {
+                    match member {
+                        DataMember::Field(field) if field.symbol == symbol => return Some(ordinal),
+                        DataMember::Variant(variant) => {
+                            if variant.symbol == symbol {
+                                return Some(ordinal);
+                            }
+                            if let Some(ordinal) = program
+                                .data_payload_fields(variant)
+                                .iter()
+                                .position(|field| field.symbol == symbol)
+                            {
+                                return Some(ordinal);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                None
+            })?
+        }
+        PlaceSegment::FixedRange { .. } | PlaceSegment::Index { .. } => return None,
+    };
+    Some(usize::MAX - ordinal)
+}

@@ -221,6 +221,7 @@ pub(super) fn plan(
         operations.push(operation);
         if result.multiplicity == Multiplicity::Affine {
             operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                selected_regions: Vec::new(),
                 boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
                 cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
                     CheckedUnitPartialAffineDiscardPlan {

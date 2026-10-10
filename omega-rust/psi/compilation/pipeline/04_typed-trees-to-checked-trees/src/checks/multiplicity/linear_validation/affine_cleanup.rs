@@ -92,74 +92,30 @@ fn visit_owned_cleanup_events(
             else {
                 continue;
             };
-            let region_claim = tracked_places
-                .iter()
-                .find(|place| place.root == root && place.path == path && place.live);
-            let multiplicity = region_claim.map_or_else(
-                || match type_multiplicity(program, reference) {
-                    Multiplicity::Unrestricted => Multiplicity::Unrestricted,
-                    // Transparent arrays inherit element multiplicity, but
-                    // only an exact region claim can authorize Consume.
-                    Multiplicity::Affine | Multiplicity::Linear => Multiplicity::Affine,
-                },
-                |place| place.multiplicity,
-            );
-            if multiplicity == Multiplicity::Unrestricted {
-                continue;
-            }
-            let Some(receipts) = super::super::owned_cleanup::claim_receipts(
+            visit_owned_region_cleanup_events(
                 program,
                 reference,
                 root,
                 &path,
                 tracked_places,
-                &remaining.removed_paths(program, root, &path),
-            ) else {
-                continue;
-            };
-            let event = FlowPermissionEventFact {
-                expression: Default::default(),
-                evaluation,
-                machine_symbol,
-                state_symbol: state.symbol,
-                source: PermissionEventSource::StateExit,
-                kind: if multiplicity == Multiplicity::Linear {
-                    PermissionEventKind::Consume
-                } else {
-                    PermissionEventKind::AffineDrop
+                remaining,
+                FlowPermissionEventFact {
+                    expression: Default::default(),
+                    evaluation,
+                    machine_symbol,
+                    state_symbol: state.symbol,
+                    source: PermissionEventSource::StateExit,
+                    kind: PermissionEventKind::AffineDrop,
+                    multiplicity: Multiplicity::Affine,
+                    access: PermissionAccess::Owned,
+                    claim_identity: PermissionClaimIdentity::Unknown,
+                    provenance: PermissionProvenance::Unknown,
+                    root,
+                    segments: Default::default(),
+                    obligation_live: false,
                 },
-                multiplicity,
-                access: PermissionAccess::Owned,
-                claim_identity: if multiplicity == Multiplicity::Linear {
-                    region_claim
-                        .and_then(|place| place.claim_identity)
-                        .unwrap_or(PermissionClaimIdentity::Unknown)
-                } else {
-                    PermissionClaimIdentity::Unknown
-                },
-                provenance: region_claim
-                    .and_then(|place| place.provenance)
-                    .unwrap_or(PermissionProvenance::Unknown),
-                root,
-                segments: Default::default(),
-                obligation_live: false,
-            };
-            emit(event.clone(), path.clone());
-            for place in receipts {
-                if event.kind == PermissionEventKind::Consume && place.path == path {
-                    continue;
-                }
-                let mut receipt = event.clone();
-                receipt.kind = PermissionEventKind::Consume;
-                receipt.multiplicity = Multiplicity::Linear;
-                receipt.claim_identity = place
-                    .claim_identity
-                    .expect("eligible cleanup has exact claim");
-                receipt.provenance = place
-                    .provenance
-                    .expect("eligible cleanup has exact provenance");
-                emit(receipt, place.path.clone());
-            }
+                &mut emit,
+            );
         }
     };
 
@@ -182,6 +138,109 @@ fn visit_owned_cleanup_events(
         .filter(|parameter| !parameter.relevance.is_erased())
     {
         append(parameter.symbol, parameter.type_reference);
+    }
+}
+
+/// One exact owned region uses the same eligibility and claim receipts at a
+/// normal exit or replacement, including a retained skipped-transfer region.
+pub(crate) fn append_owned_region_cleanup_permission_events(
+    program: &dyn validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    root: facts::PlaceRoot,
+    path: &[facts::PlaceSegment],
+    tracked_places: &[LinearPlace],
+    remaining: &super::super::cleanup_dispositions::RemainingCustody,
+    template: FlowPermissionEventFact,
+    segments: &mut Arena<facts::PlaceSegment>,
+    permission_events: &mut Vec<FlowPermissionEventFact>,
+) {
+    visit_owned_region_cleanup_events(
+        program,
+        reference,
+        root,
+        path,
+        tracked_places,
+        remaining,
+        template,
+        |mut event, path| {
+            event.segments = segments.insert_many(path);
+            permission_events.push(event);
+        },
+    );
+}
+
+fn visit_owned_region_cleanup_events(
+    program: &dyn validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    root: facts::PlaceRoot,
+    path: &[facts::PlaceSegment],
+    tracked_places: &[LinearPlace],
+    remaining: &super::super::cleanup_dispositions::RemainingCustody,
+    template: FlowPermissionEventFact,
+    mut emit: impl FnMut(FlowPermissionEventFact, Vec<facts::PlaceSegment>),
+) {
+    let region_claim = tracked_places
+        .iter()
+        .find(|place| place.root == root && place.path == path && place.live);
+    let multiplicity = region_claim.map_or_else(
+        || match type_multiplicity(program, reference) {
+            Multiplicity::Unrestricted => Multiplicity::Unrestricted,
+            // Transparent arrays inherit element multiplicity, but
+            // only an exact region claim can authorize Consume.
+            Multiplicity::Affine | Multiplicity::Linear => Multiplicity::Affine,
+        },
+        |place| place.multiplicity,
+    );
+    if multiplicity == Multiplicity::Unrestricted {
+        return;
+    }
+    let Some(receipts) = super::super::owned_cleanup::claim_receipts(
+        program,
+        reference,
+        root,
+        path,
+        tracked_places,
+        &remaining.removed_paths(program, root, path),
+    ) else {
+        return;
+    };
+    let event = FlowPermissionEventFact {
+        kind: if multiplicity == Multiplicity::Linear {
+            PermissionEventKind::Consume
+        } else {
+            PermissionEventKind::AffineDrop
+        },
+        multiplicity,
+        access: PermissionAccess::Owned,
+        claim_identity: if multiplicity == Multiplicity::Linear {
+            region_claim
+                .and_then(|place| place.claim_identity)
+                .unwrap_or(PermissionClaimIdentity::Unknown)
+        } else {
+            PermissionClaimIdentity::Unknown
+        },
+        provenance: region_claim
+            .and_then(|place| place.provenance)
+            .unwrap_or(PermissionProvenance::Unknown),
+        root,
+        obligation_live: false,
+        ..template
+    };
+    emit(event.clone(), path.to_vec());
+    for place in receipts {
+        if event.kind == PermissionEventKind::Consume && place.path == path {
+            continue;
+        }
+        let mut receipt = event.clone();
+        receipt.kind = PermissionEventKind::Consume;
+        receipt.multiplicity = Multiplicity::Linear;
+        receipt.claim_identity = place
+            .claim_identity
+            .expect("eligible cleanup has exact claim");
+        receipt.provenance = place
+            .provenance
+            .expect("eligible cleanup has exact provenance");
+        emit(receipt, place.path.to_vec());
     }
 }
 
@@ -317,7 +376,7 @@ pub(crate) fn apply_recorded_cleanup_events(
     }
 }
 
-pub(super) fn exit_evaluation(
+pub(crate) fn exit_evaluation(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     coordinate: FlowClaimJoinExit,

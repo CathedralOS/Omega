@@ -101,7 +101,7 @@ pub(super) fn admit(
             // replacement and do not establish any additional authority.
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary,
-                cleanup_actions,
+                cleanup_actions, ..
             }
                 if !cleanup_actions.is_empty()
                     && cleanup_actions.iter().all(|action| call_argument_admitted(

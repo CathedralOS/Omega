@@ -384,7 +384,9 @@ pub(crate) fn prepare_permission_events(
                             &before_places,
                             &before_remaining,
                             &permission_events[event_start..],
-                            &facts.flow.ownership.segments,
+                            &storage_establishments,
+                            &mut facts.flow.ownership,
+                            &mut cleanup_dispositions,
                         ) {
                             selection_diagnostics.push(diagnostic);
                             return;
@@ -414,16 +416,17 @@ pub(crate) fn prepare_permission_events(
                             &mut facts.flow.ownership.segments,
                             &mut permission_events,
                         );
-                        selected_cleanup.finish(
+                        if let Err(diagnostic) = selected_cleanup.finish(
                             program,
                             state,
-                            state_flow.machine_symbol,
                             coordinate,
                             &permission_events[event_start..],
                             remaining,
                             &mut facts.flow.ownership,
                             &mut cleanup_dispositions,
-                        );
+                        ) {
+                            selection_diagnostics.push(diagnostic);
+                        }
                     }
                     super::permission_schedule::PermissionStep::Exit { crash: true, .. }
                     | super::permission_schedule::PermissionStep::MissedGuard { .. } => {}

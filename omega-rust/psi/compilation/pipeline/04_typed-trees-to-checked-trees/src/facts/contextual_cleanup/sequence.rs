@@ -16,7 +16,7 @@ use crate::flow::{CleanupLeaf, StateMutationSummaryCache};
 use checked_trees::{CheckFacts, CheckedBooleanExpression, ContractProofFactKind};
 use facts::{FactContextHandle, PlaceRoot, PlaceSegment, ScalarValue};
 use symbols::SymbolHandle;
-use typed_trees::{data::DataMember, expression::ExpressionHandle};
+use typed_trees::expression::ExpressionHandle;
 
 #[derive(Clone, Default)]
 pub(super) struct CurrentCleanupFacts {
@@ -275,6 +275,7 @@ fn overlaps(
         )
 }
 
+#[derive(Clone)]
 pub(super) struct SelectedHook {
     pub machine: SymbolHandle,
     pub path: Vec<PlaceSegment>,
@@ -303,10 +304,7 @@ pub(super) fn ordered_hooks(
         let paths = crate::flow::concrete_cleanup_paths(relative_path)?;
         hooks.try_reserve_exact(paths.len()).ok()?;
         for relative_path in paths {
-            let order = relative_path
-                .iter()
-                .map(|segment| segment_order(program, *segment))
-                .collect::<Option<Vec<_>>>()?;
+            let order = crate::flow::cleanup_path_order(program, &relative_path)?;
             let mut path = selected_path.to_vec();
             path.extend(relative_path);
             hooks.push(SelectedHook {
@@ -318,38 +316,4 @@ pub(super) fn ordered_hooks(
     }
     hooks.sort_by(|left, right| left.order.cmp(&right.order));
     Some(hooks)
-}
-
-fn segment_order(
-    program: &dyn ::validation::CheckingInput,
-    segment: PlaceSegment,
-) -> Option<usize> {
-    let ordinal = match segment {
-        PlaceSegment::FixedIndex { index } => index,
-        PlaceSegment::Field { symbol } | PlaceSegment::Case { variant: symbol } => {
-            program.data_definitions().iter().find_map(|data| {
-                for (ordinal, member) in program.data_members(data).iter().enumerate() {
-                    match member {
-                        DataMember::Field(field) if field.symbol == symbol => return Some(ordinal),
-                        DataMember::Variant(variant) => {
-                            if variant.symbol == symbol {
-                                return Some(ordinal);
-                            }
-                            if let Some(ordinal) = program
-                                .data_payload_fields(variant)
-                                .iter()
-                                .position(|field| field.symbol == symbol)
-                            {
-                                return Some(ordinal);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                None
-            })?
-        }
-        PlaceSegment::FixedRange { .. } | PlaceSegment::Index { .. } => return None,
-    };
-    Some(usize::MAX - ordinal)
 }

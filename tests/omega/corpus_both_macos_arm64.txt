@@ -754,3 +754,4 @@ pass/borrows/runtime_reference_initializer_selector_before_later_write_exit buil
 pass/references/selected_record_loan_disjoint_fields_exit built 5012ms exit:70 interpreter-exit:70 interpreter:agrees @edb462c792f9
 pass/slices/runtime_mutable_record_slice_result_reborrow_exit built 4333ms exit:0 interpreter-exit:0 interpreter:agrees @edb462c792f9
 pass/slices/runtime_mutable_slice_result_nested_reborrow_exit built 4030ms exit:0 interpreter-exit:0 interpreter:agrees @edb462c792f9
+pass/drops/runtime_selected_partial_owner_cleanup_exit built 3649ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @70cafb4c5975+wt

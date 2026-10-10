@@ -242,10 +242,20 @@ fn selected_requirements(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Result<Vec<SelectedRequirement>, Vec<Diagnostic>> {
-    let mut result = Vec::new();
-    let proof_only = validation::proof_only_classification(program);
-    let summaries = crate::flow::StateMutationSummaryCache::default();
-    let call_frames = validation::CallFrameResolver::new(program);
+    struct Hook {
+        disposition: arena::Handle<checked_trees::ContextualCleanupDisposition>,
+        selected: bool,
+        receiver: super::sequence::SelectedHook,
+    }
+    struct Group<'a> {
+        state: &'a FlowStateFact,
+        source: PermissionEventSource,
+        exit: checked_trees::FlowClaimJoinExit,
+        root: PlaceRoot,
+        statement: usize,
+        contexts: Vec<FactContextHandle>,
+        hooks: Vec<Hook>,
+    }
     struct Occurrence {
         machine: SymbolHandle,
         state: SymbolHandle,
@@ -255,7 +265,11 @@ fn selected_requirements(
         entry: Vec<FactContextHandle>,
         current: CurrentCleanupFacts,
     }
-    let mut occurrences = Vec::<Occurrence>::new();
+    let mut result = Vec::new();
+    let proof_only = validation::proof_only_classification(program);
+    let summaries = crate::flow::StateMutationSummaryCache::default();
+    let call_frames = validation::CallFrameResolver::new(program);
+    let mut groups = Vec::<Group<'_>>::new();
     for (handle, disposition) in facts.contextual_cleanup.dispositions.iter() {
         let Some(machine) = program.machine_by_symbol(disposition.machine) else {
             continue;
@@ -271,12 +285,12 @@ fn selected_requirements(
         let Some(leaves) = selected_cleanup_leaves(program, facts, disposition) else {
             continue;
         };
-        let selected_path = facts
+        let path = facts
             .flow
             .ownership
             .segments
             .span_or_empty(disposition.path);
-        let hooks = ordered_hooks(program, selected_path, &leaves).ok_or_else(|| {
+        let hooks = ordered_hooks(program, path, &leaves).ok_or_else(|| {
             vec![Diagnostic::error(
                 "cannot prove automatic cleanup requires: selected receiver order is unresolved",
             )]
@@ -284,54 +298,121 @@ fn selected_requirements(
         if hooks.is_empty() {
             continue;
         }
+        let selected = facts
+            .contextual_cleanup
+            .selected_dispositions
+            .iter()
+            .any(|(_, candidate)| *candidate == handle);
         let points = occurrence_contexts(program, facts, state, disposition).ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "cleanup prerequisite has no exact outgoing edge context in {}",
-                crate::labels::machine_name(program, disposition.machine),
+                crate::labels::machine_name(program, disposition.machine)
             ))]
         })?;
         for (statement, contexts) in points {
-            let position = occurrences
+            let position = groups
                 .iter()
-                .position(|row| {
-                    row.machine == disposition.machine
-                        && row.state == disposition.state
-                        && row.source == disposition.source
-                        && row.exit == disposition.exit
-                        && row.statement == statement
-                        && row.entry == contexts
+                .position(|group| {
+                    group.state.machine_symbol == disposition.machine
+                        && group.state.state_symbol == disposition.state
+                        && group.source == disposition.source
+                        && group.exit == disposition.exit
+                        && group.root == disposition.root
+                        && group.statement == statement
+                        && group.contexts == contexts
                 })
                 .unwrap_or_else(|| {
-                    let position = occurrences.len();
-                    occurrences.push(Occurrence {
-                        machine: disposition.machine,
-                        state: disposition.state,
+                    let position = groups.len();
+                    groups.push(Group {
+                        state,
                         source: disposition.source,
                         exit: disposition.exit,
+                        root: disposition.root,
                         statement,
-                        entry: contexts.clone(),
-                        current: CurrentCleanupFacts::new(
-                            contexts.clone(),
-                            call_frames
-                                .as_ref()
-                                .map(|frames| {
-                                    crate::checks::contracts::current_call_guarantee_predicates(
-                                        program, facts, state, statement, &contexts, frames,
-                                    )
-                                })
-                                .unwrap_or_default(),
-                        ),
+                        contexts,
+                        hooks: Vec::new(),
                     });
                     position
                 });
-            let current = &mut occurrences[position].current;
-            let skipped = facts
-                .contextual_cleanup
-                .selected_dispositions
-                .iter()
-                .any(|(_, candidate)| *candidate == handle)
-                .then(|| current.clone());
-            for selected in &hooks {
+            groups[position]
+                .hooks
+                .extend(hooks.iter().cloned().map(|receiver| Hook {
+                    disposition: handle,
+                    selected,
+                    receiver,
+                }));
+        }
+    }
+    let mut occurrences = Vec::<Occurrence>::new();
+    for mut group in groups {
+        // An ordinary complement may lie on both sides of a selected region.
+        // Merge their actual hooks, retaining each optional subtree as one
+        // contiguous group. Untouched construction schedules keep source order.
+        if group.hooks.iter().any(|hook| hook.selected) {
+            let mut ordered = group.hooks.into_iter().map(|hook| {
+                crate::flow::cleanup_path_order(program, &hook.receiver.path)
+                    .map(|order| (order, hook))
+            }).collect::<Option<Vec<_>>>().ok_or_else(|| vec![Diagnostic::error(
+                "cannot prove automatic cleanup requires: selected partition order is unresolved",
+            )])?;
+            ordered.sort_by(|left, right| left.0.cmp(&right.0));
+            group.hooks = ordered.into_iter().map(|(_, hook)| hook).collect();
+        }
+        let state = group.state;
+        let statement = group.statement;
+        let position = occurrences
+            .iter()
+            .position(|row| {
+                row.machine == state.machine_symbol
+                    && row.state == state.state_symbol
+                    && row.source == group.source
+                    && row.exit == group.exit
+                    && row.statement == statement
+                    && row.entry == group.contexts
+            })
+            .unwrap_or_else(|| {
+                let position = occurrences.len();
+                occurrences.push(Occurrence {
+                    machine: state.machine_symbol,
+                    state: state.state_symbol,
+                    source: group.source,
+                    exit: group.exit,
+                    statement,
+                    entry: group.contexts.clone(),
+                    current: CurrentCleanupFacts::new(
+                        group.contexts.clone(),
+                        call_frames
+                            .as_ref()
+                            .map(|frames| {
+                                crate::checks::contracts::current_call_guarantee_predicates(
+                                    program,
+                                    facts,
+                                    state,
+                                    statement,
+                                    &group.contexts,
+                                    frames,
+                                )
+                            })
+                            .unwrap_or_default(),
+                    ),
+                });
+                position
+            });
+        let current = &mut occurrences[position].current;
+        let mut offset = 0;
+        while offset < group.hooks.len() {
+            let first = &group.hooks[offset];
+            let mut end = offset + 1;
+            if first.selected {
+                while end < group.hooks.len() && group.hooks[end].disposition == first.disposition {
+                    end += 1;
+                }
+            }
+            let skipped = first.selected.then(|| current.clone());
+            for item in &group.hooks[offset..end] {
+                let handle = item.disposition;
+                let disposition = facts.contextual_cleanup.dispositions.get(handle);
+                let selected = &item.receiver;
                 let hook = selected.machine;
                 let mut place = CanonicalPlace {
                     root: disposition.root,
@@ -407,6 +488,7 @@ fn selected_requirements(
             if let Some(skipped) = skipped {
                 current.join_skipped(&skipped);
             }
+            offset = end;
         }
     }
     Ok(result)

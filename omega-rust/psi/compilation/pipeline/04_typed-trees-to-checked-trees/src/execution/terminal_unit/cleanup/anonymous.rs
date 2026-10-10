@@ -299,6 +299,7 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
         *discard_on_return = false;
     }
     operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+        selected_regions: Vec::new(),
         boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
         cleanup_actions: cleanup_actions
             .into_iter()

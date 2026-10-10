@@ -126,7 +126,7 @@ fn cleanup_rows(
         if !rows.iter().any(|row| row.exit == exit) {
             rows.push(CheckedNormalExitCleanupPlan {
                 exit,
-                selected_sources: Vec::new(),
+                selected_regions: Vec::new(),
                 actions: Vec::new(),
             });
         }
@@ -150,13 +150,14 @@ fn cleanup_rows(
             continue;
         };
         if !retirements.iter().any(
-            |(exit, retirement): &(_, checked_trees::CheckedNormalCleanupAction)| {
+            |(exit, retirement, _): &(_, checked_trees::CheckedNormalCleanupAction, _)| {
                 *exit == disposition.exit && retirement.source() == &source
             },
         ) {
             retirements.push((
                 disposition.exit,
                 super::actions::home_retirement(program, shapes, disposition, source.clone())?,
+                disposition.root,
             ));
         }
         let actions = super::actions::disposition_actions(
@@ -174,17 +175,40 @@ fn cleanup_rows(
                 .selected_dispositions
                 .iter()
                 .any(|(_, candidate)| *candidate == disposition_handle)
-                && !row.selected_sources.contains(&source)
             {
-                row.selected_sources.push(source.clone());
+                let region = super::actions::selected_region(
+                    program,
+                    facts,
+                    shapes,
+                    disposition_handle,
+                    source.clone(),
+                    None,
+                )?;
+                if !row.selected_regions.contains(&region) {
+                    row.selected_regions.push(region);
+                }
             }
             row.actions.extend(actions);
         } else {
             return None;
         }
     }
-    for (exit, retirement) in retirements {
+    for (exit, retirement, root) in retirements {
         let row = rows.iter_mut().find(|row| row.exit == exit)?;
+        if row
+            .selected_regions
+            .iter()
+            .any(|region| &region.source == retirement.source() && !region.path.is_empty())
+        {
+            super::order::merge(
+                program,
+                state.symbol,
+                exit.statement_index,
+                root,
+                &mut row.actions,
+                retirement.source(),
+            )?;
+        }
         super::actions::finish_home(&mut row.actions, retirement);
     }
     Some(rows)

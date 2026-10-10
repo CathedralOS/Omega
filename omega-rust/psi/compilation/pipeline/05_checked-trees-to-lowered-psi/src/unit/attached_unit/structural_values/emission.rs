@@ -183,6 +183,7 @@ pub(crate) fn emit(
             structural_types,
             evaluation,
             operations,
+            None,
         )?;
         if owners
             .iter()
@@ -534,7 +535,29 @@ fn prepare_owners(
     structural_types: &[StructuralTypeDeclaration],
     evaluation: &argument_evaluation::Evaluation,
     operations: &OperationBuffer,
+    result_source: Option<PlaceId>,
 ) -> Result<Vec<argument_evaluation::StructuralValueOwner>, LoweringError> {
+    // An ordinary whole move has its own result slot and exact claim transport.
+    // Only its complement is a survivor roster. Do not classify the moved
+    // source as a claim-free survivor before removing it from that roster.
+    // Rebinding installs a new physical place in both current rosters. Match
+    // the actual emitted operand, not the local symbol or its older producer.
+    // All roster paths must agree: reconstructing a named local must not
+    // resurrect the occurrence the completed call already consumed.
+    let consumed = |place: PlaceId| {
+        operations.iter().any(|operation| {
+            crate::emission::affine_cleanup::structural_operands(&operation.kind).any(|argument| {
+                argument.place == place
+                    && argument.access == StructuralAccess::Owned
+                    && argument.path.is_empty()
+            })
+        })
+    };
+    let outside_survivor_frontier = |argument: &StructuralArgument| {
+        (result_source == Some(argument.place) || consumed(argument.place))
+            && argument.path.is_empty()
+            && argument.access == StructuralAccess::Owned
+    };
     let source_parameters =
         checked.state_parameters(crate::declarations::state_declaration(checked, state)?.1);
     let available = |symbol: symbols::SymbolHandle,
@@ -633,13 +656,7 @@ fn prepare_owners(
         // Anonymous completed operands have no authored symbol to query.
         // Actual whole-owned consumption retires their unique emitted home,
         // just as it does named homes; borrowing or a child transfer does not.
-        if operations.iter().any(|operation| {
-            crate::emission::affine_cleanup::structural_operands(&operation.kind).any(|argument| {
-                argument.place == owner.value.place
-                    && argument.access == StructuralAccess::Owned
-                    && argument.path.is_empty()
-            })
-        }) {
+        if result_source == Some(owner.value.place) || consumed(owner.value.place) {
             continue;
         }
         if available(owner.symbol, owner.statement)? {
@@ -651,6 +668,9 @@ fn prepare_owners(
         root, argument, ..
     } in &evaluation.structural_locals
     {
+        if outside_survivor_frontier(argument) {
+            continue;
+        }
         let Some(symbol) = root.as_symbol() else {
             continue;
         };
@@ -784,6 +804,10 @@ fn prepare_owners(
         .take_while(|local| local.statement_index < statement)
     {
         if checked.type_multiplicity(local.declared_type) == Multiplicity::Affine
+            && !evaluation.structural_locals.iter().any(|binding| {
+                binding.root == facts::PlaceRoot::Symbol(local.symbol)
+                    && outside_survivor_frontier(&binding.argument)
+            })
             && available(local.symbol, local.statement_index)?
             && !owners.iter().any(|owner| owner.symbol == local.symbol)
         {
@@ -1743,14 +1767,10 @@ impl Emission<'_, '_, '_> {
                 self.structural_types,
                 self.evaluation,
                 self.operations,
+                Some(source),
             )?;
         }
-        let mut remaining_owners = self
-            .owners
-            .iter()
-            .filter(|owner| owner.value.place != source)
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut remaining_owners = self.owners.clone();
         let mut pass_through = Vec::new();
         let mut structural_parameters = Vec::new();
         for owner in &mut remaining_owners {

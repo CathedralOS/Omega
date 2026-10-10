@@ -32,34 +32,39 @@ pub(super) fn append_transfer(
     let Some(statement_index) = event_statement_index(event.source) else {
         return;
     };
+    // Payload binders retain their exact selected Case/Field coordinates.
+    // Their affine storage moves even when only a sibling has a linear claim.
     if path.is_empty()
         || !path.iter().all(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
             )
         })
         || program.state_by_symbol(state).is_none()
     {
         return;
     }
-    let mut owners = places
+    // A carrier move is independent of its contained claim frontier. An
+    // exact tracked endpoint already publishes its own transfer; otherwise
+    // retain the storage path even when every payload claim is inactive.
+    let owners = places
         .iter()
-        .filter(|place| place.root == facts::PlaceRoot::Symbol(symbol));
-    let Some(owner) = owners.next() else {
-        return;
-    };
-    if owners.next().is_some()
-        || !owner.path.is_empty()
-        || owner.multiplicity != Multiplicity::Affine
-        || (!owner.live && !remaining.is_reserved(event.root))
+        .filter(|place| place.root == facts::PlaceRoot::Symbol(symbol))
+        .collect::<Vec<_>>();
+    if owners.iter().any(|owner| owner.path == path)
+        || !owners.iter().any(|owner| owner.ever_established)
         || !remaining.is_present(event.root, path)
-        || owner
-            .claim_identity
-            .is_some_and(|claim| claim != PermissionClaimIdentity::Unknown)
     {
         return;
     }
+    let provenance = owners
+        .iter()
+        .find(|owner| owner.path.is_empty() && owner.multiplicity == Multiplicity::Affine)
+        .and_then(|owner| owner.provenance)
+        .unwrap_or(PermissionProvenance::Unknown);
     let root = validation::CanonicalPlace {
         root: event.root,
         segments: Vec::new(),
@@ -102,7 +107,7 @@ pub(super) fn append_transfer(
         multiplicity: Multiplicity::Affine,
         access: PermissionAccess::Owned,
         claim_identity: PermissionClaimIdentity::Unknown,
-        provenance: owner.provenance.unwrap_or(PermissionProvenance::Unknown),
+        provenance,
         root: event.root,
         segments: event.segments,
         obligation_live: false,
@@ -203,33 +208,25 @@ pub(super) fn append_replacement(
     places: &[LinearPlace],
     remaining: &super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
-) {
-    let Some(assignment) = statement.as_assignment() else {
-        return;
-    };
-    let Some(place) = validation::canonical_place_from_expression_in_state(
+) -> Option<super::cleanup_dispositions::StorageEstablishment> {
+    let assignment = statement.as_assignment()?;
+    let place = validation::canonical_place_from_expression_in_state(
         program,
         state,
         statement_index,
         assignment.target,
-    ) else {
-        return;
-    };
+    )?;
 
-    let Some(symbol) = place.root.as_symbol() else {
-        return;
-    };
+    let symbol = place.root.as_symbol()?;
     if !place.has_only_positional_segments() {
-        return;
+        return None;
     }
-    let Some(owner) = places.iter().find(|owner| {
+    let owner = places.iter().find(|owner| {
         owner.root == facts::PlaceRoot::Symbol(symbol)
             && owner.path.is_empty()
             && (owner.live || remaining.is_reserved(place.root))
             && owner.multiplicity == Multiplicity::Affine
-    }) else {
-        return;
-    };
+    })?;
     // Crossing any reference changes storage ownership. Replacing the
     // borrowed carrier itself is also unrelated to nominal value cleanup.
     for length in 0..=place.segments.len() {
@@ -237,18 +234,15 @@ pub(super) fn append_replacement(
             root: place.root,
             segments: place.segments[..length].to_vec(),
         };
-        let Some(reference) =
-            validation::canonical_place_type_reference(program, state, statement_index, &prefix)
-        else {
-            return;
-        };
+        let reference =
+            validation::canonical_place_type_reference(program, state, statement_index, &prefix)?;
         if type_reference_is_reference(program, reference) {
-            return;
+            return None;
         }
         if length == place.segments.len()
             && type_multiplicity(program, reference) == Multiplicity::Linear
         {
-            return;
+            return None;
         }
     }
     let endpoint =
@@ -259,7 +253,7 @@ pub(super) fn append_replacement(
         // Copy-field stores carry no disposal event in a complete value.
         // They matter here only as establishment of reserved construction
         // storage; ordinary scalar write semantics stay with their owner.
-        return;
+        return None;
     }
     let discarded = if affine {
         remaining.disposal_paths(place.root, &place.segments)
@@ -267,7 +261,11 @@ pub(super) fn append_replacement(
         Vec::new()
     };
     let source = language_semantics::PermissionEventSource::Statement { statement_index };
-    let segments = facts.flow.ownership.segments.insert_many(place.segments);
+    let segments = facts
+        .flow
+        .ownership
+        .segments
+        .insert_many(place.segments.iter().copied());
     for path in discarded {
         // Reserved storage may contain zero-valid copy fields alongside its
         // established owners. Completion needs both; disposal owes only the
@@ -302,6 +300,12 @@ pub(super) fn append_replacement(
             obligation_live: false,
         });
     }
+    // Return the same receiving occurrence to the cleanup owner. Projected
+    // affine regions do not have their own tracked linear-claim row.
+    let establishment = super::cleanup_dispositions::StorageEstablishment {
+        event_ordinal: permissions.len(),
+        destination: place,
+    };
     permissions.push(FlowPermissionEventFact {
         expression: Default::default(),
         evaluation: checked_trees::FlowPermissionEvaluation::Statement,
@@ -321,8 +325,9 @@ pub(super) fn append_replacement(
             state_symbol: state,
             source,
         },
-        root: place.root,
+        root: establishment.destination.root,
         segments,
         obligation_live: false,
     });
+    Some(establishment)
 }

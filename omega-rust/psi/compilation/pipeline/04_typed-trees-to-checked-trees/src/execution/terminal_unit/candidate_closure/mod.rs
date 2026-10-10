@@ -311,6 +311,7 @@ pub(super) fn retain_available(
                 CheckedUnitEffectOperationPlan::ContinuationCleanup {
                     boundary,
                     cleanup_actions,
+                    ..
                 } => {
                     for cleanup in cleanup_actions
                         .iter()
@@ -419,7 +420,7 @@ pub(super) fn retain_available(
                     // already a custody row inside this same state.
                     | checked_trees::structural_field_write_pattern!()
                     => {}
-                    CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary, cleanup_actions } => {
+                    CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary, cleanup_actions, .. } => {
                         for cleanup in cleanup_actions.iter().filter_map(checked_trees::CheckedNormalCleanupAction::nominal) {
                             closure.require_entry(
                                 caller_index,

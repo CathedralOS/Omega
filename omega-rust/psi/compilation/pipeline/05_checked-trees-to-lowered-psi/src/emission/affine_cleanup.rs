@@ -25,7 +25,9 @@ mod carrier_arrivals;
 mod custody_flow;
 mod projected_transfers;
 
-pub(crate) use projected_transfers::{operands as structural_operands, owned_extractions};
+pub(crate) use projected_transfers::{
+    operands as structural_operands, owned_extractions, transferred_roots,
+};
 
 /// Join source-authorized no-code type capability to this closure's existing
 /// normalized type identities. Terminal storage geometry alone cannot authorize

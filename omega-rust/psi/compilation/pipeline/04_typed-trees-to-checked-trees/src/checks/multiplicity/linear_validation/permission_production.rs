@@ -202,18 +202,20 @@ pub(crate) fn apply_statement_permission_production(
                         .then_some(index)
                 })
                 .collect::<Vec<_>>();
+            // Storage custody moves once at the authored carrier path;
+            // nested linear claims retain their separate exact transfers.
+            projected_affine::append_transfer(
+                program,
+                facts,
+                machine_symbol,
+                state_symbol,
+                event,
+                &event_path,
+                places,
+                remaining,
+                permission_events,
+            );
             if matching.is_empty() {
-                projected_affine::append_transfer(
-                    program,
-                    facts,
-                    machine_symbol,
-                    state_symbol,
-                    event,
-                    &event_path,
-                    places,
-                    remaining,
-                    permission_events,
-                );
                 continue;
             }
             let kind = PermissionEventKind::Transfer;
@@ -293,8 +295,9 @@ pub(crate) fn apply_statement_permission_production(
         &permission_events[event_start..],
         &facts.flow.ownership.segments,
     );
-    if written_targets.is_empty() {
-        projected_affine::append_replacement(
+    let mut storage_establishments: Vec<StorageEstablishment> = Vec::new();
+    if written_targets.is_empty()
+        && let Some(mut establishment) = projected_affine::append_replacement(
             program,
             facts,
             machine_symbol,
@@ -304,11 +307,15 @@ pub(crate) fn apply_statement_permission_production(
             places,
             &replacement_custody,
             permission_events,
-        );
+        )
+    {
+        // The producer returns its exact index in the shared event vector;
+        // both cleanup consumers replay this statement's event slice.
+        establishment.event_ordinal -= event_start;
+        storage_establishments.push(establishment);
     }
 
     let mut checked_through = event_start;
-    let mut storage_establishments: Vec<StorageEstablishment> = Vec::new();
     for (target, source) in written_targets {
         let place_index = target.place_index;
         let obligation_live = target.obligation_live;

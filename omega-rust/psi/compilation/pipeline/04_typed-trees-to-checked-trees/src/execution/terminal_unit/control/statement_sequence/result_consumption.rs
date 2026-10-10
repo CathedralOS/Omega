@@ -360,6 +360,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         }
         retired.push(result.binding_ordinal);
         pending.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            selected_regions: Vec::new(),
             boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index },
             cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
                 checked_trees::CheckedUnitPartialAffineDiscardPlan {

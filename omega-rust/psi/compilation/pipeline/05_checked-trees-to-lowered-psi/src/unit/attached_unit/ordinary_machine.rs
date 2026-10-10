@@ -571,7 +571,7 @@ pub(super) fn emit(
         };
         let Some(CheckedUnitEffectOperationPlan::Complete {
             normal_cleanup_actions,
-            selected_normal_cleanup_sources,
+            selected_normal_cleanup_regions,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
             ..
@@ -635,7 +635,7 @@ pub(super) fn emit(
                 &plan.operations,
                 &plan.structural_parameters,
             ),
-            selected_normal_cleanup_sources,
+            selected_normal_cleanup_regions,
             &checked.facts.flow.terminal_unit_effects.cleanup_control,
             structural_types,
             type_ids,

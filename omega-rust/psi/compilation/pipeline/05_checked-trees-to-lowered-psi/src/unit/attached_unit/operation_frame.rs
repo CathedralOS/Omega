@@ -273,7 +273,8 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary,
                 cleanup_actions,
-            } => self.continuation_cleanup(identities, boundary, cleanup_actions),
+                selected_regions,
+            } => self.continuation_cleanup(identities, boundary, cleanup_actions, selected_regions),
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                 self.establish_view_subslice(identities, operation)
             }

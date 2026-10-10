@@ -379,7 +379,7 @@ pub(crate) fn build_checked_unit_effect_plans(
             cleanup::temporary_actions::install(&mut plan.operations, selected);
             let Some(CheckedUnitEffectOperationPlan::Complete {
                 normal_cleanup_actions,
-                selected_normal_cleanup_sources,
+                selected_normal_cleanup_regions,
                 trivial_affine_discards,
                 ..
             }) = plan.operations.last_mut()
@@ -387,7 +387,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 return false;
             };
             *normal_cleanup_actions = normal.actions;
-            *selected_normal_cleanup_sources = normal.selected_sources;
+            *selected_normal_cleanup_regions = normal.selected_regions;
             // Parameter dispositions now have one authority and one schedule.
             // The former affine-only reconstruction must not dispose them again.
             trivial_affine_discards.clear();

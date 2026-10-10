@@ -758,6 +758,41 @@ pub(crate) fn consume_projected_ownership(
     if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
         return Err(malformed());
     }
+    let selected_claims = projected_ownership_claims(claims, argument)?;
+    let affine = consume_projected_affine_complement(
+        structural_types,
+        values,
+        structural_cases,
+        frontier,
+        argument,
+    )?;
+    if !affine && selected_claims.is_empty() {
+        return Err(TerminalInterpretError::AffineFrontierMismatch);
+    }
+    for (identity, _) in selected_claims {
+        claims.remove(&identity);
+    }
+    Ok(())
+}
+
+/// Stage an owned projection's affine complement without changing its claims.
+/// Excluding a contained linear claim can split the complement into descendant
+/// rows. Those rows move together with the selected carrier, while claim
+/// identities remain the responsibility of the caller's transfer transaction.
+/// Disposal still requires the intact-region check in consume_affine_projection.
+pub(crate) fn consume_projected_affine_complement(
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    structural_cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    argument: &StructuralArgument,
+) -> Result<bool, TerminalInterpretError> {
+    if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
+        return Err(malformed());
+    }
     crate::structural_inputs::case_membership::validate_case_projection(
         structural_types,
         values,
@@ -765,7 +800,6 @@ pub(crate) fn consume_projected_ownership(
         argument.place,
         &argument.path,
     )?;
-    let selected_claims = projected_ownership_claims(claims, argument)?;
     let containing = frontier
         .iter()
         .any(|entry| entry.place == argument.place && argument.path.starts_with(&entry.path));
@@ -784,13 +818,8 @@ pub(crate) fn consume_projected_ownership(
         frontier.retain(|entry| {
             entry.place != argument.place || !entry.path.starts_with(&argument.path)
         });
-    } else if selected_claims.is_empty() {
-        return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
-    for (identity, _) in selected_claims {
-        claims.remove(&identity);
-    }
-    Ok(())
+    Ok(containing || contained)
 }
 
 /// Disposal carries no claim transfer: both preflight and commit require the

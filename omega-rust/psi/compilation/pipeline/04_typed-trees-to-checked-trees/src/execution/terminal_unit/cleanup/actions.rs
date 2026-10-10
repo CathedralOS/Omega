@@ -79,6 +79,62 @@ pub(super) fn finish_home(
     actions.insert(position, retirement);
 }
 
+/// Keep the exact candidate region beside its ordered actions. The source
+/// occurrence supplies permission; the emitted frontier later selects liveness.
+pub(super) fn selected_region(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
+    source: CheckedUnitStructuralArgumentSourcePlan,
+    captured_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
+) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+    let disposition = facts.contextual_cleanup.dispositions.get(handle);
+    let machine = program.machine_by_symbol(disposition.machine)?;
+    let statement = match disposition.source {
+        language_semantics::PermissionEventSource::Statement { statement_index }
+        | language_semantics::PermissionEventSource::Call {
+            statement_index, ..
+        } => statement_index,
+        _ => disposition.exit.statement_index,
+    };
+    let place = validation::CanonicalPlace {
+        root: disposition.root,
+        segments: facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(disposition.path)
+            .to_vec(),
+    };
+    let reference = if disposition.disposed_type.is_valid() {
+        disposition.disposed_type
+    } else {
+        validation::canonical_place_type_reference(program, disposition.state, statement, &place)?
+    };
+    let path = if let Some(path) = captured_path {
+        path.to_vec()
+    } else if place.segments.is_empty() {
+        Vec::new()
+    } else {
+        crate::execution::terminal_unit::calls::projected_argument_path(
+            program,
+            disposition.state,
+            statement,
+            &place,
+            None,
+            None,
+        )?
+        .1
+    };
+    Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        source,
+        path,
+        type_identity: shapes.add_type(reference, &machine_binders(program, machine), &[])?,
+        access: checked_trees::CheckedStructuralAccess::Owned,
+    })
+}
+
 pub(super) fn disposition_actions(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -408,6 +464,23 @@ fn checked_case_segments(
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
     selected_case: &checked_trees::CheckedMemberIdentity,
 ) -> Option<Vec<facts::PlaceSegment>> {
+    let case = checked_trees::CheckedUnitStructuralPathSegment::Case(selected_case.clone());
+    checked_path_segments(
+        program,
+        state,
+        statement_index,
+        root_type,
+        path.iter().chain(std::iter::once(&case)),
+    )
+}
+
+pub(super) fn checked_path_segments<'a>(
+    program: &dyn validation::CheckingInput,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    root_type: typed_trees::types::TypeReferenceHandle,
+    path: impl IntoIterator<Item = &'a checked_trees::CheckedUnitStructuralPathSegment>,
+) -> Option<Vec<facts::PlaceSegment>> {
     use checked_trees::CheckedUnitStructuralPathSegment;
     use typed_trees::data::DataMember;
 
@@ -416,12 +489,7 @@ fn checked_case_segments(
         segments: Vec::new(),
     };
     let mut payload_fields = None;
-    for segment in path
-        .iter()
-        .chain(std::iter::once(&CheckedUnitStructuralPathSegment::Case(
-            selected_case.clone(),
-        )))
-    {
+    for segment in path {
         match segment {
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 if payload_fields.is_some() {

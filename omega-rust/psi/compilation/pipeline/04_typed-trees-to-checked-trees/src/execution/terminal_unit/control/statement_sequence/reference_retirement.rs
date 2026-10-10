@@ -629,6 +629,7 @@ impl Retirement<'_> {
                 CheckedUnitEffectOperationPlan::ContinuationCleanup {
                     boundary,
                     cleanup_actions,
+                    ..
                 } => {
                     let statement = match boundary {
                         checked_trees::CheckedUnitCleanupBoundary::Replacement {

@@ -201,7 +201,9 @@ impl RemainingCustody {
             // the same recursive hooks a second time below the dead region.
             if event.kind == PermissionEventKind::AffineDrop
                 || (event.kind == PermissionEventKind::Consume
-                    && event.source == PermissionEventSource::StateExit
+                    && (event.source == PermissionEventSource::StateExit
+                        || (selected
+                            && matches!(event.source, PermissionEventSource::Statement { .. })))
                     && self.is_present(event.root, path))
             {
                 let mut exclusions = self

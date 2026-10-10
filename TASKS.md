@@ -786,10 +786,21 @@ defines the complete product bar.
   construction prefixes in
   [reverse establishment order](wiki/spec/language/ownership.md#construction-and-disposal-order).
   Crash/abort/process exit has no cleanup successor. Remaining work:
-  - Extend selected cleanup to partial nominal regions and replacement of a
-    conditionally transferred owner. Preserve each occurrence's residual
-    custody until its actual normal death; neither a selection join nor a
-    later reread of the condition decides hook timing. Keep
+  - Support child reconstruction after a selected transfer of its containing
+    owner, and selected cleanup of incomplete constructions with retained
+    reverse establishment order. Both currently refuse explicitly: a child
+    store cannot restore a conditionally absent containing occurrence, and
+    declaration order cannot replace an incomplete construction's history.
+    Preserve each occurrence's residual custody until its actual normal
+    death; neither a selection join nor a later reread of the condition
+    decides hook timing. Keep
+    `pass/drops/runtime_selected_partial_owner_cleanup_exit` for generic
+    record/fixed-array regions, interleaved residual hook order, field/whole
+    replacement, optional mixed payloads and exact old/new linear claims. Keep
+    `fail/drops/selected_partial_{cleanup_prerequisite,replacement_old_cleanup_prerequisite,requires_disposition}`,
+    `fail/drops/selected_replacement_old_cleanup_prerequisite` and
+    `fail/ownership/selected_partial_owner_reuse` for skipped and pre-store
+    obligations and unavailable regions. Keep
     `pass/drops/runtime_selected_nominal_owner_cleanup_exit` for whole-owner
     Boolean selection, nested/branch-only births, overwritten conditions and
     once-only argument effects followed by linear construction/forwarding.
