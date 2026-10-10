@@ -819,8 +819,8 @@ defines the complete product bar.
     intact receiver also reaches `InvalidNominalAffineCleanup` in the retiring
     replay. Preserve receiver custody through the ordinary callable path as
     that replay is removed, rather than expanding its bounded receiver model.
-  - Complete remaining claim-bearing values on
-    **STATE-LOCAL-VALUE-FRONTIER**'s computed-call evaluation path. Preserve the
+  - Complete scalar materialization of moved linear places and claim-bearing
+    call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path. Preserve the
     checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not
@@ -837,13 +837,12 @@ defines the complete product bar.
     `fail/drops/parent_cleanup_{missing_child_guarantee,wrong_child_guarantee,cross_field_guarantee_retired,disjunction_not_conjunction,requires_before_guarantees}`
     as missing/wrong facts, relation invalidation, disjunction and hook-entry
     prerequisite controls.
-    Scalar materialization
-    of moved linear places and claim-bearing call results remains unfinished;
-    an anonymous returned owner without a unique conserved claim map must
+    An anonymous returned owner without a unique conserved claim map must
     still reject rather than mint replacement identities.
     Preserve existing identities through moved fields and exact call-result
-    maps; new per-field identities cannot replace forwarded claims. Complete that shared
-    value frontier with **STATE-LOCAL-VALUE-FRONTIER**, not another caller shape.
+    maps; new per-field identities cannot replace forwarded claims. Keep
+    `pass/ownership/runtime_partial_linear_record_case_cleanup_exit` as the
+    selected residual and home-retirement control after linear field consumption.
     Keep `fail/drops/{claim_bearing_temporary_requires_disposition,borrowed_temporary_projection_retains_owner_disposition,claim_bearing_temporary_hook_prerequisite}`
     and `pass/drops/statically_skipped_claim_bearing_temporary` as whole-owner
     disposition and evaluated-occurrence controls. Keep

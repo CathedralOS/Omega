@@ -2056,6 +2056,10 @@ fail/ownership/local_subslice_window_wrong_repair rejected 559ms expected @8d1d3
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 1): `tokens[1..3][0]` must hold a value again before this state's exits consume the borrow
 fail/ownership/owned_replacement_second_move_rejected rejected 303ms expected @0234777c1cd7+wt
 	cannot use `item` in machine `Main::main` state `main` (statement 4) after `item` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
+fail/ownership/partial_linear_record_cleanup_keeps_debt rejected 515ms expected @fc4fea5e1228+wt
+	linear value `value.required` reaches scope exit without being consumed or transferred
+	linear value `value.slot::Held.token` reaches scope exit without being consumed or transferred
+	linear value `known.slot::Held.token` reaches scope exit without being consumed or transferred
 fail/ownership/read_through_consumed_owner_rejected rejected 732ms expected @78cf629f34f9+wt
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
 fail/ownership/read_through_dropped_owner_rejected rejected 771ms expected @78cf629f34f9+wt
@@ -4194,10 +4198,12 @@ pass/ownership/runtime_known_case_scalar_call_exit checked 1651ms check-target:m
 pass/ownership/runtime_linear_case_payload_forward_exit checked 1710ms check-target:macos_arm64 @332ced10410b+wt
 pass/ownership/runtime_nested_projected_claim_return_exit checked 1603ms check-target:macos_arm64 @cd27c16e2c35
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 1325ms check-target:macos_arm64 @84da89581e65
+pass/ownership/runtime_partial_linear_record_case_cleanup_exit checked 5476ms check-target:macos_arm64 @fc4fea5e1228+wt
 pass/ownership/runtime_repeated_linear_result_forwarding_exit checked 1453ms check-target:macos_arm64 @6605065c28a7
 pass/ownership/runtime_retained_alias_referent_transform_exit checked 1771ms check-target:macos_arm64 @76bbeef8b4d2
 pass/ownership/runtime_selected_reference_local_exit checked 3348ms check-target:macos_arm64 @4a00cf9908d9+wt
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 3456ms check-target:macos_arm64 @61ca70507df5
+pass/ownership/runtime_unknown_affine_case_discard_exit checked 5106ms check-target:macos_arm64 @fc4fea5e1228+wt
 pass/ownership/runtime_view_parameter_element_window_exit checked 1946ms check-target:macos_arm64 @37c6aa84a411+wt
 pass/ownership/runtime_whole_borrowed_transform_exit checked 1786ms check-target:macos_arm64 @50701b2d3809+wt
 pass/ownership/runtime_whole_borrowed_window_crash_exit checked 1781ms check-target:macos_arm64 @7d761e0fef5f
