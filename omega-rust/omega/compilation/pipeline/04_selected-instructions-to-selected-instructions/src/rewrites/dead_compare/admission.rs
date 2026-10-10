@@ -39,9 +39,6 @@ pub(super) struct Admission<'source> {
     pub compare_index: usize,
 }
 
-/// Whether `kind` is one of the three flag publishers whose whole effect is
-/// the condition-state surface it defines, with the operand arity the
-/// emitted form carries.
 pub(super) fn compare_operand_arity(kind: SelectedInstructionKind) -> Option<usize> {
     match kind {
         SelectedInstructionKind::CompareI64 => Some(2),
@@ -51,10 +48,6 @@ pub(super) fn compare_operand_arity(kind: SelectedInstructionKind) -> Option<usi
     }
 }
 
-/// The plain-`Use` operand registers of a canonical flag publisher, or
-/// none: the compare kinds are admitted only in their emitted shape —
-/// canonical operand positions, no implicit uses, and a nonempty published
-/// surface — so pairwise register equality really is value equality.
 pub(super) fn canonical_compare_operands(
     instruction: &SelectedInstruction,
 ) -> Option<Vec<VirtualRegisterId>> {
@@ -89,19 +82,6 @@ pub(super) fn canonical_compare_operands(
     )
 }
 
-/// Every operand register the compare and one of its shadow sites read in
-/// common must keep its value between the shadow's execution and the
-/// arrival at the compare. The exposed positions are exactly those that can
-/// reach the compare backward without crossing a site in that unit's
-/// reaching set — a shadow's execution resets the unit's binding segment
-/// because it republishes the identical flag value, so writes before it are
-/// rescued, while another unit's shadow republishes only its own unit and
-/// cannot stand in. The walk marks each visited `(block, position)` once:
-/// body positions expand to the position before them, a block's first
-/// position expands to its predecessor blocks' terminator positions, and
-/// each crossed edge's register transports face the same audit — an edge
-/// parameter the edge defines for its target is a write of the target's
-/// register. `violation` is the caller's refusal for an exposed write.
 pub(super) fn audit_stable_paths<E: Copy>(
     function: &SelectedFunction,
     predecessors: &[Vec<usize>],
@@ -168,17 +148,6 @@ pub(super) fn audit_stable_paths<E: Copy>(
     Ok(())
 }
 
-/// Audit one condition-state unit the compare publishes: walk forward from
-/// the instruction after the compare until an implicit definition or
-/// clobber ends the unit's live range on every path. Any reached implicit
-/// use refuses — the compare's publication is observable there. A unit
-/// still live past the terminator resumes at the head of each successor
-/// block; an edge naming a block the function does not contain leaves the
-/// unit's readers unprovable and refuses; a terminator with no successors
-/// ends the path with the unit unobserved. `(block, start)` pairs dedupe
-/// the walk, so a loop carrying the unit back into the compare's own block
-/// re-scans from its head — a reader there observes the compare's earlier
-/// execution, and the compare's own definition ends the unit past it.
 fn audit_dead_unit(
     function: &SelectedFunction,
     block_index: usize,
@@ -350,9 +319,6 @@ pub(super) fn admit<'source>(
     })
 }
 
-/// The one-function transformation shared by proposal and replay: remove
-/// the compare and shift boundary settlements over the removed ordinal.
-/// Both sides compute it from the source, never from each other.
 pub(super) fn apply(
     admitted: &Admission<'_>,
     function: &mut SelectedFunction,
@@ -364,40 +330,13 @@ pub(super) fn apply(
     if block.id != admitted.block {
         return Err(DeadCompareError::SourceMismatch);
     }
-    function.boundary_settlements =
-        shifted_boundary_settlements(admitted.function, admitted.block, admitted.compare_index)?;
+    function.boundary_settlements = super::super::shifted_boundary_settlements(
+        admitted.function,
+        admitted.block,
+        admitted.compare_index,
+        || DeadCompareError::SourceMismatch,
+        || DeadCompareError::IdentityOverflow,
+    )?;
     block.instructions.remove(admitted.compare_index);
     Ok(())
-}
-
-/// The block's boundary settlements after removing the instruction at
-/// `removed`: positions at or before it name instructions that stay put,
-/// and every later position — including the after-body position — shifts
-/// one ordinal earlier. Settlements name hosted boundary operations, never
-/// flag units or registers, so the removal itself is invisible to them.
-pub(super) fn shifted_boundary_settlements(
-    function: &SelectedFunction,
-    block: SelectedBlockId,
-    removed: usize,
-) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, DeadCompareError> {
-    let body = function
-        .block(block)
-        .ok_or(DeadCompareError::SourceMismatch)?
-        .instructions
-        .len();
-    let mut shifted = function.boundary_settlements.clone();
-    for settlement in &mut shifted {
-        if settlement.block != block {
-            continue;
-        }
-        let position = settlement.instruction_index as usize;
-        if position > body {
-            return Err(DeadCompareError::SourceMismatch);
-        }
-        if position > removed {
-            settlement.instruction_index =
-                u32::try_from(position - 1).map_err(|_| DeadCompareError::IdentityOverflow)?;
-        }
-    }
-    Ok(shifted)
 }

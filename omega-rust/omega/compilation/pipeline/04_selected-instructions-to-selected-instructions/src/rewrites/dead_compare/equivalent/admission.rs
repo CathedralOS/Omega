@@ -27,9 +27,7 @@ use selected_instructions::{
 };
 
 use super::super::DeadCompareError;
-use super::super::admission::{
-    audit_stable_paths, canonical_compare_operands, shifted_boundary_settlements,
-};
+use super::super::admission::{audit_stable_paths, canonical_compare_operands};
 use super::EquivalentCompareError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::condition_state::{
@@ -44,6 +42,7 @@ pub(super) struct Admission<'source> {
     pub compare_index: usize,
 }
 
+use super::super::super::shifted_boundary_settlements;
 /// The semantic right side a canonical compare subtracts: the second
 /// register operand for `CompareI64`, or the literal the form encodes —
 /// `CompareI64Zero` reads as `left - 0`.
@@ -282,12 +281,17 @@ pub(super) fn apply(
     if block.id != admitted.block {
         return Err(EquivalentCompareError::SourceMismatch);
     }
-    function.boundary_settlements =
-        shifted_boundary_settlements(admitted.function, admitted.block, admitted.compare_index)
-            .map_err(|error| match error {
-                DeadCompareError::IdentityOverflow => EquivalentCompareError::IdentityOverflow,
-                _ => EquivalentCompareError::SourceMismatch,
-            })?;
+    function.boundary_settlements = shifted_boundary_settlements(
+        admitted.function,
+        admitted.block,
+        admitted.compare_index,
+        || DeadCompareError::SourceMismatch,
+        || DeadCompareError::IdentityOverflow,
+    )
+    .map_err(|error| match error {
+        DeadCompareError::IdentityOverflow => EquivalentCompareError::IdentityOverflow,
+        _ => EquivalentCompareError::SourceMismatch,
+    })?;
     block.instructions.remove(admitted.compare_index);
     Ok(())
 }

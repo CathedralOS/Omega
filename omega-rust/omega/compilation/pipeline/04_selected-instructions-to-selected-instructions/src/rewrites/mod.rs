@@ -538,3 +538,33 @@ pub(crate) fn rewrite_bytes(
     tail(&mut bytes);
     bytes
 }
+
+/// Shared boundary-settlement shift for rewrites that remove one instruction:
+/// every settlement past the removed index in the same block shifts down one.
+pub(crate) fn shifted_boundary_settlements<E>(
+    function: &selected_instructions::SelectedFunction,
+    block: selected_instructions::SelectedBlockId,
+    removed: usize,
+    source_mismatch: impl Fn() -> E,
+    overflow: impl Fn() -> E,
+) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, E> {
+    let body = function
+        .block(block)
+        .ok_or_else(|| source_mismatch())?
+        .instructions
+        .len();
+    let mut shifted = function.boundary_settlements.clone();
+    for settlement in &mut shifted {
+        if settlement.block != block {
+            continue;
+        }
+        let position = settlement.instruction_index as usize;
+        if position > body {
+            return Err(source_mismatch());
+        }
+        if position > removed {
+            settlement.instruction_index = u32::try_from(position - 1).map_err(|_| overflow())?;
+        }
+    }
+    Ok(shifted)
+}

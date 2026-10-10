@@ -51,8 +51,6 @@ pub(super) struct CopyUse {
     pub operand: usize,
 }
 
-/// The instruction at a source-ordinal position: a body index, or the
-/// terminator's carried instruction at the position equal to the body length.
 fn block_instruction_mut(
     block: &mut SelectedBlock,
     position: usize,
@@ -71,9 +69,6 @@ fn frame_slot_mentions(slot: FrameStorageSlotId, register: VirtualRegisterId) ->
     }
 }
 
-/// Register mentions reachable through one instruction's kind payload: the
-/// frame and hosted-access slot identities, the only kind fields that name
-/// a virtual register indirectly.
 fn instruction_slot_mentions(
     instruction: &SelectedInstruction,
     register: VirtualRegisterId,
@@ -88,9 +83,6 @@ fn instruction_slot_mentions(
     }
 }
 
-/// A register origin that names the removed instruction or register. Origins
-/// are the roster's definition claims: another register produced by the copy
-/// or bound to the destination's spill storage cannot survive the removal.
 fn origin_mentions(
     origin: VirtualRegisterOrigin,
     instruction: SelectedInstructionId,
@@ -320,11 +312,6 @@ pub(super) fn admit<'source>(
     })
 }
 
-/// The one-function transformation shared by proposal and replay: rebind
-/// every admitted use to the source register, remove the copy and the
-/// destination's roster row, shift boundary settlements over the removed
-/// ordinal, and re-densify the function's register identifiers. Both sides
-/// compute it from the source, never from each other.
 pub(super) fn apply(
     admitted: &Admission<'_>,
     function: &mut SelectedFunction,
@@ -347,21 +334,18 @@ pub(super) fn apply(
             .ok_or(CopyRemovalError::SourceMismatch)?
             .virtual_register = admitted.input;
     }
-    function.boundary_settlements =
-        shifted_boundary_settlements(admitted.function, admitted.block, admitted.copy_index)?;
+    function.boundary_settlements = super::super::shifted_boundary_settlements(
+        admitted.function,
+        admitted.block,
+        admitted.copy_index,
+        || CopyRemovalError::SourceMismatch,
+        || CopyRemovalError::IdentityOverflow,
+    )?;
     block.instructions.remove(admitted.copy_index);
     function.virtual_registers.remove(admitted.register_index);
     redensify(function, removed_register)
 }
 
-/// Dense register-identifier reconstruction. The plan's readers index
-/// `virtual_registers` by register id, so removing the destination's row
-/// obliges every register id above it to shift down one on every surface
-/// that carries registers: operand registers, roster origins, storage slots,
-/// access roles, and edge transports. Instruction ids are stable references
-/// — the removed copy's id simply leaves the function — but a surviving
-/// mention of the removed register id is a dangling reference and fails the
-/// transformation.
 fn redensify(
     function: &mut SelectedFunction,
     removed_register: VirtualRegisterId,
@@ -398,8 +382,6 @@ fn redensify(
     Ok(())
 }
 
-/// Every position of a block mutably: its body instructions, then the
-/// instruction its terminator carries.
 fn block_instructions_mut(
     block: &mut SelectedBlock,
 ) -> impl Iterator<Item = &mut SelectedInstruction> {
@@ -549,36 +531,4 @@ fn lower_register(
     } else {
         id.0
     }))
-}
-
-/// The block's boundary settlements after removing the instruction at
-/// `removed`: positions at or before it name instructions that stay put, and
-/// every later position — including the after-body position — shifts one
-/// ordinal earlier. Register substitution needs no settlement change:
-/// payloads name source operations and values, never registers.
-pub(super) fn shifted_boundary_settlements(
-    function: &SelectedFunction,
-    block: SelectedBlockId,
-    removed: usize,
-) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, CopyRemovalError> {
-    let body = function
-        .block(block)
-        .ok_or(CopyRemovalError::SourceMismatch)?
-        .instructions
-        .len();
-    let mut shifted = function.boundary_settlements.clone();
-    for settlement in &mut shifted {
-        if settlement.block != block {
-            continue;
-        }
-        let position = settlement.instruction_index as usize;
-        if position > body {
-            return Err(CopyRemovalError::SourceMismatch);
-        }
-        if position > removed {
-            settlement.instruction_index =
-                u32::try_from(position - 1).map_err(|_| CopyRemovalError::IdentityOverflow)?;
-        }
-    }
-    Ok(shifted)
 }

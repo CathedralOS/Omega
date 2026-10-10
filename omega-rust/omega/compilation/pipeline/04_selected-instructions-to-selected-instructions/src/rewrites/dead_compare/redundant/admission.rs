@@ -37,10 +37,9 @@ use selected_instructions::{
     SelectedBlockId, SelectedFunction, SelectedInstructionId, VirtualRegisterId,
 };
 
+use super::super::super::shifted_boundary_settlements;
 use super::super::DeadCompareError;
-use super::super::admission::{
-    audit_stable_paths, canonical_compare_operands, shifted_boundary_settlements,
-};
+use super::super::admission::{audit_stable_paths, canonical_compare_operands};
 use super::RedundantCompareError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::member_position;
@@ -204,12 +203,17 @@ pub(super) fn apply(
     if block.id != admitted.block {
         return Err(RedundantCompareError::SourceMismatch);
     }
-    function.boundary_settlements =
-        shifted_boundary_settlements(admitted.function, admitted.block, admitted.compare_index)
-            .map_err(|error| match error {
-                DeadCompareError::IdentityOverflow => RedundantCompareError::IdentityOverflow,
-                _ => RedundantCompareError::SourceMismatch,
-            })?;
+    function.boundary_settlements = shifted_boundary_settlements(
+        admitted.function,
+        admitted.block,
+        admitted.compare_index,
+        || DeadCompareError::SourceMismatch,
+        || DeadCompareError::IdentityOverflow,
+    )
+    .map_err(|error| match error {
+        DeadCompareError::IdentityOverflow => RedundantCompareError::IdentityOverflow,
+        _ => RedundantCompareError::SourceMismatch,
+    })?;
     block.instructions.remove(admitted.compare_index);
     Ok(())
 }
