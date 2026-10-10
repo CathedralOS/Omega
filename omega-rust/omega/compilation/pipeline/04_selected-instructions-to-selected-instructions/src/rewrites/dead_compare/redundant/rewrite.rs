@@ -19,15 +19,17 @@ pub(crate) fn remove_redundant_compare(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<ValidatedRedundantCompare, RedundantCompareError> {
-    let admitted = admission::admit(source, function_index, compare, environment, budget)?;
-    let mut transformed = source.selected_plan().clone();
-    super::super::admission::apply(
-        &admitted,
-        &mut transformed.functions[function_index],
+    super::super::admission::remove_compare(
+        source,
+        function_index,
+        compare,
+        environment,
+        budget,
+        admission::admit,
         |error| match error {
             DeadCompareError::IdentityOverflow => RedundantCompareError::IdentityOverflow,
             _ => RedundantCompareError::SourceMismatch,
         },
-    )?;
-    super::validation::seal_redundant_compare(source, function_index, compare, transformed)
+        super::validation::seal_redundant_compare,
+    )
 }
