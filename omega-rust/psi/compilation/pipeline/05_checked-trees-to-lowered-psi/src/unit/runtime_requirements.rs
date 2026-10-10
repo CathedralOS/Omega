@@ -287,31 +287,10 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
             substitutions: &BTreeMap<ValueId, ValueDeclaration>,
         ) -> Result<(), LoweringError> {
             match term {
-                ScalarTerm::BooleanNot { operand }
-                | ScalarTerm::IntegerBitwiseNot { operand, .. } => rebind(operand, substitutions),
-                ScalarTerm::BooleanEqual { left, right }
-                | ScalarTerm::IntegerEqual { left, right, .. }
-                | ScalarTerm::IntegerLessThan { left, right, .. }
-                | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-                | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-                | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-                | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-                | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-                | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-                | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
-                | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-                | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-                | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-                | ScalarTerm::WrappingIntegerShiftLeft {
-                    value: left,
-                    count: right,
-                    ..
+                semantic_vocabulary::scalar_term_unary_operand!(operand) => {
+                    rebind(operand, substitutions)
                 }
-                | ScalarTerm::WrappingIntegerShiftRight {
-                    value: left,
-                    count: right,
-                    ..
-                } => {
+                semantic_vocabulary::scalar_term_binary_operands!(left, right) => {
                     rebind(left, substitutions)?;
                     rebind(right, substitutions)
                 }
@@ -340,11 +319,10 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::IeeeFloatLiteral(_)
                 | semantic_vocabulary::scalar_term_predicate_quint_pattern!(..) => Ok(()),
-                _ => unsupported(
-                    "runtime requirement scalar substitution encountered an unsupported term",
-                ),
             }
         }
+        // Every admitted operator uses the vocabulary's complete operand
+        // traversal. A call's result kind cannot narrow entry arithmetic.
         // Preserve the operation tree and its witnesses; only formal identities
         // change. Validate before and after so a forged carrier witness or an
         // invalid actual cannot hide inside a successfully rebound expression.

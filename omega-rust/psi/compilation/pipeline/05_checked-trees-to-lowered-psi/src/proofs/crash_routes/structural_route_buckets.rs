@@ -594,8 +594,7 @@ pub(crate) fn substitute_structural_crash_route_roots(
         >,
     ) -> Result<(), LoweringError> {
         match term {
-            ScalarTerm::BooleanField { root, path }
-            | ScalarTerm::IntegerField { root, path, .. } => {
+            semantic_vocabulary::scalar_term_predicate_quint_pattern!(root, path, ..) => {
                 let Some((replacement, prefix)) = substitutions(*root)? else {
                     return Ok(());
                 };
@@ -607,41 +606,12 @@ pub(crate) fn substitute_structural_crash_route_roots(
                     *path = rebased;
                 }
             }
-            ScalarTerm::BooleanNot { operand } => substitute_term(operand, substitutions)?,
-            ScalarTerm::IntegerBitwiseNot { operand, .. } => {
+            semantic_vocabulary::scalar_term_unary_operand!(operand) => {
                 substitute_term(operand, substitutions)?
             }
-            ScalarTerm::BooleanEqual { left, right }
-            | ScalarTerm::IntegerEqual { left, right, .. }
-            | ScalarTerm::IntegerLessThan { left, right, .. }
-            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-            | ScalarTerm::ExactIntegerAdd { left, right, .. }
-            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-            | ScalarTerm::ExactIntegerDivide { left, right, .. }
-            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
-            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. } => {
+            semantic_vocabulary::scalar_term_binary_operands!(left, right) => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
-            }
-            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-                substitute_term(value, substitutions)?;
-                substitute_term(count, substitutions)?;
             }
             _ => {}
         }
