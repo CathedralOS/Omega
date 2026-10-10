@@ -234,7 +234,7 @@ fn validate(
     } else {
         Vec::new()
     };
-    quotients::validate_quotients_with_admission(
+    quotients::validate_quotients(
         program,
         &proof_only,
         quotient_admission,

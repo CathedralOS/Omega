@@ -36,7 +36,7 @@ pub(super) fn state_has_proven_self_loop<'p>(
                 return false;
             };
 
-            validation::slice_tail_strictly_decreases_with_bound_lookup(
+            validation::slice_tail_strictly_decreases(
                 program,
                 self_loop.guard,
                 argument,

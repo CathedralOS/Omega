@@ -86,7 +86,7 @@ fn argument_contract(
     target_identity: &str,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let (source_machine, source_state) = validation::find_state_with_machine(program, state)?;
+    let (source_machine, source_state) = validation::find_state(program, state)?;
     if let Some(argument) = super::super::reference_results::record_argument(
         program,
         facts,

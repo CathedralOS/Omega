@@ -310,7 +310,7 @@ pub(crate) fn admit_static_machine_effects(
     }
 }
 
-pub fn validate_static_machine_selections_with_facts(
+pub fn validate_static_machine_selections(
     program: &dyn crate::CheckingInput,
 ) -> Result<ValidatedStaticMachineSelections, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();

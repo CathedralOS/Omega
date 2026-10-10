@@ -219,7 +219,7 @@ pub(crate) fn selected_call_summary<'a>(
         });
     }
     let target_machine = program.machine_by_symbol(target_symbol).or_else(|| {
-        validation::find_state_with_machine(program, target_symbol).map(|(machine, _)| machine)
+        validation::find_state(program, target_symbol).map(|(machine, _)| machine)
     })?;
     match &target_machine.termination_plan.interface {
         language_semantics::TerminationInterface::Published(guarantee) => {
@@ -292,7 +292,7 @@ fn call_argument_subject(
 }
 
 /// The single subject a call argument names, or `None` when it names none or
-/// when a dynamic selector leaves several — `call_argument_subjects_with_parameters`
+/// when a dynamic selector leaves several — `call_argument_subjects`
 /// is what reads that set.
 pub(crate) fn call_argument_subject_with_parameters(
     program: &dyn ::validation::CheckingInput,
@@ -303,7 +303,7 @@ pub(crate) fn call_argument_subject_with_parameters(
     parameter_symbol: SymbolHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressSubject> {
-    let mut subjects = call_argument_subjects_with_parameters(
+    let mut subjects = call_argument_subjects(
         program,
         machine,
         state_flow,
@@ -316,7 +316,7 @@ pub(crate) fn call_argument_subject_with_parameters(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn call_argument_subjects_with_parameters(
+pub(crate) fn call_argument_subjects(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state_flow: &FlowStateFact,

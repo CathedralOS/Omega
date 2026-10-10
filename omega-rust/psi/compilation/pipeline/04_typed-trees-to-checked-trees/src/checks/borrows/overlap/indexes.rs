@@ -243,7 +243,7 @@ impl<'a> SelectorEvaluation<'a> {
 /// stay conservatively overlapping. Disjointness needs ordering or singleton
 /// disequality, and a stated premise is consulted only when structural
 /// relations cannot settle it.
-pub(super) fn index_expressions_may_overlap_with_selectors<'p>(
+pub(super) fn index_expressions_may_overlap<'p>(
     program: &'p dyn ::validation::CheckingInput,
     left: ExpressionHandle,
     left_location: SelectorLocation,
@@ -255,14 +255,14 @@ pub(super) fn index_expressions_may_overlap_with_selectors<'p>(
     if left == right {
         return true;
     }
-    let left_extent = index_expression_extent_with_selectors(
+    let left_extent = index_expression_extent(
         program,
         left,
         left_location,
         selectors,
         bound_lookup,
     );
-    let right_extent = index_expression_extent_with_selectors(
+    let right_extent = index_expression_extent(
         program,
         right,
         right_location,
@@ -481,7 +481,7 @@ fn structural_bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool
 /// Evaluates an `Index` segment's normalized extent through the selector
 /// session, reusing its bounds at the segment's exact path location. The bound positions match the overlap selectors: `Index` for a
 /// point expression, `RangeStart`/`RangeExclusiveEnd` for a range window.
-pub(super) fn index_expression_extent_with_selectors<'p>(
+pub(super) fn index_expression_extent<'p>(
     program: &'p dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     location: SelectorLocation,

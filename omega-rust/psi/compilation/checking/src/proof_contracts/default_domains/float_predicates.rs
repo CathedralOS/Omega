@@ -63,7 +63,7 @@ pub fn data_predicates_admit_zero(
                 // An integer fact folds at the born-zero valuation exactly as
                 // the resolution-stage gate folds it; a float fact elsewhere in
                 // the same declaration is what left the gate for this pass.
-                || super::symbolic_values::fold_with_valuation(
+                || super::symbolic_values::fold(
                     program,
                     definition,
                     &[],

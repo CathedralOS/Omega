@@ -348,7 +348,7 @@ impl ActivationCarryAccumulator<'_> {
             return;
         }
 
-        if let Some((machine, state)) = validation::find_state_with_machine(self.program, target) {
+        if let Some((machine, state)) = validation::find_state(self.program, target) {
             let parameters = self.program.machine_type_parameters(machine);
             for parameter in self.program.state_parameters(state) {
                 self.add_type(parameters, parameter.type_reference);

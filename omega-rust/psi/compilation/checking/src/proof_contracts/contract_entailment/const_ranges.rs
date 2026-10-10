@@ -311,7 +311,7 @@ fn scope_engine<'program>(
             }
         }
     }
-    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &bindings);
+    let mut engine = Engine::strict(program, machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() || !engine.install_hypotheses(premises) {
         return None;
     }

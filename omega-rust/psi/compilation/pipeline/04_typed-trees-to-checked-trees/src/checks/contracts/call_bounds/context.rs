@@ -155,7 +155,7 @@ fn prove(
     let head = validation::find_machine_head(program, call.target_symbol);
     let (callee, entry) = match head {
         Some(head) => head,
-        None => validation::find_state_with_machine(program, call.target_symbol).filter(
+        None => validation::find_state(program, call.target_symbol).filter(
             |(machine, _)| {
                 machine.symbol == caller.machine_symbol
                     && matches!(site, validation::CallSite::TransitionNamed { .. })
@@ -166,7 +166,7 @@ fn prove(
     if head.is_some()
         && caller.machine_symbol == callee.symbol
         && matches!(site, validation::CallSite::TransitionNamed { .. })
-        && crate::checks::termination::proves_ranked_entry_requirement_with_call_frames(
+        && crate::checks::termination::proves_ranked_entry_requirement(
             program,
             callee,
             goal,

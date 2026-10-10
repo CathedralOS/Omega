@@ -296,7 +296,7 @@ pub fn specialize_static_machine_calls(
     validation::static_arguments::validate_authored_static_arguments(program)?;
     validation::static_bindings::validate_static_machine_bindings(program)?;
     validation::conformance_applications::validate_conformance_applications(program)?;
-    validation::validate_static_machine_selections_with_facts(program)?;
+    validation::validate_static_machine_selections(program)?;
     validation::validate_generic_machine_contract_entailment(program)
 }
 

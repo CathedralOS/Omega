@@ -80,7 +80,7 @@ pub fn strict_arithmetic_expression_implication(
     bindings: &[StrictArithmeticSymbolBinding],
     arguments: &[StrictArithmeticExpressionBinding],
 ) -> StrictArithmeticImplicationJudgment {
-    let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, bindings);
+    let mut engine = Engine::strict(program, context_machine, bindings);
     if !engine.strict_symbol_bindings_are_valid() {
         return StrictArithmeticImplicationJudgment::Unknown;
     }

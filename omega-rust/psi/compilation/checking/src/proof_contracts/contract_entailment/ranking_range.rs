@@ -52,7 +52,7 @@ pub fn closed_collection_length(
     state: &State,
     collection: ExpressionHandle,
 ) -> Option<u64> {
-    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    let mut engine = Engine::strict(program, machine, &[]);
     saved_arguments::install(program, machine, state, &[], &mut engine);
     lengths::actual(program, machine, state, collection, &[], &mut engine)?
         .constant_value()?
@@ -72,7 +72,7 @@ pub fn captured_collection_length(
     collection: ExpressionHandle,
     mut observe: impl FnMut(&crate::CanonicalPlace) -> Option<BigInt>,
 ) -> Option<u64> {
-    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    let mut engine = Engine::strict(program, machine, &[]);
     let mut expressions = Vec::new();
     crate::expression_traversal::collect_expression_tree(program, collection, &mut expressions);
     for expression in expressions {
@@ -179,7 +179,7 @@ pub fn closed_collection_length_at_place(
     state_symbol: symbols::SymbolHandle,
     collection: &crate::CanonicalPlace,
 ) -> Option<u64> {
-    let (machine, state) = crate::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = crate::find_state(program, state_symbol)?;
     if let Some(mut reference) =
         crate::canonical_place_type_reference(program, state_symbol, usize::MAX, collection)
     {
@@ -202,7 +202,7 @@ pub fn closed_collection_length_at_place(
         return closed_collection_length(program, machine, state, expression);
     }
     let symbol = collection.root.as_symbol()?;
-    let engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    let engine = Engine::strict(program, machine, &[]);
     lengths::saved_length(program, machine, state, symbol, &engine, 0)?
         .constant_value()?
         .to_u64()
@@ -836,7 +836,7 @@ fn prove_edge(
     }) {
         return None;
     }
-    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &bindings);
+    let mut engine = Engine::strict(program, machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
     }

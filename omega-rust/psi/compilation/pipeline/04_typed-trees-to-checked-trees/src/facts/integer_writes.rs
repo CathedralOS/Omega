@@ -116,7 +116,7 @@ pub(super) fn retain(
                 });
                 let operand_writes =
                     frames.map(|frames| frames.statement_value_write_frame(machine, statement));
-                let entry_value = crate::values::lower_entry_scalar_with_subjects(
+                let entry_value = crate::values::lower_entry_scalar(
                     program,
                     operators,
                     machine,

@@ -57,19 +57,19 @@ pub(crate) fn build_checked_terminal_machine_selections(
                                 typed_trees::state::state_by_symbol(program.machine_states(machine), rank.state).is_some()
                             })
                         })
-                        && crate::checks::termination::proven_slice_length_ranks_with_call_frames(
+                        && crate::checks::termination::proven_slice_length_ranks(
                             program,
                             machine,
                             call_frames,
                         )
                         .is_none()
-                        && crate::checks::termination::proven_nat_countdown_sccs_with_call_frames(
+                        && crate::checks::termination::proven_nat_countdown_sccs(
                             program,
                             machine,
                             call_frames,
                         )
                         .is_none_or(|components| components.is_empty())
-                        && crate::checks::termination::proven_state_natural_ranks_with_call_frames(
+                        && crate::checks::termination::proven_state_natural_ranks(
                             program,
                             machine,
                             call_frames,

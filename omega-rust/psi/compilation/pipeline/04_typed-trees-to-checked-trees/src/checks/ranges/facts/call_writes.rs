@@ -180,7 +180,7 @@ impl RangeFacts<'_> {
                 }
             }
         }
-        let aliases = crate::flow::close_storage_places_over_aliases_with_resolver(
+        let aliases = crate::flow::close_storage_places_over_aliases(
             program,
             machine.symbol,
             state.symbol,

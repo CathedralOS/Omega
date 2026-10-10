@@ -55,7 +55,7 @@ pub(super) fn guarded_slice_tail_call<'a>(
     let TransitionGuardNode::When(guard) = transition.guard else {
         return false;
     };
-    if !crate::slice_tail_strictly_decreases_with_bound_lookup(
+    if !crate::slice_tail_strictly_decreases(
         program,
         guard,
         argument,

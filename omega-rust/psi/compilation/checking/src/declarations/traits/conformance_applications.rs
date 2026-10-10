@@ -228,7 +228,7 @@ pub fn close_conformance_application(
         .type_reference_handles(conformance.arguments)
         .iter()
         .map(|argument| {
-            substituted_type_identity_with_lifetimes(
+            substituted_type_identity(
                 program,
                 *argument,
                 &substitutions,
@@ -479,7 +479,7 @@ pub fn type_argument_identity(
         )
 }
 
-pub fn substituted_type_identity_with_lifetimes(
+pub fn substituted_type_identity(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, String)],
@@ -507,7 +507,7 @@ pub fn substituted_type_identity_with_lifetimes(
                 format!("'{lifetime} ")
             }),
             access.borrow_modifier(),
-            substituted_type_identity_with_lifetimes(
+            substituted_type_identity(
                 program,
                 *referee,
                 substitutions,
@@ -515,7 +515,7 @@ pub fn substituted_type_identity_with_lifetimes(
             )
         ),
         TypeReferenceNode::Constrained { base_type, .. } => {
-            substituted_type_identity_with_lifetimes(
+            substituted_type_identity(
                 program,
                 *base_type,
                 substitutions,
@@ -538,7 +538,7 @@ pub fn substituted_type_identity_with_lifetimes(
             };
             format!(
                 "[{}; {length}]",
-                substituted_type_identity_with_lifetimes(
+                substituted_type_identity(
                     program,
                     *element_type,
                     substitutions,
@@ -548,7 +548,7 @@ pub fn substituted_type_identity_with_lifetimes(
         }
         TypeReferenceNode::Slice { element_type } => format!(
             "[{}]",
-            substituted_type_identity_with_lifetimes(
+            substituted_type_identity(
                 program,
                 *element_type,
                 substitutions,
@@ -580,7 +580,7 @@ pub fn substituted_type_identity_with_lifetimes(
                     .type_reference_handles(*arguments)
                     .iter()
                     .map(|argument| {
-                        substituted_type_identity_with_lifetimes(
+                        substituted_type_identity(
                             program,
                             *argument,
                             substitutions,

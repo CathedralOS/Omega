@@ -391,7 +391,7 @@ fn bound_leaf_initializer(
     // callable context; a `+` requirement selecting an authored operation is
     // not builtin addition, even when both operands are Exact integers.
     let state_symbol = program.symbols.get(local.symbol).parent;
-    let (machine, state) = crate::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = crate::find_state(program, state_symbol)?;
     if !crate::has_builtin_bound_expression_meaning(
         program,
         machine,

@@ -130,7 +130,7 @@ pub(super) fn check_call_result_qualifications(
             // Checked bodies owe routed field membership at every exit. The
             // multiplicity checker independently replays their returned claim
             // maps, including identity-forwarding wrappers without a theorem.
-            if validation::find_state_with_machine(program, call.target_symbol)
+            if validation::find_state(program, call.target_symbol)
                 .is_some_and(|(machine, _)| machine.body_is_present)
             {
                 return Some(());
@@ -354,7 +354,7 @@ fn call_parameter_qualification_join(
         return None;
     }
     // Checked bodies owe their authored parameter claims at every exit.
-    if validation::find_state_with_machine(program, call_target)
+    if validation::find_state(program, call_target)
         .is_some_and(|(machine, _)| machine.body_is_present)
     {
         return Some(());

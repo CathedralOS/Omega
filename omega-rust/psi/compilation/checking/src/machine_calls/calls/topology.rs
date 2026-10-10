@@ -30,7 +30,7 @@ pub fn find_state_for_exit<'program>(
 }
 
 /// The actual storage owner and state, resolved by the typed program's owner query.
-pub fn find_state_with_machine(
+pub fn find_state(
     program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
@@ -43,7 +43,7 @@ pub fn find_state_with_machine(
 /// machine itself or its entry state, never a later state. The returned pair
 /// is the machine and that entry state, so machine-head callers share the
 /// entry parameters, contracts, and result type without a second lookup.
-/// `find_state_with_machine` alone is wider — it admits a target naming any
+/// `find_state` alone is wider — it admits a target naming any
 /// state inside the machine — so the state arm still verifies the resolved
 /// state is stored first.
 pub fn find_machine_head(
@@ -56,7 +56,7 @@ pub fn find_machine_head(
             .first()
             .map(|entry| (machine, entry));
     }
-    let (machine, state) = find_state_with_machine(program, symbol)?;
+    let (machine, state) = find_state(program, symbol)?;
     program
         .machine_states(machine)
         .first()
@@ -90,7 +90,7 @@ pub fn terminal_callable_target(
         let entry = program.machine_states(owner).first()?;
         return (owner.symbol != machine.symbol).then_some((entry.symbol, entry.return_type));
     }
-    if let Some((owner, state)) = find_state_with_machine(program, target) {
+    if let Some((owner, state)) = find_state(program, target) {
         return (owner.symbol != machine.symbol).then_some((state.symbol, state.return_type));
     }
     call_target_return_type(program, target).map(|return_type| (target, return_type))
@@ -117,7 +117,7 @@ pub fn find_machine_by_entry_state(
 /// The machine `symbol` names, either directly or through its retained
 /// parent: a call target or member reference may spell the machine itself or
 /// one of its member declarations, and the owning machine answers for both.
-/// Unlike `find_state_with_machine` this never descends into
+/// Unlike `find_state` this never descends into
 /// `machine_states` — the symbol table's parent edge already names the
 /// owner — and unlike `find_machine_head` every member resolves, not only
 /// the entry state. In a well-formed program the two arms name one machine:

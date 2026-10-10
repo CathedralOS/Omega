@@ -106,7 +106,7 @@ pub(crate) struct CheckedProgressSummary {
     pub(crate) build_bound_demands: Vec<BuildBoundProgressDemand>,
 }
 
-pub(crate) fn analyze_checked_progress_with_call_frames(
+pub(crate) fn analyze_checked_progress(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
     semantic: &facts::FactPlan,

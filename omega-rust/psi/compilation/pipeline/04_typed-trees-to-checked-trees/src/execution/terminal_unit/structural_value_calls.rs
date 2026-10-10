@@ -232,7 +232,7 @@ fn schedule(
     shapes: &mut ShapeCollector<'_>,
     root: &CheckedStructuralValueRoot,
 ) -> Option<Vec<checked_trees::CheckedStructuralValueCall>> {
-    let (machine, state) = validation::find_state_with_machine(program, root.state)?;
+    let (machine, state) = validation::find_state(program, root.state)?;
     if machine.symbol != root.machine {
         return None;
     }

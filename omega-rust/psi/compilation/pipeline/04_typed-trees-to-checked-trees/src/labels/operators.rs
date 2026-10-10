@@ -8,14 +8,14 @@ use typed_trees::signature::StateParameter;
 /// caller-term representation. Callers supply the operand labels directly: a
 /// spelled use renders its operands as written, while a named call names the
 /// referent under a reference formal.
-pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
+pub(crate) fn instantiate_operator_contract_expression_label(
     program: &dyn ::validation::CheckingInput,
     parameters: &[StateParameter],
     operand_labels: &[String],
     expression: ExpressionHandle,
 ) -> String {
     let instantiate = |expression: ExpressionHandle| {
-        instantiate_operator_contract_expression_label_with_labels(
+        instantiate_operator_contract_expression_label(
             program,
             parameters,
             operand_labels,

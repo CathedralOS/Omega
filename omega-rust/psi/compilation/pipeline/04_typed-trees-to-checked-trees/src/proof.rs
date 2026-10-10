@@ -45,7 +45,7 @@ use contracts::{
 };
 use obligations::lower_proof_obligation;
 
-pub(crate) fn build_proof_facts_with_operators(
+pub(crate) fn build_proof_facts(
     program: &dyn ::validation::CheckingInput,
     proof_plan: &proof::obligations::ProofPlan,
     borrow: &BorrowFacts,

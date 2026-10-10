@@ -33,7 +33,7 @@ pub(crate) use boolean_facts::context_proves_boolean_label;
 pub(crate) use kinds::{semantic_contract_fact_kind, semantic_proof_obligation_kind};
 pub(crate) use names::{call_target_label, machine_name, symbol_name};
 pub(crate) use operators::{
-    boolean_expression_has_polarity, instantiate_operator_contract_expression_label_with_labels,
+    boolean_expression_has_polarity, instantiate_operator_contract_expression_label,
 };
 pub(crate) use propositions::proposition_label_sources;
 pub(crate) use places::{

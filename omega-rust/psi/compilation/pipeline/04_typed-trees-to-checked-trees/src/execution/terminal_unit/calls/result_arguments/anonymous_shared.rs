@@ -16,7 +16,7 @@ pub(crate) fn validate(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<()> {
     let target = program.machine_by_symbol(
-        validation::find_state_with_machine(program, consumer.target_symbol)?
+        validation::find_state(program, consumer.target_symbol)?
             .0
             .symbol,
     )?;
@@ -80,7 +80,7 @@ pub(crate) fn validate(
         return None;
     }
     let multiplicity = crate::checks::type_multiplicity(program, owner_type);
-    let (source_machine, source_state) = validation::find_state_with_machine(program, state)?;
+    let (source_machine, source_state) = validation::find_state(program, state)?;
     if source_machine.symbol != machine {
         return None;
     }

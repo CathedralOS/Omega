@@ -515,7 +515,7 @@ pub fn tail_return_expression(
 /// or stored. Captured local custody comes from the borrow ledger, not this
 /// body's possible return relation. Control alternatives union origins at the
 /// same result path; aggregate children prefix that path instead.
-fn expression_sources_with_calls(
+fn expression_sources(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
@@ -549,7 +549,7 @@ fn expression_sources_with_calls(
             // Every alternative must supply its complete relation. Selecting
             // an arm does not prove which input loan obligations can end;
             // declaration-level lifetime candidates remain live separately.
-            for source in expression_sources_with_calls(
+            for source in expression_sources(
                 program,
                 state,
                 arm.value,
@@ -609,7 +609,7 @@ fn expression_sources_with_calls(
                 return None;
             }
             active_origins.push(local.symbol);
-            let sources = expression_sources_with_calls(
+            let sources = expression_sources(
                 program,
                 state,
                 local.initial_value,
@@ -655,7 +655,7 @@ fn expression_sources_with_calls(
         });
     }
     if let Some(call) = program.expression_table.call_node(expression) {
-        call_sources_with_calls(
+        call_sources(
             program,
             state,
             call.target_symbol,
@@ -827,7 +827,7 @@ fn projected_construction_sources(
     {
         return None;
     }
-    let sources = expression_sources_with_calls(
+    let sources = expression_sources(
         program,
         state,
         projection.root,
@@ -849,7 +849,7 @@ fn projected_construction_sources(
 
 /// Substitute returned permission leaves through the exact resolved invocation.
 /// Expression and terminal calls share this owner; neither creates a local loan.
-fn call_sources_with_calls(
+fn call_sources(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     target: SymbolHandle,
@@ -878,7 +878,7 @@ fn call_sources_with_calls(
         return None;
     }
     active_origins.push(destination.symbol);
-    let sources = returned_sources_with_calls(program, destination, active_origins, call_frames);
+    let sources = returned_sources(program, destination, active_origins, call_frames);
     active_origins.pop();
     let mut output = Vec::new();
     for source in sources? {
@@ -896,7 +896,7 @@ fn call_sources_with_calls(
                     .is_none()
             })
             .nth(parameter_index as usize)?;
-        let actual_sources = expression_sources_with_calls(
+        let actual_sources = expression_sources(
             program,
             state,
             *arguments.get(position)?,
@@ -1110,7 +1110,7 @@ fn whole_reference_sources(
     Some(sources)
 }
 
-fn returned_sources_with_calls(
+fn returned_sources(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     active_origins: &mut Vec<SymbolHandle>,
@@ -1134,7 +1134,7 @@ fn returned_sources_with_calls(
             return None;
         }
         let returned = match program.statement_table.transition_target(transition.target) {
-            TransitionTargetNode::Value(expression) => expression_sources_with_calls(
+            TransitionTargetNode::Value(expression) => expression_sources(
                 program,
                 state,
                 *expression,
@@ -1144,7 +1144,7 @@ fn returned_sources_with_calls(
             )?,
             TransitionTargetNode::Named {
                 path, arguments, ..
-            } => call_sources_with_calls(
+            } => call_sources(
                 program,
                 state,
                 path.symbol,
@@ -1170,7 +1170,7 @@ fn returned_sources_with_calls(
         .last()
     {
         has_normal_completion = true;
-        for source in expression_sources_with_calls(
+        for source in expression_sources(
             program,
             state,
             *expression,
@@ -1198,7 +1198,7 @@ pub fn returned_reference_sources(
     state: &typed_trees::state::State,
     call_frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    returned_sources_with_calls(program, state, &mut vec![state.symbol], call_frames)
+    returned_sources(program, state, &mut vec![state.symbol], call_frames)
 }
 
 /// A terminal invocation forwards its reference directly to the state's return.
@@ -1247,7 +1247,7 @@ pub fn terminal_call_reference_sources(
     {
         return None;
     }
-    call_sources_with_calls(
+    call_sources(
         program,
         state,
         target.symbol,
@@ -1547,7 +1547,7 @@ fn aggregate_construction_sources(
     }
     let mut output = Vec::new();
     for (path, expression, reference) in children {
-        for mut source in expression_sources_with_calls(
+        for mut source in expression_sources(
             program,
             state,
             expression,

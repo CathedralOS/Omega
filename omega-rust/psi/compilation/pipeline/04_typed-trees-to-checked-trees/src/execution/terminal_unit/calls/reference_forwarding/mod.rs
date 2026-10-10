@@ -224,7 +224,7 @@ fn prefix_preserves_parameter(
             &summaries,
             call_frames.as_ref(),
         )?;
-        let writes = crate::flow::close_storage_places_over_aliases_with_resolver(
+        let writes = crate::flow::close_storage_places_over_aliases(
             program,
             borrow_state.machine_symbol,
             borrow_state.state_symbol,

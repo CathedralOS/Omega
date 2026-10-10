@@ -113,7 +113,7 @@ fn append_linear_claim_frontier(
     if !type_reference.is_valid() {
         return;
     }
-    let multiplicity = type_multiplicity_with_substitutions(program, type_reference, substitutions);
+    let multiplicity = type_multiplicity(program, type_reference, substitutions);
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
             if multiplicity == Multiplicity::Linear {
@@ -336,7 +336,7 @@ fn push_claim(
 /// Multiplicity with closed generic substitutions applied: a type parameter's
 /// occurrence takes the argument's multiplicity; everything else is the
 /// declaration's own.
-fn type_multiplicity_with_substitutions(
+fn type_multiplicity(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -346,10 +346,10 @@ fn type_multiplicity_with_substitutions(
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            type_multiplicity_with_substitutions(program, *base_type, substitutions)
+            type_multiplicity(program, *base_type, substitutions)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_multiplicity_with_substitutions(program, *element_type, substitutions)
+            type_multiplicity(program, *element_type, substitutions)
         }
         TypeReferenceNode::Named { symbol, .. } => substitutions
             .iter()
@@ -358,7 +358,7 @@ fn type_multiplicity_with_substitutions(
                 (*parameter == *symbol && *replacement != type_reference).then_some(*replacement)
             })
             .map(|replacement| {
-                type_multiplicity_with_substitutions(program, replacement, substitutions)
+                type_multiplicity(program, replacement, substitutions)
             })
             .unwrap_or_else(|| frontier_type_multiplicity(program, type_reference)),
         _ => frontier_type_multiplicity(program, type_reference),

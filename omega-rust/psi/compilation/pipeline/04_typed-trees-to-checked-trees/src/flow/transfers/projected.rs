@@ -303,7 +303,7 @@ pub(super) fn bound_reference_referent_place(
     if !exact {
         return None;
     }
-    Some(crate::semantic::places::append_place_with_segments(
+    Some(crate::semantic::places::append_place(
         semantic,
         place.root,
         &place.segments,

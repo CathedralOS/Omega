@@ -1,7 +1,7 @@
 //! The maximal residual complement a projected owned move leaves in its root:
 //! every untouched subtree of the root's finite records and arrays, in
 //! reverse declaration order at each record level. Checking's partial-affine
-//! complement walk (`validation::reconstruct_with_boundaries`) derives it; a
+//! complement walk (`validation::reconstruct`) derives it; a
 //! root with no partial-affine decomposition has no residual discard route.
 
 use crate::LoweringError;
@@ -107,7 +107,7 @@ pub(super) fn complement(
         .iter()
         .map(|declaration| (declaration.identity.as_str(), declaration))
         .collect();
-    validation::reconstruct_with_boundaries(
+    validation::reconstruct(
         &borrowed,
         source,
         root_type,

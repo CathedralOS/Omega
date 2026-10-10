@@ -53,7 +53,7 @@ pub(super) fn normal_return_length(
                 })
         })
         .collect::<Vec<_>>();
-    let mut callee = Engine::strict_with_symbol_bindings(program, machine, &bindings);
+    let mut callee = Engine::strict(program, machine, &bindings);
     let result_length = |expression| {
         let Some(receiver) =
             crate::collection_length_receiver(program, machine, Some(state), expression)

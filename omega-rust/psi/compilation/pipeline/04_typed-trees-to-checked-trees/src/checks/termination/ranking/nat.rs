@@ -4,7 +4,7 @@ mod arguments;
 mod guards;
 
 use self::arguments::{
-    argument_is_parameter_minus_one, argument_rebuilds_parameter_with_member_minus_one,
+    argument_is_parameter_minus_one, argument_rebuilds_parameter,
 };
 use self::guards::{guard_is_positive_parameter, guard_is_positive_parameter_member};
 use super::DecreaseMeasure;
@@ -392,7 +392,7 @@ fn floor_at_least_one(
     state: &typed_trees::state::State,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    validation::find_state_with_machine(program, state.symbol)
+    validation::find_state(program, state.symbol)
         .and_then(|(machine, state)| {
             validation::state_parameter_integer_interval(program, machine, state, parameter.symbol)
         })
@@ -425,7 +425,7 @@ fn member_countdown_edge(
     };
 
     guard_is_positive_parameter_member(program, source, guard, parameter, member.member.as_str())
-        && argument_rebuilds_parameter_with_member_minus_one(
+        && argument_rebuilds_parameter(
             program,
             source,
             argument,
@@ -442,7 +442,7 @@ fn has_builtin_meaning(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some((machine, _)) = validation::find_state_with_machine(program, state.symbol) else {
+    let Some((machine, _)) = validation::find_state(program, state.symbol) else {
         return false;
     };
     validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)

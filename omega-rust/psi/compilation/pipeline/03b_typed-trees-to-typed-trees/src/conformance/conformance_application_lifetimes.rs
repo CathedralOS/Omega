@@ -41,7 +41,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
     let mut diagnostics = Vec::new();
     for mut call in calls {
         let Some((callee_machine, callee_state)) =
-            validation::find_state_with_machine(program, call.target)
+            validation::find_state(program, call.target)
         else {
             continue;
         };

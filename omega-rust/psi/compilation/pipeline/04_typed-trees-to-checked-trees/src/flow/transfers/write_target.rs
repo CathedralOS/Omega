@@ -117,7 +117,7 @@ pub(in crate::flow) fn statement_write(
                     }
                 })
                 .map(|canonical| {
-                    crate::semantic::places::append_place_with_segments(
+                    crate::semantic::places::append_place(
                         semantic,
                         canonical.root,
                         &canonical.segments,
@@ -196,7 +196,7 @@ pub(in crate::flow) fn narrow_pinned_selectors(
     {
         let root = semantic.places.get(target_place).root;
         target_place =
-            crate::semantic::places::append_place_with_segments(semantic, root, &target_segments);
+            crate::semantic::places::append_place(semantic, root, &target_segments);
     }
     (target_place, stable_value_target)
 }

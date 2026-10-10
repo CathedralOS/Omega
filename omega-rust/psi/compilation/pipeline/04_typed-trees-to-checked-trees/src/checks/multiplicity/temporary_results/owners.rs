@@ -61,7 +61,7 @@ pub(crate) fn owned_temporary_type(
         state_symbol,
         statement_index,
         &place,
-    ) && validation::find_state_with_machine(program, state_symbol)
+    ) && validation::find_state(program, state_symbol)
         .is_some_and(|(machine, state)| {
             super::super::borrowed_windows::authored_route_exclusive(
                 program,

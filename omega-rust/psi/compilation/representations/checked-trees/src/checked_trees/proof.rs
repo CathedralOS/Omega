@@ -3,7 +3,7 @@
 //!
 //! `ProofFacts` (in `roots`) holds them and is stored as `CheckFacts::proof`.
 //! `typed-trees-to-checked-trees` builds it in `build_check_facts`
-//! (`src/facts.rs`), starting from `build_proof_facts_with_operators`
+//! (`src/facts.rs`), starting from `build_proof_facts`
 //! (`src/proof.rs`); `checked-trees-to-lowered-psi` reads it through
 //! `checked.facts.proof`.
 //!

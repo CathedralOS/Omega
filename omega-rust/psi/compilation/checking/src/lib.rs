@@ -16,7 +16,7 @@ pub use machine_calls::{compiler_operations, contract_identities};
 pub use proof_contracts::{contract_structure, expression_owners, mathematical_applications};
 pub use value_custody::partial_affine_residuals::{
     CaseSelectedCleanupRegion, CleanupCaseCondition, CleanupCaseReachability,
-    reconstruct_case_selected_regions, reconstruct_with_boundaries,
+    reconstruct_case_selected_regions, reconstruct,
 };
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declaration_type_reference;
@@ -173,7 +173,7 @@ pub use crate::machine_calls::denotational_calls::{
     selected_operator_has_closed_value_denotation,
 };
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
-pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases_with_bound_lookup;
+pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
 pub use crate::value_custody::cleanup::{
     nominal_cleanup_owner, validate_reserved_cleanup_selections,
 };
@@ -225,7 +225,7 @@ pub use machine_calls::machine_parameters::{
     ValidatedNominalMachineUse, ValidatedNominalMachineUseSite,
     ValidatedRequirementCallMachineSelection, ValidatedRequirementCallSpecialization,
     ValidatedRequirementCallTypeBinding, ValidatedStaticMachineSelections,
-    closed_static_call_type_bindings, validate_static_machine_selections_with_facts,
+    closed_static_call_type_bindings, validate_static_machine_selections,
 };
 pub use machine_calls::machine_specialization_identity::machine_specialization_matches_template_identity;
 pub use machine_calls::result_overloads::{
@@ -420,7 +420,7 @@ pub use machine_calls::calls::{
     call_target_state, call_target_symbol, call_target_type_parameters,
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state, find_machine,
     find_machine_by_entry_state, find_machine_head, find_state_for_exit, find_state_in_machine,
-    find_state_on_machine, find_state_with_machine, machine_parameter_signature_symbol,
+    find_state_on_machine, find_state, machine_parameter_signature_symbol,
     machine_state_by_symbols, machine_state_count, receiver_can_dispatch_to_machine,
     resolve_name_path_member_symbol, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,

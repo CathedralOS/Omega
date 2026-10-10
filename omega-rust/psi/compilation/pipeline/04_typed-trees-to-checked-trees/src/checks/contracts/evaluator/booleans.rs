@@ -211,7 +211,7 @@ impl ContractExpressionEvaluator<'_, '_> {
                         let owner_symbol = match owner {
                             BooleanExpressionOwner::Caller => self.caller_machine.symbol,
                             BooleanExpressionOwner::Contract => {
-                                let Some((target_machine, _)) = validation::find_state_with_machine(
+                                let Some((target_machine, _)) = validation::find_state(
                                     self.program,
                                     self.target_symbol,
                                 ) else {

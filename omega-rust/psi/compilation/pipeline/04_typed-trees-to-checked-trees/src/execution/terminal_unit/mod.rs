@@ -5,7 +5,7 @@
 //! these catalogs describe implementation coverage, not additional language rules.
 //! The lowerer must receive a complete plan, never a partly recognized body.
 //!
-//! Start at `build_checked_unit_effect_plans_with_call_frames`, the checking
+//! Start at `build_checked_unit_effect_plans`, the checking
 //! stage's entry into this module (`build_checked_unit_effect_plans` is its
 //! test-only form without call frames). The cleanup rosters are built
 //! separately by `build_checked_partial_affine_unit_cleanup_plans` and
@@ -178,7 +178,7 @@ pub(crate) use types::{is_reference, strips_erased_parameter};
 #[derive(Clone, Copy)]
 pub(crate) struct ScalarCalleeClosure;
 
-pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
+pub(crate) fn build_checked_unit_effect_plans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,

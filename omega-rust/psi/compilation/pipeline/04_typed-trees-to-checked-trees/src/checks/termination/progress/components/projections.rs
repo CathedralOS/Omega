@@ -47,7 +47,7 @@ pub(super) fn finite_projection_limit(
                 let private_component_call = program
                     .machine_by_symbol(call.target_symbol)
                     .or_else(|| {
-                        validation::find_state_with_machine(program, call.target_symbol)
+                        validation::find_state(program, call.target_symbol)
                             .map(|(machine, _)| machine)
                     })
                     .is_some_and(|callee| {

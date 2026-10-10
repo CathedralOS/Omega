@@ -156,7 +156,7 @@ pub enum QuotientRequestAdmission {
     AfterCheckedFacts,
 }
 
-pub(crate) fn validate_quotients_with_admission(
+pub(crate) fn validate_quotients(
     program: &dyn crate::CheckingInput,
     proof_only: &ProofOnlyClassification,
     admission: QuotientRequestAdmission,

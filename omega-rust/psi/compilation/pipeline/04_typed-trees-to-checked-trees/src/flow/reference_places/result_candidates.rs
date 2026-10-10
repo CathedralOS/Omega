@@ -159,7 +159,7 @@ fn call_result_sources(
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ReferenceResultSource>> {
-    let (callee, callee_state) = validation::find_state_with_machine(program, call.target_symbol)?;
+    let (callee, callee_state) = validation::find_state(program, call.target_symbol)?;
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.body_is_present
         || !program.machine_type_parameters(callee).is_empty()

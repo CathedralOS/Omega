@@ -109,7 +109,7 @@ fn completed_field_sources(
         loan_place_segments, returned_reference_sources,
     };
 
-    let (machine, state) = validation::find_state_with_machine(program, target)?;
+    let (machine, state) = validation::find_state(program, target)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !machine.body_is_present
     {

@@ -53,7 +53,7 @@ use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::types::PrimitiveType;
 
 use crate::labels::{
-    context_proves_boolean_label, instantiate_operator_contract_expression_label_with_labels,
+    context_proves_boolean_label, instantiate_operator_contract_expression_label,
     symbol_name,
 };
 
@@ -181,7 +181,7 @@ fn leaf_has_polarity(
             expression,
         );
     }
-    let required = instantiate_operator_contract_expression_label_with_labels(
+    let required = instantiate_operator_contract_expression_label(
         program,
         parameters,
         operand_labels,
@@ -529,7 +529,7 @@ fn requires_fact_proven(
             if !membership.domain_arguments.is_empty() {
                 return false;
             }
-            let value_label = instantiate_operator_contract_expression_label_with_labels(
+            let value_label = instantiate_operator_contract_expression_label(
                 program,
                 parameters,
                 operand_labels,
@@ -571,7 +571,7 @@ fn requires_fact_proven(
             let argument_labels = argument_handles
                 .iter()
                 .map(|argument| {
-                    instantiate_operator_contract_expression_label_with_labels(
+                    instantiate_operator_contract_expression_label(
                         program,
                         parameters,
                         operand_labels,
@@ -693,7 +693,7 @@ fn contexts_prove_boolean_leaf(
     operand_labels: &[String],
     expression: ExpressionHandle,
 ) -> bool {
-    let required_label = instantiate_operator_contract_expression_label_with_labels(
+    let required_label = instantiate_operator_contract_expression_label(
         program,
         parameters,
         operand_labels,
@@ -762,7 +762,7 @@ fn requires_clause_label(
 ) -> String {
     match fact {
         ProofFact::Expression(expression) => {
-            instantiate_operator_contract_expression_label_with_labels(
+            instantiate_operator_contract_expression_label(
                 program,
                 parameters,
                 operand_labels,
@@ -771,7 +771,7 @@ fn requires_clause_label(
         }
         ProofFact::Membership(membership) => format!(
             "{} in {}",
-            instantiate_operator_contract_expression_label_with_labels(
+            instantiate_operator_contract_expression_label(
                 program,
                 parameters,
                 operand_labels,
@@ -787,7 +787,7 @@ fn requires_clause_label(
                 .expression_handles(application.arguments)
                 .iter()
                 .map(|argument| {
-                    instantiate_operator_contract_expression_label_with_labels(
+                    instantiate_operator_contract_expression_label(
                         program,
                         parameters,
                         operand_labels,

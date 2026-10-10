@@ -38,7 +38,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 
 use crate::labels::{
-    context_proves_boolean_label, instantiate_operator_contract_expression_label_with_labels,
+    context_proves_boolean_label, instantiate_operator_contract_expression_label,
 };
 
 /// Whether the selected operator's published route guard is provably false at
@@ -232,7 +232,7 @@ fn leaf_has_polarity(
     {
         return false;
     }
-    let required = instantiate_operator_contract_expression_label_with_labels(
+    let required = instantiate_operator_contract_expression_label(
         program,
         parameters,
         operand_labels,

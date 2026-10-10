@@ -24,7 +24,7 @@ mod receiver;
 mod summary;
 
 pub(crate) use ceiling::signature_ceiling_places;
-pub(crate) use local_origins::close_storage_places_over_aliases_with_resolver;
+pub(crate) use local_origins::close_storage_places_over_aliases;
 pub(crate) use local_origins::place_from_origin_path;
 pub(crate) use local_origins::rebase_exact_local_place;
 pub(crate) use local_origins::{origin_place, sole_local_referent_origin};
@@ -652,7 +652,7 @@ pub(crate) fn statement_storage_writes(
     // reference local of finite candidate origins is such a state), borrow
     // exclusivity already forbids a second live alias of the written
     // storage, so the places stand without the closure.
-    local_origins::close_storage_places_over_aliases_with_resolver(
+    local_origins::close_storage_places_over_aliases(
         program,
         machine_symbol,
         state_symbol,
@@ -689,7 +689,7 @@ pub(crate) fn frame_storage_writes(
             }
         }
     }
-    local_origins::close_storage_places_over_aliases_with_resolver(
+    local_origins::close_storage_places_over_aliases(
         program,
         machine_symbol,
         state_symbol,

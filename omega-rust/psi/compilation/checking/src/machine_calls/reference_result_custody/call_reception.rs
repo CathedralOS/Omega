@@ -33,7 +33,7 @@ pub fn record_call_reception(
     // joining captured receiver loans. The type lists possible slots; an
     // empty actual or a payload-free callee return need not supply them.
     // This selects storage, not another judgment of input loan authority.
-    let origins = super::expression_sources_with_calls(
+    let origins = super::expression_sources(
         program,
         state,
         expression,

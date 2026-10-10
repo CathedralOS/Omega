@@ -12,7 +12,7 @@ use typed_trees::machine::GenericConformanceBound;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::conformance_applications::{
-    close_conformance_application, substituted_type_identity_with_lifetimes,
+    close_conformance_application, substituted_type_identity,
 };
 
 pub(super) fn validate_trait_implementation_arguments(
@@ -208,7 +208,7 @@ fn bound_arguments(
     substitutions: &[(SymbolHandle, String)],
 ) -> Vec<String> {
     let identity = |argument, substitutions: &[(SymbolHandle, String)]| {
-        substituted_type_identity_with_lifetimes(program, argument, substitutions, &[])
+        substituted_type_identity(program, argument, substitutions, &[])
     };
     let carrier = super::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
     if let Some((refinement, base)) = carrier

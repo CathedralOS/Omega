@@ -799,7 +799,7 @@ impl<'program> StructuralJudge<'program> {
                 .struct_fields(literal.fields)
                 .iter()
                 .find(|candidate| candidate.field_symbol == field)?;
-            self.callee_term_with_machines(
+            self.callee_term(
                 projected.value,
                 &environment,
                 &machine_environment,
@@ -914,7 +914,7 @@ impl<'program> StructuralJudge<'program> {
                 continue; // exhaustiveness carrier, not shape
             }
             if let Some(local) = statement.as_local_data() {
-                let term = self.callee_term_with_machines(
+                let term = self.callee_term(
                     local.initial_value,
                     &environment,
                     &machine_environment,
@@ -930,7 +930,7 @@ impl<'program> StructuralJudge<'program> {
             if let Some(expression) = statement.as_expression() {
                 return (index + 1 == statements.len())
                     .then(|| {
-                        self.callee_term_with_machines(
+                        self.callee_term(
                             *expression,
                             &environment,
                             &machine_environment,
@@ -1003,7 +1003,7 @@ impl<'program> StructuralJudge<'program> {
             else {
                 return None;
             };
-            return self.callee_term_with_machines(
+            return self.callee_term(
                 *value,
                 &environment,
                 &machine_environment,
@@ -1027,10 +1027,10 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         depth: usize,
     ) -> Option<StructuralTerm> {
-        self.callee_term_with_machines(expression, environment, &[], scope, depth)
+        self.callee_term(expression, environment, &[], scope, depth)
     }
 
-    fn callee_term_with_machines(
+    fn callee_term(
         &self,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
@@ -1086,7 +1086,7 @@ impl<'program> StructuralJudge<'program> {
                         .expression_handles(call.arguments)
                         .iter()
                         .map(|argument| {
-                            self.callee_term_with_machines(
+                            self.callee_term(
                                 *argument,
                                 environment,
                                 machine_environment,
@@ -1131,7 +1131,7 @@ impl<'program> StructuralJudge<'program> {
                         arguments,
                     });
                 }
-                let receiver_term = self.callee_term_with_machines(
+                let receiver_term = self.callee_term(
                     member.receiver,
                     environment,
                     machine_environment,
@@ -1176,7 +1176,7 @@ impl<'program> StructuralJudge<'program> {
             }
             ExpressionNode::StructLiteral(literal) => {
                 super::structural_terms::constructor_literal_term(program, literal, |field| {
-                    self.callee_term_with_machines(
+                    self.callee_term(
                         field.value,
                         environment,
                         machine_environment,
@@ -1216,7 +1216,7 @@ impl<'program> StructuralJudge<'program> {
                 }
                 let mut arguments = Vec::new();
                 for argument in program.expression_table.expression_handles(call.arguments) {
-                    arguments.push(self.callee_term_with_machines(
+                    arguments.push(self.callee_term(
                         *argument,
                         environment,
                         machine_environment,
@@ -1258,7 +1258,7 @@ impl<'program> StructuralJudge<'program> {
             }
             // A checked borrow selects its referent; it does not create a new
             // case-bearing value. Preserve aliases to the same saved subject.
-            ExpressionNode::Borrow(borrow) => self.callee_term_with_machines(
+            ExpressionNode::Borrow(borrow) => self.callee_term(
                 borrow.target,
                 environment,
                 machine_environment,
@@ -1275,14 +1275,14 @@ impl<'program> StructuralJudge<'program> {
                 scope,
                 None,
                 expression,
-                self.callee_term_with_machines(
+                self.callee_term(
                     binary.left,
                     environment,
                     machine_environment,
                     scope,
                     depth + 1,
                 )?,
-                self.callee_term_with_machines(
+                self.callee_term(
                     binary.right,
                     environment,
                     machine_environment,

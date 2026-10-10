@@ -24,7 +24,7 @@ pub(crate) fn finalize_execution(
     // as the consumer's own ordinary row; attached callers assemble below.
     let mut free_nominal_cleanups = Vec::new();
     let mut terminal_unit_effects =
-        crate::execution::terminal_unit::build_checked_unit_effect_plans_with_call_frames(
+        crate::execution::terminal_unit::build_checked_unit_effect_plans(
             program,
             &facts,
             crate::execution::terminal_unit::ScalarCalleeClosure,

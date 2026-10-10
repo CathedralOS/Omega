@@ -47,7 +47,7 @@ type EntrySubjectResolver<'program> = dyn Fn(ExpressionHandle) -> Option<(u32, V
 
 /// Read the same predicate algebra while the caller supplies authenticated
 /// invocation-entry subjects for observations made in a body state.
-pub(crate) fn lower_entry_predicate_with_subjects(
+pub(crate) fn lower_entry_predicate(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &Machine,
@@ -73,7 +73,7 @@ pub(crate) fn lower_entry_predicate_with_subjects(
 /// Scalar actuals use the ordinary checked algebra with observations rebound
 /// to authenticated invocation-entry subjects. This does not replay stored
 /// initializer expressions or establish arithmetic safety by itself.
-pub(crate) fn lower_entry_scalar_with_subjects(
+pub(crate) fn lower_entry_scalar(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     machine: &Machine,
@@ -86,7 +86,7 @@ pub(crate) fn lower_entry_scalar_with_subjects(
     ) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>,
 ) -> Option<CheckedScalarExpression> {
     if primitive_type == PrimitiveType::Bool {
-        return lower_entry_predicate_with_subjects(
+        return lower_entry_predicate(
             program,
             operators,
             machine,

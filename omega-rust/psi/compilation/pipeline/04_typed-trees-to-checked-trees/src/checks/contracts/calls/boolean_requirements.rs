@@ -136,7 +136,7 @@ fn selected_float_requirement(
     call_flow: &FlowCallFact,
     expression: ExpressionHandle,
 ) -> Option<bool> {
-    let (machine, state) = validation::find_state_with_machine(program, call_flow.target_symbol)
+    let (machine, state) = validation::find_state(program, call_flow.target_symbol)
         .or_else(|| {
             let machine = program.machine_by_symbol(call_flow.target_symbol)?;
             Some((machine, program.machine_states(machine).first()?))

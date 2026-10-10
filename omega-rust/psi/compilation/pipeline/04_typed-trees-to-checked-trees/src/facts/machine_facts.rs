@@ -9,7 +9,7 @@ pub(crate) fn build_termination_facts(
     validation: &validation::ProgramValidationFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::TerminationFacts, Vec<diagnostics::Diagnostic>> {
-    let summaries = crate::checks::termination::analyze_checked_progress_with_call_frames(
+    let summaries = crate::checks::termination::analyze_checked_progress(
         program,
         flow,
         semantic,
@@ -23,7 +23,7 @@ pub(crate) fn build_termination_facts(
             .iter()
             .map(|machine| checked_trees::MachineTerminationFact {
                 machine: machine.symbol,
-                plan: crate::checks::termination::build_checked_termination_plan_with_summary(
+                plan: crate::checks::termination::build_checked_termination_plan(
                     program,
                     machine,
                     summaries

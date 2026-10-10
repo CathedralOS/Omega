@@ -351,7 +351,7 @@ fn invocation<'program>(
         CallSite::TransitionNamed { path, .. } => path.symbol,
     };
     let callable = match &site {
-        CallSite::TransitionNamed { .. } => validation::find_state_with_machine(program, target)
+        CallSite::TransitionNamed { .. } => validation::find_state(program, target)
             .filter(|(machine, _)| machine.symbol == caller.machine_symbol)
             .map(|(machine, state)| Callable::Machine { machine, state })
             .or_else(|| Callable::resolve(program, target))?,

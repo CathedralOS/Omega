@@ -94,7 +94,7 @@ pub(crate) fn instantiate_call_contract_place(
 
     let mut segments = substitution.segments;
     segments.extend(original_segments);
-    FactPlace::Place(place_builders::append_place_with_segments(
+    FactPlace::Place(place_builders::append_place(
         facts,
         substitution.root,
         &segments,
@@ -145,7 +145,7 @@ fn membership_argument_place(
         )
     };
     Some(bound().map_or(FactPlace::Unknown, |actual| {
-        FactPlace::Place(place_builders::append_place_with_segments(
+        FactPlace::Place(place_builders::append_place(
             facts,
             actual.root,
             &actual.segments,
@@ -153,7 +153,7 @@ fn membership_argument_place(
     }))
 }
 pub(crate) use place_builders::{
-    append_place_from_name_path, append_place_segment, append_place_with_segments,
+    append_place_from_name_path, append_place_segment, append_place,
     canonical_place_to_fact_place_in_state, resolve_place_member_symbol,
 };
 pub(crate) use receiver::receiver_place_for_call;

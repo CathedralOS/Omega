@@ -16,7 +16,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::typed_trees::StaticRequirementDispatch;
 use validation::conformance_applications::{
-    close_conformance_application, substituted_type_identity_with_lifetimes, type_argument_identity,
+    close_conformance_application, substituted_type_identity, type_argument_identity,
 };
 
 struct ExplicitRequirementRewrite {
@@ -366,7 +366,7 @@ impl ExplicitApplication<'_> {
                     .type_reference_handles(parent.arguments)
                     .iter()
                     .map(|argument| {
-                        substituted_type_identity_with_lifetimes(
+                        substituted_type_identity(
                             program,
                             *argument,
                             &substitutions,

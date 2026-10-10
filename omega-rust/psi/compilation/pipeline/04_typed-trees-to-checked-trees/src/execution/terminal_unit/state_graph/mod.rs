@@ -85,7 +85,7 @@ pub(crate) fn fused_countdown_ranks(
 ) -> bool {
     let fused = fused_states(program, machine);
     fused.len() != program.machine_states(machine).len()
-        && crate::checks::termination::proven_fused_state_natural_ranks_with_call_frames(
+        && crate::checks::termination::proven_fused_state_natural_ranks(
             program,
             &fused
                 .iter()
@@ -207,7 +207,7 @@ pub(crate) fn natural_rank_plans(
             .iter()
             .map(|(_, state)| state.symbol)
             .collect::<Vec<_>>();
-        match crate::checks::termination::proven_fused_state_natural_ranks_with_call_frames(
+        match crate::checks::termination::proven_fused_state_natural_ranks(
             program,
             &members,
             call_frames,
@@ -222,7 +222,7 @@ pub(crate) fn natural_rank_plans(
     } else if machine.termination_plan.implementation_witness.is_some() {
         // Other retained witnesses belong to their existing producer until this
         // path can preserve them. Never publish an unranked replacement.
-        let ranks = crate::checks::termination::proven_state_natural_ranks_with_call_frames(
+        let ranks = crate::checks::termination::proven_state_natural_ranks(
             program,
             machine,
             call_frames,
@@ -300,7 +300,7 @@ pub(super) fn build_traced(
     let (mut natural_ranks, preserving_rank_edges) =
         natural_rank_plans(program, machine, call_frames)?;
     for rank in &mut natural_ranks {
-        let (owner, _) = validation::find_state_with_machine(program, rank.state)?;
+        let (owner, _) = validation::find_state(program, rank.state)?;
         let root = facts.values.scalar_computations.root_at(
             rank.state,
             0,

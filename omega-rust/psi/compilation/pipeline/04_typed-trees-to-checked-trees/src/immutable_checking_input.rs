@@ -39,7 +39,7 @@ fn checking_does_not_reopen_typed_preparation() {
         }
     }
     assert!(
-        !specialization.contains("validate_static_machine_selections_with_facts("),
+        !specialization.contains("validate_static_machine_selections("),
         "specialization restored whole-roster admission inside its fixed point"
     );
     assert!(

@@ -115,7 +115,7 @@ pub fn scoped_arithmetic_comparisons_unsatisfiable(
     comparisons: &[ScopedArithmeticComparison],
 ) -> bool {
     let mut calls = calls::ScopedCalls::new(program, context_machine);
-    let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, &[]);
+    let mut engine = Engine::strict(program, context_machine, &[]);
     let mut normalized = Vec::with_capacity(comparisons.len());
     for comparison in comparisons {
         if !matches!(
@@ -178,7 +178,7 @@ pub(super) fn scoped_arithmetic_implication_for_declaration(
         return StrictArithmeticImplicationJudgment::Unknown;
     };
     let mut engine = if let Some(machine) = program.machine(owner) {
-        Engine::strict_with_symbol_bindings(program, machine, &[])
+        Engine::strict(program, machine, &[])
     } else {
         Engine::strict_for_declaration(program, owner)
     };
@@ -301,7 +301,7 @@ pub fn scoped_arithmetic_values_relation(
     let Some(hypotheses) = calls.hypotheses(hypotheses) else {
         return StrictArithmeticImplicationJudgment::Unknown;
     };
-    let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, &[]);
+    let mut engine = Engine::strict(program, context_machine, &[]);
     let Some(left) = engine.normalize_scoped_value(&left) else {
         return StrictArithmeticImplicationJudgment::Unknown;
     };

@@ -216,7 +216,7 @@ pub(crate) fn bind_current_guard(
     expression: typed_trees::expression::ExpressionHandle,
     value: bool,
 ) -> Option<BoundPredicate> {
-    let (machine, state) = validation::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = validation::find_state(program, state_symbol)?;
     if !validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
     {
         return None;

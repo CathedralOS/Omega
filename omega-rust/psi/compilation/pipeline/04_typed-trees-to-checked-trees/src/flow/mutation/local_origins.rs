@@ -26,7 +26,7 @@ use symbols::SymbolHandle;
 mod coordinates;
 pub(crate) use coordinates::{origin_place, sole_local_referent_origin};
 
-pub(crate) fn close_storage_places_over_aliases_with_resolver(
+pub(crate) fn close_storage_places_over_aliases(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -237,7 +237,7 @@ pub(crate) fn rebase_exact_local_place(
         return Some(place);
     }
     let root = place.root.as_symbol()?;
-    let (machine, state) = validation::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = validation::find_state(program, state_symbol)?;
     let statement = program
         .statement_table
         .statement_at(state, statement_index)?;
@@ -290,7 +290,7 @@ pub(super) fn rebase_local_write_places(
         return Some(vec![place]);
     }
     let root = place.root.as_symbol()?;
-    let (machine, state) = validation::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = validation::find_state(program, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;

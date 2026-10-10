@@ -12,7 +12,7 @@
 //! executable rank consumers retain their existing formation and edge proofs.
 
 use crate::machine_calls::calls::{
-    CallSite, call_target_state, collect_call_sites_in_statement, find_state_with_machine,
+    CallSite, call_target_state, collect_call_sites_in_statement, find_state,
 };
 use symbols::SymbolHandle;
 
@@ -68,7 +68,7 @@ pub fn rank_relevance(
                     has_opaque_call = true;
                     continue;
                 };
-                let Some((owner, target)) = find_state_with_machine(program, target.symbol) else {
+                let Some((owner, target)) = find_state(program, target.symbol) else {
                     has_opaque_call = true;
                     continue;
                 };

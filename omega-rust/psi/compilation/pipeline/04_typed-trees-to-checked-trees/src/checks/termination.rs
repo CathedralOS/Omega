@@ -2,8 +2,8 @@
 //! `terminates by` ranking of its local cycles. This module also derives the
 //! termination summary and plan that checked facts publish for each machine.
 //!
-//! `check_machine_termination_with_call_frames` is the check;
-//! `checks::check_checked_facts_recording_with_mutation_summaries` runs it last.
+//! `check_machine_termination` is the check;
+//! `checks::check_checked_facts_recording` runs it last.
 //! For each machine whose normalized termination plan publishes
 //! `Terminates` or carries a ranking witness, it:
 //!
@@ -17,11 +17,11 @@
 //!
 //! Fact construction uses the rest.
 //! `facts::machine_facts::build_termination_facts` calls
-//! `progress::analyze_checked_progress_with_call_frames`, which derives each
+//! `progress::analyze_checked_progress`, which derives each
 //! machine's progress premises from its selected calls and rejects a
 //! published termination guarantee that the checked body does not support or
 //! whose premises do not cover them. It then calls
-//! `build_checked_termination_plan_with_summary`, which records the checked
+//! `build_checked_termination_plan`, which records the checked
 //! summary and the resolved ranking view in the machine's plan.
 //! `infer_machine_checked_summary` gives the body-local summary alone:
 //! `Terminates` for a checked-body machine that either has no local cycle or
@@ -36,7 +36,7 @@
 //! `named_transition_target_state_index` (from `graph`) for execution
 //! planning, scalar value plans and crash entry facts, the `proven_*` rank
 //! functions for execution planning, and
-//! `proves_ranked_entry_requirement_with_call_frames` for the contract
+//! `proves_ranked_entry_requirement` for the contract
 //! checks' call bounds.
 
 mod graph;
@@ -51,16 +51,16 @@ pub(crate) use progress::entry_covers_progress_premises;
 pub(crate) use graph::{
     machine_adjacency, named_transition_target_state_index, strongly_connected_components,
 };
-pub(crate) use ranking::proven_fused_state_natural_ranks_with_call_frames;
-pub(crate) use ranking::proven_nat_countdown_sccs_with_call_frames;
-pub(crate) use ranking::proven_slice_length_ranks_with_call_frames;
-pub(crate) use ranking::proven_state_natural_ranks_with_call_frames;
-pub(crate) use ranking::proves_ranked_entry_requirement_with_call_frames;
+pub(crate) use ranking::proven_fused_state_natural_ranks;
+pub(crate) use ranking::proven_nat_countdown_sccs;
+pub(crate) use ranking::proven_slice_length_ranks;
+pub(crate) use ranking::proven_state_natural_ranks;
+pub(crate) use ranking::proves_ranked_entry_requirement;
 
 use crate::labels::machine_name;
 use diagnostics::Diagnostic;
 
-pub(crate) fn check_machine_termination_with_call_frames(
+pub(crate) fn check_machine_termination(
     program: &dyn ::validation::CheckingInput,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -161,7 +161,7 @@ pub(crate) fn check_machine_termination_with_call_frames(
     }
 }
 
-pub(crate) fn build_checked_termination_plan_with_summary(
+pub(crate) fn build_checked_termination_plan(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     checked_summary: language_semantics::TerminationGuarantee,
@@ -174,7 +174,7 @@ pub(crate) fn build_checked_termination_plan_with_summary(
     plan
 }
 
-pub(crate) use progress::analyze_checked_progress_with_call_frames;
+pub(crate) use progress::analyze_checked_progress;
 
 
 pub(crate) fn infer_machine_checked_summary(

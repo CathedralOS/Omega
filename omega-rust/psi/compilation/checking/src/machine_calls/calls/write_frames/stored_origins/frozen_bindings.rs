@@ -73,7 +73,7 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
         && (!statement_receiver_has_identity(program, call, stored, aliases)
             || writes_may_replace_binding(program, stored, aliases, writes.as_deref())))
         || arguments.iter().any(|expression| {
-            expression_exposes_with_writes(
+            expression_exposes(
                 program,
                 machine,
                 state,
@@ -97,7 +97,7 @@ pub(in crate::machine_calls::calls::write_frames) fn expression_exposes_frozen_b
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> bool {
-    expression_exposes_with_writes(
+    expression_exposes(
         program, machine, state, expression, stored, aliases, symbols, inference, None,
     )
 }
@@ -105,7 +105,7 @@ pub(in crate::machine_calls::calls::write_frames) fn expression_exposes_frozen_b
 /// A borrow grants an access ceiling; a call's complete frame says which of
 /// that storage it may actually replace. Traverse call operands in that call's
 /// context, never flatten nested calls into their enclosing call's ceiling.
-fn expression_exposes_with_writes(
+fn expression_exposes(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -169,7 +169,7 @@ fn expression_exposes_with_writes(
         return std::iter::once(call.receiver)
             .chain(arguments.iter().copied())
             .any(|child| {
-                expression_exposes_with_writes(
+                expression_exposes(
                     program, machine, state, child, stored, aliases, symbols, inference, writes,
                 )
             });
@@ -200,7 +200,7 @@ fn expression_exposes_with_writes(
         }),
     }
     children.into_iter().any(|child| {
-        expression_exposes_with_writes(
+        expression_exposes(
             program, machine, state, child, stored, aliases, symbols, inference, writes,
         )
     })

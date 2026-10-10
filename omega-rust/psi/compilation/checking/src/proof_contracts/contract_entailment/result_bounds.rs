@@ -195,7 +195,7 @@ pub(super) fn proves(
     {
         return false;
     }
-    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    let mut engine = Engine::strict(program, machine, &[]);
     let identity = "ordinary-return".to_owned();
     if !engine.install_scoped_bindings(&[ScopedArithmeticBinding {
         binder: ScopedArithmeticBinder::Result,

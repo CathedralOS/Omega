@@ -75,7 +75,7 @@ pub fn type_graph_requires_nominal_drop(
             .iter()
             .find(|data| data.symbol == *symbol || data.name.as_str() == name.as_str())
             .is_some_and(|data| {
-                data_graph_requires_nominal_drop_with_substitutions(
+                data_graph_requires_nominal_drop(
                     program,
                     data,
                     substitutions,
@@ -106,7 +106,7 @@ pub fn type_graph_requires_nominal_drop(
                     .zip(arguments)
                     .map(|(parameter, argument)| (parameter.symbol, *argument)),
             );
-            data_graph_requires_nominal_drop_with_substitutions(
+            data_graph_requires_nominal_drop(
                 program,
                 data,
                 &nested_substitutions,
@@ -126,10 +126,10 @@ pub fn data_requires_nominal_drop(
     program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
 ) -> bool {
-    data_graph_requires_nominal_drop_with_substitutions(program, data, &[], &mut BTreeSet::new())
+    data_graph_requires_nominal_drop(program, data, &[], &mut BTreeSet::new())
 }
 
-fn data_graph_requires_nominal_drop_with_substitutions(
+fn data_graph_requires_nominal_drop(
     program: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],

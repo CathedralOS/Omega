@@ -80,7 +80,7 @@ fn prove(
             {
                 return None;
             }
-            validation::find_state_with_machine(program, call.target_symbol).filter(
+            validation::find_state(program, call.target_symbol).filter(
                 |(machine, state)| {
                     program
                         .machine_states(machine)
@@ -97,7 +97,7 @@ fn prove(
             if path.symbol != call.target_symbol || !evidence_arguments.is_empty() {
                 return None;
             }
-            validation::find_state_with_machine(program, call.target_symbol)
+            validation::find_state(program, call.target_symbol)
                 .filter(|(machine, _)| machine.symbol == caller.machine_symbol)?
         }
         validation::CallSite::Statement(_) => return None,

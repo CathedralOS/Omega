@@ -100,7 +100,7 @@ impl<'program> ScopedCalls<'program> {
         // Transported guarantees are optional premises. An unread argument
         // cannot invalidate the caller's unrelated, fully bound hypotheses.
         if let Some(machine) = self.program.machine_by_symbol(self.context) {
-            let mut engine = super::Engine::strict_with_symbol_bindings(self.program, machine, &[]);
+            let mut engine = super::Engine::strict(self.program, machine, &[]);
             prepared.extend(
                 self.guarantees
                     .drain(..)

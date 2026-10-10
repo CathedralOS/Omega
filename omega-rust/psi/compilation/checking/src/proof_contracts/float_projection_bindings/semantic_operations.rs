@@ -72,13 +72,13 @@ pub fn float_semantic_application_for_parameters(
             crate::parameter_expression_result_type_reference(program, owner, parameters, *argument)
         })
         .collect::<Option<Vec<_>>>()?;
-    float_semantic_application_with_operand_types(program, call, &references)
+    float_semantic_application(program, call, &references)
 }
 
 /// Select a sealed semantic declaration using the actual result references
 /// already established by the shared expression owner. Neither an expected
 /// destination nor a carrier-name spelling supplies an overload selection.
-pub(crate) fn float_semantic_application_with_operand_types(
+pub(crate) fn float_semantic_application(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     references: &[typed_trees::types::TypeReferenceHandle],

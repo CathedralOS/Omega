@@ -6,7 +6,7 @@
 //! `checking::lower_typed_trees` prepares the lowering-consumed borrow
 //! resources, then enters the checks once over the constructed fact tables.
 //!
-//! `check_checked_facts_recording_with_mutation_summaries` runs every check and
+//! `check_checked_facts_recording` runs every check and
 //! collects all diagnostics instead of stopping at the first failure. It
 //! first builds the call frame resolver and the incoming guard index
 //! (`ranges::incoming_guards`) that several checks share, then runs:
@@ -87,7 +87,7 @@ pub(crate) fn initialize_checked_direct_borrow_resources(
 /// mutation summary table. The summaries depend only on the immutable typed
 /// program and the borrow facts, so the same table answers fact construction,
 /// resource construction, borrow statements, and range indexing in one check pass.
-pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
+pub(crate) fn check_checked_facts_recording(
     program: &dyn ::validation::CheckingInput,
     facts: &mut checked_trees::CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
@@ -192,7 +192,7 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
     indexed_writes::record_assignment_indexes(program, facts);
 
     if let Err(mut termination_diagnostics) =
-        termination::check_machine_termination_with_call_frames(program, call_frames.as_ref())
+        termination::check_machine_termination(program, call_frames.as_ref())
     {
         diagnostics.append(&mut termination_diagnostics);
     }

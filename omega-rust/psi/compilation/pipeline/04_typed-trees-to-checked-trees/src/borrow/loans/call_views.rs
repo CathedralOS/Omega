@@ -183,7 +183,7 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
     state_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<CallViewReturnContract<'program>> {
-    let (caller, state) = validation::find_state_with_machine(program, state_symbol)?;
+    let (caller, state) = validation::find_state(program, state_symbol)?;
     let (parameters, return_type, substitutions, substitution_scope_starts) =
         if let Ok(Some(requirement)) =
             validation::named_conformance_target_requirement(program, caller, call.target_symbol)

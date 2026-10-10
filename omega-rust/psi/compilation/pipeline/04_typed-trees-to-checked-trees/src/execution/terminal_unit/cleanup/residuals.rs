@@ -25,7 +25,7 @@ pub(super) fn reconstruct(
         .iter()
         .map(|(identity, plan)| (identity.as_str(), plan))
         .collect();
-    validation::reconstruct_with_boundaries(
+    validation::reconstruct(
         &borrowed,
         source,
         root_type,

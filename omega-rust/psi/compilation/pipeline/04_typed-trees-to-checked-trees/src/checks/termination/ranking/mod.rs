@@ -2,7 +2,7 @@
 //! ranks exported to execution planning.
 //!
 //! `machine_decrease_outcome` is the judgment;
-//! `termination::check_machine_termination_with_call_frames` calls it for
+//! `termination::check_machine_termination` calls it for
 //! each terminating machine whose ranking witness must be proved locally. It
 //! resolves the witness subjects and view arguments against the root state,
 //! resolves the ranking order through `RankingOrder::resolve_witness`
@@ -38,7 +38,7 @@ mod slice;
 mod struct_view;
 mod write_preservation;
 
-pub(crate) use entry_requirements::proves_ranked_entry_requirement_with_call_frames;
+pub(crate) use entry_requirements::proves_ranked_entry_requirement;
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::ranking::{
@@ -120,7 +120,7 @@ pub(crate) struct ProvenNatCountdownEdge {
     pub(crate) target_rank_parameter_position: u32,
 }
 
-pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
+pub(crate) fn proven_nat_countdown_sccs(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -265,7 +265,7 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
 /// every edge resolve per member rather than inside one machine's adjacency.
 /// Each member still ranks its own authored formal through its own witness —
 /// the checker remains the sole recognizer.
-pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
+pub(crate) fn proven_fused_nat_countdown_sccs(
     program: &dyn ::validation::CheckingInput,
     member_states: &[symbols::SymbolHandle],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -275,7 +275,7 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
     }
     let members = member_states
         .iter()
-        .map(|state| validation::find_state_with_machine(program, *state))
+        .map(|state| validation::find_state(program, *state))
         .collect::<Option<Vec<_>>>()?;
     let adjacency = members
         .iter()
@@ -445,17 +445,17 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
 /// Transport the existing fused countdown judgment into the shared state-rank
 /// carrier. Every cyclic edge was proved above and names its exact formal;
 /// this projection introduces no additional decrease recognizer.
-pub(crate) fn proven_fused_state_natural_ranks_with_call_frames(
+pub(crate) fn proven_fused_state_natural_ranks(
     program: &dyn ::validation::CheckingInput,
     member_states: &[symbols::SymbolHandle],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
     let components =
-        proven_fused_nat_countdown_sccs_with_call_frames(program, member_states, call_frames)?;
+        proven_fused_nat_countdown_sccs(program, member_states, call_frames)?;
     let mut ranks = Vec::<checked_trees::CheckedStateNaturalRank>::new();
     for component in components {
         for edge in component.covered_cyclic_edges {
-            let (_, state) = validation::find_state_with_machine(program, edge.source_state)?;
+            let (_, state) = validation::find_state(program, edge.source_state)?;
             let parameter = program
                 .state_parameters(state)
                 .get(edge.source_rank_parameter_position as usize)?;
@@ -502,7 +502,7 @@ fn unsigned_maximum(primitive: typed_trees::types::PrimitiveType) -> Option<u128
 
 /// Retain the existing slice-length judgment's exact subjects for shared
 /// state-graph production. This does not establish Terminal ranking authority.
-pub(crate) fn proven_slice_length_ranks_with_call_frames(
+pub(crate) fn proven_slice_length_ranks(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -586,14 +586,14 @@ pub(crate) fn proven_slice_length_ranks_with_call_frames(
 /// edge inside a component is re-proved against it here: a machine accepted
 /// only through another tier (the relational rank-range judgment) keeps no
 /// shared ranks rather than a measure no edge proof names.
-pub(crate) fn proven_state_natural_ranks_with_call_frames(
+pub(crate) fn proven_state_natural_ranks(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<checked_trees::CheckedStateNaturalRank>> {
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     if witness.ranking_view == language_semantics::RankingViewId::SLICE_LENGTH {
-        return proven_slice_length_ranks_with_call_frames(program, machine, call_frames);
+        return proven_slice_length_ranks(program, machine, call_frames);
     }
     if !matches!(
         machine_decrease_outcome(program, machine, call_frames),

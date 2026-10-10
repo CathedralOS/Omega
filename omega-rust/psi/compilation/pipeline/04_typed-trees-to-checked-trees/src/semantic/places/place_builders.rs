@@ -20,7 +20,7 @@ pub(crate) fn canonical_place_to_fact_place_in_state(
         statement_index,
         expression,
     )?;
-    Some(append_place_with_segments(
+    Some(append_place(
         facts,
         canonical.root,
         &canonical.segments,
@@ -35,7 +35,7 @@ pub(crate) fn append_place_segment(
     let place = *facts.places.get(base_place);
     let mut segments: Vec<_> = facts.place_segments.span_or_empty(place.segments).to_vec();
     segments.push(segment);
-    append_place_with_segments(facts, place.root, &segments)
+    append_place(facts, place.root, &segments)
 }
 
 pub(crate) fn resolve_place_member_symbol(
@@ -92,7 +92,7 @@ fn fact_place_type_symbol(
     Some(current)
 }
 
-pub(crate) fn append_place_with_segments(
+pub(crate) fn append_place(
     facts: &mut FactPlan,
     root: facts::PlaceRoot,
     segments: &[facts::PlaceSegment],

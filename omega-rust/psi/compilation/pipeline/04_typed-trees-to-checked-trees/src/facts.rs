@@ -80,9 +80,9 @@ use crate::facts::placed_views_and_uses::{
 };
 use crate::facts::qualification_facts::{build_qualification_facts, build_service_reach_facts};
 use crate::facts::requirement_call_specializations::build_requirement_call_specialization_facts;
-use crate::flow::{build_domain_facts, build_flow_facts_with_service_reaches};
+use crate::flow::{build_domain_facts, build_flow_facts};
 use crate::operators::{bind_boundary_operator_application_demands, build_operator_facts};
-use crate::proof::build_proof_facts_with_operators;
+use crate::proof::build_proof_facts;
 use crate::semantic::facts::build_semantic_facts;
 use crate::values::build_value_facts;
 use checked_trees::CheckFacts;
@@ -145,7 +145,7 @@ pub(crate) fn build_check_facts(
     let mut operators = build_operator_facts(program, &values);
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();
     operators.decided_formations = validation_facts.decided_formations.clone();
-    let mut proof = build_proof_facts_with_operators(program, proof_plan, &borrow, &operators)?;
+    let mut proof = build_proof_facts(program, proof_plan, &borrow, &operators)?;
     for decision in integer_assignments {
         let proof::obligations::ProofObligation::BoundedAssignment(assignment) =
             proof_plan.obligations.get(decision.obligation)
@@ -216,7 +216,7 @@ pub(crate) fn build_check_facts(
             &mut prepared.semantic,
             &prepared.contextual_cleanup.entry_requirements,
         )?;
-        prepared.flow = build_flow_facts_with_service_reaches(
+        prepared.flow = build_flow_facts(
             program,
             &prepared.borrow,
             &prepared.proof,

@@ -2,7 +2,7 @@ use super::indexes::BorrowCompatibilityPlaceSide;
 use super::indexes::{
     EvaluatedIndexExtent, NormalizedBound, SelectorEvaluation, SelectorLocation, bound_equal,
     bound_is_at_or_before, bound_is_strictly_before, fixed_index_extent, fixed_range_extent,
-    index_expression_extent_with_selectors, index_expressions_may_overlap_with_selectors,
+    index_expression_extent, index_expressions_may_overlap,
     index_extents_may_overlap,
 };
 use super::premises::StatedOrderingPremise;
@@ -32,7 +32,7 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
         {
             return extent.clone();
         }
-        let extent = index_expression_extent_with_selectors(
+        let extent = index_expression_extent(
             self.program,
             expression,
             location,
@@ -532,7 +532,7 @@ fn place_segment_pair_may_overlap<'p>(
             facts::PlaceSegment::Index { expression },
         ) => index_extents_may_overlap(
             fixed_range_extent(start, end),
-            index_expression_extent_with_selectors(
+            index_expression_extent(
                 program,
                 expression,
                 right_location,
@@ -545,7 +545,7 @@ fn place_segment_pair_may_overlap<'p>(
             facts::PlaceSegment::Index { expression },
             facts::PlaceSegment::FixedRange { start, end },
         ) => index_extents_may_overlap(
-            index_expression_extent_with_selectors(
+            index_expression_extent(
                 program,
                 expression,
                 left_location,
@@ -558,7 +558,7 @@ fn place_segment_pair_may_overlap<'p>(
         (facts::PlaceSegment::FixedIndex { index }, facts::PlaceSegment::Index { expression }) => {
             index_extents_may_overlap(
                 fixed_index_extent(index),
-                index_expression_extent_with_selectors(
+                index_expression_extent(
                     program,
                     expression,
                     right_location,
@@ -570,7 +570,7 @@ fn place_segment_pair_may_overlap<'p>(
         }
         (facts::PlaceSegment::Index { expression }, facts::PlaceSegment::FixedIndex { index }) => {
             index_extents_may_overlap(
-                index_expression_extent_with_selectors(
+                index_expression_extent(
                     program,
                     expression,
                     left_location,
@@ -588,7 +588,7 @@ fn place_segment_pair_may_overlap<'p>(
             facts::PlaceSegment::Index {
                 expression: right_expression,
             },
-        ) => index_expressions_may_overlap_with_selectors(
+        ) => index_expressions_may_overlap(
             program,
             left_expression,
             left_location,

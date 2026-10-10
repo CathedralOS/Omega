@@ -220,7 +220,7 @@ fn result_type(
                 .collect();
             let selected_operator = selected_operator.or_else(|| {
                 let references = operands.iter().copied().collect::<Option<Vec<_>>>()?;
-                let (symbol, _, _) = crate::proof_contracts::float_projection_bindings::semantic_operations::float_semantic_application_with_operand_types(program, call, &references)?;
+                let (symbol, _, _) = crate::proof_contracts::float_projection_bindings::semantic_operations::float_semantic_application(program, call, &references)?;
                 typed_trees::operator::declaration_by_symbol(program, symbol)
             });
             declared_result

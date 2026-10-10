@@ -4,7 +4,7 @@
 //! the returned borrow actually denotes. The tail walk answers that: the
 //! callee's return borrows, resolved through the callee's own locals back to
 //! a `&mut` parameter.
-use validation::find_state_with_machine;
+use validation::find_state;
 
 use super::argument_borrow_loan_place;
 use super::helper_call_borrow_loan_place;
@@ -30,7 +30,7 @@ pub(crate) fn mutable_view_call_loan_place(
     machine_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<BorrowAccessPlace> {
-    let (callee_machine, callee_state) = find_state_with_machine(program, call.target_symbol)?;
+    let (callee_machine, callee_state) = find_state(program, call.target_symbol)?;
     if mutable_borrowed_parts(program, callee_state.return_type).is_none() {
         return None;
     }

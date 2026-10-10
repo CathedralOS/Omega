@@ -215,7 +215,7 @@ fn check_program(
             &prepared_effects,
         )?;
 
-    checks::check_checked_facts_recording_with_mutation_summaries(
+    checks::check_checked_facts_recording(
         &program,
         &mut facts,
         &mutation_summaries,

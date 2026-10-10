@@ -92,7 +92,7 @@ pub(super) fn append_owned_qualification_transfer(
         }
         let mut rebased = destination_segments.clone();
         rebased.extend_from_slice(relative_path);
-        let place = crate::semantic::places::append_place_with_segments(
+        let place = crate::semantic::places::append_place(
             semantic,
             destination.root,
             &rebased,

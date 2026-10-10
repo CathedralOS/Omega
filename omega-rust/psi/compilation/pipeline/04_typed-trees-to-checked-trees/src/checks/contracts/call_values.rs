@@ -199,7 +199,7 @@ pub(crate) fn proves_captured_arithmetic_requirement(
     call: &FlowCallFact,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some((machine, body)) = validation::find_state_with_machine(program, call.target_symbol)
+    let Some((machine, body)) = validation::find_state(program, call.target_symbol)
         .or_else(|| validation::find_machine_head(program, call.target_symbol))
     else {
         return false;
@@ -750,7 +750,7 @@ pub(crate) fn entry_predicate(
             state.state_symbol,
         )?;
         if captured.projection.remaining.is_empty()
-            && let Some(value) = crate::values::lower_entry_scalar_with_subjects(
+            && let Some(value) = crate::values::lower_entry_scalar(
                 program,
                 &facts.operators,
                 machine,

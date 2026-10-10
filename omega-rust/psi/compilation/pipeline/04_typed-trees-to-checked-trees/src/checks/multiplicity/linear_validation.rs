@@ -357,7 +357,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
         }
     }
 
-    let machine_name = validation::find_state_with_machine(program, state.symbol)
+    let machine_name = validation::find_state(program, state.symbol)
         .map(|(machine, _)| machine.name.as_str())
         .unwrap_or("<unknown machine>");
     for (statement_index, path) in unresolved_statements {

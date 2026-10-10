@@ -792,7 +792,7 @@ mod topology;
 pub use topology::{
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
     call_target_type_parameters, find_machine, find_machine_by_entry_state, find_machine_head,
-    find_state_for_exit, find_state_in_machine, find_state_on_machine, find_state_with_machine,
+    find_state_for_exit, find_state_in_machine, find_state_on_machine, find_state,
     machine_state_by_symbols, machine_state_count, terminal_callable_target,
 };
 mod receiver_topology;

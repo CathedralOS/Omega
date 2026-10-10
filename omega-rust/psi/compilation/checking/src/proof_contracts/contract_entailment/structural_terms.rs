@@ -508,7 +508,7 @@ pub(super) fn structural_term(
             // field term is recoverable by name. Collection length remains
             // a substitutable projection so call instantiation can recover
             // the actual extent. Ordinary symbolic fields retain the same
-            // vocabulary as callee_term_with_machines and citation intake.
+            // vocabulary as callee_term and citation intake.
             match structural_term(program, scope, frame, member.receiver, bindings) {
                 Some(StructuralTerm::Constructor { fields, .. }) => fields
                     .into_iter()

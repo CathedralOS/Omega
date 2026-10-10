@@ -11,7 +11,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 /// caller: the lookup scans the whole program once, and a termination pass
 /// probes this predicate per guarded self-call, so each pass fills the cell
 /// at most once instead of once per call site.
-pub fn slice_tail_strictly_decreases_with_bound_lookup<'p>(
+pub fn slice_tail_strictly_decreases<'p>(
     program: &'p dyn crate::CheckingInput,
     guard: ExpressionHandle,
     argument: ExpressionHandle,

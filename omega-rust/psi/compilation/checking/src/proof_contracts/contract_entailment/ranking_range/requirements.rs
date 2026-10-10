@@ -33,7 +33,7 @@ pub fn arithmetic_entry_requirement_is_covered(
     let Some(bindings) = integer_bindings(program, root) else {
         return false;
     };
-    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &bindings);
+    let mut engine = Engine::strict(program, machine, &bindings);
     let lengths = lengths::bindings(program, machine, root, None);
     lengths::install(program, machine, root, root, &lengths, &mut engine, &[goal]).is_some()
         && engine.strict_symbol_bindings_are_valid()
@@ -60,7 +60,7 @@ fn prepare_requirement<'program>(
 ) -> Option<ArithmeticRequirement<'program>> {
     meanings::builtin(program, callee, target, goal, 0)?;
     let bindings = integer_bindings(program, target)?;
-    let mut engine = Engine::strict_with_symbol_bindings(program, callee, &bindings);
+    let mut engine = Engine::strict(program, callee, &bindings);
     let mut fields = FieldCoordinates::empty();
     fields.install(program, target, target, None, &mut engine, &[goal])?;
     let lengths = lengths::bindings(program, callee, target, None);
@@ -319,7 +319,7 @@ fn prove(
         carrier_equalities = equalities;
         engine_bindings = bindings;
     }
-    let mut source_engine = Engine::strict_with_symbol_bindings(program, caller, &engine_bindings);
+    let mut source_engine = Engine::strict(program, caller, &engine_bindings);
     if !source_engine.strict_symbol_bindings_are_valid() {
         return None;
     }

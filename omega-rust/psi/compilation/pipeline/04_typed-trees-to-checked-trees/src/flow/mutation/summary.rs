@@ -481,7 +481,7 @@ fn machine_symbol_for_state(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> SymbolHandle {
-    validation::find_state_with_machine(program, state.symbol)
+    validation::find_state(program, state.symbol)
         .map(|(machine, _)| machine.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }
@@ -490,7 +490,7 @@ fn state_has_concrete_body_signature(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> bool {
-    validation::find_state_with_machine(program, state.symbol).is_some_and(|(machine, _)| {
+    validation::find_state(program, state.symbol).is_some_and(|(machine, _)| {
         machine.body_is_present
             && program
                 .state_parameters(state)

@@ -169,7 +169,7 @@ pub(super) fn establish(
         }
     }
     for candidate in candidate_targets {
-        let candidate_place = crate::semantic::places::append_place_with_segments(
+        let candidate_place = crate::semantic::places::append_place(
             semantic,
             candidate.root,
             &candidate.segments,

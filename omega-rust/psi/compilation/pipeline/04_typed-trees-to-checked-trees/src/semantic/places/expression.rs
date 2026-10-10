@@ -69,7 +69,7 @@ fn instantiate_contract_expression_place(
             value,
         )?;
         place.segments.extend(remaining);
-        return Some(super::append_place_with_segments(
+        return Some(super::append_place(
             facts,
             place.root,
             &place.segments,

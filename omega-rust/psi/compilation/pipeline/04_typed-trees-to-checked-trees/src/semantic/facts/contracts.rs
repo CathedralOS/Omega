@@ -333,7 +333,7 @@ fn seed_current_requirement(
     else {
         return;
     };
-    let Some((machine, state)) = validation::find_state_with_machine(program, state_symbol)
+    let Some((machine, state)) = validation::find_state(program, state_symbol)
         .filter(|(machine, _)| machine.symbol == machine_symbol)
     else {
         return;

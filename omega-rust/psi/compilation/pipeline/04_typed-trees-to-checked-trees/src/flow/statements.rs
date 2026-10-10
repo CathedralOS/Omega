@@ -259,7 +259,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 semantic.places.get(write.target_place),
             );
             target.and_then(|target| {
-                super::close_storage_places_over_aliases_with_resolver(
+                super::close_storage_places_over_aliases(
                     program,
                     machine.symbol,
                     state.symbol,

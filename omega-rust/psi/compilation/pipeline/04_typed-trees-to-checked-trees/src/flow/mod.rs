@@ -2,7 +2,7 @@
 //! semantic contexts and constraints active there, with the invalidation,
 //! borrow-lifetime, boundary-edge, and control rows that record how they change.
 //!
-//! One entrance: `builder::build_flow_facts_with_service_reaches`, which
+//! One entrance: `builder::build_flow_facts`, which
 //! `crate::facts::build_check_facts` calls after `domain::build_domain_facts` has
 //! recorded each domain's dependency paths. It builds every state through
 //! `state::build_state_flow_fact`. While joins in `state_values` change a state's
@@ -107,7 +107,7 @@ pub(crate) use value_origins::{
 
 pub(crate) use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
 use boundaries::append_call_boundary_edges;
-pub(crate) use builder::build_flow_facts_with_service_reaches;
+pub(crate) use builder::build_flow_facts;
 use call_phases::{
     CallFlowContexts, append_call_referent_field_domain_facts, apply_call_invalidations,
     build_call_entry_contexts, build_call_exit_contexts, build_call_requires_contexts,
@@ -131,7 +131,7 @@ pub(crate) use domain::relative_place_segments_from_expression;
 use exits::append_state_exit_facts;
 use fact_rows::borrow_state_fact;
 pub(crate) use fact_rows::proof_contract_call;
-pub(crate) use mutation::close_storage_places_over_aliases_with_resolver;
+pub(crate) use mutation::close_storage_places_over_aliases;
 pub(crate) use mutation::rebase_exact_local_place;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, call_receiver_write_accesses,

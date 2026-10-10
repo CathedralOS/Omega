@@ -94,7 +94,7 @@ impl IncomingGuardIndex {
                 .map(|machine| {
                     (
                         machine.symbol,
-                        collect_incoming_guard_facts_with_call_frames(
+                        collect_incoming_guard_facts(
                             program,
                             machine,
                             call_frames,
@@ -220,7 +220,7 @@ enum StateWrites {
 /// Building the shared call-frame resolver reconstructs the top-level symbol
 /// index, so batch consumers pass one in instead of paying that whole-program
 /// cost once per machine (or, in contract checking, once per call).
-pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
+pub(in crate::checks) fn collect_incoming_guard_facts(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,

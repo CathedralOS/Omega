@@ -318,7 +318,7 @@ pub(crate) fn contract_target_from_state_symbol(
     }
 
     if let Some((target_machine, _)) =
-        validation::find_state_with_machine(program, target_state_symbol)
+        validation::find_state(program, target_state_symbol)
     {
         return Some((target_machine.symbol, target_state_symbol));
     }

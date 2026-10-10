@@ -68,7 +68,7 @@ pub(crate) fn prove_ranking_range_call_entry(
             }
         }
         let bindings = integer_bindings(program, state)?;
-        let mut engine = Engine::strict_with_symbol_bindings(program, member.machine, &bindings);
+        let mut engine = Engine::strict(program, member.machine, &bindings);
         if !engine.strict_symbol_bindings_are_valid() {
             return None;
         }
@@ -320,7 +320,7 @@ pub(crate) fn prove_ranking_range_call(
             caller_site.entry_parameters,
         )?
     };
-    let mut engine = Engine::strict_with_symbol_bindings(program, caller.machine, &bindings);
+    let mut engine = Engine::strict(program, caller.machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
     }

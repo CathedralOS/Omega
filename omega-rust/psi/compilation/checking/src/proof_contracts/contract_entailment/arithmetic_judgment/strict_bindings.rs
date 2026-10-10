@@ -21,7 +21,7 @@ impl<'program> Engine<'program> {
         engine
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn strict_with_symbol_bindings(
+    pub(in crate::proof_contracts::contract_entailment) fn strict(
         program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         bindings: &[StrictArithmeticSymbolBinding],

@@ -544,7 +544,7 @@ fn visit_fields(
 }
 
 /// The same count-before-enumeration walk serves ordinary no-code residuals.
-pub fn reconstruct_with_boundaries(
+pub fn reconstruct(
     types: &BTreeMap<&str, &CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: &str,

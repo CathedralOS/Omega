@@ -50,7 +50,7 @@ pub(super) fn record(
         if candidates.iter().any(|candidate| candidate != rank) {
             continue;
         }
-        let Some((owner, state)) = validation::find_state_with_machine(program, rank.state) else {
+        let Some((owner, state)) = validation::find_state(program, rank.state) else {
             continue;
         };
         let mut inputs = program.state_parameters(state).to_vec();
@@ -232,7 +232,7 @@ fn observation(
         }
         CheckedNaturalRankMeasure::SequenceLength { subject } => {
             let (owner, state) =
-                validation::find_state_with_machine(builder.program, builder.state)?;
+                validation::find_state(builder.program, builder.state)?;
             let root = builder.program.machine_states(owner).first()?;
             let place = validation::canonical_place_from_expression_in_state(
                 builder.program,

@@ -64,7 +64,7 @@ pub fn canonical_place_type_reference(
     // normalized to the durable machine symbol. In either form, project their
     // fields through the exact attached data declaration rather than treating
     // the machine's nominal self type as an ordinary data reference.
-    if let Some((machine, _)) = crate::find_state_with_machine(program, state_symbol)
+    if let Some((machine, _)) = crate::find_state(program, state_symbol)
         && machine.symbol == root_symbol
         && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
             place.segments.split_first()
@@ -80,7 +80,7 @@ pub fn canonical_place_type_reference(
         return project_type_reference_from_segments(program, current, remaining);
     }
 
-    if let Some((machine, _)) = crate::find_state_with_machine(program, state_symbol)
+    if let Some((machine, _)) = crate::find_state(program, state_symbol)
         && machine.attached_data_application.is_valid()
         && let Some(field) = crate::exact_attached_field(
             program,
@@ -231,7 +231,7 @@ fn machine_member_type_reference(
     state_symbol: SymbolHandle,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    crate::find_state_with_machine(program, state_symbol).and_then(|(machine, _)| {
+    crate::find_state(program, state_symbol).and_then(|(machine, _)| {
         program
             .machine_owned_data_by_symbol(machine, symbol)
             .map(|owned| owned.type_reference)

@@ -380,7 +380,7 @@ fn argument_sources<'program>(
         validate_mapping(program, caller.machine, site, edge.entry_parameters)?;
         telescoped_bindings(program, caller.machine, site, edge.entry_parameters)?
     };
-    let mut engine = Engine::strict_with_symbol_bindings(program, caller.machine, &bindings);
+    let mut engine = Engine::strict(program, caller.machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
     }

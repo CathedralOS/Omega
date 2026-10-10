@@ -234,7 +234,7 @@ pub(crate) fn capture_entry_guard(
     point: ProgramPoint,
     admit_subject: &impl Fn(&validation::CanonicalPlace) -> bool,
 ) -> Option<FactContextHandle> {
-    let (machine, _) = validation::find_state_with_machine(program, state)?;
+    let (machine, _) = validation::find_state(program, state)?;
     let entry_index = crate::checks::termination::named_transition_target_state_index(
         program,
         machine,

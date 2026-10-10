@@ -128,7 +128,7 @@ pub(super) fn integer_literal_value(
 /// Fold a where fact over the tracked valuation: tracked fields read their
 /// value (a non-literal write poisons), untracked fields read the ZII zero
 /// (machine-owned data is born zeroed).
-pub(super) fn fold_with_valuation(
+pub(super) fn fold(
     program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
     valuation: &[(&str, Option<LiteralValue>)],
@@ -213,7 +213,7 @@ pub(super) fn fold_with_valuation(
             {
                 return Some(i128::from(matches!(binary.operator, BinaryOperator::Equal)));
             }
-            let left = fold_with_valuation(
+            let left = fold(
                 program,
                 definition,
                 valuation,
@@ -222,7 +222,7 @@ pub(super) fn fold_with_valuation(
                 born_zero,
                 binary.left,
             )?;
-            let right = fold_with_valuation(
+            let right = fold(
                 program,
                 definition,
                 valuation,

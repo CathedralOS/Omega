@@ -4,7 +4,7 @@ use crate::flow::FlowBuildContext;
 use crate::flow::appended_span_since;
 use crate::flow::call_mutated_places;
 use crate::flow::filter_contexts_after_place_mutations;
-use crate::flow::mutation::close_storage_places_over_aliases_with_resolver;
+use crate::flow::mutation::close_storage_places_over_aliases;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use arena::HandleSpan;
 use checked_trees::{
@@ -44,7 +44,7 @@ pub(in crate::flow) fn call_storage_writes(
         // reference local of finite candidate origins is such a state),
         // borrow exclusivity already forbids a second live alias of the
         // written storage, so the places stand without the closure.
-        close_storage_places_over_aliases_with_resolver(
+        close_storage_places_over_aliases(
             program,
             machine.symbol,
             state.symbol,

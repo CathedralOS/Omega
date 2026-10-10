@@ -3,7 +3,7 @@
 //! field must be proved from the checked facts at that point.
 //!
 //! Two entries, both called by
-//! `checks::check_checked_facts_recording_with_mutation_summaries`:
+//! `checks::check_checked_facts_recording`:
 //! `bind_call_evidence_arguments` runs first among the checks and binds the
 //! evidence arguments of contract expressions and calls into the proof facts
 //! (`evidence`); `check_flow_call_contracts` runs after the borrow check.

@@ -20,7 +20,7 @@ pub(super) fn argument_is_parameter_minus_one(
         )
 }
 
-pub(super) fn argument_rebuilds_parameter_with_member_minus_one(
+pub(super) fn argument_rebuilds_parameter(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     argument: ExpressionHandle,

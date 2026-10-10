@@ -205,7 +205,7 @@ pub(super) fn call_result_place(
     if depth == 0 {
         return None;
     }
-    let (callee, callee_state) = validation::find_state_with_machine(program, call.target_symbol)?;
+    let (callee, callee_state) = validation::find_state(program, call.target_symbol)?;
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.body_is_present
         || !callee.lifetime_parameters.is_empty()

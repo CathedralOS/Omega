@@ -648,7 +648,7 @@ fn executable_target(
     target: SymbolHandle,
 ) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     validation::find_machine_head(program, target)
-        .or_else(|| validation::find_state_with_machine(program, target))
+        .or_else(|| validation::find_state(program, target))
 }
 
 /// Whether a call to `target` produces its result through a machine body:

@@ -698,7 +698,7 @@ pub(crate) fn type_references_match_with_trait_bindings(
                 length: required_length,
             },
         ) => {
-            fixed_array_lengths_match_with_trait_bindings(
+            fixed_array_lengths_match(
                 program,
                 actual_length,
                 required_length,
@@ -944,7 +944,7 @@ fn requirement_lifetime_matches(
     actual.is_some_and(|actual| actual.as_str() == expected.as_str())
 }
 
-fn fixed_array_lengths_match_with_trait_bindings(
+fn fixed_array_lengths_match(
     program: &dyn crate::CheckingInput,
     actual: &FixedArrayLength,
     required: &FixedArrayLength,

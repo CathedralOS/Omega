@@ -46,7 +46,7 @@ pub(crate) use call_arguments::{
 };
 pub(crate) use computations::build_checked_value_computation_plans;
 pub(crate) use contract_entry::{
-    lower_entry_predicate_with_subjects, lower_entry_scalar_with_subjects,
+    lower_entry_predicate, lower_entry_scalar,
     lower_machine_entry_boolean_expression, lower_machine_entry_crash_contract_expression,
     lower_operator_crash_contract_expression, lower_signature_crash_contract_expression,
 };

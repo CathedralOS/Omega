@@ -100,7 +100,7 @@ fn internal_state_call(
     call: &FlowCallFact,
 ) -> bool {
     call_values::target_machine(program, call).is_none()
-        && validation::find_state_with_machine(program, call.target_symbol)
+        && validation::find_state(program, call.target_symbol)
             .is_some_and(|(machine, _)| machine.symbol == state.machine_symbol)
 }
 

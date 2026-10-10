@@ -238,7 +238,7 @@ pub(crate) fn boundary_owner_scalar_signature(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
-    let (attachment, structural, scalar) = structural_scalar_signature_with_storage(
+    let (attachment, structural, scalar) = structural_scalar_signature(
         program,
         shapes,
         machine,
@@ -267,7 +267,7 @@ pub(crate) fn structural_scalar_signature_traced(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
-    structural_scalar_signature_with_storage(
+    structural_scalar_signature(
         program,
         shapes,
         machine,
@@ -279,7 +279,7 @@ pub(crate) fn structural_scalar_signature_traced(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn structural_scalar_signature_with_storage(
+fn structural_scalar_signature(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,

@@ -433,7 +433,7 @@ fn append_call_result_field_domain_facts<'plans>(
     );
     let mut refs = HandleSpan::empty();
     for (path, domain_symbol, semantic_domain) in paths.iter() {
-        let place = crate::semantic::places::append_place_with_segments(
+        let place = crate::semantic::places::append_place(
             semantic,
             facts::PlaceRoot::Expression(expression),
             path,
@@ -545,7 +545,7 @@ fn append_call_parameter_domain_facts<'plans>(
         ) else {
             continue;
         };
-        let place = crate::semantic::places::append_place_with_segments(
+        let place = crate::semantic::places::append_place(
             semantic,
             place.root,
             &place.segments,

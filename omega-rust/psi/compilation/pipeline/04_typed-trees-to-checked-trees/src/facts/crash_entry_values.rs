@@ -68,7 +68,7 @@ pub(crate) fn entry_boolean_predicate(
 ) -> Option<checked_trees::CheckedBooleanExpression> {
     let (machine, state) =
         validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
-    crate::values::lower_entry_predicate_with_subjects(
+    crate::values::lower_entry_predicate(
         program,
         operators,
         machine,

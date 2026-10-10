@@ -26,7 +26,7 @@ pub(crate) fn bind_proof_output_call_facts(
             ));
             continue;
         };
-        let machine_target = validation::find_state_with_machine(program, call.target_symbol);
+        let machine_target = validation::find_state(program, call.target_symbol);
         let open_requirement = program
             .machine_by_symbol(package.machine_symbol)
             .map(|machine| {
@@ -961,7 +961,7 @@ pub(crate) fn intake_call_ensures_propositions(
                 .first()
                 .map(|state| (machine, state))
         })
-        .or_else(|| validation::find_state_with_machine(program, call.target_symbol))
+        .or_else(|| validation::find_state(program, call.target_symbol))
     else {
         return;
     };

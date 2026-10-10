@@ -227,7 +227,7 @@ pub(super) fn computed_measure_polynomial(
     {
         return None;
     }
-    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    let mut engine = Engine::strict(program, machine, &[]);
     engine.normalize_scoped_value(&ScopedArithmeticValue::Term(ScopedArithmeticExpression {
         owner,
         expression: body,

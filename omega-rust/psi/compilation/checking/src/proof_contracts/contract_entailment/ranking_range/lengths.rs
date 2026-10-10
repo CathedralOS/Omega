@@ -371,7 +371,7 @@ pub(super) fn saved_length(
         return None;
     }
     let mut captured =
-        Engine::strict_with_symbol_bindings(program, machine, &engine.closed_symbol_bindings()?);
+        Engine::strict(program, machine, &engine.closed_symbol_bindings()?);
     evaluate_length(
         program,
         machine,
@@ -393,7 +393,7 @@ pub(super) fn produced_length(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<u64> {
-    let mut engine = Engine::strict_with_symbol_bindings(program, machine, &[]);
+    let mut engine = Engine::strict(program, machine, &[]);
     evaluate_length(program, machine, state, expression, &[], &mut engine, depth)?
         .constant_value()?
         .to_u64()

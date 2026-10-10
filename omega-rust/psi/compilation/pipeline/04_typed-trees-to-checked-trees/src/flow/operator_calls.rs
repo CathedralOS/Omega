@@ -464,7 +464,7 @@ fn append_operator_ensures_context(
                         continue;
                     };
                     place.extend_segments(&relative.segments);
-                    let place = crate::semantic::places::append_place_with_segments(
+                    let place = crate::semantic::places::append_place(
                         semantic,
                         place.root,
                         &place.segments,
@@ -494,7 +494,7 @@ fn append_operator_ensures_context(
                 }
                 typed_trees::domain::ProofFact::Expression(expression) => {
                     let label =
-                        crate::labels::instantiate_operator_contract_expression_label_with_labels(
+                        crate::labels::instantiate_operator_contract_expression_label(
                             program,
                             parameters,
                             &operand_labels,
@@ -525,7 +525,7 @@ fn append_operator_ensures_context(
                         semantic.append_ref(&mut refs, fact);
                     } else {
                         for dependency in dependencies {
-                            let place = crate::semantic::places::append_place_with_segments(
+                            let place = crate::semantic::places::append_place(
                                 semantic,
                                 dependency.root,
                                 &dependency.segments,
@@ -555,7 +555,7 @@ fn append_operator_ensures_context(
                     let (binder_labels, argument_handles) =
                         crate::labels::proposition_label_sources(application, program);
                     let argument_labels = argument_handles.iter().map(|argument| {
-                            crate::labels::instantiate_operator_contract_expression_label_with_labels(
+                            crate::labels::instantiate_operator_contract_expression_label(
                                 program,
                                 parameters,
                                 &operand_labels,

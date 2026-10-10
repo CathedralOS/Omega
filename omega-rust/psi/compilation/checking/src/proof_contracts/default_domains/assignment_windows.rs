@@ -17,7 +17,7 @@ use crate::proof_contracts::default_domains::place_queries::{
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
     LiteralValue, expression_sequence_measures, expression_symbol, expression_symbolic_value,
-    fold_with_valuation, literal_value, mentions_float,
+    fold, literal_value, mentions_float,
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
@@ -368,7 +368,7 @@ pub(crate) fn handle_assignment<'program>(
     for fact in type_facts.chain(case_facts) {
         match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
-                match fold_with_valuation(
+                match fold(
                     program,
                     place.definition,
                     &valuation,

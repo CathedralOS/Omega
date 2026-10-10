@@ -611,20 +611,20 @@ fn nominal_drop_place_name<'program>(
     if place.segments.is_empty()
         && let Some(root) = place.root.as_symbol()
         && let Some(attached) =
-            validation::find_state_with_machine(program, state_symbol).and_then(|(machine, _)| {
+            validation::find_state(program, state_symbol).and_then(|(machine, _)| {
                 (machine.symbol == root)
                     .then_some(machine.attached_data.as_deref())
                     .flatten()
             })
     {
-        return data_name_with_nominal_drop(program, attached);
+        return data_name(program, attached);
     }
     let type_reference =
         validation::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
     nominal_drop_type_name(program, type_reference)
 }
 
-fn data_name_with_nominal_drop<'program>(
+fn data_name<'program>(
     program: &'program dyn ::validation::CheckingInput,
     name: &str,
 ) -> Option<&'program str> {
@@ -716,5 +716,5 @@ fn nominal_drop_type_name(
     };
     let definition =
         ::validation::field_domains::data_definition_by_symbol_or_name(program, symbol, name)?;
-    data_name_with_nominal_drop(program, definition.name.as_str())
+    data_name(program, definition.name.as_str())
 }
