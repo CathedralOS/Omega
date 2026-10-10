@@ -661,21 +661,6 @@ pub(crate) fn ranged_member_site_invariant(
     ))
 }
 
-/// Every authored internal arrival: `(source index, destination index,
-/// actuals)` for each named transition target inside the machine.
-/// This is the shared occurrence set the telescope's discovery reads too: a
-/// role consumed through an arrival this walk did not see would name a value
-/// the member's own judgment never established.
-pub(crate) fn internal_arrivals<'program>(
-    program: &'program dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-) -> Vec<(usize, usize, &'program [ExpressionHandle])> {
-    internal_arrival_sites(program, machine)
-        .into_iter()
-        .map(|arrival| (arrival.source, arrival.destination, arrival.arguments))
-        .collect()
-}
-
 /// The exact authored occurrence and operand telescope of an internal arrival.
 /// Both rank discovery and edge checking use this inventory; parser copies or
 /// equal actual expressions do not collapse distinct incoming obligations.
