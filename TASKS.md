@@ -3137,14 +3137,9 @@ of a check the same flow already performed, not the check itself.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete
-  returned-loan frontiers. Qualify caller-side mutable-holder forwarding:
-  construct a holder, replace it with a returned record, then pass the holder
-  by value to a forwarding helper. This still reaches
-  `state graph: structural result has no selected disposition`
-  (CLI 202 on macOS arm64). Join current storage occurrences in
-  `execution/terminal_unit/state_graph/result_custody.rs`, not original
-  initializer bindings. Preserve inactive cases, anonymous operands and the
-  complete-versus-unavailable distinction.
+  returned-loan frontiers. Preserve current storage occurrences through
+  repeated replacement and by-value forwarding, inactive cases, anonymous
+  operands and the complete-versus-unavailable distinction in that qualification.
   Keep
   `omega run tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg`
   and conflicting-mutation/distinct-region controls in that qualification;

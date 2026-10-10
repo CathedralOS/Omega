@@ -1,7 +1,7 @@
 //! Named storage and immutable production results have different lifetimes.
 //! A rebind transfers its RHS into a local home and retires that production
 //! result; later operands and cleanup must name the home's current value,
-//! not revive the local's initializer. Both consumers use this same ordered
+//! not revive the local's initializer. Consumers use this same ordered
 //! operation-prefix query. It selects storage identity, never access authority.
 
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan};

@@ -8,10 +8,20 @@ machine replaced<'storage>(input: &'storage Cell) -> Held<'storage> {
     result
 }
 
+machine forward<'storage>(value: Held<'storage>) -> Held<'storage> { value }
+
 machine main() crashes Trap {
     let original: Cell = Cell { value: 17 };
     let returned: Held = replaced(&original);
-    transition returned.target.value == 17 {
+    let anonymous: Held = forward(replaced(&original));
+    let other: Cell = Cell { value: 23 };
+    let mut current: Held = Held { target: &other };
+    current = replaced(&other);
+    current = replaced(&original);
+    let named: Held = forward(current);
+    transition returned.target.value == 17
+        && anonymous.target.value == 17
+        && named.target.value == 17 {
         true -> done()
         false -> bad()
     }

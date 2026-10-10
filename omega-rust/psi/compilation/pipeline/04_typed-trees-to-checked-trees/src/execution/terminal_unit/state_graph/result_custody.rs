@@ -6,6 +6,9 @@
 //! row that discards it. An all-crash exit abandons still-live custody without
 //! manufacturing a disposition. Normal paths with no owner and every path
 //! with duplicate dispositions refuse; closed sums account per case.
+//! Named homes are not permanent aliases of their first result. Cleanup and
+//! construction resolve the value at their operation prefix, sharing operand
+//! storage selection so replacement neither loses nor revives an occurrence.
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedUnitEffectOperationPlan,
@@ -62,49 +65,79 @@ pub(super) fn account(
         let Some((result, _)) = operation.discardable_structural_result() else {
             continue;
         };
+        let occupies_result = |source: &CheckedUnitStructuralArgumentSourcePlan, before: usize| {
+            let source = match source {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                    super::super::local_storage::source(
+                        program,
+                        state,
+                        &operations[..before],
+                        *symbol,
+                    )
+                }
+                source => Some(source.clone()),
+            };
+            matches!(source,
+                Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal })
+                    if binding_ordinal == result.binding_ordinal)
+        };
         let construction_owns_result =
-            |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| {
-                matches!(statements.get(result.statement_index as usize),
-                Some(StatementNode::LocalData(local))
-                    if matches!(argument.source,
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-                            if symbol == local.symbol))
+            |argument: &checked_trees::CheckedUnitStructuralArgumentPlan, before: usize| {
+                occupies_result(&argument.source, before)
                     && argument.type_identity == result.type_identity
                     && (result.multiplicity == Multiplicity::Unrestricted
                         || argument.access == CheckedStructuralAccess::Owned)
                     && argument.path.is_empty()
             };
-        // A whole in-sequence cleanup already owns this result's retirement.
-        // Its lexical state-exit disposal permit cannot book a second owner;
-        // moves, returns, and duplicate cleanups still count independently.
-        let (cleanup_discards, retired_whole) = operations[producer_index + 1..]
+        // Cleanup owns the value occupying its source at that operation, not
+        // every value ever produced for the same local. Resolve named storage
+        // through the same prefix query as operands: replacement can retire an
+        // initial result through its home, while a later cleanup cannot revive
+        // that result after a rebind. A whole retirement also excludes lexical
+        // exit disposal; moves and duplicate cleanups still count independently.
+        let (cleanup_discards, retired_whole) = operations
             .iter()
-            .filter_map(|operation| match operation {
+            .enumerate()
+            .skip(producer_index + 1)
+            .filter_map(|(operation_index, operation)| match operation {
                 CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                    cleanup_actions, ..
-                } => Some(cleanup_actions),
+                    boundary,
+                    cleanup_actions,
+                } => Some((operation_index, boundary, cleanup_actions)),
                 _ => None,
             })
-            .fold((0, false), |(count, retired_whole), discards| {
-                let mut matched = false;
-                let mut whole = false;
-                for discard in discards {
-                    if matches!(*discard.source(),
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal
-                        } if binding_ordinal == result.binding_ordinal)
+            .fold(
+                (0, false),
+                |(count, retired_whole), (operation_index, boundary, discards)| {
+                    // Replacing a child retires that old subtree, not the
+                    // aggregate that still owns its siblings and new child.
+                    // A detached extraction instead has its own whole result.
+                    // Other continuations close the owner's residual partition.
+                    if let checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                        old_value, ..
+                    } = boundary
+                        && (!old_value.path.is_empty()
+                            || old_value.type_identity != result.type_identity
+                            || !occupies_result(&old_value.source, operation_index))
                     {
-                        matched = true;
-                        whole |= discard.path().is_empty()
-                            && discard.type_identity() == result.type_identity;
+                        return (count, retired_whole);
                     }
-                }
-                // One continuation closes one owner's exact partition. Its
-                // maximal complement may contain several sibling subtrees;
-                // those are not competing dispositions of the whole root.
-                // Separate cleanup continuations still count independently.
-                (count + usize::from(matched), retired_whole || whole)
-            });
+                    let mut matched = false;
+                    let mut whole = false;
+                    for discard in discards {
+                        if occupies_result(discard.source(), operation_index) {
+                            matched = true;
+                            whole |= discard.path().is_empty()
+                                && discard.type_identity() == result.type_identity;
+                        }
+                    }
+                    // One continuation closes one owner's exact partition. Its
+                    // maximal complement may contain several sibling subtrees;
+                    // those are not competing dispositions of the whole root.
+                    // Separate cleanup continuations still count independently.
+                    (count + usize::from(matched), retired_whole || whole)
+                },
+            );
         // A partially transferring successor partition must not hide a move
         // after unconditional retirement merely because it has another exit.
         if retired_whole
@@ -293,7 +326,7 @@ pub(super) fn account(
                         })
                     || uses
                         .iter()
-                        .any(|(_, argument)| construction_owns_result(argument))
+                        .any(|(_, argument)| construction_owns_result(argument, operations.len()))
                     || permits_disposal(&[])
             };
         // With no normal exit there is no transfer/disposal owner here to
@@ -451,7 +484,8 @@ pub(super) fn account(
         let construction_count = construction_uses
             .iter()
             .filter(|(consumer_index, argument)| {
-                *consumer_index > producer_index && construction_owns_result(argument)
+                *consumer_index > producer_index
+                    && construction_owns_result(argument, *consumer_index)
             })
             .count();
         // Copyable local leaves may be retained as shared case/record reads,
