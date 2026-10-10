@@ -781,6 +781,10 @@ pub(crate) fn fixed_byte_array_view(
     view_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u64)> {
+    // A fixed semantic extent does not imply inline storage. An incoming
+    // bounded view already owns its pointer presentation; forwarding it must
+    // neither manufacture array-establishment metadata nor bound its backing
+    // by the bytes occupied by that pointer cell.
     // The caller independently checks the actual callee signature. Here the
     // expected presentation is the exact plain borrowed byte-view shape.
     let mut destination = source.clone();
@@ -793,7 +797,12 @@ pub(crate) fn fixed_byte_array_view(
         argument,
         &destination,
     )?;
-    let (_, offset) = project(source.structural_type, window.backing_path, declarations)?;
+    let (backing, offset) = project(source.structural_type, window.backing_path, declarations)?;
+    if terminal_semantics::borrowed_referent_presentation(declarations.iter(), backing, view_type)
+        == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+    {
+        return None;
+    }
     let root = shape(source.structural_type, declarations)?;
     if u64::from(offset).checked_add(window.backing_length)? > u64::from(root.byte_size) {
         return None;

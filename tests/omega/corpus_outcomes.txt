@@ -2969,6 +2969,7 @@ pass/borrows/runtime_copied_byte_predicate_snapshot_exit checked 1403ms check-ta
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/runtime_direct_immutable_scalar_loan_exit checked 14324ms check-target:macos_arm64 @c6603d3fbbc8+wt
 pass/borrows/runtime_discarded_reference_release_exit checked 3696ms check-target:macos_arm64 @3fa817733300+wt
+pass/borrows/runtime_fixed_byte_view_forwarding_exit checked 3368ms check-target:macos_arm64 @af65e4684ce5+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit checked 3216ms check-target:macos_arm64 @6ba9c43af356+wt
 pass/borrows/runtime_forwarded_view_field_domain_exit checked 2582ms check-target:macos_arm64 @53d5dde47ae5
