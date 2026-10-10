@@ -130,28 +130,26 @@ struct DecodedElf64SectionHeader {
 pub(crate) fn apply_elf_section_header_placements(
     load_layout: ValidatedElfDynamicLoadLayout,
 ) -> Result<ValidatedElfPlacedSectionHeaderTable, Box<ElfSectionHeaderPlacementApplicationError>> {
-    let contents = match derive_contents(&load_layout) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfSectionHeaderPlacementApplicationError {
-                load_layout,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_placed_compatibility_fingerprint =
-        non_authoritative_placed_compatibility_fingerprint(&load_layout, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         load_layout,
-        contents,
-        non_authoritative_placed_compatibility_fingerprint,
-    };
-    validate_candidate(candidate).map_err(|error| {
-        Box::new(ElfSectionHeaderPlacementApplicationError {
-            load_layout: error.candidate.load_layout,
-            diagnostic: error.diagnostic,
-        })
-    })
+        derive_contents,
+        |load_layout, contents| {
+            non_authoritative_placed_compatibility_fingerprint(&load_layout, &contents)
+        },
+        |load_layout, contents, fingerprint| Candidate {
+            load_layout: load_layout,
+            contents: contents,
+            non_authoritative_placed_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.load_layout,
+        |load_layout, diagnostic| {
+            Box::new(ElfSectionHeaderPlacementApplicationError {
+                load_layout: load_layout,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn derive_contents(

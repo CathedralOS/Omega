@@ -68,4 +68,3 @@ fn hash_target(hash: &mut Fnv1a, target: ElfAppliedProcedureLinkageTarget) {
         }
     }
 }
-

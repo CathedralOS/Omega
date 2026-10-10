@@ -184,33 +184,26 @@ pub(crate) fn plan_elf_procedure_linkage_section_descriptors(
     ValidatedElfProcedureLinkageSectionDescriptorPlan,
     Box<ElfProcedureLinkageSectionDescriptorPlanningError>,
 > {
-    let contents = match derive_contents(&templates) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(
-                ElfProcedureLinkageSectionDescriptorPlanningError {
-                    templates,
-                    diagnostic,
-                },
-            ));
-        }
-    };
-    let non_authoritative_descriptor_compatibility_fingerprint =
-        non_authoritative_descriptor_compatibility_fingerprint(&templates, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         templates,
-        contents,
-        non_authoritative_descriptor_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(
-            ElfProcedureLinkageSectionDescriptorPlanningError {
-                templates: error.candidate.templates,
-                diagnostic: error.diagnostic,
-            },
-        )),
-    }
+        derive_contents,
+        |templates, contents| {
+            non_authoritative_descriptor_compatibility_fingerprint(&templates, &contents)
+        },
+        |templates, contents, fingerprint| Candidate {
+            templates: templates,
+            contents: contents,
+            non_authoritative_descriptor_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.templates,
+        |templates, diagnostic| {
+            Box::new(ElfProcedureLinkageSectionDescriptorPlanningError {
+                templates: templates,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn derive_contents(

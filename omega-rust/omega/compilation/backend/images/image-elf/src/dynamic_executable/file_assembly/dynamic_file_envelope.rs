@@ -165,28 +165,26 @@ struct DecodedElf64ProgramHeader {
 pub(crate) fn serialize_elf_dynamic_file_envelope(
     resolved_dynamic_table: ValidatedElfResolvedDynamicTable,
 ) -> Result<ValidatedElfDynamicFileEnvelope, Box<ElfDynamicFileEnvelopeSerializationError>> {
-    let contents = match derive_contents(&resolved_dynamic_table) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfDynamicFileEnvelopeSerializationError {
-                resolved_dynamic_table,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_envelope_compatibility_fingerprint =
-        non_authoritative_envelope_compatibility_fingerprint(&resolved_dynamic_table, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         resolved_dynamic_table,
-        contents,
-        non_authoritative_envelope_compatibility_fingerprint,
-    };
-    validate_candidate(candidate).map_err(|error| {
-        Box::new(ElfDynamicFileEnvelopeSerializationError {
-            resolved_dynamic_table: error.candidate.resolved_dynamic_table,
-            diagnostic: error.diagnostic,
-        })
-    })
+        derive_contents,
+        |resolved_dynamic_table, contents| {
+            non_authoritative_envelope_compatibility_fingerprint(&resolved_dynamic_table, &contents)
+        },
+        |resolved_dynamic_table, contents, fingerprint| Candidate {
+            resolved_dynamic_table: resolved_dynamic_table,
+            contents: contents,
+            non_authoritative_envelope_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.resolved_dynamic_table,
+        |resolved_dynamic_table, diagnostic| {
+            Box::new(ElfDynamicFileEnvelopeSerializationError {
+                resolved_dynamic_table: resolved_dynamic_table,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn derive_contents(

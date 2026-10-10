@@ -197,28 +197,26 @@ struct Candidate {
 pub(crate) fn assemble_elf_dynamic_file(
     resolved_linkage: ValidatedElfResolvedProcedureLinkage,
 ) -> Result<ValidatedElfAssembledDynamicFile, Box<ElfDynamicFileAssemblyError>> {
-    let contents = match derive_contents(&resolved_linkage) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfDynamicFileAssemblyError {
-                resolved_linkage,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_assembled_file_compatibility_fingerprint =
-        non_authoritative_assembled_file_compatibility_fingerprint(&resolved_linkage, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         resolved_linkage,
-        contents,
-        non_authoritative_assembled_file_compatibility_fingerprint,
-    };
-    validate_candidate(candidate).map_err(|error| {
-        Box::new(ElfDynamicFileAssemblyError {
-            resolved_linkage: error.candidate.resolved_linkage,
-            diagnostic: error.diagnostic,
-        })
-    })
+        derive_contents,
+        |resolved_linkage, contents| {
+            non_authoritative_assembled_file_compatibility_fingerprint(&resolved_linkage, &contents)
+        },
+        |resolved_linkage, contents, fingerprint| Candidate {
+            resolved_linkage: resolved_linkage,
+            contents: contents,
+            non_authoritative_assembled_file_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.resolved_linkage,
+        |resolved_linkage, diagnostic| {
+            Box::new(ElfDynamicFileAssemblyError {
+                resolved_linkage: resolved_linkage,
+                diagnostic,
+            })
+        },
+    )
 }
 
 /// Consume one independently replayed dynamic ELF assembly, apply its exact

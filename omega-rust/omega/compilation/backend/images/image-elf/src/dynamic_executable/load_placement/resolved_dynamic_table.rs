@@ -208,28 +208,26 @@ struct Candidate {
 pub(crate) fn apply_elf_dynamic_address_fixups(
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
 ) -> Result<ValidatedElfResolvedDynamicTable, Box<ElfDynamicAddressApplicationError>> {
-    let contents = match derive_contents(&placed_section_headers) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfDynamicAddressApplicationError {
-                placed_section_headers,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_resolved_compatibility_fingerprint =
-        non_authoritative_resolved_compatibility_fingerprint(&placed_section_headers, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         placed_section_headers,
-        contents,
-        non_authoritative_resolved_compatibility_fingerprint,
-    };
-    validate_candidate(candidate).map_err(|error| {
-        Box::new(ElfDynamicAddressApplicationError {
-            placed_section_headers: error.candidate.placed_section_headers,
-            diagnostic: error.diagnostic,
-        })
-    })
+        derive_contents,
+        |placed_section_headers, contents| {
+            non_authoritative_resolved_compatibility_fingerprint(&placed_section_headers, &contents)
+        },
+        |placed_section_headers, contents, fingerprint| Candidate {
+            placed_section_headers: placed_section_headers,
+            contents: contents,
+            non_authoritative_resolved_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.placed_section_headers,
+        |placed_section_headers, diagnostic| {
+            Box::new(ElfDynamicAddressApplicationError {
+                placed_section_headers: placed_section_headers,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn derive_contents(

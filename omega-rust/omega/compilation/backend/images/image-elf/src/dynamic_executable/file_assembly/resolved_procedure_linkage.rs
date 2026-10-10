@@ -33,11 +33,13 @@ mod tests;
 pub(crate) use linkage_fixups::{
     ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageKind,
     ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
-    ElfProcedureLinkageApplicationError, ValidatedElfResolvedProcedureLinkage};
+    ElfProcedureLinkageApplicationError, ValidatedElfResolvedProcedureLinkage,
+};
 
 use crate::dynamic_executable::file_assembly::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::compatibility_fingerprint::non_authoritative_resolved_linkage_compatibility_fingerprint;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::candidates::{derive_contents, Candidate, validate_candidate};
+use super::super::checked;
 
 const X86_PLT_HEADER_SIZE: u64 = 16;
 
@@ -58,26 +60,24 @@ const ELF64_GOT_WORD_SIZE: u64 = 8;
 pub(crate) fn apply_elf_procedure_linkage_fixups(
     envelope: ValidatedElfDynamicFileEnvelope,
 ) -> Result<ValidatedElfResolvedProcedureLinkage, Box<ElfProcedureLinkageApplicationError>> {
-    let contents = match derive_contents(&envelope) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfProcedureLinkageApplicationError {
-                envelope,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_resolved_linkage_compatibility_fingerprint =
-        non_authoritative_resolved_linkage_compatibility_fingerprint(&envelope, &contents);
-    let candidate = Candidate {
+    checked::plan_candidate(
         envelope,
-        contents,
-        non_authoritative_resolved_linkage_compatibility_fingerprint,
-    };
-    validate_candidate(candidate).map_err(|error| {
-        Box::new(ElfProcedureLinkageApplicationError {
-            envelope: error.candidate.envelope,
-            diagnostic: error.diagnostic,
-        })
-    })
+        derive_contents,
+        |envelope, contents| {
+            non_authoritative_resolved_linkage_compatibility_fingerprint(&envelope, &contents)
+        },
+        |envelope, contents, fingerprint| Candidate {
+            envelope: envelope,
+            contents: contents,
+            non_authoritative_resolved_linkage_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.envelope,
+        |envelope, diagnostic| {
+            Box::new(ElfProcedureLinkageApplicationError {
+                envelope: envelope,
+                diagnostic,
+            })
+        },
+    )
 }

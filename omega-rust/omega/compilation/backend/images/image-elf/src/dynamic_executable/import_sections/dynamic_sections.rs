@@ -199,23 +199,23 @@ struct Candidate {
 pub(crate) fn plan_elf_dynamic_sections(
     inputs: PlannedElfDynamicLinkInputs,
 ) -> Result<ValidatedElfDynamicSectionPlan, Box<ElfDynamicSectionPlanningError>> {
-    let contents = match derive_contents(&inputs) {
-        Ok(contents) => contents,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfDynamicSectionPlanningError {
-                inputs,
+    checked::plan_candidate(
+        inputs,
+        derive_contents,
+        |_, _| 0,
+        |inputs, contents, _fingerprint| Candidate {
+            inputs: inputs,
+            contents: contents,
+        },
+        validate_candidate,
+        |candidate| candidate.inputs,
+        |inputs, diagnostic| {
+            Box::new(ElfDynamicSectionPlanningError {
+                inputs: inputs,
                 diagnostic,
-            }));
-        }
-    };
-    let candidate = Candidate { inputs, contents };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfDynamicSectionPlanningError {
-            inputs: error.candidate.inputs,
-            diagnostic: error.diagnostic,
-        })),
-    }
+            })
+        },
+    )
 }
 
 fn derive_contents(

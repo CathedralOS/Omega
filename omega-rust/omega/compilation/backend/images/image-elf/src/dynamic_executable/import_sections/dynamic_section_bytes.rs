@@ -144,29 +144,24 @@ struct Candidate {
 pub(crate) fn serialize_elf_dynamic_sections(
     plan: ValidatedElfDynamicSectionPlan,
 ) -> Result<ValidatedElfDynamicSectionPayloads, Box<ElfDynamicSectionSerializationError>> {
-    let payloads = match encode_payloads(plan.contents()) {
-        Ok(payloads) => payloads,
-        Err(diagnostic) => {
-            return Err(Box::new(ElfDynamicSectionSerializationError {
-                plan,
-                diagnostic,
-            }));
-        }
-    };
-    let non_authoritative_payload_compatibility_fingerprint =
-        non_authoritative_payload_compatibility_fingerprint(&plan, &payloads);
-    let candidate = Candidate {
+    checked::plan_candidate(
         plan,
-        payloads,
-        non_authoritative_payload_compatibility_fingerprint,
-    };
-    match validate_candidate(candidate) {
-        Ok(validated) => Ok(validated),
-        Err(error) => Err(Box::new(ElfDynamicSectionSerializationError {
-            plan: error.candidate.plan,
-            diagnostic: error.diagnostic,
-        })),
-    }
+        |plan| encode_payloads(plan.contents()),
+        |plan, contents| non_authoritative_payload_compatibility_fingerprint(&plan, &contents),
+        |plan, contents, fingerprint| Candidate {
+            plan: plan,
+            payloads: contents,
+            non_authoritative_payload_compatibility_fingerprint: fingerprint,
+        },
+        validate_candidate,
+        |candidate| candidate.plan,
+        |plan, diagnostic| {
+            Box::new(ElfDynamicSectionSerializationError {
+                plan: plan,
+                diagnostic,
+            })
+        },
+    )
 }
 
 fn encode_payloads(
