@@ -35,10 +35,15 @@ fn standard_rule_contract(
     invalidated_analyses: AnalysisInvalidationSet,
     safety_class: OptimizationSafetyClass,
 ) -> OptimizationRuleContract {
-    standard_rule_contract(identity, pass, version,
-                required_analyses,
-                invalidated_analyses,
-                safety_class)
+    OptimizationRuleContract::new(
+        OptimizationRuleIdentity::from_canonical_bytes(identity),
+        OptimizationPassIdentity::from_canonical_bytes(pass),
+        version,
+        required_analyses,
+        invalidated_analyses,
+        safety_class,
+    )
+    .expect("built-in rule has nonzero version")
 }
 
 fn representation_specialization_contract(identity: &'static [u8]) -> OptimizationRuleContract {
