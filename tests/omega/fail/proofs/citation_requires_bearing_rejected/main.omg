@@ -5,7 +5,7 @@
 // PROVES fine; the discharged twin is pass/proofs/citation_requires_discharged.)
 use omega::language::core::nat;
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) { main.console.exit_process(70); }

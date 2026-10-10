@@ -2,7 +2,7 @@
 // arguments used to compile silently -- only the statement-position path checked
 // arity, so a missing arg then read its ZII default at runtime. Now both paths
 // share the same arity check.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::pick(a: i32, b: i32) -> i32 { 42 }

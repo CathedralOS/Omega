@@ -2,7 +2,7 @@
 // `Point { x: 0, y: 5 }.x` is 0, so `d != 0` is structurally false at this
 // call. Member receivers that stay symbolic keep the opaque whole-expression
 // name rather than guessing.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Point { x: u64; y: u64; }
 data Main { console: Binding<Console>; }

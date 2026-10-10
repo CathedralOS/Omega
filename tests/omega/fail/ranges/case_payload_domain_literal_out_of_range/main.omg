@@ -3,7 +3,7 @@
 // rejects rather than establishing a payload whose bounded carrier cannot
 // hold it. The in-range twin is `pass/structs/case_field_type_store_shapes`.
 // MUST reject with the expected fragment.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 domain i32::Ten(value) requires 0 <= value && value <= 10;

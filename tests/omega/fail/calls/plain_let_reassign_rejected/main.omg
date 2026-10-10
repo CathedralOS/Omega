@@ -4,7 +4,7 @@
 // (a silent fold divergence, interp disagreed). Member/index fills
 // (`q.x = 3`) and writes through `&mut`-typed views stay ungated (the
 // ZII fill idiom and pointee writes respectively).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; out: i32; }
 machine Main::main(main: &mut Main) {

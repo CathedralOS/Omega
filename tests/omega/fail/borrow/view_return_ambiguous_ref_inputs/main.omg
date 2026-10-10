@@ -5,7 +5,7 @@
 // frozen decision 15) to link the output to exactly one input. Rejected at the
 // declaration.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Cell {

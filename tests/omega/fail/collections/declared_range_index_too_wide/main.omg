@@ -1,7 +1,7 @@
 // A declared range that does NOT fit the array: `i: u64 [0..=5]` indexing
 // `[i32; 5]` (high == length) must still reject -- the range only discharges
 // the upper bound when high < length.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {

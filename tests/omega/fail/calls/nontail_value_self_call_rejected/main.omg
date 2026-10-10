@@ -4,7 +4,7 @@
 // tail and pointing at the tail arm / explicit-storage restructurings.
 // (The owner amendment CUT non-tail runtime recursion; depth lives in
 // storage the author sizes.)
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::triple(main: &mut Main, n: u64) -> u64

@@ -5,7 +5,7 @@
 // (Was: the increment's bounded-assignment obligation on the revoked
 // `[i32 [0..=16]; 4]` element suffix; the bound now lives on the admission
 // contract.)
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main {
     console: Binding<Console>;

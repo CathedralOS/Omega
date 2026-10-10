@@ -1,7 +1,7 @@
 // Anonymous array elements form values exactly in their destination carrier.
 // The final mathematical value exceeds i32, so its contextual landing rejects
 // before runtime storage. The same rule governs ordinary scalar destinations.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) {

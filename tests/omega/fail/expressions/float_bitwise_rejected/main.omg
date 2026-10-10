@@ -2,7 +2,7 @@
 // rejects them ("float modulo/shift/bitwise not supported") and the backend
 // cannot encode them, yet `--check` used to pass. Rejected now at check with a
 // clear message. Float `+ - * /` and integer bitwise are unaffected.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) { let a: f64 = 6.0; let b: f64 = 3.0; let r: f64 = a & b; main.console.exit_process(0); }

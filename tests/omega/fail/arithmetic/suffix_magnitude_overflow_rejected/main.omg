@@ -2,7 +2,7 @@
 // fit that type's range wherever the literal sits -- `200i8` exceeds i8's
 // 127 and is a loud error (CR4's magnitude fit; value semantics, ch5 exact
 // anonymous values: suffixes read VALUES, not bit patterns).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) {

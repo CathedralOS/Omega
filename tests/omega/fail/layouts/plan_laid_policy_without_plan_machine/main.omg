@@ -2,7 +2,7 @@
 // NON-GENERIC data definition that declares no `plan` machine is neither a
 // generic instantiation nor a layout-policy application. The diagnostic must
 // say both halves so the fix is obvious either way.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data NotAPolicy {

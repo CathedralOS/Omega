@@ -3,7 +3,7 @@
 // store-enforced at every write and ZII-gated, which needs the
 // relational store proof (a later rung); R1a serves STATE PARAMETERS
 // (entry-proved by the caller, immutable in the state).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; count: u32 [0..=11]; cursor: u32 [0..=count * 2]; }
 machine Main::main(main: &mut Main) {

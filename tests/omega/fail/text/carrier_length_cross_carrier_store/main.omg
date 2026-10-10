@@ -9,7 +9,7 @@
 // nothing rejected it, and the unit plan was omitted with no route, reported
 // as "rejoins 0 Terminal attachment identities". An unhelpful symptom for what
 // is a one-cast authoring mistake.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 domain [u8; 32]::Utf8(bytes)

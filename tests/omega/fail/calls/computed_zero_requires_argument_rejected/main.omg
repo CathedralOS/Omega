@@ -3,7 +3,7 @@
 // structurally false at this call and is rejected like a literal 0 argument.
 // Before argument terms carried a caller scope and expected type, name-free
 // constant operands formed no term at all and this call compiled silently.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::scale(value: u64, divisor: u64) -> u64

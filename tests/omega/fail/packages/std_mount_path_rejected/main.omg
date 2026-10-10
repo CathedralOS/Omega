@@ -1,0 +1,9 @@
+// Rejects: a package-aware consumer cannot import the bundled library
+// through the mounted `omega::language::` path; only the requester-local
+// alias granted by a dependency edge confers access.
+use omega::language::std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.exit_process(1);
+}

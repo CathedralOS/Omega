@@ -5,7 +5,7 @@
 // (pass/dependent/runtime_requires_guarded_call_exit); this pin keeps
 // the truly-unguarded refusal, and guard-then-write-before-the-call
 // also refuses (the caller state's own preservation scan).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; a: u32; b: u32; out: i32; }

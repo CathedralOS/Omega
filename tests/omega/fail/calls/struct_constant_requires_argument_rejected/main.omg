@@ -3,7 +3,7 @@
 // `Point { x: 1, y: 0 } == Point { x: 0, y: 0 }` — structurally false.
 // Constant machine applications (`Point::zero()`) normalize to the same
 // closed constructor shape before the equation is judged.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Point { x: u64; y: u64; }
 data Main { console: Binding<Console>; }

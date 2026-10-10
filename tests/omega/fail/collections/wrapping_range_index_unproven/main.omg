@@ -9,7 +9,7 @@
 // same out-of-bounds read prevented. The expected fragment tracks the
 // declaration-level diagnostic; types/range_under_non_exact_domain_rejected
 // pins the store-context flavor of the same rule.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {

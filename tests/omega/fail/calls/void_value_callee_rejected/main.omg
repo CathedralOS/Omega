@@ -1,5 +1,5 @@
 // V1: VOID callee in VALUE position -- `let r: i32 = main.act()`.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main {
     console: Binding<Console>;

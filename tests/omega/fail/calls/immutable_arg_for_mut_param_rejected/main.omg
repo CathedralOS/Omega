@@ -17,7 +17,7 @@
 // expected error: argument `c` for state `handle` is declared `&mut`
 // (`&mut Counter`), but the caller lends only immutable access
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Counter { n: i32 in Wrapping; }

@@ -9,7 +9,7 @@
 // narrowing_anonymous_expression_unproven, which needs a value with no carrier
 // of its own to reach it. The wider same-width face is
 // implicit_store_conversion_rejected (`u32` into `i32`).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; u: u8; s: i8; }
 machine Main::main(main: &mut Main) {

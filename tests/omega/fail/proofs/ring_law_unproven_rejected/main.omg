@@ -1,5 +1,5 @@
 // NEGATIVE 1: the law satisfier proves NOTHING (no ensures) -> must error.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps2<T> {

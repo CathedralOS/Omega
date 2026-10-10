@@ -2,7 +2,7 @@
 // rejected. `a` is `Wrapping` and `b` is `Saturating`, so `a + b` mixes
 // two different explicit domains -- illegal without an explicit `as` cast.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {

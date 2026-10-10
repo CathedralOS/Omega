@@ -1,0 +1,8 @@
+// Rejects: the consumer imports through the requester-local alias
+// without declaring the std dependency edge.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.exit_process(1);
+}

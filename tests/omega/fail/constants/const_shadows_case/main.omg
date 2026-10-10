@@ -1,7 +1,7 @@
 // FAIL canary (const-v0): `Type::NAME` must stay unambiguous against the case
 // constructors of the scope type -- const substitution would otherwise
 // silently shadow the case reference.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Verdict {

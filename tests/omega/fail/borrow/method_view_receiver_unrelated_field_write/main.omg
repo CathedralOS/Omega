@@ -6,7 +6,7 @@
 // or view declarations, not elision). Characterized 2026-06-12: the checker
 // rejects exactly like Rust would.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Cell {

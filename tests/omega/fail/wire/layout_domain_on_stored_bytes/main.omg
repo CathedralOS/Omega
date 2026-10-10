@@ -2,7 +2,7 @@
 // bytes that validate/encode makes true. Declaring it on OWNED STORED bytes
 // is a trivially-claimed membership -- at ZII the buffer is zeroes and holds
 // no valid encoding. Hold the value instead; encode at the edge.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data CounterMessage {

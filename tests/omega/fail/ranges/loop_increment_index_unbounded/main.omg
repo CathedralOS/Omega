@@ -5,7 +5,7 @@
 // seed for an increment, so the index obligation stays UNPROVEN and the program
 // is rejected.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {

@@ -5,7 +5,7 @@
 // judgment now answers three ways, and the unproven-offset case names
 // the real failure and all three discharge routes (declared range,
 // dominating incoming guard, boundary-ensures witness).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Desc { a: u32; b: u32; }
 data Main { console: Binding<Console>; buf: [u8; 16]; }

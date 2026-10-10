@@ -3,7 +3,7 @@
 // CHERI-class targets where addr may be a 128-bit capability). The legal
 // algebra: addr +/- count offsets; addr - addr measures. Multiplying,
 // dividing, or shifting an address rejects through the same fence.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) {

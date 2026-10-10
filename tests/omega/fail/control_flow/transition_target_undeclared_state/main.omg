@@ -2,7 +2,7 @@
 // unresolved name at checking. Before, checking accepted it and the program
 // stopped later on an unrelated lowering invariant (an unresolved authored
 // call, or a service-reach mismatch from the half-planned body).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main {
     console: Binding<Console>;

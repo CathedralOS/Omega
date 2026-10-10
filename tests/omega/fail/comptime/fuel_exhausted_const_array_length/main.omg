@@ -17,7 +17,7 @@
 // wrong reason. Counting down alone keeps the only arithmetic here a
 // guarded `remaining - 1`, which the guard proves.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {

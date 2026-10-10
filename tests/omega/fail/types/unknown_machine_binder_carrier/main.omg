@@ -1,7 +1,7 @@
 // A machine's `u: T` value binder carries an ordinary type reference in the
 // machine's scope (wiki/spec/language/generics.md); an unknown carrier
 // rejects even when no call instantiates the machine.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 machine scale<factor: Ratio>(value: u64) -> u64 { value }
 data Main { console: Binding<Console>; }

@@ -5,10 +5,10 @@
 // (here `main.count = 3` after entering with i <= count == 8) makes the
 // bridge unsound, so the write DEFEATS the route and the transition
 // refuses (relate them with a fresh guard after the write instead).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; items: [u8; 12]; count: u32 [0..=11]; j: u32; out: i32; }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) reaches Console {
     main.count = 8;
     main.j = 6;
     transition main.j <= main.count { true -> read(main, main.j) _ -> bad(main) }

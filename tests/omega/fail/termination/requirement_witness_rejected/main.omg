@@ -2,7 +2,7 @@
 // with bare `terminates;` -- the ranking witness belongs to the
 // IMPLEMENTATION that discharges the inherited claim, never to the
 // requirement (there is no body to prove).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 trait Worker<W> {
     machine run(worker: &mut W, n: u64) -> u64 terminates by n;

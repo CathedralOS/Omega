@@ -13,7 +13,7 @@
 // still accepted. This canary uses a value-position call; the statement/transition
 // argument positions carry the same guard.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Foo { a: i32 in Wrapping; }

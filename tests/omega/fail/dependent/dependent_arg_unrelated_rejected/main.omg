@@ -2,10 +2,10 @@
 // parameter with NO relating guard and no floor discharge refuses -- the
 // obligation `arg <= main.count` is the caller's, and nothing here proves
 // it (`j: u32` is unbounded above; count's declared minimum is 0).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; items: [u8; 12]; count: u32 [0..=11]; j: u32; out: i32; }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) reaches Console {
     main.count = 8;
     main.j = 6;
     transition main.j == 6 { true -> read(main, main.j) _ -> read(main, 0) }

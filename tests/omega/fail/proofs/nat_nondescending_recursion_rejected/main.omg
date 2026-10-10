@@ -4,7 +4,7 @@
 // (the arm-bound `prev`); the unchanged `n` proves nothing and the
 // refusal names the binding idiom.
 use omega::language::core::nat;
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) { main.console.exit_process(70); }

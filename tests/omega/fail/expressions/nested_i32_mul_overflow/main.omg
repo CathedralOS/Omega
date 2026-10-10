@@ -38,7 +38,7 @@
 // canary (it still compiles). Exit codes are diagnostic only (73 = native's
 // wrapped 3, 74 = interpreter's full-width 4, 75 = neither).
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; a: i32; b: i32; }
 machine Main::main(main: &mut Main) {

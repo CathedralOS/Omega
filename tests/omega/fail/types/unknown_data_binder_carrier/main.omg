@@ -1,7 +1,7 @@
 // A `const N: T` binder's carrier is an ordinary type reference in the
 // declaration's scope (wiki/spec/language/generics.md); an unknown carrier
 // rejects like an unknown field type, even while no field uses `N`.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Window<const N: Breadth> { width: u64; }
 data Main { console: Binding<Console>; }

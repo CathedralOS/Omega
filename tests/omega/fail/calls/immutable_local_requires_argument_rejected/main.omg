@@ -1,7 +1,7 @@
 // A completed arithmetic value copied into a local remains zero. Its use
 // cannot satisfy a nonzero divisor requirement; initializer replay is not
 // needed to reject it. Declare host reach so it pins the contract failure.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::scale(value: u64, divisor: u64) -> u64

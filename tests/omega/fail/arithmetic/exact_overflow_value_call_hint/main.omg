@@ -5,7 +5,7 @@
 // the operands' range" (which is unactionable at the call site). Locks the
 // value-call-aware overflow hint.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {

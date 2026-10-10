@@ -7,7 +7,7 @@
 // silently, exactly like storing a `u32` field there. A call result keeps
 // its declared type; the conversion must be spelled (a named narrowing
 // conversion, or an exact `as` whose representability is proved).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Dice { state: u32; }
 data Main { console: Binding<Console>; dice: Dice; health: i32 in Wrapping; }

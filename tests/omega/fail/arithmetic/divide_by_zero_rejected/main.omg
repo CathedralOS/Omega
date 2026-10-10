@@ -1,7 +1,7 @@
 // A divisor that is provably zero (a literal 0 here) always traps; it is
 // rejected at compile time like an out-of-range literal, not left to fault at
 // runtime (native idiv #DE / interpreter trap).
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) { let x: i32 = 5 / 0; main.console.exit_process(x); }
