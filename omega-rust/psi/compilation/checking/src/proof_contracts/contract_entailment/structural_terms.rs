@@ -266,7 +266,7 @@ pub(super) fn structural_term_pair_for_parameters(
 /// `structural_term` with an explicit declaring `(machine, state)` fallback for
 /// name-free binary operands and selected application result references. The
 /// runtime state binds actual source storage; abstract declaration telescopes
-/// use `structural_term_for_parameters` and never borrow a caller's state.
+/// use the parameter-frame form of `structural_term` and never borrow a caller's state.
 
 
 /// Compare selected scalar value operations in one exact declaration scope.

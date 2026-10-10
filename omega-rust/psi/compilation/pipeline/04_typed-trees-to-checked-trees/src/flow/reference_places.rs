@@ -292,8 +292,9 @@ fn preserve_candidate_call_prefix_storage(
             program,
             machine.symbol,
             state.state_symbol,
+            None,
             borrow_call,
-            Some(frames),
+            Some(frames)
         )?;
         if places.iter().any(|place| {
             writes.iter().any(|write| {

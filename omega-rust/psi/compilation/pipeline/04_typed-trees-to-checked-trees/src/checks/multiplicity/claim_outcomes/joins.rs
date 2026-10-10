@@ -647,12 +647,13 @@ fn excluded_input_at_call(
             .filter(|call| call.statement_index == index)
         {
             writes.extend(crate::flow::signature_ceiling_places(
-                program,
-                machine.symbol,
-                state.symbol,
-                call,
-                Some(&frames),
-            )?);
+            program,
+            machine.symbol,
+            state.symbol,
+            None,
+            call,
+            Some(&frames)
+        )?);
         }
         if writes.iter().any(|write| {
             (write.root) == (place.root)

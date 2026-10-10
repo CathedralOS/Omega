@@ -86,7 +86,10 @@ fn formation(
     let source_root = place.root.as_symbol()?;
     if let Some(parent_position) = aliases.iter().position(|alias| alias.owner == source_root) {
         let (projected_type, _) =
-            calls::projected_argument_path(program, state.symbol, statement_index, &place)?;
+            calls::projected_argument_path(program, state.symbol, statement_index, &place,
+            None,
+            None
+        )?;
         if parents.contains(&Some(parent_position))
             || source.root_symbol != source_root
             || source.segments != place.segments

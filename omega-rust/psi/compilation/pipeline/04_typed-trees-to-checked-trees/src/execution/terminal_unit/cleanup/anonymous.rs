@@ -118,7 +118,14 @@ fn validate_permissions_at(
                     segments: segments.to_vec(),
                 };
                 let (reference, path) =
-                    projected_argument_path(program, state, statement_index, &place)?;
+                    projected_argument_path(
+            program,
+            state,
+            statement_index,
+            &place,
+            None,
+            None
+        )?;
                 dropped.push((path, base_type_identity(program, reference, &[],
         &[])?));
             }

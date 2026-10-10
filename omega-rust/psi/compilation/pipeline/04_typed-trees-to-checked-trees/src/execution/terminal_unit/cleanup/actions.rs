@@ -195,6 +195,8 @@ pub(super) fn disposition_actions(
             disposition.state,
             statement_index,
             &place,
+            None,
+            None
         )?
         .1
     };
@@ -223,14 +225,16 @@ pub(super) fn disposition_actions(
         };
         let (reference, relative_path) =
             crate::execution::terminal_unit::calls::projected_argument_path(
-                program,
-                disposition.state,
-                statement_index,
-                &validation::CanonicalPlace {
+            program,
+            disposition.state,
+            statement_index,
+            &validation::CanonicalPlace {
                     root: facts::PlaceRoot::TypeReference(reference),
                     segments: relative_segments.to_vec(),
                 },
-            )?;
+            None,
+            None
+        )?;
         moved.push((relative_path, shapes.add_type(reference, &binders, &[])?));
     }
     let mut hooks = Vec::new();
@@ -259,11 +263,13 @@ pub(super) fn disposition_actions(
             };
             let (selected_reference, relative_path) =
                 crate::execution::terminal_unit::calls::projected_argument_path(
-                    program,
-                    disposition.state,
-                    statement_index,
-                    &selected_place,
-                )?;
+            program,
+            disposition.state,
+            statement_index,
+            &selected_place,
+            None,
+            None
+        )?;
             let selected_type = shapes.add_type(selected_reference, &binders, &[])?;
             let mut selected_path = path.clone();
             selected_path.extend(relative_path);

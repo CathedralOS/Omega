@@ -707,11 +707,13 @@ fn case_field_store(
     let _value_state_parameter = source_parameters.get(value_position)?;
 
     let (projected, value_path) = super::calls::projected_argument_path(
-        program,
-        state.symbol,
-        statement_index as usize,
-        &value_place,
-    )?;
+            program,
+            state.symbol,
+            statement_index as usize,
+            &value_place,
+            None,
+            None
+        )?;
     // A member read below one structural parameter names the copied leaf; the
     // projected type, not the parameter's own type, decides the field match.
     let same_named_type = matches!(

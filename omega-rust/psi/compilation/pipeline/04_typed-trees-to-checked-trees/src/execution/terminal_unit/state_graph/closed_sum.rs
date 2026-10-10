@@ -231,6 +231,8 @@ pub(super) fn build(
             state.symbol,
             transition_start,
             place,
+            None,
+            None
         )?;
         subject.path.extend(path);
         subject.type_identity =

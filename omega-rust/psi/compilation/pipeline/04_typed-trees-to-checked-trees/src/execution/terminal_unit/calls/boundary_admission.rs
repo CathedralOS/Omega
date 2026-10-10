@@ -80,11 +80,13 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
         .iter()
         .find(|parameter| (parameter.symbol == root) && !parameter.relevance.is_erased())?;
     let (reference, _) = super::argument_paths::projected_argument_path(
-        program,
-        state.symbol,
-        statement_index,
-        &place,
-    )?;
+            program,
+            state.symbol,
+            statement_index,
+            &place,
+            None,
+            None
+        )?;
     // A Binding member identifies the requirement through its own carrier.
     // Provider selection and entry establishment are realization obligations.
     typed_trees::service::classify_exact_service_parameter_carrier(program, reference)

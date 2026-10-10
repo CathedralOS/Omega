@@ -151,6 +151,8 @@ impl Builder<'_, '_> {
             self.state,
             self.statement_index,
             &place,
+            None,
+            None
         )?;
         // A slice descriptor already carries its backing. An array endpoint
         // instead lends its referee's storage, including a borrowed array

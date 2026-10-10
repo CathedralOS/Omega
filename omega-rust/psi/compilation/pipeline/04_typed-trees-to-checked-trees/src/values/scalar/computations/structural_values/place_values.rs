@@ -192,6 +192,8 @@ impl Builder<'_, '_> {
             self.state,
             self.statement_index,
             &place,
+            None,
+            None
         )?;
         if self.program.normalized_type_identity(projected)
             != self.program.normalized_type_identity(expected)
@@ -263,11 +265,13 @@ impl Builder<'_, '_> {
         let source = self.structural_source(symbol);
         let (mut projected, mut path) =
             crate::execution::terminal_unit::calls::projected_argument_path(
-                self.program,
-                self.state,
-                self.statement_index,
-                &place,
-            )?;
+            self.program,
+            self.state,
+            self.statement_index,
+            &place,
+            None,
+            None
+        )?;
         // A restricted field has no borrowed shape; its loan stays the place
         // observation that transports the field invariant to each read.
         if let Some(facts::PlaceSegment::Field { symbol }) = place.segments.last()

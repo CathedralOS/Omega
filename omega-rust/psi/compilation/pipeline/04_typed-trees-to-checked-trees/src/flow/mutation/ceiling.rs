@@ -19,48 +19,8 @@ use facts::PlaceRoot;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceNode;
 
-/// The storage an unknown-frame call may write, with each exclusive actual's
-/// own alias place beside its storage so facts keyed on the alias retire
-/// too. The alias closure runs in the caller (`call_storage_writes`).
+
 pub(crate) fn signature_ceiling_places(
-    program: &dyn ::validation::CheckingInput,
-    caller_machine_symbol: SymbolHandle,
-    caller_state_symbol: SymbolHandle,
-    borrow_call: &BorrowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<CanonicalPlace>> {
-    signature_ceiling_places_inner(
-        program,
-        caller_machine_symbol,
-        caller_state_symbol,
-        None,
-        borrow_call,
-        call_frames,
-    )
-}
-
-/// The same ceiling with the borrow ledger available: by-value actuals that
-/// may carry references resolve to the exact referents of their carried
-/// exclusive loans instead of leaving the ceiling unrepresentable.
-pub(crate) fn signature_ceiling_places_with_loans(
-    program: &dyn ::validation::CheckingInput,
-    caller_machine_symbol: SymbolHandle,
-    caller_state_symbol: SymbolHandle,
-    borrow: &BorrowFacts,
-    borrow_call: &BorrowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<CanonicalPlace>> {
-    signature_ceiling_places_inner(
-        program,
-        caller_machine_symbol,
-        caller_state_symbol,
-        Some(borrow),
-        borrow_call,
-        call_frames,
-    )
-}
-
-fn signature_ceiling_places_inner(
     program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,

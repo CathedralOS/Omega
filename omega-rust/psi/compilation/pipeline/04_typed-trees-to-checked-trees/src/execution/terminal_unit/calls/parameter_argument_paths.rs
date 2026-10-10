@@ -374,7 +374,14 @@ impl ParameterArgument<'_> {
     ) -> Option<ArgumentPath> {
         let (program, target) = (self.program, self.target);
         let (projected, path) =
-            projected_argument_path(program, self.state, self.statement_index, self.place)?;
+            projected_argument_path(
+            program,
+            self.state,
+            self.statement_index,
+            self.place,
+            None,
+            None
+        )?;
         super::argument_presentation::classify(
             program,
             projected,

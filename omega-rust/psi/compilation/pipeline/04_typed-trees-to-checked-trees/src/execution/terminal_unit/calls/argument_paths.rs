@@ -169,29 +169,6 @@ pub(crate) fn checked_call_erased_scalar_arguments(
         .collect()
 }
 
-/// Translate an authored place into the checked structural path a call
-/// argument retains, and report the exact type that path projects to. Every
-/// admitted fixed index is checked against its literal array length, so the
-/// returned path names storage the place actually contains. Root and field
-/// resolution belong to `canonical_place_type_reference`, which already owns
-/// the two `self` spellings.
-///
-/// Both call lanes share this owner. What does not belong here is the admission
-/// decision: which segment shapes a lane permits, and which rule the projected
-/// type must satisfy against the target parameter. The ordinary transitive lane
-/// admits exact mutable byte-view presentations as well as equal normalized
-/// identity; each call owner retains its own access and path restrictions.
-pub(crate) fn projected_argument_path(
-    program: &dyn ::validation::CheckingInput,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    place: &validation::CanonicalPlace,
-) -> Option<(
-    typed_trees::types::TypeReferenceHandle,
-    Vec<CheckedUnitStructuralPathSegment>,
-)> {
-    projected_argument_path_impl(program, state_symbol, statement_index, place, None, None)
-}
 
 /// `projected_argument_path` with runtime-index admission for the borrowed
 /// lanes — a `&`-rooted call receiver or argument, or a `self.nodes[i]`-shape
@@ -212,7 +189,7 @@ pub(crate) fn projected_borrowed_path(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
-    projected_argument_path_impl(
+    projected_argument_path(
         program,
         state_symbol,
         statement_index,
@@ -242,7 +219,7 @@ pub(crate) fn projected_selected_path(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
-    projected_argument_path_impl(
+    projected_argument_path(
         program,
         state_symbol,
         statement_index,
@@ -327,8 +304,9 @@ pub(crate) fn projected_evaluated_path(
         ) -> Option<CheckedUnitStructuralPathSegment>,
     >,
 ) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
-    projected_argument_path_impl(program, state, statement, place, Some(machine), selector)
+    projected_argument_path(program, state, statement, place, Some(machine), selector)
 }
+
 
 /// The segment prefix ending before `position` re-rooted as its own place and
 /// resolved to its container type — the descend every member, index, window or
@@ -351,7 +329,7 @@ fn prefix_container_type_reference(
     )
 }
 
-fn projected_argument_path_impl(
+pub(crate) fn projected_argument_path(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -787,7 +765,14 @@ pub(crate) fn projected_argument_path_with_identity(
     place: &validation::CanonicalPlace,
     target_identity: &str,
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
-    let (projected, path) = projected_argument_path(program, state_symbol, statement_index, place)?;
+    let (projected, path) = projected_argument_path(
+            program,
+            state_symbol,
+            statement_index,
+            place,
+            None,
+            None
+        )?;
     (base_type_identity(program, projected, &[],
         &[])? == target_identity).then_some(path)
 }
@@ -975,7 +960,14 @@ fn byte_array_range_path(
         segments: fields.to_vec(),
     };
     let (backing_type, mut path) =
-        projected_argument_path(program, state, statement_index, &backing)?;
+        projected_argument_path(
+            program,
+            state,
+            statement_index,
+            &backing,
+            None,
+            None
+        )?;
     let extent = fixed_array_literal_length(program, backing_type)?;
     // An omitted end names the backing's literal extent.
     let end = end.unwrap_or(extent);

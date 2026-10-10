@@ -24,7 +24,6 @@ mod receiver;
 mod summary;
 
 pub(crate) use ceiling::signature_ceiling_places;
-pub(crate) use ceiling::signature_ceiling_places_with_loans;
 pub(crate) use local_origins::close_storage_places_over_aliases_with_resolver;
 pub(crate) use local_origins::place_from_origin_path;
 pub(crate) use local_origins::rebase_exact_local_place;
@@ -98,13 +97,13 @@ pub(crate) fn call_mutated_places(
         None,
     )
     .or_else(|| {
-        ceiling::signature_ceiling_places_with_loans(
+        ceiling::signature_ceiling_places(
             program,
             caller_machine_symbol,
             caller_state_symbol,
-            borrow,
+            Some(borrow),
             borrow_call,
-            call_frames,
+            call_frames
         )
     })
 }
