@@ -1438,3 +1438,16 @@ macro_rules! scalar_read_membership_triple_pattern {
             | $crate::AbstractOperation::StructuralScalarFieldRead { $($fields)* }
     };
 }
+
+#[macro_export]
+macro_rules! establish_or_subslice_set_pattern {
+    ($($fields:tt)*) => {
+        $crate::AbstractOperation::ByteSequenceSubslice { $($fields)* }
+            | $crate::AbstractOperation::ElementViewSubslice { $($fields)* }
+            | $crate::AbstractOperation::EstablishByteSequenceConcatenation { $($fields)* }
+            | $crate::AbstractOperation::EstablishElementView { $($fields)* }
+            | $crate::AbstractOperation::EstablishPrimitiveLocal { $($fields)* }
+            | $crate::AbstractOperation::EstablishScalarArray { $($fields)* }
+            | $crate::AbstractOperation::EstablishStructuralArray { $($fields)* }
+    };
+}
