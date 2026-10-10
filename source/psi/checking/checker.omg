@@ -7,6 +7,7 @@ use psi::checking::flow;
 use psi::checking::frames;
 use psi::checking::matches;
 use psi::checking::obligations;
+use psi::checking::ownership;
 use psi::checking::places;
 use psi::checking::qualification;
 use psi::checking::supply;
@@ -159,6 +160,8 @@ pub data Checker {
     terminating: [bool; 2048];
     locally_ranked: [bool; 2048];
     blocked: [bool; 2048];
+    // The ownership walk of the body being checked (ownership.omg).
+    ownership: Ownership;
 }
 
 pub machine Checker::check(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
@@ -361,7 +364,7 @@ crashes Trap
     state check_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.state_count && checker.output.machine_accepted {
             true -> reached(checker, syntax, resolution, typing, index, item, offset)
-            _ -> publish(checker, index, item)
+            _ -> owned(checker, syntax, resolution, typing, index, item)
         }
     }
 
@@ -371,6 +374,20 @@ crashes Trap
         let arrived: bool = Checker::was_reached(checker, offset);
         Checker::walk_state(checker, syntax, resolution, typing, offset, arrived, true);
         transition { _ -> check_state(checker, syntax, resolution, typing, index, item, offset + 1) }
+    }
+
+    // Ownership walks every body once more, apart from the facts
+    // (ownership.omg).
+    state owned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+        transition checker.output.machine_accepted {
+            true -> ownership(checker, syntax, resolution, typing, index, item)
+            _ -> publish(checker, index, item)
+        }
+    }
+
+    state ownership(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+        Checker::check_ownership(checker, syntax, resolution, typing, item);
+        transition { _ -> publish(checker, index, item) }
     }
 
     state publish(checker: &mut Checker, index: u64 in Trapping, item: MachineItem) {

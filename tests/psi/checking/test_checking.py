@@ -15,7 +15,8 @@ DIAGNOSTICS = (
     "IndexOutOfBounds", "ArithmeticOverflow", "DivisorMayBeZero",
     "ConversionOutOfRange", "ShiftCountOutOfRange", "RequirementUnproven",
     "DomainUnproven", "CrashNotDeclared", "GuaranteeUnproven", "RankUnproven",
-    "ProgressUnproven",
+    "ProgressUnproven", "UseAfterMove", "MoveOutOfBorrow", "LinearUnconsumed",
+    "LinearOverwritten", "OverlappingArguments",
 )
 
 
@@ -1683,6 +1684,344 @@ def main() -> None:
     )
     assert status == 247 and observation.rejections == expected, (
         f"every-machine-first-rejection: status {status}, {observation.rejections}"
+    )
+
+    # Ownership (ownership.omg): moves, borrowed binders and linear exits.
+    receipt = b"data Receipt [linear] { code: i32; }\nmachine settle(receipt: Receipt) -> i32;\n"
+    rejected(
+        program,
+        "affine-reuse-after-call-move",
+        b"data Settings { count: i32; }\n"
+        b"machine Settings::observe(settings: Settings) -> i32 { settings.count }\n"
+        b"machine inspect() -> i32 {\n"
+        b"    let mut settings: Settings = Settings { count: 17 };\n"
+        b"    let first: i32 = Settings::observe(settings);\n"
+        b"    Settings::observe(settings)\n"
+        b"}",
+        "UseAfterMove",
+        b"settings!5",
+    )
+    rejected(
+        program,
+        "read-through-consumed-owner",
+        b"data Guard { handle: i32; }\n"
+        b"machine consume(value: Guard) {}\n"
+        b"machine run() -> i32 {\n"
+        b"    let g: Guard = Guard { handle: 7 };\n"
+        b"    consume(g);\n"
+        b"    g.handle\n"
+        b"}",
+        "UseAfterMove",
+        b"g.handle",
+    )
+    rejected(
+        program,
+        "reestablished-owner-moves-once",
+        b"data Item { number: i32; }\n"
+        b"machine take(item: Item) -> i32 { item.number }\n"
+        b"machine run() -> i32 {\n"
+        b"    let mut item: Item = Item { number: 17 };\n"
+        b"    let first: i32 = take(item);\n"
+        b"    item = Item { number: 42 };\n"
+        b"    let second: i32 = take(item);\n"
+        b"    take(item)\n"
+        b"}",
+        "UseAfterMove",
+        b"item!7",
+    )
+    rejected(
+        program,
+        "computed-subject-moves-its-argument",
+        b"data Choice { case Left(value: u64); case Right(value: u64); }\n"
+        b"machine forward(choice: Choice) -> Choice { choice }\n"
+        b"machine choose(choice: Choice) -> Choice {\n"
+        b"    transition forward(choice) {\n"
+        b"        Choice::Left { value } -> forward(choice)\n"
+        b"        Choice::Right { value } -> forward(choice)\n"
+        b"    }\n"
+        b"}",
+        "UseAfterMove",
+        b"choice!5",
+    )
+    token = b"data Token { value: u64; }\nmachine consume(token: Token) -> u64 { token.value }\n"
+    accepted(
+        program,
+        "transition-arms-move-separately",
+        token + b"machine run(choice: bool) -> u64 {\n"
+        b"    let token: Token = Token { value: 1 };\n"
+        b"    transition choice {\n"
+        b"        true -> consume(token)\n"
+        b"        _ -> consume(token)\n"
+        b"    }\n"
+        b"}",
+    )
+    accepted(
+        program,
+        "match-arms-move-separately",
+        token + b"machine run(choice: bool) -> u64 {\n"
+        b"    let token: Token = Token { value: 1 };\n"
+        b"    match choice { true -> consume(token), _ -> consume(token) }\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "match-arm-move-holds-after-the-match",
+        token + b"machine run(choice: bool) -> u64 {\n"
+        b"    let token: Token = Token { value: 1 };\n"
+        b"    let first: u64 = match choice { true -> consume(token), _ -> 0 };\n"
+        b"    consume(token)\n"
+        b"}",
+        "UseAfterMove",
+        b"token!5",
+    )
+    accepted(
+        program,
+        "copy-data-reuses",
+        b"data Point [copy] { x: u64; }\n"
+        b"machine take(point: Point) -> u64 { point.x }\n"
+        b"machine run() -> u64 {\n"
+        b"    let point: Point = Point { x: 1 };\n"
+        b"    let first: u64 = take(point);\n"
+        b"    take(point)\n"
+        b"}",
+    )
+    accepted(
+        program,
+        "shared-lend-keeps-the-owner",
+        b"data Item { value: u64; }\n"
+        b"machine look(item: &Item) -> u64 { item.value }\n"
+        b"machine run() -> u64 {\n"
+        b"    let item: Item = Item { value: 1 };\n"
+        b"    let first: u64 = look(&item);\n"
+        b"    look(&item)\n"
+        b"}",
+    )
+    pair = token + b"data Pair { left: Token; right: Token; }\nmachine whole(pair: Pair) -> u64 { 0 }\n"
+    accepted(
+        program,
+        "sibling-fields-move-apart",
+        pair + b"machine run() -> u64 {\n"
+        b"    let pair: Pair = Pair { left: Token { value: 1 }, right: Token { value: 2 } };\n"
+        b"    let first: u64 = consume(pair.left);\n"
+        b"    consume(pair.right)\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "whole-after-partial-move",
+        pair + b"machine run() -> u64 {\n"
+        b"    let pair: Pair = Pair { left: Token { value: 1 }, right: Token { value: 2 } };\n"
+        b"    let first: u64 = consume(pair.left);\n"
+        b"    whole(pair)\n"
+        b"}",
+        "UseAfterMove",
+        b"pair!4",
+    )
+    rejected(
+        program,
+        "borrowed-binder-cannot-move",
+        b"data Token { value: i32; }\n"
+        b"data Choice { case Present(value: Token); case Empty; }\n"
+        b"machine inspect(choice: &Choice) -> bool {\n"
+        b"    transition choice {\n"
+        b"        Choice::Present { value } -> observe(value)\n"
+        b"        _ -> (false)\n"
+        b"    }\n"
+        b"    state observe(value: Token) -> bool { value.value == 42 }\n"
+        b"}",
+        "MoveOutOfBorrow",
+        b"value!4",
+    )
+    rejected(
+        program,
+        "field-behind-reference-cannot-move",
+        token + b"data Holder { token: Token; }\n"
+        b"machine run(holder: &Holder) -> u64 { consume(holder.token) }",
+        "MoveOutOfBorrow",
+        b"holder.token",
+    )
+    rejected(
+        program,
+        "linear-local-reaches-its-exit",
+        receipt + b"machine run() -> i32 {\n"
+        b"    let receipt: Receipt = Receipt { code: 7 };\n"
+        b"    let observed: i32 = receipt.code;\n"
+        b"    0\n"
+        b"}",
+        "LinearUnconsumed",
+        b"0",
+    )
+    rejected(
+        program,
+        "linear-live-overwrite",
+        receipt + b"machine run() -> i32 {\n"
+        b"    let mut receipt: Receipt = Receipt { code: 1 };\n"
+        b"    receipt = Receipt { code: 2 };\n"
+        b"    settle(receipt)\n"
+        b"}",
+        "LinearOverwritten",
+        b"receipt!3",
+    )
+    accepted(
+        program,
+        "linear-moved-then-reassigned",
+        receipt + b"machine run() -> i32 {\n"
+        b"    let mut receipt: Receipt = Receipt { code: 1 };\n"
+        b"    let first: i32 = settle(receipt);\n"
+        b"    receipt = Receipt { code: 2 };\n"
+        b"    settle(receipt)\n"
+        b"}",
+    )
+    accepted(
+        program,
+        "linear-parameter-consumed",
+        receipt + b"machine pass(receipt: Receipt) -> i32 { settle(receipt) }",
+    )
+    accepted(
+        program,
+        "jump-moves-linear-into-state",
+        receipt + b"machine run() -> i32 {\n"
+        b"    let receipt: Receipt = Receipt { code: 1 };\n"
+        b"    transition { _ -> held(receipt) }\n"
+        b"    state held(receipt: Receipt) -> i32 { settle(receipt) }\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "linear-arm-exit-unconsumed",
+        receipt + b"machine run(ready: bool) -> i32 {\n"
+        b"    let receipt: Receipt = Receipt { code: 1 };\n"
+        b"    transition ready {\n"
+        b"        true -> settle(receipt)\n"
+        b"        _ -> 0\n"
+        b"    }\n"
+        b"}",
+        "LinearUnconsumed",
+        b"_ -> 0",
+    )
+    rejected(
+        program,
+        "linear-statement-value-discarded",
+        b"data Receipt [linear] { code: i32; }\nmachine issue() -> Receipt;\n"
+        b"machine run() {\n"
+        b"    _ = issue();\n"
+        b"}",
+        "LinearUnconsumed",
+        b"issue()!2",
+    )
+    rejected(
+        program,
+        "linear-temporary-projected",
+        b"data Receipt [linear] { code: i32; }\n"
+        b"machine run() -> i32 {\n"
+        b"    (Receipt { code: 7 }).code\n"
+        b"}",
+        "LinearUnconsumed",
+        b"Receipt { code: 7 }",
+    )
+    rejected(
+        program,
+        "linear-moved-on-one-operand-path",
+        b"data Receipt [linear] { code: i32; }\nmachine settle(receipt: Receipt) -> bool;\n"
+        b"machine run(ready: bool) -> bool {\n"
+        b"    let receipt: Receipt = Receipt { code: 1 };\n"
+        b"    ready && settle(receipt)\n"
+        b"}",
+        "LinearUnconsumed",
+        b"receipt!3",
+    )
+
+    # Holds (holds.omg): a call's arguments against earlier arguments' loans.
+    put = b"data Main { value: i32; other: i32; }\nmachine put(target: &mut i32, value: i32) -> i32 { value }\n"
+    rejected(
+        program,
+        "exclusive-loan-then-read",
+        put + b"machine run(main: &mut Main) -> i32 { put(&mut main.value, main.value) }",
+        "OverlappingArguments",
+        b"main.value!2",
+    )
+    accepted(
+        program,
+        "read-completes-before-a-loan",
+        b"data Main { value: i32; }\nmachine put(value: i32, target: &mut i32) -> i32 { value }\n"
+        b"machine run(main: &mut Main) -> i32 { put(main.value, &mut main.value) }",
+    )
+    accepted(
+        program,
+        "disjoint-fields-lend-apart",
+        put + b"machine run(main: &mut Main) -> i32 { put(&mut main.value, main.other) }",
+    )
+    accepted(
+        program,
+        "distinct-literal-indexes-lend-apart",
+        b"machine put(target: &mut u64, value: u64) -> u64 { value }\n"
+        b"machine run(items: &mut [u64; 4]) -> u64 { put(&mut items[0], items[1]) }",
+    )
+    rejected(
+        program,
+        "local-lent-exclusively-twice",
+        b"data Score { points: i32; }\n"
+        b"machine join(left: &mut Score, right: &mut Score) {}\n"
+        b"machine run() {\n"
+        b"    let mut score: Score = Score { points: 1 };\n"
+        b"    join(&mut score, &mut score);\n"
+        b"}",
+        "OverlappingArguments",
+        b"score!3",
+    )
+    hits = b"data Main { count: u64; }\nmachine peek(main: &Main) -> u64 { main.count }\n"
+    rejected(
+        program,
+        "exclusive-reference-passed-twice",
+        hits + b"machine take(first: &mut Main, second: &mut Main) -> u64 { 0 }\n"
+        b"machine run(main: &mut Main) -> u64 { take(main, main) }",
+        "OverlappingArguments",
+        b"main!5",
+    )
+    rejected(
+        program,
+        "nested-call-reads-a-held-place",
+        hits + b"machine take(main: &mut Main, value: u64) -> u64 { value }\n"
+        b"machine run(main: &mut Main) -> u64 { take(main, peek(main)) }",
+        "OverlappingArguments",
+        b"main!6",
+    )
+    accepted(
+        program,
+        "shared-references-share",
+        hits + b"machine both(first: &Main, second: &Main) -> u64 { first.count }\n"
+        b"machine run(main: &Main) -> u64 { both(main, main) }",
+    )
+    accepted(
+        program,
+        "jump-forwards-its-data-parent",
+        b"data Main { count: u64; }\n"
+        b"machine Main::run(main: &mut Main) -> u64 {\n"
+        b"    transition { _ -> next(main, main.count) }\n"
+        b"    state next(held: &mut Main, value: u64) -> u64 { value }\n"
+        b"}",
+    )
+    rejected(
+        program,
+        "jump-forwards-its-data-parent-twice",
+        b"data Main { count: u64; }\n"
+        b"machine Main::run(main: &mut Main) -> u64 {\n"
+        b"    transition { _ -> next(main, main) }\n"
+        b"    state next(first: &mut Main, second: &mut Main) -> u64 { first.count }\n"
+        b"}",
+        "OverlappingArguments",
+        b"main!3",
+    )
+    rejected(
+        program,
+        "jump-fresh-loan-then-read",
+        b"data Inner { value: u64; }\ndata Main { inner: Inner; }\n"
+        b"machine Main::run(main: &mut Main) -> u64 {\n"
+        b"    transition { _ -> next(&mut main.inner, main.inner.value) }\n"
+        b"    state next(held: &mut Inner, value: u64) -> u64 { value }\n"
+        b"}",
+        "OverlappingArguments",
+        b"main.inner.value",
     )
 
     # The product's own psi package, each module under source/psi as

@@ -499,6 +499,25 @@ proved. A proposition application states what no zone fact expresses:
 assumed, it establishes nothing, and where it must hold it rejects as an
 unsupported fact.
 
+Ownership ([`checking/ownership.omg`](checking/ownership.omg), over the
+owned places of [`checking/owned_places.omg`](checking/owned_places.omg))
+walks every body once more, apart from the facts. A body owns its by-value
+parameters, its locals and its pattern binders with their field paths; a
+`[copy]` type copies, an affine one moves at most once and a linear one
+exactly once. A use of a moved place, of a part of it or of a whole
+containing it rejects; a by-value use of an affine or linear place moves
+it, and one reached through a reference or bound from a borrowed subject
+rejects as a move out of a loan. Assigning a moved place re-establishes
+it, and overwriting a live linear place rejects. Every exit must have moved
+each owed linear place whole (a jump's arguments move into its state), and
+a linear value discarded, or moved on only some paths of an `&&`/`||` or a
+match, rejects. A transition's and a match's arms are separate paths, and a
+match's join holds what any arm moved. A call holds each place an argument
+lends until it returns, exclusively only when the argument and its
+parameter both are, and a later argument's access overlapping a held place
+rejects when either side is exclusive
+([`checking/holds.omg`](checking/holds.omg)).
+
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet
 published.

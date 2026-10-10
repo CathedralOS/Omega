@@ -39,6 +39,20 @@ pub data CheckDiagnosticCode [copy] {
     // A terminating body that reaches an operation without a usable
     // termination guarantee.
     case ProgressUnproven;
+    // A use of a place a path has moved, of a part of it or of a whole
+    // containing it, or a write into a moved place's part.
+    case UseAfterMove;
+    // A by-value use of an affine or linear place reached through a
+    // reference or bound from a borrowed subject.
+    case MoveOutOfBorrow;
+    // A linear value an exit, a discard or one path of a reconvergence
+    // leaves unconsumed.
+    case LinearUnconsumed;
+    // An assignment over a live linear place.
+    case LinearOverwritten;
+    // A call argument accessing a place an earlier argument holds, either
+    // exclusively.
+    case OverlappingArguments;
 }
 
 pub data CheckDiagnostic [copy] {

@@ -6248,7 +6248,12 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   cycle ranked and every callee terminating (termination settles over the
   call graph as a least fixed point, so call cycles through other machines
   never terminate), and a witness on a bodyless machine rejects; every
-  body's derived summary serves its callers, exported or not. Checking
+  body's derived summary serves its callers, exported or not. Ownership
+  walks every body once more: a moved affine or linear place is not used
+  again, nothing moves out of a reference or a borrowed binder, each owed
+  linear place moves whole by every exit and is never discarded, overwritten
+  live or moved on only some paths of a reconvergence, and no call argument
+  overlaps an earlier argument's loan where either is exclusive. Checking
   reports each rejected machine's first rejection.
   `tests/psi/checking/test-checking.sh` passes 144 checking cases and accepts
   the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 80
