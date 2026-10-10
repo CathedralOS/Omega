@@ -14,20 +14,9 @@ use terminal_psi::{
     ProofPropositionId, ProofValueDeclaration, ProofValueId,
 };
 
-fn encode_ieee_format(writer: &mut Writer, format: IeeeFloatFormat) {
-    writer.u8(match format {
-        IeeeFloatFormat::Binary32 => 1,
-        IeeeFloatFormat::Binary64 => 2,
-    });
-}
-
-fn decode_ieee_format(reader: &mut Reader<'_>) -> Result<IeeeFloatFormat, CodecError> {
-    match reader.u8()? {
-        1 => Ok(IeeeFloatFormat::Binary32),
-        2 => Ok(IeeeFloatFormat::Binary64),
-        tag => Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-    }
-}
+use super::super::structural_field_wire::{
+    decode_ieee_float_format as decode_ieee_format, encode_ieee_float_format as encode_ieee_format,
+};
 
 pub(super) fn encode_float_meaning_projection(
     writer: &mut Writer,
