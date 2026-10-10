@@ -19,7 +19,7 @@ machine consume(entries: [Entry; 2]) {
 
 machine Main::main(main: &mut Main) {
     main.entries = [Entry { value: 3 }, Entry { value: 4 }];
-    let view: &[Entry] = main.entries.as_slice();
+    let view: &[Entry] = &main.entries[..];
     consume(main.entries);
     let first: Entry = view[0];
 }

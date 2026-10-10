@@ -11,7 +11,7 @@ data Bag { cells: [Cell; 2]; }
 data Main { console: Binding<Console>; source: Bag; destination: Bag; }
 
 machine copy_selected(source: &Bag, destination: &mut Bag) {
-    let input: &[Cell] = source.cells.as_slice();
+    let input: &[Cell] = &source.cells[0..=1];
     let selected: Cell = input[1];
     destination.cells[0] = selected;
 }

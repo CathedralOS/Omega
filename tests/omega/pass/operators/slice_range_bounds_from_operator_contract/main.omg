@@ -12,7 +12,8 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) -> u64 {
-    let view: &[Entry] = main.entries.as_slice();
+    // Borrow the whole array first; the following ranges select Slice::range.
+    let view: &[Entry] = &main.entries;
     let middle: &[Entry] = view[1..3];
     let empty: &[Entry] = view[4..4];
     middle.len + empty.len

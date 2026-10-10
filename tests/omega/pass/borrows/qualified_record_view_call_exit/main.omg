@@ -14,7 +14,7 @@ machine fill(cell: &mut Cell, tag: Tag, value: u64) {
 machine Main::main(main: &mut Main) reaches Console {
     main.cells[0].label = "first";
     main.cells[1].label = "second";
-    let view: &mut [Cell] = main.cells.as_mut_slice();
+    let view: &mut [Cell] = &mut main.cells[..];
     fill(&mut view[0], Tag::First, 31);
     fill(&mut view[1], Tag::Second, 39);
     transition main.cells[0].value == 31

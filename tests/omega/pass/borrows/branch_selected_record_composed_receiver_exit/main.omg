@@ -31,7 +31,7 @@ data CommandSource { tag: u64; }
 data Main { console: Binding<Console>; bag: Bag; commands: CommandSource; }
 
 machine Bag::pick(bag: &mut Bag, marker: Direction, second: bool) -> &mut Room {
-    let room_view: &mut [Room] = bag.rooms.as_mut_slice();
+    let room_view: &mut [Room] = &mut bag.rooms[..];
     transition second {
         true -> &mut room_view[1]
         false -> &mut room_view[0]

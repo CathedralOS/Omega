@@ -54,7 +54,7 @@ machine main() crashes Trap {
         Element { marker: 47, child: Child { value: 9, ready: true } }
     ];
     let mut cursor: Cursor = Cursor { index: 0, calls: 0 };
-    let view: &mut [Element] = elements.as_mut_slice();
+    let view: &mut [Element] = &mut elements[..];
     replace(view, &mut cursor);
     transition cursor.calls == 1 && cursor.index == 3
         && elements[0].marker == 31 && elements[0].child.value == 9 && elements[0].child.ready

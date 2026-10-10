@@ -10,8 +10,8 @@ data Bag { cells: [Cell; 2]; }
 data Main { console: Binding<Console>; source: Bag; destination: Bag; }
 
 machine copy_selected(source: &Bag, destination: &mut Bag) {
-    let input: &[Cell] = source.cells.as_slice();
-    let output: &mut [Cell] = destination.cells.as_mut_slice();
+    let input: &[Cell] = &source.cells[..];
+    let output: &mut [Cell] = &mut destination.cells[..];
     output[0] = input[1];
 }
 

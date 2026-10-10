@@ -51,7 +51,7 @@ ensures
     fixed_vec_i32x4.length > 0;
     fixed_vec_i32x4.length - 1 < fixed_vec_i32x4.items.len
 {
-    let slots: &mut [i32] = fixed_vec_i32x4.items.as_mut_slice();
+    let slots: &mut [i32] = &mut fixed_vec_i32x4.items[..];
     let index: u64 in Wrapping = fixed_vec_i32x4.length;
     let raw_value: i32 = value as i32;
     slots[index] = raw_value;
@@ -68,7 +68,7 @@ requires
     fixed_vec_i32x4.length > 0;
     fixed_vec_i32x4.length - 1 < fixed_vec_i32x4.items.len
 {
-    let slots: &[i32] = fixed_vec_i32x4.items.as_slice();
+    let slots: &[i32] = &fixed_vec_i32x4.items[..];
     let index: u64 in Wrapping = fixed_vec_i32x4.length - 1;
     let value: i32 in Wrapping = slots[index] as i32 in Wrapping;
     fixed_vec_i32x4.length = index;
@@ -81,7 +81,7 @@ requires
     fixed_vec_i32x4.length > index;
     index < fixed_vec_i32x4.items.len
 {
-    let slots: &[i32] = fixed_vec_i32x4.items.as_slice();
+    let slots: &[i32] = &fixed_vec_i32x4.items[..];
     slots[index]
 }
 

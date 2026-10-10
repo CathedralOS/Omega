@@ -82,6 +82,16 @@ pub(crate) fn borrow_access_place(
                 indexed.collection,
                 machine_symbol,
             )?;
+            // Storage facts and loan provenance use the same address algebra.
+            // A whole builtin window retains the collection dimension rather
+            // than adding a range coordinate before a later element selection.
+            let machine = program.machine_by_symbol(machine_symbol)?;
+            let state = program.state_by_symbol(state_symbol)?;
+            if validation::whole_collection_view_source(program, machine, Some(state), expression)
+                .is_some()
+            {
+                return Some(place);
+            }
             place
                 .segments
                 .push(validation::index_place_segment(program, indexed.index));

@@ -116,6 +116,51 @@ pub fn has_builtin_subslice_meaning(
         )
 }
 
+/// The source of an index-preserving whole view. This is storage geometry,
+/// not borrow authority: consumers still check the selected access and loan.
+/// Only builtin range meaning permits this equality. A declared operator with
+/// identical bounds may return unrelated storage and establishes no such edge.
+/// Omitted bounds and constant extents share this history-free judgment.
+/// Captured scalar endpoints need a live fact correspondence; the declaration
+/// of their initializer alone cannot establish the window's current geometry.
+pub fn whole_collection_view_source(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let operation = subslice_expression(program, expression)?;
+    if !has_builtin_subslice_meaning(program, machine, state, operation) {
+        return None;
+    }
+    let indexed = program.expression_table.indexed_node(operation)?;
+    let range = program.expression_table.range_node(indexed.index)?;
+    if range.start.is_valid()
+        && program.expression_table.constant_integer_value(range.start) != Some(0)
+    {
+        return None;
+    }
+    if !range.end.is_valid() {
+        return (!range.end_inclusive).then_some(indexed.collection);
+    }
+    if let Some(end) = program
+        .expression_table
+        .constant_integer_value(range.end)
+        .and_then(|end| usize::try_from(end).ok())
+        .and_then(|end| {
+            if range.end_inclusive {
+                end.checked_add(1)
+            } else {
+                Some(end)
+            }
+        })
+        && declared_collection_extent(program, machine, state, indexed.collection) == Some(end)
+    {
+        return Some(indexed.collection);
+    }
+    None
+}
+
 /// The selector expressions of an assignment target's indexed steps, from
 /// the target inward: `a[i][j]` yields `[j, i]`, `a[i].f` yields `[i]`, and
 /// `a.f` yields none. A range selector names a view rather than an element,

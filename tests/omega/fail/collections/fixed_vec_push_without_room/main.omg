@@ -14,7 +14,7 @@ machine FixedVecI32x4::push(fixed_vec_i32x4: &mut FixedVecI32x4, value: i32)
 requires
     fixed_vec_i32x4.length < fixed_vec_i32x4.items.len
 {
-    let slots: &mut [i32] = fixed_vec_i32x4.items.as_mut_slice();
+    let slots: &mut [i32] = &mut fixed_vec_i32x4.items[..];
     let index: u64 in Wrapping = fixed_vec_i32x4.length;
     slots[index] = value;
     fixed_vec_i32x4.length = fixed_vec_i32x4.length + 1;

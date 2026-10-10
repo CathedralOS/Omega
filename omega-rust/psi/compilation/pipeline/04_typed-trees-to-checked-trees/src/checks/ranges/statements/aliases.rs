@@ -1,4 +1,3 @@
-use language_semantics::declaration_selection::CollectionViewOperation;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::super::expressions::ensured_call_result_bounds;
@@ -45,7 +44,7 @@ pub(in crate::checks::ranges) fn seed_local_alias_facts(
     // The local inherits the proven index/range facts of whatever stable place
     // the value aliases. The source label must be the full display name (e.g.
     // `room.exit_count`), since that is how the facts were keyed when seeded.
-    let Some(source_label) = alias_source_label(program, value) else {
+    let Some(source_label) = alias_source_label(program, machine, state, value) else {
         // A local bound to ARITHMETIC (`let index = self.length - 1`) is a
         // value alias: at the binding point it names exactly the value the
         // arithmetic label denotes, so index-POSITION facts keyed on that
@@ -114,28 +113,24 @@ fn seed_integer_bounds(
 /// Resolves the place a bound value aliases, for index/range fact inheritance.
 ///
 /// A local bound to a bare place (`let y = x`, `let i = room.exit_count`)
-/// aliases that place. A local bound to a compiler-owned element view of a
-/// collection (`recv.as_slice()` / `.as_mut_slice()`) is a full-length view of
-/// `recv`, so it aliases the receiver collection. A declared machine spelled
-/// the same way is not that view and inherits nothing.
+/// aliases that place. A whole builtin range view preserves its source's
+/// element positions; a narrowed window or a declared range operator does not.
 /// Returns `None` for values that do not alias a stable place (literals,
 /// arithmetic, other calls), which carry no transferable element-position facts.
 fn alias_source_label(
     program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     value: ExpressionHandle,
 ) -> Option<String> {
     match program.expression_table.expression(value) {
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
             Some(program.expression_table.display_name(value))
         }
-        ExpressionNode::Borrow(inner) => alias_source_label(program, inner.target),
-        ExpressionNode::Call(call)
-            if matches!(
-                validation::collection_operations::collection_view_call(program, call),
-                Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
-            ) =>
-        {
-            Some(program.expression_table.display_name(call.receiver))
+        ExpressionNode::Borrow(inner) => alias_source_label(program, machine, state, inner.target),
+        ExpressionNode::Indexed(_) => {
+            validation::whole_collection_view_source(program, machine, Some(state), value)
+                .map(|source| program.expression_table.display_name(source))
         }
         _ => None,
     }

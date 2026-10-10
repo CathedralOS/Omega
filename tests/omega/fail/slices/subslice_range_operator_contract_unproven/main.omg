@@ -18,7 +18,8 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) -> u64 {
-    let view: &[Entry] = main.entries.as_slice();
+    // Borrow the whole array first; only the invalid tail selects Slice::range.
+    let view: &[Entry] = &main.entries;
     let tail: &[Entry] = view[9..4];
     tail.len
 }

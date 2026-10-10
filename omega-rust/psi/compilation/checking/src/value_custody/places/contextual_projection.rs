@@ -110,6 +110,21 @@ pub fn contextual_canonical_place_from_expression(
                 statement_index,
                 indexed.collection,
             )?;
+            // A whole builtin window preserves every element's coordinate.
+            // Keeping a range selector here would instead put facts below a
+            // phantom extra collection dimension, losing domains and cleanup
+            // predicates even though the view names the same storage.
+            if let Some((machine, state)) = crate::find_state(program, state_symbol)
+                && super::builtin_coordinates::whole_collection_view_source(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .is_some()
+            {
+                return Some(place);
+            }
             place
                 .segments
                 .push(index_place_segment(program, indexed.index));

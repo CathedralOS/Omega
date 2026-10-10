@@ -66,7 +66,7 @@ impl FrameSourcePlace {
         // Use the address algebra, not the raw evidence-place builder:
         // fixed windows must retain their bounds rather than masquerading
         // as runtime element selectors in every later origin consumer.
-        let Some(place) = crate::canonical_place_from_expression(program, expression) else {
+        let Some(place) = source_coordinates(program, expression) else {
             return Self::default();
         };
         let Some(root) = place.root.as_symbol() else {
@@ -139,10 +139,10 @@ impl FrameSourcePlace {
         if !self.root.is_valid() && !self.is_static() {
             return Self::default();
         }
-        let Some(whole) = crate::canonical_place_from_expression(program, whole_expression) else {
+        let Some(whole) = source_coordinates(program, whole_expression) else {
             return Self::default();
         };
-        let Some(base) = crate::canonical_place_from_expression(program, base_expression) else {
+        let Some(base) = source_coordinates(program, base_expression) else {
             return Self::default();
         };
         let known_base = match base.root {
@@ -253,6 +253,51 @@ fn segments_have_index_geometry(segments: &[PlaceSegment]) -> bool {
                 | PlaceSegment::Index { .. }
         )
     })
+}
+
+/// Flow facts and captured frame origins use the same address projection.
+/// Whole builtin windows must not acquire an extra range dimension merely
+/// because the origin is captured for a call instead of a local binding.
+/// Recover the exact expression prefix from its authenticated declaration
+/// owner; absent scope retains the raw coordinates and grants no new meaning.
+fn source_coordinates(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<crate::CanonicalPlace> {
+    let place = crate::canonical_place_from_expression(program, expression)?;
+    // Fields and element selectors already have exact raw coordinates. Only
+    // a window can collapse a collection dimension, so only that geometry
+    // needs operation meaning and the expression's lexical owner. Ordinary
+    // sources keep their established coordinates without rescanning the body.
+    if !place.segments.iter().any(|segment| match segment {
+        PlaceSegment::FixedRange { .. } => true,
+        PlaceSegment::Index { expression } => {
+            expression.is_valid() && program.expression_table.range_node(*expression).is_some()
+        }
+        _ => false,
+    }) {
+        return Some(place);
+    }
+    let Some(root) = place.root.as_symbol() else {
+        return Some(place);
+    };
+    let Some((machine, state)) = source_owner(program, root, expression) else {
+        return Some(place);
+    };
+    let Some((owner, _, statement_index)) =
+        caller_statement_owner(program, machine, CallerWriteSite::Expression(expression))
+    else {
+        return Some(place);
+    };
+    if owner.symbol != state.symbol {
+        return Some(place);
+    }
+    crate::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        expression,
+    )
 }
 
 fn source_has_builtin_coordinates(

@@ -411,19 +411,27 @@ helper that passes does not close an item.
     partitioning and cleanup. Entry provisioning now joins explicit source
     positions; remove remaining attachment-driven discovery without changing
     provider or storage authority.
-  - View receivers: 20 corpus fixtures and `samples/cli/games/dungeon_crawler_cli`
-    still call `X.as_slice()`/`X.as_mut_slice()`; the rest spell `&X[..]`. In
-    the Rust reference the range view drops facts the receiver call carries:
-    whole-collection index/length facts at view bindings, element
-    default-domain facts (`in Utf8`),
-    cleanup `requires` through the view, and the reborrow lifecycle replay of
-    two borrow fixtures. Carry them through `[..]`, respell the rest, then
+  - View receivers: `borrows/borrow_stated_index_disequality_mut`,
+    `borrows/borrow_unknown_index_pair_mut`,
+    `samples/cli/games/dungeon_crawler_cli` and the remaining collection-view
+    probes still need ordinary borrow/range spellings. With `&mut X[..]`, the
+    paired-index fixtures stop at `resources/lifecycle.rs`: the resource ledger
+    permits only one exclusive child of a parent, before checking the proven
+    disjoint element projections. Retain exact immediate lineage and track
+    suspension of each parent branch; do not erase ancestry or treat lexical
+    expiry as restored authority. The negative fixture must reject for
+    conflicting loans, not resource replay drift. Finish these migrations, then
     retire the receiver recognizer (`collection_view_call` in
     `checking/src/value_custody/places/collection_operations.rs`) and its
     consumers. Preserve live captured extent evidence when forming ranges:
     `omega run --both tests/omega/pass/slices/runtime_captured_range_end_exit/main.omg`
     must retain the narrowed view and exit 70; replacing either the measured
     descriptor or scalar must not retain the old range-end authority.
+    Whole-range endpoints captured into scalar bindings still need live
+    correspondence to transport element domains and length aliases, including
+    `&mut main.rooms[0..main.rooms.len]` in
+    `borrows/runtime_forwarded_view_field_domain_exit`; do not infer that
+    relation by replaying the endpoint's initializer.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.
   Acceptance: static customers execute with their authored exit/output; the
@@ -4341,8 +4349,8 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     instantiate no element. Refined scalar parameter/state-arrival contracts
     still decline non-interval memberships in
     `checking/src/machine_calls/structural_call_custody.rs`; source checking of
-    record-element slice arguments still lacks their default-domain window
-    restoration. Preserve the complete predicate copy/replacement control
+    narrowed record-element slice arguments still lacks their default-domain
+    window restoration. Preserve the complete predicate copy/replacement control
     `slices/runtime_predicate_qualified_scalar_copy_exit` and the bounded
     copy and replacement controls with
     `omega run --both tests/omega/pass/slices/runtime_range_qualified_scalar_copy_exit/main.omg`,

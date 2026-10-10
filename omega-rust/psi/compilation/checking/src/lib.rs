@@ -449,7 +449,7 @@ pub use value_custody::places::{
     nearest_scoped_local, project_type_reference_from_segments, projected_statement_receiver_place,
     push_field_place_segments, receiver_projections, resolve_member_symbol_from_type_symbol,
     state_scoped_name_symbol, structural_member_identity, symbol_type_symbol,
-    unique_data_definition_by_symbol,
+    unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is

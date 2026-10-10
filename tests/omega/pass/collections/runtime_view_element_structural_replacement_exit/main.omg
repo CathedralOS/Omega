@@ -11,7 +11,7 @@ machine blank_exit(code: u64) -> Exit {
 }
 
 machine fill_exits(room: &mut Room) {
-    let exits: &mut [Exit] = room.exits.as_mut_slice();
+    let exits: &mut [Exit] = &mut room.exits[..];
     exits[2].code = 5;
     exits[0] = blank_exit(11);
     exits[1].code = 29;
@@ -26,8 +26,8 @@ machine copy_room(source: Room, destination: &mut Room) {
 
     state apply(room: Room, out_room: &mut Room) {
         out_room.cell = room.cell;
-        let out_exits: &mut [Exit] = out_room.exits.as_mut_slice();
-        let room_exits: &[Exit] = room.exits.as_slice();
+        let out_exits: &mut [Exit] = &mut out_room.exits[..];
+        let room_exits: &[Exit] = &room.exits[..];
         out_exits[0] = room_exits[2];
         out_exits[1] = room_exits[1];
     }

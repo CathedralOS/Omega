@@ -12,7 +12,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) {
-    let slots: &mut [u32] = main.b8.e.as_mut_slice();
+    let slots: &mut [u32] = &mut main.b8.e[..];
     let r16: Request = Request::Denied;
     _ = Vec::grow8to16(&mut main.v, &mut main.b8, &mut main.b16, r16);
     slots[0] = 1;

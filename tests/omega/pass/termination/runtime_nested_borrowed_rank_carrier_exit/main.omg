@@ -20,7 +20,7 @@ terminates by bag.items -> Slice::Length in 0..=capacity;
 
 machine main() crashes Trap {
     let values: [u32; 3] = [1, 2, 3];
-    let items: &[u32] = values.as_slice();
+    let items: &[u32] = &values[..];
     let bag: Bag = Bag { items: items };
     let result: u64 = walk(bag, 3);
     transition result == 0 {
