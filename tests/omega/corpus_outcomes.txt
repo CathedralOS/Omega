@@ -4960,3 +4960,6 @@ fail/traits/nominal_invocation_type_argument_not_reselected rejected 187ms expec
 	machine argument `wrong_context` for `Routine` does not refine `Callback`: parameter 1 expects `Context`, got `bool`
 pass/generics/static_callable_local_type_argument_exit checked 2559ms check-target:macos_arm64 @f08249213499
 pass/traits/applied_nominal_callback_closed_local_types_exit checked 2563ms check-target:macos_arm64 @f08249213499
+fail/drops/selected_nominal_owner_keeps_cleanup_prerequisite rejected 396ms expected @63328daf043b+wt
+	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing retained.ready == true required by Token::drop clause `token.ready`
+pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 2848ms check-target:macos_arm64 @63328daf043b+wt

@@ -147,8 +147,8 @@ pub(super) fn lower(
         // Claims stay machine-local: unrelated callees cannot shift these IDs.
         let claims = lower_unit_entry_claims(
             identities,
-            plan.state,
             plan.machine,
+            plan.state,
             plan.entry_claims,
             &parameters,
             structural_types,

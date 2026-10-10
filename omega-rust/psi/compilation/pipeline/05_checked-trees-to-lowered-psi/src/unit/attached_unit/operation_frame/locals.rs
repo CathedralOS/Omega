@@ -309,10 +309,10 @@ impl OperationFrame<'_, '_> {
             self.type_ids,
             &mut evaluation,
             self.values,
+            self.next_place,
             self.next_value,
             self.next_block,
             self.next_edge,
-            self.next_place,
             self.operations,
         )?;
         crate::emission::claim_bindings::record_prepared_introductions(
@@ -554,9 +554,9 @@ impl OperationFrame<'_, '_> {
                 &self.evaluation.structural_locals,
                 self.structural_types.declarations(),
                 self.private_places,
+                self.next_place,
                 self.next_value,
                 &mut self.calls.next_obligation_identity,
-                self.next_place,
                 self.operations,
             )?;
         self.register_structural_result(declaration, result, produced)

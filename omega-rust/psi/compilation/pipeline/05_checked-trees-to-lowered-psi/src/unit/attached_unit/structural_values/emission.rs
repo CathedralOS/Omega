@@ -967,8 +967,8 @@ impl Emission<'_, '_, '_> {
                         statement,
                         self.structural_types,
                         self.values,
-                        self.next_value,
                         self.next_place,
+                        self.next_value,
                         self.operations,
                         self.temporary_places,
                     )?;
@@ -1000,8 +1000,8 @@ impl Emission<'_, '_, '_> {
                         self.machine,
                         self.state,
                         &planned[operation],
-                        count,
                         ordinal,
+                        count,
                         self.values,
                         self.next_value,
                         self.next_block,
@@ -1027,9 +1027,9 @@ impl Emission<'_, '_, '_> {
                         self.machine,
                         self.state,
                         &planned[operation],
+                        argument,
                         segment,
                         count,
-                        argument,
                         self.values,
                         self.next_value,
                         self.next_block,
@@ -1558,7 +1558,7 @@ impl Emission<'_, '_, '_> {
                             self.domain_ids, domain, self.structural_type,
                         )
                     ).collect::<Result<Vec<_>, _>>()?;
-                    let (declaration, _) = crate::emission::structural_byte_sequence_store::emit_owned_literal(identities, bytes, self.structural_type, qualifications, self.structural_types, self.temporary_places, self.next_value, &mut self.calls.next_obligation_identity, self.next_place, self.operations)?;
+                    let (declaration, _) = crate::emission::structural_byte_sequence_store::emit_owned_literal(identities, bytes, self.structural_type, qualifications, self.structural_types, self.temporary_places, self.next_place, self.next_value, &mut self.calls.next_obligation_identity, self.operations)?;
                     let place = declaration.id;
                     self.temporary_places.push(declaration);
                     if let Some(continuation) = continuation {

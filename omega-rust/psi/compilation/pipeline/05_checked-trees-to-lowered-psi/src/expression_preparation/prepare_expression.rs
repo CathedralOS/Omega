@@ -668,7 +668,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             let (source, structural_type) =
                 structural_fields.observation_source(*root, structural_locals, view_locals)?;
             let (source, path, explicit_path, scalar_type) =
-                crate::expression_preparation::bindings::structural_fields::resolve_indexed_element(identities, structural_fields, source, structural_type, &geometry, path)?;
+                crate::expression_preparation::bindings::structural_fields::resolve_indexed_element(identities, structural_fields, source, structural_type, path, &geometry)?;
             if scalar_type != terminal_scalar_type(*primitive_type)? {
                 return unsupported("indexed read changes its declared scalar carrier");
             }

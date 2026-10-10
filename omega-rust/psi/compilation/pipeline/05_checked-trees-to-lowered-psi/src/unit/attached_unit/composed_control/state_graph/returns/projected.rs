@@ -99,7 +99,7 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
         }
         .emit(
             identities,
-            &mut Vec::new(),
+            &regions,
             &mut Vec::new(),
             next_value,
             next_block,

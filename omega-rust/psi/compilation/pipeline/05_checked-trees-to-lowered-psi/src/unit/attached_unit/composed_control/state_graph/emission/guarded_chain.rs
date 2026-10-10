@@ -84,8 +84,8 @@ impl StateGraphEmission<'_, '_> {
                 let guard = evaluation.guard_value(
                     identities,
                     checked,
-                    state.state,
                     owner,
+                    state.state,
                     arm.statement_ordinal(),
                     values,
                     next_value,

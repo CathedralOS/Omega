@@ -781,13 +781,13 @@ impl Evaluation {
                             &bindings,
                             &source_types,
                             (
-                                false_target,
+                                true_target,
                                 crate::scalar_lowering::computations::parameters(&source_types),
                                 Vec::new(),
                                 self.proof_formal_forwarding(),
                             ),
                             (
-                                true_target,
+                                false_target,
                                 crate::scalar_lowering::computations::parameters(&source_types),
                                 Vec::new(),
                                 self.proof_formal_forwarding(),
@@ -911,13 +911,13 @@ impl Evaluation {
                                 &bindings,
                                 &source_types,
                                 (
-                                    next,
+                                    target,
                                     crate::scalar_lowering::computations::parameters(&source_types),
                                     Vec::new(),
                                     self.proof_formal_forwarding(),
                                 ),
                                 (
-                                    target,
+                                    next,
                                     crate::scalar_lowering::computations::parameters(&source_types),
                                     Vec::new(),
                                     self.proof_formal_forwarding(),

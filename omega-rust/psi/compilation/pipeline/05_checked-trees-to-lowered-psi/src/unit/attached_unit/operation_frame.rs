@@ -585,7 +585,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             arguments,
             self.structural_types.declarations(),
-            &[],
+            self.parameters,
             &[],
             earlier,
             &self.operations.structural_values.clone(),

@@ -333,7 +333,19 @@ impl StateGraphEmission<'_, '_> {
                                 );
                             }
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                            self.structural_places.push(case_leaf_copy::emit(identities, &self.catalogs.structural_types, source, root_type, &subject.path, &field_identity.spelling(), &case_identity.spelling(), path, target_parameter, destination, operations)?);
+                            self.structural_places.push(case_leaf_copy::emit(
+identities,
+&self.catalogs.structural_types,
+source,
+root_type,
+&subject.path,
+&case_identity.spelling(),
+&field_identity.spelling(),
+path,
+target_parameter,
+destination,
+operations,
+)?);
                             destination
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
@@ -669,8 +681,8 @@ impl StateGraphEmission<'_, '_> {
                     let value = edge_evaluation.source_value(
                         identities,
                         checked,
-                        state.state,
                         owner,
+                        state.state,
                         edge.statement_ordinal,
                         CheckedScalarExpressionRole::TransitionArgument {
                             argument_ordinal: transfer.argument_ordinal,

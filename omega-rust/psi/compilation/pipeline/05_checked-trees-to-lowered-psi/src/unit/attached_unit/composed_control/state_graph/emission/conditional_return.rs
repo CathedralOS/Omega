@@ -223,8 +223,8 @@ impl StateGraphEmission<'_, '_> {
                 let value = arm_evaluation.source_value(
                     identities,
                     checked,
-                    state.state,
                     plan.machine,
+                    state.state,
                     *statement_ordinal,
                     role,
                     &retained,

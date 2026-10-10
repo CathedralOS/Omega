@@ -117,8 +117,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     let entry = &plan.states[0];
     let mut claims = crate::unit::attached_unit::claims::lower_unit_entry_claims(
         identities,
-        entry.state,
         plan.machine,
+        entry.state,
         &entry.entry_claims,
         &parameters,
         &catalogs.structural_types,
@@ -434,8 +434,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         }
         let lowered = crate::unit::attached_unit::claims::lower_unit_entry_claims(
             identities,
-            state.state,
             state_owners[position].1,
+            state.state,
             &state.entry_claims,
             &state_views[position],
             &catalogs.structural_types,

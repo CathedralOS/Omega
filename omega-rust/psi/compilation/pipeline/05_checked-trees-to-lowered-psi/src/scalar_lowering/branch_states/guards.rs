@@ -40,8 +40,8 @@ pub(crate) fn lower(
         statement,
         bindings,
         source_types,
-        when_false,
         when_true,
+        when_false,
         computations,
     )
 }

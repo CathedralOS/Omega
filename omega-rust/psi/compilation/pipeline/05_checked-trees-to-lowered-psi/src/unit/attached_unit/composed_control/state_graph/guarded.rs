@@ -99,8 +99,8 @@ pub(super) fn emit(
         let condition = evaluation.guard_value(
             identities,
             checked,
-            state.state,
             plan.machine,
+            state.state,
             guard.guard_statement_ordinal,
             values,
             next_value,

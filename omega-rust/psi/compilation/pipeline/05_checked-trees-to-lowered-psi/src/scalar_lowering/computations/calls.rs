@@ -152,10 +152,10 @@ pub(crate) fn consume_pure_call_arguments(
             checked,
             bindings,
             state,
+            statement,
             binding_ordinal,
             *call_ordinal,
             argument_ordinal,
-            statement,
             operand,
         )?;
     }
@@ -231,9 +231,9 @@ impl Expansion<'_> {
             identities,
             self.checked,
             source_call,
+            target_machine,
             target_state,
             site.state,
-            target_machine,
             structural,
             site.bindings,
             &self.produced_values,
@@ -712,8 +712,8 @@ impl Expansion<'_> {
             let claims = crate::emission::claim_bindings::prepare_claim_dispositions(
                 identities,
                 self.checked,
-                state,
                 self.machine,
+                state,
                 language_semantics::PermissionEventSource::Call {
                     statement_index: call.statement_index,
                     call_ordinal: call.call_ordinal,

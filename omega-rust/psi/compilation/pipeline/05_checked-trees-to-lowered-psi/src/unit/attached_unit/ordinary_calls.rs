@@ -156,8 +156,8 @@ pub(super) fn prepare(
             crate::proofs::crash_routes::checked_scalar_term(
                 identities,
                 expression,
-                caller_erased_scalar_parameters,
                 caller_scalar_values,
+                caller_erased_scalar_parameters,
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

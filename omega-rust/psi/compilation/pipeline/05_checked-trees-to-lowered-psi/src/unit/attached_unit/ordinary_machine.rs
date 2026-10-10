@@ -297,8 +297,8 @@ pub(super) fn emit(
         crate::scalar_lowering::computations::fields::prepare_place_observations(
             identities,
             checked,
-            plan.state,
             plan.machine,
+            plan.state,
             structural_types,
         );
     evaluation.record_fields = crate::scalar_lowering::computations::fields::prepare(
@@ -553,14 +553,14 @@ pub(super) fn emit(
             let result = evaluation.scalar_control_result(
                 identities,
                 checked,
-                plan.state,
                 plan.machine,
+                plan.state,
                 control,
                 &[],
                 &mut scalar_result_values,
+                &mut next_value_identity,
                 &mut next_block,
                 &mut next_edge,
-                &mut next_value_identity,
                 &mut operations,
                 &mut scalar_calls,
             )?;
@@ -1362,8 +1362,8 @@ impl MachineEmission<'_> {
                     statement,
                     self.structural_types,
                     &self.scalar_result_values,
-                    &mut self.next_value_identity,
                     &mut self.next_place,
+                    &mut self.next_value_identity,
                     &mut self.operations,
                     &mut self.private_places,
                 )?;
@@ -1403,15 +1403,15 @@ impl MachineEmission<'_> {
                 let value = self.evaluation.argument_at(
                     identities,
                     checked,
-                    plan.state,
                     plan.machine,
+                    plan.state,
                     &plan.operations[operation],
-                    source_value_count,
                     ordinal,
+                    source_value_count,
                     &mut self.scalar_result_values,
+                    &mut self.next_value_identity,
                     &mut self.next_block,
                     &mut self.next_edge,
-                    &mut self.next_value_identity,
                     &mut self.operations,
                     &mut self.scalar_calls,
                 )?;
@@ -1433,16 +1433,16 @@ impl MachineEmission<'_> {
                 let value = self.evaluation.call_selector(
                     identities,
                     checked,
-                    plan.state,
                     plan.machine,
+                    plan.state,
                     &plan.operations[operation],
+                    argument,
                     segment,
                     source_value_count,
-                    argument,
                     &mut self.scalar_result_values,
+                    &mut self.next_value_identity,
                     &mut self.next_block,
                     &mut self.next_edge,
-                    &mut self.next_value_identity,
                     &mut self.operations,
                     &mut self.scalar_calls,
                 )?;
@@ -1489,10 +1489,10 @@ impl MachineEmission<'_> {
                     source_value_count,
                     &mut self.scalar_result_values,
                     &mut self.subslice_places,
+                    &mut self.next_place,
                     &mut self.next_value_identity,
                     &mut self.next_block,
                     &mut self.next_edge,
-                    &mut self.next_place,
                     &mut self.operations,
                     &mut self.scalar_calls,
                 )?;
@@ -1541,13 +1541,13 @@ impl MachineEmission<'_> {
             self.evaluation.arguments(
                 identities,
                 checked,
-                plan.state,
                 plan.machine,
+                plan.state,
                 operation,
                 &mut self.scalar_result_values,
+                &mut self.next_value_identity,
                 &mut self.next_block,
                 &mut self.next_edge,
-                &mut self.next_value_identity,
                 &mut self.operations,
                 &mut self.scalar_calls,
             )?

@@ -335,8 +335,8 @@ impl<'a> Expansion<'a> {
                 self.checked,
                 site.bindings,
                 root.state,
-                binding_ordinal,
                 root.statement_ordinal,
+                binding_ordinal,
                 root.root,
             )?;
         }
@@ -708,9 +708,9 @@ impl<'a> Expansion<'a> {
                 ..
             } => self.selection(
                 identities,
+                condition,
                 when_true,
                 when_false,
-                condition,
                 result_type,
                 input_types,
                 target,

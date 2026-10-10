@@ -445,9 +445,9 @@ impl OperationFrame<'_, '_> {
             &self.evaluation.structural_locals,
             self.structural_types.declarations(),
             self.private_places,
+            self.next_place,
             self.next_value,
             &mut self.calls.next_obligation_identity,
-            self.next_place,
             self.operations,
         )?;
         self.push_unit(kind);

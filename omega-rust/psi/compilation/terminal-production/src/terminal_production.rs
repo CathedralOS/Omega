@@ -71,7 +71,7 @@ impl<'a> TerminalProductionRequest<'a> {
         // One shared identity builder interns every row identity across the
         // whole production; the sealed table lands on the module once.
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-        let lowered = observer
+        let mut lowered = observer
             .record_result(TerminalProductionStage::Lowering, || {
                 lower_machine(
                     &mut identities,
@@ -81,6 +81,10 @@ impl<'a> TerminalProductionRequest<'a> {
                 )
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
+        // Declaration and retained-evidence rows can intern identities after
+        // the initial machine graph is formed. Publish the complete table
+        // before any consumer resolves those rows.
+        lowered.semantic_module.identities = identities.build();
         if let (Some(admission), Some(selection)) = (admission, entry_selection) {
             let provenance = lowered_machine_provenance(checked, &lowered, selection.machine);
             admission

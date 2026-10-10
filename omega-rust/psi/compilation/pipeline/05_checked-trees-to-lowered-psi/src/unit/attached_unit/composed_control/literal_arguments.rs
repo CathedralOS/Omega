@@ -48,7 +48,7 @@ pub(super) fn evaluate(
         }
         let mut calls = catalogs.scalar_calls.emission_context();
         let values = evaluation.arguments(
-            identities, checked, state, machine, operation, values, next_value, next_block,
+            identities, checked, machine, state, operation, values, next_value, next_block,
             next_edge, operations, &mut calls,
         )?;
         catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
@@ -128,8 +128,8 @@ pub(super) fn evaluate(
                         checked,
                         state_plan,
                         operation,
-                        source_value_count,
                         structural_ordinal,
+                        source_value_count,
                         catalogs,
                         evaluation,
                         values,
@@ -152,8 +152,8 @@ pub(super) fn evaluate(
                 machine,
                 state,
                 operation,
-                source_value_count,
                 scalar_slots.len(),
+                source_value_count,
                 values,
                 next_value,
                 next_block,
@@ -236,10 +236,10 @@ pub(super) fn stage_range(
         source_value_count,
         values,
         &mut catalogs.temporary_places,
+        &mut catalogs.next_place,
         next_value,
         next_block,
         next_edge,
-        &mut catalogs.next_place,
         operations,
         &mut calls,
     );
@@ -275,9 +275,9 @@ fn establish(
         qualifications,
         &catalogs.structural_types,
         &mut catalogs.temporary_places,
+        &mut catalogs.next_place,
         next_value,
         &mut catalogs.scalar_calls.next_call_obligation,
-        &mut catalogs.next_place,
         operations,
     )?;
     Ok(declaration.id)

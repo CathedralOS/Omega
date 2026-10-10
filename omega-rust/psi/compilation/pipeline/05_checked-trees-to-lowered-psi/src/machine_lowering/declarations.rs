@@ -12,6 +12,19 @@ pub(super) fn identity(
     sources: &[(source::SourceId, [u8; 32])],
     machine: SymbolHandle,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
+    let declaration = checked
+        .machine(machine)
+        .ok_or("checked machine declaration is absent")?;
+    let entry = checked
+        .machine_states(declaration)
+        .first()
+        .ok_or("checked machine declaration has no entry state")?;
+    // Entry receipts retain the authored parameter type, including its
+    // reference access. Structural declarations name only the owned referent,
+    // so their identities cannot stand in for this source-signature identity.
+    for parameter in checked.state_parameters(entry) {
+        identities.intern(&checked.normalized_type_identity_text(parameter.type_reference));
+    }
     let mut nominal = |symbol| {
         checked
             .exact_owner_nominal_identity(symbol, sources)
@@ -22,13 +35,6 @@ pub(super) fn identity(
                 )
             })
     };
-    let declaration = checked
-        .machine(machine)
-        .ok_or("checked machine declaration is absent")?;
-    let entry = checked
-        .machine_states(declaration)
-        .first()
-        .ok_or("checked machine declaration has no entry state")?;
     let contract = checked
         .facts
         .contract_plans

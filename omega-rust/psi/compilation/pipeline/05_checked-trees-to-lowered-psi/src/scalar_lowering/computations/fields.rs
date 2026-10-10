@@ -626,7 +626,7 @@ pub(crate) fn loaned_store(
     let checked_trees::CheckedStoreRoot::Local { symbol } = root else {
         return Ok(None);
     };
-    let Some(loan) = loan_subject(identities, checked, state, symbol, machine, types)? else {
+    let Some(loan) = loan_subject(identities, checked, machine, state, symbol, types)? else {
         return Ok(None);
     };
     if loan.access != checked_trees::CheckedStructuralAccess::MutableBorrow {
@@ -686,7 +686,7 @@ pub(crate) fn loaned_primitive_store(
     let checked_trees::CheckedStoreRoot::Local { symbol } = destination else {
         return Ok(None);
     };
-    let Some(loan) = loan_subject(identities, checked, state, *symbol, machine, types)? else {
+    let Some(loan) = loan_subject(identities, checked, machine, state, *symbol, types)? else {
         return Ok(None);
     };
     let Some(overlay) = &loan.byte_overlay else {

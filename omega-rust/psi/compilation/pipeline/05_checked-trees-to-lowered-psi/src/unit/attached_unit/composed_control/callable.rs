@@ -123,8 +123,8 @@ pub(in crate::unit::attached_unit) fn emit(
             admitted,
             identity,
             parameters,
-            entry_erased_formals,
             scalar_parameters,
+            entry_erased_formals,
             &mut catalogs,
         )?;
     // `requires` already carries the merged closed clause proposition ahead

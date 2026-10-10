@@ -93,9 +93,9 @@ impl StateGraphEmission<'_, '_> {
                     self.catalogs,
                     &mut evaluation,
                     &mut values,
+                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
-                    &mut next_value,
                     &mut operations,
                 )?;
                 terminator = completion;
@@ -111,9 +111,9 @@ impl StateGraphEmission<'_, '_> {
                     self.checked,
                     regions,
                     &mut values,
+                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
-                    &mut next_value,
                     &mut operations,
                 )?;
                 let Terminator::ReturnStructural {

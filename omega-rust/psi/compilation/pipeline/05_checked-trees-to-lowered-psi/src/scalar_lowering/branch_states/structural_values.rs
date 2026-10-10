@@ -196,8 +196,8 @@ pub(crate) fn prepare_value(
     let claims = prepare_establishment_claims(
         identities,
         checked,
-        state,
         machine.symbol,
+        state,
         statement as usize,
         owner,
         reference,

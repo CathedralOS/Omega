@@ -289,9 +289,9 @@ impl StateGraphEmission<'_, '_> {
                 root,
                 &bindings,
                 &mut values,
+                &mut next_value,
                 &mut next_block,
                 &mut next_edge,
-                &mut next_value,
                 &mut operations,
                 &mut calls,
             )?;
@@ -323,9 +323,9 @@ impl StateGraphEmission<'_, '_> {
             &mut evaluation,
             &mut values,
             &self.state_erased[position],
+            &mut next_value,
             &mut next_block,
             &mut next_edge,
-            &mut next_value,
             &mut operations,
         )?;
         if operations.external_completion.is_some() {
@@ -390,8 +390,8 @@ impl StateGraphEmission<'_, '_> {
             capture_boundary,
             &self.catalogs.structural_types,
             &values,
-            &mut next_value,
             &mut self.catalogs.next_place,
+            &mut next_value,
             &mut operations,
             &mut self.catalogs.temporary_places,
         )?;
@@ -432,13 +432,13 @@ impl StateGraphEmission<'_, '_> {
                 let condition = evaluation.guard_value(
                     identities,
                     checked,
-                    state.state,
                     owner,
+                    state.state,
                     true_ordinal,
                     &mut values,
+                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
-                    &mut next_value,
                     &mut operations,
                     &mut calls,
                 )?;
@@ -473,13 +473,13 @@ impl StateGraphEmission<'_, '_> {
                 let condition = evaluation.guard_value(
                     identities,
                     checked,
-                    state.state,
                     owner,
+                    state.state,
                     first.statement_ordinal(),
                     &mut values,
+                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
-                    &mut next_value,
                     &mut operations,
                     &mut calls,
                 )?;
@@ -509,9 +509,9 @@ impl StateGraphEmission<'_, '_> {
             &mut evaluation,
             &mut values,
             &self.state_erased[position],
+            &mut next_value,
             &mut next_block,
             &mut next_edge,
-            &mut next_value,
             &mut operations,
         )?;
         let is_guarded_return = guarded_return.is_some();
@@ -539,14 +539,14 @@ impl StateGraphEmission<'_, '_> {
                 let value = evaluation.scalar_control_result(
                     identities,
                     checked,
-                    state.state,
                     owner,
+                    state.state,
                     exits,
                     &cleanups,
                     &mut values,
+                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
-                    &mut next_value,
                     &mut operations,
                     &mut calls,
                 )?;
@@ -606,9 +606,9 @@ impl StateGraphEmission<'_, '_> {
                     arms,
                     &mut values,
                     &mut evaluation,
+                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
-                    &mut next_value,
                     &mut operations,
                 )?
             } else {
@@ -787,9 +787,9 @@ impl StateGraphEmission<'_, '_> {
                             &case_subject_discards,
                             return_arm,
                             &mut evaluation,
+                            &mut next_value,
                             &mut next_block,
                             &mut next_edge,
-                            &mut next_value,
                             &mut operations,
                         )?;
                         if case.values.is_empty() {
@@ -924,9 +924,9 @@ impl StateGraphEmission<'_, '_> {
                     self.checked,
                     regions,
                     &mut values,
+                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
-                    &mut next_value,
                     &mut operations,
                 )?;
                 if let Some(position) = return_position {
@@ -1138,11 +1138,11 @@ impl StateGraphEmission<'_, '_> {
                         },
                         &mut self.block_ranks,
                         &mut self.rank_edges,
-                        &mut evaluation.blocks,
                         &mut edge_blocks,
+                        &mut evaluation.blocks,
+                        &mut next_block,
                         &mut next_value,
                         &mut next_edge,
-                        &mut next_block,
                         &mut operations,
                     )?
                 } else {
@@ -1251,11 +1251,11 @@ impl StateGraphEmission<'_, '_> {
                             },
                             &mut self.block_ranks,
                             &mut self.rank_edges,
-                            &mut evaluation.blocks,
                             &mut edge_blocks,
+                            &mut evaluation.blocks,
+                            &mut next_block,
                             &mut next_value,
                             &mut next_edge,
-                            &mut next_block,
                             &mut operations,
                         )?,
                     };
@@ -1299,11 +1299,11 @@ impl StateGraphEmission<'_, '_> {
                         },
                         &mut self.block_ranks,
                         &mut self.rank_edges,
-                        &mut evaluation.blocks,
                         &mut edge_blocks,
+                        &mut evaluation.blocks,
+                        &mut next_block,
                         &mut next_value,
                         &mut next_edge,
-                        &mut next_block,
                         &mut operations,
                     )?,
                     None => Terminator::Conditional {

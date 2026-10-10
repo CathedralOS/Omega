@@ -445,8 +445,8 @@ impl PredicateTerms for ScalarContractTerms<'_> {
             _ => crate::proofs::crash_routes::checked_boolean_scalar_term(
                 identities,
                 expression,
-                self.erased,
                 self.namespace,
+                self.erased,
             ),
         }
     }
@@ -533,8 +533,8 @@ impl ScalarContractTerms<'_> {
         crate::proofs::crash_routes::checked_scalar_term_with_views(
             identities,
             expression,
-            self.erased,
             self.namespace,
+            self.erased,
             self.views.parameters,
             self.views.element_views,
         )

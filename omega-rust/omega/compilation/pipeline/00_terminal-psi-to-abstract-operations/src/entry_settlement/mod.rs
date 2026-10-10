@@ -110,6 +110,7 @@ fn validate_receiver_eligibility(
                     .iter()
                     .filter(|row| {
                         module.identities.text(field.field_identity()) == Some(row.field_identity())
+                            && row.field_path().len() == field.field_path().len()
                             && row.field_path().iter().zip(field.field_path()).all(
                                 |(row_segment, field_segment)| {
                                     module.identities.text(*field_segment)

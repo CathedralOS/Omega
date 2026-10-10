@@ -569,8 +569,8 @@ impl ScalarBindings {
                 self.structural_fields.declarations(),
                 structural_type,
                 source.place,
-                &static_path(&argument.path[selector_position + 1..])?,
                 &static_path(&argument.path[..selector_position])?,
+                &static_path(&argument.path[selector_position + 1..])?,
                 &checked_trees::CheckedMemberIdentity::of_spelling(&case),
             )?;
         let index = match selector {

@@ -115,13 +115,13 @@ pub(super) fn checked_boolean_proposition_with_budget(
             scalar_ieee_float_comparison_proposition(
                 identities,
                 negated_float_comparison_kind(*kind),
-                right,
                 left,
+                right,
                 values,
             )
         }
         CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
-            scalar_ieee_float_comparison_proposition(identities, *kind, right, left, values)
+            scalar_ieee_float_comparison_proposition(identities, *kind, left, right, values)
         }
         CheckedBooleanExpression::Equal { .. } if contains_boolean_connective(expression) => {
             checked_boolean_connective_polarity(
@@ -183,7 +183,7 @@ pub(super) fn checked_boolean_proposition_with_budget(
             })
         }
         expression => {
-            let mut left = checked_boolean_scalar_term(identities, expression, &[], values)?;
+            let mut left = checked_boolean_scalar_term(identities, expression, values, &[])?;
             let mut right = ScalarTerm::boolean(true);
             if left > right {
                 std::mem::swap(&mut left, &mut right);
@@ -363,8 +363,8 @@ pub(super) fn checked_boolean_atom_polarity(
     let mut left = ScalarTerm::boolean_not(checked_boolean_scalar_term(
         identities,
         expression,
-        &[],
         values,
+        &[],
     )?)
     .map_err(LoweringError::InvalidCrashPredicate)?;
     let mut right = ScalarTerm::boolean(true);
