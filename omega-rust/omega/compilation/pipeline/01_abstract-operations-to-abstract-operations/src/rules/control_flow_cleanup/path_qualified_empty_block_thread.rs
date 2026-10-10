@@ -9,12 +9,13 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    NodeLocation, PathQualifiedEmptyBlockRewrite, ProvenanceDisposition, ProvenanceRewrite,
+    NodeLocation, PathQualifiedEmptyBlockRewrite, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
     compose_linear_thread_bindings, linear_thread_ownership_is_identity,
 };
@@ -201,18 +202,8 @@ pub(super) fn path_thread_accounting(
                     machine: function.machine,
                     edge: edge.psi_edge,
                 };
-                realized.push(ProvenanceRewrite {
-                    input: site,
-                    disposition: ProvenanceDisposition::RealizedAt(site),
-                    sources: edge.provenance.clone(),
-                    fuel: edge.fuel.clone(),
-                });
-                realized.push(ProvenanceRewrite {
-                    input: outgoing_site,
-                    disposition: ProvenanceDisposition::RealizedAt(site),
-                    sources: outgoing.provenance.clone(),
-                    fuel: outgoing.fuel.clone(),
-                });
+                realized.push(provenance_realized_at(site, site, &edge.provenance, &edge.fuel));
+                realized.push(provenance_realized_at(outgoing_site, site, &outgoing.provenance, &outgoing.fuel));
             }
         }
     }
@@ -236,12 +227,7 @@ pub(super) fn path_thread_accounting(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(ProvenanceRewrite {
-                        input: site,
-                        disposition: ProvenanceDisposition::RealizedAt(site),
-                        sources: node.provenance.clone(),
-                        fuel: node.fuel.clone(),
-                    });
+                    realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;

@@ -17,6 +17,7 @@ use optimization_unit::{
 use semantic_vocabulary::BlockId;
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;
 use crate::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_witness;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
@@ -219,15 +220,10 @@ pub(super) fn adjacent_merge_accounting(
         first
             .successors
             .iter()
-            .map(|successor| ProvenanceRewrite {
-                input: incoming_site,
-                disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Edge {
+            .map(|successor| provenance_realized_at(incoming_site, PsiRealizationSite::Edge {
                     machine: function.machine,
                     edge: successor.psi_edge,
-                }),
-                sources: incoming.provenance.clone(),
-                fuel: incoming.fuel.clone(),
-            })
+                }, &incoming.provenance, &incoming.fuel))
             .collect()
     } else {
         return None;
@@ -313,12 +309,7 @@ fn record_node_provenance<'node>(
             block: block.id,
             node: u32::try_from(node_index).ok()?,
         });
-        realized.push(ProvenanceRewrite {
-            input: site,
-            disposition: ProvenanceDisposition::RealizedAt(site),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+        realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
     }
     Some(())
 }

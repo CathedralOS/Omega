@@ -7,6 +7,10 @@
 //! private-machine pruning.
 
 use crate::rules::catalog::BuiltInRuleRegistration;
+use optimization_unit::{
+    FuelSettlement, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
+    PsiRealizationSite,
+};
 
 mod adjacent_block_merge;
 mod block_merge_substitutions;
@@ -38,4 +42,21 @@ pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
         BuiltInRuleRegistration::new(5, UnreachablePrivateMachinePruneRule),
         BuiltInRuleRegistration::new(6, NonAdjacentBlockMergeRule),
     ]
+}
+
+/// One realized-at rewrite shared by every cleanup rule's site stamp: the
+/// disposition lands at `realized_at` while provenance and fuel move over from
+/// the stamped source.
+pub(super) fn provenance_realized_at(
+    input: PsiRealizationSite,
+    realized_at: PsiRealizationSite,
+    sources: &[PsiProvenance],
+    fuel: &[FuelSettlement],
+) -> ProvenanceRewrite {
+    ProvenanceRewrite {
+        input,
+        disposition: ProvenanceDisposition::RealizedAt(realized_at),
+        sources: sources.to_vec(),
+        fuel: fuel.to_vec(),
+    }
 }

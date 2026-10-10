@@ -14,6 +14,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -158,12 +159,7 @@ fn conditional_fold_accounting(
         .collect::<BTreeSet<_>>();
     let mut affected = BTreeSet::from([decision.block]);
     affected.extend(removed.iter().copied());
-    let mut realized = vec![ProvenanceRewrite {
-        input: selected_site,
-        disposition: ProvenanceDisposition::RealizedAt(selected_site),
-        sources: selected.provenance.clone(),
-        fuel: selected.fuel.clone(),
-    }];
+    let mut realized = vec![provenance_realized_at(selected_site, selected_site, &selected.provenance, &selected.fuel)];
     let mut unreachable = vec![ProvenanceRewrite {
         input: rejected_site,
         disposition: ProvenanceDisposition::ProvenUnreachableAt(rejected_site),
@@ -215,12 +211,7 @@ fn conditional_fold_accounting(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(ProvenanceRewrite {
-                        input: site,
-                        disposition: ProvenanceDisposition::RealizedAt(site),
-                        sources: node.provenance.clone(),
-                        fuel: node.fuel.clone(),
-                    });
+                    realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;

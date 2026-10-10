@@ -9,12 +9,13 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    LinearEmptyBlockRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
+    LinearEmptyBlockRewrite, NodeLocation, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::BlockId;
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::rules::control_flow_cleanup::empty_block_thread_bindings::{
     compose_linear_thread_bindings, linear_thread_ownership_is_identity,
 };
@@ -212,18 +213,8 @@ pub(super) fn linear_thread_accounting(
 
     let mut affected = BTreeSet::from([predecessor.block, empty.block]);
     let mut realized = vec![
-        ProvenanceRewrite {
-            input: predecessor_site,
-            disposition: ProvenanceDisposition::RealizedAt(output_site),
-            sources: predecessor_edge.provenance.clone(),
-            fuel: predecessor_edge.fuel.clone(),
-        },
-        ProvenanceRewrite {
-            input: empty_site,
-            disposition: ProvenanceDisposition::RealizedAt(output_site),
-            sources: empty_edge.provenance.clone(),
-            fuel: empty_edge.fuel.clone(),
-        },
+        provenance_realized_at(predecessor_site, output_site, &predecessor_edge.provenance, &predecessor_edge.fuel),
+        provenance_realized_at(empty_site, output_site, &empty_edge.provenance, &empty_edge.fuel),
     ];
     let mut expected_effect = 0u64;
     for block in &function.blocks {
@@ -242,12 +233,7 @@ pub(super) fn linear_thread_accounting(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(ProvenanceRewrite {
-                        input: site,
-                        disposition: ProvenanceDisposition::RealizedAt(site),
-                        sources: node.provenance.clone(),
-                        fuel: node.fuel.clone(),
-                    });
+                    realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;
