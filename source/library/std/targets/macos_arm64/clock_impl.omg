@@ -6,6 +6,7 @@
 // adapter over it.
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
+use clock;
 
 // The darwin timed wait. It is the `Clock` service's own wait, so it reaches
 // `Clock` and the adapter calling it stays inside `Clock::sleep`'s ceiling.

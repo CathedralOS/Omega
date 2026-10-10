@@ -13,6 +13,9 @@
 // syscall 80 (`fstat`). Link count and block size are the width-varying fields;
 // the portable record keeps their semantic carriers while this policy owns the
 // physical widths and offsets.
+use filesystem;
+use filesystem_host;
+
 linux_arm64 machine StatLayout::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };

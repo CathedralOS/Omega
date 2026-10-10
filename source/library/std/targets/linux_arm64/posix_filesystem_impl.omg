@@ -2,6 +2,9 @@
 // requirements and adapters as linux_x86_64 (`targets/linux_x86_64/
 // posix_filesystem_impl.omg`), satisfied with arm64 system call numbers.
 use omega::language::core::external_binding;
+use posix_filesystem_host;
+use filesystem_host;
+use targets::linux_x86_64::posix_filesystem_impl;
 
 linux_arm64 machine PosixFilesystemLinuxSyscalls::openat(dirfd: i32, path: &u8, flags: i32, mode: i32) -> i32
     satisfies PosixFilesystemLinux::openat

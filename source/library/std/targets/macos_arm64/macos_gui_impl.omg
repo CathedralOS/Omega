@@ -6,6 +6,7 @@
 // requirement.
 
 use omega::language::core::external_binding;
+use macos_gui;
 
 // AppKit supplies Cocoa classes; libobjc alone does not load them.
 pub macos_arm64 machine appkit_load_binding() -> ForeignBinding<50, 18, 0> {

@@ -11,6 +11,9 @@
 // Linux x86-64 kernel `struct stat` as written by syscall 5 (`fstat`). The
 // portable record keeps semantic carriers; this policy owns the kernel offsets
 // and uses IntegerAt only for genuinely narrower physical integers.
+use filesystem;
+use filesystem_host;
+
 linux_x86_64 machine StatLayout::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };

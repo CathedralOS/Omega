@@ -23,6 +23,7 @@
 // `TimeHost` requirement to a selected provider row.
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
+use time_host;
 
 // The kernel's 64-bit timespec, in declaration order; both fields are signed.
 // One record serves the read out-parameter and the sleep in-parameter.

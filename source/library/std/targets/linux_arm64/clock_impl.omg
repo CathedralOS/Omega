@@ -5,6 +5,7 @@
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/time_types.h
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
+use clock;
 
 pub data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
 

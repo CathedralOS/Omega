@@ -24,6 +24,8 @@
 // `o + k` is representable without a dominating conjunct.
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
+use windows_filesystem_host;
+use filesystem_host;
 
 data WindowsFilesystemIo { }
 data WindowsFilesystemImports { }

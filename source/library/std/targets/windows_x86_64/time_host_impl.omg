@@ -31,6 +31,7 @@
 // `TimeHost` requirement to a selected provider row.
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
+use time_host;
 
 // Per-target requirement carrier. A `boundary requirement` is target-neutral,
 // so each target's seam owns its own carrier type rather than re-declaring a

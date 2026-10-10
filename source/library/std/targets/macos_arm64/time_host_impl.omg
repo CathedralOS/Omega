@@ -5,6 +5,7 @@
 // https://github.com/apple-oss-distributions/Libc/blob/main/gen/clock_gettime.c
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
+use time_host;
 
 boundary requirement TimeHostNativeProvider::clock_nanoseconds(clock_id: u32) -> u64
 reaches TimeHost;

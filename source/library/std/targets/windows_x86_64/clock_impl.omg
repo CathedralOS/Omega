@@ -3,6 +3,7 @@
 // like every other Windows boundary leaf; `Sleep` takes the millisecond count
 // as its single argument, so the leaf signature IS the requirement signature.
 use omega::language::core::external_binding;
+use clock;
 
 windows_x86_64 machine clock_sleep_binding() -> ForeignBinding<12, 5, 0> {
     ForeignBinding::DllImport {

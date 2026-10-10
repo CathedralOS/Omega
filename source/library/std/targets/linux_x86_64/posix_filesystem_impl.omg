@@ -5,6 +5,8 @@
 // The kernel-shaped requirements are declared once here; linux_arm64
 // satisfies the same requirements with its own system call numbers.
 use omega::language::core::external_binding;
+use posix_filesystem_host;
+use filesystem_host;
 
 data PosixFilesystemLinux { }  // requirement namespace for the system calls
 data PosixFilesystemLinuxSyscalls { }

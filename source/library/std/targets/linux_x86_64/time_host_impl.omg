@@ -27,6 +27,7 @@
 // `TimeHost` requirement to a selected provider row.
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
+use time_host;
 
 // The kernel's 64-bit timespec, in declaration order. Both fields are SIGNED;
 // a CLOCK_MONOTONIC read or a post-1970 CLOCK_REALTIME read is nonnegative,

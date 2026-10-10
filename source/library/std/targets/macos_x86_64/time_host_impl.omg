@@ -26,6 +26,7 @@
 // Rosetta; that is the native evidence for this file.
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
+use time_host;
 
 data DarwinX64TimeRead { }
 

@@ -17,6 +17,8 @@
 // `_memcpy`; Darwin's `errno` values stop at `ELAST` (106), so that byte is
 // the whole value.
 use omega::language::core::external_binding;
+use posix_filesystem_host;
+use filesystem_host;
 
 macos_arm64 machine posix_darwin_open_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport {

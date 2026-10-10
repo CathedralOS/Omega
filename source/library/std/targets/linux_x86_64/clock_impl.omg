@@ -9,6 +9,7 @@
 // supplies neither target instructions nor fabricated import-stack evidence.
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
+use clock;
 
 data LinuxClockWait { }
 

@@ -16,6 +16,9 @@
 // macOS arm64 Darwin `struct stat` layout. The policy is ordinary checked
 // build-time Omega code; offsets and physical integer widths are foreign-format
 // facts owned by this target package, not provider-plan scalar values.
+use filesystem;
+use filesystem_host;
+
 macos_arm64 machine StatLayout::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt { offset: 0, stored_width: 32, interpretation: IntegerInterpretation::Unsigned } };
