@@ -2246,6 +2246,27 @@ def main() -> None:
         b"value >> limit",
     )
 
+    # A routed domain's route establishes its own result (qualification.omg).
+    ticket = b"data Ticket [copy] { amount: i32; }\ndomain Ticket::Issued established by Ticket::issue;\n"
+    accepted(
+        program,
+        "route-establishes-its-own-result",
+        ticket + b"machine Ticket::issue() -> Ticket\nensures result in Ticket::Issued\n{ Ticket { amount: 41 } }",
+    )
+    accepted(
+        program,
+        "route-mints-its-qualified-result",
+        ticket + b"machine Ticket::issue() -> Ticket in Issued { Ticket { amount: 41 } }",
+    )
+    rejected(
+        program,
+        "only-a-route-establishes-a-routed-domain",
+        ticket + b"machine Ticket::issue() -> Ticket { Ticket { amount: 41 } }\n"
+        b"machine Ticket::forge() -> Ticket\nensures result in Ticket::Issued\n{ Ticket { amount: 41 } }",
+        "GuaranteeUnproven",
+        b"Ticket { amount: 41 }!2",
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

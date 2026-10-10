@@ -6195,8 +6195,9 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   a qualified destination by a membership checking proves, a predicate-only
   qualification disappears implicitly, and a qualified parameter assumes
   the predicates while arguments, returns, qualified locals, stores and
-  casts prove them unless they carry the qualification; routed domains and
-  byte predicates are established only by carrying them. A value-position
+  casts prove them unless they carry the qualification; a routed domain is
+  established by carrying it or by the result of a route it names, and
+  byte predicates only by carrying them. A value-position
   match's patterns meet its subject, its arms' values meet one type (arms of
   anonymous numbers land arm by arm at its destination) and its arms cover
   the subject (a wildcard, both Booleans or every case); checking runs each

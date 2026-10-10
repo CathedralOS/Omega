@@ -113,6 +113,9 @@ pub data Checker {
     // for `subject` (qualification.omg).
     subject: Value;
     subjecting: bool;
+    // While a return's result is decided, the machine being checked is the
+    // origin of the routed domains that name it (qualification.omg).
+    minting: bool;
     // While a construction's `where` facts are decided, the fields from
     // `field_first` stand for the same argument values.
     field_values: bool;
@@ -297,6 +300,7 @@ crashes Trap
     checker.substituting = false;
     checker.returning = false;
     checker.subjecting = false;
+    checker.minting = false;
     checker.field_values = false;
     checker.payload_values = false;
     checker.domains_pending = false;

@@ -72,8 +72,20 @@ crashes Trap
 {
     let item: DomainItem = SyntaxTrees::domain_item(syntax, domain);
     transition proving && item.route_count > 0 {
-        true -> routed()
+        true -> routed(checker, syntax, resolution, typing, item, subject, proving)
         _ -> predicates(checker, syntax, resolution, typing, item, subject, proving)
+    }
+
+    // A routed domain's provenance is its routes: a machine named by one
+    // establishes its own result, which still meets the predicates
+    // (wiki/spec/language/domains.md: each `established by` entry is an
+    // authorized origin).
+    state routed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
+        let origin: bool = Checker::routes_to(resolution, item, checker.machine);
+        transition checker.minting && origin {
+            true -> predicates(checker, syntax, resolution, typing, item, subject, proving)
+            _ -> unestablished()
+        }
     }
 
     state predicates(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
@@ -87,8 +99,57 @@ crashes Trap
         held
     }
 
-    state routed() -> bool {
+    state unestablished() -> bool {
         false
+    }
+}
+
+// Whether a fact's operand is `result`.
+pub machine Checker::names_result(resolution: &NameResolution, node: u64 in Trapping) -> bool
+crashes Trap
+{
+    let binding: ValueBinding = NameResolution::value_binding(resolution, node);
+    transition binding {
+        ValueBinding::ReturnedValue { machine as _ } -> answer(true)
+        _ -> answer(false)
+    }
+
+    state answer(result: bool) -> bool {
+        result
+    }
+}
+
+// Whether one of a domain's `established by` routes names machine
+// `machine`.
+pub machine Checker::routes_to(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> next(resolution, item, machine, 0) }
+
+    state next(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        transition offset < item.route_count {
+            true -> route(resolution, item, machine, offset)
+            _ -> answer(false)
+        }
+    }
+
+    state route(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
+        let binding: PathBinding = NameResolution::path_binding_at(resolution, item.first_route + offset);
+        transition binding {
+            PathBinding::Machine { handle } -> named(resolution, item, machine, offset, handle)
+            _ -> next(resolution, item, machine, offset + 1)
+        }
+    }
+
+    state named(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool {
+        transition handle == machine {
+            true -> answer(true)
+            _ -> next(resolution, item, machine, offset + 1)
+        }
+    }
+
+    state answer(found: bool) -> bool {
+        found
     }
 }
 
@@ -147,7 +208,11 @@ crashes Trap
         proving: bool
     ) -> bool {
         let value: Value = Checker::fact_operand(checker, syntax, resolution, typing, root, tree.left);
+        let result: bool = Checker::names_result(resolution, tree.left);
+        let minting: bool = checker.minting;
+        checker.minting = proving && checker.returning && result;
         let decided: bool = Checker::decide_domain(checker, syntax, resolution, typing, item, value, proving);
+        checker.minting = minting;
         decided
     }
 
@@ -350,9 +415,13 @@ crashes Trap
         _ -> done()
     }
 
+    // The machine's own result: its routes may mint it.
     state declared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
         let destination: u64 in Trapping = Typing::reference_type(typing, item.return_type);
+        let minting: bool = checker.minting;
+        checker.minting = true;
         Checker::require_qualification(checker, syntax, resolution, typing, destination, expression, value, source_span);
+        checker.minting = minting;
     }
 
     state done() {}

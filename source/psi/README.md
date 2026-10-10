@@ -489,9 +489,10 @@ domain's predicates with its subject binder standing for the value; a
 call or jump argument, a returned value, a qualified local's initializer, a
 store and an `as` cast meet their destination's qualification by already
 carrying it (an unadapted value of a type it qualifies) or by proving the
-predicates there. A routed domain is never minted from predicates, and byte
-predicates evaluate to no known value yet, so either is established only by
-carrying it. Facts evaluate without effects or
+predicates there. A routed domain is never minted from predicates: a value
+carries it, or a machine the domain names as its route returns it, its
+result still meeting the predicates. Byte predicates evaluate to no known
+value yet, so they are established only by carrying them. Facts evaluate without effects or
 obligations ([`checking/fact_values.omg`](checking/fact_values.omg)). Crash
 routes settle over the call graph: a private machine without crash clauses
 publishes what it derives, and any other machine must declare every cause it
