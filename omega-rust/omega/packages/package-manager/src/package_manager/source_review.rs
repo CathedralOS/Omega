@@ -46,10 +46,7 @@ pub(super) fn prepare(
             }
             _ => Ok(None),
         };
-        let identity = custody.key().identity().digest()[..6]
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let identity = crate::Hex(&custody.key().identity().digest()[..6]).to_string();
         let label = format!("{} [{identity}]", custody.key().name().as_str());
         match &baseline {
             Ok(None) => report.push_str(&format!(

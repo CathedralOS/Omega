@@ -179,7 +179,7 @@ pub(super) fn read(
 }
 
 fn hexadecimal(digest: [u8; 32]) -> String {
-    crate::resolution::graph::subject::encoding::framing::encode_hex(&digest)
+    crate::Hex(&digest).to_string()
 }
 
 fn digest(text: &str) -> Result<[u8; 32], Error> {

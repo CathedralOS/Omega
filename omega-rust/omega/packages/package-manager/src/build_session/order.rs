@@ -50,14 +50,10 @@ pub(crate) fn package_build_root(
     // intermediate directory outside the sponsor's creation protocol.
     build_root.join(format!(
         "{}-{}-{}",
-        encode_hex(&key.identity().digest()),
+        crate::Hex(&key.identity().digest()).to_string(),
         resolution.content().to_hex(),
         purpose.name(),
     ))
-}
-
-fn encode_hex(bytes: &[u8]) -> String {
-    crate::resolution::graph::subject::encoding::framing::encode_hex(bytes)
 }
 
 #[cfg(test)]

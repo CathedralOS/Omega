@@ -612,7 +612,7 @@ fn record_name(canonical_root: &Path, fingerprint: &[u8; 32]) -> Result<String, 
     let root_bytes = os_str_bytes(canonical_root.as_os_str())?;
     digest.bytes(&root_bytes);
     digest.raw(fingerprint);
-    Ok(format!("{}.{RECORD_EXTENSION}", hex(&digest.finish())))
+    Ok(format!("{}.{RECORD_EXTENSION}", crate::digest_encoder::hex(&digest.finish())))
 }
 
 /// Canonical record encoding: magic, framed root, embedded fingerprint,
@@ -734,16 +734,6 @@ fn decode_record(
     }
     CanonicalFilesystemMetadataIndex::new(policy_version, commitment, rows)
         .map_err(|error| format!("checked-source cache record rows are not canonical: {error}"))
-}
-
-fn hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut text = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        text.push(DIGITS[(byte >> 4) as usize] as char);
-        text.push(DIGITS[(byte & 0xf) as usize] as char);
-    }
-    text
 }
 
 impl From<Truncated> for String {

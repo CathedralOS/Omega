@@ -1,4 +1,4 @@
-use std::fmt::{self, Write};
+use std::fmt;
 
 pub(super) struct Writer {
     output: String,
@@ -120,11 +120,7 @@ impl<'text> Reader<'text> {
 }
 
 pub(super) fn write_digest(digest: &[u8; 32]) -> String {
-    let mut text = String::with_capacity(64);
-    for byte in digest {
-        write!(text, "{byte:02x}").expect("writing to a String cannot fail");
-    }
-    text
+    crate::Hex(digest).to_string()
 }
 
 pub(super) fn read_digest(text: &str) -> Result<[u8; 32], String> {

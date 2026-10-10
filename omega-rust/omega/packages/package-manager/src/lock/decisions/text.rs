@@ -66,9 +66,12 @@ impl HistoricalPackagePolicyDecisions {
                 decision.package_index().expect("validated legacy subject")
             )
             .expect("write preallocated string");
-            for byte in decision.conflict().expect("validated legacy subject") {
-                write!(text, "{byte:02x}").expect("write preallocated string");
-            }
+            write!(
+                text,
+                "{}",
+                crate::Hex(&decision.conflict().expect("validated legacy subject"))
+            )
+            .expect("write preallocated string");
             writeln!(text, " {}", disposition_token(decision.disposition))
                 .expect("write preallocated string");
         }

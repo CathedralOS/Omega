@@ -89,11 +89,7 @@ impl RetainedBuildOutputs {
         if self.published_directory.is_some() {
             return Err("completed outputs have already been published".into());
         }
-        let name = self
-            .identity()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let name = crate::digest_encoder::hex(self.identity());
         let sets = build_directory.join("completed");
         std::fs::create_dir_all(&sets)
             .map_err(|error| format!("cannot create completed-output directory: {error}"))?;

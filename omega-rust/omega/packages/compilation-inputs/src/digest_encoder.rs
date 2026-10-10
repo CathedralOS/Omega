@@ -60,3 +60,14 @@ pub(crate) fn content_identity(content: &[u8]) -> [u8; 32] {
     digest.raw(content);
     digest.finish()
 }
+
+/// Lowercase hex rendering of digest bytes for filenames and diagnostics.
+pub(crate) fn hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut text = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        text.push(DIGITS[(byte >> 4) as usize] as char);
+        text.push(DIGITS[(byte & 0xf) as usize] as char);
+    }
+    text
+}

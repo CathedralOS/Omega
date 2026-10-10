@@ -163,5 +163,5 @@ fn library_digest(root: &Path) -> Result<String, String> {
         digest.u64(contents.len() as u64);
         digest.raw(&contents);
     }
-    Ok(digest.finish().iter().map(|b| format!("{b:02x}")).collect())
+    Ok(crate::digest_encoder::hex(&digest.finish()))
 }

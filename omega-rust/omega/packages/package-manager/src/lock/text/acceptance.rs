@@ -6,7 +6,7 @@ use super::{
 use crate::lock::{PackageAcceptanceRow, PackageLockError as Error, PackagePolicyAcceptance};
 use package_evidence::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowKind};
 use semantic_vocabulary::PackageKeyIdentity;
-use std::fmt::Write as _;
+
 use target::TargetProfile;
 
 pub(in crate::lock) fn write(policy: &PackagePolicyAcceptance) -> Result<String, Error> {
@@ -15,11 +15,7 @@ pub(in crate::lock) fn write(policy: &PackagePolicyAcceptance) -> Result<String,
     writer.row("rows", policy.rows.len())?;
     for row in &policy.rows {
         writer.row("row", row.kind.as_str())?;
-        let mut key = String::with_capacity(64);
-        for byte in row.key {
-            write!(&mut key, "{byte:02x}").map_err(|_| Error::InvalidFraming)?;
-        }
-        writer.row("key", key)?;
+        writer.row("key", crate::Hex(&row.key).to_string())?;
         writer.section("meaning", &row.text)?;
     }
     writer.append("end_acceptance\n")?;
