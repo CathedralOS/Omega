@@ -200,10 +200,20 @@ pub fn compile_prepared_local_project_for_native_targets(
     } = request;
     let (entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
     let mut preparation = PackageSourcePreparation::for_closure(&source_closure);
-    prepared_targets
+    // Psi judges each target's settled product independently, but a target
+    // whose settlement arrives at an equal program takes the previous
+    // target's language judgment instead of checking again. Only a target
+    // with successors retains its own judgment for them.
+    let targets: Vec<_> = prepared_targets
         .into_iter()
         .filter(|target| target_profiles.contains(&target.profile))
-        .map(|prepared_target| {
+        .collect();
+    let mut retained_checks = compilation_products::RetainedCompilationChecks::default();
+    let target_count = targets.len();
+    targets
+        .into_iter()
+        .enumerate()
+        .map(|(index, prepared_target)| {
             let profile = prepared_target.profile;
             let result = compile_one_prepared_target(
                 prepared_target,
@@ -216,6 +226,8 @@ pub fn compile_prepared_local_project_for_native_targets(
                 receiving_terminal_authority_permission_policy.clone(),
                 timings,
                 &mut preparation,
+                &mut retained_checks,
+                index + 1 < target_count,
             );
             CompiledProjectTargetOutcome {
                 target: profile,
@@ -242,6 +254,8 @@ fn compile_one_prepared_target(
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     timings: bool,
     preparation: &mut PackageSourcePreparation,
+    retained_checks: &mut compilation_products::RetainedCompilationChecks,
+    retain_for_successors: bool,
 ) -> Result<CompileReport, CompilePreparedLocalProjectNativeError> {
     let target_profile = prepared_target.profile;
     if source_closure.root_role() != crate::declarations::BuildDeclarationKind::Application {
@@ -266,10 +280,17 @@ fn compile_one_prepared_target(
             snapshot: build_snapshot,
             verify: false,
             timings,
+            settled_check_reuse: compiler::SettledCheckReuse {
+                prior: retained_checks.clone(),
+                retain: retain_for_successors,
+            },
         },
         preparation,
     )
     .map_err(CompilePreparedLocalProjectNativeError::Review)?;
+    // A successful check replaces the retained judgments for the next
+    // target; a failed one leaves the prior judgment untouched.
+    *retained_checks = checked.settled_checks().clone();
     // Bind the permissions supplied by retained compilation inputs to this
     // root occurrence's consent before native production can consume them.
     // This projects only supplied permission meaning, not package review or

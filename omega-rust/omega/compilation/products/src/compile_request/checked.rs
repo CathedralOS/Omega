@@ -44,8 +44,10 @@ pub struct CheckedCompileRequest {
 }
 
 /// Package review's two passes compile one occurrence twice; the bound pass
-/// hands the discovery pass's Build and Product judgments back separately.
-/// Ordinary compiles retain neither and check afresh.
+/// hands the discovery pass's Build and Product judgments back separately. A
+/// multi-target request chains the same custody across its target loop: each
+/// target hands the previous target's judgments forward, so equal settled
+/// inputs share one check. Ordinary compiles retain neither and check afresh.
 #[derive(Debug, Clone, Default)]
 pub struct SettledCheckReuse {
     pub prior: RetainedCompilationChecks,

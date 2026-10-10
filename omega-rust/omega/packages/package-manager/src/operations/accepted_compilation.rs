@@ -38,6 +38,9 @@ pub(super) struct AcceptedCompilationRequest<'request> {
     pub snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
     pub verify: bool,
     pub timings: bool,
+    /// The previous target's retained language judgments: an equal settled
+    /// input takes that judgment instead of checking again.
+    pub settled_check_reuse: compiler::SettledCheckReuse,
 }
 
 struct OccurrenceProducts {
@@ -234,6 +237,14 @@ fn compile_occurrences(
                         )) as Box<dyn compiler::RestrictedBuildGrants>
                     }),
                     collect_timings: request.timings,
+                    // The root's Build judgment chains across targets like
+                    // its Product judgment; each occurrence still runs its own
+                    // admission and execution.
+                    settled_check_reuse: if is_root {
+                        request.settled_check_reuse.clone()
+                    } else {
+                        compiler::SettledCheckReuse::default()
+                    },
                     ..CheckedCompileRequest::new(&entry, Some(target.target_name()))
                 },
                 Some(&preparation.pure_build_compilation),
@@ -263,7 +274,10 @@ fn compile_occurrences(
                     errors,
                 })?;
             if is_root {
-                let outcome = compiler::check_prepared_package_build(prepared);
+                let outcome = compiler::check_prepared_package_build(
+                    prepared,
+                    request.settled_check_reuse.clone(),
+                );
                 checked_root = Some(outcome.result.map_err(|failure| Error::Compilation {
                     package: key.clone(),
                     diagnostics: failure.into_diagnostics(),
@@ -333,12 +347,15 @@ fn selected_component_descriptions(
                     "independent component continuation was already consumed",
                 )
             })?;
-            let checked = compiler::check_prepared_package_build(prepared)
-                .result
-                .map_err(|failure| Error::Compilation {
-                    package: consumer.clone(),
-                    diagnostics: failure.into_diagnostics(),
-                })?;
+            let checked = compiler::check_prepared_package_build(
+                prepared,
+                compiler::SettledCheckReuse::default(),
+            )
+            .result
+            .map_err(|failure| Error::Compilation {
+                package: consumer.clone(),
+                diagnostics: failure.into_diagnostics(),
+            })?;
             products.description =
                 Some(publish_checked_component(checked).map_err(|diagnostics| {
                     Error::Compilation {

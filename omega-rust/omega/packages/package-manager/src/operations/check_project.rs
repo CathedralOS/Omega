@@ -144,6 +144,7 @@ pub fn check_prepared_local_project_for_inspection(
             snapshot: None,
             verify: true,
             timings: false,
+            settled_check_reuse: compiler::SettledCheckReuse::default(),
         },
         &mut PackageSourcePreparation::for_closure(&source_closure),
     )
@@ -176,10 +177,20 @@ pub fn check_prepared_local_project_for_targets(
     } = request;
     let (entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
     let mut preparation = PackageSourcePreparation::for_closure(&source_closure);
-    prepared_targets
+    // Psi judges each target's settled product independently, but a target
+    // whose settlement arrives at an equal program takes the previous
+    // target's language judgment instead of checking again. Only a target
+    // with successors retains its own judgment for them.
+    let targets: Vec<_> = prepared_targets
         .into_iter()
         .filter(|target| target_profiles.contains(&target.profile))
-        .map(|prepared_target| {
+        .collect();
+    let mut retained_checks = compilation_products::RetainedCompilationChecks::default();
+    let target_count = targets.len();
+    targets
+        .into_iter()
+        .enumerate()
+        .map(|(index, prepared_target)| {
             let profile = prepared_target.profile;
             let result = check_one_prepared_target(
                 prepared_target,
@@ -190,6 +201,8 @@ pub fn check_prepared_local_project_for_targets(
                 verify,
                 timings,
                 &mut preparation,
+                &mut retained_checks,
+                index + 1 < target_count,
             );
             CheckedProjectTargetOutcome {
                 target: profile,
@@ -213,6 +226,8 @@ fn check_one_prepared_target(
     verify: bool,
     timings: bool,
     preparation: &mut PackageSourcePreparation,
+    retained_checks: &mut compilation_products::RetainedCompilationChecks,
+    retain_for_successors: bool,
 ) -> Result<CompileReport, CheckPreparedLocalProjectError> {
     let profile = prepared_target.profile;
     let accepted_target = prepared_target
@@ -227,10 +242,17 @@ fn check_one_prepared_target(
             snapshot: build_snapshot,
             verify,
             timings,
+            settled_check_reuse: compiler::SettledCheckReuse {
+                prior: retained_checks.clone(),
+                retain: retain_for_successors,
+            },
         },
         preparation,
     )
     .map_err(CheckPreparedLocalProjectError::Review)?;
+    // A successful check replaces the retained judgments for the next
+    // target; a failed one leaves the prior judgment untouched.
+    *retained_checks = checked.settled_checks().clone();
     compiler::finish_compilation(
         checked,
         entry_path.to_path_buf(),

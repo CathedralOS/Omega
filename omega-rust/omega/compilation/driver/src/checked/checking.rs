@@ -203,7 +203,10 @@ fn prepare_package_build_worker(
 /// Complete a genuinely requested dependency product using its completed Build.
 /// Source custody is revalidated when checking seals the product; no Build grant
 /// or sponsor is recreated and no authored Build effect executes a second time.
-pub fn check_prepared_package_build(build: PreparedPackageBuild) -> CheckedCompileOutcome {
+pub fn check_prepared_package_build(
+    build: PreparedPackageBuild,
+    settled_check_reuse: SettledCheckReuse,
+) -> CheckedCompileOutcome {
     counters::record_checked_compilation();
     compile_thread::run_on_compile_thread(move || {
         let (_root_path, target, inputs, rollback, prepared) = build.into_continuation();
@@ -213,7 +216,7 @@ pub fn check_prepared_package_build(build: PreparedPackageBuild) -> CheckedCompi
             Some(&inputs),
             &rollback,
             false,
-            SettledCheckReuse::default(),
+            settled_check_reuse,
         ))
     })
     .unwrap_or_else(|diagnostics| CheckedCompileOutcome {
