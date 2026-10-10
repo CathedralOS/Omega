@@ -10,6 +10,8 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+use super::StructuralTerm;
+
 pub(in crate::proof_contracts::contract_entailment) fn has_identity_equality_meaning(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
@@ -87,4 +89,25 @@ fn identity_carrier(
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::DynamicTrait { .. } => false,
     }
+}
+
+/// `fact`'s operand pair when it is a binary `==` carrying identity meaning
+/// under `scope`'s parameters. Case observations and every other fact shape
+/// yield `None` so each citation walk applies its own exit.
+pub(in crate::proof_contracts::contract_entailment) fn identity_equality_terms(
+    program: &dyn crate::CheckingInput,
+    scope: SymbolHandle,
+    parameters: &[StateParameter],
+    fact: ExpressionHandle,
+) -> Option<(StructuralTerm, StructuralTerm)> {
+    if super::is_case_observation(program, fact) {
+        return None;
+    }
+    let binary = program.expression_table.binary_node(fact)?;
+    if binary.operator != BinaryOperator::Equal
+        || !has_identity_equality_meaning(program, scope, parameters, fact)
+    {
+        return None;
+    }
+    super::structural_term_pair_for_parameters(program, scope, parameters, binary)
 }

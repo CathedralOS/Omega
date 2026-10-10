@@ -539,14 +539,9 @@ pub(crate) fn collect_instantiated_conjuncts(
             );
         }
         BinaryOperator::Equal => {
-            if !super::structural_terms::has_identity_equality_meaning(
-                program, scope, parameters, fact,
-            ) {
-                return;
-            }
-            let Some((left, right)) = super::structural_terms::structural_term_pair_for_parameters(
-                program, scope, parameters, binary,
-            ) else {
+            let Some((left, right)) =
+                super::structural_terms::identity_equality_terms(program, scope, parameters, fact)
+            else {
                 return;
             };
             equations.push((

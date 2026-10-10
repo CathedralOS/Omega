@@ -18,7 +18,7 @@ pub(super) use constructors::{
     case_classifier, case_guard_classifier, case_value_term, constructor_literal_term,
     is_case_observation, zero_value_structural_term,
 };
-pub(super) use equality::has_identity_equality_meaning;
+pub(super) use equality::{has_identity_equality_meaning, identity_equality_terms};
 
 /// Whether `haystack` contains `needle` as a subterm (occurs check for the
 /// rewrite orientation: a rewrite whose replacement contains its own pattern

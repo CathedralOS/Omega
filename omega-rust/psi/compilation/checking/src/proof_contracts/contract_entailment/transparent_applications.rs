@@ -7,7 +7,7 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
     structural_call_machine_name, structural_term_in_scope,
 };
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 
@@ -148,25 +148,11 @@ pub fn transparent_proposition_application_entailed(
                 ))
             })
             .collect::<Option<Vec<_>>>()?;
-        let Some(binary) = program.expression_table.binary_node(formula) else {
-            return None;
-        };
-        if binary.operator != BinaryOperator::Equal
-            || super::structural_terms::is_case_observation(program, formula)
-            || !super::structural_terms::has_identity_equality_meaning(
-                program,
-                declaration.symbol,
-                parameters,
-                formula,
-            )
-        {
-            return None;
-        }
-        let (left, right) = super::structural_terms::structural_term_pair_for_parameters(
+        let (left, right) = super::structural_terms::identity_equality_terms(
             program,
             declaration.symbol,
             parameters,
-            binary,
+            formula,
         )?;
         Some((
             StructuralJudge::substitute_term(&left, &environment),
