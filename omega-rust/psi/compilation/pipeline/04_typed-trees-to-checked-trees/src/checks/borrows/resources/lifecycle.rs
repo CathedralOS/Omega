@@ -5,7 +5,6 @@ use crate::checks::borrows::resources::reborrow_disposition_drift;
 use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowLoanResourceDraft, ParentResourceIndex,
 };
-use crate::checks::borrows::resources::resource_reconstruction::span_handle;
 use checked_trees::{
     BorrowLoanFact, CheckedBorrowResourceLifecyclePhase, CheckedReborrowAccessEffect, FlowFacts,
     FlowInvalidationSource,
@@ -300,4 +299,14 @@ pub(crate) fn weakening_boundary_key(
         checked_trees::FlowBorrowWeakeningReason::StateExit => 2,
     };
     Some((statement_index, phase))
+}
+
+/// Translate a span offset into the durable handle the row carries.
+pub(crate) fn span_handle<T>(
+    span: arena::HandleSpan<T>,
+    offset: usize,
+) -> Option<arena::Handle<T>> {
+    u32::try_from(offset)
+        .ok()
+        .map(|offset| span.handle_at(offset))
 }

@@ -1,13 +1,13 @@
 //! Rebuilding the direct-borrow and reborrow resource arenas from the loan
-//! and flow-lifetime ledgers.
+//! and flow-lifetime ledgers, and resolving each reborrow's parent graph.
 
 use crate::checks::borrows::resources::invalid_reborrow_attenuation_diagnostic;
-use crate::checks::borrows::resources::lifecycle::weakening_boundary_key;
+use crate::checks::borrows::resources::lifecycle::{span_handle, weakening_boundary_key};
 use crate::checks::borrows::resources::reborrow_drafts::{
-    CheckedReborrowContainmentCertificateDraft, CheckedReborrowDispositionEventDraft,
-    CheckedReborrowLoanResourceDraft, CheckedReborrowRestoredCallUseCertificateDraft,
-    ParentResourceIndex, ResourceHandles,
+    CheckedReborrowDispositionEventDraft, CheckedReborrowLoanResourceDraft, ParentResourceIndex,
+    ResourceHandles,
 };
+use crate::checks::borrows::resources::reborrow_resource_drift;
 use checked_trees::{
     BorrowFacts, BorrowLoanLineage, CheckedDirectBorrowLoanResource,
     CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
@@ -16,24 +16,46 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 
+/// Resolve the entire parent graph before either retained arena is reset.
+/// Installation is therefore a purely indexed, infallible rewrite.
+pub(crate) fn plan_resource_installation(
+    direct: &[CheckedDirectBorrowLoanResource],
+    reborrows: &[CheckedReborrowLoanResourceDraft],
+) -> Result<Vec<ParentResourceIndex>, Vec<Diagnostic>> {
+    let mut plan = Vec::with_capacity(reborrows.len());
+    for (child_index, child) in reborrows.iter().enumerate() {
+        let direct_matches = direct
+            .iter()
+            .enumerate()
+            .filter(|(_, resource)| resource.loan == child.parent_loan)
+            .map(|(index, _)| ParentResourceIndex::Direct(index));
+        let reborrow_matches = reborrows[..child_index]
+            .iter()
+            .enumerate()
+            .filter(|(_, resource)| resource.loan == child.parent_loan)
+            .map(|(index, _)| ParentResourceIndex::Reborrow(index));
+        let mut matches = direct_matches.chain(reborrow_matches);
+        let Some(parent) = matches.next() else {
+            return Err(reborrow_resource_drift());
+        };
+        if matches.next().is_some() {
+            return Err(reborrow_resource_drift());
+        }
+        plan.push(parent);
+    }
+    Ok(plan)
+}
+
 pub(crate) fn install_borrow_resources(
     borrow: &mut BorrowFacts,
     direct: Vec<CheckedDirectBorrowLoanResource>,
     reborrows: &[CheckedReborrowLoanResourceDraft],
     installation: &[ParentResourceIndex],
     dispositions: &[CheckedReborrowDispositionEventDraft],
-    containments: &[CheckedReborrowContainmentCertificateDraft],
-    restored_uses: &[CheckedReborrowRestoredCallUseCertificateDraft],
 ) {
     borrow.direct_loan_resources.reset_retain_capacity();
     borrow.reborrow_loan_resources.reset_retain_capacity();
     borrow.reborrow_disposition_events.reset_retain_capacity();
-    borrow
-        .reborrow_containment_certificates
-        .reset_retain_capacity();
-    borrow
-        .reborrow_restored_call_use_certificates
-        .reset_retain_capacity();
 
     let mut direct_handles = Vec::with_capacity(direct.len());
     for resource in direct {
@@ -62,25 +84,10 @@ pub(crate) fn install_borrow_resources(
         direct: direct_handles,
         reborrows: reborrow_handles,
     };
-    let containment_handles = containments
-        .iter()
-        .map(|containment| {
-            borrow
-                .reborrow_containment_certificates
-                .insert(containment.close(&handles))
-        })
-        .collect::<Vec<_>>();
-    let disposition_handles = dispositions
-        .iter()
-        .map(|disposition| {
-            let disposition = disposition.close(borrow, &handles);
-            borrow.reborrow_disposition_events.insert(disposition)
-        })
-        .collect::<Vec<_>>();
-    for restored_use in restored_uses {
+    for disposition in dispositions {
         borrow
-            .reborrow_restored_call_use_certificates
-            .insert(restored_use.close(&handles, &disposition_handles, &containment_handles));
+            .reborrow_disposition_events
+            .insert(disposition.close(borrow, &handles));
     }
 }
 
@@ -393,13 +400,4 @@ fn parent_lexical_status_at_child_end(
         std::cmp::Ordering::Equal => ParentLexicalStatusAtChildEnd::RetiredWithChild,
         std::cmp::Ordering::Greater => ParentLexicalStatusAtChildEnd::LivePastChild,
     })
-}
-
-pub(crate) fn span_handle<T>(
-    span: arena::HandleSpan<T>,
-    offset: usize,
-) -> Option<arena::Handle<T>> {
-    u32::try_from(offset)
-        .ok()
-        .map(|offset| span.handle_at(offset))
 }

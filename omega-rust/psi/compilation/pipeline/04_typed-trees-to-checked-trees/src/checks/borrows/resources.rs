@@ -1,25 +1,22 @@
 //! Construct the resource rows consumed by execution planning and stage 05.
 //! Formation and flow own loan ancestry and lifetime events. This owner joins
-//! those facts once, checks access attenuation, and builds the parent graph,
-//! dispositions, containment and restored-call records required by lowering.
-//! These latter records still have live consumers; they are not the removed
-//! checker-only compatibility ledgers. No second construction replays them.
+//! those facts once, checks access attenuation, and builds the parent graph
+//! and disposition events required by lowering. Each disposition event whose
+//! boundary is a checked post-restoration mutating call carries that call's
+//! exact join. No second construction replays them.
 
 mod call_operands;
-mod certificate_planning;
 mod disposition_events;
 mod lifecycle;
 pub(crate) use lifecycle::{LifecyclePhase, weakening_event_boundary};
+mod loan_resources;
 mod reborrow_drafts;
-mod resource_reconstruction;
 
-use crate::checks::borrows::resources::certificate_planning::{
-    plan_reborrow_containment_certificates, plan_reborrow_restored_call_uses,
-    plan_resource_installation,
+use crate::checks::borrows::resources::disposition_events::{
+    bind_restored_call_uses, plan_reborrow_disposition_events,
 };
-use crate::checks::borrows::resources::disposition_events::plan_reborrow_disposition_events;
-use crate::checks::borrows::resources::resource_reconstruction::{
-    install_borrow_resources, reconstruct_direct_borrow_resources,
+use crate::checks::borrows::resources::loan_resources::{
+    install_borrow_resources, plan_resource_installation, reconstruct_direct_borrow_resources,
     reconstruct_reborrow_resource_drafts,
 };
 use checked_trees::CheckFacts;
@@ -34,18 +31,15 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     let direct = reconstruct_direct_borrow_resources(program, &facts.borrow, &facts.flow)?;
     let reborrows = reconstruct_reborrow_resource_drafts(&facts.borrow, &facts.flow)?;
     let installation = plan_resource_installation(&direct, &reborrows)?;
-    let dispositions =
+    let mut dispositions =
         plan_reborrow_disposition_events(&facts.flow, &direct, &reborrows, &installation)?;
-    let containments = plan_reborrow_containment_certificates(&direct, &reborrows, &installation)?;
-    let restored_uses = plan_reborrow_restored_call_uses(
+    bind_restored_call_uses(
         program,
         &facts.borrow,
         &facts.flow,
         &direct,
         &reborrows,
-        &installation,
-        &dispositions,
-        &containments,
+        &mut dispositions,
         mutation_summaries,
     )?;
     install_borrow_resources(
@@ -54,8 +48,6 @@ pub(super) fn initialize_checked_direct_borrow_resources(
         &reborrows,
         &installation,
         &dispositions,
-        &containments,
-        &restored_uses,
     );
     call_operands::install(program, facts);
     Ok(())
@@ -64,12 +56,6 @@ pub(super) fn initialize_checked_direct_borrow_resources(
 pub(crate) fn reborrow_disposition_drift() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "checked reborrow resource-lifecycle disposition drifted from semantic-phase replay",
-    )]
-}
-
-pub(crate) fn reborrow_containment_drift() -> Vec<Diagnostic> {
-    vec![Diagnostic::error(
-        "checked reborrow suspension/freeze-containment evidence drifted from exact lifecycle replay",
     )]
 }
 

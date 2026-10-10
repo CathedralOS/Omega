@@ -27,10 +27,6 @@ pub use checked_trees::{
 };
 
 pub use checked_trees::{
-    CheckedAcceptedTemplateClassification, CheckedAcceptedTemplateIdentities,
-    CheckedAcceptedTemplateIdentity,
-};
-pub use checked_trees::{
     AcceptanceCheck, AcceptanceCheckProvenance, AcceptanceCheckVerdict, AcceptanceDimension,
     AcceptanceSummary, AcceptanceVerdict, AcceptanceView, BlockingFacts, BorrowAccessKind,
     BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowLoanFact, BorrowLoanLineage,
@@ -96,30 +92,28 @@ pub use checked_trees::{
     CheckedPropositionDeclaration, CheckedPropositionEvidence, CheckedPropositionVocabulary,
     CheckedProviderAttachmentRequirementPlan, CheckedProviderClosedRequirement,
     CheckedProviderPlanCommitment, CheckedRankEdgeCoordinate, CheckedReborrowAccessEffect,
-    CheckedReborrowContainmentCertificate, CheckedReborrowContainmentKind,
     CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
     CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
     CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
-    CheckedReborrowRestoredCallUseCertificate, CheckedReferenceResultSourcePlan,
-    CheckedReferenceStorage, CheckedRequirementCallMachineSelection,
-    CheckedRequirementCallSpecialization, CheckedRequirementCallTypeBinding,
-    CheckedResourceAxisAnchor, CheckedResourceDerivationObligation,
-    CheckedRetiredParentResourceDispositionStep, CheckedRuntimeIndex,
-    CheckedRuntimeMembershipSubject, CheckedScalarBranchDestination, CheckedScalarCallee,
-    CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarCaseFieldPlan,
-    CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
-    CheckedScalarComputationPlans, CheckedScalarComputationRoot,
+    CheckedReferenceResultSourcePlan, CheckedReferenceStorage,
+    CheckedRequirementCallMachineSelection, CheckedRequirementCallSpecialization,
+    CheckedRequirementCallTypeBinding, CheckedResourceAxisAnchor,
+    CheckedResourceDerivationObligation, CheckedRetiredParentResourceDispositionStep,
+    CheckedRuntimeIndex, CheckedRuntimeMembershipSubject, CheckedScalarBranchDestination,
+    CheckedScalarCallee, CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
+    CheckedScalarCaseFieldPlan, CheckedScalarComputation, CheckedScalarComputationHandle,
+    CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedScalarComputationRoot,
     CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
     CheckedScalarDispatchArm, CheckedScalarDispatchPattern, CheckedScalarExpression,
     CheckedScalarExpressionBindings, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
     CheckedScalarGuardedExit, CheckedScalarGuardedTail, CheckedScalarReadProjection,
     CheckedScalarReturnPlan, CheckedScalarSelector, CheckedScalarStateTerminator,
-    CheckedScalarStoreValue, CheckedSelectedFloatComparisonExecution,
-    CheckedSemanticDependencies, CheckedSemanticDependency, CheckedSemanticDependencyExposure,
-    CheckedSemanticDependencyKind, CheckedServiceParameterCarrier, CheckedServiceParameterError,
-    CheckedSpecializationIdentities, CheckedStateLocal, CheckedStateNaturalRank,
-    CheckedStorageRoot, CheckedStoreDestination, CheckedStoreLeaf, CheckedStorePlan,
-    CheckedStoreRoot, CheckedStoreValue, CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
+    CheckedScalarStoreValue, CheckedSelectedFloatComparisonExecution, CheckedSemanticDependencies,
+    CheckedSemanticDependency, CheckedSemanticDependencyExposure, CheckedSemanticDependencyKind,
+    CheckedServiceParameterCarrier, CheckedServiceParameterError, CheckedSpecializationIdentities,
+    CheckedStateLocal, CheckedStateNaturalRank, CheckedStorageRoot, CheckedStoreDestination,
+    CheckedStoreLeaf, CheckedStorePlan, CheckedStoreRoot, CheckedStoreValue,
+    CheckedStructuralAccess, CheckedStructuralCallCustodyPlan,
     CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,
     CheckedStructuralControlStateCleanupPlan, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
@@ -211,6 +205,10 @@ pub use checked_trees::{
     forwards_qualified_parameter, identity, is_borrowed_view, is_bounded_nominal_cleanup_record,
     is_partial_affine_field_type, machine, name, operators, proof, proof_only, proposition,
     ranking, service_parameter, signature, state, statement, trait_definition, types, values, wire,
+};
+pub use checked_trees::{
+    CheckedAcceptedTemplateClassification, CheckedAcceptedTemplateIdentities,
+    CheckedAcceptedTemplateIdentity,
 };
 /// The identity request a consumer builds when it asks the typed program
 /// behind a checked carrier for a binder-aware type identity.

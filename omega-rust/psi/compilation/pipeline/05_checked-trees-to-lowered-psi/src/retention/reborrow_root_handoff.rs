@@ -1,8 +1,8 @@
 use checked_trees::{
     BorrowAccessKind, BorrowLoanOwnerSegment, CheckedBorrowResourceDispositionTarget,
     CheckedBorrowResourceLifecyclePhase, CheckedParentBorrowResource, CheckedReborrowAccessEffect,
-    CheckedReborrowContainmentKind, CheckedReborrowResourceDisposition, FlowBorrowWeakeningReason,
-    FlowConstraintKind, FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
+    CheckedReborrowResourceDisposition, FlowBorrowWeakeningReason, FlowConstraintKind,
+    FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
 };
 use semantic_vocabulary::MachineId;
 use terminal_psi::{
@@ -25,9 +25,8 @@ pub(crate) fn identity(
     if !symbol.is_valid() {
         return unsupported("reborrow custody contains an unresolved symbol");
     }
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega-terminal-reborrow-symbol-v1",
-    );
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-terminal-reborrow-symbol-v1");
     digest.raw(checked.typed.symbols.display_path(symbol, "::").as_bytes());
     digest.raw(&symbol.arena_index().to_le_bytes());
     digest.raw(&symbol.generation().to_le_bytes());
@@ -257,17 +256,6 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
                 return unsupported("reborrow root custody lineage access or lifecycle disagrees");
             }
 
-            let certificates = borrow
-                .reborrow_containment_certificates
-                .iter()
-                .filter(|(_, certificate)| certificate.child_resource == *child_handle)
-                .map(|(_, certificate)| certificate)
-                .collect::<Vec<_>>();
-            let [certificate] = certificates.as_slice() else {
-                return unsupported(
-                    "reborrow root custody requires one containment certificate per edge",
-                );
-            };
             let suspension = &child.parent_suspension;
             let child_activation = checked
                 .facts
@@ -293,30 +281,13 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
                 .contexts
                 .constraint_refs
                 .get(suspension.parent_entry_constraint);
-            let exact_certificate = certificate.machine_symbol == child.machine_symbol
-                && certificate.state_symbol == child.state_symbol
-                && certificate.child_loan == child.loan
-                && certificate.parent_loan == child.parent_loan
-                && certificate.parent_resource == child.parent_resource
-                && certificate.parent_access == expected_parent_access
-                && certificate.child_access == child.access
-                && certificate.access_effect == child.access_effect
-                && certificate.child_activation == suspension.child_activation
-                && certificate.parent_entry_constraint == suspension.parent_entry_constraint
-                && certificate.formation_source == suspension.source
-                && certificate.child_weakening == child.parent_end_status.child_weakening
-                && certificate.parent_weakening == child.parent_end_status.parent_weakening
-                && certificate.child_weakening_source == child.weakening_source
-                && certificate.child_weakening_reason == child.weakening_reason
-                && certificate.parent_place == *expected_parent_place
-                && certificate.child_place == child.captured_place
-                && child
-                    .captured_place
-                    .segments
-                    .starts_with(&expected_parent_place.segments)
-                && certificate.projection_remainder
-                    == child.captured_place.segments[expected_parent_place.segments.len()..]
-                && certificate.containment == CheckedReborrowContainmentKind::ExclusiveSuspension;
+            let Some(projection_remainder) = child
+                .captured_place
+                .segments
+                .strip_prefix(expected_parent_place.segments.as_slice())
+            else {
+                return unsupported("reborrow root custody child place is not under its parent");
+            };
             let exact_resources = child.loan == child_activation.loan
                 && child.loan == child_weakening.loan
                 && child.parent_loan == parent_weakening.loan
@@ -336,7 +307,7 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
                     parent_constraint.kind,
                     FlowConstraintKind::BorrowLoan { loan } if loan == child.parent_loan
                 );
-            if !exact_certificate || !exact_resources {
+            if !exact_resources {
                 return unsupported("reborrow root custody checked replay disagrees");
             }
 
@@ -344,7 +315,7 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
                 child_owner_identity: identity(checked, child.owner_symbol)?,
                 child_owner_path: owner_path(checked, &child.owner_path)?,
                 child_place: place(checked, &child.captured_place)?,
-                projection_remainder: place_segments(checked, &certificate.projection_remainder)?,
+                projection_remainder: place_segments(checked, projection_remainder)?,
                 child_access: access(child.access.clone()),
                 child_activation: boundary(checked, child_activation.source)?,
                 formation_boundary: boundary(checked, suspension.source)?,

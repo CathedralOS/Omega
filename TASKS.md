@@ -2889,26 +2889,23 @@ check-corpus verdict and diagnostic family unchanged unless the item says
 otherwise. Paths below are relative to the stage 04 `src/` (written `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`) or
 the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unless spelled in full.
 
-- **BORROW-CERTIFICATES-DELETED.** (new-scope) Remaining work is the
-  lowering-consumed reborrow resource certificates, not borrow admission.
-  Preserve stage 04's direct compatibility, mutation and call checking over
-  one `BorrowFacts`; do not restore source reconstruction, selector snapshots
-  or certificate replay.
-
-  Retire `checks/borrows/resources/{resource_reconstruction,certificate_planning}.rs`
-  only with their remaining consumers: stage 04
-  `execution/terminal_unit/{receiver_aliases,calls/structural_arguments.rs}`
-  and stage 05 `retention/{reborrow_root_handoff,reborrow_restored_call_use}.rs`
-  and `machine_lowering/reborrow_handoffs.rs`. These consume
-  `reborrow_containment_certificates` and
-  `reborrow_restored_call_use_certificates`; deleting their construction
-  alone removes required lowering inputs. Coordinate the consumer replacement
-  with **REFERENCE-LOCAL-BINDING-ROUTES**. Keep direct loan resources and
-  access attenuation, parent/child lifetimes, conflict, writability, escape
-  and persistence judgments in the single production route. Acceptance:
-  no checker self-replay or obsolete resource-certificate consumers, one
-  `build_borrow_facts` call per check, unchanged borrow check corpus and
-  native restoration results (`--filter borrows/,borrow/,references/`).
+- **BORROW-CERTIFICATES-DELETED.** Implemented — pending board verification.
+  The two certificate arenas are gone: `CheckedReborrowContainmentCertificate`,
+  `CheckedReborrowContainmentKind` and
+  `CheckedReborrowRestoredCallUseCertificate` are deleted with both producer
+  modules (`resource_reconstruction.rs`, `certificate_planning.rs`). The
+  restored-call join now lives on the kept
+  `CheckedReborrowResourceDispositionEvent` as three ZII handles
+  (`restored_call`, `restored_borrow_call`, `restored_call_access`), bound by
+  `bind_restored_call_uses` in `disposition_events.rs` only on
+  Reactivate/RestoreSharedCohort boundaries; resource reconstruction moved to
+  `loan_resources.rs` and `span_handle` to `lifecycle.rs`. Consumers read the
+  event join directly: stage 04 `receiver_aliases` and
+  `calls/structural_arguments.rs`, stage 05 `retention/reborrow_root_handoff`
+  (projection remainder derived from the child place prefix; the 21-field
+  certificate replay is deleted) and `retention/reborrow_restored_call_use`;
+  `machine_lowering/reborrow_handoffs.rs` needed no change. Acceptance:
+  `--filter borrows/,borrow/,references/` 325 fixtures, 0 status moves.
 
 - **CHECK-ONCE-ACROSS-TARGETS.** Implemented — pending board verification.
   `compiler::compile` now chains `RetainedCompilationChecks` across its target

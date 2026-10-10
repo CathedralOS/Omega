@@ -442,6 +442,12 @@ pub struct CheckedRetiredParentResourceDispositionStep {
 /// `retired_parent_path` is ordered from the immediate retired parent toward
 /// the final target. An empty path is required for direct reactivation. The
 /// row preserves exact resource and flow handles but authorizes no use.
+///
+/// When the event is a checked post-restoration call use — the child's
+/// weakening boundary is the exact receiver-free, single-argument mutating
+/// call that consumes the directly restored mutable parent — `restored_call`,
+/// `restored_borrow_call` and `restored_call_access` name that call and its
+/// whole-root argument access. All three stay absent handles otherwise.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedReborrowResourceDispositionEvent {
     pub machine_symbol: SymbolHandle,
@@ -460,79 +466,9 @@ pub struct CheckedReborrowResourceDispositionEvent {
     pub retired_parent_path: Vec<CheckedRetiredParentResourceDispositionStep>,
     pub final_target: CheckedBorrowResourceDispositionTarget,
     pub disposition: CheckedReborrowResourceDisposition,
-}
-
-/// Checked-only suspension/freeze containment derived by exact lifecycle
-/// replay for one retained direct reborrow.
-///
-/// The class distinguishes an exclusive suspension interval from membership
-/// in a mutable parent's shared freeze cohort. It is a replay conclusion, not
-/// borrow authority or evidence of completed restoration.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum CheckedReborrowContainmentKind {
-    SharedFreeze,
-    #[default]
-    ExclusiveSuspension,
-}
-
-/// One non-authorizing certificate that an exact reborrow occurrence remained
-/// on its parent's suspension or freeze route from formation through weakening.
-///
-/// Resource handles, access polarities, flow edges, and both captured places
-/// are retained together. `projection_remainder` is the exact child suffix
-/// below the parent place; an empty suffix denotes a whole-place reborrow.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CheckedReborrowContainmentCertificate {
-    pub machine_symbol: SymbolHandle,
-    pub state_symbol: SymbolHandle,
-    pub child_loan: Handle<BorrowLoanFact>,
-    pub child_resource: Handle<CheckedReborrowLoanResource>,
-    pub parent_loan: Handle<BorrowLoanFact>,
-    pub parent_resource: CheckedParentBorrowResource,
-    pub parent_access: BorrowAccessKind,
-    pub child_access: BorrowAccessKind,
-    pub access_effect: CheckedReborrowAccessEffect,
-    pub child_activation: Handle<crate::FlowBorrowActivationFact>,
-    pub parent_entry_constraint: Handle<crate::FlowConstraintRef>,
-    pub formation_source: crate::FlowInvalidationSource,
-    pub child_weakening: Handle<crate::FlowBorrowWeakeningFact>,
-    pub parent_weakening: Handle<crate::FlowBorrowWeakeningFact>,
-    pub child_weakening_source: crate::FlowInvalidationSource,
-    pub child_weakening_reason: crate::FlowBorrowWeakeningReason,
-    pub parent_place: CapturedPlace,
-    pub child_place: CapturedPlace,
-    pub projection_remainder: Vec<facts::PlaceSegment>,
-    pub containment: CheckedReborrowContainmentKind,
-}
-
-/// Checked-only evidence that one directly restored mutable parent carrier is
-/// consumed by the exact next mutating call at the child's weakening boundary.
-///
-/// The call's argument access is retained separately from `access`: reading a
-/// reference carrier is a `Read` access even when the target's mutable
-/// parameter uses the referent mutably. This certificate therefore rejoins the
-/// exact call and access rows to the replayed suspension, reactivation, entry
-/// constraint, carrier occurrence, and restored referent. It neither changes
-/// borrow admission nor grants Terminal authority.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CheckedReborrowRestoredCallUseCertificate {
-    pub machine_symbol: SymbolHandle,
-    pub state_symbol: SymbolHandle,
-    pub child_loan: Handle<BorrowLoanFact>,
-    pub child_resource: Handle<CheckedReborrowLoanResource>,
-    pub parent_loan: Handle<BorrowLoanFact>,
-    pub parent_resource: Handle<CheckedDirectBorrowLoanResource>,
-    pub disposition: Handle<CheckedReborrowResourceDispositionEvent>,
-    pub containment: Handle<CheckedReborrowContainmentCertificate>,
-    pub child_weakening: Handle<crate::FlowBorrowWeakeningFact>,
-    pub call: Handle<crate::FlowCallFact>,
-    pub borrow_call: Handle<BorrowCallFact>,
-    pub call_access: Handle<BorrowArgumentAccessFact>,
-    pub parent_entry_constraint: Handle<crate::FlowConstraintRef>,
-    pub carrier_place: CapturedPlace,
-    pub restored_place: CapturedPlace,
-    pub access: BorrowAccessKind,
-    pub target_symbol: SymbolHandle,
+    pub restored_call: Handle<crate::FlowCallFact>,
+    pub restored_borrow_call: Handle<BorrowCallFact>,
+    pub restored_call_access: Handle<BorrowArgumentAccessFact>,
 }
 
 /// Checked-only resource closure for one explicit direct reborrow.
@@ -600,16 +536,10 @@ pub struct BorrowFacts {
     pub call_loan_paths: Arena<crate::CheckedUnitStructuralPathSegment>,
     /// Checked-only resource-lifecycle dispositions for available direct
     /// reborrows at their weakening boundary. Suspended carriers remain
-    /// pending and therefore have no premature disposition row.
+    /// pending and therefore have no premature disposition row. An event whose
+    /// boundary is a checked post-restoration mutating call also names that
+    /// call through its `restored_*` handles.
     pub reborrow_disposition_events: Arena<CheckedReborrowResourceDispositionEvent>,
-    /// Checked-only suspension/freeze-containment certificates reconstructed
-    /// from exact resource and lifecycle identity. Read/read releases need no
-    /// suspension or freeze row.
-    pub reborrow_containment_certificates: Arena<CheckedReborrowContainmentCertificate>,
-    /// Narrow one-hop certificates for a directly restored mutable parent used
-    /// by the exact next receiver-free, single-argument mutating call. Shared
-    /// restoration admits an exact one- or two-member freeze cohort.
-    pub reborrow_restored_call_use_certificates: Arena<CheckedReborrowRestoredCallUseCertificate>,
 }
 
 impl BorrowFacts {
@@ -639,8 +569,6 @@ impl BorrowFacts {
             call_loan_parents: Arena::new(),
             call_loan_paths: Arena::new(),
             reborrow_disposition_events: Arena::new(),
-            reborrow_containment_certificates: Arena::new(),
-            reborrow_restored_call_use_certificates: Arena::new(),
         }
     }
 

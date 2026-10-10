@@ -85,10 +85,13 @@ fn formation(
         projection::formation_place(program, machine, state, statement_index, borrow.target)?;
     let source_root = place.root.as_symbol()?;
     if let Some(parent_position) = aliases.iter().position(|alias| alias.owner == source_root) {
-        let (projected_type, _) =
-            calls::projected_argument_path(program, state.symbol, statement_index, &place,
+        let (projected_type, _) = calls::projected_argument_path(
+            program,
+            state.symbol,
+            statement_index,
+            &place,
             None,
-            None
+            None,
         )?;
         if parents.contains(&Some(parent_position))
             || source.root_symbol != source_root
@@ -397,7 +400,7 @@ pub(super) fn resolve(
 }
 
 /// The erased parent alias and its one-, two-, or three-child roster named by
-/// the checked post-reactivation certificate. These source bindings carry
+/// the checked post-restoration call join on the disposition event. These source bindings carry
 /// borrow lifetimes, not independent Terminal runtime places, so the statement
 /// sequence advances past their declarations; every other reference local
 /// continues to reject through the ordinary local-data path.
@@ -411,25 +414,13 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
     let parent_local = statements.first()?.as_local_data()?;
     let child_count = facts
         .borrow
-        .reborrow_restored_call_use_certificates
+        .reborrow_disposition_events
         .iter()
-        .filter_map(|(_, certificate)| {
-            (certificate.machine_symbol == machine.symbol
-                && certificate.state_symbol == state.symbol)
-                .then_some(())?;
-            facts
-                .borrow
-                .reborrow_disposition_events
-                .is_valid(certificate.disposition)
-                .then(|| {
-                    facts
-                        .borrow
-                        .reborrow_disposition_events
-                        .get(certificate.disposition)
-                        .shared_cohort
-                        .len()
-                        .max(1)
-                })
+        .filter_map(|(_, event)| {
+            (event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.restored_call.is_valid())
+            .then(|| event.shared_cohort.len().max(1))
         })
         .find(|count| matches!(count, 1..=3))?;
     let child_locals = statements
@@ -482,41 +473,49 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
         .collect::<Option<Vec<_>>>()?;
     let candidates = facts
         .borrow
-        .reborrow_restored_call_use_certificates
+        .reborrow_disposition_events
         .iter()
-        .filter(|(_, certificate)| {
-            if certificate.machine_symbol != machine.symbol
-                || certificate.state_symbol != state.symbol
-                || certificate.carrier_place.root_symbol != parent_local.symbol
-                || !certificate.carrier_place.segments.is_empty()
-                || parent_source.root
-                    != facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol)
-                || parent_source.segments != certificate.restored_place.segments
+        .filter(|(_, event)| {
+            if event.machine_symbol != machine.symbol
+                || event.state_symbol != state.symbol
+                || !event.restored_call.is_valid()
+                || !facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .is_valid(event.child_resource)
+                || !facts.flow.control.calls.is_valid(event.restored_call)
                 || child_sources.iter().any(|source| {
                     source.root != facts::PlaceRoot::Symbol(parent_local.symbol)
                         || !source.segments.is_empty()
                 })
-                || !facts
-                    .borrow
-                    .reborrow_loan_resources
-                    .is_valid(certificate.child_resource)
-                || !facts.flow.control.calls.is_valid(certificate.call)
+            {
+                return false;
+            }
+            let checked_trees::CheckedParentBorrowResource::DirectRoot {
+                resource: parent_resource,
+            } = event.parent_resource
+            else {
+                return false;
+            };
+            if !facts.borrow.direct_loan_resources.is_valid(parent_resource) {
+                return false;
+            }
+            let parent = facts.borrow.direct_loan_resources.get(parent_resource);
+            if parent.owner_symbol != parent_local.symbol
+                || parent_source.root != facts::PlaceRoot::Symbol(parent.captured_place.root_symbol)
+                || parent_source.segments != parent.captured_place.segments
             {
                 return false;
             }
             let child = facts
                 .borrow
                 .reborrow_loan_resources
-                .get(certificate.child_resource);
-            let call = facts.flow.control.calls.get(certificate.call);
-            let disposition = facts
-                .borrow
-                .reborrow_disposition_events
-                .get(certificate.disposition);
-            let roster = if disposition.shared_cohort.is_empty() {
-                vec![certificate.child_resource]
+                .get(event.child_resource);
+            let call = facts.flow.control.calls.get(event.restored_call);
+            let roster = if event.shared_cohort.is_empty() {
+                vec![event.child_resource]
             } else {
-                disposition.shared_cohort.clone()
+                event.shared_cohort.clone()
             };
             roster.len() == child_count
                 && child_locals
@@ -543,13 +542,12 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
                                     }
                         })
                     })
-                && roster.contains(&certificate.child_resource)
+                && roster.contains(&event.child_resource)
                 && child_locals
                     .iter()
                     .any(|local| local.symbol == child.owner_symbol)
                 && call.statement_index == child_count + usize::from(child_count > 1) + 1
                 && call.call_ordinal == 0
-                && call.target_symbol == certificate.target_symbol
         })
         .count();
     (candidates == 1).then(|| {

@@ -511,20 +511,31 @@ fn reborrow_restored_call_alias_target(
     }
     let candidates = facts
         .borrow
-        .reborrow_restored_call_use_certificates
+        .reborrow_disposition_events
         .iter()
-        .filter_map(|(_, certificate)| {
-            if certificate.machine_symbol != machine
-                || certificate.state_symbol != state
-                || certificate.target_symbol != call.target_symbol
-                || certificate.carrier_place.root_symbol != authored_root
-                || !certificate.carrier_place.segments.is_empty()
-                || certificate.access != checked_trees::BorrowAccessKind::Mutable
-                || !facts.flow.control.calls.is_valid(certificate.call)
+        .filter_map(|(_, event)| {
+            if event.machine_symbol != machine
+                || event.state_symbol != state
+                || !event.restored_call.is_valid()
             {
                 return None;
             }
-            let certified_call = facts.flow.control.calls.get(certificate.call);
+            let checked_trees::CheckedParentBorrowResource::DirectRoot {
+                resource: parent_resource,
+            } = event.parent_resource
+            else {
+                return None;
+            };
+            if !facts.borrow.direct_loan_resources.is_valid(parent_resource) {
+                return None;
+            }
+            let parent = facts.borrow.direct_loan_resources.get(parent_resource);
+            if parent.owner_symbol != authored_root
+                || parent.access != checked_trees::BorrowAccessKind::Mutable
+            {
+                return None;
+            }
+            let certified_call = facts.flow.control.calls.get(event.restored_call);
             (certified_call.statement_index == call.statement_index
                 && certified_call.call_ordinal == call.call_ordinal
                 && certified_call.target_symbol == call.target_symbol
@@ -532,8 +543,8 @@ fn reborrow_restored_call_alias_target(
                 && certified_call.has_receiver == call.has_receiver
                 && certified_call.accesses == call.accesses)
                 .then_some(validation::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol),
-                    segments: certificate.restored_place.segments.clone(),
+                    root: facts::PlaceRoot::Symbol(parent.captured_place.root_symbol),
+                    segments: parent.captured_place.segments.clone(),
                 })
         })
         .collect::<Vec<_>>();
@@ -609,32 +620,34 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
 
     let candidates = facts
         .borrow
-        .reborrow_restored_call_use_certificates
+        .reborrow_disposition_events
         .iter()
-        .filter_map(|(_, certificate)| {
-            if certificate.machine_symbol != machine
-                || certificate.state_symbol != caller_state.symbol
-                || certificate.target_symbol == call.target_symbol
-                || !facts.flow.control.calls.is_valid(certificate.call)
-                || !facts
-                    .borrow
-                    .reborrow_disposition_events
-                    .is_valid(certificate.disposition)
+        .filter_map(|(_, event)| {
+            if event.machine_symbol != machine
+                || event.state_symbol != caller_state.symbol
+                || !event.restored_call.is_valid()
             {
                 return None;
             }
-            let certified_call = facts.flow.control.calls.get(certificate.call);
-            let disposition = facts
-                .borrow
-                .reborrow_disposition_events
-                .get(certificate.disposition);
-            if certified_call.statement_index != call.statement_index.checked_add(1)?
+            let checked_trees::CheckedParentBorrowResource::DirectRoot {
+                resource: parent_resource,
+            } = event.parent_resource
+            else {
+                return None;
+            };
+            if !facts.borrow.direct_loan_resources.is_valid(parent_resource) {
+                return None;
+            }
+            let parent = facts.borrow.direct_loan_resources.get(parent_resource);
+            let certified_call = facts.flow.control.calls.get(event.restored_call);
+            if certified_call.target_symbol == call.target_symbol
+                || certified_call.statement_index != call.statement_index.checked_add(1)?
                 || certified_call.call_ordinal != 0
-                || disposition.shared_cohort.len() != target_parameters.len()
+                || event.shared_cohort.len() != target_parameters.len()
             {
                 return None;
             }
-            let member_roots = disposition
+            let member_roots = event
                 .shared_cohort
                 .iter()
                 .map(|member| {
@@ -658,8 +671,8 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
                 return None;
             }
             Some(validation::CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol),
-                segments: certificate.restored_place.segments.clone(),
+                root: facts::PlaceRoot::Symbol(parent.captured_place.root_symbol),
+                segments: parent.captured_place.segments.clone(),
             })
         })
         .collect::<Vec<_>>();

@@ -1,5 +1,8 @@
 use arena::Handle;
-use checked_trees::{BorrowAccessKind, CheckedReborrowAccessEffect};
+use checked_trees::{
+    CheckedParentBorrowResource, CheckedReborrowResourceDisposition,
+    CheckedReborrowResourceDispositionEvent,
+};
 use semantic_vocabulary::MachineId;
 use terminal_psi::{
     TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
@@ -25,66 +28,54 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
 ) -> Result<(), LoweringError> {
     let borrow = &checked.facts.borrow;
     let flow = &checked.facts.flow;
-    for (_, certificate) in borrow.reborrow_restored_call_use_certificates.iter() {
-        if certificate.machine_symbol != source_machine {
+    for (_, event) in borrow.reborrow_disposition_events.iter() {
+        if event.machine_symbol != source_machine || !event.restored_call.is_valid() {
             continue;
         }
+        let shared_freeze_cohort = restored_kind(event)?;
         if !borrow
             .reborrow_loan_resources
-            .is_valid(certificate.child_resource)
-            || !borrow
-                .direct_loan_resources
-                .is_valid(certificate.parent_resource)
-            || !borrow
-                .reborrow_disposition_events
-                .is_valid(certificate.disposition)
-            || !borrow
-                .reborrow_containment_certificates
-                .is_valid(certificate.containment)
+            .is_valid(event.child_resource)
+            || !matches!(
+                event.parent_resource,
+                CheckedParentBorrowResource::DirectRoot { resource }
+                    if borrow.direct_loan_resources.is_valid(resource)
+            )
             || !flow
                 .borrow_lifetimes
                 .weakenings
-                .is_valid(certificate.child_weakening)
+                .is_valid(event.child_weakening)
             || !flow
                 .borrow_lifetimes
                 .weakenings
-                .is_valid(child_parent_weakening_handle(borrow, certificate)?)
-            || !flow.control.calls.is_valid(certificate.call)
-            || !borrow.calls.is_valid(certificate.borrow_call)
-            || !borrow.argument_accesses.is_valid(certificate.call_access)
-            || !flow
-                .contexts
-                .constraint_refs
-                .is_valid(certificate.parent_entry_constraint)
+                .is_valid(child_parent_weakening_handle(borrow, event)?)
+            || !flow.control.calls.is_valid(event.restored_call)
+            || !borrow.calls.is_valid(event.restored_borrow_call)
+            || !borrow
+                .argument_accesses
+                .is_valid(event.restored_call_access)
         {
             return unsupported("restored reborrow call use contains an invalid checked handle");
         }
 
-        let child = borrow
-            .reborrow_loan_resources
-            .get(certificate.child_resource);
-        let parent = borrow
-            .direct_loan_resources
-            .get(certificate.parent_resource);
-        let disposition = borrow
-            .reborrow_disposition_events
-            .get(certificate.disposition);
-        let containment = borrow
-            .reborrow_containment_certificates
-            .get(certificate.containment);
+        let child = borrow.reborrow_loan_resources.get(event.child_resource);
+        let CheckedParentBorrowResource::DirectRoot {
+            resource: parent_resource,
+        } = event.parent_resource
+        else {
+            return unsupported("restored reborrow call use names a non-root parent");
+        };
+        let parent = borrow.direct_loan_resources.get(parent_resource);
         let child_activation = flow
             .borrow_lifetimes
             .activations
             .get(child.parent_suspension.child_activation);
-        let child_weakening = flow
-            .borrow_lifetimes
-            .weakenings
-            .get(certificate.child_weakening);
+        let child_weakening = flow.borrow_lifetimes.weakenings.get(event.child_weakening);
         let parent_weakening = flow
             .borrow_lifetimes
             .weakenings
             .get(child.parent_end_status.parent_weakening);
-        let call = flow.control.calls.get(certificate.call);
+        let call = flow.control.calls.get(event.restored_call);
         if !flow
             .contexts
             .constraint_refs
@@ -94,13 +85,22 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 "restored reborrow call use formation constraint handle is invalid",
             );
         }
-        let shared_freeze_cohort = child.access == BorrowAccessKind::Read
-            && child.access_effect == CheckedReborrowAccessEffect::SharedFreeze
-            && matches!(disposition.shared_cohort.len(), 1..=3);
+        if child.machine_symbol != event.machine_symbol
+            || child.state_symbol != event.state_symbol
+            || child.loan != event.child_loan
+            || child.parent_loan != event.parent_loan
+            || child.parent_resource != event.parent_resource
+            || child.parent_suspension.child_activation != event.child_activation
+            || child.parent_end_status.child_weakening != event.child_weakening
+            || child.weakening_source != event.boundary_source
+            || parent.loan != event.parent_loan
+        {
+            return unsupported("restored reborrow call use checked rows disagree");
+        }
 
         let mut shared_cohort = Vec::new();
         if shared_freeze_cohort {
-            for member_handle in &disposition.shared_cohort {
+            for member_handle in &event.shared_cohort {
                 let member = borrow.reborrow_loan_resources.get(*member_handle);
                 let member_activation = flow
                     .borrow_lifetimes
@@ -121,10 +121,18 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             }
         }
 
+        let projection_remainder = child
+            .captured_place
+            .segments
+            .strip_prefix(parent.captured_place.segments.as_slice())
+            .ok_or(LoweringError::Unsupported(
+                "restored reborrow call use child place is not under its parent",
+            ))?;
+
         let occurrences = source_calls
             .iter()
             .filter(|occurrence| {
-                occurrence.source_state == certificate.state_symbol
+                occurrence.source_state == event.state_symbol
                     && occurrence.statement_index == call.statement_index
                     && occurrence.call_ordinal == call.call_ordinal
                     && occurrence.source_target == call.target_symbol
@@ -210,8 +218,8 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 target_identity: identity(checked, call.target_symbol)?,
             },
             call_target_machine: callee_id,
-            source_machine_identity: identity(checked, certificate.machine_symbol)?,
-            source_state_identity: identity(checked, certificate.state_symbol)?,
+            source_machine_identity: identity(checked, event.machine_symbol)?,
+            source_state_identity: identity(checked, event.state_symbol)?,
             direct_root_owner_identity: identity(checked, parent.owner_symbol)?,
             direct_root_owner_path: owner_path(checked, &parent.owner_path)?,
             direct_root_place: place(checked, &parent.captured_place)?,
@@ -221,7 +229,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             child_owner_identity,
             child_owner_path,
             child_place,
-            projection_remainder: place_segments(checked, &containment.projection_remainder)?,
+            projection_remainder: place_segments(checked, projection_remainder)?,
             child_access,
             child_activation,
             formation_boundary: boundary(checked, child.parent_suspension.source)?,
@@ -236,19 +244,36 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
     Ok(())
 }
 
+/// The event's disposition kind decides the Terminal restoration class, so the
+/// bound row cannot publish a class its recorded disposition did not reach.
+fn restored_kind(event: &CheckedReborrowResourceDispositionEvent) -> Result<bool, LoweringError> {
+    match event.disposition {
+        CheckedReborrowResourceDisposition::Reactivate => Ok(false),
+        CheckedReborrowResourceDisposition::RestoreSharedCohort => {
+            if !matches!(event.shared_cohort.len(), 1..=3) {
+                return unsupported(
+                    "restored shared-freeze reborrow cohort is outside the retained bound",
+                );
+            }
+            Ok(true)
+        }
+        _ => unsupported("restored reborrow call use names a non-restoration disposition"),
+    }
+}
+
 fn child_parent_weakening_handle(
     borrow: &checked_trees::BorrowFacts,
-    certificate: &checked_trees::CheckedReborrowRestoredCallUseCertificate,
+    event: &CheckedReborrowResourceDispositionEvent,
 ) -> Result<Handle<checked_trees::FlowBorrowWeakeningFact>, LoweringError> {
     if !borrow
         .reborrow_loan_resources
-        .is_valid(certificate.child_resource)
+        .is_valid(event.child_resource)
     {
         return unsupported("restored reborrow call use child resource handle is invalid");
     }
     Ok(borrow
         .reborrow_loan_resources
-        .get(certificate.child_resource)
+        .get(event.child_resource)
         .parent_end_status
         .parent_weakening)
 }

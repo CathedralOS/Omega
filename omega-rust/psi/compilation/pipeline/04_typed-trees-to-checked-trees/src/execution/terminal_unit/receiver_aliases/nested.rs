@@ -4,8 +4,7 @@ use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowAccessKind, BorrowLoanFact, BorrowLoanLineage, CheckFacts,
     CheckedBorrowResourceDispositionTarget, CheckedParentBorrowResource,
-    CheckedReborrowAccessEffect, CheckedReborrowContainmentCertificate,
-    CheckedReborrowContainmentKind, CheckedReborrowParentEndStatus,
+    CheckedReborrowAccessEffect, CheckedReborrowParentEndStatus,
     CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
     CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
     CheckedRetiredParentResourceDispositionStep, FlowBorrowActivationFact, FlowBorrowWeakeningFact,
@@ -247,36 +246,6 @@ pub(super) fn formation(
     {
         return None;
     }
-    let expected = CheckedReborrowContainmentCertificate {
-        machine_symbol: flow.machine_symbol,
-        state_symbol: flow.state_symbol,
-        child_loan: loan_handle,
-        child_resource,
-        parent_loan,
-        parent_resource,
-        parent_access: parent.kind.clone(),
-        child_access: access.clone(),
-        access_effect: CheckedReborrowAccessEffect::ExclusiveSuspension,
-        child_activation,
-        parent_entry_constraint,
-        formation_source: activation_source,
-        child_weakening,
-        parent_weakening,
-        child_weakening_source: weakening_source,
-        child_weakening_reason: weakening_reason,
-        parent_place,
-        child_place: place,
-        projection_remainder: projection.to_vec(),
-        containment: CheckedReborrowContainmentKind::ExclusiveSuspension,
-    };
-    let mut certificates = facts
-        .borrow
-        .reborrow_containment_certificates
-        .iter()
-        .filter(|(_, row)| row.child_loan == loan_handle);
-    if certificates.next()?.1 != &expected || certificates.next().is_some() {
-        return None;
-    }
     Some((loan_handle, loan.last_use_statement_index))
 }
 
@@ -379,6 +348,9 @@ pub(super) fn closures(
             retired_parent_path,
             final_target: CheckedBorrowResourceDispositionTarget::DirectRootLifetime(root_lifetime),
             disposition,
+            restored_call: Default::default(),
+            restored_borrow_call: Default::default(),
+            restored_call_access: Default::default(),
         };
         if event != &expected {
             return None;

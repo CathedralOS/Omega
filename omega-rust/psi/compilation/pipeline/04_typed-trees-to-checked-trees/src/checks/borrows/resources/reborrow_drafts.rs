@@ -1,15 +1,12 @@
-//! Draft rows for reborrow loan resources, disposition events, containment
-//! certificates and restored call uses.
+//! Draft rows for reborrow loan resources and disposition events.
 
 use checked_trees::{
     BorrowFacts, BorrowLoanFact, CheckedBorrowResourceDispositionTarget,
     CheckedBorrowResourceLifecyclePhase, CheckedDirectBorrowLoanResource,
-    CheckedParentBorrowResource, CheckedReborrowAccessEffect,
-    CheckedReborrowContainmentCertificate, CheckedReborrowContainmentKind,
-    CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
-    CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
-    CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
-    CheckedReborrowRestoredCallUseCertificate, CheckedRetiredParentResourceDispositionStep,
+    CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedReborrowLoanResource,
+    CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
+    CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
+    CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep,
     FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
 };
 
@@ -113,6 +110,11 @@ pub(crate) struct CheckedReborrowDispositionEventDraft {
     )>,
     pub(crate) final_target: DispositionTargetIndex,
     pub(crate) disposition: CheckedReborrowResourceDisposition,
+    /// Exact post-restoration mutating-call join; the three stay absent unless
+    /// `bind_restored_call_uses` certifies this event's boundary call.
+    pub(crate) restored_call: arena::Handle<checked_trees::FlowCallFact>,
+    pub(crate) restored_borrow_call: arena::Handle<checked_trees::BorrowCallFact>,
+    pub(crate) restored_call_access: arena::Handle<checked_trees::BorrowArgumentAccessFact>,
 }
 
 impl CheckedReborrowDispositionEventDraft {
@@ -162,6 +164,9 @@ impl CheckedReborrowDispositionEventDraft {
                 }
             },
             disposition: self.disposition,
+            restored_call: self.restored_call,
+            restored_borrow_call: self.restored_borrow_call,
+            restored_call_access: self.restored_call_access,
         }
     }
 }
@@ -181,107 +186,6 @@ impl ResourceHandles {
             ParentResourceIndex::Reborrow(index) => CheckedParentBorrowResource::Reborrow {
                 resource: self.reborrows[index],
             },
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CheckedReborrowContainmentCertificateDraft {
-    pub(crate) machine_symbol: symbols::SymbolHandle,
-    pub(crate) state_symbol: symbols::SymbolHandle,
-    pub(crate) child_loan: arena::Handle<BorrowLoanFact>,
-    pub(crate) child_resource: usize,
-    pub(crate) parent_loan: arena::Handle<BorrowLoanFact>,
-    pub(crate) parent_resource: ParentResourceIndex,
-    pub(crate) parent_access: checked_trees::BorrowAccessKind,
-    pub(crate) child_access: checked_trees::BorrowAccessKind,
-    pub(crate) access_effect: CheckedReborrowAccessEffect,
-    pub(crate) child_activation: arena::Handle<checked_trees::FlowBorrowActivationFact>,
-    pub(crate) parent_entry_constraint: arena::Handle<checked_trees::FlowConstraintRef>,
-    pub(crate) formation_source: FlowInvalidationSource,
-    pub(crate) child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    pub(crate) parent_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    pub(crate) child_weakening_source: FlowInvalidationSource,
-    pub(crate) child_weakening_reason: checked_trees::FlowBorrowWeakeningReason,
-    pub(crate) parent_place: checked_trees::CapturedPlace,
-    pub(crate) child_place: checked_trees::CapturedPlace,
-    pub(crate) projection_remainder: Vec<facts::PlaceSegment>,
-    pub(crate) containment: CheckedReborrowContainmentKind,
-}
-
-impl CheckedReborrowContainmentCertificateDraft {
-    pub(crate) fn close(&self, handles: &ResourceHandles) -> CheckedReborrowContainmentCertificate {
-        CheckedReborrowContainmentCertificate {
-            machine_symbol: self.machine_symbol,
-            state_symbol: self.state_symbol,
-            child_loan: self.child_loan,
-            child_resource: handles.reborrows[self.child_resource],
-            parent_loan: self.parent_loan,
-            parent_resource: handles.parent(self.parent_resource),
-            parent_access: self.parent_access.clone(),
-            child_access: self.child_access.clone(),
-            access_effect: self.access_effect,
-            child_activation: self.child_activation,
-            parent_entry_constraint: self.parent_entry_constraint,
-            formation_source: self.formation_source,
-            child_weakening: self.child_weakening,
-            parent_weakening: self.parent_weakening,
-            child_weakening_source: self.child_weakening_source,
-            child_weakening_reason: self.child_weakening_reason,
-            parent_place: self.parent_place.clone(),
-            child_place: self.child_place.clone(),
-            projection_remainder: self.projection_remainder.clone(),
-            containment: self.containment,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CheckedReborrowRestoredCallUseCertificateDraft {
-    pub(crate) machine_symbol: symbols::SymbolHandle,
-    pub(crate) state_symbol: symbols::SymbolHandle,
-    pub(crate) child_loan: arena::Handle<BorrowLoanFact>,
-    pub(crate) child_resource: usize,
-    pub(crate) parent_loan: arena::Handle<BorrowLoanFact>,
-    pub(crate) parent_resource: usize,
-    pub(crate) disposition: usize,
-    pub(crate) containment: usize,
-    pub(crate) child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    pub(crate) call: arena::Handle<checked_trees::FlowCallFact>,
-    pub(crate) borrow_call: arena::Handle<checked_trees::BorrowCallFact>,
-    pub(crate) call_access: arena::Handle<checked_trees::BorrowArgumentAccessFact>,
-    pub(crate) parent_entry_constraint: arena::Handle<checked_trees::FlowConstraintRef>,
-    pub(crate) carrier_place: checked_trees::CapturedPlace,
-    pub(crate) restored_place: checked_trees::CapturedPlace,
-    pub(crate) access: checked_trees::BorrowAccessKind,
-    pub(crate) target_symbol: symbols::SymbolHandle,
-}
-
-impl CheckedReborrowRestoredCallUseCertificateDraft {
-    pub(crate) fn close(
-        &self,
-        resources: &ResourceHandles,
-        dispositions: &[arena::Handle<CheckedReborrowResourceDispositionEvent>],
-        containments: &[arena::Handle<CheckedReborrowContainmentCertificate>],
-    ) -> CheckedReborrowRestoredCallUseCertificate {
-        CheckedReborrowRestoredCallUseCertificate {
-            machine_symbol: self.machine_symbol,
-            state_symbol: self.state_symbol,
-            child_loan: self.child_loan,
-            child_resource: resources.reborrows[self.child_resource],
-            parent_loan: self.parent_loan,
-            parent_resource: resources.direct[self.parent_resource],
-            disposition: dispositions[self.disposition],
-            containment: containments[self.containment],
-            child_weakening: self.child_weakening,
-            call: self.call,
-            borrow_call: self.borrow_call,
-            call_access: self.call_access,
-            parent_entry_constraint: self.parent_entry_constraint,
-            carrier_place: self.carrier_place.clone(),
-            restored_place: self.restored_place.clone(),
-            access: self.access.clone(),
-            target_symbol: self.target_symbol,
         }
     }
 }
