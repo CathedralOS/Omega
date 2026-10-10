@@ -293,7 +293,12 @@ crashes Trap
     // The value is evaluated before the place it is stored in.
     state assignment(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {
         Checker::own_tree(checker, syntax, resolution, typing, statement.value, UseRole::Value);
+        let previous_count: u64 = checker.ownership.loan_count;
+        let holder: u64 in Trapping = Checker::capture_local_loans(checker, syntax, resolution, typing, statement);
+        // Capture uses the RHS roles before the target walk replaces them.
+        // The target walk does not append, retire, or compact held loans.
         Checker::own_tree(checker, syntax, resolution, typing, statement.target, UseRole::Write);
+        Ownership::replace_loan_holder(&mut checker.ownership, holder, previous_count);
     }
 
     state tail(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) {

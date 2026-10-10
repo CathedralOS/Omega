@@ -13,7 +13,9 @@ use psi::types::types;
 // destination lends, or a reference passed on, directly or as a call's
 // argument (a call's result may borrow from any of them) or a
 // construction's field. A loan lasts until its holder's last use in the
-// body; a holder that lends another holder keeps that one's loans alive as
+// body. Copying a shared-reference local duplicates its captured loans;
+// replacing a local retires its old loans only after capturing the new ones.
+// A holder that reborrows another holder keeps its backing loans alive as
 // long as itself. While a loan lasts, an access to an overlapping place
 // other than through its holder conflicts when the loan is exclusive or the
 // access writes, moves or lends exclusively: shared loans admit reads. An
@@ -240,6 +242,22 @@ crashes Trap
         holder: u64 in Trapping,
         handle: u64 in Trapping
     ) {
+        let copied: bool = Checker::copy_reference_loans(checker, syntax, resolution, typing, handle, holder);
+        transition copied {
+            true -> node(checker, syntax, resolution, typing, root, holder, handle + 1)
+            _ -> borrowed(checker, syntax, resolution, typing, root, holder, handle)
+        }
+    }
+
+    state borrowed(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        root: u64 in Trapping,
+        holder: u64 in Trapping,
+        handle: u64 in Trapping
+    ) {
         let hold: Hold = Checker::lent_place(checker, syntax, typing, handle);
         transition hold {
             Hold::Shared { place } -> lend(checker, syntax, resolution, typing, root, holder, handle, place, false)
@@ -276,6 +294,143 @@ crashes Trap
     }
 
     state done() {}
+}
+
+// Copying a shared reference copies its captured loans, not a borrow of the
+// variable that held it. Explicit borrows and exclusive reborrows retain their
+// access route. An originless local carries no known local loan to duplicate.
+machine Checker::copy_reference_loans(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, holder: u64 in Trapping) -> bool
+crashes Trap
+{
+    let expression: Expression = SyntaxTrees::expression(syntax, handle);
+    let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
+    let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+    let role: UseRole = Checker::role_of(checker, handle);
+    let adaptation: Adaptation = Typing::adaptation(typing, handle);
+    transition expression.kind == ExpressionKind::Name && row.kind == TypeKind::Reference
+        && row.access == ReferenceAccess::Shared && role == UseRole::Value && adaptation == Adaptation::None {
+        true -> binding(checker, syntax, resolution, typing, handle, holder)
+        _ -> answer(false)
+    }
+
+    state binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, holder: u64 in Trapping) -> bool {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
+        transition binding {
+            ValueBinding::Local { statement } -> next(checker, syntax, resolution, typing, handle, holder, statement * 4 + 1, 0, checker.ownership.loan_count)
+            _ -> answer(false)
+        }
+    }
+
+    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping, index: u64 in Trapping, end: u64) -> bool {
+        transition index < end && checker.output.machine_accepted {
+            true -> loan(checker, syntax, resolution, typing, handle, holder, lender, index, end)
+            _ -> answer(true)
+        }
+    }
+
+    state loan(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping, index: u64 in Trapping, end: u64) -> bool {
+        let source: u64 in Trapping = Ownership::loan_holder(&checker.ownership, index);
+        transition source == lender {
+            true -> copy(checker, syntax, resolution, typing, handle, holder, lender, index, end)
+            _ -> next(checker, syntax, resolution, typing, handle, holder, lender, index + 1, end)
+        }
+    }
+
+    state copy(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, holder: u64 in Trapping, lender: u64 in Trapping, index: u64 in Trapping, end: u64) -> bool {
+        let place: u64 in Trapping = Ownership::loan_place(&checker.ownership, index);
+        let exclusive: bool = Ownership::loan_exclusive(&checker.ownership, index);
+        let owned: bool = Ownership::loan_owned(&checker.ownership, index);
+        let kept: bool = Ownership::add_loan(&mut checker.ownership, holder, place, exclusive, owned);
+        let backing: u64 in Trapping = Checker::path_root(syntax, resolution, typing, place, true);
+        Ownership::extend_uses(&mut checker.ownership, backing, holder);
+        transition kept {
+            true -> next(checker, syntax, resolution, typing, handle, holder, lender, index + 1, end)
+            _ -> full(checker, syntax, handle)
+        }
+    }
+
+    state full(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping) -> bool {
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
+        true
+    }
+
+    state answer(copied: bool) -> bool {
+        copied
+    }
+}
+
+// Replacing an owned local captures the RHS loans before retiring the previous
+// value. Existing loans remain available while capturing the RHS, so even
+// `reference = reference` preserves its loans. Writes through exclusive
+// references and projected stores do not replace the local's loan carrier.
+pub machine Checker::capture_local_loans(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) -> u64 in Trapping
+crashes Trap
+{
+    let target: Expression = SyntaxTrees::expression(syntax, statement.target);
+    let type_handle: u64 in Trapping = Typing::expression_type(typing, statement.target);
+    let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+    let through: bool = row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared;
+    transition checker.output.machine_accepted && target.kind == ExpressionKind::Name && !through {
+        true -> binding(checker, syntax, resolution, typing, statement)
+        _ -> done()
+    }
+
+    state binding(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement) -> u64 in Trapping {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, statement.target);
+        transition binding {
+            ValueBinding::Local { statement as declaration } -> capture(checker, syntax, resolution, typing, statement, declaration)
+            _ -> done()
+        }
+    }
+
+    state capture(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, declaration: u64 in Trapping) -> u64 in Trapping {
+        Checker::create_loans(checker, syntax, resolution, typing, declaration, statement);
+        declaration * 4 + 1
+    }
+
+    state done() -> u64 in Trapping {
+        0
+    }
+}
+
+// Retire only the old carrier's loans, keeping the replacement captured after
+// `previous_count` and every independent holder's earlier captured loans.
+pub machine Ownership::replace_loan_holder(ownership: &mut Ownership, holder: u64 in Trapping, previous_count: u64)
+crashes Trap
+{
+    transition { _ -> next(ownership, holder, previous_count, 0, 0) }
+
+    state next(ownership: &mut Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping) {
+        transition index < ownership.loan_count && index < 64 && written < 64 {
+            true -> loan(ownership, holder, previous_count, index, written)
+            _ -> done(ownership, written)
+        }
+    }
+
+    state loan(ownership: &mut Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping)
+    requires index < 64, written < 64
+    {
+        let source: u64 = ownership.loan_holders[index];
+        transition source == holder && index < previous_count {
+            true -> next(ownership, holder, previous_count, index + 1, written)
+            _ -> keep(ownership, holder, previous_count, index, written)
+        }
+    }
+
+    state keep(ownership: &mut Ownership, holder: u64 in Trapping, previous_count: u64, index: u64 in Trapping, written: u64 in Trapping)
+    requires index < 64, written < 64
+    {
+        ownership.loan_holders[written] = ownership.loan_holders[index];
+        ownership.loan_places[written] = ownership.loan_places[index];
+        ownership.loan_exclusive[written] = ownership.loan_exclusive[index];
+        ownership.loan_owned[written] = ownership.loan_owned[index];
+        transition { _ -> next(ownership, holder, previous_count, index + 1, written + 1) }
+    }
+
+    state done(ownership: &mut Ownership, written: u64 in Trapping) {
+        ownership.loan_count = written as u64;
+    }
 }
 
 // The place a tree node lends, and how: a borrow's operand, a range slice

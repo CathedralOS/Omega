@@ -441,7 +441,10 @@ declared types.
 Local references capture their initializer's canonical storage origin
 ([`checking/references.omg`](checking/references.omg)). A reborrow uses the
 same origin, and replacing a mutable shared-reference binding does not
-redirect an earlier alias. Origins reset for each body and state. Returned
+redirect an earlier alias. Shared-reference copies retain their captured
+loans; assignment captures the replacement's loans before retiring the old
+binding's loans, preserving independent aliases and referent restrictions.
+Origins reset for each body and state. Returned
 references, reference fields and selected reference values have no modeled
 origin yet; a nonempty write through one rejects `UnsupportedCheck`. A
 complete empty call frame remains allowed. Scalar reference parameters have

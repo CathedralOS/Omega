@@ -2631,6 +2631,49 @@ def main() -> None:
         b"let first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
         b"let captured: &u64 = current; current = &second; captured }",
     )
+    accepted(
+        program,
+        "reference-rebinding-releases-old-loan",
+        b"machine run() -> u64 ensures result == 9 { "
+        b"let mut first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
+        b"current = &second; first = 2; current }",
+    )
+    rejected(
+        program,
+        "reference-rebinding-retains-captured-old-loan",
+        b"machine run() -> u64 { "
+        b"let mut first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
+        b"let captured: &u64 = current; current = &second; first = 2; captured }",
+        "LoanConflict",
+        b"first!3",
+    )
+    rejected(
+        program,
+        "reference-rebinding-holds-new-loan",
+        b"machine run() -> u64 { "
+        b"let first: u64 = 1; let mut second: u64 = 9; let mut current: &u64 = &first; "
+        b"current = &second; second = 10; current }",
+        "LoanConflict",
+        b"second!3",
+    )
+    rejected(
+        program,
+        "reference-self-assignment-retains-loan",
+        b"machine run() -> u64 { "
+        b"let mut first: u64 = 1; let mut current: &u64 = &first; "
+        b"current = current; first = 2; current }",
+        "LoanConflict",
+        b"first!3",
+    )
+    rejected(
+        program,
+        "copied-reference-retains-owned-escape",
+        b"machine run() -> &u64 { let first: u64 = 1; let second: u64 = 9; "
+        b"let mut current: &u64 = &first; let captured: &u64 = current; "
+        b"current = &second; captured }",
+        "LoanEscapes",
+        b"captured!2",
+    )
 
     accepted(
         program,
