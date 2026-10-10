@@ -271,13 +271,15 @@ pub enum CheckedStructuralControlTransferSourcePlan {
     /// the same storage the borrow does rather than a fresh establishment.
     /// `subject` describes the rooted place end to end — source root, the
     /// projection segments below it, the subtree's normalized type identity,
-    /// and the loan's own access. A storage projection forms an operation-owned
-    /// address before later arguments execute; its affine carrier travels
+    /// and the loan's own access. A runtime-indexed storage projection forms an
+    /// operation-owned address before later arguments execute; its affine carrier travels
     /// beside the borrowed referent and retains any parent carrier lifetime.
     ProjectedLoan {
         subject: CheckedUnitStructuralArgumentPlan,
         /// The authored borrow and its descriptor type when a storage place
-        /// must acquire a retained address. A stored reference already owns
+        /// requires a retained address. This prepared type permits formation when
+        /// the target chain needs a runtime capture; static geometry can retain
+        /// its canonical rooted path. A stored reference already owns
         /// its capture; its zero identity keeps that existing resource.
         formation_expression: typed_trees::expression::ExpressionHandle,
         carrier_type_identity: typed_trees::type_identity::TypeIdentityId,

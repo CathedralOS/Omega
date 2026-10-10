@@ -2,6 +2,8 @@
 //! A selected formation owns bounds evaluation. Its affine descriptor travels
 //! beside the authored referent, through whole forwarding, and dies where that
 //! referent's state chain ends. Caller storage never becomes owned transport.
+//! Static geometry needs no new capture, but every projected descendant keeps
+//! its lineage: a static child can still depend on a dynamic ancestor address.
 use crate::LoweringError;
 use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedStructuralControlTransferSourcePlan as Source,
@@ -56,11 +58,7 @@ fn depends_on(parents: &[(usize, usize)], child: usize, ancestor: usize) -> bool
 fn forwarded(source: &Source) -> Option<u32> {
     match source {
         Source::Parameter { index } => Some(*index),
-        Source::ProjectedLoan {
-            subject,
-            carrier_type_identity,
-            ..
-        } if subject.path.is_empty() && !carrier_type_identity.is_valid() => match subject.source {
+        Source::ProjectedLoan { subject, .. } if subject.path.is_empty() => match subject.source {
             Root::Parameter { parameter_index } => Some(parameter_index),
             _ => None,
         },
@@ -135,6 +133,9 @@ impl CapturedLoans {
                 *index = root(&links, *index);
             }
         }
+        // Runtime selectors need an address snapshot before later arguments.
+        // A static incoming edge to the same header forms the same descriptor;
+        // headers with only static geometry keep their canonical place route.
         let mut types: Vec<(usize, TypeIdentityId)> = Vec::new();
         for (position, state) in plan
             .states
@@ -151,9 +152,15 @@ impl CapturedLoans {
                 for transfer in &edge.transfers {
                     if let Source::ProjectedLoan {
                         carrier_type_identity,
+                        subject,
                         ..
                     } = &transfer.source
                         && carrier_type_identity.is_valid()
+                        && subject.path.iter().any(|segment| {
+                            matches!(segment,
+                            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                            | checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(_))
+                        })
                     {
                         let group = nodes[target][transfer.target_parameter_index as usize];
                         if let Some((_, previous)) =
@@ -173,7 +180,8 @@ impl CapturedLoans {
             let _ = position;
         }
         // Reborrowing creates a new descriptor, not another name for its
-        // parent. Preserve that directed dependency beside whole forwarding.
+        // parent. Preserve every directed projection, including static children
+        // without their own descriptor: grandchildren still need that lineage.
         let mut parents = Vec::new();
         for (position, state) in plan
             .states
@@ -198,7 +206,7 @@ impl CapturedLoans {
                     {
                         let parent = nodes[position][parameter_index as usize];
                         let child = nodes[target][transfer.target_parameter_index as usize];
-                        if types.iter().any(|(group, _)| *group == parent)
+                        if !(subject.path.is_empty() && child == parent)
                             && !parents.contains(&(child, parent))
                         {
                             parents.push((child, parent));
@@ -214,9 +222,16 @@ impl CapturedLoans {
         // An ancestor and descendant can never be alternatives of one slot.
         let original_parents = parents.clone();
         for (child, _) in &original_parents {
-            let alternatives = original_parents
+            let alternatives = types
                 .iter()
-                .filter_map(|(candidate, parent)| (candidate == child).then_some(*parent))
+                .filter_map(|(ancestor, _)| {
+                    original_parents
+                        .iter()
+                        .any(|(candidate, parent)| {
+                            candidate == child && depends_on(&original_parents, *parent, *ancestor)
+                        })
+                        .then_some(*ancestor)
+                })
                 .collect::<Vec<_>>();
             for (index, left) in alternatives.iter().enumerate() {
                 for right in &alternatives[index + 1..] {
@@ -292,7 +307,13 @@ impl CapturedLoans {
         parents.sort_unstable();
         parents.dedup();
         let mut ancestry = Vec::new();
-        for (group, _) in &types {
+        let mut groups = Vec::new();
+        for group in nodes.iter().flatten() {
+            if !groups.contains(group) {
+                groups.push(*group);
+            }
+        }
+        for group in &groups {
             let mut ancestors = Vec::new();
             let mut pending = vec![*group];
             while let Some(child) = pending.pop() {

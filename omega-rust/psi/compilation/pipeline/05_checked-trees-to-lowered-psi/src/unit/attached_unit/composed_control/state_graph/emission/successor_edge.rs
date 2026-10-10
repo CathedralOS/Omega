@@ -347,7 +347,9 @@ impl StateGraphEmission<'_, '_> {
                                     Some(&mut calls),
                                 )?;
                             self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-                            if carrier_type_identity.is_valid() {
+                            if carrier_type_identity.is_valid()
+                                && let Some(group) = self.captured_loans.group(target, target_index as u32)
+                            {
                                 let carrier_type = crate::terminal_identities::lookup_type_id(
                                     &self.catalogs.type_ids, &carrier_type_identity,
                                 )?;
@@ -373,8 +375,6 @@ impl StateGraphEmission<'_, '_> {
                                     },
                                     carrier_type, source, None, &mut self.catalogs.next_place, operations,
                                 )?;
-                                let group = self.captured_loans.group(target, target_index as u32)
-                                    .ok_or(LoweringError::Unsupported("state loan capture has no receiving owner"))?;
                                 captured_loans.push((group, carrier.id));
                                 self.structural_places.push(carrier);
                                 argument_path = vec![terminal_psi::StructuralPathSegment::Referent];
