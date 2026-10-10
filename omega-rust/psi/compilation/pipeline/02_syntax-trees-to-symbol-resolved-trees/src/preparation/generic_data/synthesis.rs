@@ -15,12 +15,14 @@ use crate::preparation::generic_data::uses::{
 };
 
 use super::substitution::substitute_copied_type_names;
-use super::work_domain::{GenericDataWorkDomain, SynthesisWork};
-use crate::preparation::generic_data::consider_generic_spelling;
+use super::work_domain::{
+    GenericDataWorkDomain, SynthesisWork, TypePositionPurpose, required_declaration_specializations,
+};
 use crate::preparation::generic_data::evaluate_const_fact_expression;
 use crate::preparation::generic_data::evaluate_const_membership_fact;
 use crate::preparation::generic_data::normalize_domain_head_positions;
 use crate::preparation::generic_data::normalize_generic_template_const_expressions;
+use crate::preparation::generic_data::prepare_closed_application;
 use crate::preparation::generic_data::qualified_const_name;
 
 use crate::preparation::generic_data::replace_const_expression_names_from;
@@ -268,7 +270,8 @@ pub(crate) fn desugar_generic_data_instances_in(
     // substitution -- observes the one canonical shape. Generic template
     // members are open positions whose substituted copies reach the fixpoint
     // below, so they are normalized while the template is still authored.
-    let mut domain_head_positions = work.type_positions(syntax, true);
+    let mut domain_head_positions =
+        work.type_positions(syntax, TypePositionPurpose::Identity, true);
     for item in syntax.root_items().filter(|_| work.is_all()) {
         let Some(definition) = item.as_data() else {
             continue;
@@ -313,15 +316,19 @@ pub(crate) fn desugar_generic_data_instances_in(
     if generic_data.is_empty() {
         return Ok(());
     }
+    let required_specializations =
+        required_declaration_specializations(syntax, &generic_data, &attached_machines, selection);
 
     // FIXPOINT. Each round scans every type-reference position for a
     // `Base<Args..>` spelling, synthesizes one concrete record per new distinct
     // spelling, and rewrites the spellings to the instances' plain names. A
     // NESTED generic (`Pair<T> { a: Box<T> }` used as `Pair<i32>`) synthesizes a
     // `Pair<i32>` record whose `a` field is a fresh `Box<i32>` spelling -- picked
-    // up and monomorphized by the NEXT round. Terminates: each round rewrites
-    // >=1 Generic node to Named (permanent) or stops, and the distinct concrete
-    // spellings are finite.
+    // up and monomorphized by the NEXT round. Only inline storage extends the
+    // authored storage roster. A substituted reference describes identity,
+    // not a layout demand. Declaration-owned obligations still extend this
+    // work through references: the finite template dependency closure decides
+    // which applications need the existing specialization/admission operation.
     // Completion can add closed type owners after an earlier pass. Reuse
     // declarations by retained template/argument identity, never by the name
     // generated for them, and never clone their attached methods twice.
@@ -363,7 +370,7 @@ pub(crate) fn desugar_generic_data_instances_in(
         // substituted declaration descendants acquire the same normal form
         // here, before this round inspects their closed applications.
         if !work.is_all() {
-            let domain_positions = work.type_positions(syntax, true);
+            let domain_positions = work.type_positions(syntax, TypePositionPurpose::Identity, true);
             normalize_domain_head_positions(syntax, selection, &domain_positions);
             canonicalize_closed_domain_indices(
                 syntax,
@@ -375,23 +382,84 @@ pub(crate) fn desugar_generic_data_instances_in(
             )
             .map_err(|diagnostic| vec![diagnostic])?;
         }
-        let positions = work.type_positions(syntax, false);
+        let storage_positions =
+            work.type_positions(syntax, TypePositionPurpose::Materialization, false);
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
         let mut instantiations: Vec<Instantiation> = Vec::new();
-        for position in positions {
-            consider_generic_spelling(
+        for position in work.type_positions(syntax, TypePositionPurpose::Identity, false) {
+            let Some(application) = prepare_closed_application(
                 syntax,
                 &generic_data,
                 &const_definitions,
                 &const_values,
                 selection,
                 position,
-                &mut rewrites,
-                &mut instantiations,
-                &synthesized,
                 warnings,
             )
-            .map_err(|diagnostic| vec![diagnostic])?;
+            .map_err(|diagnostic| vec![diagnostic])?
+            else {
+                continue;
+            };
+            let prior = synthesized
+                .iter()
+                .chain(instantiations.iter())
+                .find(|instance| {
+                    instance.template == application.template
+                        && instance.argument_identity == application.argument_identity
+                });
+            if prior.is_none()
+                && !storage_positions.contains(&position)
+                && !required_specializations.contains(&application.template)
+            {
+                continue;
+            }
+            // Identity-only uses must still rejoin a declaration already
+            // demanded elsewhere. Leaving a raw application beside its closed
+            // spelling splits constructor/call matching into two routes.
+            let synthetic_name = if let Some(prior) = prior {
+                prior.synthetic_name.clone()
+            } else {
+                let display = format!(
+                    "{}<{}>",
+                    generic_data[&application.template].name,
+                    application.argument_names.join(", ")
+                );
+                if synthesized
+                    .iter()
+                    .chain(instantiations.iter())
+                    .any(|instance| instance.synthetic_name == display)
+                {
+                    format!("{display}__{}", synthesized.len() + instantiations.len())
+                } else {
+                    display
+                }
+            };
+            let lookup_name = if let Some(selection) = selection {
+                let Some(path) = selection.data_lookup_path(syntax, &application.base_name) else {
+                    continue;
+                };
+                if let Some((prefix, _)) = path.rsplit_once("::") {
+                    format!("{prefix}::{synthetic_name}")
+                } else {
+                    synthetic_name.clone()
+                }
+            } else {
+                synthetic_name.clone()
+            };
+            rewrites.push(PendingRewrite {
+                type_reference: position,
+                synthetic_name: lookup_name,
+                lifetime_arguments: application.lifetime_arguments,
+            });
+            if prior.is_none() {
+                instantiations.push(Instantiation {
+                    synthetic_name,
+                    declaration: Handle::invalid(),
+                    template: application.template,
+                    argument_handles: application.argument_handles,
+                    argument_identity: application.argument_identity,
+                });
+            }
         }
         if rewrites.is_empty() {
             break; // no more monomorphizable generic spellings

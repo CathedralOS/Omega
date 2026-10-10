@@ -526,14 +526,48 @@ pub(in crate::preparation::generic_data) fn collect_selected_type_reference_posi
     syntax: &SyntaxTrees,
     declarations: &[syntax_trees::item::ItemHandle],
 ) -> Vec<TypeReferenceHandle> {
-    collect_owned_type_reference_positions(syntax, declarations, true, false)
+    collect_owned_type_reference_positions(
+        syntax,
+        declarations,
+        true,
+        false,
+        TypePositionTraversal::Identity,
+    )
+}
+
+/// A substituted declaration adds inline storage, not demands to instantiate
+/// every referent it describes. The synthesis owner adds declaration-obligation
+/// demands independently; identity traversal alone does not discharge them.
+pub(in crate::preparation::generic_data) fn collect_stored_type_reference_positions(
+    syntax: &SyntaxTrees,
+    declarations: &[syntax_trees::item::ItemHandle],
+) -> Vec<TypeReferenceHandle> {
+    collect_owned_type_reference_positions(
+        syntax,
+        declarations,
+        true,
+        false,
+        TypePositionTraversal::Storage,
+    )
 }
 
 pub(in crate::preparation::generic_data) fn collect_data_type_reference_positions(
     syntax: &SyntaxTrees,
     public_only: bool,
 ) -> Vec<TypeReferenceHandle> {
-    collect_owned_type_reference_positions(syntax, syntax.root_item_handles(), false, public_only)
+    collect_owned_type_reference_positions(
+        syntax,
+        syntax.root_item_handles(),
+        false,
+        public_only,
+        TypePositionTraversal::Identity,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TypePositionTraversal {
+    Identity,
+    Storage,
 }
 
 pub(in crate::preparation) fn collect_type_positions(
@@ -542,20 +576,50 @@ pub(in crate::preparation) fn collect_type_positions(
     positions: &mut Vec<TypeReferenceHandle>,
     include_domain_arguments: bool,
 ) {
+    visit_type_positions(
+        syntax,
+        type_reference,
+        positions,
+        include_domain_arguments,
+        TypePositionTraversal::Identity,
+    );
+}
+
+fn visit_type_positions(
+    syntax: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    positions: &mut Vec<TypeReferenceHandle>,
+    include_domain_arguments: bool,
+    traversal: TypePositionTraversal,
+) {
     positions.push(type_reference);
     match syntax.tables.type_references.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            collect_type_positions(syntax, *referee, positions, include_domain_arguments)
+            if traversal == TypePositionTraversal::Identity {
+                visit_type_positions(
+                    syntax,
+                    *referee,
+                    positions,
+                    include_domain_arguments,
+                    traversal,
+                );
+            }
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            collect_type_positions(syntax, *base_type, positions, include_domain_arguments);
+            visit_type_positions(
+                syntax,
+                *base_type,
+                positions,
+                include_domain_arguments,
+                traversal,
+            );
             // The legacy synthesis walk must not capture machine-domain
             // locals. Original-scope discovery may visit these children,
             // but its caller must resolve their lexical bindings first.
-            if !include_domain_arguments {
+            if !include_domain_arguments || traversal == TypePositionTraversal::Storage {
                 return;
             }
             for constraint in syntax.type_references.constraints(*constraints) {
@@ -564,20 +628,25 @@ pub(in crate::preparation) fn collect_type_positions(
                         .type_references
                         .type_reference_handles(domain.arguments)
                     {
-                        collect_type_positions(
+                        visit_type_positions(
                             syntax,
                             *argument,
                             positions,
                             include_domain_arguments,
+                            traversal,
                         );
                     }
                 }
             }
         }
         TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            collect_type_positions(syntax, *element_type, positions, include_domain_arguments)
-        }
+        | TypeReferenceNode::Slice { element_type } => visit_type_positions(
+            syntax,
+            *element_type,
+            positions,
+            include_domain_arguments,
+            traversal,
+        ),
         TypeReferenceNode::Generic { arguments, .. }
         | TypeReferenceNode::DynamicTrait {
             trait_arguments: arguments,
@@ -588,7 +657,13 @@ pub(in crate::preparation) fn collect_type_positions(
                 .type_references
                 .type_reference_handles(*arguments)
             {
-                collect_type_positions(syntax, *argument, positions, include_domain_arguments);
+                visit_type_positions(
+                    syntax,
+                    *argument,
+                    positions,
+                    include_domain_arguments,
+                    traversal,
+                );
             }
         }
         TypeReferenceNode::ConstExpression(_)
@@ -602,6 +677,7 @@ fn collect_owned_type_reference_positions(
     declarations: &[syntax_trees::item::ItemHandle],
     include_machines: bool,
     public_only: bool,
+    traversal: TypePositionTraversal,
 ) -> Vec<TypeReferenceHandle> {
     let mut positions: Vec<TypeReferenceHandle> = Vec::new();
     for &declaration in declarations {
@@ -619,19 +695,21 @@ fn collect_owned_type_reference_positions(
             {
                 for member in syntax.tables.items.data_members(definition.members) {
                     match member {
-                        DataMember::Field(field) => collect_type_positions(
+                        DataMember::Field(field) => visit_type_positions(
                             syntax,
                             field.type_reference,
                             &mut positions,
                             true,
+                            traversal,
                         ),
                         DataMember::Variant(variant) => {
                             for field in syntax.tables.items.data_payload_fields(variant.payload) {
-                                collect_type_positions(
+                                visit_type_positions(
                                     syntax,
                                     field.type_reference,
                                     &mut positions,
                                     true,
+                                    traversal,
                                 );
                             }
                         }
@@ -644,7 +722,13 @@ fn collect_owned_type_reference_positions(
             // the closed `Box<u64>` instance exactly like a data field, or the
             // const retains a raw generic type downstream.
             Item::Const(definition) if !public_only || definition.is_public => {
-                collect_type_positions(syntax, definition.type_reference, &mut positions, true)
+                visit_type_positions(
+                    syntax,
+                    definition.type_reference,
+                    &mut positions,
+                    true,
+                    traversal,
+                )
             }
             Item::Machine(machine) if include_machines && machine.type_parameters.is_empty() => {
                 // Conformance arguments participate in the same concrete
@@ -658,14 +742,20 @@ fn collect_owned_type_reference_positions(
                         .type_references
                         .type_reference_handles(conformance.arguments)
                     {
-                        collect_type_positions(syntax, *argument, &mut positions, false);
+                        visit_type_positions(syntax, *argument, &mut positions, false, traversal);
                     }
                 }
                 for state_handle in syntax.tables.items.state_handles(machine.states) {
                     let state = syntax.tables.items.state(*state_handle);
-                    collect_type_positions(syntax, state.return_type, &mut positions, false);
+                    visit_type_positions(
+                        syntax,
+                        state.return_type,
+                        &mut positions,
+                        false,
+                        traversal,
+                    );
                     for parameter_handle in syntax.tables.items.state_parameters(state.parameters) {
-                        collect_type_positions(
+                        visit_type_positions(
                             syntax,
                             syntax
                                 .tables
@@ -674,17 +764,19 @@ fn collect_owned_type_reference_positions(
                                 .type_reference,
                             &mut positions,
                             false,
+                            traversal,
                         );
                     }
                     for statement_handle in syntax.tables.items.statements(state.statements) {
                         if let StatementNode::LocalData(local) =
                             syntax.tables.statements.statement(*statement_handle)
                         {
-                            collect_type_positions(
+                            visit_type_positions(
                                 syntax,
                                 local.type_reference,
                                 &mut positions,
                                 false,
+                                traversal,
                             );
                         }
                     }
@@ -707,7 +799,7 @@ fn collect_owned_type_reference_positions(
         if concrete_expressions.contains(handle)
             && let ExpressionNode::Cast(cast) = expression
         {
-            collect_type_positions(syntax, cast.target_type, &mut positions, false);
+            visit_type_positions(syntax, cast.target_type, &mut positions, false, traversal);
         }
     }
     positions

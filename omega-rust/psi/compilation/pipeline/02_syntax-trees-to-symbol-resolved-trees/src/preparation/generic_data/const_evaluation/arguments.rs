@@ -1,7 +1,7 @@
 //! Constant evaluation: arguments.
 use super::super::{
     BinaryOperator, CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle,
-    ExpressionNode, Handle, HashMap, HashSet, Identifier, SyntaxTrees, TypeParameterKind,
+    ExpressionNode, HashMap, HashSet, Identifier, SyntaxTrees, TypeParameterKind,
     TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::preparation::generic_data::eligibility::base_is_fully_monomorphizable;
@@ -9,8 +9,7 @@ use symbols::JoinedPath;
 
 use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::preparation::generic_data::GenericData;
-use crate::preparation::generic_data::Instantiation;
-use crate::preparation::generic_data::PendingRewrite;
+use crate::preparation::generic_data::discovery::ClosedApplication;
 
 use crate::preparation::generic_data::canonicalize_const_definition;
 use crate::preparation::generic_data::canonicalize_monomorphizable_argument_handles;
@@ -27,23 +26,21 @@ use crate::preparation::generic_data::validate_syntax_integer_range;
 use numerics::literals::LandedIntegerType;
 
 /// If `type_reference` is a `Base<Args..>` spelling of a fully-monomorphizable
-/// generic data definition, record the rewrite-to-plain-name and the (deduped)
-/// instantiation. Anything Phase 1 cannot lower completely -- a non-generic base,
+/// generic data definition, prepare its closed argument tuple. The synthesis
+/// owner decides declaration demand and reuse; argument evaluation never owns
+/// the instance roster. Anything Phase 1 cannot lower completely -- a non-generic base,
 /// wrong arity, a non-sluggable argument, or a data shape whose members cannot
 /// substitute every parameter occurrence exactly -- is left
 /// UNTOUCHED for the existing type-check-only path (skip, never reject).
-pub(in crate::preparation::generic_data) fn consider_generic_spelling(
+pub(in crate::preparation::generic_data) fn prepare_closed_application(
     syntax: &mut SyntaxTrees,
     generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     type_reference: TypeReferenceHandle,
-    rewrites: &mut Vec<PendingRewrite>,
-    instantiations: &mut Vec<Instantiation>,
-    synthesized: &[Instantiation],
     warnings: &mut Vec<Diagnostic>,
-) -> Result<(), Diagnostic> {
+) -> Result<Option<ClosedApplication>, Diagnostic> {
     let (base_name, lifetime_arguments, arguments) =
         match syntax.tables.type_references.type_reference(type_reference) {
             TypeReferenceNode::Generic {
@@ -51,11 +48,11 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
                 lifetime_arguments,
                 arguments,
             } => (base_name.clone(), lifetime_arguments.clone(), *arguments),
-            _ => return Ok(()),
+            _ => return Ok(None),
         };
     let base = base_name.as_str().to_string();
     let Some(base_info) = selected_generic_data(syntax, generic_data, selection, &base_name) else {
-        return Ok(()); // non-generic base: plan-laid / existing error paths
+        return Ok(None); // non-generic base: plan-laid / existing error paths
     };
 
     let mut argument_handles: Vec<TypeReferenceHandle> = syntax
@@ -70,7 +67,7 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
     if argument_handles.len() > parameter_count
         || (argument_handles.len() < parameter_count && base_info.type_equations.is_empty())
     {
-        return Ok(());
+        return Ok(None);
     }
     if base_info
         .const_parameter_types
@@ -83,7 +80,7 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
                         if super::anonymous::requires_const_operator_selection(syntax, *expression))
         })
     {
-        return Ok(());
+        return Ok(None);
     }
     for ((parameter_name, parameter_type), argument) in base_info
         .parameter_names
@@ -310,7 +307,7 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
             argument_handles = completed;
         }
     } else if argument_handles.len() < parameter_count {
-        return Ok(());
+        return Ok(None);
     }
     let Some(argument_handles) = canonicalize_monomorphizable_argument_handles(
         syntax,
@@ -318,19 +315,19 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
         &lifetime_arguments,
         &argument_handles,
     ) else {
-        return Ok(());
+        return Ok(None);
     };
     let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles, selection)
     else {
-        return Ok(());
+        return Ok(None);
     };
     if !const_arguments_fit_declarations(syntax, base_info, &argument_handles) {
         // Leave malformed/out-of-range const applications intact so the normal
         // declaration-aware validator emits its precise diagnostic.
-        return Ok(());
+        return Ok(None);
     }
     if !base_is_fully_monomorphizable(syntax, generic_data, selection, base_info) {
-        return Ok(());
+        return Ok(None);
     }
 
     let Some(argument_identity) = argument_handles
@@ -341,56 +338,16 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
         })
         .collect::<Option<Vec<_>>>()
     else {
-        return Ok(());
+        return Ok(None);
     };
-    let prior = synthesized
-        .iter()
-        .chain(instantiations.iter())
-        .find(|instance| {
-            instance.template == base_info.declaration
-                && instance.argument_identity == argument_identity
-        });
-    let synthetic_name = if let Some(prior) = prior {
-        prior.synthetic_name.clone()
-    } else {
-        let display = format!("{}<{}>", base_info.name, argument_names.join(", "));
-        if synthesized
-            .iter()
-            .chain(instantiations.iter())
-            .any(|instance| instance.synthetic_name == display)
-        {
-            format!("{display}__{}", synthesized.len() + instantiations.len())
-        } else {
-            display
-        }
-    };
-    let lookup_name = if let Some(selection) = selection {
-        let Some(path) = selection.data_lookup_path(syntax, &base_name) else {
-            return Ok(());
-        };
-        if let Some((prefix, _)) = path.rsplit_once("::") {
-            format!("{prefix}::{synthetic_name}")
-        } else {
-            synthetic_name.clone()
-        }
-    } else {
-        synthetic_name.clone()
-    };
-    rewrites.push(PendingRewrite {
-        type_reference,
-        synthetic_name: lookup_name,
+    Ok(Some(ClosedApplication {
+        base_name,
         lifetime_arguments,
-    });
-    if prior.is_none() {
-        instantiations.push(Instantiation {
-            synthetic_name,
-            declaration: Handle::invalid(),
-            template: base_info.declaration,
-            argument_handles,
-            argument_identity,
-        });
-    }
-    Ok(())
+        template: base_info.declaration,
+        argument_handles,
+        argument_identity,
+        argument_names,
+    }))
 }
 
 pub(in crate::preparation::generic_data) fn const_arguments_fit_declarations(

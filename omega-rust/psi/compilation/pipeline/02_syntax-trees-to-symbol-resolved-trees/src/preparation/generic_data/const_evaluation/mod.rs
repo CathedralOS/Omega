@@ -12,8 +12,8 @@ mod templates;
 mod values;
 
 pub(super) use arguments::{
-    EvaluatedConst, consider_generic_spelling, const_integer_type,
-    evaluate_const_argument_expression, generic_const_integer_types,
+    EvaluatedConst, const_integer_type, evaluate_const_argument_expression,
+    generic_const_integer_types, prepare_closed_application,
 };
 pub(super) use domains::{
     canonicalize_closed_domain_indices, domain_index_parameters, integer_literal_value,
@@ -32,8 +32,8 @@ pub(in crate::preparation) use templates::collect_type_positions;
 pub(super) use templates::{
     capture_machine_runtime_template_names, collect_data_type_reference_positions,
     collect_machine_type_reference_positions, collect_selected_type_reference_positions,
-    normalize_generic_template_const_expressions, replace_const_expression_names_from,
-    replace_machine_const_expression_names_from,
+    collect_stored_type_reference_positions, normalize_generic_template_const_expressions,
+    replace_const_expression_names_from, replace_machine_const_expression_names_from,
 };
 pub(in crate::preparation) use values::canonicalize_selected_const_definition;
 pub(crate) use values::closed_fixed_array_length;

@@ -32,6 +32,17 @@ pub(super) struct PendingRewrite {
     pub(super) lifetime_arguments: Vec<Identifier>,
 }
 
+/// A canonical closed use, before its owner decides whether a declaration is
+/// demanded or an existing specialization can serve the identity edge.
+pub(super) struct ClosedApplication {
+    pub(super) base_name: Identifier,
+    pub(super) lifetime_arguments: Vec<Identifier>,
+    pub(super) template: syntax_trees::item::ItemHandle,
+    pub(super) argument_handles: Vec<TypeReferenceHandle>,
+    pub(super) argument_identity: Vec<ClosedArgumentIdentity>,
+    pub(super) argument_names: Vec<String>,
+}
+
 /// One discovered instantiation: the base generic definition and the argument
 /// type references spelled for it and its materialized declaration. The name
 /// is only lookup metadata; the live item and argument tuple own identity.

@@ -3065,10 +3065,12 @@ of a check the same flow already performed, not the check itself.
 
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
-  corpus and focused native cohort. Stored references now retain finite closed
-  identity edges through Terminal and native catalogs; regular and growing
-  recursive applications no longer demand transitive pointee storage. Closed
-  case operands consume prepared member types without checking-side substitution;
+  corpus and focused native cohort. Stored references retain finite closed
+  identity edges through Terminal and native catalogs. Identity-only references
+  no longer grow the pre-resolution declaration catalog. Obligation-bearing
+  recursive applications still need a finite admission route independent of
+  layout expansion. Closed case operands consume prepared member types without
+  checking-side substitution;
   borrowed array payload observations retain their indexed scalar endpoints.
   Case-qualified descriptor storage now composes through ingress, construction,
   copies, arrays, joins and returns without granting permissions to inactive

@@ -5,10 +5,18 @@
 //! instance declarations remain in SyntaxTrees, not a second program schema.
 //! Exact declaration lookup comes from the shared
 //! `preparation::declaration_selection` owner.
+//!
+//! Closed declaration specialization is demanded by authored applications,
+//! inline storage and unfinished declaration work. Reference identity alone
+//! does not demand a recursively growing catalog. The finite template graph
+//! retains transitive constant/fact/body obligations before indirection can
+//! omit redundant declarations; the existing synthesis operation owns their
+//! discharge. Typed preparation later elaborates finite application field
+//! views without reopening the frozen program during checking.
 
 use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::uses::concrete_machine_expression_handles;
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use numerics::literals::IntegerLiteral;
@@ -58,9 +66,9 @@ pub(in crate::preparation::generic_data) use const_evaluation::{
     canonicalize_selected_declaration_value, canonicalize_selected_index_expression,
     capture_machine_runtime_template_names, checked_fact_integer,
     collect_data_type_reference_positions, collect_machine_type_reference_positions,
-    consider_generic_spelling, const_integer_in_envelope, const_integer_type,
-    domain_index_parameters, evaluate_const_argument_expression, generic_const_integer_types,
-    integer_literal_value, normalize_generic_template_const_expressions,
+    const_integer_in_envelope, const_integer_type, domain_index_parameters,
+    evaluate_const_argument_expression, generic_const_integer_types, integer_literal_value,
+    normalize_generic_template_const_expressions, prepare_closed_application,
     prove_const_leaf_domain_constraints, qualified_const_name, replace_const_expression_names_from,
     replace_machine_const_expression_names_from, syntax_type_identity, validate_const_index_type,
     validate_syntax_integer_range,

@@ -14,6 +14,7 @@ use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::syntax_type_identity;
 use crate::preparation::generic_data::validate_const_index_type;
 use crate::preparation::generic_data::validate_syntax_integer_range;
+use crate::preparation::generic_data::work_domain::TypePositionPurpose;
 use symbols::JoinedPath;
 
 pub(in crate::preparation::generic_data) fn integer_literal_value(
@@ -215,7 +216,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
     let constraints = if work.is_all() {
         syntax.tables.type_references.domain_constraints()
     } else {
-        work.type_positions(syntax, true)
+        work.type_positions(syntax, TypePositionPurpose::Identity, true)
             .into_iter()
             .flat_map(|reference| {
                 let TypeReferenceNode::Constrained { constraints, .. } =
