@@ -1,30 +1,9 @@
-// Indexed record elements as state arguments: `write(items[index],
-// output)` copies the element ONLY on the selected edge — a second
-// call with an out-of-bounds index takes `false -> {}` and never
-// evaluates `items[99]`.
-//
-//   * `select(entries, 1, &mut main.output)` then
-//     `select(entries, 99, &mut main.output)` — the guard guards the
-//     copy, not just the store.
-//   * `hits` records the reached arm.
-//
-// Compile-checked only: no standard-library dependency, no ProcessExit
-// provider.
-
-data Kind [copy] {
-    case First;
-    case Second;
-}
-
-data Item [copy] {
-    kind: Kind;
-    value: u64;
-}
-
-data Output {
-    kind: Kind;
-    value: u64;
-}
+// `items[index]` as a composite state argument: the guarded edge
+// evaluates the indexed element only on the selected arm — the
+// unselected edge must not evaluate its out-of-bounds copy.
+data Kind [copy] { case First; case Second; }
+data Item [copy] { kind: Kind; value: u64; }
+data Output { kind: Kind; value: u64; }
 
 machine select(items: &[Item], index: u64, output: &mut Output) {
     transition index < items.len {
@@ -37,24 +16,18 @@ machine select(items: &[Item], index: u64, output: &mut Output) {
     }
 }
 
-data Main {
-    items: [Item; 2];
-    output: Output;
-    hits: i32 in Wrapping;
-}
+data Main { items: [Item; 2]; output: Output; }
 
 machine Main::main(main: &mut Main) {
-    main.hits = 0;
     main.items[0] = Item { kind: Kind::First, value: 11 };
     main.items[1] = Item { kind: Kind::Second, value: 22 };
-    main.output = Output { kind: Kind::First, value: 0 };
     let entries: &[Item] = &main.items[..];
     select(entries, 1, &mut main.output);
     select(entries, 99, &mut main.output);
     transition main.output.value == 22 {
-        true -> pass(main)
-        _ -> fail(main)
+        true -> done()
+        _ -> bad()
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    state done() {}
+    state bad() {}
 }
