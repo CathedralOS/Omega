@@ -1,0 +1,47 @@
+// Result-use overloads: two machines share the name `walk` — one
+// returns `i32 in Logged`, one returns Unit. A statement call
+// carries no expected result, so the result-domain overload rule
+// selects the empty projection on every call site; a value call
+// selects the result-carrying sibling.
+//
+//   * `walk(3);` statement → Unit overload (which recurses
+//     receiverlessly `walk(n - 1);` — the same selection rule
+//     re-fires inside its own body).
+//   * `let logged: i32 in Logged = walk(3);` — annotated value
+//     position selects the Logged overload (a bare `as` cast does
+//     NOT switch selection — it still binds the Unit sibling).
+//   * `hits` records the reached arm.
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider.
+
+domain i32::Logged;
+
+machine walk(n: i32) -> i32 in Logged {
+    n as i32 in Logged
+}
+
+machine walk(n: i32) {
+    transition n > 0 {
+        true -> descend(n)
+        _ -> done()
+    }
+    state descend(n: i32) {
+        walk(n - 1);
+    }
+    state done() { }
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    walk(3);
+    let logged: i32 in Logged = walk(3);
+    transition (logged as i32) == 3 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
