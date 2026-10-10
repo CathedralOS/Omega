@@ -20,3 +20,7 @@ magnitude and columns exceeds its second. Zero strides reject when repeated.
 No allocation or implicit copies. Descriptor copies do not copy backing data.
 try functions report runtime invalid data. read_checked exposes the proof
 boundary; a statically out-of-bounds call must reject, not return Invalid.
+
+try_read admits the entire readonly layout before selecting a coordinate.
+try_write admits the entire injective mutable layout before selecting a coordinate.
+try_offset checks one coordinate independently and is element-type independent.

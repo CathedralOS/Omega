@@ -127,8 +127,15 @@ requires index < backing.len {
 }
 
 pub machine try_read(backing: &[i32], layout: &Layout2, row: u64, column: u64) -> ReadResult {
-    let selected: IndexResult = try_offset(layout, backing.len, row, column);
-    transition selected { IndexResult::Ok { index } -> bounded(backing, index) IndexResult::Invalid -> ReadResult::Invalid }
+    let admitted: bool = valid_readonly(layout, backing.len);
+    transition admitted {
+        true -> locate(backing, layout, row, column)
+        false -> ReadResult::Invalid
+    }
+    state locate(backing: &[i32], layout: &Layout2, row: u64, column: u64) -> ReadResult {
+        let selected: IndexResult = try_offset(layout, backing.len, row, column);
+        transition selected { IndexResult::Ok { index } -> bounded(backing, index) IndexResult::Invalid -> ReadResult::Invalid }
+    }
     state bounded(backing: &[i32], index: u64) -> ReadResult {
         transition index < backing.len {
             true -> read(backing, index)

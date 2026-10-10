@@ -1,0 +1,47 @@
+{
+  "inputs": [
+    {
+      "library_file_id": "libfile_78139b40c4d48191993287e01136f045",
+      "version": 0,
+      "filename": "nf02-policy-contract.bundle",
+      "size_bytes": 28068,
+      "sha256": "d7c6562b51b44c6638c6845a812bfb4951b3abc386aa337c99b36a663c873bc9",
+      "base": "03e477fa424a9e6a2db7f49e17bf896ab3f76b48",
+      "original_tip": "6b1fd6f4582a25f6104ef4406f216f0235e3a54b",
+      "local_ref": "import/nf02-policy-contract",
+      "receipt": "materialized bytes readable; NF02 bundle prerequisite verified; NF08 two-commit patch applied to isolated import worktree"
+    },
+    {
+      "library_file_id": "libfile_56c88e489c1081919f06452cbd7f15e8",
+      "version": 0,
+      "filename": "nf08-moments-reviewed-candidate.patch",
+      "size_bytes": 84457,
+      "sha256": "3bcb718c23436c33977d2061d8a1eb4efa0346db12d346754e74607c96e3053d",
+      "base": "03e477fa424a9e6a2db7f49e17bf896ab3f76b48",
+      "original_tip": "db4db4c4680ab511bcc9e2d87a5480ba2988d3f4",
+      "local_ref": "import/nf08-reviewed",
+      "receipt": "materialized bytes readable; NF02 bundle prerequisite verified; NF08 two-commit patch applied to isolated import worktree"
+    },
+    {
+      "library_file_id": "libfile_1c9fe2d9d0108191bf15678e80b29e4f",
+      "version": 0,
+      "filename": "nf02-additive-handoff.bundle",
+      "size_bytes": 41254,
+      "sha256": "0d9aa20321f16cf3eab1d8982b25cc2536c2d119379a7f0b5003ea4a48e09575",
+      "original_tip": "5d7ad026310e1e1e0e260e4e357600f0fd89ac93",
+      "receipt": "materialized bytes readable; final NF02 bundle prerequisite and supplied SHA256 verified"
+    },
+    {
+      "library_file_id": "libfile_7ef3755c9ed8819199b7e02c54ab1264",
+      "version": 0,
+      "filename": "omega-scientific-candidate-receipts.json",
+      "size_bytes": 132614,
+      "sha256": "486149353acdfe8bcbafb46d8a9d61a3182a601d22f0955e70631a187fbf9008",
+      "original_tip": null,
+      "receipt": "JSON readable; source inventory only"
+    }
+  ],
+  "original_nf01_candidate": "11632be3a409f5fec6381ca50a67983d0cc51d2b",
+  "integration_base": "30ec6a20142f4e79e236c20912455939df40ea96",
+  "remote_worker_pushes": "none in integration outcome"
+}

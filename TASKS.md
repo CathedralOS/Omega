@@ -76,6 +76,19 @@ Workflow is in [AGENTS.md](AGENTS.md), live assignments in the
 [claims registry](tools/claims.md), semantic decisions in
 [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
 
+## Connected scientific library
+
+- **W100-CONNECTED.** (new-scope) Complete the connected rank-two scientific
+  library in `source/library/numerics/` and its W100 API consumers in
+  `samples/cli/scientific/w100/`. Reuse preserved candidate sources and frozen
+  mathematical oracles; the integration owner implements all required
+  interfaces without active-worker prerequisites. First acceptance is a real
+  descriptor-backed consumer through check, native and Terminal execution,
+  with a separate intended-invalid source. Current frontier: library checking
+  succeeds, but complete provider preparation and consumer execution remain
+  unqualified. Continue on current main with the supported execution context;
+  preserve unrelated work and land coherent qualified chunks through the queue.
+
 ## Updating the boards
 
 Update by subtraction, not accumulation. This applies to all three task boards.

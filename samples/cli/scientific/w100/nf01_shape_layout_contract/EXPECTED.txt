@@ -15,3 +15,8 @@ Origin 1 strides (1,4), shape 2x3 maximum offset 10 exceeds length 9.
 Expected native process exit 73; Terminal process exit 73.
 invalid_control: offset 6 violates index < len=6. Expected compile rejection
 at read_checked, independently of runtime Invalid handling in the consumers.
+
+Extended before any consumer execution: matched checked-layout origin 0 maps
+(1,2) to offset 5 and returns 6; origin 1 maps it to offset 6 and rejects.
+Whole-layout readonly admission must reject huge-stride layout even at (0,0),
+whose individual offset 0 would otherwise be readable.
