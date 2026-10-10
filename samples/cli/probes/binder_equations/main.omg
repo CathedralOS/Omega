@@ -1,0 +1,53 @@
+// Declared-range binder equations: `data TinyBytes<Length, const
+// Capacity: u64> where Length == u64[0..=Capacity]` — instantiations
+// satisfy the equation exactly: omitted binder (`u64[0..=256]` and
+// `u64[0..257]`), explicit pair (`u64[0..=256], 256`), and a
+// domain-index equation `Length == u64::AtMost<Capacity>`.
+//
+//   * Four instantiation spellings on one generic data.
+//   * `hits` records the reached arm.
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider.
+
+domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
+
+data TinyBytes<Length, const Capacity: u64>
+where
+    Length == u64[0..=Capacity]
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+data Domained<Length, const Capacity: u64>
+where
+    Length == u64::AtMost<Capacity>
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+data Shapes {
+    inclusive: TinyBytes<u64[0..=256]>;
+    exclusive: TinyBytes<u64[0..257]>;
+    explicit: TinyBytes<u64[0..=256], 256>;
+    domained: Domained<u64 in AtMost<256>, 256>;
+}
+
+data Main {
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let shapes: Shapes = Shapes {};
+    transition shapes.inclusive.storage.len == 256
+        && shapes.exclusive.storage.len == 257
+        && shapes.domained.storage.len == 256 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

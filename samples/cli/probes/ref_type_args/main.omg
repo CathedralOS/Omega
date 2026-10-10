@@ -1,0 +1,36 @@
+// `&T` as a static type argument: `ceiling<&Element>()` passes a
+// reference TYPE at the call; `u64[0..=ceiling<&Element>()]` uses
+// the result as a symbolic array bound in a field; `unused<&Element,
+// 7>` relays a reference type arg through a generic.
+//
+//   * `machine ceiling<Element>() -> u64`, `data Bounded<Element>`
+//     field bound `u64[0..=ceiling<&Element>()]`.
+//   * `hits` records the reached arm.
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider.
+
+machine ceiling<Element>() -> u64 { 70 }
+
+data Bounded<Element> {
+    value: u64[0..=ceiling<&Element>()];
+}
+
+machine unused<Element, const Tag: u8>() -> u64 { 70 }
+
+machine relay<Element>() -> u64 { unused<&Element, 7>() }
+
+data Main {
+    bounded: Bounded<u8>;
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    transition relay<u8>() == 70 && main.bounded.value == 0 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
