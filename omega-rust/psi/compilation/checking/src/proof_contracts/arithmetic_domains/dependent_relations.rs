@@ -1,7 +1,4 @@
-use super::{
-    ExpressionHandle, ExpressionNode, Interval, Machine, State,
-    TypeReferenceHandle,
-};
+use super::{ExpressionHandle, ExpressionNode, Interval, Machine, State, TypeReferenceHandle};
 use language_core::place_label;
 
 /// R1 relational refinement (the ONE closed subtraction rule): `self.F - i`

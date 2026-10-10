@@ -111,10 +111,7 @@ pub(super) fn signature_environment(
 ) -> Option<TypeEnvironment> {
     if let Some(signature) = program.traits().iter().find_map(|definition| {
         (definition.symbol == owner_symbol)
-            .then(|| {
-                program
-                    .trait_machine_signature_by_symbol(definition, state_symbol)
-            })
+            .then(|| program.trait_machine_signature_by_symbol(definition, state_symbol))
             .flatten()
     }) {
         return Some(environment_from_parameters(

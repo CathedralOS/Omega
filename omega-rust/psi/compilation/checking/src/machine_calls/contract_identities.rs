@@ -223,7 +223,8 @@ fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
 pub fn machine_template_commitment(
     canonical_template_contract_bytes: &[u8],
 ) -> typed_trees::typed_trees::MachineTemplateCommitment {
-    let mut strong = crate::digest_encoder::DomainDigestEncoder::new(b"omega.machine-template.v2\0");
+    let mut strong =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.machine-template.v2\0");
     strong.raw(&canonical_template_contract_bytes);
     typed_trees::typed_trees::MachineTemplateCommitment::from_digest(strong.finish())
 }
@@ -433,7 +434,8 @@ fn machine_specialization_identity(
         }
         None => bytes.push(0),
     }
-    let mut strong = crate::digest_encoder::DomainDigestEncoder::new(b"omega.machine-specialization.v2\0");
+    let mut strong =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.machine-specialization.v2\0");
     strong.raw(&bytes);
     Ok(checked_trees::CheckedMachineSpecializationIdentity {
         instance: specialization.instance,

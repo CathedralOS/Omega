@@ -536,7 +536,8 @@ fn walk_state(
     let mut has_explicit_crash = false;
 
     for (statement_ordinal, statement) in program
-        .statement_table.indexed_statements(state.statement_nodes)
+        .statement_table
+        .indexed_statements(state.statement_nodes)
     {
         // R2 rung 3 slice 2: reads of an unestablished GATED place refuse
         // BEFORE this statement's own write effect is applied.

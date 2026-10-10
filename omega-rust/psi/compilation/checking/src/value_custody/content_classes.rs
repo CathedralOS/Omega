@@ -27,18 +27,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// an index the table does not name reads the same answer the classifier
 /// gives a reference that names nothing.
 pub fn classify_program_content_classes(program: &dyn crate::CheckingInput) -> ContentClassFacts {
-    let table = &program.type_reference_table;
-    let highest = table
-        .type_reference_rows()
-        .map(|(handle, _)| handle.arena_index())
-        .max()
-        .unwrap_or(0);
-    let mut rows =
-        vec![content_classes(program, TypeReferenceHandle::invalid()); highest as usize + 1];
-    for (handle, _) in table.type_reference_rows() {
-        rows[handle.arena_index() as usize] = content_classes(program, handle);
-    }
-    ContentClassFacts::with_rows(rows)
+    crate::classify_type_references(program, content_classes, ContentClassFacts::with_rows)
 }
 
 /// One type reference's content classification.

@@ -194,9 +194,7 @@ fn known_call_written_paths_for_parts_with_origins(
     {
         return None;
     }
-    if let Some(operator) = program
-        .operator_definition_by_symbol(target_symbol)
-    {
+    if let Some(operator) = program.operator_definition_by_symbol(target_symbol) {
         // The resolved requirement, not its namespace spelling or selected
         // provider, owns the caller-storage ceiling. Use the same ownership
         // projection as signature-only machines.

@@ -263,8 +263,7 @@ pub fn validate_named_operator_application(
     static_arguments: &[StaticMachineArgument],
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Result<Option<Vec<ClosedOperatorApplicationArgument>>, Diagnostic> {
-    let operator_name = program
-        .operator_path_string(operator.name);
+    let operator_name = program.operator_path_string(operator.name);
     let parameters = program.operator_type_parameters(operator);
 
     if !operator.lifetime_parameters.is_empty()
@@ -550,8 +549,7 @@ pub fn validate_closed_operator_application(
     operator: &OperatorDefinition,
     application: &[ClosedOperatorApplicationArgument],
 ) -> Result<(), Diagnostic> {
-    let operator_name = program
-        .operator_path_string(operator.name);
+    let operator_name = program.operator_path_string(operator.name);
     let parameters = program.operator_type_parameters(operator);
     if parameters.len() != application.len() {
         return Err(Diagnostic::error(format!(

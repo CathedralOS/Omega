@@ -180,7 +180,9 @@ pub fn exact_constrained_shells<'p>(
 ) -> Option<Vec<&'p [TypeConstraintNode]>> {
     let mut shells = Vec::new();
     loop {
-        handle = program.type_reference_table.dereferenced_type_reference(handle);
+        handle = program
+            .type_reference_table
+            .dereferenced_type_reference(handle);
         match program.type_reference_table.type_reference(handle) {
             TypeReferenceNode::Constrained {
                 base_type,

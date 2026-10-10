@@ -103,9 +103,7 @@ fn derive_public_precondition_partition_from_positions(
     public_positions: &[Option<SymbolHandle>],
     arity_error: RelationPlanError,
 ) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
-    let public_parameters = program
-        .public_state_parameters(state)
-        .collect::<Vec<_>>();
+    let public_parameters = program.public_state_parameters(state).collect::<Vec<_>>();
     if public_positions.len() != input_relations.len() {
         return Err(arity_error);
     }

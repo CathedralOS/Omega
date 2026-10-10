@@ -231,9 +231,7 @@ fn type_is_wire_verdict(
     if name.as_str() != "WireVerdict" {
         return false;
     }
-    let Some(data) = program
-        .data_definition_by_name_str("WireVerdict")
-    else {
+    let Some(data) = program.data_definition_by_name_str("WireVerdict") else {
         return false;
     };
     let members = program.data_members(data);

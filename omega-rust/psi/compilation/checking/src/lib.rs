@@ -72,6 +72,7 @@ pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bou
 pub use proof_contracts::signature_ensures::{
     collect_parameter_bound_comparisons, ensures_contract_expressions,
 };
+use typed_trees::types::TypeReferenceHandle;
 pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
 };
@@ -436,3 +437,24 @@ pub use value_custody::places::{
     state_scoped_name_symbol, structural_member_identity, symbol_type_symbol,
     unique_data_definition_by_symbol,
 };
+
+/// Walk a type-reference table once into a positional row vector: row 0 is
+/// the classification of the invalid handle, and every named index answers
+/// its own row's classification.
+pub(crate) fn classify_type_references<R: Clone, F>(
+    program: &dyn crate::CheckingInput,
+    classify: impl Fn(&dyn crate::CheckingInput, TypeReferenceHandle) -> R,
+    with_rows: impl FnOnce(Vec<R>) -> F,
+) -> F {
+    let table = &program.type_reference_table;
+    let highest = table
+        .type_reference_rows()
+        .map(|(handle, _)| handle.arena_index())
+        .max()
+        .unwrap_or(0);
+    let mut rows = vec![classify(program, TypeReferenceHandle::invalid()); highest as usize + 1];
+    for (handle, _) in table.type_reference_rows() {
+        rows[handle.arena_index() as usize] = classify(program, handle);
+    }
+    with_rows(rows)
+}

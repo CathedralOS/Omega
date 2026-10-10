@@ -1196,7 +1196,6 @@ signature_result_candidate_adapter! {
     boundary_result_candidate_origins => boundary_result_origins
 }
 
-
 /// The candidate caller-storage origins a resolved requirement call's
 /// exclusive result may alias — the same admitted routes as a boundary
 /// result, with the signature selected by retained `target_symbol` rather
@@ -1329,7 +1328,6 @@ signature_result_candidate_adapter! {
     /// `boundary_result_candidate_origins`.
     requirement_result_candidate_origins => requirement_result_origins
 }
-
 
 /// Canonicalize admitted candidate origins through the caller's current
 /// alias and stored-carrier evidence. A candidate no caller storage,

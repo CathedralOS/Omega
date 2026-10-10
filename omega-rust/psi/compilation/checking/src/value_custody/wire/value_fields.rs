@@ -204,8 +204,7 @@ pub(super) fn named_data_definition(
     else {
         return None;
     };
-    program
-        .data_definition_by_name(name)
+    program.data_definition_by_name(name)
 }
 
 /// Direction-specific diagnostics vocabulary shared by the codec calls.

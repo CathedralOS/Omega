@@ -441,8 +441,7 @@ fn find_data_definition<'program>(
     if symbol.is_valid() {
         return last_data_definition_by_symbol(program, symbol);
     }
-    program
-        .data_definition_by_name_str(name)
+    program.data_definition_by_name_str(name)
 }
 
 /// Custody formerly collected declaration positions into a map, whose last

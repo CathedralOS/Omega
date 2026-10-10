@@ -2082,18 +2082,7 @@ pub fn record_argument(
 pub fn classify_program_reference_custody(
     program: &dyn crate::CheckingInput,
 ) -> ReferenceCustodyFacts {
-    let table = &program.type_reference_table;
-    let highest = table
-        .type_reference_rows()
-        .map(|(handle, _)| handle.arena_index())
-        .max()
-        .unwrap_or(0);
-    let mut rows =
-        vec![reference_custody(program, TypeReferenceHandle::invalid()); highest as usize + 1];
-    for (handle, _) in table.type_reference_rows() {
-        rows[handle.arena_index() as usize] = reference_custody(program, handle);
-    }
-    ReferenceCustodyFacts::with_rows(rows)
+    crate::classify_type_references(program, reference_custody, ReferenceCustodyFacts::with_rows)
 }
 
 /// Classify every declared machine state's reference-result custody over the

@@ -140,8 +140,7 @@ fn validate_proposition_family_arguments(
         let actual_declaration = if symbol.is_valid()
             && program.symbols.get(*symbol).kind == symbols::SymbolKind::Proposition
         {
-            program
-                .proposition_definition_by_symbol(*symbol)
+            program.proposition_definition_by_symbol(*symbol)
         } else {
             None
         };

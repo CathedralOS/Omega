@@ -101,8 +101,7 @@ fn select(
             let child = elements.get(usize::try_from(*element_index).ok()?)?;
             select(program, facts, *child, suffix, active, output)?;
         }
-        checked_trees::record_or_structural_case_pattern!(data_symbol,
-            fields, ..) => {
+        checked_trees::record_or_structural_case_pattern!(data_symbol, fields, ..) => {
             let data = program.data_definition_by_symbol(*data_symbol)?;
             let (field_identity, suffix, payload) = match selection {
                 [
