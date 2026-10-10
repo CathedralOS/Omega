@@ -2267,6 +2267,12 @@ def main() -> None:
         b"Ticket { amount: 41 }!2",
     )
 
+    accepted(
+        program,
+        "a-place-equals-itself",
+        b"machine identity(value: bool) -> bool\nensures result == value\n{ value }",
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

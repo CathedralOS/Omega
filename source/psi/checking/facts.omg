@@ -397,7 +397,9 @@ crashes Trap
 }
 
 // Whether a comparison or Boolean literal holds (or fails, when `holds` is
-// false) wherever the zone does; anything else is not proved.
+// false) wherever the zone does; anything else is not proved. Two values of
+// one place are equal however little the zone knows of it, a Boolean's
+// included.
 pub machine Checker::proves_atom(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool
 crashes Trap
 {
@@ -414,8 +416,9 @@ crashes Trap
         let operator: OperatorKind = Checker::polarized(expression.operator, holds);
         let less: bool = Checker::proves_less(checker, left, right);
         let greater: bool = Checker::proves_less(checker, right, left);
-        let at_most: bool = Checker::proves_at_most(checker, left, right);
-        let at_least: bool = Checker::proves_at_most(checker, right, left);
+        let same: bool = left.place > 0 && left.place == right.place;
+        let at_most: bool = same || Checker::proves_at_most(checker, left, right);
+        let at_least: bool = same || Checker::proves_at_most(checker, right, left);
         transition operator {
             OperatorKind::Less -> literal(less)
             OperatorKind::LessEqual -> literal(at_most)

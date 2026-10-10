@@ -6238,7 +6238,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   construction and after each field store, and a case's own `where` facts at
   each construction of that case (assumed in a chosen arm). A Boolean bound
   from a condition stands for it at a later dispatch until a place it read
-  is written. A call forgets
+  is written, and two reads of one place are equal. A call forgets
   below an exclusive argument only what its callee's derived write frame may
   write; crash routes settle over the call graph, a `satisfies` machine
   publishing only causes its requirement declares. A machine binder's call
