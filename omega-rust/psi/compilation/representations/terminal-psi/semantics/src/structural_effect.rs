@@ -815,3 +815,24 @@ fn validate_structural_effect_result(
             tag,
         ))
 }
+
+/// Shared subslice extent equation: when `observation` is the read of a
+/// subslice `producer` output over the same source, the measured extent is
+/// `end - start`. The closures extract the per-family variant fields.
+pub(crate) fn subslice_extent_equation(
+    observation: &StructuralEffectObservation,
+    producer: &StructuralEffectObservation,
+    read: impl Fn(&StructuralEffectObservation) -> Option<(PlaceId, ValueId)>,
+    subslice: impl Fn(&StructuralEffectObservation) -> Option<(PlaceId, ValueId, ValueId)>,
+) -> Result<Option<Proposition>, OperationSemanticError> {
+    let Some((source, result)) = read(observation) else {
+        return Ok(None);
+    };
+    let Some((destination, start, end)) = subslice(producer) else {
+        return Ok(None);
+    };
+    if source != destination {
+        return Ok(None);
+    }
+    u64_extent_difference_proposition(result, end, start)
+}

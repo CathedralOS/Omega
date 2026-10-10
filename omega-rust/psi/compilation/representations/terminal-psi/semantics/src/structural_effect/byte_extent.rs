@@ -39,20 +39,23 @@ pub fn subslice_length_equation(
     observation: &StructuralEffectObservation,
     producer: &StructuralEffectObservation,
 ) -> Result<Option<Proposition>, OperationSemanticError> {
-    let StructuralEffectObservation::ByteSequenceLengthRead { source, result } = observation else {
-        return Ok(None);
-    };
-    let StructuralEffectObservation::ByteSequenceSubslice {
-        destination,
-        start,
-        end,
-        ..
-    } = producer
-    else {
-        return Ok(None);
-    };
-    if source != destination {
-        return Ok(None);
-    }
-    super::u64_extent_difference_proposition(*result, *end, *start)
+    super::subslice_extent_equation(
+        observation,
+        producer,
+        |observation| match observation {
+            StructuralEffectObservation::ByteSequenceLengthRead { source, result } => {
+                Some((*source, *result))
+            }
+            _ => None,
+        },
+        |producer| match producer {
+            StructuralEffectObservation::ByteSequenceSubslice {
+                destination,
+                start,
+                end,
+                ..
+            } => Some((*destination, *start, *end)),
+            _ => None,
+        },
+    )
 }

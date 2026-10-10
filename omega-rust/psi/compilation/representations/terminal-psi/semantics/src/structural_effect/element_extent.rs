@@ -18,22 +18,25 @@ pub fn element_subslice_length_equation(
     observation: &StructuralEffectObservation,
     producer: &StructuralEffectObservation,
 ) -> Result<Option<Proposition>, OperationSemanticError> {
-    let StructuralEffectObservation::ElementViewLengthRead { source, result } = observation else {
-        return Ok(None);
-    };
-    let StructuralEffectObservation::ElementViewSubslice {
-        destination,
-        start,
-        end,
-        ..
-    } = producer
-    else {
-        return Ok(None);
-    };
-    if source != destination {
-        return Ok(None);
-    }
-    super::u64_extent_difference_proposition(*result, *end, *start)
+    super::subslice_extent_equation(
+        observation,
+        producer,
+        |observation| match observation {
+            StructuralEffectObservation::ElementViewLengthRead { source, result } => {
+                Some((*source, *result))
+            }
+            _ => None,
+        },
+        |producer| match producer {
+            StructuralEffectObservation::ElementViewSubslice {
+                destination,
+                start,
+                end,
+                ..
+            } => Some((*destination, *start, *end)),
+            _ => None,
+        },
+    )
 }
 
 /// Relate a measured element view to its whole collection's declared extent:
