@@ -647,3 +647,53 @@ Until answered, only the authored-selector subfrontier of
 **CHECKER-CARRIES-OPERATION-DECISIONS** is owner-blocked. The remaining
 non-selector conditions (representation geometry, capacities, bounded stores,
 arrival obligations, synthesized casts) stay implementation work.
+
+### Q12 - May the invocation-entry arrival obligation be source-checked by rule?
+
+Named decision: `invocation-entry-arrival-source-checked`.
+
+**Customer:** **CHECKER-CARRIES-OPERATION-DECISIONS** (TASKS.md) discharges
+primitive operation conditions once at checking into occurrence-bound
+verdicts. State-transfer arrivals already consume `decided_call_requires`
+(`state_graph/emission.rs:656` via `successor_edge.rs:52`); the remaining
+unmarked arrival is the synthetic `invocation_entry` edge
+(`state_graph/emission.rs:297`, `:448`) minted into `state_ids[0]` when the
+composed unit's authored entry state is reentered. Its obligation covers
+the entry state's `requires` — the machine's own `requires`.
+
+**Existing rules:** arrival obligations are marked decided through
+`call_requires_decided(source_state, statement_ordinal, target_state)`
+rows joined over the emitting transition's call site. The synthetic edge
+carries no transition, so no row exists for it. The alternative sources
+are a discharged-by-construction admission rule over the machine contract
+(every invocation site already discharges the callee machine's `requires`
+at its own call), or a new stage-04 fact joined over all callers of the
+machine — a cross-machine enumeration the graph does not currently own.
+
+**Decision needed:** when a composed unit's authored entry state is
+reentered, its `requires` become a scalar block invariant whose arrivals
+include the synthetic invocation-entry edge minted for the machine's own
+initial entry. That edge has no transition, so no `call_requires_decided`
+row can mark it decided — discharging it would need either a rule that
+every invocation site is discharged-by-construction for the entry state's
+`requires` (the machine contract), or a stage-04 fact joined over all
+callers of the machine. Should the invocation-entry arrival obligation be
+source-checked by rule, or keep its runtime certificate?
+
+1. **Recommended: source-check by rule.** Declare the machine contract:
+   every invocation site discharges the callee entry state's `requires`
+   at its own call admission, so the invocation-entry arrival is decided
+   by construction and joins `operations.source_checked_obligations`
+   directly. No caller enumeration lands; the discharge stays inside the
+   graph that emits the obligation.
+2. **Keep the runtime certificate.** The arrival obligation emits an
+   ordinary runtime check and `call_requires_decided` remains the only
+   arrival-decision row. If a later ruling wants it carried, the fallback
+   is a stage-04 fact joined over every caller of the machine — new
+   cross-machine enumeration machinery, not an in-graph join.
+
+Until answered, only the invocation-entry arrival subfrontier of
+**CHECKER-CARRIES-OPERATION-DECISIONS** is owner-blocked. Generated
+selectors, byte-region footprints, bounded stores and the decided
+byte-view store leg already landed; the authored-selector subfrontier
+stays blocked under Q11.
