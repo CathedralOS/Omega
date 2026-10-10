@@ -249,12 +249,7 @@ impl ExpressionTable {
             ExpressionNode::Unary(unary) => {
                 self.remap_symbols_in_inner(unary.operand, symbols, visited)
             }
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::UndeterminedNaN(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            crate::spelled_literal_expression_pattern!() => {}
         }
     }
 

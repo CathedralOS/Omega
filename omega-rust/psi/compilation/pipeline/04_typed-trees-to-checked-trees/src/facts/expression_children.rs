@@ -120,12 +120,6 @@ pub(crate) fn push_every_expression_child(
             );
         }
         ExpressionNode::Unary(unary) => pending.push(unary.operand),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        typed_trees::literal_expression_pattern!() => {}
     }
 }

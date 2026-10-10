@@ -264,12 +264,7 @@ fn collect_root_mentions(
                 recurse(field.value);
             }
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+                typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 
@@ -288,12 +283,7 @@ fn expression_contains(
     let recurse = |child| expression_contains(program, child, needle);
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
+        | typed_trees::spelled_literal_expression_pattern!() => false,
         ExpressionNode::Member(member) => recurse(member.receiver),
         ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),

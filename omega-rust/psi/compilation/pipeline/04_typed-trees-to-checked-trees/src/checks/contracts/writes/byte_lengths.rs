@@ -232,12 +232,6 @@ fn expression_contains_value_call(
             .expression_handles(*elements)
             .iter()
             .any(|element| expression_contains_value_call(program, *element)),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
+        typed_trees::literal_expression_pattern!() => false,
     }
 }

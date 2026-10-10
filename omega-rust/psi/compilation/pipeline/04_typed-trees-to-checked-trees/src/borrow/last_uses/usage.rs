@@ -216,12 +216,7 @@ fn expression_uses_owner_path(
         ExpressionNode::Borrow(inner) => recurse(inner.target),
         ExpressionNode::Member(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
+        | typed_trees::spelled_literal_expression_pattern!() => false,
     }
 }
 

@@ -205,12 +205,7 @@ pub(super) fn expression_reads_overlapping_place(
             .struct_fields(struct_literal.fields)
             .iter()
             .any(|field| recurse(field.value)),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
+        typed_trees::spelled_literal_expression_pattern!() => false,
     }
 }
 

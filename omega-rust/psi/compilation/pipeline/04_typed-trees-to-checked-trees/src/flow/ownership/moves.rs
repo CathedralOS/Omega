@@ -350,12 +350,7 @@ pub(super) fn append_move_events_for_expression(
         ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        | typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 

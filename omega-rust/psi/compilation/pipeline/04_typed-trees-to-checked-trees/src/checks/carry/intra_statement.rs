@@ -178,12 +178,7 @@ impl EvaluationTraversal<'_, '_> {
                 }
             }
             ExpressionNode::Unary(unary) => self.visit_expression(unary.operand),
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::UndeterminedNaN(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            typed_trees::spelled_literal_expression_pattern!() => {}
         }
     }
 

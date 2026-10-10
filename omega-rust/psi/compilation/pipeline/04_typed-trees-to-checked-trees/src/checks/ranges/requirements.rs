@@ -154,12 +154,6 @@ fn seed_index_proofs_from_expression(
                 seed_index_proofs_from_expression(program, facts, field.value);
             }
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        typed_trees::literal_expression_pattern!() => {}
     }
 }

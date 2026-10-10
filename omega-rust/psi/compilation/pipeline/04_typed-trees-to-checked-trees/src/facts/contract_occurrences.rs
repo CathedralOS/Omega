@@ -121,12 +121,7 @@ pub(crate) fn append_expression_occurrences(
         ExpressionNode::Unary(unary) => {
             append_expression_occurrences(program, unary.operand, occurrences);
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+                typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 

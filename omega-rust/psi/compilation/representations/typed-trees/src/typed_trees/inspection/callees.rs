@@ -177,12 +177,6 @@ fn collect_expression_callees(
         ExpressionNode::Unary(unary) => {
             collect_expression_callees(typed, unary.operand, visited, called);
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        crate::literal_expression_pattern!() => {}
     }
 }

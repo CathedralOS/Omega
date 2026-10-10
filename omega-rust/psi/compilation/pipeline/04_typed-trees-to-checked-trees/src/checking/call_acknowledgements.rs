@@ -403,13 +403,7 @@ fn validate_expression(
             call_ordinal,
             diagnostics,
         ),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        typed_trees::literal_expression_pattern!() => {}
     }
 }
 
