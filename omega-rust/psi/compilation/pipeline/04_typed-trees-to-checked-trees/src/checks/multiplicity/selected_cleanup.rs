@@ -220,9 +220,14 @@ impl SelectedCleanup {
         deaths.sort_by_key(|(event, _)| {
             std::cmp::Reverse(roots.iter().position(|root| *root == event.root))
         });
+        let mut candidate_remaining = self
+            .owners
+            .iter()
+            .map(|owner| owner.remaining.clone())
+            .collect::<Vec<_>>();
         for (event, candidate) in deaths {
             if let Some(index) = candidate {
-                self.owners[index].remaining.clone().observe(
+                candidate_remaining[index].observe(
                     program,
                     &[event],
                     &ownership.segments,

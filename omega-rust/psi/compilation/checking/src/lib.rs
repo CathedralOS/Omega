@@ -79,6 +79,7 @@ pub use proof_contracts::signature_ensures::{
 use typed_trees::types::TypeReferenceHandle;
 pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
+    type_carries_linear_obligation,
 };
 pub use value_custody::constants::validate_constant_literal_integer_ranges;
 pub use value_custody::content_classes::classify_program_content_classes;

@@ -72,6 +72,7 @@ pub fn owned_receiver_claims(
         &mut Vec::new(),
         &mut Vec::new(),
         &mut claims,
+        false,
     );
     (multiplicity, claims)
 }
@@ -81,6 +82,26 @@ pub fn linear_claim_frontier(
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
     crate::value_custody::type_properties::memoized_claim_frontier(program, type_reference)
+}
+
+/// Whether the exact type frontier has any linear obligation, including
+/// erased fields. This uses the same declaration/substitution walk as the
+/// complete frontier, stopping at the first claim and visiting arrays once.
+pub fn type_carries_linear_obligation(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let mut claims = Vec::new();
+    append_linear_claim_frontier(
+        program,
+        type_reference,
+        &[],
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut claims,
+        true,
+    );
+    !claims.is_empty()
 }
 
 /// A fresh custody walk on a memo miss or a mutable preparation input.
@@ -98,6 +119,7 @@ pub(crate) fn linear_claim_frontier_uncached(
         &mut Vec::new(),
         &mut Vec::new(),
         &mut claims,
+        false,
     );
     claims
 }
@@ -109,6 +131,7 @@ fn append_linear_claim_frontier(
     path: &mut Vec<facts::PlaceSegment>,
     visiting: &mut Vec<SymbolHandle>,
     claims: &mut Vec<ClaimFrontierClaim>,
+    first_only: bool,
 ) {
     if !type_reference.is_valid() {
         return;
@@ -127,6 +150,7 @@ fn append_linear_claim_frontier(
                 path,
                 visiting,
                 claims,
+                first_only,
             );
             return;
         }
@@ -135,6 +159,20 @@ fn append_linear_claim_frontier(
             length: typed_trees::types::FixedArrayLength::Literal(length),
         } => {
             if *length == 0 {
+                return;
+            }
+            if first_only {
+                path.push(facts::PlaceSegment::FixedIndex { index: 0 });
+                append_linear_claim_frontier(
+                    program,
+                    *element_type,
+                    substitutions,
+                    path,
+                    visiting,
+                    claims,
+                    true,
+                );
+                path.pop();
                 return;
             }
             // Every element has the same frontier below its index. Walk one
@@ -148,6 +186,7 @@ fn append_linear_claim_frontier(
                 &mut Vec::new(),
                 visiting,
                 &mut element_claims,
+                first_only,
             );
             let prefix_is_conditional = path
                 .iter()
@@ -185,6 +224,7 @@ fn append_linear_claim_frontier(
                     path,
                     visiting,
                     claims,
+                    first_only,
                 );
                 return;
             }
@@ -209,6 +249,7 @@ fn append_linear_claim_frontier(
                 path,
                 visiting,
                 claims,
+                first_only,
             );
         }
         TypeReferenceNode::Generic {
@@ -231,6 +272,7 @@ fn append_linear_claim_frontier(
                     path,
                     visiting,
                     claims,
+                    first_only,
                 );
                 return;
             }
@@ -260,6 +302,7 @@ fn append_linear_claim_frontier(
                 path,
                 visiting,
                 claims,
+                first_only,
             );
         }
         TypeReferenceNode::FixedArray { .. } => {
@@ -281,21 +324,36 @@ fn append_data_linear_claim_frontier(
     path: &mut Vec<facts::PlaceSegment>,
     visiting: &mut Vec<SymbolHandle>,
     claims: &mut Vec<ClaimFrontierClaim>,
+    first_only: bool,
 ) {
     if visiting.contains(&definition.symbol) {
         return;
     }
     visiting.push(definition.symbol);
     for member in program.data_members(definition) {
+        if first_only && !claims.is_empty() {
+            break;
+        }
         match member {
             typed_trees::data::DataMember::Field(field) => {
-                append_field_claim_frontier(program, field, substitutions, path, visiting, claims);
+                append_field_claim_frontier(
+                    program,
+                    field,
+                    substitutions,
+                    path,
+                    visiting,
+                    claims,
+                    first_only,
+                );
             }
             typed_trees::data::DataMember::Variant(variant) => {
                 path.push(facts::PlaceSegment::Case {
                     variant: variant.symbol,
                 });
                 for field in program.data_payload_fields(variant) {
+                    if first_only && !claims.is_empty() {
+                        break;
+                    }
                     append_field_claim_frontier(
                         program,
                         field,
@@ -303,6 +361,7 @@ fn append_data_linear_claim_frontier(
                         path,
                         visiting,
                         claims,
+                        first_only,
                     );
                 }
                 path.pop();
@@ -321,6 +380,7 @@ fn append_field_claim_frontier(
     path: &mut Vec<facts::PlaceSegment>,
     visiting: &mut Vec<SymbolHandle>,
     claims: &mut Vec<ClaimFrontierClaim>,
+    first_only: bool,
 ) {
     path.push(facts::PlaceSegment::Field {
         symbol: field.symbol,
@@ -332,6 +392,7 @@ fn append_field_claim_frontier(
         path,
         visiting,
         claims,
+        first_only,
     );
     path.pop();
 }

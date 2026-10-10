@@ -15,6 +15,7 @@ mod construction_frontier;
 mod consumed_owners;
 mod linear_obligations;
 mod linear_validation;
+mod owned_cleanup;
 mod owned_selection;
 pub(super) use owned_selection::reachable_arms;
 pub(super) use projected_affine::transfers_owned_storage;

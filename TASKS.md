@@ -835,12 +835,6 @@ defines the complete product bar.
     intact receiver also reaches `InvalidNominalAffineCleanup` in the retiring
     replay. Preserve receiver custody through the ordinary callable path as
     that replay is removed, rather than expanding its bounded receiver model.
-  - Admit eligible implicit cleanup of live linear children in a named
-    transparent container. A local `Envelope { receipt: Receipt { ... } }`
-    still reports child scope loss even when `Receipt::drop` is pure and
-    eligible; `linear_validation/affine_cleanup.rs` declines contained live
-    places without a tracked root. Keep exact child claims and ordered
-    recursive disposal, sharing the temporary-owner cleanup semantics.
   - Complete scalar materialization of moved linear places and claim-bearing
     call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path. Preserve the
     checked ordered temporary action roster and its scalar-call continuation in

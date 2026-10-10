@@ -42,9 +42,11 @@ impl RemainingCustody {
             return;
         };
         if local.initial_value.is_valid()
-            || program.type_multiplicity(local.type_reference)
-                != language_semantics::Multiplicity::Affine
-            || !validation::type_requires_establishment(program, local.type_reference)
+            || !super::construction_frontier::transparent_storage(program, local.type_reference)
+            || !super::construction_frontier::requires_owned_establishment(
+                program,
+                local.type_reference,
+            )
         {
             return;
         }
@@ -70,6 +72,51 @@ impl RemainingCustody {
                 .iter()
                 .find(|(candidate, _)| *candidate == root)
                 .is_none_or(|(_, frontier)| frontier.contains(path))
+    }
+
+    /// An allocated, still-owned home must retire even when no semantic
+    /// cleanup-bearing subtree remains. Initialized unrestricted fields do
+    /// not create disposal work. This is exit geometry, not a persistent removal
+    /// that could prevent a later initializing write.
+    pub(super) fn needs_empty_retirement(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        root: PlaceRoot,
+    ) -> bool {
+        !self
+            .excluded
+            .iter()
+            .any(|(candidate, path)| *candidate == root && path.is_empty())
+            && self
+                .constructing
+                .iter()
+                .find(|(candidate, _)| *candidate == root)
+                .is_some_and(|(_, frontier)| {
+                    frontier
+                        .established
+                        .iter()
+                        .filter(|path| self.is_present(root, path))
+                        .all(|path| frontier.cleanup_free(program, path))
+                })
+    }
+
+    pub(super) fn removed_paths<'a>(
+        &'a self,
+        program: &dyn ::validation::CheckingInput,
+        root: PlaceRoot,
+        path: &[PlaceSegment],
+    ) -> Vec<&'a [PlaceSegment]> {
+        if path.is_empty() && self.needs_empty_retirement(program, root) {
+            return vec![&[]];
+        }
+        self.excluded
+            .iter()
+            .filter_map(|(candidate, removed)| {
+                (*candidate == root)
+                    .then(|| removed.strip_prefix(path))
+                    .flatten()
+            })
+            .collect()
     }
 
     pub(super) fn cleanup_paths(
@@ -149,11 +196,15 @@ impl RemainingCustody {
                 );
             }
             let path = segments.span_or_empty(event.segments);
+            // A containing death is published before its exact child claim
+            // receipts. Those receipts retire claims, but must not schedule
+            // the same recursive hooks a second time below the dead region.
             if event.kind == PermissionEventKind::AffineDrop
                 || (event.kind == PermissionEventKind::Consume
-                    && event.source == PermissionEventSource::StateExit)
+                    && event.source == PermissionEventSource::StateExit
+                    && self.is_present(event.root, path))
             {
-                let exclusions = self
+                let mut exclusions = self
                     .excluded
                     .iter()
                     .filter(|(root, _)| *root == event.root)
@@ -162,6 +213,13 @@ impl RemainingCustody {
                         segments: output.segments.insert_many(path.iter().copied()),
                     })
                     .collect::<Vec<_>>();
+                if path.is_empty() && self.needs_empty_retirement(program, event.root) {
+                    exclusions.clear();
+                    exclusions.push(Place {
+                        root: event.root,
+                        segments: Default::default(),
+                    });
+                }
                 let disposition = output.dispositions.append(ContextualCleanupDisposition {
                     machine: event.machine_symbol,
                     state: event.state_symbol,

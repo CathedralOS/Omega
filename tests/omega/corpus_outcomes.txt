@@ -4989,3 +4989,15 @@ fail/slices/captured_range_end_after_selector_replacement rejected 539ms expecte
 	cannot prove subslice range end bound `0..__hoist_15` is within unknown slice length
 fail/slices/captured_range_end_for_other_descriptor rejected 540ms expected @5c3bc44636b5+wt
 	cannot prove subslice range end bound `0..__hoist_14` is within unknown slice length
+pass/drops/runtime_named_linear_container_cleanup_exit checked 2636ms check-target:macos_arm64 @9f5aa3241b14+wt
+pass/drops/runtime_named_parent_linear_cleanup_exit checked 2617ms check-target:macos_arm64 @9f5aa3241b14+wt
+fail/drops/named_linear_container_abnormal_hook rejected 209ms expected @9f5aa3241b14+wt
+	cleanup machine `Receipt::drop` may not declare a crash outcome
+fail/drops/named_linear_container_duplicate_transfer rejected 296ms expected @9f5aa3241b14+wt
+	cannot use `envelope.receipt` in machine `main` state `entry` (statement 2) after `envelope.receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `envelope.receipt` first
+fail/drops/named_linear_container_missing_hook rejected 403ms expected @9f5aa3241b14+wt
+	linear value `envelope.receipt` reaches scope exit without being consumed or transferred
+fail/drops/named_linear_container_unmet_prerequisite rejected 412ms expected @9f5aa3241b14+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: envelope.receipt does not establish Receipt::drop clause `receipt.code == 7`
+fail/drops/zero_case_container_keeps_cleanup_prerequisite rejected 404ms expected @9f5aa3241b14+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing owner.ready == true required by OptionalReceipt::drop clause `owner.ready`

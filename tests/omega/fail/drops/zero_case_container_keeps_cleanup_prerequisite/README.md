@@ -1,0 +1,1 @@
+The valid zero Empty case has no linear child claim, but its affine owner still owes its nominal cleanup prerequisite. Reserving possible linear payload storage cannot erase the actual default-case owner.

@@ -30,6 +30,29 @@ pub(crate) fn append_owned_cleanup_permission_events(
     segments: &mut Arena<facts::PlaceSegment>,
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
+    visit_owned_cleanup_events(
+        program,
+        state,
+        machine_symbol,
+        coordinate,
+        tracked_places,
+        remaining,
+        |mut event, path| {
+            event.segments = segments.insert_many(path);
+            permission_events.push(event);
+        },
+    );
+}
+
+fn visit_owned_cleanup_events(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    machine_symbol: SymbolHandle,
+    coordinate: FlowClaimJoinExit,
+    tracked_places: &[LinearPlace],
+    remaining: &super::super::cleanup_dispositions::RemainingCustody,
+    mut emit: impl FnMut(FlowPermissionEventFact, Vec<facts::PlaceSegment>),
+) {
     let evaluation = exit_evaluation(program, state, coordinate);
     let mut append = |symbol: SymbolHandle, type_reference: TypeReferenceHandle| {
         let tracked_root = tracked_places
@@ -39,23 +62,9 @@ pub(crate) fn append_owned_cleanup_permission_events(
             if !place.live && !remaining.is_reserved(facts::PlaceRoot::Symbol(symbol)) {
                 return;
             }
-            if place.multiplicity == Multiplicity::Linear
-                && (!crate::flow::whole_cleanup_is_eligible(program, type_reference)
-                    || place.claim_identity.is_none()
-                    || place.claim_identity == Some(PermissionClaimIdentity::Unknown)
-                    || place.provenance.is_none()
-                    || place.provenance == Some(PermissionProvenance::Unknown))
-            {
-                return;
-            }
-        } else if tracked_places
-            .iter()
-            .any(|place| place.root == facts::PlaceRoot::Symbol(symbol) && place.live)
-            || type_multiplicity(program, type_reference) == Multiplicity::Unrestricted
-        {
+        } else if type_multiplicity(program, type_reference) == Multiplicity::Unrestricted {
             return;
         }
-        let multiplicity = tracked_root.map_or(Multiplicity::Affine, |place| place.multiplicity);
         let root = facts::PlaceRoot::Symbol(symbol);
         // A transparent owner has contained claims rather than a fabricated
         // aggregate claim. Once those claims have left, its remaining home
@@ -65,7 +74,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
         if !remaining.is_present(root, &[]) && !remaining.is_reserved(root) {
             return;
         }
-        let paths = remaining
+        let mut paths = remaining
             .cleanup_paths(root)
             .map(|paths| {
                 paths
@@ -73,16 +82,42 @@ pub(crate) fn append_owned_cleanup_permission_events(
                     .collect::<Vec<_>>()
             })
             .unwrap_or_else(|| vec![Vec::new()]);
+        if remaining.needs_empty_retirement(program, root) {
+            paths.clear();
+            paths.push(Vec::new());
+        }
         for path in paths {
-            if multiplicity == Multiplicity::Affine
-                && validation::project_type_reference_from_segments(program, type_reference, &path)
-                    .is_none_or(|reference| {
-                        type_multiplicity(program, reference) != Multiplicity::Affine
-                    })
-            {
+            let Some(reference) =
+                validation::project_type_reference_from_segments(program, type_reference, &path)
+            else {
+                continue;
+            };
+            let region_claim = tracked_places
+                .iter()
+                .find(|place| place.root == root && place.path == path && place.live);
+            let multiplicity = region_claim.map_or_else(
+                || match type_multiplicity(program, reference) {
+                    Multiplicity::Unrestricted => Multiplicity::Unrestricted,
+                    // Transparent arrays inherit element multiplicity, but
+                    // only an exact region claim can authorize Consume.
+                    Multiplicity::Affine | Multiplicity::Linear => Multiplicity::Affine,
+                },
+                |place| place.multiplicity,
+            );
+            if multiplicity == Multiplicity::Unrestricted {
                 continue;
             }
-            permission_events.push(FlowPermissionEventFact {
+            let Some(receipts) = super::super::owned_cleanup::claim_receipts(
+                program,
+                reference,
+                root,
+                &path,
+                tracked_places,
+                &remaining.removed_paths(program, root, &path),
+            ) else {
+                continue;
+            };
+            let event = FlowPermissionEventFact {
                 expression: Default::default(),
                 evaluation,
                 machine_symbol,
@@ -96,19 +131,35 @@ pub(crate) fn append_owned_cleanup_permission_events(
                 multiplicity,
                 access: PermissionAccess::Owned,
                 claim_identity: if multiplicity == Multiplicity::Linear {
-                    tracked_root
+                    region_claim
                         .and_then(|place| place.claim_identity)
                         .unwrap_or(PermissionClaimIdentity::Unknown)
                 } else {
                     PermissionClaimIdentity::Unknown
                 },
-                provenance: tracked_root
+                provenance: region_claim
                     .and_then(|place| place.provenance)
                     .unwrap_or(PermissionProvenance::Unknown),
                 root,
-                segments: segments.insert_many(path),
+                segments: Default::default(),
                 obligation_live: false,
-            });
+            };
+            emit(event.clone(), path.clone());
+            for place in receipts {
+                if event.kind == PermissionEventKind::Consume && place.path == path {
+                    continue;
+                }
+                let mut receipt = event.clone();
+                receipt.kind = PermissionEventKind::Consume;
+                receipt.multiplicity = Multiplicity::Linear;
+                receipt.claim_identity = place
+                    .claim_identity
+                    .expect("eligible cleanup has exact claim");
+                receipt.provenance = place
+                    .provenance
+                    .expect("eligible cleanup has exact provenance");
+                emit(receipt, place.path.clone());
+            }
         }
     };
 
@@ -130,20 +181,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
         .rev()
         .filter(|parameter| !parameter.relevance.is_erased())
     {
-        // An owned `self` receiver's place roots at the machine symbol — the
-        // same durable root `normalized_event_place_root` publishes for its
-        // moves. Borrowed receivers keep their unrestricted reference type and
-        // produce no cleanup event either way.
-        let symbol = if false
-            && !crate::checks::multiplicity::linear_obligations::type_reference_is_reference(
-                program,
-                parameter.type_reference,
-            ) {
-            machine_symbol
-        } else {
-            parameter.symbol
-        };
-        append(symbol, parameter.type_reference);
+        append(parameter.symbol, parameter.type_reference);
     }
 }
 
@@ -156,46 +194,126 @@ pub(crate) fn apply_recorded_cleanup_events(
     machine_symbol: SymbolHandle,
     coordinate: FlowClaimJoinExit,
     events: &[&FlowPermissionEventFact],
+    segments: &Arena<facts::PlaceSegment>,
+    cleanup: &checked_trees::ContextualCleanupFacts,
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut expected = Vec::new();
-    append_owned_cleanup_permission_events(
-        program,
-        state,
-        machine_symbol,
-        coordinate,
-        places,
-        &super::super::cleanup_dispositions::RemainingCustody::default(),
-        &mut Arena::default(),
-        &mut expected,
-    );
-    expected.retain(|event| event.kind == PermissionEventKind::Consume);
     let evaluation = exit_evaluation(program, state, coordinate);
+    for (handle, disposition) in cleanup.dispositions.iter().filter(|(_, disposition)| {
+        disposition.machine == machine_symbol
+            && disposition.state == state.symbol
+            && disposition.source == PermissionEventSource::StateExit
+            && disposition.exit == coordinate
+    }) {
+        if cleanup
+            .selected_dispositions
+            .iter()
+            .any(|(_, selected)| *selected == handle)
+        {
+            continue;
+        }
+        let path = segments.span_or_empty(disposition.path);
+        let root = disposition.root;
+        let Some(symbol) = root.as_symbol() else {
+            continue;
+        };
+        let reference = program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)
+            .map(|parameter| parameter.type_reference)
+            .or_else(|| {
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .filter_map(|statement| statement.as_local_data())
+                    .find(|local| local.symbol == symbol)
+                    .map(|local| local.type_reference)
+            })
+            .and_then(|reference| {
+                validation::project_type_reference_from_segments(program, reference, path)
+            });
+        let removed = cleanup
+            .exclusions
+            .span_or_empty(disposition.exclusions)
+            .iter()
+            .filter(|removed| removed.root == root)
+            .filter_map(|removed| {
+                cleanup
+                    .segments
+                    .span_or_empty(removed.segments)
+                    .strip_prefix(path)
+            })
+            .collect::<Vec<_>>();
+        let receipts = reference.and_then(|reference| {
+            super::super::owned_cleanup::claim_receipts(
+                program, reference, root, path, places, &removed,
+            )
+        });
+        let Some(receipts) = receipts else {
+            diagnostics.push(Diagnostic::error(
+                "scope-exit cleanup lacks its exact owner-authorized residual claim plan",
+            ));
+            return;
+        };
+        for place in receipts {
+            expected.push((
+                FlowPermissionEventFact {
+                    expression: Default::default(),
+                    evaluation,
+                    machine_symbol,
+                    state_symbol: state.symbol,
+                    source: PermissionEventSource::StateExit,
+                    kind: PermissionEventKind::Consume,
+                    multiplicity: Multiplicity::Linear,
+                    access: PermissionAccess::Owned,
+                    claim_identity: place
+                        .claim_identity
+                        .expect("eligible cleanup has exact claim"),
+                    provenance: place
+                        .provenance
+                        .expect("eligible cleanup has exact provenance"),
+                    root,
+                    segments: Default::default(),
+                    obligation_live: false,
+                },
+                place.path.clone(),
+            ));
+        }
+    }
     let mut recorded = events.iter().copied().filter(|event| {
         event.source == PermissionEventSource::StateExit
             && event.kind == PermissionEventKind::Consume
             && event.evaluation == evaluation
     });
-    if !expected.iter().all(|event| recorded.next() == Some(event)) || recorded.next().is_some() {
+    if !expected.iter().all(|(event, path)| {
+        let Some(recorded) = recorded.next() else {
+            return false;
+        };
+        let mut canonical = recorded.clone();
+        canonical.segments = Default::default();
+        &canonical == event && segments.span_or_empty(recorded.segments) == path
+    }) || recorded.next().is_some()
+    {
         diagnostics.push(Diagnostic::error(
             "scope-exit cleanup differs from its exact owner-authorized claim disposition",
         ));
         return;
     }
-    for event in expected {
-        if event.kind == PermissionEventKind::Consume {
-            let Some(symbol) = event.root.as_symbol() else {
-                unreachable!()
-            };
-            let place = places
-                .iter_mut()
-                .find(|place| {
-                    place.root == facts::PlaceRoot::Symbol(symbol) && place.path.is_empty()
-                })
-                .expect("reconstructed whole cleanup has its live source claim");
-            place.live = false;
-        }
+    for (event, path) in expected {
+        let place = places
+            .iter_mut()
+            .find(|place| {
+                place.root == event.root
+                    && place.path == path
+                    && place.claim_identity == Some(event.claim_identity)
+                    && place.provenance == Some(event.provenance)
+            })
+            .expect("reconstructed cleanup has its exact live source claim");
+        place.live = false;
     }
 }
 

@@ -2,7 +2,6 @@
 //! whether an expression establishes a linear obligation.
 
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
-use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
@@ -11,7 +10,7 @@ pub(crate) fn type_carries_linear_obligation(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    !linear_claim_frontier(program, type_reference).is_empty()
+    validation::type_carries_linear_obligation(program, type_reference)
 }
 
 pub(crate) fn expression_establishes_obligation(

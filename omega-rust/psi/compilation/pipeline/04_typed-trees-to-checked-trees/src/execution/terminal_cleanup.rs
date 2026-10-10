@@ -548,9 +548,10 @@ pub(super) fn state_exit_result_locals(
                 .permissions
                 .iter()
                 .filter_map(|(_, event)| {
-                    // Whole linear cleanup has an exact consumed claim and an
-                    // already selected contextual disposition. It is not an
-                    // affine discard or permission reconstructed from the type.
+                    // A selected linear region has an exact consumed claim
+                    // and contextual disposition. An initialized child can
+                    // be the entire live complement of a reserved container;
+                    // its receipt also identifies that containing home.
                     (event.machine_symbol == machine.symbol
                         && event.state_symbol == state.symbol
                         && event.source == PermissionEventSource::StateExit
@@ -560,7 +561,6 @@ pub(super) fn state_exit_result_locals(
                         && event.claim_identity != PermissionClaimIdentity::Unknown
                         && event.provenance != PermissionProvenance::Unknown
                         && !event.obligation_live
-                        && event.segments.is_empty()
                         && facts
                             .contextual_cleanup
                             .dispositions
@@ -590,8 +590,8 @@ pub(super) fn state_exit_result_locals(
                                     && disposition.source == PermissionEventSource::StateExit
                                     && event.evaluation == evaluation
                                     && disposition.root == event.root
-                                    && disposition.path.is_empty()
-                                    && disposition.exclusions.is_empty()
+                                    && facts.flow.ownership.segments.span_or_empty(disposition.path)
+                                        == facts.flow.ownership.segments.span_or_empty(event.segments)
                             }))
                     .then_some(event)
                 }),
@@ -638,11 +638,14 @@ pub(super) fn state_exit_result_locals(
         // replay. A root may have several established-prefix deaths or stores;
         // its declaration identifies the one home normal-edge actions target.
         let (statement_index, local) = program.state_local_declaration(state, symbol)?;
-        if local.symbol != symbol
-            || program.type_multiplicity(local.type_reference) != drop.multiplicity
-        {
+        if local.symbol != symbol {
             return None;
         }
+        // The receipt's multiplicity belongs to its selected region, not
+        // necessarily the containing local (a linear child in an affine
+        // record, or affine retirement of an array's claim-free home).
+        // Source replay owns region conservation; local_results rejoins the
+        // declared carrier type and multiplicity to the actual result.
         // The selected disposition names remaining custody, not permission to
         // discard the original complete type. Transferred linear children or
         // nominal hooks can make that whole-type classifier inapplicable.

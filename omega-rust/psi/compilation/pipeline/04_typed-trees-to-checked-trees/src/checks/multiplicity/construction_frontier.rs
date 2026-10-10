@@ -8,6 +8,7 @@
 //! not a runtime liveness map or a second ownership replay.
 
 use facts::PlaceSegment;
+use language_semantics::Multiplicity;
 use typed_trees::data::DataMember;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
@@ -36,13 +37,19 @@ impl ConstructionFrontier {
         reference: TypeReferenceHandle,
         path: &mut Vec<PlaceSegment>,
     ) {
-        if !validation::type_requires_establishment(program, reference) {
+        // ownership.md, Establishment and erasure: implicit zero-filling
+        // establishes no linear obligation. A nominal linear owner must be
+        // explicitly established, even when all of its bytes admit zero.
+        if nominal_linear_owner(program, reference) {
+            return;
+        }
+        if !requires_owned_establishment(program, reference) {
             self.established.push(path.clone());
             return;
         }
-        // A gated array has no established zero element. In particular, do
+        // A gated or claim-bearing array has no established zero element. Do
         // not expand its literal dimension to discover an empty live set.
-        for child_path in record_children(program, reference) {
+        for child_path in record_children(program, reference).unwrap_or_default() {
             let parent_length = path.len();
             path.extend(child_path);
             if let Some(child) =
@@ -52,6 +59,25 @@ impl ConstructionFrontier {
             }
             path.truncate(parent_length);
         }
+        // Zero selects the first case, not every possible payload. Once its
+        // actual children are established, a valid-zero transparent record
+        // is whole even when that selected case has no children at all.
+        if !validation::type_requires_establishment(program, reference)
+            && (record_children(program, reference).is_some_and(|children| children.is_empty())
+                || self.complete(program, reference, path))
+        {
+            self.replace_subtrees(path);
+        }
+    }
+
+    pub(super) fn cleanup_free(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        path: &[PlaceSegment],
+    ) -> bool {
+        validation::project_type_reference_from_segments(program, self.reference, path).is_some_and(
+            |reference| program.type_multiplicity(reference) == Multiplicity::Unrestricted,
+        )
     }
 
     pub(super) fn contains(&self, path: &[PlaceSegment]) -> bool {
@@ -111,6 +137,12 @@ impl ConstructionFrontier {
         reference: TypeReferenceHandle,
         path: &[PlaceSegment],
     ) -> bool {
+        // Filling a nominal linear owner's fields cannot mint its separate
+        // whole-value obligation. An explicit store to that owner already
+        // establishes the endpoint before this ancestor-completion walk.
+        if nominal_linear_owner(program, reference) {
+            return false;
+        }
         let Some(reference) = program.unwrapped_type_reference(reference) else {
             return false;
         };
@@ -127,29 +159,66 @@ impl ConstructionFrontier {
                     && matches!(child.last(), Some(PlaceSegment::FixedIndex { index }) if *index < *length)
             }).count() == *length;
         }
-        let children = record_children(program, reference);
-        !children.is_empty()
-            && children.into_iter().all(|segments| {
-                let mut child = path.to_vec();
-                child.extend(segments);
-                self.contains(&child)
-            })
+        record_children(program, reference).is_some_and(|children| {
+            !children.is_empty()
+                && children.into_iter().all(|segments| {
+                    let mut child = path.to_vec();
+                    child.extend(segments);
+                    self.contains(&child)
+                })
+        })
     }
+}
+
+/// Arrays inherit element multiplicity but own only element claims. Only
+/// a nominal type (including a bounded type parameter) can own a root claim.
+fn nominal_linear_owner(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    program
+        .unwrapped_type_reference(reference)
+        .is_some_and(|reference| {
+            matches!(
+                program.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+            ) && program.type_multiplicity(reference) == Multiplicity::Linear
+        })
+}
+
+pub(super) fn transparent_storage(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    program.type_multiplicity(reference) == Multiplicity::Affine
+        || program
+            .unwrapped_type_reference(reference)
+            .is_some_and(|reference| {
+                matches!(
+                    program.type_reference_table.type_reference(reference),
+                    TypeReferenceNode::FixedArray { .. }
+                )
+            })
+}
+
+/// Default-domain validity and owned establishment are separate judgments.
+/// Transparent storage containing claims is reserved even if its zero bits
+/// satisfy every value-domain predicate.
+pub(super) fn requires_owned_establishment(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    validation::type_requires_establishment(program, reference)
+        || super::type_carries_linear_obligation(program, reference)
 }
 
 fn record_children(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
-) -> Vec<Vec<PlaceSegment>> {
-    let Some(reference) = program.unwrapped_type_reference(reference) else {
-        return Vec::new();
-    };
-    let Some(symbol) = program.type_reference_table.type_head_symbol(reference) else {
-        return Vec::new();
-    };
-    let Some(definition) = program.data_definition_by_symbol(symbol) else {
-        return Vec::new();
-    };
+) -> Option<Vec<Vec<PlaceSegment>>> {
+    let reference = program.unwrapped_type_reference(reference)?;
+    let symbol = program.type_reference_table.type_head_symbol(reference)?;
+    let definition = program.data_definition_by_symbol(symbol)?;
     let mut children = Vec::new();
     for member in program.data_members(definition) {
         if let Some(field) = member.as_field() {
@@ -180,5 +249,5 @@ fn record_children(
             ]);
         }
     }
-    children
+    Some(children)
 }

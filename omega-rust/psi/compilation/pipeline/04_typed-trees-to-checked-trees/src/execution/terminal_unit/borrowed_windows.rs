@@ -88,10 +88,12 @@ fn assignment_path(
     .map(|(_, path)| path)
 }
 
-/// Owned mutable storage has no borrowed restoration debt. A formal and a
+/// Owned storage has no borrowed restoration debt. A formal and a
 /// local have different physical coordinates, but replacing either retires
 /// only the old custody selected by source checking. Reference carriers still
-/// route through the loan/window ledger below.
+/// route through the loan/window ledger below. Mutability is source admission,
+/// not storage identity: an immutable deferred local still owns its first
+/// initialization, with no old value to displace or borrowed hole to restore.
 fn owned_assignment_source(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
@@ -102,13 +104,8 @@ fn owned_assignment_source(
     let symbol = root.as_symbol()?;
     if let Some((ordinal, local)) = program.state_local_declaration(state, symbol) {
         return (ordinal < statement_index
-            && local.is_mutable
             && !crate::checks::type_reference_is_reference(program, local.type_reference))
         .then_some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
-    }
-    let authored = program.state_parameter_by_symbol(state, symbol)?;
-    if !authored.is_mutable {
-        return None;
     }
     let position =
         typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)?;

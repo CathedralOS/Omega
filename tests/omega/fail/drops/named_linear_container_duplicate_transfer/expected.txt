@@ -1,0 +1,2 @@
+cannot use `envelope.receipt`
+after `envelope.receipt` was transferred or consumed

@@ -194,6 +194,8 @@ pub(crate) fn validate_linear_permission_events(
                             state_flow.machine_symbol,
                             coordinate,
                             &events,
+                            &facts.flow.ownership.segments,
+                            &facts.contextual_cleanup,
                             places,
                             &mut diagnostics,
                         );

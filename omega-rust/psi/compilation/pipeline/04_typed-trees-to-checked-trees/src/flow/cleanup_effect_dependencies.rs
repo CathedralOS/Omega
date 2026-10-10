@@ -152,12 +152,21 @@ pub(crate) fn whole_cleanup_is_eligible(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
+    residual_cleanup_is_eligible(program, reference, &[])
+}
+
+/// The same type-side plan restricted to the authenticated remaining region.
+pub(crate) fn residual_cleanup_is_eligible(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    removed: &[&[PlaceSegment]],
+) -> bool {
     let mut has_erased_obligations = false;
     let complete = visit(
         program,
         reference,
         &[],
-        &[],
+        removed,
         &mut Vec::new(),
         &mut Vec::new(),
         &mut Vec::new(),

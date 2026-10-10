@@ -721,3 +721,5 @@ pass/slices/runtime_captured_range_end_exit built 5066ms exit:70 interpreter-exi
 pass/slices/callee_non_byte_view_len_index_subslice built 5082ms exit:9 interpreter-exit:9 interpreter:agrees @af65e4684ce5+wt
 pass/slices/qualified_subslice_composition_exit built 5091ms exit:70 interpreter-exit:70 interpreter:agrees @af65e4684ce5+wt
 pass/slices/runtime_mutable_slice_result_whole_forward_exit built 3843ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
+pass/drops/runtime_named_linear_container_cleanup_exit built 2749ms exit:0 interpreter-exit:0 interpreter:agrees @9f5aa3241b14+wt
+pass/drops/runtime_named_parent_linear_cleanup_exit built 2720ms exit:0 interpreter-exit:0 interpreter:agrees @9f5aa3241b14+wt

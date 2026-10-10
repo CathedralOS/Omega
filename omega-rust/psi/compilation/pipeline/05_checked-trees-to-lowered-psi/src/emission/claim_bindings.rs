@@ -339,6 +339,77 @@ pub(crate) fn prepare_claim_dispositions(
         }).collect()
 }
 
+/// A completed operand can be authenticated at the place receiving it. The
+/// checked flow graph retains both that exact destination and each constructed
+/// child's relative path; no authored assignment or neighboring store is read.
+fn receiving_claim_place(
+    checked: &checked_trees::CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement: usize,
+    root: facts::PlaceRoot,
+) -> Result<(facts::PlaceRoot, Vec<facts::PlaceSegment>), LoweringError> {
+    let facts::PlaceRoot::Expression(expression) = root else {
+        return Ok((root, Vec::new()));
+    };
+    let flow = &checked.facts.flow.control;
+    let semantic = &checked.facts.semantic;
+    let mut receiving = None;
+    for (_, scope) in flow
+        .states
+        .iter()
+        .filter(|(_, scope)| scope.machine_symbol == machine && scope.state_symbol == state)
+    {
+        for row in flow
+            .statements
+            .span_or_empty(scope.statements)
+            .iter()
+            .filter(|row| {
+                row.statement_index == statement
+                    && flow.operands.is_valid(row.stored_value)
+                    && semantic.places.is_valid(row.stored_destination)
+            })
+        {
+            let destination = semantic.places.get(row.stored_destination);
+            let mut pending = vec![(
+                row.stored_value,
+                semantic
+                    .place_segments
+                    .span_or_empty(destination.segments)
+                    .to_vec(),
+            )];
+            while let Some((handle, path)) = pending.pop() {
+                let operand = flow.operands.get(handle);
+                if operand.state_symbol != state || operand.statement_index != statement {
+                    return unsupported(
+                        "stored claim operand has a different evaluation coordinate",
+                    );
+                }
+                if operand.expression == expression {
+                    let candidate = (destination.root, path);
+                    if receiving
+                        .as_ref()
+                        .is_some_and(|previous| previous != &candidate)
+                    {
+                        return unsupported(
+                            "completed claim operand has ambiguous receiving storage",
+                        );
+                    }
+                    receiving = Some(candidate);
+                    continue;
+                }
+                for child in flow.operand_children.span_or_empty(operand.children) {
+                    let mut child_path = path.clone();
+                    child_path
+                        .extend_from_slice(flow.operand_child_paths.span_or_empty(child.path));
+                    pending.push((child.value, child_path));
+                }
+            }
+        }
+    }
+    Ok(receiving.unwrap_or((root, Vec::new())))
+}
+
 /// Source checking has already joined moves and returns to their exact owner.
 /// Retain that identity independently of storage or the producing operation's
 /// spelling; only this body's authentic fresh establishment may grow custody.
@@ -353,9 +424,12 @@ pub(crate) fn prepare_establishment_claims(
     structural_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedClaim>, LoweringError> {
+    let (root, receiving_path) = receiving_claim_place(checked, machine, state, statement, root)?;
     checked.facts.flow.ownership.permissions.iter().map(|(_, event)| event)
         .filter(|event| event.machine_symbol == machine && event.state_symbol == state
-            && event.root == root && event.kind == language_semantics::PermissionEventKind::Establish
+            && event.root == root
+            && checked.facts.flow.ownership.segments.span_or_empty(event.segments).starts_with(&receiving_path)
+            && event.kind == language_semantics::PermissionEventKind::Establish
             && event.access == language_semantics::PermissionAccess::Owned
             && event.multiplicity == language_semantics::Multiplicity::Linear && event.obligation_live
             && matches!(event.source, language_semantics::PermissionEventSource::Statement { statement_index }
@@ -374,7 +448,7 @@ pub(crate) fn prepare_establishment_claims(
                     && claim_established_here(machine, state, statement, source)
             });
             let path = validation::structural_claim_path(&checked.typed, type_reference,
-                checked.facts.flow.ownership.segments.span_or_empty(event.segments))
+                &checked.facts.flow.ownership.segments.span_or_empty(event.segments)[receiving_path.len()..])
                 .map_err(
             LoweringError::Unsupported)?;
             Ok(PreparedClaim {

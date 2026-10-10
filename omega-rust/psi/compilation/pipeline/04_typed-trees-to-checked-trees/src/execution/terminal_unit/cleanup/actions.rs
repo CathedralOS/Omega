@@ -232,6 +232,14 @@ pub(super) fn disposition_actions(
             }
             continue;
         };
+        // An allocated home with no established cleanup-bearing region has
+        // an exact whole-region exclusion. It owns no value disposal or hook:
+        // the surrounding owner selection still publishes RetireHome. Do not
+        // encode this empty complement as a partial moved-path reconstruction,
+        // whose inputs must be strict nonempty subregions of a live value.
+        if relative_segments.is_empty() {
+            return (removed.root == disposition.root && selected.is_empty()).then(Vec::new);
+        }
         let (reference, relative_path) =
             crate::execution::terminal_unit::calls::projected_argument_path(
                 program,

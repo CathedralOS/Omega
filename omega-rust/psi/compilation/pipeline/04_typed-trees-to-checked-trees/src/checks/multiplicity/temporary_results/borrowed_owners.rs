@@ -32,7 +32,9 @@ pub(in crate::checks::multiplicity) fn append_borrow(
     }) {
         let root = facts::PlaceRoot::Expression(owner.expression);
         let carries_claims = type_carries_linear_obligation(program, owner.type_reference);
-        if carries_claims && !crate::flow::whole_cleanup_is_eligible(program, owner.type_reference) {
+        if super::super::owned_cleanup::claim_receipts(
+            program, owner.type_reference, root, &[], places, &[],
+        ).is_none() {
             let PermissionEventSource::Call { target_symbol, .. } = owner.consumer else { continue; };
             diagnostics.push(Diagnostic::error(format!(
                 "cannot automatically dispose borrowed temporary `{}` after call `{}` at statement {}: every contained linear obligation needs its owner-authorized terminal disposition",
