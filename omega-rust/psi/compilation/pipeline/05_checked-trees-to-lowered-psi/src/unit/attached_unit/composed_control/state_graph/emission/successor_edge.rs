@@ -233,6 +233,12 @@ impl StateGraphEmission<'_, '_> {
                                 case_emission::result(state, result.binding_ordinal, operations)
                                     .map(|binding| {
                                         let place = binding.place();
+                                        // A completed move can name a subtree
+                                        // of an existing owner. Its path is
+                                        // part of the value, not an optional
+                                        // hint: dropping it transfers the
+                                        // containing record instead.
+                                        argument_path = binding.path().to_vec();
                                         completed_binding = Some(binding.into_owned());
                                         place
                                     })
@@ -240,7 +246,11 @@ impl StateGraphEmission<'_, '_> {
                             operations.structural_values = state_bindings;
                             edge_evaluation.current_structural_place(emitted?)
                         }
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => edge_evaluation.current_structural_place(case_emission::result(state, binding_ordinal, operations)?.place()),
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => {
+                            let binding = case_emission::result(state, binding_ordinal, operations)?;
+                            argument_path = binding.path().to_vec();
+                            edge_evaluation.current_structural_place(binding.place())
+                        }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
                             edge_evaluation.current_structural_place(state_parameters.get(index as usize).ok_or(
                                 LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),

@@ -1,12 +1,11 @@
 //! One composed Unit control state graph, checked against its authored
 //! source and then written as one Terminal machine.
 //!
-//! Three entries, all used by the parent `composed_control`:
-//! `has_shared_graph_custody` selects this route (called by
-//! `lower_composed_unit_control_machine` and `callable::admit`); `admit`
-//! checks a `CheckedComposedUnitControlMachinePlan` and returns an
-//! `AdmittedGraph` (called by `callable::admit`); `emit` writes the admitted
-//! graph (called by `callable::emit`).
+//! The common Unit closure prepares every root and callee through `admit`,
+//! which returns the graph records `callable::emit` consumes. There is no
+//! composed-only entrypoint or boolean custody selector before this route.
+//! Reachability, parameter preparation and aliased claim transport run here
+//! once, in dependency order, and failures retain their actual diagnostic.
 //!
 //! `admission::admit` checks the contract identity and the ranking witness
 //! (`ranking::validate_witness`), computes the reachable states
@@ -16,7 +15,7 @@
 //! the stage 04 plan records, through `guarded`, `cases`, `returns` or
 //! `edges`. The body's effect operations are stage 04's plan and emit as
 //! planned; nothing here rejoins them to their authored statements. It then
-//! resolves claim transport across edges (`claims::resolve`) and admits the
+//! binds invocation claim aliases (`claims::bind_invocation_claims`) and admits the
 //! reachable states' calls.
 //!
 //! `emission::emit` lowers the machine result (`returns::result`) and the
@@ -39,12 +38,11 @@ We lower the shared checked state graph through the ordinary call catalog. The
 historical Unit name now includes normal scalar-sum results: returning a case
 must preserve its payload, not force the caller onto a separate graph template.
 
-Admission and emission have different jobs. admission.rs rejoins retained states,
-source calls, operands, and successors before emission.rs allocates blocks and
-places. has_shared_graph_custody selects this route from retained custody, not
-from a convenient topology match. Once selected, a failed rejoin is fatal:
-retrying an older shape matcher could ignore the very statement or operand that
-made the checked plan invalid.
+Preparation and emission have different jobs. admission.rs retains the states,
+call boundaries, parameter aliases and claim transport emission.rs needs before
+allocating blocks and places. The checked plan already selects this producer;
+there is no speculative preparation, source-shape retry or discarded unaliased
+claim resolution ahead of the real graph records.
 
 Invocation parameters are immutable, so a backedge to the authored entry needs
 a one-shot invocation block followed by an ordinary parameterized state block.
@@ -66,7 +64,7 @@ operation establishes in the `Return` role (the operation frame evaluates it),
 or an earlier immutable binding a final name reads. Value-only transition exits
 run the ordinary exit evaluator (`Evaluation::scalar_control_result`) inside
 the state and return its joined value. Either way the state then disposes the
-same whole roots a Unit return does. Tests: src/tests/composed_scalar_results.rs.
+same whole roots a Unit return does.
 */
 
 /*
@@ -76,13 +74,9 @@ in declaration order; those orders can differ. The construction place and the
 machine result place are distinct. Bounded fields need their declaration-range
 proofs even when the surrounding control graph is otherwise admitted.
 
-The source-to-execution examples live at src/tests/byte_write_loop.rs in this
-crate: scalar_case_return_preserves_authored_multifield_identity_and_rejects_plan_drift
-covers reordered fields and corrupt plans, and
-scalar_case_return_multistate_borrowed_view_and_ordinary_call_observe_count
-combines returns, loops, and caller-visible mutation. Ordered value exits use
-guarded.rs and the ordinary structural-value emitter. Full source coverage is
-specified in ../../terminal-production/README.md relative to this crate.
+Ordered value exits use guarded.rs and the ordinary structural-value emitter.
+Source-to-execution coverage belongs to tests/omega: the ownership state-graph
+fixture composes direct projections, retained local aliases, calls and backedges.
 */
 use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
@@ -120,8 +114,7 @@ mod returns;
 mod subslices;
 
 pub(in crate::unit::attached_unit) use admission::AdmittedGraph;
-pub(super) use admission::admit;
-pub(super) use admission::has_shared_graph_custody;
+pub(in crate::unit::attached_unit) use admission::admit;
 pub(super) use edges::successors;
 pub(super) use emission::emit;
 pub(crate) use topology::live;

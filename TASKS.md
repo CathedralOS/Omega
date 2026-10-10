@@ -3071,7 +3071,7 @@ of a check the same flow already performed, not the check itself.
   copies, arrays, joins and returns without granting permissions to inactive
   payloads;
   `runtime_case_qualified_reference_storage_exit` retains the growing `Chain`
-  and mixed-case execution controls. Native formation, release, edge and
+  and mixed-case execution controls. Native formation, release and
   call-result custody still retain local replay restrictions; replace their
   necessary storage relationships rather than restoring a whole-operation
   borrow preflight.

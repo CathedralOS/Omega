@@ -11,6 +11,7 @@ use omega::language::core::drop;
 
 data Receipt [linear] { code: i32; }
 data Pair { left: Receipt; right: Receipt; }
+data Package { pair: Pair; spare: Receipt; }
 
 machine Receipt::drop(receipt: &mut Receipt) {}
 
@@ -97,6 +98,19 @@ machine exchange_members(swap: bool, pair: Pair) crashes Trap {
     state bad() { crash Trap; }
 }
 
+// A retained local can be a path under its original home, not a fresh place.
+// Forwarding it must move only that subtree and keep both received claims.
+machine forward_local(package: Package) -> i64 {
+    let pair: Pair = package.pair;
+    let spare: i32 = consume(package.spare);
+    transition { _ -> holding(pair) }
+    state holding(held: Pair) -> i64 {
+        let first: i32 = consume(held.left);
+        let second: i32 = consume(held.right);
+        (first as i64) + (second as i64)
+    }
+}
+
 machine exchange_pairs(swap: bool, left: Pair, right: Pair) crashes Trap {
     transition swap {
         true -> received(right, left, 3, 1)
@@ -123,12 +137,16 @@ machine main() crashes Trap {
     exchange_members(false, Pair { left: make(1), right: make(2) });
     exchange_pairs(true, Pair { left: make(1), right: make(2) }, Pair { left: make(3), right: make(4) });
     exchange_pairs(false, Pair { left: make(1), right: make(2) }, Pair { left: make(3), right: make(4) });
+    let forwarded: i64 = forward_local(Package {
+        pair: Pair { left: make(3), right: make(4) },
+        spare: make(9)
+    });
     let rotated: i32 = rotate(make(9), make(8), 2);
     let looped: i32 = spin(Receipt { code: 9 }, 3);
     let issued: Receipt = Receipt { code: 2 };
     let once: i32 = spin(issued, 0);
     let made: Receipt = issue(6);
-    transition looped == 9 && once == 2 && rotated == 9 {
+    transition looped == 9 && once == 2 && rotated == 9 && forwarded == 7 {
         true -> holding(made)
         _ -> refusing(made)
     }

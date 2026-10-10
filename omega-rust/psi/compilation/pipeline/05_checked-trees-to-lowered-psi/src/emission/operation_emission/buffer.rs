@@ -53,8 +53,8 @@ pub(crate) enum StructuralBinding {
     },
     /// One authored binding of an owned subtree of a live root. The alias
     /// carries the composed path so every later use projects it at its own
-    /// consuming operation, which is the lane Terminal Psi admits for a
-    /// partial move; the Jump lane refuses a projected owned linear leaf.
+    /// consuming operation, including state edges. The place and path are
+    /// one value coordinate; forwarding the place alone moves its parent.
     ProjectedAlias {
         place: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,

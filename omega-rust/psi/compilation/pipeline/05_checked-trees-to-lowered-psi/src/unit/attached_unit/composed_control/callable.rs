@@ -22,16 +22,6 @@ impl<'a> CallableBody<'a> {
     }
 }
 
-pub(in crate::unit::attached_unit) fn admit<'a>(
-    checked: &'a CheckedTrees,
-    plan: &'a checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<CallableBody<'a>, LoweringError> {
-    if !state_graph::has_shared_graph_custody(checked, plan) {
-        return super::super::unsupported("composed callee has unsupported graph custody");
-    }
-    state_graph::admit(checked, plan)
-}
-
 pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub type_ids: &'a [(String, StructuralTypeId)],

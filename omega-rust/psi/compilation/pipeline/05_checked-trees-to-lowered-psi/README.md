@@ -90,7 +90,6 @@ realization migration.
 - [Operation proofs](src/proofs/operation_proofs.rs) reconstructs obligations
   from the completed module and fills missing evidence in deterministic order.
 - [Evidence lowering](src/proofs/evidence_lowering.rs) retains proof subjects.
-- [Tests](src/tests.rs) exercise completed artifacts and invalid custody.
 
 Within shared Unit assembly, [admission](src/unit/attached_unit/admission.rs)
 retains the ordered body roster and collects every boundary its calls name;
@@ -100,11 +99,18 @@ before deriving requirements, retaining structural/scalar parameters, authored
 predicate positions and machine-local claims together. Ordinary and composed
 calls borrow the same records; emission consumes admitted bodies in roster order.
 Neither step allocates a second module or changes the shared identity namespace.
+Composed roots enter this same closure directly. Graph preparation computes live
+states and parameter aliases before binding invocation claim names; no boolean
+custody preflight speculates with an unaliased graph or selects another emitter.
+Ordinary state edges consume checked transfers directly, without authenticating
+them again against the checker's permission-event roster.
+Qualification forwarding is admitted by stage 04's graph producer; lowering
+does not repeat that predecessor walk for either owned or borrowed parameters.
 
 [Composed callees](src/unit/attached_unit/composed_control/callable.rs)
 borrow the closure's type, domain, service and boundary tables; temporary places
-and identity counters remain local to emission. Standalone composed roots own
-the same tables for publication. Byte-literal stores may allocate their generated
+and identity counters remain local to emission. Composed roots and callees use
+the same closure-owned tables for publication. Byte-literal stores may allocate their generated
 carrier only in an owned table; shared callees must find the prepared carrier.
 Emission does not clone a shared type table and compare it after the fact.
 

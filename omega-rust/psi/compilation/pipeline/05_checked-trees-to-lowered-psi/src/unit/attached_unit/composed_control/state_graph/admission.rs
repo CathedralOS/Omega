@@ -14,73 +14,6 @@ use super::{
     topology,
 };
 
-/// Custody, not topology, selects this emitter. Once selected, failed source
-/// rejoining must not retry an older matcher that ignores additional statements.
-pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody(
-    checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
-) -> bool {
-    let Some(machine) = checked.machine(plan.machine) else {
-        return false;
-    };
-    // Authored lifetime binders erase at checking: the retained plan's
-    // type identities and custody paths never spell an 'a name. Generic
-    // type parameters still need instantiation machinery and stay out.
-    checked.machine_type_parameters(machine).is_empty() && plan.body_qualifications.is_empty() && {
-        // Unreachable states never execute: their custody rows cannot
-        // disqualify the route. Reachable positions still enforce every
-        // parameter's custody shape. A missing edge target is topology
-        // drift, not custody — defer to `admit`'s authored-roster checks
-        // for the precise drift diagnostic.
-        let Ok(live) = topology::live(plan) else {
-            return true;
-        };
-        let qualified_invocation = invocation_only_entry(plan, &live);
-        plan.states
-            .iter()
-            .zip(&live)
-            .enumerate()
-            .filter_map(|(index, (state, live))| live.then_some((index, state)))
-            .all(|(index, state)| {
-                state.structural_parameters.iter().enumerate().all(
-                    |(parameter_index, parameter)| {
-                        ((parameter.multiplicity == Multiplicity::Unrestricted
-                            && parameter.access != checked_trees::CheckedStructuralAccess::Owned)
-                            || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
-                            && (parameter.qualifications.is_empty()
-                                || parameter.multiplicity == Multiplicity::Linear
-                                || (index == 0 && qualified_invocation)
-                                || forwards_qualified_parameter(
-                                    checked,
-                                    plan,
-                                    &live,
-                                    index,
-                                    parameter_index,
-                                ))
-                    },
-                )
-            })
-            && claim_transport_supported(checked, plan, &live)
-    }
-}
-
-/// Every claimed destination path must have an authenticated incoming move.
-/// Its local binding name need not equal the source's claim identity.
-fn claim_transport_supported(
-    checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
-    live: &[bool],
-) -> bool {
-    if plan
-        .states
-        .iter()
-        .all(|state| state.entry_claims.is_empty())
-    {
-        return true;
-    }
-    claims::resolve(checked, plan, live, &[]).is_ok()
-}
-
 pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
     /// Entry-state successor-closure mask over the full `plan.states` roster;
     /// dead positions keep their index alignment but emit no block.
@@ -106,7 +39,7 @@ pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 }
 
-pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
+pub(in crate::unit::attached_unit) fn admit<'a>(
     checked: &'a CheckedTrees,
     plan: &'a CheckedComposedUnitControlMachinePlan,
 ) -> Result<AdmittedGraph<'a>, LoweringError> {
@@ -179,7 +112,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // entry successor closure never execute: their custody rows cannot
     // disqualify the route and emission prunes them.
     let live = topology::live(plan)?;
-    let qualified_invocation = invocation_only_entry(plan, &live);
     for (state_index, ((owner, source), state)) in authored.iter().zip(&plan.states).enumerate() {
         crate::unit::attached_unit::claims::validate_entry_claims(
             checked,
@@ -202,7 +134,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         {
             return unsupported("Unit graph signature dropped or duplicated a parameter");
         }
-        for (parameter_index, parameter) in state.structural_parameters.iter().enumerate() {
+        for parameter in &state.structural_parameters {
             let source = source_parameters.get(parameter.position as usize).ok_or(
                 LoweringError::Unsupported("Unit graph view parameter position is invalid"),
             )?;
@@ -328,16 +260,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 }
                 continue;
             }
-            borrowed_parameter(
-                checked,
-                plan,
-                &live,
-                state_index,
-                parameter_index,
-                qualified_invocation,
-                source,
-                parameter,
-            )?;
+            borrowed_parameter(source, parameter)?;
         }
         if let CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. } = state.terminator {
             // A closed-sum dispatch checks its subject's sum custody and arms
@@ -363,7 +286,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     let mut entry_aliases = vec![std::collections::BTreeMap::new(); plan.states.len()];
     entry_aliases::alias_forwarded_entry_claims(plan, &live, &mut entry_aliases)?;
     entry_aliases::alias_entry_parameter_loans(plan, &live, &mut entry_aliases)?;
-    let claim_transport = claims::resolve(checked, plan, &live, &entry_aliases)?;
+    // Only physical aliases need claim-name rebinding. Ordinary block arguments
+    // carry their checked obligations directly; do not replay incoming moves
+    // against the checker's permission events to prepare this namespace.
+    let claim_transport = claims::bind_invocation_claims(plan, &live, &entry_aliases)?;
     // A shared parameter that only ever receives its source's whole
     // exclusive loan holds that loan; Terminal edges transfer mutable names.
     let exclusive_handoffs =
@@ -455,30 +381,14 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     })
 }
 
-/// A borrowed formal's admission reads its plan row: qualifications must be
-/// supplied by the invocation or forwarded unchanged, and the loan must be an
-/// unrestricted, non-provider view. Its binding mutability must match the
-/// loan's access: the graph has no route for rebinding a `mut` formal that
-/// holds a shared loan.
-#[allow(clippy::too_many_arguments)]
+/// The emitter requires an unrestricted, non-provider view with binding
+/// mutability matching its loan access. Qualification forwarding belongs to
+/// stage 04's graph producer, before this checked plan exists; lowering must
+/// not walk its predecessors and re-decide that source admission.
 fn borrowed_parameter(
-    checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
-    live: &[bool],
-    state_index: usize,
-    parameter_index: usize,
-    qualified_invocation: bool,
     source: &checked_trees::signature::StateParameter,
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
 ) -> Result<(), LoweringError> {
-    if !parameter.qualifications.is_empty()
-        && !(state_index == 0 && qualified_invocation)
-        && !forwards_qualified_parameter(checked, plan, live, state_index, parameter_index)
-    {
-        return unsupported(
-            "Unit graph borrowed parameter qualifications differ from invocation custody",
-        );
-    }
     let exclusive = matches!(
         parameter.access,
         checked_trees::CheckedStructuralAccess::MutableBorrow
@@ -493,65 +403,4 @@ fn borrowed_parameter(
         return unsupported("Unit graph borrowed parameter carries owned or provider custody");
     }
     Ok(())
-}
-
-/// Qualified invocation inputs already have their caller-established domains.
-/// Only their original entry uses that custody; every actual incoming edge,
-/// including entry reentry, still needs separately supported domain transport.
-/// A shared loan freezes its referent. Mutable bounded byte owners retain only
-/// primitive byte predicates whose preservation every write independently
-/// checks; arbitrary mutable domain transport remains unsupported. A successor's
-/// qualified parameter is admitted only when every live edge into its
-/// state forwards a source parameter with exactly the same carrier, access,
-/// multiplicity and qualifications, or, for a shared byte view, establishes
-/// an authored literal under those qualifications: each is then a
-/// byte-predicate domain without establishment routes, which Terminal
-/// verification decides from the literal's octets. The entry keeps its
-/// invocation rule.
-fn forwards_qualified_parameter(
-    checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
-    live: &[bool],
-    target_index: usize,
-    parameter_index: usize,
-) -> bool {
-    checked_trees::forwards_qualified_parameter(
-        &plan.states,
-        live,
-        target_index,
-        parameter_index,
-        |identity| {
-            checked_trees::checked_structural_type_by_identity(
-                &checked.facts.flow.terminal_unit_effects.structural_types,
-                identity,
-            )
-            .map(|declaration| &declaration.shape)
-        },
-        |qualification, identity| {
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .structural_domains
-                .iter()
-                .any(|domain| {
-                    domain.domain == qualification
-                        && domain.carrier_type_identity == identity
-                        && domain.byte_predicate.is_some()
-                        && domain.establishment_routes.is_empty()
-                })
-        },
-    )
-}
-
-fn invocation_only_entry(plan: &CheckedComposedUnitControlMachinePlan, live: &[bool]) -> bool {
-    plan.states.first().is_some_and(|entry| {
-        !plan
-            .states
-            .iter()
-            .zip(live)
-            .filter(|(_, live)| **live)
-            .flat_map(|(state, _)| state.successors())
-            .any(|successor| successor.target_state == entry.state)
-    })
 }

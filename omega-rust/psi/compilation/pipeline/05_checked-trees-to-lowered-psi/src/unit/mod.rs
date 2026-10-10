@@ -79,7 +79,7 @@ use crate::terminal_identities::{
     lookup_service_id, lookup_type_id, machine_id, obligation_id, place_id, service_id,
     structural_domain_id, structural_field_id, structural_type_id, value_id,
 };
-use crate::unit::attached_unit::{lower_composed_unit_control_machine, lower_unit_closure};
+use crate::unit::attached_unit::{lower_unit_closure, lower_unit_effect_closure};
 use crate::unit::unit_cleanup::{
     lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
 };
@@ -105,21 +105,18 @@ pub(crate) fn lower_unit_plan_machine(
             lower_nominal_affine_unit_cleanup_machine(checked, plan)?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
-                ..Default::default()
             },
         ),
         CheckedUnitPlan::PartialAffineCleanup(plan) => LoweredSelectedMachine::source_mapped(
             lower_partial_affine_unit_cleanup_machine(checked, plan)?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
-                ..Default::default()
             },
         ),
         CheckedUnitPlan::ComposedControl(plan) => LoweredSelectedMachine::source_mapped(
-            lower_composed_unit_control_machine(checked, plan)?,
+            lower_unit_effect_closure(checked, plan.machine)?,
             LoweringCompletion {
                 debug: DebugPublication::Omit,
-                ..Default::default()
             },
         ),
     })

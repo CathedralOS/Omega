@@ -16,8 +16,7 @@ mod emission;
 mod literal_arguments;
 mod scalar_calls;
 mod state_graph;
-pub(crate) use crate::producer_result::SourceMappedLowered;
-pub(super) use callable::admit as admit_callable;
+pub(super) use state_graph::admit as admit_callable;
 pub(super) use state_graph::case_emission::result as state_graph_result;
 pub(crate) use state_graph::live;
 
@@ -49,17 +48,4 @@ impl ComposedOccurrences {
         self.source_checked_obligations
             .extend(operations.source_checked_obligations);
     }
-}
-
-pub(crate) fn lower_composed_unit_control_machine(
-    checked: &CheckedTrees,
-    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<SourceMappedLowered, LoweringError> {
-    if !state_graph::has_shared_graph_custody(checked, plan) {
-        return super::unsupported("composed Unit control has unsupported graph custody");
-    }
-    // The entrance finalizes proofs after closing provider adapters and source
-    // contracts. Validating this provisional closure would reject an ordinary
-    // provider receiver before its installation entry can provision it.
-    super::lower_unit_effect_closure(checked, plan.machine)
 }
