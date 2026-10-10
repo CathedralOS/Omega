@@ -166,9 +166,11 @@ pub machine ExactInteger::minimum(builtin: BuiltinType) -> ExactInteger {
     }
 }
 
-// The greatest value of a fixed-integer carrier; zero for any other type.
+// The greatest value of a fixed-integer carrier, one for a Boolean (true
+// is 1, false 0); zero for any other type.
 pub machine ExactInteger::maximum(builtin: BuiltinType) -> ExactInteger {
     transition builtin {
+        BuiltinType::Bool -> positive(1)
         BuiltinType::I8 -> positive(127)
         BuiltinType::I16 -> positive(32767)
         BuiltinType::I32 -> positive(2147483647)

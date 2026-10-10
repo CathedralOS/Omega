@@ -399,11 +399,12 @@ each machine's crash routes; a machine's checking stops at its first
 rejection and the next machine's begins. It owns the definedness and
 contract obligations of wiki/spec/language/numeric_values.md and
 wiki/spec/language/state_contracts.md with one relational engine: a closed
-difference-bound zone over a body's integer subjects
+difference-bound zone over a body's integer and Boolean subjects
 ([`checking/zone.omg`](checking/zone.omg)), the parameters, locals, case
 binders, and fields and slice lengths of those places
 ([`checking/places.omg`](checking/places.omg)), each entered with its
-carrier's range. An expression's value is its place, a linear term (a
+carrier's range; a Boolean is 1 when true and 0 when false, so a stored
+`true` proves a later fact naming the place. An expression's value is its place, a linear term (a
 subject plus an exact offset) when it is one, and an interval
 ([`checking/evaluation.omg`](checking/evaluation.omg)); exact integers are
 shared with typing ([`integers/integers.omg`](integers/integers.omg)). A guard

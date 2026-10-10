@@ -13,7 +13,7 @@ use psi::resolution::resolution;
 use psi::syntax::syntax;
 use psi::types::types;
 
-// The places a body names and the integer subjects among them. A place is a
+// The places a body names and the integer and Boolean subjects among them. A place is a
 // parameter, a local, a case-pattern binder, a call's result, a
 // construction, an operand's snapshot, or a field or slice length of
 // another place; equal paths are one place. An integer place is a subject of
@@ -68,14 +68,15 @@ crashes Trap
     }
 }
 
-// The fixed-integer carrier of an interned type, or `Bool` when the type is
-// no fixed integer (Bool is never a carrier).
+// The carrier of an interned type's subject: a fixed integer's, `Bool` for
+// a Boolean, whose subject is 1 when true and 0 when false, or `Never` when
+// the type has no subject.
 pub machine Checker::carrier(typing: &Typing, type_handle: u64 in Trapping) -> BuiltinType
 crashes Trap
 {
     let row: TypeRow = TypeTable::row(&typing.types, type_handle);
     let integer: bool = ExactInteger::is_carrier(row.builtin);
-    transition row.kind == TypeKind::Builtin && integer {
+    transition row.kind == TypeKind::Builtin && (integer || row.builtin == BuiltinType::Bool) {
         true -> found(row.builtin)
         _ -> none()
     }
@@ -85,8 +86,14 @@ crashes Trap
     }
 
     state none() -> BuiltinType {
-        BuiltinType::Bool
+        BuiltinType::Never
     }
+}
+
+// Whether a place of this carrier is a subject: a fixed integer or a
+// Boolean.
+pub machine Checker::has_subject(carrier: BuiltinType) -> bool {
+    ExactInteger::is_carrier(carrier) || carrier == BuiltinType::Bool
 }
 
 // Clear the body's places and open its zone over the zero subject alone.
@@ -160,7 +167,7 @@ crashes Trap
         type_handle: u64 in Trapping
     ) -> u64 in Trapping {
         let carrier: BuiltinType = Checker::place_carrier(typing, kind, type_handle);
-        let integer: bool = ExactInteger::is_carrier(carrier);
+        let integer: bool = Checker::has_subject(carrier);
         transition checker.place_count < 256 {
             true -> room(checker, kind, handle, parent, type_handle, carrier, integer)
             _ -> full(checker)

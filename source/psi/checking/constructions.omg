@@ -10,11 +10,11 @@ use psi::types::types;
 // The fields a construction writes
 // (wiki/spec/language/state_contracts.md#mutation-and-subject-identity).
 // A construction's value is a place of its own, keyed by its expression
-// handle. Each integer field it writes is pending below that place until
-// something reads the field: a field place entered there takes the value
-// written, and a copy of the place (a `let`, a store, an argument) takes
-// the pending fields with the known ones, so the facts cost a subject only
-// once a field is read. A write to a place drops the pending fields below
+// handle. Each integer or Boolean field it writes is pending below that
+// place until something reads the field: a field place entered there takes
+// the value written, and a copy of the place (a `let`, a store, an
+// argument) takes the pending fields with the known ones, so the facts cost
+// a subject only once a field is read. A write to a place drops the pending fields below
 // it; a write to what a pending field read first enters that field, so it
 // keeps the value it captured. A jump enters its arguments' pending fields
 // before projecting them (arrivals.omg).
@@ -29,8 +29,8 @@ pub data PendingField [copy] {
     value: Value;
 }
 
-// The value of a data construction `handle`: its place, its integer fields
-// pending below it. A case construction is its type's range.
+// The value of a data construction `handle`: its place, its integer and
+// Boolean fields pending below it. A case construction is its type's range.
 pub machine Checker::construction_value(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
@@ -113,13 +113,14 @@ crashes Trap
     }
 }
 
-// Write an integer field below `parent`: into its place when it has one,
-// else pending. A full table drops the field, which only forgets facts.
+// Write an integer or Boolean field below `parent`: into its place when it
+// has one, else pending. A full table drops the field, which only forgets
+// facts.
 pub machine Checker::write_pending(checker: &mut Checker, typing: &Typing, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value)
 crashes Trap
 {
     let carrier: BuiltinType = Checker::carrier(typing, type_handle);
-    let integer: bool = ExactInteger::is_carrier(carrier);
+    let integer: bool = Checker::has_subject(carrier);
     transition integer {
         true -> located(checker, parent, field, type_handle, value)
         _ -> done()

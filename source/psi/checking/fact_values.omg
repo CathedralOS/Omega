@@ -53,6 +53,7 @@ crashes Trap
         ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle)
         ExpressionKind::Path -> path(syntax, resolution, typing, handle, type_handle, row)
         ExpressionKind::Integer -> literal(typing, handle)
+        ExpressionKind::Boolean -> boolean(expression)
         ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle)
         ExpressionKind::Unary -> unary(checker, expression, row, integer)
         ExpressionKind::Binary -> binary(checker, expression, row, integer)
@@ -82,6 +83,11 @@ crashes Trap
     state literal(typing: &Typing, handle: u64 in Trapping) -> Value {
         let literal: ExactInteger = Typing::value(typing, handle);
         let value: Value = Value::constant(literal);
+        value
+    }
+
+    state boolean(expression: Expression) -> Value {
+        let value: Value = Value::truth(expression.flag);
         value
     }
 

@@ -10,8 +10,9 @@ use psi::types::types;
 // state's `requires`. An integer comparison between linear terms is a
 // difference fact; against any other integer value it bounds the term by
 // that value's interval. A conjunction holds both sides, a failed
-// disjunction fails both, and `!` swaps. Anything else, an equality of
-// non-integers or a call, establishes nothing. The tree has been evaluated,
+// disjunction fails both, and `!` swaps. Any other Boolean with a value, a
+// place or a call's result, is 1 when it holds and 0 when it fails. An
+// equality of other non-integers establishes nothing. The tree has been evaluated,
 // so its nodes' values are known; the walk keeps its own stack of
 // (handle, holds) pairs, each packed as `handle * 2 + holds`.
 pub machine Checker::assume(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, holds: bool)
@@ -37,8 +38,18 @@ crashes Trap
             ExpressionKind::Binary -> binary(checker, syntax, expression, holds)
             ExpressionKind::Unary -> unary(checker, syntax, expression, holds)
             ExpressionKind::Boolean -> literal(checker, syntax, expression, holds)
-            _ -> next(checker, syntax)
+            _ -> truth(checker, syntax, handle, holds)
         }
+    }
+
+    // value - truth <= 0 and truth - value <= 0.
+    state truth(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) {
+        let value: Value = Checker::value_at(checker, handle);
+        let expected: Value = Value::truth(holds);
+        let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
+        Checker::constrain_difference(checker, value, expected, zero);
+        Checker::constrain_difference(checker, expected, value, zero);
+        transition { _ -> next(checker, syntax) }
     }
 
     state unary(checker: &mut Checker, syntax: &SyntaxTrees, expression: Expression, holds: bool) {
@@ -397,9 +408,9 @@ crashes Trap
 }
 
 // Whether a comparison or Boolean literal holds (or fails, when `holds` is
-// false) wherever the zone does; anything else is not proved. Two values of
-// one place are equal however little the zone knows of it, a Boolean's
-// included.
+// false) wherever the zone does, or any other Boolean's value is 1 (or 0).
+// Two values of one place are equal however little the zone knows of it, a
+// Boolean's included.
 pub machine Checker::proves_atom(checker: &Checker, syntax: &SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool
 crashes Trap
 {
@@ -407,7 +418,15 @@ crashes Trap
     transition expression.kind {
         ExpressionKind::Binary -> comparison(checker, expression, holds)
         ExpressionKind::Boolean -> literal(expression.flag == holds)
-        _ -> unproved()
+        _ -> truth(checker, handle, holds)
+    }
+
+    state truth(checker: &Checker, handle: u64 in Trapping, holds: bool) -> bool {
+        let value: Value = Checker::value_at(checker, handle);
+        let expected: Value = Value::truth(holds);
+        let at_most: bool = Checker::proves_at_most(checker, value, expected);
+        let at_least: bool = Checker::proves_at_most(checker, expected, value);
+        transition { _ -> literal(at_most && at_least) }
     }
 
     state comparison(checker: &Checker, expression: Expression, holds: bool) -> bool {

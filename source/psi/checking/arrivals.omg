@@ -6,13 +6,13 @@ use psi::checking::zone;
 use psi::syntax::syntax;
 use psi::types::types;
 
-// Field paths an arrival carries. Besides a state's integer parameters, a
-// jump projects the integer places it knows below an argument that is a
-// place (`table.count` for a parameter `table: &mut Table`), so a guard on a
-// field reaches the state the guard selects. A path is the parameter's
+// Field paths an arrival carries. Besides a state's integer and Boolean
+// parameters, a jump projects the subject places it knows below an argument
+// that is a place (`table.count` for a parameter `table: &mut Table`), so a
+// guard on a field reaches the state the guard selects. A path is the parameter's
 // offset and up to four projections, each a field or a slice's `.len` with
 // the type of the place it reaches. A state keeps the up to 40 paths its
-// demand derives (demand.omg), numbered after its integer parameters; its
+// demand derives (demand.omg), numbered after its subject parameters; its
 // body enters them as places in that order, so its subjects match its
 // arrival zone's. A path one jump did not project is unknown in that jump's
 // contribution.

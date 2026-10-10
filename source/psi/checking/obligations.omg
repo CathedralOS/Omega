@@ -38,6 +38,7 @@ crashes Trap
     transition expression.kind {
         ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle)
         ExpressionKind::Integer -> literal(checker, typing, handle)
+        ExpressionKind::Boolean -> boolean(checker, handle, expression)
         ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle)
         ExpressionKind::Index -> index(checker, syntax, typing, handle, expression, row, checking)
         ExpressionKind::Unary -> unary(checker, handle, expression, row, integer, checking)
@@ -114,6 +115,11 @@ crashes Trap
     state literal(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping) {
         let literal: ExactInteger = Typing::value(typing, handle);
         let value: Value = Value::constant(literal);
+        Checker::set_value(checker, handle, value);
+    }
+
+    state boolean(checker: &mut Checker, handle: u64 in Trapping, expression: Expression) {
+        let value: Value = Value::truth(expression.flag);
         Checker::set_value(checker, handle, value);
     }
 

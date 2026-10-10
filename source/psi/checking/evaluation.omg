@@ -45,6 +45,24 @@ pub machine Value::constant(value: ExactInteger) -> Value {
     }
 }
 
+// A Boolean's value: 1 when true, 0 when false.
+pub machine Value::truth(flag: bool) -> Value {
+    transition flag {
+        true -> one()
+        _ -> zero()
+    }
+
+    state one() -> Value {
+        let value: Value = Value::constant(ExactInteger { negative: false, magnitude: 1 });
+        value
+    }
+
+    state zero() -> Value {
+        let value: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
+        value
+    }
+}
+
 // The interval of a carrier: its exact range.
 pub machine Value::carrier(builtin: BuiltinType) -> Value {
     let least: ExactInteger = ExactInteger::minimum(builtin);
@@ -625,9 +643,10 @@ pub machine Value::at_place(place: u64 in Trapping) -> Value {
     Value { place: place, known: false, subject: 0, offset: unknown.offset, ceiling: unknown.ceiling, floor: unknown.floor }
 }
 
-// A value known only by its type: a fixed integer's carrier range.
+// A value known only by its type: a fixed integer's carrier range, a
+// Boolean's 0 to 1.
 pub machine Value::typed(row: TypeRow) -> Value {
-    let integer: bool = row.kind == TypeKind::Builtin && ExactInteger::is_carrier(row.builtin);
+    let integer: bool = row.kind == TypeKind::Builtin && (ExactInteger::is_carrier(row.builtin) || row.builtin == BuiltinType::Bool);
     transition integer {
         true -> ranged(row.builtin)
         _ -> unbounded()

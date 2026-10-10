@@ -2378,6 +2378,42 @@ def main() -> None:
         b"    state next(pair: Pair)\n    requires pair.first == pair.second\n    {}\n}",
     )
 
+    # A Boolean is a subject, 1 when true and 0 when false: a stored literal
+    # proves a later fact naming the place, and a jump carries it.
+    accepted(
+        program,
+        "stored-true-proves-its-field",
+        b"data Token { value: u64; ready: bool; }\nmachine prepare(token: &mut Token)\n"
+        b"ensures token.value == 9 && token.ready\n{\n    token.value = 9;\n    token.ready = true;\n}",
+    )
+    accepted(
+        program,
+        "assigned-true-proves-its-local",
+        b"machine ready() -> bool\nensures result\n{\n    let mut flag: bool = false;\n    flag = true;\n    flag\n}",
+    )
+    rejected(
+        program,
+        "assigned-false-fails-its-local",
+        b"machine ready() -> bool\nensures result\n{\n    let mut flag: bool = true;\n    flag = false;\n    flag\n}",
+        "GuaranteeUnproven",
+        b"flag!3",
+    )
+    pick = b"machine pick(flag: bool) -> u64\nrequires flag\n{ 1 }\n"
+    accepted(
+        program,
+        "jump-carries-a-boolean",
+        pick + b"machine run() -> u64 {\n    transition { _ -> next(5, true) }\n"
+        b"    state next(count: u64, flag: bool) -> u64\n    requires count == 5\n    { pick(flag) }\n}",
+    )
+    rejected(
+        program,
+        "jump-carries-a-false-boolean",
+        pick + b"machine run() -> u64 {\n    transition { _ -> next(5, false) }\n"
+        b"    state next(count: u64, flag: bool) -> u64 { pick(flag) }\n}",
+        "RequirementUnproven",
+        b"pick(flag)",
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

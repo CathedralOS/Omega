@@ -16,8 +16,8 @@ use psi::types::types;
 // two dozen fields before its guard), so each state's paths are derived,
 // before its machine's facts are gathered, from what needs them:
 //
-// - the integer fields and lengths its own statements read below its
-//   parameters, a slice's length wherever it indexes one;
+// - the integer and Boolean fields and lengths its own statements read
+//   below its parameters, a slice's length wherever it indexes one;
 // - what each state it jumps to demands below the parameter it passes,
 //   behind the path the argument names (`next(p)` passes the target's
 //   demand on `p` through, `next(&mut p.output)` prefixes it with `output`);
@@ -385,7 +385,7 @@ crashes Trap
     state read(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, body: StateItem, handle: u64 in Trapping) -> bool {
         let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
         let carrier: BuiltinType = Checker::carrier(typing, type_handle);
-        let integer: bool = ExactInteger::is_carrier(carrier);
+        let integer: bool = Checker::has_subject(carrier);
         let chain: MemberChain = Checker::member_chain(syntax, resolution, typing, handle, body.first_parameter, body.parameter_count);
         transition integer && chain.rooted && chain.path.depth > 0 {
             true -> demanded(checker, offset, chain.path)

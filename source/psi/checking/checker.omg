@@ -26,7 +26,7 @@ use psi::types::types;
 // walked twice. First they gather facts to a fixed point: the entry body
 // from its parameters' carrier ranges, then every state reached by a jump
 // from the join of what all of its reached predecessors project onto its
-// integer parameters, revisited while that join loosens and widened when it
+// integer and Boolean parameters, revisited while that join loosens and widened when it
 // keeps loosening around a cycle (wiki/spec/language/state_contracts.md:
 // every reachable predecessor participates in a join). Then each reached
 // body is walked once more against its settled facts, and every obligation
@@ -446,8 +446,8 @@ crashes Trap
     Checker::install_domains(checker, syntax, resolution, typing);
 }
 
-// A state's places: its parameters, in order, so its integer parameters are
-// subjects 1, 2, ... as its arrival zone numbers them, then its arrival when
+// A state's places: its parameters, in order, so its integer and Boolean
+// parameters are subjects 1, 2, ... as its arrival zone numbers them, then its arrival when
 // a walk reached it (`arrival`).
 machine Checker::walk_state(
     checker: &mut Checker,
@@ -652,7 +652,8 @@ crashes Trap
 }
 
 // A jump's contribution to its state's arrival: for each pair of the
-// state's integer parameters, the zone's bound on the difference of their
+// state's integer and Boolean parameters, the zone's bound on the
+// difference of their
 // arguments (or of their intervals when either is no linear term), with the
 // zero subject for each one's own range. The arrival keeps what every
 // contribution so far implies; after three loosenings, bounds that keep
@@ -701,7 +702,7 @@ crashes Trap
         let parameter: Parameter = SyntaxTrees::parameter(syntax, item.first_parameter + index);
         let type_handle: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
         let carrier: BuiltinType = Checker::carrier(typing, type_handle);
-        let integer: bool = ExactInteger::is_carrier(carrier);
+        let integer: bool = Checker::has_subject(carrier);
         let handle: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + index);
         let value: Value = Checker::value_at(checker, handle);
         transition integer && subject < 64 {
