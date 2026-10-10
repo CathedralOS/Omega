@@ -80,3 +80,13 @@ count as an invalid-source rejection or a source/compiler diagnosis. Do not
 change ancestor ownership, permissions, or custody checks to manufacture a
 result. Package review/entry refusal also does not count as readonly rejection.
 The owning parent will review candidates and use normal landing.
+
+## Recorded candidate result
+
+The release build and scalar library check passed. Independent rational oracles
+passed. Full sample check, native, Terminal comparison and the complete invalid
+control were blocked by cache-custody ancestry before source validation; the
+existing float baseline reproduces it. Separate source-only mathematical
+probes passed, and the source-only readonly mutation rejected as intended.
+These narrower checks do not qualify full projects. See evidence/RESULTS.md
+for exact route statuses, complete retained sources and the remaining frontier.

@@ -34,3 +34,18 @@ Authenticated GitHub account was verified; unpublished NF14 commits were
 reauthored using its official noreply address, preserving all source trees.
 The public oracle freeze commit is 276f4aa16b; original 0f6ccf05b5 exists in
 the local prepublication bundle. Both freezes precede any Omega execution.
+
+Verification frontier: release Rust build exit 0 (6m35s); pivot library --check
+exit 0; independent rational fixtures pass. Full sample check/native/Terminal
+and complete invalid control all encounter the same host cache-custody ancestry
+refusal as an existing float baseline. Two preserved source-only mathematical
+probes check; source-only readonly mutation rejects for the intended reason.
+No system/custody changes made. Exact route commands and logs in evidence/.
+Next: receive NF01/NF02/NF11/NF12 canonical signatures and legitimate environment
+configuration, integrate descriptor factor/solve, then execute all full routes.
+Parent retains integration and normal landing responsibility.
+
+Refreshed main after validation: f9700f52dac1dce6ee8fe340e0d282c454aa3295. Its tree still contains no
+source/library/numerics or scientific/w100 dependency-owner interfaces.
+Candidate retains the recorded base for review; no stale-base validation is
+described as verification of refreshed main.

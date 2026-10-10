@@ -51,10 +51,17 @@ for route, suffix in commands:
               "elapsed_seconds": round(time.monotonic() - started, 3),
               "source_sha256": hashlib.sha256((repository / suffix[-1]).read_bytes()).hexdigest(),
               "environmental_cache_custody_failure": custody_failure}
+    if route == "readonly-rejection":
+        expected = (root / "invalid_readonly_write" / "expected_diagnostic.txt").read_text().strip()
+        record["accepted"] = exit_status not in (None, 0) and expected in diagnostic and not custody_failure
+    else:
+        record["accepted"] = exit_status == 0 and not custody_failure
     records.append(record)
     print(json.dumps(record), flush=True)
 (evidence / "routes.json").write_text(json.dumps({
     "revision": revision,
     "compiler_sha256": hashlib.sha256(compiler.read_bytes()).hexdigest(),
-    "routes": records
+    "routes": records,
+    "qualified_full_routes": all(record["accepted"] for record in records)
 }, indent=2) + "\n")
+raise SystemExit(0 if all(record["accepted"] for record in records) else 3)

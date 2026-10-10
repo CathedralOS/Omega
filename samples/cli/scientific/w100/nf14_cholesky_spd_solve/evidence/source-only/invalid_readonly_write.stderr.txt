@@ -1,0 +1,1 @@
+error: machine `overwrite_readonly` state `entry` assignment cannot write `source` because it is not mutable in this state (if `source` is undeclared -- a typo -- no such field or local exists)

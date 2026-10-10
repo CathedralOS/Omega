@@ -1,0 +1,18 @@
+// SOURCE-ONLY PROBE: derived from the full sample, with Console authority
+// and process exits removed. It cannot qualify native or Terminal execution.
+// Intended rejection: mutation through readonly borrowed matrix storage.
+// This is a type/ownership invalid-source control, not a non-SPD data error.
+use omega::language::core::float_operations;
+
+data Main {
+    matrix: [f64; 9];
+}
+
+machine overwrite_readonly(source: &[f64; 9]) {
+    source[0] = 4.0;
+}
+
+machine Main::main(main: &mut Main) {
+    overwrite_readonly(&main.matrix);
+    
+}

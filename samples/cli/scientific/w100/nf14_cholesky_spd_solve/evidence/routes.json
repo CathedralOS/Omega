@@ -1,0 +1,136 @@
+{
+  "revision": "606e5cf1fe84629533d3c38dcdbea3be01f58ec8",
+  "compiler_sha256": "a1357e62efc747d1a531a750ed1a7d5b6cee9ffdfcda68084e2f7bfca00f6a69",
+  "routes": [
+    {
+      "route": "baseline-float-check",
+      "command": [
+        "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/release/omega",
+        "--check",
+        "tests/omega/pass/float/named_provider_min_max_sqrt_exit/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf14",
+      "revision": "606e5cf1fe84629533d3c38dcdbea3be01f58ec8",
+      "exit_status": 1,
+      "elapsed_seconds": 0.004,
+      "source_sha256": "c4b51ac4be4b9bb1f6637336d15135ba70961ddae034f9085c0e3f850ad3c981",
+      "environmental_cache_custody_failure": true
+    },
+    {
+      "route": "library-check",
+      "command": [
+        "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/release/omega",
+        "--check",
+        "source/library/numerics/linalg/cholesky_spd_solve.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf14",
+      "revision": "606e5cf1fe84629533d3c38dcdbea3be01f58ec8",
+      "exit_status": 0,
+      "elapsed_seconds": 11.759,
+      "source_sha256": "5eec7b38d7b0c49fa6fe7c66b161a0cb17be49392c46ecf3290fdb6274a54d60",
+      "environmental_cache_custody_failure": false
+    },
+    {
+      "route": "diagonal_readonly-check",
+      "command": [
+        "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf14_cholesky_spd_solve/diagonal_readonly/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf14",
+      "revision": "606e5cf1fe84629533d3c38dcdbea3be01f58ec8",
+      "exit_status": 1,
+      "elapsed_seconds": 0.004,
+      "source_sha256": "49173ab3fdb56f7a2d8c4f15ebf294d8b2c15d4e2e4b87676191ab6299b2a6e5",
+      "environmental_cache_custody_failure": true
+    },
+    {
+      "route": "diagonal_readonly-native",
+      "command": [
+        "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/release/omega",
+        "run",
+        "samples/cli/scientific/w100/nf14_cholesky_spd_solve/diagonal_readonly/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf14",
+      "revision": "606e5cf1fe84629533d3c38dcdbea3be01f58ec8",
+      "exit_status": 200,
+      "elapsed_seconds": 0.003,
+      "source_sha256": "49173ab3fdb56f7a2d8c4f15ebf294d8b2c15d4e2e4b87676191ab6299b2a6e5",
+      "environmental_cache_custody_failure": true
+    },
+    {
+      "route": "diagonal_readonly-terminal-comparison",
+      "command": [
+        "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/release/omega",
+        "run",
+        "--both",
+        "samples/cli/scientific/w100/nf14_cholesky_spd_solve/diagonal_readonly/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf14",
+      "revision": "606e5cf1fe84629533d3c38dcdbea3be01f58ec8",
+      "exit_status": 200,
+      "elapsed_seconds": 0.003,
+      "source_sha256": "49173ab3fdb56f7a2d8c4f15ebf294d8b2c15d4e2e4b87676191ab6299b2a6e5",
+      "environmental_cache_custody_failure": true
+    },
+    {
+      "route": "correlated_copied-check",
+      "command": [
+        "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf14_cholesky_spd_solve/correlated_copied/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf14",
+      "revision": "606e5cf1fe84629533d3c38dcdbea3be01f58ec8",
+      "exit_status": 1,
+      "elapsed_seconds": 0.003,
+      "source_sha256": "1a09f3e60677eab07236714cd7eeb1df9637ea01bf2bada4d121fccea93743bc",
+      "environmental_cache_custody_failure": true
+    },
+    {
+      "route": "correlated_copied-native",
+      "command": [
+        "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/release/omega",
+        "run",
+        "samples/cli/scientific/w100/nf14_cholesky_spd_solve/correlated_copied/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf14",
+      "revision": "606e5cf1fe84629533d3c38dcdbea3be01f58ec8",
+      "exit_status": 200,
+      "elapsed_seconds": 0.003,
+      "source_sha256": "1a09f3e60677eab07236714cd7eeb1df9637ea01bf2bada4d121fccea93743bc",
+      "environmental_cache_custody_failure": true
+    },
+    {
+      "route": "correlated_copied-terminal-comparison",
+      "command": [
+        "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/release/omega",
+        "run",
+        "--both",
+        "samples/cli/scientific/w100/nf14_cholesky_spd_solve/correlated_copied/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf14",
+      "revision": "606e5cf1fe84629533d3c38dcdbea3be01f58ec8",
+      "exit_status": 200,
+      "elapsed_seconds": 0.003,
+      "source_sha256": "1a09f3e60677eab07236714cd7eeb1df9637ea01bf2bada4d121fccea93743bc",
+      "environmental_cache_custody_failure": true
+    },
+    {
+      "route": "readonly-rejection",
+      "command": [
+        "/workspace/cloud-setup/cache/mbx/targets/v1/cafa58b4b32465f15c0817c1b62fbce90e4bfdd5df221edc1ec53f44aedf02dd/release/omega",
+        "--check",
+        "samples/cli/scientific/w100/nf14_cholesky_spd_solve/invalid_readonly_write/main.omg"
+      ],
+      "cwd": "/workspace/Omega/.codex/worktrees/nf14",
+      "revision": "606e5cf1fe84629533d3c38dcdbea3be01f58ec8",
+      "exit_status": 1,
+      "elapsed_seconds": 0.003,
+      "source_sha256": "5e4485936363fb455f7d4c8aed7e75516087e5cb0cd94d27058ea4d1d24553b1",
+      "environmental_cache_custody_failure": true
+    }
+  ],
+  "qualified_full_routes": false,
+  "verdict_note": "Environment blocked eight dependency-bearing routes; scalar library check alone passed. Original recorder exited 0 after writing evidence; current runner returns 3 for this unresolved matrix."
+}

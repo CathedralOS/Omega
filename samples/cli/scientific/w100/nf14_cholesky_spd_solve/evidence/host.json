@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-10T23:23:09Z",
+  "base": "26c92c17b8f4b21f39e14a5be57c85cfdec601de",
+  "rust_build_command": "CARGO_TARGET_DIR=/workspace/Omega/target mbx build --release -p omega",
+  "rust_build_exit": 0,
+  "rust_build_elapsed": "6m 35s",
+  "activation": ". /workspace/cloud-setup/activate.sh",
+  "cpu_exposed_count": "5",
+  "cpu_max": "400000 100000",
+  "memory_limit_bytes": "17179869184",
+  "uname": "Linux 6259e26c76b2 6.18.44 #1 SMP Sat Sep 26 20:02:31 UTC 2026 x86_64 GNU/Linux",
+  "memory": "               total        used        free      shared  buff/cache   available\nMem:     18882699264   866611200 16163917824      126976  2243371008 18016088064\nSwap:              0           0           0\n",
+  "disk": "Filesystem       1B-blocks       Used   Available Use% Mounted on\noverlay        33770192896 1956474880 30078955520   7% /workspace\n",
+  "cpu_process_snapshot_during_build": "rustc: 99.6%, 99.3%, 98.8%, 98.5%; measured at 2026-10-10 23:19 UTC",
+  "peak_single_observed_rustc_rss_kib": 1413540
+}

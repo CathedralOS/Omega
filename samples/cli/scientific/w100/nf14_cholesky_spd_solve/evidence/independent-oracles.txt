@@ -1,0 +1,3 @@
+diagonal: exact A=L*L^T, L*y=b, L^T*x=y, A*x=b
+correlated: exact A=L*L^T, L*y=b, L^T*x=y, A*x=b
+data-error oracle identities verified; no Omega result inferred
