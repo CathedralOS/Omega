@@ -1,10 +1,7 @@
 //! Establish a memberwise structural local's home: the slot begins stale
 //! (zeroed for a defined starting byte pattern) and the member stores that
 //! complete it arrive as their own operations.
-use super::{
-    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, SelectedInstructionKind,
-    transport_register,
-};
+use super::{Builder, LegalizedScalarFunction, LegalizedScalarInstruction, transport_register};
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
@@ -35,14 +32,7 @@ pub(super) fn establish(
     // bytes stay zero like a record home's padding, so a whole-value copy
     // transports no indeterminate byte.
     let zero = transport_register(builder, established.place, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(0),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[zero],
-        provenance(row),
-    )?;
+    builder.emit_materialize_i64(IntegerValue::Unsigned(0), zero, provenance(row))?;
     let mut offset = 0u32;
     while offset < shape.byte_size {
         let width = super::record::chunk(shape.byte_size - offset, offset, offset);

@@ -723,6 +723,22 @@ impl Builder<'_> {
         )
     }
 
+    /// Every `MaterializeI64` emission shares the kind and its constraint-key
+    /// lookup; only the literal, destination register, and provenance differ.
+    fn emit_materialize_i64(
+        &mut self,
+        value: semantic_vocabulary::IntegerValue,
+        destination: VirtualRegisterId,
+        provenance: SelectedInstructionProvenance,
+    ) -> Result<(), SelectedInstructionError> {
+        self.emit(
+            SelectedInstructionKind::MaterializeI64 { value },
+            self.constraints.keys.materialize_i64,
+            &[destination],
+            provenance,
+        )
+    }
+
     /// Every `Store` emission shares the kind and its constraint-key lookup;
     /// call sites differ only in offset, width, the operand pair, and the
     /// provenance they attach.

@@ -21,12 +21,9 @@ fn constant(
     value: u64,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let output = transport_register(builder, place, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(u128::from(value)),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[output],
+    builder.emit_materialize_i64(
+        IntegerValue::Unsigned(u128::from(value)),
+        output,
         provenance(row),
     )?;
     Ok(output)

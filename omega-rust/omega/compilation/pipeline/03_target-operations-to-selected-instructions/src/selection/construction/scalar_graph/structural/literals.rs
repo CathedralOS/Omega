@@ -79,12 +79,9 @@ fn constant(
         return Err(invalid());
     };
     let register = transport_register(builder, destination.id, offset)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(u128::from(value)),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[register],
+    builder.emit_materialize_i64(
+        IntegerValue::Unsigned(u128::from(value)),
+        register,
         provenance(row),
     )?;
     Ok(register)

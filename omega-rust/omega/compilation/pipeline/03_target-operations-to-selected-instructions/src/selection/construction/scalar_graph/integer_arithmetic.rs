@@ -68,10 +68,9 @@ pub(super) fn emit(
                 return Err(invalid());
             }
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
-            builder.emit(
-                SelectedInstructionKind::MaterializeI64 { value: *value },
-                constraints.keys.materialize_i64,
-                &[output],
+            builder.emit_materialize_i64(
+                *value,
+                output,
                 SelectedInstructionProvenance {
                     operations: vec![operation.operation],
                     values: vec![result.value],
@@ -588,12 +587,9 @@ pub(super) fn emit(
                             .map_err(|_| invalid())?,
                     ),
                 )?;
-                builder.emit(
-                    SelectedInstructionKind::MaterializeI64 {
-                        value: IntegerValue::Unsigned(u128::from(value_integer.bits() - 1)),
-                    },
-                    constraints.keys.materialize_i64,
-                    &[mask],
+                builder.emit_materialize_i64(
+                    IntegerValue::Unsigned(u128::from(value_integer.bits() - 1)),
+                    mask,
                     SelectedInstructionProvenance {
                         values: vec![*count],
                         ..Default::default()
@@ -1098,13 +1094,6 @@ pub(super) fn division_scratch(
     builder: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let id = instruction_scratch(builder, 0, IntegerSign::Unsigned)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(0),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[id],
-        Default::default(),
-    )?;
+    builder.emit_materialize_i64(IntegerValue::Unsigned(0), id, Default::default())?;
     Ok(id)
 }

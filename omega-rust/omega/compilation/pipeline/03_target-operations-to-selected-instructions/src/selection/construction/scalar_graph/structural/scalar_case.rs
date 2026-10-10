@@ -2,8 +2,7 @@
 use super::super::{IntegerValue, ValueId};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
-    VirtualRegisterId, memory,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -35,14 +34,7 @@ pub(super) fn establish(
     );
     let pointer = local_storage::address(builder, row, slot, 0, layout.shape.byte_size, true)?;
     let zero = transport_register(builder, result.place, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(0),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[zero],
-        provenance(row),
-    )?;
+    builder.emit_materialize_i64(IntegerValue::Unsigned(0), zero, provenance(row))?;
     let mut offset = 0;
     while offset < layout.shape.byte_size {
         let remaining = layout.shape.byte_size - offset;
@@ -54,12 +46,9 @@ pub(super) fn establish(
         offset += width;
     }
     let tag = transport_register(builder, result.place, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(ordinal as u128),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[tag],
+    builder.emit_materialize_i64(
+        IntegerValue::Unsigned(ordinal as u128),
+        tag,
         provenance(row),
     )?;
     store(builder, row, pointer, 0, 4, tag, Vec::new())?;

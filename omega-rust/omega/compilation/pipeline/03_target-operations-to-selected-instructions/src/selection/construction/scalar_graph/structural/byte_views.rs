@@ -147,12 +147,9 @@ pub(in crate::selection) fn byte_observation(
                 let result = row.result.ok_or(invalid())?;
                 let output =
                     builder.register(result.value, result.definition_site, result.scalar_type)?;
-                builder.emit(
-                    SelectedInstructionKind::MaterializeI64 {
-                        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity)),
-                    },
-                    builder.constraints.keys.materialize_i64,
-                    &[output],
+                builder.emit_materialize_i64(
+                    semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity)),
+                    output,
                     provenance(row),
                 )?;
                 return Ok(output);

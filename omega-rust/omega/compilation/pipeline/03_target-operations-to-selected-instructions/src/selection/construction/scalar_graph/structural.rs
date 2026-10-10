@@ -159,12 +159,9 @@ pub(super) fn scaled_element_index(
     let view = builder.transport.element_view(place).copied();
     let stride_register = transport_register(builder, place, 0)?;
     let scaled_index = transport_register(builder, place, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(u128::from(stride)),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[stride_register],
+    builder.emit_materialize_i64(
+        IntegerValue::Unsigned(u128::from(stride)),
+        stride_register,
         SelectedInstructionProvenance {
             operations: vec![operation],
             values: vec![index, length],

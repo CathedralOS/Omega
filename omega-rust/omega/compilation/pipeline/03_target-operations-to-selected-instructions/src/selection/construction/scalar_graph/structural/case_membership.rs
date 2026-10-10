@@ -110,12 +110,9 @@ pub(in crate::selection) fn observe(
         )?;
     }
     let expected = transport_register(builder, place, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(u128::from(*case_tag)),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[expected],
+    builder.emit_materialize_i64(
+        IntegerValue::Unsigned(u128::from(*case_tag)),
+        expected,
         Default::default(),
     )?;
     builder.emit(

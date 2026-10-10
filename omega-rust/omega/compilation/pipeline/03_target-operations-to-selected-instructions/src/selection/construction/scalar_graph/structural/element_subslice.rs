@@ -69,12 +69,9 @@ pub(super) fn create(
     // the stride product cannot overflow either.
     let stride_register = transport_register(builder, result.place, 0)?;
     let scaled_start = transport_register(builder, result.place, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(u128::from(stride)),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[stride_register],
+    builder.emit_materialize_i64(
+        IntegerValue::Unsigned(u128::from(stride)),
+        stride_register,
         SelectedInstructionProvenance {
             operations: vec![row.operation],
             values: vec![*start, *end, *length],

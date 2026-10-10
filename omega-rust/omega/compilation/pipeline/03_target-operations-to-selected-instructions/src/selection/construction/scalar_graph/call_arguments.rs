@@ -347,12 +347,9 @@ fn referent_pointer(
                 .and_then(runtime_abi::ScalarStorageCodec::encode)
                 .ok_or_else(|| SelectedInstructionError::custody())?;
             let codec_register = structural::transport_register(builder, semantic.place, 8)?;
-            builder.emit(
-                SelectedInstructionKind::MaterializeI64 {
-                    value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(codec)),
-                },
-                builder.constraints.keys.materialize_i64,
-                &[codec_register],
+            builder.emit_materialize_i64(
+                semantic_vocabulary::IntegerValue::Unsigned(u128::from(codec)),
+                codec_register,
                 structural::provenance(operation),
             )?;
             structural::stage_descriptor(

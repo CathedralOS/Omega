@@ -93,12 +93,9 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
     };
     if descriptor_byte_size == 16 {
         let count = transport_register(builder, place, 8)?;
-        builder.emit(
-            SelectedInstructionKind::MaterializeI64 {
-                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
-            },
-            builder.constraints.keys.materialize_i64,
-            &[count],
+        builder.emit_materialize_i64(
+            semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
+            count,
             provenance(row),
         )?;
         return Ok(PresentedDescriptor {

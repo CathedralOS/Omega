@@ -64,14 +64,7 @@ pub(super) fn initialize_storage(
     }
     // Initialize padding too: a later whole-value copy may transport every byte.
     let zero = transport_register(builder, destination, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(0),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[zero],
-        provenance(row),
-    )?;
+    builder.emit_materialize_i64(IntegerValue::Unsigned(0), zero, provenance(row))?;
     let mut offset = 0u32;
     while offset < shape.byte_size {
         let width = chunk(shape.byte_size - offset, offset, offset);

@@ -270,12 +270,9 @@ pub(super) fn build(
             )?;
         } else {
             let expected = register(builder, subject.place(), 0, 64, false)?;
-            builder.emit(
-                SelectedInstructionKind::MaterializeI64 {
-                    value: semantic_vocabulary::IntegerValue::Unsigned(ordinal as u128),
-                },
-                builder.constraints.keys.materialize_i64,
-                &[expected],
+            builder.emit_materialize_i64(
+                semantic_vocabulary::IntegerValue::Unsigned(ordinal as u128),
+                expected,
                 Default::default(),
             )?;
             builder.emit(

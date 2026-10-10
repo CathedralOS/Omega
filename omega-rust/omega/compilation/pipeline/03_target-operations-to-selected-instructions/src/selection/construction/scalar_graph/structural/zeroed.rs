@@ -75,14 +75,7 @@ fn store_each_leaf(
     // Every scalar zero spelling is the all-zero bit pattern, so one
     // materialization serves every leaf width.
     let zero = transport_register(builder, place, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(0),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[zero],
-        provenance(row),
-    )?;
+    builder.emit_materialize_i64(IntegerValue::Unsigned(0), zero, provenance(row))?;
     for &(offset, width) in stores {
         let (pointer, displacement) =
             super::memory_pointer(builder, row, place, pointer, offset, u32::from(width))?;
@@ -110,12 +103,9 @@ fn zero_whole_home(
     byte_size: u32,
 ) -> Result<(), SelectedInstructionError> {
     let count = transport_register(builder, place, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(u128::from(byte_size)),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[count],
+    builder.emit_materialize_i64(
+        IntegerValue::Unsigned(u128::from(byte_size)),
+        count,
         provenance(row),
     )?;
     let cursor = super::byte_field_store::scratch(builder, 2)?;

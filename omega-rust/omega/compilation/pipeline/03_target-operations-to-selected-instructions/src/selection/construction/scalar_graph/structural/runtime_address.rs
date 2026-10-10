@@ -126,12 +126,9 @@ pub(in crate::selection) fn scale(
             }
         };
         let stride = transport_register(builder, place, byte_offset)?;
-        builder.emit(
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(u128::from(index.stride)),
-            },
-            builder.constraints.keys.materialize_i64,
-            &[stride],
+        builder.emit_materialize_i64(
+            IntegerValue::Unsigned(u128::from(index.stride)),
+            stride,
             SelectedInstructionProvenance {
                 operations: vec![row.operation],
                 ..Default::default()
