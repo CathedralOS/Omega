@@ -1388,15 +1388,13 @@ defines the complete product bar.
   absence. Guarded fresh reception may retain the full declared selector under
   a new containing owner.
 
+  Keep `pass/termination/runtime_public_result_field_rank_arrivals_exit`
+  for exact public result-field equations through constructed recurrent
+  actuals, and `rank_arrival_unobserved_array_extent_compile` for demand-based
+  discovery beside large unrelated arrays. Wrong-subject and missing-public-
+  equation controls reject; private helper bodies supply no caller evidence.
+
   Remaining:
-  - Carry published owned call-result field equations into demanded completed
-    arrival coordinates. An identity helper publishing
-    `ensures result.remaining == value.remaining` still cannot prove rank range
-    `0..=5` when the recurrent actual is a newly constructed countdown with
-    `held.remaining - 1`. Reuse captured normal-return equations for the exact
-    selected result and declared field route; do not infer caller arithmetic
-    from a private helper body. Qualification, endpoint conservation, actual
-    formation and complete-cycle descent remain independent obligations.
   - Carry published postconditions through external selected-signature frames
     in nested and composed initializers. The real libc absolute-value crossing
     admits the direct identity observation on `i32` values in `0..=9`, but

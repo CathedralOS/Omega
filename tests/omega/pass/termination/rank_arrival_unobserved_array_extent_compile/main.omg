@@ -1,0 +1,22 @@
+data Countdown { remaining: u64 [0..=5]; }
+measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+
+machine identity(value: Countdown) -> Countdown
+ensures result.remaining == value.remaining;
+{ value }
+
+machine walk(countdown: Countdown, padding: &[u8; 65536])
+terminates by countdown -> Countdown::Remaining in 0..=5;
+-> u64 {
+    transition {
+        _ -> iterate(identity(countdown), Countdown { remaining: 4 }, padding)
+    }
+    state iterate(held: Countdown, spare: Countdown, padding: &[u8; 65536]) {
+        transition held.remaining > 0 {
+            true -> iterate(identity(Countdown { remaining: held.remaining - 1 }), spare, padding)
+            false -> held.remaining
+        }
+    }
+}
+
+machine main() {}
