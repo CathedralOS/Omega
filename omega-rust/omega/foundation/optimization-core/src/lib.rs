@@ -10,7 +10,7 @@
 //! callers decide which execution phases their requested product permits.
 
 pub mod codec_bytes;
-mod cursor;
+pub mod cursor;
 pub mod digest_encoder;
 mod optimization_core;
 

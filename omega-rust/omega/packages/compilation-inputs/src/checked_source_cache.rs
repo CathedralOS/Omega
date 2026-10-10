@@ -673,7 +673,7 @@ fn decode_record(
         return Err("checked-source cache record digest mismatch".to_owned());
     }
     let mut cursor = Cursor::new(payload);
-    let magic = cursor.take(RECORD_MAGIC.len())?;
+    let magic = cursor.take(RECORD_MAGIC.len()).map_err(truncated)?;
     if magic != RECORD_MAGIC {
         return Err("checked-source cache record magic mismatch".to_owned());
     }
@@ -683,13 +683,13 @@ fn decode_record(
         return Err("checked-source cache record names a different root".to_owned());
     }
     let stored_fingerprint: [u8; 32] = cursor
-        .take(32)?
+        .take(32).map_err(truncated)?
         .try_into()
         .map_err(|_| "checked-source cache record fingerprint is truncated".to_owned())?;
     if &stored_fingerprint != fingerprint {
         return Err("checked-source cache record fingerprint mismatch".to_owned());
     }
-    let row_count = cursor.u64()? as usize;
+    let row_count = cursor.u64().map_err(truncated)? as usize;
     if row_count > CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT {
         return Err("checked-source cache record exceeds the row ceiling".to_owned());
     }
@@ -699,33 +699,33 @@ fn decode_record(
         if path.len() > FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT {
             return Err("checked-source cache record path exceeds the byte limit".to_owned());
         }
-        let kind_tag = cursor.byte()?;
+        let kind_tag = cursor.byte().map_err(truncated)?;
         let kind = match kind_tag {
             0 => CanonicalFilesystemMetadataRowKind::Directory,
             1 => {
-                let executable = cursor.byte()?;
+                let executable = cursor.byte().map_err(truncated)?;
                 if executable > 1 {
                     return Err("checked-source cache record file flag is noncanonical".to_owned());
                 }
                 CanonicalFilesystemMetadataRowKind::File {
                     executable: executable == 1,
-                    logical_byte_length: cursor.u64()?,
+                    logical_byte_length: cursor.u64().map_err(truncated)?,
                 }
             }
             2 => CanonicalFilesystemMetadataRowKind::Symlink {
-                target_spelling_logical_byte_length: cursor.u64()?,
+                target_spelling_logical_byte_length: cursor.u64().map_err(truncated)?,
             },
             _ => return Err("checked-source cache record kind tag is unknown".to_owned()),
         };
         rows.push(CanonicalFilesystemMetadataRow::new(path.to_vec(), kind));
     }
     let commitment: [u8; 32] = cursor
-        .take(32)?
+        .take(32).map_err(truncated)?
         .try_into()
         .map_err(|_| "checked-source cache record commitment is truncated".to_owned())?;
     let policy_version = u32::from_le_bytes(
         cursor
-            .take(4)?
+            .take(4).map_err(truncated)?
             .try_into()
             .map_err(|_| "checked-source cache record policy version is truncated".to_owned())?,
     );
@@ -736,10 +736,8 @@ fn decode_record(
         .map_err(|error| format!("checked-source cache record rows are not canonical: {error}"))
 }
 
-impl From<Truncated> for String {
-    fn from(_: Truncated) -> Self {
-        "checked-source cache record is truncated".to_owned()
-    }
+fn truncated(_: Truncated) -> String {
+    "checked-source cache record is truncated".to_owned()
 }
 
 fn take_framed<'a>(cursor: &mut Cursor<'a>) -> Result<&'a [u8], String> {

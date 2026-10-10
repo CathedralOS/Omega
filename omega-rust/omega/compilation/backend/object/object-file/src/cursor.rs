@@ -2,10 +2,8 @@
 //! plus a position. Truncation is the only failure the cursor itself owns;
 //! each decoder maps it into its own error enum through `From<Truncated>`.
 
-/// The cursor exhausted before the requested read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Truncated;
 
+pub(crate) use optimization_core::cursor::{Truncated};
 pub(crate) struct Cursor<'a> {
     bytes: &'a [u8],
     position: usize,

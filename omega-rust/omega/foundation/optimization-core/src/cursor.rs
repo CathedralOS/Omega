@@ -4,7 +4,15 @@
 
 /// The cursor exhausted before the requested read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Truncated;
+pub struct Truncated;
+
+/// The read failed either by exhaustion or by an oversized length; each
+/// decoder maps it onto its own enum's Truncated/LengthOverflow variants.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TakeError {
+    Truncated,
+    LengthOverflow,
+}
 
 pub(crate) struct Cursor<'a> {
     encoded: &'a [u8],

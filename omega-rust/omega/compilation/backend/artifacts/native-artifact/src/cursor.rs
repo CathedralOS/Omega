@@ -2,16 +2,8 @@
 //! plus a position. Truncation is the only failure the cursor itself owns;
 //! each decoder maps it into its own error type.
 
-/// The cursor exhausted before the requested read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Truncated;
 
-/// The read failed either by exhaustion or by an oversized length.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TakeError {
-    Truncated,
-    LengthOverflow,
-}
+pub(crate) use optimization_core::cursor::{TakeError, Truncated};
 
 pub(crate) struct Cursor<'a> {
     encoded: &'a [u8],

@@ -1,13 +1,7 @@
 //! Bounds-checked byte cursor shared by the crate's record codecs.
 
-/// Read outcome for the shared cursor. Domain codecs map it onto their own
-/// sealed error enums at the boundary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TakeError {
-    Truncated,
-    LengthOverflow,
-}
 
+pub(crate) use optimization_core::cursor::{TakeError};
 pub(crate) struct Cursor<'encoded> {
     encoded: &'encoded [u8],
     offset: usize,

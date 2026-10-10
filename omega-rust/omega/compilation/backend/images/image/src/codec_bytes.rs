@@ -2,7 +2,6 @@
 //! writers: positional byte emission without bounds checking, since every
 //! caller appends into a buffer it sizes itself.
 
-pub(crate) use optimization_core::codec_bytes::{patch_encoded};
 pub fn write_u16(bytes: &mut Vec<u8>, value: u16) {
     bytes.extend(value.to_le_bytes());
 }

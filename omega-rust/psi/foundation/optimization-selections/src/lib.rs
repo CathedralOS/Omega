@@ -7,6 +7,7 @@
 //! target and physical optimization identities remain Omega-owned.
 
 pub mod codec_bytes;
+pub mod cursor;
 
 pub mod digest_encoder;
 pub mod optimization_selections;
