@@ -82,15 +82,7 @@ impl<'a> GitAcquisitionCache<'a> {
         self.resolve_selected_declared(request, git_cache, member_cache, limits, false)
     }
 
-    pub(super) fn resolve_selected_project(
-        &mut self,
-        request: &GitPackageSourceRequest,
-        git_cache: SourceCacheLane<'_>,
-        member_cache: SourceCacheLane<'_>,
-        limits: LocalSourceLimits,
-    ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-        self.resolve_selected_declared(request, git_cache, member_cache, limits, true)
-    }
+
 
     fn resolve_selected_declared(
         &mut self,

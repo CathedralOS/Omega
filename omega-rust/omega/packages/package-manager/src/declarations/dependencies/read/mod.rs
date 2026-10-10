@@ -120,9 +120,7 @@ impl DependencyProjections {
         self.product.authored_dependencies().len() + self.build.authored_dependencies().len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.authored_request_count() == 0
-    }
+
 
     /// Validate requester-local aliases for one purpose scope after every
     /// selected package name is known for that scope.
@@ -186,9 +184,7 @@ impl BuildDependencyProjection {
         }
     }
 
-    pub fn product_dependencies(&self) -> &[DependencySourceRequest] {
-        self.dependencies.requests(DependencyPurpose::Product)
-    }
+
 
     pub fn build_dependencies(&self) -> &[DependencySourceRequest] {
         self.dependencies.requests(DependencyPurpose::Build)

@@ -24,13 +24,5 @@ impl BuildDeclarationCommitment {
         Self(hasher.finalize().into())
     }
 
-    pub fn to_hex(&self) -> String {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let mut encoded = String::with_capacity(self.0.len() * 2);
-        for byte in self.0 {
-            encoded.push(HEX[(byte >> 4) as usize] as char);
-            encoded.push(HEX[(byte & 0x0f) as usize] as char);
-        }
-        encoded
-    }
+
 }
