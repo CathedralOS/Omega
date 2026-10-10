@@ -1,0 +1,4 @@
+owner: Claude / case requires payload field lowering
+provenance: agent=claude-code model=claude-opus-5-5
+ticket: 65e6fafe3697446da0f4f435bc9500d0
+published_utc: 2026-10-10T07:26:37.225164+00:00
