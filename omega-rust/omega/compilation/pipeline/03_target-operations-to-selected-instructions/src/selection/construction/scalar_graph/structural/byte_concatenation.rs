@@ -7,7 +7,6 @@ use super::{
 };
 use super::{byte_field_store, byte_views, invalid, local_storage, provenance, transport_register};
 use crate::SelectedInstructionError;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
@@ -45,18 +44,12 @@ pub(super) fn establish(
     }
     let left_pointer = operand_pointer(function, builder, row, left)?;
     let right_pointer = operand_pointer(function, builder, row, right)?;
-    let slot = LocalStorageSlotId::Structural {
-        operation: row.operation,
-        place: result.place,
-    };
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: capacity.checked_add(8).ok_or(invalid())?,
-            alignment: 8,
-        });
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        result.place,
+        capacity.checked_add(8).ok_or(invalid())?,
+        8,
+    );
     let owner = local_storage::address(builder, row, slot, 0, capacity + 8, false)?;
     let payload = transport_register(builder, result.place, 8)?;
     builder.emit(

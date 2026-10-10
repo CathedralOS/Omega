@@ -75,6 +75,25 @@ pub(super) struct Transport {
 }
 
 impl Transport {
+    /// The `Structural` local storage row a result's operation/place pair
+    /// always builds; callers keep the id when they address the slot again.
+    pub(super) fn push_structural_local_slot(
+        &mut self,
+        operation: OperationId,
+        place: PlaceId,
+        byte_size: u32,
+        alignment: u16,
+    ) -> selected_instructions::LocalStorageSlotId {
+        let id = selected_instructions::LocalStorageSlotId::Structural { operation, place };
+        self.local_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id,
+                byte_size,
+                alignment,
+            });
+        id
+    }
+
     /// The byte view arriving at `place`, when one was registered.
     pub(super) fn view(&self, place: PlaceId) -> Option<&ByteViewHomes> {
         self.views.iter().find(|view| view.place == place)

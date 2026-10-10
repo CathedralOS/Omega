@@ -6,7 +6,6 @@ use super::{
     transport_register,
 };
 use crate::SelectedInstructionError;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(super) fn establish(
     source: &LegalizedScalarFunction,
@@ -166,18 +165,10 @@ pub(super) fn establish(
         None
     };
     let byte_size = if codec.is_some() { 16 } else { 8 };
-    let slot = LocalStorageSlotId::Structural {
-        operation: row.operation,
-        place: result.place,
-    };
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size,
-            alignment: 8,
-        });
+    let slot =
+        builder
+            .transport
+            .push_structural_local_slot(row.operation, result.place, byte_size, 8);
     let home = super::local_storage::address(builder, row, slot, 0, byte_size, true)?;
     if let Some(codec) = codec {
         memory(

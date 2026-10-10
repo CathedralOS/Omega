@@ -10,7 +10,6 @@ use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 
 pub(super) fn establish(
     source: &LegalizedScalarFunction,
@@ -28,18 +27,12 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
-    let slot = LocalStorageSlotId::Structural {
-        operation: row.operation,
-        place: result.place,
-    };
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: layout.shape.byte_size,
-            alignment: layout.shape.alignment,
-        });
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        result.place,
+        layout.shape.byte_size,
+        layout.shape.alignment,
+    );
     let pointer = local_storage::address(builder, row, slot, 0, layout.shape.byte_size, true)?;
     let zero = transport_register(builder, result.place, 0)?;
     builder.emit(

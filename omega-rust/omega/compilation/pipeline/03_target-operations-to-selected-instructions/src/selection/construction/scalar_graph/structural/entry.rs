@@ -19,9 +19,7 @@ pub(in crate::selection) fn entry(
     };
     // Legalization owns place/producer custody. Entry captures only incoming
     // ABI storage; an empty parameter list follows the same call-plan check.
-    let parameters = crate::structural_inputs::structural_unit_input::parameter_views(
-        signature,
-    );
+    let parameters = crate::structural_inputs::structural_unit_input::parameter_views(signature);
     if !crate::structural_inputs::structural_unit_input::accepts_graph(
         &source.call_plan,
         &parameters,
@@ -293,7 +291,11 @@ fn retain_owned_home(
     )?;
     for location in &parameter.target.placement.locations {
         let (offset, width) = match location {
-            calling_conventions::register_or_stack_pair_pattern!(value_byte_offset,byte_size, ..) => ((*value_byte_offset), *byte_size),
+            calling_conventions::register_or_stack_pair_pattern!(
+                value_byte_offset,
+                byte_size,
+                ..
+            ) => ((*value_byte_offset), *byte_size),
             _ => return Err(invalid()),
         };
         let value = builder

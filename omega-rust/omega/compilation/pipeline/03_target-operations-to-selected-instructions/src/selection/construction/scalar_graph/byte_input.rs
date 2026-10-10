@@ -6,9 +6,9 @@ use super::{
 use crate::SelectedInstructionError;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBoundarySettlement,
-    SelectedBoundarySettlementPayload, SelectedInstructionId, SelectedLocalStorageSlot,
-    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
+    FrameStorageSlotId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
+    SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
+    SelectedMemoryAccessRole,
 };
 
 pub(super) fn emit(
@@ -31,18 +31,12 @@ pub(super) fn emit(
     {
         return Err(SelectedInstructionError::custody());
     }
-    let slot = LocalStorageSlotId::Structural {
-        operation: row.operation,
-        place: result.place,
-    };
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: layout.shape.byte_size,
-            alignment: layout.shape.alignment,
-        });
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        result.place,
+        layout.shape.byte_size,
+        layout.shape.alignment,
+    );
     let instruction_index = builder
         .instructions
         .len()

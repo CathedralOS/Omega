@@ -9,7 +9,7 @@ use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot, VirtualRegisterId};
+use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::PlaceId;
 
 /// The copy reads the root through its durable pointer — an entry-assigned
@@ -49,18 +49,12 @@ pub(super) fn copy(
         .iter()
         .find(|(place, _)| *place == *source)
         .map(|(_, pointer)| *pointer);
-    let slot = LocalStorageSlotId::Structural {
-        operation: row.operation,
-        place: result.place,
-    };
-    builder
-        .transport
-        .local_slots
-        .push(SelectedLocalStorageSlot {
-            id: slot,
-            byte_size: shape.byte_size,
-            alignment: shape.alignment,
-        });
+    let slot = builder.transport.push_structural_local_slot(
+        row.operation,
+        result.place,
+        shape.byte_size,
+        shape.alignment,
+    );
     let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
     // A projected view copy reads elements, not its pointer/length descriptor.
     // Whole-view copies still copy the descriptor itself. Derived views keep
