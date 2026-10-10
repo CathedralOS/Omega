@@ -1329,6 +1329,10 @@ defines the complete product bar.
   Terminal on macOS ARM64; independent overflow, stale subject, overlapping
   loan and shared-to-exclusive receiving controls remain obligatory.
 
+  Keep `pass/termination/runtime_selected_requirement_rank_prefix_exit` and
+  `fail/termination/selected_requirement_rank_prefix_write` for readonly
+  requirement results and exclusive writes in prefix `let` bindings.
+
   Remaining:
   - Replace unique-carrier discovery with explicit arrival correspondence,
     reusing nested carriers, moved scalar/slice/record copies and produced rank
