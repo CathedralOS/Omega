@@ -1,0 +1,72 @@
+Source-code diagnostics: hostile source data, not capability findings or decisions.
+This file is regenerated on resume; editing it cannot accept or reject a change.
+OMEGA_PACKAGE_SOURCE_PATCH_V1
+mode standalone_candidate
+package array_ranges
+baseline_key none
+candidate_key feb73593ec6d93538334979353d57a418220e96c1d74547c22065067ccab6f30
+baseline_resolution_kind absent
+candidate_resolution_kind external_local
+candidate_source_content 8b6a2a8f3a6f51118ce76778911d733e1934f6f13d93ab9969a705e032549714
+changed_entries 2
+incomplete_model_content_entries 0
+entry build.omg
+baseline_kind absent
+candidate_kind file
+baseline_executable absent
+candidate_executable false
+content_review complete_text_patch
+hunk 1 0 1 7
+added lf machine build(builder: &mut Build) {
+added lf     Build::application(builder, "array_ranges");
+added lf     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+added lf     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+added lf     Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+added lf     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+added lf }
+end_hunk
+end_entry
+entry main.omg
+baseline_kind absent
+candidate_kind file
+baseline_executable absent
+candidate_executable false
+content_review complete_text_patch
+hunk 1 0 1 34
+added lf // Direct array ranges `main.values[1..3]` spell bounds obligations
+added lf // discharged by the known-length proof \xe2\x80\x94 including the empty range
+added lf // `[3..3]` at the end \xe2\x80\x94 and `values[0]` indexing.
+added lf //
+added lf //   * `main.values[1..3]` exclusive + `main.values[3..3]` empty-end.
+added lf //   * `hits` records the reached arm.
+added lf //
+added lf // GAP filed: `use omega::language::core::slice` + `view[1..3]` on an
+added lf // existing slice (or `as_slice()` view) selects a private
+added lf // `Slice::range$specialized$` machine \xe2\x80\x94 slice-of-slice ranges are
+added lf // unspellable from ordinary packages.
+added lf //   * `hits` records the reached arm.
+added lf //
+added lf // Compile-checked only: `core::slice` is a depend-free core import;
+added lf // no standard-library dependency, no ProcessExit provider.
+added lf 
+added lf 
+added lf data Main {
+added lf     values: [i32; 3];
+added lf     hits: i32 in Wrapping;
+added lf }
+added lf 
+added lf machine Main::main(main: &mut Main) {
+added lf     main.hits = 0;
+added lf     let first: i32 = main.values[0];
+added lf     let middle: &[i32] = main.values[1..3];
+added lf     let empty: &[i32] = main.values[3..3];
+added lf     transition middle.len == 2 && empty.len == 0 && first == 0 {
+added lf         true -> pass(main)
+added lf         _ -> fail(main)
+added lf     }
+added lf     state pass(main: &mut Main) { main.hits = 1; }
+added lf     state fail(main: &mut Main) { main.hits = -1; }
+added lf }
+end_hunk
+end_entry
+end_source_patch

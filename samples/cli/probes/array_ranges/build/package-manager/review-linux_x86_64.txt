@@ -1,0 +1,22 @@
+omega-package-review 1
+comparison 62e916c7a37f9ad23ce6688c64b465ed049c5c85a2b5cedbdcd0f2398eb4f519
+# Edit each pending decision to accept or reject. Findings are generated.
+# Decisions record project acceptance, not proof that an audit occurred.
+baseline none
+candidate 55fbcf6c5e7f400e7dfabf8ea8829ebbfcb225184ef52cd58a057576dbb2094c
+audit-recommended false
+
+package "array_ranges" feb73593ec6d93538334979353d57a418220e96c1d74547c22065067ccab6f30 local "/home/ubuntu/worktrees/z12/samples/cli/probes/array_ranges"
+- source none
++ source local content 8b6a2a8f3a6f51118ce76778911d733e1934f6f13d93ab9969a705e032549714
+- path none
++ path feb73593ec6d93538334979353d57a418220e96c1d74547c22065067ccab6f30
+- purposes none
++ purposes product
++ occurrence product target linux_x86_64 execution linux_x86_64
+occurrence-contexts-changed true
+source-changed true
+source-association-changed true
+audit-recommended false
+end-package
+end-review
