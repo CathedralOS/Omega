@@ -58,10 +58,9 @@ pub(super) fn validate_construction(
             owner,
             diagnostics,
             statement_index,
-        ) {
-            if !writes.contains(&write) {
-                writes.push(write);
-            }
+        ) && !writes.contains(&write)
+        {
+            writes.push(write);
         }
     }
     if diagnostics.len() != initial_diagnostics {

@@ -164,10 +164,9 @@ pub fn stored_integer_source_projections(
         let alternative = crate::LayoutCheckingContext::new(program, target);
         if let Some(projection) =
             stored_integer_source_projection(&alternative, state, source, suffix)?
+            && !projections.contains(&projection)
         {
-            if !projections.contains(&projection) {
-                projections.push(projection);
-            }
+            projections.push(projection);
         }
     }
     Ok(projections)

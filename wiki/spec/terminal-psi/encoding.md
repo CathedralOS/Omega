@@ -599,7 +599,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 138 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 140 + `u16` vocabulary
 marker 123 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
@@ -633,9 +633,10 @@ the declaration order below and ending with boundary-application candidates.
 | 25 | operation crash contracts | counted operation crash contract rows |
 | 26 | machines | counted machine rows |
 | 27 | target-machine families | counted family rows |
-| 28 | boundary application demands | counted exact requirement/application rows |
-| 29 | callback applications | counted checked registrar occurrences |
-| 30 | boundary application candidates | counted checked bodies for closed applications |
+| 28 | target layout applications | counted complete checked policy alternatives |
+| 29 | boundary application demands | counted exact requirement/application rows |
+| 30 | callback applications | counted checked registrar occurrences |
+| 31 | boundary application candidates | counted checked bodies for closed applications |
 
 A dynamic slot encodes its id, declaring-trait and requirement identity strings,
 counted family tuple, counted scalar formals and counted structural formals.
@@ -706,6 +707,23 @@ into a containing record need not still occupy its original entry path.
 The call must settle the complete current owned roster at the selected paths;
 the receipt neither recreates a claim nor grants boundary issuance. Earlier
 markers are not reinterpreted under this layout.
+
+Marker 140 adds target layout applications after target-machine families. A
+record whose geometry remains target dependent uses structural shape tag `13`,
+a nonzero layout-application `u32`, and its counted structural fields. It has
+no packed or host-selected geometry in the portable artifact.
+
+A layout application encodes its `u32` id, record and schema type ids, policy
+identity string, family callable, and `u16` Schema ABI version. Its counted
+Schema fields each carry record-field and schema-field ids, `u64` key, optional
+`u64` identity, `u64` byte size and alignment, and a kind byte (`0` scalar,
+`1` nested). Counted alternatives follow: deployment string, member machine id,
+`u64` record size and alignment, then counted field ids with non-absent authored
+field storage. The codec requires a complete exact family roster and validates
+every alternative against the retained invariant Schema argument. This is
+representation validation; semantic checking remains the producer's obligation.
+Deployment selection consumes one retained alternative without changing the
+canonical portable artifact or inferring default storage for an unresolved row.
 
 The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by

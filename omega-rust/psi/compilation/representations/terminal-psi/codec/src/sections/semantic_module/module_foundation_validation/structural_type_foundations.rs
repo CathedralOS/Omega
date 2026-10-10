@@ -71,12 +71,12 @@ pub(super) fn validate_type_shape(
         // carrier declaration alone creates no source or borrowing authority.
         StructuralTypeShape::ByteSequence(_) => {}
         StructuralTypeShape::Record { fields, storage } => {
-            if let StructuralRecordStorage::Authored(storage) = storage {
-                if storage.byte_alignment == 0 || !storage.byte_alignment.is_power_of_two() {
-                    return malformed(
-                        "authored record storage requires positive power-of-two alignment",
-                    );
-                }
+            if let StructuralRecordStorage::Authored(storage) = storage
+                && (storage.byte_alignment == 0 || !storage.byte_alignment.is_power_of_two())
+            {
+                return malformed(
+                    "authored record storage requires positive power-of-two alignment",
+                );
             }
             require_unique_nonempty_identities(
                 fields.iter().map(|field| field.identity.as_str()),

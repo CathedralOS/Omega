@@ -180,14 +180,12 @@ pub(super) fn validate(
             storage: StructuralRecordStorage::TargetLayout(application),
             ..
         } = declaration.shape
-        {
-            if !module
+            && !module
                 .target_layout_applications
                 .iter()
                 .any(|row| row.id == application && row.record == declaration.id)
-            {
-                return malformed("pending record has no exact layout application");
-            }
+        {
+            return malformed("pending record has no exact layout application");
         }
     }
     Ok(())

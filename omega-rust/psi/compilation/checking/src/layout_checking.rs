@@ -78,10 +78,10 @@ pub(crate) fn layout_family_is_complete(
 /// Guards needed by the exact participating types, including nested records.
 /// Unrelated family applications elsewhere in the package impose no guard.
 /// A caller already checking one alternative retains it through nested queries.
-pub fn layout_checking_targets<'a>(
-    program: &'a dyn CheckingInput,
+pub fn layout_checking_targets(
+    program: &dyn CheckingInput,
     roots: impl IntoIterator<Item = TypeReferenceHandle>,
-) -> Result<Vec<Option<&'a str>>, ()> {
+) -> Result<Vec<Option<&str>>, ()> {
     if let Some(target) = program.layout_target() {
         return Ok(vec![Some(target)]);
     }

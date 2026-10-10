@@ -2783,12 +2783,18 @@ crash and native exit behavior.
     of `source/library/alloc/bump.omg` reports
     `retained_buffer::Held.storage` already transferred and three
     `Extent::Granted` call-result qualifications unproved.
-  - 00e62d483f4 deliberately rejects every std console consumer ("portable
-    target-family contract ... unimplemented") until
-    **PIPELINE-ARCHITECTURE-ENFORCEMENT** carries the common callable
-    contract; native rows of console programs cannot be remeasured before
-    then. At b7418d4022 the full macOS native leg builds 447 of 1825 rows;
-    995 of its 1035 lost successes stop at this refusal.
+  - Std console consumers now pass source checking and ordinary package review.
+    Universal target-layout alternatives and distinct emitted member identities
+    unblock canonical Terminal production; 34 of 36 previously rejected valid
+    fixtures in the affected layout/recast/target/termination subset now check.
+    The ordinary `cli_mvp` run reaches deployment selection, then refuses the
+    selected macOS `ConsoleNativeProvider::read_byte` intrinsic as an opaque
+    family member. Carry that exact selected boundary through existing native
+    and interpreter provider realization while preserving the portable head
+    contract. The two remaining mutable-equivalent domain/range recast rows
+    expose `MissingUnitStructuralType`; their source checking is unchanged.
+    Remeasure native console rows after selected opaque member execution works;
+    restored checking alone is not their runtime acceptance.
   - `pass/proofs/case_call_premises` still cannot prove `preserve_empty`'s
     `value in Tree::Empty` from `make_empty`'s guarantee at b7418d4022. Its
     callees are `terminates` proof machines, judged as applications rather

@@ -571,7 +571,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                     ..
                 } = storage
                 {
-                    collect(checked, plans, *schema_type_identity, active, selected)?;
+                    collect(plans, *schema_type_identity, active, selected)?;
                 }
                 for type_identity in fields.iter().flat_map(
                     checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
