@@ -187,7 +187,7 @@ pub(crate) use ownership::{
 };
 pub(crate) use place::{
     LiteralValueProjection, canonical_place_from_semantic_place, canonical_place_from_symbol,
-    canonical_place_joined_segments_may_overlap, canonical_place_overlaps_segments,
+    canonical_place_joined_segments_may_overlap,
     canonical_place_segments_equal, canonical_place_segments_may_overlap, canonical_places_agree,
     compose_captured_view_segments, literal_argument_access_places, literal_value_path_is_inactive,
     literal_value_projections, narrow_pinned_index_segments, place_case_has_value,

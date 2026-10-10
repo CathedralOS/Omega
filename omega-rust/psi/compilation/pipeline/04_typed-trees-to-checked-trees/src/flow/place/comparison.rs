@@ -81,23 +81,7 @@ pub(crate) fn canonical_place_segments_equal(
         _ => false,
     })
 }
-
 use checked_trees::expression::ExpressionHandle;
-
-#[allow(dead_code)]
-pub(crate) fn canonical_place_overlaps_segments(
-    program: &dyn ::validation::CheckingInput,
-    left: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
-) -> bool {
-    let shared_len = left.len().min(right.len());
-    left.iter()
-        .take(shared_len)
-        .zip(right.iter().take(shared_len))
-        .all(|(left_segment, right_segment)| {
-            canonical_place_segments_equal(program, *left_segment, *right_segment)
-        })
-}
 
 /// Whether two canonical places name the same storage at one program point:
 /// the event-normalized roots match and every segment pair selects the same
