@@ -12,6 +12,7 @@
 pub mod codec_bytes;
 pub mod cursor;
 pub mod digest_encoder;
+pub mod variant_accessors;
 mod optimization_core;
 
 pub use optimization_core::contracts::{

@@ -58,12 +58,7 @@ impl TerminalMachineResult {
         }
     }
 
-    pub const fn structural(&self) -> Option<&StructuralResultDeclaration> {
-        match self {
-            Self::Structural(result) => Some(result),
-            Self::Unit | Self::Scalar(_) => None,
-        }
-    }
+    optimization::structural_variant_accessor!(StructuralResultDeclaration; Self::Unit | Self::Scalar(_));
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

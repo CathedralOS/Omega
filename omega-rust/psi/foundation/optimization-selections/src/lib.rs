@@ -10,6 +10,7 @@ pub mod codec_bytes;
 pub mod cursor;
 
 pub mod digest_encoder;
+pub mod variant_accessors;
 pub mod optimization_selections;
 
 pub use optimization_selections::{

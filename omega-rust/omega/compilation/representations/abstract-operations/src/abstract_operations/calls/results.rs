@@ -28,12 +28,7 @@ impl AbstractBoundaryResult {
         }
     }
 
-    pub const fn structural(&self) -> Option<&StructuralOperationResult> {
-        match self {
-            Self::Structural(result) => Some(result),
-            Self::Unit | Self::Scalar(_) => None,
-        }
-    }
+    optimization_core::structural_variant_accessor!(StructuralOperationResult; Self::Unit | Self::Scalar(_));
 }
 
 /// Closed result role of one direct structural-lane machine call.

@@ -50,12 +50,7 @@ impl BoundaryResultRecord {
         }
     }
 
-    pub const fn structural(&self) -> Option<&BoundaryStructuralResultRecord> {
-        match self {
-            Self::Structural(result) => Some(result),
-            Self::Unit | Self::Scalar(_) => None,
-        }
-    }
+    optimization_core::structural_variant_accessor!(BoundaryStructuralResultRecord; Self::Unit | Self::Scalar(_));
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
