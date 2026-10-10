@@ -24,6 +24,8 @@ image_digest!(PlacedDataRegionInventoryDigest);
 /// Closed origin vocabulary for initialized-data bytes in the current image
 /// model. `CompilerData` covers the complete object-authored data image;
 /// `AlignmentPadding` covers writer-inserted zero padding; `ImportBindingSlot`
+const PLACED_DATA_REGION_BYTES_DOMAIN: &[u8] = b"omega.placed-data-region-bytes.sha256.v1\0";
+
 /// covers an image-writer pointer slot a loader binds lazily or eagerly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FinalDataRegionOrigin {
@@ -179,7 +181,7 @@ pub fn place_data_extent(
             address,
             byte_count: region.byte_count,
             byte_digest: PlacedDataRegionBytesDigest::from_digest(digest_bytes(
-                b"omega.placed-data-region-bytes.sha256.v1\0",
+                PLACED_DATA_REGION_BYTES_DOMAIN,
                 region_bytes,
             )),
             byte_report_fingerprint: byte_report_fingerprint(region_bytes),
@@ -302,7 +304,7 @@ pub fn validate_placed_data_region_inventory(
         }
         let region_bytes = &final_data_bytes[region.section_offset..end];
         let expected_region_digest = PlacedDataRegionBytesDigest::from_digest(digest_bytes(
-            b"omega.placed-data-region-bytes.sha256.v1\0",
+            PLACED_DATA_REGION_BYTES_DOMAIN,
             region_bytes,
         ));
         if region.byte_digest != expected_region_digest {
@@ -390,11 +392,21 @@ fn data_inventory_digest(
     regions: &[PlacedDataRegion],
     gaps: &[PlacedDataGap],
 ) -> PlacedDataRegionInventoryDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"omega.placed-data-region-inventory.sha256.v1\0");
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.placed-data-region-inventory.sha256.v1\0",
+    );
     digest.raw(&data_address.to_le_bytes());
-    digest.raw(&u64::try_from(data_byte_count) .expect("final initialized-data length fits u64") .to_le_bytes(),);
+    digest.raw(
+        &u64::try_from(data_byte_count)
+            .expect("final initialized-data length fits u64")
+            .to_le_bytes(),
+    );
     digest.raw(data_digest.as_bytes());
-    digest.raw(&u64::try_from(regions.len()) .expect("placed initialized-data region count fits u64") .to_le_bytes(),);
+    digest.raw(
+        &u64::try_from(regions.len())
+            .expect("placed initialized-data region count fits u64")
+            .to_le_bytes(),
+    );
     for region in regions {
         digest.byte(data_origin_tag(region.origin));
         digest.u64(region.section_offset as u64);
@@ -404,7 +416,11 @@ fn data_inventory_digest(
         digest.u64(region.symbol.len() as u64);
         digest.raw(region.symbol.as_bytes());
     }
-    digest.raw(&u64::try_from(gaps.len()) .expect("placed initialized-data gap count fits u64") .to_le_bytes(),);
+    digest.raw(
+        &u64::try_from(gaps.len())
+            .expect("placed initialized-data gap count fits u64")
+            .to_le_bytes(),
+    );
     for gap in gaps {
         digest.u64(gap.section_offset as u64);
         digest.raw(&gap.address.to_le_bytes());
@@ -426,10 +442,7 @@ fn data_inventory_report_fingerprint(
     fingerprint_bytes(&mut hash, &(data_byte_count as u64).to_le_bytes());
     fingerprint_bytes(&mut hash, &data_report_fingerprint.to_le_bytes());
     for region in regions {
-        fingerprint_bytes(
-            &mut hash,
-            &[data_origin_tag(region.origin)],
-        );
+        fingerprint_bytes(&mut hash, &[data_origin_tag(region.origin)]);
         fingerprint_bytes(&mut hash, &(region.section_offset as u64).to_le_bytes());
         fingerprint_bytes(&mut hash, &region.address.to_le_bytes());
         fingerprint_bytes(&mut hash, &(region.byte_count as u64).to_le_bytes());
@@ -450,11 +463,11 @@ fn data_inventory_report_fingerprint(
 mod tests {
     use super::super::executable_regions::{byte_report_fingerprint, digest_bytes};
     use super::{
-        FinalDataRegion, FinalDataRegionOrigin, FinalImage, FinalImageLayout, PlacedDataGap,
-        PlacedDataGapBytesDigest, PlacedDataRegion, PlacedDataRegionBytesDigest,
-        PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, data_inventory_digest,
-        data_inventory_report_fingerprint, place_data_extent, place_data_regions,
-        validate_placed_data_region_inventory,
+        FinalDataRegion, FinalDataRegionOrigin, FinalImage, FinalImageLayout,
+        PLACED_DATA_REGION_BYTES_DOMAIN, PlacedDataGap, PlacedDataGapBytesDigest, PlacedDataRegion,
+        PlacedDataRegionBytesDigest, PlacedDataRegionInventory, PlacedDataRegionInventoryDigest,
+        data_inventory_digest, data_inventory_report_fingerprint, place_data_extent,
+        place_data_regions, validate_placed_data_region_inventory,
     };
     use diagnostics::Diagnostic;
     use optimization_core::{
@@ -919,7 +932,7 @@ mod tests {
                         address: 0x4008,
                         byte_count: 4,
                         byte_digest: PlacedDataRegionBytesDigest::from_digest(digest_bytes(
-                            b"omega.placed-data-region-bytes.sha256.v1\0",
+                            PLACED_DATA_REGION_BYTES_DOMAIN,
                             foreign_bytes,
                         )),
                         byte_report_fingerprint: byte_report_fingerprint(foreign_bytes),
