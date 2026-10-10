@@ -1,0 +1,4 @@
+owner: z10 / ONE-INTEGER-BOUNDS-ENGINE client 5
+provenance: client 5: entailment BigInt Interval + pure math moved to arithmetic_domains/bigint_interval.rs (BigIntInterval); Engine op-rules stay, alias import preserves all sites
+ticket: 1f04c9259a66405183c586006e4b8c1c
+published_utc: 2026-10-10T08:14:49.301143+00:00
