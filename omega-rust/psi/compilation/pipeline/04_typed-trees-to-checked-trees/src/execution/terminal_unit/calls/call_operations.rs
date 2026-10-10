@@ -17,7 +17,7 @@ use crate::execution::terminal_unit::types::{is_unit, machine_binders};
 use crate::execution::terminal_unit::{
     BuiltinFunction, CheckFacts, CheckedStructuralScalarParameterPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
-    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
     PrimitiveType, SymbolHandle, strips_erased_parameter,
 };
@@ -59,7 +59,6 @@ pub(in crate::execution) fn build_call_operation(
     state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
-    entry_claims: &[CheckedUnitEntryClaimPlan],
     call: &checked_trees::FlowCallFact,
     expected_call_result: Option<ExpectedCallValueResult<'_>>,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
@@ -154,7 +153,6 @@ pub(in crate::execution) fn build_call_operation(
             machine,
             state,
             caller_parameters,
-            entry_claims,
             call,
             expected_call_result.as_ref(),
             caller_structural_results,
@@ -177,7 +175,6 @@ pub(in crate::execution) fn build_call_operation(
             state,
             caller_parameters,
             caller_trivial_affine_locals,
-            entry_claims,
             call,
             expected_call_result.as_ref(),
             caller_structural_results,
@@ -489,7 +486,6 @@ pub(in crate::execution) fn build_call_operation(
             state.symbol,
             call,
             caller_parameters,
-            entry_claims,
             caller_structural_results,
             &structural_arguments,
         )?

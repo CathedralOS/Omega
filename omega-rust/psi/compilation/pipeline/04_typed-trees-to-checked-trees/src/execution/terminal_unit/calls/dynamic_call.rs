@@ -26,9 +26,8 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::is_unit;
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, PrimitiveType,
-    SymbolHandle, strips_erased_parameter,
+    CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralResultBindingPlan, PrimitiveType, SymbolHandle, strips_erased_parameter,
 };
 use checked_trees::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
@@ -44,7 +43,6 @@ pub(super) fn build(
     state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
-    entry_claims: &[CheckedUnitEntryClaimPlan],
     call: &checked_trees::FlowCallFact,
     expected_call_result: Option<&super::ExpectedCallValueResult<'_>>,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
@@ -132,7 +130,6 @@ pub(super) fn build(
         state.symbol,
         call,
         caller_parameters,
-        entry_claims,
         caller_structural_results,
         &structural_arguments,
     )?;

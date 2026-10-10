@@ -2540,7 +2540,9 @@ crash and native exit behavior.
     through the complete catalog. The independent head carries all members'
     premises and conservative effects/crashes, not their private result facts.
     Exact member selection shares ordinary internal-call and current receipt
-    custody; it supplies no provider grant or boundary issuance.
+    custody, including claims reseated into owned fields; native custody joins
+    the complete selected call graph rather than its pointer-only mirror.
+    It supplies no provider grant or boundary issuance.
     The frontier is complete generic/named per-member conformance transport
     and std's exit-70 Console canary. Its current first failure is
     `cannot prove the terminates by ranking for machine console_write_bytes`

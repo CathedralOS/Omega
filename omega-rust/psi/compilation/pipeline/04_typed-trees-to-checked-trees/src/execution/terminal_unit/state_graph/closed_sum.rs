@@ -890,7 +890,6 @@ fn subject_call(
         state,
         structural,
         &[],
-        entry_claims,
         call,
         Some(crate::execution::terminal_unit::calls::ExpectedCallValueResult::Structural(&result)),
         &structural_results,

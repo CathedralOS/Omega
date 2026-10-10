@@ -236,6 +236,7 @@ pub(crate) fn derive_physical_evidence(
                 requirement,
                 None,
                 target,
+                fragment_publication,
             )? {
                 children.push(child);
                 continue;
@@ -332,6 +333,7 @@ pub(crate) fn derive_physical_evidence(
                     requirement,
                     Some(selected_plan),
                     target,
+                    fragment_publication,
                 )? {
                     children.push(child);
                 } else {

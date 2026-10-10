@@ -29,7 +29,6 @@ pub(super) struct ScalarCallSite<'a> {
     pub state: SymbolHandle,
     pub operations: Vec<&'a CheckedUnitEffectOperationPlan>,
     pub structural_parameters: &'a [checked_trees::CheckedUnitStructuralParameterPlan],
-    pub entry_claims: &'a [checked_trees::CheckedUnitEntryClaimPlan],
 }
 
 impl ScalarCallSite<'_> {
@@ -39,7 +38,6 @@ impl ScalarCallSite<'_> {
             state: plan.state,
             operations: plan.operations.iter().collect(),
             structural_parameters: &plan.structural_parameters,
-            entry_claims: &plan.entry_claims,
         }
     }
 
@@ -100,7 +98,6 @@ impl ScalarCallSite<'_> {
             state: state.state,
             operations,
             structural_parameters: &state.structural_parameters,
-            entry_claims: &state.entry_claims,
         })
     }
 }
@@ -403,7 +400,6 @@ pub(super) fn available_target(
             caller.state,
             call,
             caller.structural_parameters,
-            caller.entry_claims,
             &caller_structural_results,
             structural_arguments,
         )

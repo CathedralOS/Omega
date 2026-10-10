@@ -34,6 +34,8 @@ use target::{Architecture, NativeTarget, TargetProfile};
 use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
 
+mod family_custody;
+
 /// One retained call-stack row a boundary call's emitted internal call can
 /// rejoin; the variants mirror the caller's record families exactly.
 enum InternalCallRow<'artifact> {
@@ -166,6 +168,9 @@ pub(crate) fn derive_boundary_internal_call_child(
     requirement_identity: &str,
     selected_plan: Option<&NativeSelectedProviderPlan>,
     target: NativeTarget,
+    fragment_publication: Option<
+        &crate::physical::fragment_publication::FragmentPublicationBinding,
+    >,
 ) -> Result<Option<NativePhysicalChild>, &'static str> {
     let source_operation = occurrence
         .operation()
@@ -238,20 +243,13 @@ pub(crate) fn derive_boundary_internal_call_child(
         }
         InternalCallSelection::Provider { conformance, plan }
     } else {
-        let mut records = function
-            .internal_unit_calls
-            .iter()
-            .filter(|record| record.owner == CallSiteOwner::Operation(source_operation));
-        let record = records
-            .next()
-            .ok_or("target-family internal call has no retained origin")?;
-        if records.next().is_some()
-            || record.target != call.target()
-            || record.operation_ordinal != occurrence.operation_ordinal()
-        {
-            return Err("target-family internal call changed its retained occurrence or callee");
-        }
-        let machine_code::InternalUnitCallSource::TargetFamily {
+        let record = family_custody::rejoin(
+            fragment_publication.ok_or("target-family internal call lacks fragment custody")?,
+            occurrence,
+            call.target(),
+            call.text_offset(),
+        )?;
+        let legalized_operations::NativeCallOrigin::TargetFamily {
             boundary: selected_boundary,
             member: selected_member,
             target: tag,

@@ -160,7 +160,7 @@ pub(crate) fn emit_completion_receipts(
     prepared: &[PreparedClaimTransfer],
     bindings: &[(PermissionClaimIdentity, ClaimId)],
 ) -> Result<Vec<terminal_psi::CompletionReceipt>, LoweringError> {
-    prepared
+    let mut receipts = prepared
         .iter()
         .map(|receipt| {
             Ok(terminal_psi::CompletionReceipt {
@@ -169,7 +169,12 @@ pub(crate) fn emit_completion_receipts(
                 path: receipt.path.clone(),
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    // Current field order can differ from the retained claim namespace after
+    // reseating. Canonical receipt order follows claim identities, not the
+    // argument's storage geometry; retain that geometry in each record.
+    receipts.sort();
+    Ok(receipts)
 }
 
 /// A result binding retains its checked path for the machine namespace and

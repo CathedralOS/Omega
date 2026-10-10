@@ -180,7 +180,6 @@ pub(super) fn plan(
         state,
         structural_parameters,
         trivial_affine_locals,
-        entry_claims,
         call,
         result
             .as_ref()

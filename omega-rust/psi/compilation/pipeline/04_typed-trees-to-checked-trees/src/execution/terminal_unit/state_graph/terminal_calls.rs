@@ -314,7 +314,6 @@ pub(super) fn arm_call(
         state,
         structural,
         &[],
-        entry_claims,
         call,
         structural_result
             .as_ref()

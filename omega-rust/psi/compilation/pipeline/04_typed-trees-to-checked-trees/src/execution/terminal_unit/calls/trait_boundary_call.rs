@@ -29,7 +29,7 @@ use crate::execution::terminal_unit::types::{base_type_identity, substituted_for
 use crate::execution::terminal_unit::types::{is_unit, structural_access_for_type_reference};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
-    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, SymbolHandle, is_reference,
 };
@@ -55,7 +55,6 @@ pub(super) fn build(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
-    entry_claims: &[CheckedUnitEntryClaimPlan],
     call: &checked_trees::FlowCallFact,
     expected_call_result: Option<&super::ExpectedCallValueResult<'_>>,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
@@ -532,7 +531,6 @@ pub(super) fn build(
                 state.symbol,
                 call,
                 caller_parameters,
-                entry_claims,
                 caller_structural_results,
                 &structural_arguments,
             )?)

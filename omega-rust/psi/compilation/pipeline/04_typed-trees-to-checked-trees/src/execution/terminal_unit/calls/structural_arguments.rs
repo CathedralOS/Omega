@@ -15,7 +15,7 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitClaimTransferPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitClaimTransferPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PrimitiveType,
@@ -846,13 +846,13 @@ pub(crate) fn call_claim_transfers(
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
-    entry_claims: &[CheckedUnitEntryClaimPlan],
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     arguments: &[CheckedUnitStructuralArgumentPlan],
 ) -> Option<Vec<CheckedUnitClaimTransferPlan>> {
     let events = call_claim_events(&facts.flow, machine, state, call);
     let mut output = Vec::new();
-    let mut accounted = 0usize;
+    let caller_state = program.state_by_symbol(state)?;
+    let source_parameters = program.state_parameters(caller_state);
     for (argument_index, argument) in arguments.iter().enumerate() {
         if argument.access != CheckedStructuralAccess::Owned {
             continue;
@@ -871,91 +871,57 @@ pub(crate) fn call_claim_transfers(
             }
             continue;
         }
-        let source_parameter_index = argument.source_parameter_index();
-        if source_parameter_index.is_none() {
-            // Permission events name current authored storage, independently
-            // of whether an initializer still supplies that home or a rebind
-            // installed its new value. Never revive the retired producer to
-            // recover the claim; the same exact event roster governs both.
-            let root = match argument.source {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                    let (_, root) = caller_structural_results
-                        .iter()
-                        .find(|(result, _)| result.binding_ordinal == binding_ordinal)?;
-                    Some(*root)
-                }
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                    Some(facts::PlaceRoot::Symbol(symbol))
-                }
-                _ if argument.source_local_declaration_ordinal().is_some()
-                    && argument.path.is_empty() =>
-                {
-                    None
-                }
-                _ => return None,
-            };
-            if let Some(root) = root {
-                let crossing = owner_claim_crossings(
-                    program,
-                    &facts.flow,
-                    state,
-                    call,
-                    &events,
-                    root,
-                    &argument.path,
-                )?;
-                for (claim_identity, kind, path) in crossing {
-                    // A result consumed by a by-value `self` callee carries
-                    // its claim on the completed result itself; the lowering
-                    // joins that claim to the callee's entry roster, so the
-                    // plan names no separate transfer row for it.
-                    if kind == PermissionEventKind::Consume {
-                        accounted = accounted.checked_add(1)?;
-                        continue;
-                    }
-                    output.push(CheckedUnitClaimTransferPlan {
-                        claim_identity,
-                        argument_index: u32::try_from(argument_index).ok()?,
-                        path,
-                    });
-                }
+        // The entry roster describes where claims arrived, not where this
+        // argument holds them now. Reseating a parameter's child is the same
+        // custody operation as reseating a local's child: join the current
+        // call events at its exact owner and selected path.
+        let root = match argument.source {
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                let parameter = caller_parameters.get(parameter_index as usize)?;
+                let source = source_parameters.get(parameter.position as usize)?;
+                facts::PlaceRoot::Symbol(source.symbol)
             }
-            continue;
-        }
-        let source_parameter_index = source_parameter_index?;
-        let entries = entry_claims
-            .iter()
-            .filter(|entry| {
-                entry.parameter_index == source_parameter_index
-                    && entry.path.starts_with(&argument.path)
-            })
-            .collect::<Vec<_>>();
-        if entries.is_empty() {
-            if caller_parameters
-                .get(source_parameter_index as usize)?
-                .multiplicity
-                == Multiplicity::Linear
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                caller_structural_results
+                    .iter()
+                    .find(|(result, _)| result.binding_ordinal == binding_ordinal)?
+                    .1
+            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                facts::PlaceRoot::Symbol(symbol)
+            }
+            _ if argument.source_local_declaration_ordinal().is_some()
+                && argument.path.is_empty() =>
+            {
+                continue;
+            }
+            _ => return None,
+        };
+        for (claim_identity, path) in owner_claim_crossings(
+            program,
+            &facts.flow,
+            state,
+            call,
+            &events,
+            root,
+            &argument.path,
+        )? {
+            if output
+                .iter()
+                .any(|transfer: &CheckedUnitClaimTransferPlan| {
+                    transfer.claim_identity == claim_identity
+                })
             {
                 return None;
             }
-            continue;
-        }
-        for entry in entries {
-            let matching = events
-                .iter()
-                .filter(|event| event.claim_identity == entry.claim_identity)
-                .collect::<Vec<_>>();
-            if matching.len() != 1 || entry.claim_identity == PermissionClaimIdentity::Unknown {
-                return None;
-            }
             output.push(CheckedUnitClaimTransferPlan {
-                claim_identity: entry.claim_identity,
+                claim_identity,
                 argument_index: u32::try_from(argument_index).ok()?,
-                path: entry.path.strip_prefix(argument.path.as_slice())?.to_vec(),
+                path,
             });
         }
     }
-    if output.len().checked_add(accounted)? != events.len() {
+    if output.len() != events.len() {
         return None;
     }
     Some(output)
@@ -1013,7 +979,6 @@ fn owner_claim_crossings(
 ) -> Option<
     Vec<(
         PermissionClaimIdentity,
-        PermissionEventKind,
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     )>,
 > {
@@ -1043,14 +1008,17 @@ fn owner_claim_crossings(
         let Some(relative) = event_path.strip_prefix(path) else {
             continue;
         };
-        if event.claim_identity == PermissionClaimIdentity::Unknown
+        // Disposal settles a claim without transferring it. It cannot supply
+        // ingress or a normal boundary receipt, regardless of source shape.
+        if event.kind != PermissionEventKind::Transfer
+            || event.claim_identity == PermissionClaimIdentity::Unknown
             || claims
                 .iter()
-                .any(|(identity, _, _)| *identity == event.claim_identity)
+                .any(|(identity, _)| *identity == event.claim_identity)
         {
             return None;
         }
-        claims.push((event.claim_identity, event.kind, relative.to_vec()));
+        claims.push((event.claim_identity, relative.to_vec()));
     }
     Some(claims)
 }
@@ -1093,10 +1061,15 @@ pub(crate) fn computed_call_claim_transfers(
                 .root
             }
         };
-        for (claim_identity, kind, path) in
+        for (claim_identity, path) in
             owner_claim_crossings(program, flow, state, call, &events, root, &argument.path)?
         {
-            if kind == PermissionEventKind::Consume {
+            if output
+                .iter()
+                .any(|transfer: &CheckedUnitClaimTransferPlan| {
+                    transfer.claim_identity == claim_identity
+                })
+            {
                 return None;
             }
             output.push(CheckedUnitClaimTransferPlan {
