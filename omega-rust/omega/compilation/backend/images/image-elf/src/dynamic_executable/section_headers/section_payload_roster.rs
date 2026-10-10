@@ -45,6 +45,9 @@ impl ValidatedElfIndexedSectionPayloadPlan {
     pub fn row_count(&self) -> usize {
         self.contents.rows.len()
     }
+    pub(crate) fn dynamic_fixup_count(&self) -> usize {
+        self.contents.dynamic_fixups.len()
+    }
 
     pub const fn non_authoritative_payload_roster_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_payload_roster_compatibility_fingerprint

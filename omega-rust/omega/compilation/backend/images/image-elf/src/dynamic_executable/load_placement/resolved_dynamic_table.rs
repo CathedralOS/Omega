@@ -145,6 +145,10 @@ impl ValidatedElfResolvedDynamicTable {
         &self.contents.bytes
     }
 
+    pub(crate) fn applied_addresses(&self) -> &[ElfAppliedDynamicAddress] {
+        &self.contents.applications
+    }
+
     pub const fn non_authoritative_resolved_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_resolved_compatibility_fingerprint
     }

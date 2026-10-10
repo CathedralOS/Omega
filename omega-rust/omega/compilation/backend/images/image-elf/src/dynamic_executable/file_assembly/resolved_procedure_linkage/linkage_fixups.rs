@@ -70,13 +70,24 @@ pub(crate) struct ElfAppliedProcedureLinkageFixup {
 }
 
 impl ElfAppliedProcedureLinkageFixup {
+    pub const fn ordinal(&self) -> u32 {
+        self.ordinal
+    }
 
     pub const fn storage(&self) -> ElfAppliedProcedureLinkageStorage {
         self.storage
     }
 
+    pub const fn byte_offset(&self) -> usize {
+        self.byte_offset
+    }
+
     pub const fn byte_width(&self) -> u8 {
         self.byte_width
+    }
+
+    pub const fn kind(&self) -> ElfAppliedProcedureLinkageKind {
+        self.kind
     }
 
     pub const fn target(&self) -> ElfAppliedProcedureLinkageTarget {
@@ -87,6 +98,9 @@ impl ElfAppliedProcedureLinkageFixup {
         self.target_address
     }
 
+    pub const fn encoded_field(&self) -> u64 {
+        self.encoded_field
+    }
 }
 
 /// Independently replayed procedure-linkage fragments retaining the complete

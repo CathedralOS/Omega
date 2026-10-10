@@ -85,6 +85,9 @@ impl ValidatedPhysicalRegisterModel {
         self.identity
     }
 
+    pub(crate) fn into_model(self) -> PhysicalRegisterModel {
+        self.model
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

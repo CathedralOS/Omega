@@ -59,6 +59,10 @@ impl ValidatedElfPlacedSectionHeaderTable {
         &self.contents.bytes
     }
 
+    pub(crate) fn applied_placements(&self) -> &[ElfAppliedSectionHeaderPlacement] {
+        &self.contents.applications
+    }
+
     pub const fn non_authoritative_placed_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_placed_compatibility_fingerprint
     }

@@ -81,6 +81,10 @@ impl SymbolicTargetObservationApplication {
         &self.compatibility_commitment
     }
 
+    pub(crate) fn matches_exact_uefi_x64_entry_stack_application(&self) -> bool {
+        TargetSemantics::guaranteed_entry_stack::<UefiX86_64>(TargetProfile::UefiX64)
+            .is_ok_and(|expected| self == &expected)
+    }
 }
 
 /// Numeric closure of one symbolic entry-stack target observation.
@@ -122,6 +126,10 @@ impl TargetEntryStackGuarantee {
         &self.compatibility_commitment
     }
 
+    pub(crate) fn matches_exact_uefi_x64_entry_stack_guarantee(&self) -> bool {
+        TargetSemantics::close_guaranteed_entry_stack::<UefiX86_64>(TargetProfile::UefiX64)
+            .is_ok_and(|expected| self == &expected)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

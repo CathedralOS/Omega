@@ -12,6 +12,19 @@ use object_file::{SectionKind, canonical_private_machine_symbol_name, section_na
 use std::collections::BTreeSet;
 use target::{NativeTarget, ObjectFormat};
 
+/// The template-free object invariants: symbol ordering, section custody,
+/// and the resolved-call equation. Byte coordinates inside the wrapper are
+/// authority of the validated encoding template — `validate_object` adds
+/// those cross-checks; the codec's standalone path can only assert shape.
+pub(super) fn validate_object_shape(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
+    if object.recomputed_identity()? != object.identity {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::InvalidObject);
+    }
+    validate_object_shape_content(object)
+}
+
 /// Every `validate_object_shape` conjunct below the identity seal. Callers
 /// that assigned or verified `object.identity` against `recomputed_identity()`
 /// on the same unchanged in-memory value know the digest conjunct cannot
@@ -114,6 +127,17 @@ pub(super) fn validate_object_shape_content(
         return Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::InvalidObject);
     }
     Ok(())
+}
+
+/// The join's full object check: the validated encoding template supplies the
+/// canonical byte geometry — receiver variants shift every call coordinate —
+/// so the composite must agree with it exactly.
+pub(super) fn validate_object(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+    wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
+) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
+    validate_object_shape(object)?;
+    validate_object_against_template(object, wrapper)
 }
 
 /// The join check for an object the caller just sealed: `object.identity` was

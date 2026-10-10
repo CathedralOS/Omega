@@ -24,12 +24,28 @@ impl ValidatedElfProcedureLinkageTemplatePlan {
         &self.linkage
     }
 
+    pub(crate) fn procedure_linkage_byte_count(&self) -> usize {
+        self.contents.bytes.plt.len()
+    }
+
+    pub(crate) fn procedure_got_byte_count(&self) -> usize {
+        self.contents.bytes.got_plt.len()
+    }
+
     pub(crate) fn procedure_relocation_byte_count(&self) -> usize {
         self.contents.bytes.rela_plt.len()
     }
 
     pub(crate) fn general_relocation_byte_count(&self) -> usize {
         self.contents.bytes.rela_dyn.len()
+    }
+
+    pub(crate) fn fixup_count(&self) -> usize {
+        self.contents.fixups.len()
+    }
+
+    pub(crate) fn placement_constraint_count(&self) -> usize {
+        self.contents.constraints.len()
     }
 
     /// Compatibility fingerprint of the upstream linkage identity, exact

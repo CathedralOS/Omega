@@ -3,6 +3,9 @@
 //! re-validates the plan's template-free shape before returning it.
 
 use super::manifest::valid_manifest_shape;
+use super::validation::{
+    validate_object, validate_object_preserving_seal, validate_object_shape_content,
+};
 use super::{
     CODEC_VERSION, CONTAINER_MAGIC, MANIFEST_MAGIC,
     OptimizedProgramStorageSemanticWrapperCallResolution,
@@ -27,8 +30,36 @@ use optimization_core::{
     OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
     RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
 };
+use semantic_vocabulary::MachineId;
 use target::{NativeTarget, ObjectFormat};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+
+pub(crate) fn encode_optimized_program_storage_semantic_wrapper_object(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+    wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
+) -> Result<
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
+> {
+    validate_object(object, wrapper)?;
+    encode_validated_container(object)
+}
+
+/// The encode join for an object the caller just sealed: `object.identity`
+/// was assigned from `recomputed_identity()` on this unchanged in-memory
+/// value, so the digest conjunct cannot differ and is not reserialized;
+/// every other shape and template check still runs. The standalone encode
+/// above keeps the full recompute for caller-supplied objects.
+pub(crate) fn encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+    wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
+) -> Result<
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
+> {
+    validate_object_preserving_seal(object, wrapper)?;
+    encode_validated_container(object)
+}
 
 /// Encode a plan `construct_object` sealed in this compile, without re-running
 /// its shape and template checks.
@@ -60,6 +91,36 @@ fn encode_validated_container(
         object: object.identity,
         bytes,
     })
+}
+
+pub(crate) fn decode_optimized_program_storage_semantic_wrapper_object(
+    bytes: &[u8],
+) -> Result<
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
+> {
+    let mut cursor = Cursor::new(bytes);
+    if cursor.take(8)? != CONTAINER_MAGIC {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::WrongMagic);
+    }
+    let version = cursor.u32()?;
+    if version != CODEC_VERSION {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnsupportedVersion(version),
+        );
+    }
+    let identity =
+        OptimizedProgramStorageSemanticWrapperObjectIdentity::from_bytes(cursor.array()?);
+    let object = decode_plan_content(&mut cursor, identity)?;
+    if cursor.remaining() != 0 {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::TrailingBytes);
+    }
+    // `decode_plan_content` verified this in-memory plan's seal against the
+    // wire-carried identity; the digest conjunct cannot differ, so only the
+    // shape conjuncts below it run here.
+    validate_object_shape_content(&object)
+        .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidObject)?;
+    Ok(object)
 }
 
 pub(super) fn encode_plan_content(
@@ -132,6 +193,105 @@ pub(super) fn encode_plan_content(
     );
     crate::codec_bytes::push_encoded(&mut bytes, object.relocation_record_count.to_le_bytes());
     Ok(bytes)
+}
+
+fn decode_plan_content(
+    cursor: &mut Cursor<'_>,
+    identity: OptimizedProgramStorageSemanticWrapperObjectIdentity,
+) -> Result<
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
+> {
+    let source_artifact = OptimizedObjectArtifactIdentity::from_bytes(cursor.array()?);
+    let source_artifact_manifest =
+        OptimizedObjectArtifactManifestIdentity::from_bytes(cursor.array()?);
+    let source_object = RelocationFreeObjectPlanIdentity::from_bytes(cursor.array()?);
+    let source_object_container =
+        RelocationFreeObjectContainerIdentity::from_bytes(cursor.array()?);
+    let source_signature = cursor.array()?;
+    let psi = decode_psi(cursor)?;
+    let target = decode_target(cursor)?;
+    let text_section_name = string(&mut *cursor)?;
+    let text_section_alignment = cursor.u64()?;
+    let text_bytes = cursor.length_prefixed()?.to_vec();
+    let symbol_count = cursor.length()?;
+    let mut symbols = Vec::with_capacity(symbol_count);
+    for _ in 0..symbol_count {
+        let symbol = decode_symbol_id(cursor)?;
+        let source_function_index = match cursor.byte()? {
+            0 => None,
+            1 => Some(cursor.u64()?),
+            _ => return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag),
+        };
+        let machine = match cursor.byte()? {
+            0 => None,
+            1 => {
+                Some(MachineId::new(cursor.u64()?).ok_or(
+                    OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidMachine,
+                )?)
+            }
+            _ => return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag),
+        };
+        let name = string(&mut *cursor)?;
+        let section_offset = cursor.u64()?;
+        let byte_count = cursor.u64()?;
+        let role = match cursor.byte()? {
+            1 => OptimizedProgramStorageSemanticWrapperObjectSymbolRole::SemanticWrapperV1,
+            2 => OptimizedProgramStorageSemanticWrapperObjectSymbolRole::PrivateTerminalContinuationV1,
+            3 => OptimizedProgramStorageSemanticWrapperObjectSymbolRole::PrivateTerminalFunctionV1,
+            _ => return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag),
+        };
+        symbols.push(OptimizedProgramStorageSemanticWrapperObjectSymbol {
+            symbol,
+            source_function_index,
+            machine,
+            name,
+            section_offset,
+            byte_count,
+            role,
+        });
+    }
+    let wrapper_symbol = decode_symbol_id(cursor)?;
+    let continuation_symbol = decode_symbol_id(cursor)?;
+    let wrapper_byte_count = cursor.u64()?;
+    if cursor.byte()? != 1 {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag);
+    }
+    let call_resolution = OptimizedProgramStorageSemanticWrapperCallResolution {
+        state: OptimizedProgramStorageSemanticWrapperCallResolutionState::ResolvedInCompositeTextSectionV1,
+        wrapper_section_offset: cursor.u64()?,
+        continuation_section_offset: cursor.u64()?,
+        next_instruction_section_offset: cursor.u64()?,
+        displacement: cursor.i32()?,
+    };
+    let relocation_record_count = cursor.u64()?;
+    let object = OptimizedProgramStorageSemanticWrapperObjectPlan {
+        identity,
+        source_artifact,
+        source_artifact_manifest,
+        source_object,
+        source_object_container,
+        source_signature,
+        psi,
+        target,
+        text_section_name,
+        text_section_alignment,
+        text_bytes,
+        symbols,
+        wrapper_symbol,
+        continuation_symbol,
+        wrapper_byte_count,
+        call_resolution,
+        relocation_record_count,
+    };
+    if object
+        .recomputed_identity()
+        .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidObject)?
+        != identity
+    {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::IdentityMismatch);
+    }
+    Ok(object)
 }
 
 pub(super) fn encode_manifest_content(
@@ -328,3 +488,9 @@ impl From<TakeError> for OptimizedProgramStorageSemanticWrapperObjectDecodeError
     }
 }
 
+fn string(
+    cursor: &mut Cursor<'_>,
+) -> Result<String, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
+    String::from_utf8(cursor.length_prefixed()?.to_vec())
+        .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidUtf8)
+}

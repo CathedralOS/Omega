@@ -53,8 +53,20 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
         &self.descriptors
     }
 
+    pub(crate) fn logical_slot_count(&self) -> usize {
+        self.contents.slots.len()
+    }
+
     pub(crate) fn procedure_relocation_count(&self) -> usize {
         self.contents.jump_slot_relocations.len()
+    }
+
+    pub(crate) fn direct_call_site_count(&self) -> usize {
+        self.contents
+            .slots
+            .iter()
+            .map(|slot| slot.call_sites.len())
+            .sum()
     }
 
     /// Number of semantic general `.rela.dyn` rows this plan emits, one per

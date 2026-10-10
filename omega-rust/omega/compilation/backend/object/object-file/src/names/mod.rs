@@ -109,6 +109,13 @@ pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
 }
 
 
+pub(crate) fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> String {
+    match section {
+        SymbolSection::None => String::new(),
+        SymbolSection::Section(kind) => section_name(target, kind),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

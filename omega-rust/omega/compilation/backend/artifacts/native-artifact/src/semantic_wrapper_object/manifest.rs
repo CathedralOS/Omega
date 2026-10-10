@@ -56,6 +56,20 @@ pub(super) fn construct_manifest(
     Ok(manifest)
 }
 
+pub(super) fn validate_manifest(
+    object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+    container: &OptimizedProgramStorageSemanticWrapperObjectContainer,
+    manifest: &OptimizedProgramStorageSemanticWrapperObjectManifest,
+) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
+    let decoded = OptimizedProgramStorageSemanticWrapperObjectManifest::decode(&manifest.encode())
+        .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch)?;
+    let expected = construct_manifest(object, container)?;
+    if decoded != *manifest || *manifest != expected {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch);
+    }
+    Ok(())
+}
+
 pub(super) fn valid_manifest_shape(
     manifest: &OptimizedProgramStorageSemanticWrapperObjectManifest,
 ) -> bool {
