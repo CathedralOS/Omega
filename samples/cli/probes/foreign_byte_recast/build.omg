@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "foreign_byte_recast");
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
+}

@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "offset_integer_at");
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
+}
