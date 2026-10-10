@@ -97,7 +97,7 @@ impl AuthoredDeclarationSelectionTarget {
 ///
 /// The operation is retained as closed semantic identity rather than
 /// reconstructed from a method spelling after checking.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CollectionViewOperation {
     SharedSlice,
     MutableSlice,
