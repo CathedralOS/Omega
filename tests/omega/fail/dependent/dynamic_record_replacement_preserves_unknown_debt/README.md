@@ -1,0 +1,1 @@
+A dynamic whole-element store cannot prove that it selected a particular damaged element or every uninitialized element. It also invalidates concrete element snapshots, including values transported from a predecessor state: a later field repair cannot use values captured before a possibly overlapping replacement. All four machines must reject at their observations or exits.

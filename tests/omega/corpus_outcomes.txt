@@ -5016,3 +5016,10 @@ fail/dependent/reserved_generic_container_missing_sibling rejected 210ms expecte
 	reading `pair.<whole value>` crosses an open default-domain invariant window before data `Pair<Token>` is established: the zeroed representation is not yet a `Pair<Token>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/drops/reserved_call_result_cleanup_mutated rejected 409ms expected @de32ba70a8b2+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: holder.value does not establish Token::drop clause `token.value == 42`
+pass/dependent/runtime_dynamic_record_replacement_exit checked 2575ms check-target:macos_arm64 @60d81c7cd9f2+wt
+fail/dependent/dynamic_record_replacement_preserves_unknown_debt rejected 297ms expected @60d81c7cd9f2+wt
+	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `debt.cells[0]` must close first -- restore the `where` facts before this consumption point (ch11)
+	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `stale.cells[0]` must close first -- restore the `where` facts before this consumption point (ch11)
+	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `transport.cells[0]` must close first -- restore the `where` facts before this consumption point (ch11)
+	reading `raw[0].value` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Positive]`
+	reading `raw[0].value` crosses an open default-domain invariant window before data `Gated` is established: the zeroed representation is not yet a `Gated` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)

@@ -146,6 +146,19 @@ pub(super) fn place_spelling_covers(place: &str, nested: &str) -> bool {
     }
 }
 
+/// Conservative overlap for invalidation only. Wildcards can occur in either
+/// coordinate, including different dimensions; neither place need cover the
+/// other. Prefixes overlap their descendants. This grants no place identity,
+/// establishment, or permission to close a window.
+pub(super) fn place_spellings_may_overlap(left: &str, right: &str) -> bool {
+    fn coordinates(place: &str) -> impl Iterator<Item = &str> {
+        place.split(['.', '[', ']']).filter(|part| !part.is_empty())
+    }
+    coordinates(left)
+        .zip(coordinates(right))
+        .all(|(left, right)| left == right || left == "*" || right == "*")
+}
+
 /// One segment of a place spelling: `[*]` index positions in `place` cover
 /// any `[<index>]` at the same position in `nested`; everything else must
 /// match literally.

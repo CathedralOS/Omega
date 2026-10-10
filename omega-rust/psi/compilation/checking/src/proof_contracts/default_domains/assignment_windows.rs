@@ -12,7 +12,7 @@ use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, data_has_case_where_facts, declared_root_established,
     expression_root_symbol, fact_mentions_any_field, fact_span_mentions_field,
     field_is_where_mentioned, is_data_rooted, is_subplace, membership_field_name,
-    place_spelling_covers, write_place_spelling,
+    place_spelling_covers, place_spellings_may_overlap, write_place_spelling,
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
@@ -82,7 +82,7 @@ pub(crate) fn handle_assignment<'program>(
     entry_valuations: &[PlaceValuation],
     inherited_windows: &[InvariantWindow],
     poisoned_all: bool,
-    poisoned_paths: &[String],
+    poisoned_paths: &mut Vec<String>,
     born_zero: bool,
 ) {
     // The binding naming the record this state's places are rooted at; see
@@ -106,64 +106,82 @@ pub(crate) fn handle_assignment<'program>(
         && let Some(definition) =
             data_definition_for_expression(program, machine, Some(state), target)
     {
-        let literal = match program.expression_table.expression(value) {
-            ExpressionNode::StructLiteral(literal) => Some(literal),
-            _ => None,
-        };
-        let literal_fields = literal
-            .map(|literal| program.expression_table.struct_fields(literal.fields))
-            .unwrap_or(&[]);
-        let wildcard = spelling.contains("[*]");
-        let fields = literal_fields
-            .iter()
-            .map(|field| {
-                (
-                    field.name.as_str().to_string(),
-                    literal_value(program, field.value),
-                )
-            })
-            .collect();
-        let symbols = literal_fields
-            .iter()
-            .filter_map(|field| {
-                expression_symbolic_value(program, field.value)
-                    .map(|symbol| (field.name.as_str().to_string(), symbol))
-            })
-            .collect();
-        let measures = literal_fields
-            .iter()
-            .filter_map(|field| {
-                expression_sequence_measures(program, field.value)
-                    .map(|(length, capacity)| (field.name.as_str().to_string(), length, capacity))
-            })
-            .collect();
-        tracked
-            .retain(|place| place.spelling != spelling && !is_subplace(&place.spelling, &spelling));
-        let place_born_zero = born_zero && is_data_rooted(data_binding, &spelling);
-        tracked.push(TrackedPlace {
-            spelling,
-            definition,
-            fields: if wildcard { Vec::new() } else { fields },
-            established_fields: Vec::new(),
-            symbols: if wildcard { Vec::new() } else { symbols },
-            measures: if wildcard { Vec::new() } else { measures },
-            // Assignment checking proved the destination type for this one
-            // exact place, not every element a wildcard might identify.
-            established: !wildcard,
-            born_zero: place_born_zero,
-            window_open: wildcard,
-            elements: Vec::new(),
-            element_windows: Vec::new(),
-            // The literal's selected case replaces the place's active case:
-            // the previous case's facts lapse with its payload, and the new
-            // case's facts were already proven at construction. A wildcard
-            // position cannot claim a case for the whole covered region.
-            active_case: if wildcard {
-                None
-            } else {
-                literal.and_then(|literal| literal.case_symbol)
-            },
-        });
+        if spelling.contains("[*]") {
+            // A checked whole-value replacement preserves an established
+            // region, but its unknown selector establishes no additional
+            // element. Keep every existing establishment/window row: even a
+            // valid replacement cannot close debt on a different element.
+            // Only exact current-value snapshots beneath the possible write
+            // lapse. In particular, missing fields must not become zero again.
+            if !poisoned_paths.contains(&spelling) {
+                poisoned_paths.push(spelling.clone());
+            }
+            for place in tracked.iter_mut() {
+                if place_spellings_may_overlap(&spelling, &place.spelling) {
+                    place.fields.clear();
+                    place.established_fields.clear();
+                    place.symbols.clear();
+                    place.measures.clear();
+                    place.elements.clear();
+                    place.born_zero = false;
+                    place.active_case = None;
+                }
+            }
+        } else {
+            let literal = match program.expression_table.expression(value) {
+                ExpressionNode::StructLiteral(literal) => Some(literal),
+                _ => None,
+            };
+            let literal_fields = literal
+                .map(|literal| program.expression_table.struct_fields(literal.fields))
+                .unwrap_or(&[]);
+            let fields = literal_fields
+                .iter()
+                .map(|field| {
+                    (
+                        field.name.as_str().to_string(),
+                        literal_value(program, field.value),
+                    )
+                })
+                .collect();
+            let symbols = literal_fields
+                .iter()
+                .filter_map(|field| {
+                    expression_symbolic_value(program, field.value)
+                        .map(|symbol| (field.name.as_str().to_string(), symbol))
+                })
+                .collect();
+            let measures = literal_fields
+                .iter()
+                .filter_map(|field| {
+                    expression_sequence_measures(program, field.value).map(|(length, capacity)| {
+                        (field.name.as_str().to_string(), length, capacity)
+                    })
+                })
+                .collect();
+            tracked.retain(|place| {
+                place.spelling != spelling && !is_subplace(&place.spelling, &spelling)
+            });
+            let place_born_zero = born_zero && is_data_rooted(data_binding, &spelling);
+            tracked.push(TrackedPlace {
+                spelling,
+                definition,
+                fields,
+                established_fields: Vec::new(),
+                symbols,
+                measures,
+                // Assignment checking proved the exact destination type.
+                established: true,
+                born_zero: place_born_zero,
+                window_open: false,
+                elements: Vec::new(),
+                element_windows: Vec::new(),
+                // The literal's selected case replaces the place's active case:
+                // the previous case's facts lapse with its payload, and the new
+                // case's facts were already proven at construction.
+                active_case: literal.and_then(|literal| literal.case_symbol),
+            });
+        }
     }
 
     // An ELEMENT store: `<place>.field[index] = value`. Facts reading the
@@ -196,7 +214,9 @@ pub(crate) fn handle_assignment<'program>(
     // the target; a wildcard receiver's write may hit any covered concrete
     // place, so covered siblings lose this field's valuation too.
     let target_spelling = write_place_spelling(program, target);
-    if let Some(target_spelling) = target_spelling.as_deref() {
+    if let Some(target_spelling) = target_spelling.as_deref()
+        && !target_spelling.contains("[*]")
+    {
         tracked.retain(|place| !is_subplace(&place.spelling, target_spelling));
     }
     let Some(definition) =
@@ -486,9 +506,9 @@ pub(super) fn tracked_receiver<'program>(
     // valuation unless an opaque call, or a known overlapping write,
     // poisoned this place's view.
     let poisoned = poisoned_all
-        || poisoned_paths.iter().any(|written| {
-            crate::machine_calls::calls::frame_paths_overlap(&receiver_spelling, written)
-        });
+        || poisoned_paths
+            .iter()
+            .any(|written| place_spellings_may_overlap(&receiver_spelling, written));
     let (seeded_fields, seeded_case) = if poisoned {
         (Vec::new(), None)
     } else {

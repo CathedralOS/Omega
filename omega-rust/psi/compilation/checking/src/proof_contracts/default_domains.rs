@@ -603,7 +603,7 @@ fn walk_state(
                     entry_valuations,
                     &inherited_windows,
                     poisoned_all,
-                    &poisoned_paths,
+                    &mut poisoned_paths,
                     born_zero,
                 );
                 // A write that re-proved the facts (tracked window CLOSED)
@@ -799,7 +799,7 @@ fn walk_state(
         for (spelling, fields, active_case) in entry_valuations {
             let poisoned = poisoned_paths
                 .iter()
-                .any(|written| crate::machine_calls::calls::frame_paths_overlap(spelling, written));
+                .any(|written| place_queries::place_spellings_may_overlap(spelling, written));
             if !poisoned && !exit_valuations.iter().any(|(name, _, _)| name == spelling) {
                 exit_valuations.push((spelling.clone(), fields.clone(), *active_case));
             }
