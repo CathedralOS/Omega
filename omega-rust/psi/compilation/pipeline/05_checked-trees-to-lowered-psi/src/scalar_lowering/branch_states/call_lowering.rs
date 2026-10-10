@@ -50,21 +50,12 @@ pub(crate) fn lower_scalar_call(
     // Structural operands arrive from source custody and catalog projection
     // preparation. Reclassifying their path spelling here would discard valid
     // reference crossings after their geometry and access were already checked.
-    // Each owned operand hands over exactly as many claims as the callee
-    // establishes on its parameter; the checked transfers name the caller's
-    // identities and the callee reconstructs its own.
+    // The checked transfers retain each active owned path and its caller
+    // identity. A callee's entry roster also declares inactive Case alternatives,
+    // so its total claim count is not a call's transfer requirement. Ordinary
+    // calls and scalar-producing calls use the same guarded path preparation
+    // below; emission resolves those identities in the caller's live namespace.
     if target.structural_parameters().len() != structural_arguments.len()
-        || (0..structural_arguments.len()).any(|index| {
-            claim_transfers
-                .iter()
-                .filter(|transfer| transfer.argument_index as usize == index)
-                .count()
-                != target
-                    .entry_claims()
-                    .iter()
-                    .filter(|claim| claim.parameter_index as usize == index)
-                    .count()
-        })
         || claim_transfers
             .iter()
             .any(|transfer| transfer.argument_index as usize >= structural_arguments.len())
