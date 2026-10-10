@@ -263,7 +263,6 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::HostedReadByte { .. }
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
             | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
-            | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
             | LegalizedScalarInstructionKind::BoundarySettlement(_) => {}
             LegalizedScalarInstructionKind::EstablishReference {
                 indices, storage, ..

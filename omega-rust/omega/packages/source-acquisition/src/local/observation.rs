@@ -56,13 +56,6 @@ fn hash_u64(hasher: &mut crate::digest_encoder::DomainDigestEncoder, value: u64)
     hasher.bytes(&value.to_le_bytes());
 }
 
-fn hash_usize(hasher: &mut crate::digest_encoder::DomainDigestEncoder, value: usize) {
-    hash_u64(
-        hasher,
-        u64::try_from(value).expect("compiler-owned source ceilings fit canonical u64"),
-    );
-}
-
 fn hash_path(hasher: &mut crate::digest_encoder::DomainDigestEncoder, path: &Path) {
     #[cfg(unix)]
     {
