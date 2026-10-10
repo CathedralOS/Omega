@@ -80,17 +80,9 @@ impl ScalarConstantAnalysis {
         machine: MachineId,
         value: ValueId,
     ) -> Option<(IntegerValue, ScalarConstantFactIdentity)> {
-        self.facts.iter().find_map(|fact| {
-            (fact.valid_in.machine == machine
-                && fact.value == value
-                && fact.support.literal_operation().is_some())
-            .then_some(fact)
-            .and_then(|fact| match fact.constant {
-                ScalarConstantValue::Integer(value) => {
-                    fact.identity.map(|identity| (value, identity))
-                }
-                ScalarConstantValue::Boolean(_) => None,
-            })
+        self.constant_fact(machine, value, true, |constant| match constant {
+            ScalarConstantValue::Integer(value) => Some(*value),
+            ScalarConstantValue::Boolean(_) => None,
         })
     }
 
@@ -99,15 +91,30 @@ impl ScalarConstantAnalysis {
         machine: MachineId,
         value: ValueId,
     ) -> Option<(bool, ScalarConstantFactIdentity)> {
+        self.constant_fact(machine, value, false, |constant| match constant {
+            ScalarConstantValue::Boolean(value) => Some(*value),
+            ScalarConstantValue::Integer(_) => None,
+        })
+    }
+
+    /// Shared constant-fact lookup: machine+value row match, optional
+    /// literal-support gate, then caller's variant extraction.
+    fn constant_fact<R>(
+        &self,
+        machine: MachineId,
+        value: ValueId,
+        literal_only: bool,
+        extract: impl Fn(&ScalarConstantValue) -> Option<R>,
+    ) -> Option<(R, ScalarConstantFactIdentity)> {
         self.facts.iter().find_map(|fact| {
-            (fact.valid_in.machine == machine && fact.value == value)
-                .then_some(fact)
-                .and_then(|fact| match fact.constant {
-                    ScalarConstantValue::Boolean(value) => {
-                        fact.identity.map(|identity| (value, identity))
-                    }
-                    ScalarConstantValue::Integer(_) => None,
-                })
+            (fact.valid_in.machine == machine
+                && fact.value == value
+                && (!literal_only || fact.support.literal_operation().is_some()))
+            .then_some(fact)
+            .and_then(|fact| {
+                extract(&fact.constant)
+                    .and_then(|value| fact.identity.map(|identity| (value, identity)))
+            })
         })
     }
 }
