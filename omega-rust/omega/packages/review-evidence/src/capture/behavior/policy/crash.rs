@@ -26,22 +26,14 @@ pub(crate) fn crash(
     envelope: &RealizedMachineContractEnvelope,
     inferred_causes: &[(SymbolHandle, Vec<checked_trees::CrashCause>)],
 ) -> Result<PackagePolicyCrash, Vec<Diagnostic>> {
-    let plan = exactly_one(
-        compilation
-            .facts
-            .contract_plans
-            .machines
-            .iter()
-            .filter(|plan| plan.machine == machine.symbol),
-        machine.name.as_str(),
-        "machine contract plan",
-    )?;
+    let plan = machine_contract_plan(compilation.program, machine)?;
     // Concrete machines own a MachineContractPlan. Separate capsules belong
     // only to trait/static signatures, as in the checked call-target owner.
     let derived = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
         compilation.checking_input,
         machine,
     );
+    validate_crash_publication(compilation, machine, plan, &derived)?;
     if envelope.machine != machine.symbol
         || compilation
             .machine_states(machine)
@@ -49,7 +41,6 @@ pub(crate) fn crash(
             .map(|state| state.symbol)
             != Some(entry.symbol)
         || plan.commitment != envelope.contract_commitment
-        || derived != plan.crash.published()
         || envelope.checked_crash != plan.crash
     {
         return Err(rejected(
@@ -77,7 +68,7 @@ pub(crate) fn crash(
         compilation.machine_contracts(machine),
         &context,
         binders,
-        &derived,
+        plan.crash.published(),
     )?;
     let mut matching = inferred_causes
         .iter()
@@ -127,6 +118,81 @@ pub(crate) fn crash(
             }
         }),
     })
+}
+
+/// Authored declarations retain their own buckets. A virtual head additionally
+/// carries the complete checked family envelope: verify its exact source and
+/// compiler custody instead of rebuilding or flattening its guarded routes.
+fn validate_crash_publication(
+    compilation: &PackageReviewInput<'_>,
+    machine: &Machine,
+    plan: &checked_trees::MachineContractPlan,
+    authored: &[checked_trees::CrashRouteBucket],
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(members) = crate::capture::source::family_interfaces::members(compilation, machine)?
+    else {
+        if authored != plan.crash.published() {
+            return Err(rejected(
+                "authored crash routes do not equal their exact checked publication",
+            ));
+        }
+        return Ok(());
+    };
+    let original_machine = exactly_one(
+        compilation
+            .custody
+            .machines()
+            .iter()
+            .filter(|candidate| candidate.symbol == machine.symbol),
+        machine.name.as_str(),
+        "family head declaration custody",
+    )?;
+    let original_head = machine_contract_plan(compilation.custody, original_machine)?;
+    let original_authored = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
+        &**compilation.custody,
+        original_machine,
+    );
+    if plan.crash != original_head.crash
+        || plan.commitment != original_head.commitment
+        || authored != original_authored
+    {
+        return Err(rejected(
+            "derived family crash routes differ from their exact checked custody",
+        ));
+    }
+    for member in members {
+        let checked = machine_contract_plan(compilation.program, member)?;
+        let original = machine_contract_plan(compilation.custody, member)?;
+        let member_authored = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
+            compilation.checking_input,
+            member,
+        );
+        if member_authored != checked.crash.published()
+            || checked.crash != original.crash
+            || checked.commitment != original.commitment
+        {
+            return Err(rejected(
+                "family member authored crash routes differ from their exact checked custody",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn machine_contract_plan<'a>(
+    program: &'a checked_trees::CheckedTrees,
+    machine: &Machine,
+) -> Result<&'a checked_trees::MachineContractPlan, Vec<Diagnostic>> {
+    exactly_one(
+        program
+            .facts
+            .contract_plans
+            .machines
+            .iter()
+            .filter(|plan| plan.machine == machine.symbol),
+        machine.name.as_str(),
+        "machine contract plan",
+    )
 }
 
 pub(crate) fn crash_routes(
