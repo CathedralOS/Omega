@@ -478,6 +478,142 @@ impl TerminalExecution<'_> {
         })
     }
 
+    /// Read and storage observations share the declared home contract. A
+    /// physically mutable backing never widens a shared or write-only formal.
+    fn primitive_home_contract(
+        &self,
+        home: PrimitiveStorageHome,
+        writing: bool,
+        path: &[StructuralPathSegment],
+    ) -> Result<(StructuralTypeId, bool), TerminalInterpretError> {
+        let machine_id = if home.depth == self.call_stack.len() {
+            self.current_machine
+        } else {
+            self.call_stack
+                .get(home.depth)
+                .ok_or_else(malformed)?
+                .current_machine
+        };
+        if machine_id != home.machine {
+            return Err(malformed());
+        }
+        let machine = self
+            .program
+            .machines()
+            .get(&machine_id)
+            .ok_or_else(malformed)?;
+        let place = home.place;
+        let (structural_type, shared_view) = local_type(machine, place)
+            .map(|structural_type| (structural_type, false))
+            .or_else(|| {
+                machine
+                    .structural_parameter(place)
+                    .filter(|parameter| {
+                        ((!path.is_empty() && parameter.access == StructuralAccess::Owned)
+                            || if writing {
+                                matches!(
+                                    parameter.access,
+                                    terminal_psi::exclusive_borrow_pair_pattern!()
+                                )
+                            } else {
+                                matches!(
+                                    parameter.access,
+                                    terminal_psi::reading_borrow_pair_pattern!()
+                                )
+                            })
+                            && parameter.admits_scalar_read_at(path.is_empty())
+                    })
+                    .map(|parameter| {
+                        (
+                            parameter.structural_type,
+                            parameter.access == StructuralAccess::SharedBorrow,
+                        )
+                    })
+            })
+            .or_else(|| {
+                if path.is_empty() {
+                    return None;
+                }
+                machine
+                    .operations()
+                    .filter_map(|operation| operation.result.structural())
+                    .find(|result| {
+                        result.place == place
+                            && result.claims.is_empty()
+                            && result.qualifications.is_empty()
+                            && result.projected_qualifications.is_empty()
+                    })
+                    .map(|result| (result.structural_type, false))
+            })
+            .ok_or_else(malformed)?;
+        if structural_type != home.structural_type {
+            return Err(malformed());
+        }
+        Ok((structural_type, shared_view))
+    }
+
+    /// Runtime selectors have already become fixed coordinates. The catalog
+    /// still names a dynamic descriptor, so its live window, not a static array
+    /// path judgment, supplies the selected element's bound. Descriptor lookup
+    /// retains the exact activation home and every preceding reference crossing.
+    fn element_view_scalar_read(
+        &self,
+        home: PrimitiveStorageHome,
+        path: &[StructuralPathSegment],
+        expected: ScalarType,
+    ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
+        let types = self.program.structural_types();
+        for (position, segment) in path.iter().enumerate() {
+            let StructuralPathSegment::FixedIndex(index) = segment else {
+                continue;
+            };
+            let Some(descriptor) = terminal_semantics::runtime_structural_path_tip(
+                types.values(),
+                home.structural_type,
+                &path[..position],
+            ) else {
+                continue;
+            };
+            if !matches!(
+                descriptor.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            ) {
+                continue;
+            }
+            self.primitive_home_contract(home, false, path)?;
+            let homes = if home.depth == self.call_stack.len() {
+                &self.structural_values
+            } else {
+                &self
+                    .call_stack
+                    .get(home.depth)
+                    .ok_or_else(malformed)?
+                    .structural_values
+            };
+            let owner = homes.get(&home.place).ok_or_else(malformed)?;
+            if owner.structural_type != home.structural_type {
+                return Err(malformed());
+            }
+            let (selected, aggregate_view) = self.resolve_reference_view_path(
+                owner,
+                &path[..position],
+                StructuralAccess::SharedBorrow,
+            )?;
+            if selected.structural_type != descriptor.id || aggregate_view.is_some() {
+                return Err(malformed());
+            }
+            let view = self.element_view_at_resolved_home(&selected)?;
+            let value = self.read_element_view_scalar(
+                view,
+                usize::try_from(*index).map_err(|_| malformed())?,
+                &path[position + 1..],
+                expected,
+            )?;
+            return Ok(Some(value));
+        }
+        Ok(None)
+    }
+
     pub(crate) fn primitive_home_access(
         &self,
         home: PrimitiveStorageHome,
@@ -559,52 +695,7 @@ impl TerminalExecution<'_> {
             // stored payload; host replacement admission remains separate.
             return Ok((loan.storage.clone(), loan.scalar_type, loan.shared_view));
         }
-        let (structural_type, shared_view) = local_type(machine, place)
-            .map(|structural_type| (structural_type, false))
-            .or_else(|| {
-                machine
-                    .structural_parameter(place)
-                    .filter(|parameter| {
-                        ((!path.is_empty() && parameter.access == StructuralAccess::Owned)
-                            || if writing {
-                                matches!(
-                                    parameter.access,
-                                    terminal_psi::exclusive_borrow_pair_pattern!()
-                                )
-                            } else {
-                                matches!(
-                                    parameter.access,
-                                    terminal_psi::reading_borrow_pair_pattern!()
-                                )
-                            })
-                            && parameter.admits_scalar_read_at(path.is_empty())
-                    })
-                    .map(|parameter| {
-                        (
-                            parameter.structural_type,
-                            parameter.access == StructuralAccess::SharedBorrow,
-                        )
-                    })
-            })
-            .or_else(|| {
-                if path.is_empty() {
-                    return None;
-                }
-                machine
-                    .operations()
-                    .filter_map(|operation| operation.result.structural())
-                    .find(|result| {
-                        result.place == place
-                            && result.claims.is_empty()
-                            && result.qualifications.is_empty()
-                            && result.projected_qualifications.is_empty()
-                    })
-                    .map(|result| (result.structural_type, false))
-            })
-            .ok_or_else(malformed)?;
-        if structural_type != home.structural_type {
-            return Err(malformed());
-        }
+        let (structural_type, shared_view) = self.primitive_home_contract(home, writing, path)?;
         // Array loans are presented to callees as bounded byte views. Their
         // indices are relative to the loan window, not a second scalar store.
         if let Some(
@@ -1232,6 +1323,11 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         expected: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        if let Some(value) =
+            self.element_view_scalar_read(self.capture_primitive_home(source)?, path, expected)?
+        {
+            return Ok(value);
+        }
         if let Some(value) = self.scalar_field_read(source, path, expected)? {
             if !terminal_scalar_belongs_to_type(value) {
                 return Err(malformed());
@@ -1248,6 +1344,9 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         expected: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        if let Some(value) = self.element_view_scalar_read(home, path, expected)? {
+            return Ok(value);
+        }
         let (storage, scalar_type, shared_view) = self.primitive_home_access(home, false, path)?;
         self.read_primitive_storage(home.place, storage, scalar_type, expected, shared_view)
     }

@@ -308,6 +308,15 @@ impl TerminalExecution<'_> {
                 Err(malformed())
             };
         }
+        self.element_view_at_resolved_home(resolved)
+    }
+
+    /// Keyed runtime homes, including suspended activations, identify the
+    /// descriptor. Its backing allocation alone cannot identify its window.
+    pub(crate) fn element_view_at_resolved_home(
+        &self,
+        resolved: &TerminalStructuralValue,
+    ) -> Result<&ElementView, TerminalInterpretError> {
         self.structural_element_view_fields
             .get(&crate::values::StructuralRuntimePlace::from(resolved))
             .or_else(|| {
@@ -1013,6 +1022,48 @@ impl TerminalExecution<'_> {
         Ok(OperationFlow::Advance)
     }
 
+    /// All scalar observations share the same backing presentation. Shared
+    /// snapshots are immutable; descendants retaining a live home reread that
+    /// home after suspension instead of donating their original snapshot.
+    pub(crate) fn read_element_view_scalar(
+        &self,
+        view: &ElementView,
+        index: usize,
+        path: &[StructuralPathSegment],
+        expected: ScalarType,
+    ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        if !crate::reference::access_covers(view.access(), StructuralAccess::SharedBorrow)
+            || index >= view.len()
+        {
+            return Err(malformed());
+        }
+        // A mutable descendant may have updated the original storage while
+        // this descriptor was suspended. Snapshots cannot authorize stale reads
+        // after restoration; shared descendants retain read-only access to home.
+        let element = if matches!(view.backing, ElementViewBacking::Typed(_)) {
+            self.read_typed_element(view, index, path, expected)?
+        } else if matches!(view.backing, ElementViewBacking::Representation(_)) {
+            self.read_representation_element(view, index, path, expected)?
+        } else if matches!(view.backing, ElementViewBacking::Structural { .. }) {
+            self.read_structural_element(view, index, path, expected)?
+        } else if !path.is_empty() {
+            return Err(malformed());
+        } else if let Some(home) = &view.home {
+            let mut path = home.path.clone();
+            path.push(StructuralPathSegment::FixedIndex(
+                u64::try_from(view.window.start.checked_add(index).ok_or_else(malformed)?)
+                    .map_err(|_| malformed())?,
+            ));
+            self.read_primitive_home(home.storage, &path, expected)?
+        } else {
+            view.get(index).copied().ok_or_else(malformed)?
+        };
+        if element.scalar_type() != expected || !terminal_scalar_belongs_to_type(element) {
+            return Err(malformed());
+        }
+        Ok(element)
+    }
+
     /// Copy one scalar element; the dominating length operand must equal the
     /// view's live window exactly and the index must be in bounds.
     pub(crate) fn execute_element_view_read(
@@ -1038,31 +1089,7 @@ impl TerminalExecution<'_> {
         if view.len() != length || index >= length {
             return Err(malformed());
         }
-        // A mutable descendant may have updated the original storage while
-        // this descriptor was suspended. Snapshots cannot authorize stale reads
-        // after restoration; shared descendants retain read-only access to home.
-        let element = if matches!(view.backing, ElementViewBacking::Typed(_)) {
-            self.read_typed_element(view, index, path, result.scalar_type)?
-        } else if matches!(view.backing, ElementViewBacking::Representation(_)) {
-            self.read_representation_element(view, index, path, result.scalar_type)?
-        } else if matches!(view.backing, ElementViewBacking::Structural { .. }) {
-            self.read_structural_element(view, index, path, result.scalar_type)?
-        } else if !path.is_empty() {
-            return Err(malformed());
-        } else if let Some(home) = &view.home {
-            let mut path = home.path.clone();
-            path.push(StructuralPathSegment::FixedIndex(
-                u64::try_from(view.window.start.checked_add(index).ok_or_else(malformed)?)
-                    .map_err(|_| malformed())?,
-            ));
-            self.read_primitive_home(home.storage, &path, result.scalar_type)?
-        } else {
-            view.get(index).copied().ok_or_else(malformed)?
-        };
-        if element.scalar_type() != result.scalar_type || !terminal_scalar_belongs_to_type(element)
-        {
-            return Err(malformed());
-        }
+        let element = self.read_element_view_scalar(view, index, path, result.scalar_type)?;
         self.values.insert(result.id, element);
         Ok(OperationFlow::Advance)
     }
