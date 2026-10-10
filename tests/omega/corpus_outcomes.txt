@@ -1825,6 +1825,26 @@ fail/modules/nontransitive_file_machine_import rejected 39ms expected @30eb6513a
 	a value-machine call in a guard comparison needs the callee's return type declared: annotate `seed` with an explicit `-> Type`, or bind the call to a typed `let` first and guard the local
 fail/modules/runtime_fixed_array_index rejected 21ms expected @2d8ed253669f
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/modules/selected_constant_array_alias_policy_mismatch rejected 19ms expected @ccf1a63b5e21+wt
+	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_nominal_alias_mismatch rejected 24ms expected @ccf1a63b5e21+wt
+	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_nominal_alias_nested_mismatch rejected 20ms expected @ccf1a63b5e21+wt
+	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_nominal_alias_unused_mismatch rejected 24ms expected @ccf1a63b5e21+wt
+	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_nominal_array_alias_mismatch rejected 36ms expected @ccf1a63b5e21+wt
+	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_nominal_array_match_literal_mismatch rejected 37ms expected @ccf1a63b5e21+wt
+	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_nominal_call_mismatch rejected 21ms expected @ccf1a63b5e21+wt
+	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_nominal_match_mismatch rejected 25ms expected @ccf1a63b5e21+wt
+	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_nominal_match_skipped_mismatch rejected 21ms expected @ccf1a63b5e21+wt
+	constant initializer: constant initializer result does not match its declared carrier
+fail/modules/selected_constant_nominal_record_match_field_mismatch rejected 23ms expected @ccf1a63b5e21+wt
+	constant initializer: constant initializer result does not match its declared carrier
 fail/modules/unused_scalar_constant_range rejected 12ms expected @2d8ed253669f
 	module scalar constant `VALUE` is invalid: const value `256` does not fit `u8`
 fail/modules/use_unresolved_path rejected 0ms expected @2d8ed253669f
@@ -3932,6 +3952,16 @@ pass/modules/runtime_named_constant_array_extent_exit checked 2684ms check-targe
 pass/modules/runtime_named_extent_generic_copy_exit checked 2650ms check-target:macos_arm64 @226c4c4b57b1+wt
 pass/modules/runtime_qualified_static_mutation_exit checked 601ms check-target:macos_arm64 @e0a76f438a35+wt
 pass/modules/same_name_requirement_field_calls_exit checked 4720ms check-target:macos_arm64 @c4e45d3dda38+wt
+pass/modules/selected_constant_array_alias_match_qualification checked 1206ms @ccf1a63b5e21+wt
+pass/modules/selected_constant_array_alias_qualification checked 1206ms @ccf1a63b5e21+wt
+pass/modules/selected_constant_array_alias_wrapping checked 1168ms @ccf1a63b5e21+wt
+pass/modules/selected_constant_nominal_alias checked 1264ms @ccf1a63b5e21+wt
+pass/modules/selected_constant_nominal_alias_process_exit checked 7386ms check-target:linux_x86_64 @ccf1a63b5e21+wt
+pass/modules/selected_constant_nominal_array_alias checked 1364ms @ccf1a63b5e21+wt
+pass/modules/selected_constant_nominal_call checked 1654ms @ccf1a63b5e21+wt
+pass/modules/selected_constant_nominal_generic_match_literal checked 792ms @ccf1a63b5e21+wt
+pass/modules/selected_constant_nominal_match checked 922ms @ccf1a63b5e21+wt
+pass/modules/selected_constant_nominal_record_match_field checked 892ms @ccf1a63b5e21+wt
 pass/modules/use_imports_sibling_trait checked 282ms @2d8ed253669f
 pass/objc/gui_provider_substitution checked 343ms @2d8ed253669f
 pass/objc/native_gui_loop checked 1557ms @2d8ed253669f

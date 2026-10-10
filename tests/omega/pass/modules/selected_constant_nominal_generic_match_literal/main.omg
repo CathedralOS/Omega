@@ -1,0 +1,3 @@
+data Box<T [copy]> [copy] {value:T;}
+const VALUE:Box<u64> =match true{true->Box{value:7u64},false->Box{value:7u64}};
+machine main(){}

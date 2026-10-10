@@ -1,0 +1,3 @@
+const SOURCE:[u8 in Wrapping;1]=[3];
+const ALIAS:[u8 in Wrapping;1]=SOURCE;
+machine main(){}

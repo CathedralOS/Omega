@@ -1,0 +1,4 @@
+module foreign;
+pub data Token [copy] {value:i32;}
+pub const SELECTED:Token=Token {value:7};
+pub machine get()->Token {SELECTED}

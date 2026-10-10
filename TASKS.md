@@ -4905,8 +4905,13 @@ wait for Cathedral's instruction coverage. The interpreter is
     abstract-carrier constraints over explicit named subjects. Keep alias-owned
     bounds/index tuples
     through `omega-rust/psi/compilation/checking/src/proof_contracts/domains.rs`.
-    Computed payloads cannot establish qualifications; routed constraints need
-    establishment even for unused initializers.
+    Computed payloads cannot establish qualifications. The unused alias in
+    `pending/modules/selected_constant_array_alias_false_qualification`
+    incorrectly accepts `[3]` as `[u64 [0..=2]; 1]`; establish each routed
+    element qualification separately from carrier correspondence. The valid
+    `pending/modules/selected_constant_array_alias_named_extent` stops at
+    `initializer selected a dependency without an evaluated value`; retain the
+    evaluated extent's dependency readiness through array alias probes.
   - Constant invocations share **CRASH-CONTRACT** / **OPERATOR-MACHINE-SUPPLY**
     premise transport through
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`.
@@ -4914,7 +4919,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     evidence; value-changing casts, call-produced projections and unknown
     origins keep conservative crash ceilings.
 
-  Acceptance: `tests/omega/pass/modules/{qualified_declarations,qualified_constants,match_constant_indices,nominal_constant_bodies,module_array_constant_indices,runtime_foreign_generic_scoped_constant_exit,runtime_qualified_static_mutation_exit}`
+  Acceptance: `tests/omega/pass/modules/{qualified_declarations,qualified_constants,match_constant_indices,nominal_constant_bodies,module_array_constant_indices,selected_constant_nominal_alias_process_exit,runtime_foreign_generic_scoped_constant_exit,runtime_qualified_static_mutation_exit}`
   and `python tools/corpus_gate.py --filter modules/` stay green. Anonymous
   owners: one std owner in a diamond; distinct root/core/library owners; stable
   identity after relocation, rebuild and cache deletion; changed semantic inputs

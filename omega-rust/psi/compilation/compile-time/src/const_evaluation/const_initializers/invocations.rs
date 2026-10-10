@@ -1,4 +1,4 @@
-//! Ordinary scalar calls share checked admission and the hermetic interpreter.
+//! Constant invocations share checked admission and the hermetic interpreter.
 //!
 //! The scalar evaluator owns expression order and anonymous landing. This owner
 //! only crosses the call boundary: validate every authored argument before any
@@ -7,6 +7,12 @@
 //! body/type and crash evidence missing from the pre-resolution syntax forest.
 //! Neither a temporary constant placeholder nor an empty service row establishes
 //! that evidence. The caller must first close the declaration dependency graph.
+//!
+//! Structured probes also retain the selected result carrier before interpretation.
+//! Materialization writes into the declared destination; equal encoded payloads
+//! cannot authorize changing a nominal owner. Evaluation and receiving replay
+//! therefore share the same declaration-backed result check. Scalar probes keep
+//! their exact evaluator rather than acquiring runtime return-range obligations.
 
 use std::sync::Arc;
 
@@ -781,11 +787,150 @@ impl Invocation<'_> {
         Err("typed probe lost its expression return".into())
     }
 
+    /// Establish the selected structured result independently of its destination.
+    /// These private probes return a value, including a hoisted call temporary;
+    /// unrelated local initializers and call arguments are not return values.
+    fn require_result_carrier(&self) -> Result<(), String> {
+        let typed = self.program.typed();
+        let mut returns_value = false;
+        for statement in typed.statement_table.statements(self.state.statement_nodes) {
+            let Some(transition) = statement.as_transition() else {
+                continue;
+            };
+            for target in [transition.target, transition.continuation] {
+                if matches!(
+                    typed.statement_table.transition_target(target),
+                    typed_trees::statement::TransitionTargetNode::Named { .. }
+                ) {
+                    return Err("typed initializer probe changed its value return".into());
+                }
+                let typed_trees::statement::TransitionTargetNode::Value(expression) =
+                    typed.statement_table.transition_target(target)
+                else {
+                    continue;
+                };
+                returns_value = true;
+                self.require_structured_expression_carrier(*expression, self.state.return_type)?;
+            }
+        }
+        if !returns_value {
+            return Err("typed initializer probe lost its value return".into());
+        }
+        Ok(())
+    }
+
+    /// Every selected arm and constructed member owes its own carrier. Two arms
+    /// can forget different qualifications without having a common existing type
+    /// reference; checking each actual avoids guessing a result from the destination.
+    /// Primitive components retain the existing concrete scalar admission, including
+    /// anonymous landing and proven stores. This check supplies no membership proof.
+    fn require_structured_expression_carrier(
+        &self,
+        expression: ExpressionHandle,
+        destination: typed_trees::types::TypeReferenceHandle,
+    ) -> Result<(), String> {
+        let typed = self.program.typed();
+        if typed.primitive_type_reference(destination).is_some() {
+            return Ok(());
+        }
+        let carrier = typed
+            .type_reference_table
+            .unconstrained_type_reference(destination);
+        match typed.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                let arms = typed.expression_table.match_arms(dispatch.arms);
+                if arms.is_empty() {
+                    return Err("constant initializer lost its selected result carrier".into());
+                }
+                for arm in arms {
+                    self.require_structured_expression_carrier(arm.value, destination)?;
+                }
+                return Ok(());
+            }
+            ExpressionNode::ArrayLiteral(elements) => {
+                // Substitution can retain a declared array's carrier on literal
+                // syntax. Keep that receipt before checking constructed children.
+                if let Some(actual) = validation::expression_result_type_reference(
+                    typed,
+                    self.machine,
+                    self.state,
+                    expression,
+                ) && !result_carriers_match(typed, actual, destination)
+                {
+                    return Err(
+                        "constant initializer result does not match its declared carrier".into(),
+                    );
+                }
+                let typed_trees::types::TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                } = typed.type_reference_table.type_reference(carrier)
+                else {
+                    return Err(
+                        "constant initializer result does not match its declared carrier".into(),
+                    );
+                };
+                let values = typed.expression_table.expression_handles(*elements);
+                if values.len() != elements.len() || values.len() != *length {
+                    return Err(
+                        "constant initializer result does not match its declared carrier".into(),
+                    );
+                }
+                for value in values {
+                    self.require_structured_expression_carrier(*value, *element_type)?;
+                }
+                return Ok(());
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                if typed
+                    .closed_data_constructor_definition(carrier, literal.type_symbol)
+                    .is_none()
+                {
+                    return Err(
+                        "constant initializer result does not match its declared carrier".into(),
+                    );
+                }
+                for field in typed.expression_table.struct_fields(literal.fields) {
+                    let field_type = validation::selected_construction_field_type(
+                        typed,
+                        literal,
+                        field.field_symbol,
+                    )
+                    .or_else(|| {
+                        typed
+                            .closed_data_member_field(
+                                carrier,
+                                field.field_symbol,
+                                field.name.as_str(),
+                            )
+                            .map(|field| field.type_reference)
+                    })
+                    .ok_or("constant initializer lost its selected construction field")?;
+                    self.require_structured_expression_carrier(field.value, field_type)?;
+                }
+                return Ok(());
+            }
+            _ => {}
+        }
+        let actual = validation::expression_result_type_reference(
+            typed,
+            self.machine,
+            self.state,
+            expression,
+        )
+        .ok_or("constant initializer lost its selected result carrier")?;
+        if !result_carriers_match(typed, actual, destination) {
+            return Err("constant initializer result does not match its declared carrier".into());
+        }
+        Ok(())
+    }
+
     /// Interpret this probe machine under the common invocation floor. When
     /// the probe's call closure carries an authored `requires` premise, the
     /// per-call concrete discharge evidence produced while admitting each
     /// authored call is what allows the premise-discharge entry point here.
     fn interpret(&self, reference: source::SourceSpan) -> Result<BuildTimeValue, String> {
+        self.require_result_carrier()?;
         let typed = self.program.typed();
         let custody = BuildTimeInvocationCustody::Source(reference);
         if self
@@ -945,6 +1090,59 @@ impl Invocation<'_> {
             self.check_call(call)?;
         }
         Ok((self.interpret(reference)?, self.state.return_type))
+    }
+}
+
+/// Compare already selected closed carriers before payload materialization.
+/// Ordinary semantic identity retains applications and arithmetic policies;
+/// exact closed declarations additionally prevent equal visible paths from
+/// merging distinct owners in this compilation. Array elements keep that same
+/// owner check recursively. Qualification establishment remains independent.
+fn result_carriers_match(
+    typed: &TypedTrees,
+    actual: typed_trees::types::TypeReferenceHandle,
+    destination: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    if let (Some(actual_primitive), Some(destination_primitive)) = (
+        typed.primitive_type_reference(actual),
+        typed.primitive_type_reference(destination),
+    ) {
+        return actual_primitive == destination_primitive
+            && typed.arithmetic_domain_for_type_reference(actual)
+                == typed.arithmetic_domain_for_type_reference(destination);
+    }
+    let actual = typed
+        .type_reference_table
+        .unconstrained_type_reference(actual);
+    let destination = typed
+        .type_reference_table
+        .unconstrained_type_reference(destination);
+    if let (
+        typed_trees::types::TypeReferenceNode::FixedArray {
+            element_type: actual_element,
+            length: actual_length,
+        },
+        typed_trees::types::TypeReferenceNode::FixedArray {
+            element_type: destination_element,
+            length: destination_length,
+        },
+    ) = (
+        typed.type_reference_table.type_reference(actual),
+        typed.type_reference_table.type_reference(destination),
+    ) {
+        return actual_length == destination_length
+            && result_carriers_match(typed, *actual_element, *destination_element);
+    }
+    if typed.normalized_type_identity(actual) != typed.normalized_type_identity(destination) {
+        return false;
+    }
+    match (
+        typed.closed_data_definition(actual),
+        typed.closed_data_definition(destination),
+    ) {
+        (Some(actual), Some(destination)) => actual.symbol == destination.symbol,
+        (None, None) => true,
+        _ => false,
     }
 }
 

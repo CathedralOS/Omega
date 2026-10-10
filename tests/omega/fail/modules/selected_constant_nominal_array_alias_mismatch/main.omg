@@ -1,0 +1,4 @@
+use foreign::ARRAY;
+data Token [copy] {value:u64;}
+const ALIAS:[Token;1]=ARRAY;
+machine main(){}

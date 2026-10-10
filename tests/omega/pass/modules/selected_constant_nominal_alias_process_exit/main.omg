@@ -1,0 +1,18 @@
+use foreign::SELECTED;
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega::language::core::binding;
+
+data Token [copy] {value:i32;}
+const ALIAS:foreign::Token=SELECTED;
+const AGAIN:foreign::Token=ALIAS;
+const CALLED:foreign::Token=foreign::get();
+const MATCHED:foreign::Token=match true {true->AGAIN,false->CALLED};
+const STATUS:i32=MATCHED.value;
+data Indexed<const N:foreign::Token> {value:u8;}
+machine keep(value:Indexed<AGAIN>)->Indexed<SELECTED>{value}
+
+data Main {exit:Binding<ProcessExit>;}
+machine Main::main(main:&mut Main) reaches ProcessExit {
+    main.exit.exit_process(STATUS);
+}
