@@ -4877,3 +4877,8 @@ pass/termination/runtime_nested_borrowed_rank_carrier_exit checked 3317ms check-
 pass/termination/runtime_rank_state_constraint_disjoint_write_exit checked 3365ms check-target:macos_arm64 @83ed80e91feb
 pass/termination/runtime_selected_boundary_requirement_identity_exit checked 3366ms check-target:macos_arm64 @83ed80e91feb
 pass/termination/runtime_selected_requirement_reference_identity_exit checked 3271ms check-target:macos_arm64 @83ed80e91feb
+pass/concurrency/runtime_returned_carrier_suspension_exit checked 3603ms check-target:macos_arm64 @32f04773833e
+fail/borrows/generic_result_keeps_lifetime_source rejected 497ms expected @32f04773833e
+	machine `invalid` returns a view borrowing input `second`, which is not permitted by the declared result lifetime relation
+fail/borrows/generic_result_retains_lifetime_candidates rejected 503ms expected @32f04773833e
+	statement 3 mutates `second` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)

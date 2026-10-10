@@ -690,3 +690,4 @@ pass/termination/runtime_nested_borrowed_rank_carrier_exit built 3503ms exit:0 i
 pass/termination/runtime_rank_state_constraint_disjoint_write_exit built 3505ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/termination/runtime_selected_boundary_requirement_identity_exit built 3576ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/termination/runtime_selected_requirement_reference_identity_exit built 3417ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
+pass/concurrency/runtime_returned_carrier_suspension_exit built 3545ms exit:0 interpreter-exit:0 interpreter:agrees @32f04773833e

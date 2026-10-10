@@ -83,9 +83,26 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         return;
     }
     // Const evaluation can already have retained a declaration with exact
-    // extents and constructor facts. Read that result; do not evaluate it again.
+    // extents and constructor facts. Runtime carrier equality alone is not
+    // enough to reuse its fields: it erases regions inside type arguments.
+    // Compare application identities without inventing a lexical region owner.
+    // If that custody is unavailable, elaborate this occurrence's own telescope
+    // below rather than borrowing a layout-equivalent use's lifetime relation.
     if let Some(instance) = program.closed_data_definition(reference).cloned()
-        && instance.generic_instance.is_some()
+        && let Some(origin) = instance.generic_instance
+        && let Some(identity) = typed_trees::type_identity::applied_type_identity(
+            program,
+            reference,
+            SymbolHandle::invalid(),
+            &[],
+        )
+        && typed_trees::type_identity::applied_type_identity(
+            program,
+            origin,
+            SymbolHandle::invalid(),
+            &[],
+        )
+        .is_some_and(|retained| retained == identity)
     {
         program.retain_data_application_definition(reference, instance);
         return;

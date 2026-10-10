@@ -1,5 +1,8 @@
 //! Returned carrier loans are declaration-derived lifetime transfers, not
 //! storage-frame inference. Source selectors and result selectors are distinct.
+//! Resolve the complete producer relation before selecting result leaves, then
+//! translate those leaves into the destination's checked storage paths. Runtime
+//! carrier equality erases regions and cannot equate prepared member symbols.
 use super::is_reference_type;
 use crate::borrow::BorrowOwnerSegment;
 use crate::borrow::loans::StatementBorrowLoan;
@@ -105,9 +108,7 @@ fn completed_field_sources(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Result<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>, usize>> {
     use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
-    use validation::reference_result_custody::{
-        loan_place_segments, returned_reference_sources,
-    };
+    use validation::reference_result_custody::{loan_place_segments, returned_reference_sources};
 
     let (machine, state) = validation::find_state(program, target)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -210,8 +211,62 @@ pub(super) fn result_loans(
     statement_index: usize,
     machine_symbol: SymbolHandle,
     local_data: &checked_trees::statement::TableLocalData,
-    mut expression: ExpressionHandle,
+    expression: ExpressionHandle,
     owner_path: &[BorrowOwnerSegment],
+    loan_trackers: &[StateLoanTracker],
+) -> Option<Vec<StatementBorrowLoan>> {
+    let mut loans = relative_result_loans(
+        program,
+        state_symbol,
+        statement_index,
+        machine_symbol,
+        local_data,
+        expression,
+        loan_trackers,
+    )?;
+    // Project the produced value first, then join its surviving leaves to the
+    // destination. Region-bearing applications and runtime-equivalent carriers
+    // can retain different member symbols; only checked structural paths bridge
+    // those namespaces. Rebasing before projection would erase a selected
+    // returned field's loan because the destination is not its whole carrier.
+    let prefix = crate::borrow::carrier_path(program, local_data.type_reference, owner_path)?;
+    for loan in &mut loans {
+        let mut path = prefix.clone();
+        // These symbols already came from the complete declared result
+        // relation, including evidence-bound call telescopes. Do not ask an
+        // expression-type query to resolve the callable again: its raw result
+        // may still be a template, even though this loan relation is closed.
+        for segment in &loan.owner_path {
+            use checked_trees::CheckedUnitStructuralPathSegment as StructuralSegment;
+            path.push(match segment {
+                BorrowOwnerSegment::Field(symbol) => {
+                    StructuralSegment::Field(program.any_field_owner(*symbol)?.1.path_identity())
+                }
+                BorrowOwnerSegment::Case(symbol) => {
+                    StructuralSegment::Case(program.variant_owner(*symbol)?.1.path_identity())
+                }
+                BorrowOwnerSegment::FixedIndex(element_index) => {
+                    StructuralSegment::FixedIndex(u64::try_from(*element_index).ok()?)
+                }
+                BorrowOwnerSegment::DynamicIndex => return None,
+            });
+        }
+        loan.owner_path = validation::reference_result_custody::loan_owner_path(
+            program,
+            local_data.type_reference,
+            &path,
+        )?;
+    }
+    Some(loans)
+}
+
+pub(super) fn relative_result_loans(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+    mut expression: ExpressionHandle,
     loan_trackers: &[StateLoanTracker],
 ) -> Option<Vec<StatementBorrowLoan>> {
     let mut access_limits = Vec::new();
@@ -219,14 +274,13 @@ pub(super) fn result_loans(
         let call = match program.expression_table.expression(expression) {
             checked_trees::expression::ExpressionNode::Call(call) => call,
             checked_trees::expression::ExpressionNode::Indexed(indexed) => {
-                let loans = result_loans(
+                let loans = relative_result_loans(
                     program,
                     state_symbol,
                     statement_index,
                     machine_symbol,
                     local_data,
                     indexed.collection,
-                    &[],
                     loan_trackers,
                 )?;
                 let index = program
@@ -246,23 +300,20 @@ pub(super) fn result_loans(
                             [BorrowOwnerSegment::DynamicIndex, suffix @ ..] => suffix,
                             _ => return None,
                         };
-                        let mut path = owner_path.to_vec();
-                        path.extend_from_slice(suffix);
-                        loan.owner_path = path;
+                        loan.owner_path = suffix.to_vec();
                         Some(loan)
                     })
                     .collect();
                 return Some(limit_access(loans, &access_limits));
             }
             checked_trees::expression::ExpressionNode::Member(member) => {
-                let loans = result_loans(
+                let loans = relative_result_loans(
                     program,
                     state_symbol,
                     statement_index,
                     machine_symbol,
                     local_data,
                     member.receiver,
-                    &[],
                     loan_trackers,
                 )?;
                 // The loan follows the selected value, not a syntactic place
@@ -294,9 +345,7 @@ pub(super) fn result_loans(
                             }
                             _ => return None,
                         };
-                        let mut path = owner_path.to_vec();
-                        path.extend_from_slice(suffix);
-                        loan.owner_path = path;
+                        loan.owner_path = suffix.to_vec();
                         Some(loan)
                     })
                     .collect();
@@ -324,7 +373,7 @@ pub(super) fn result_loans(
                     machine_symbol,
                     local_data,
                     call,
-                    owner_path,
+                    &[],
                     loan_trackers,
                 );
                 // The call's completed result carries these leaves. Its
@@ -373,7 +422,7 @@ pub(super) fn argument_loans(
     local_data: &checked_trees::statement::TableLocalData,
     argument: ExpressionHandle,
     field: &ViewReturnFieldSource,
-    owner_path_prefix: &[BorrowOwnerSegment],
+    result_owner_path: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     carried_arguments: &mut Vec<(usize, Vec<StatementBorrowLoan>)>,
@@ -415,9 +464,7 @@ pub(super) fn argument_loans(
     carried
         .into_iter()
         .map(|mut loan| {
-            let mut owner_path = owner_path_prefix.to_vec();
-            owner_path.extend(field.owner_path.iter().copied());
-            loan.owner_path = owner_path;
+            loan.owner_path = result_owner_path.to_vec();
             // A result's declared exclusivity cannot promote a captured shared loan.
             if matches!(
                 field.kind,

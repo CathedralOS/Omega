@@ -5362,6 +5362,11 @@ wait for Cathedral's instruction coverage. The interpreter is
     `runtime_array_loan_suspension_exit` (0) for a lent descriptor array and
     both backing roots, followed by an ordinary runtime-selected referent read;
     this inline-completion control still needs physical park/resume preservation.
+    Keep `runtime_returned_carrier_suspension_exit` (0) for declared lifetime
+    frontiers through generic returned carriers, nested construction and result
+    projection; it also remains an inline-completion control. Keep
+    `fail/borrows/generic_result_{keeps_lifetime_source,retains_lifetime_candidates}`
+    for unrelated-source rejection and the complete declared candidate union.
     Keep `fail/concurrency/suspend_reference_array_backing_write` for the
     array's retained sibling loan after one leaf is observed. Keep
     `fail/concurrency/suspend_retained_loan_conflicting_backing_write` for

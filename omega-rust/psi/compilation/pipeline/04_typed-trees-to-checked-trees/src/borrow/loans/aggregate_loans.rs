@@ -267,6 +267,8 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
     sources
         .into_iter()
         .flat_map(|(field, projection)| {
+            let mut owner_path = owner_path_prefix.to_vec();
+            owner_path.extend(field.owner_path.iter().copied());
             let Some(argument) = arguments.get(field.parameter_index).copied() else {
                 return Vec::new();
             };
@@ -279,26 +281,24 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
                     local_data,
                     argument,
                     &field,
-                    owner_path_prefix,
+                    &owner_path,
                     loan_trackers,
                     &substitutions,
                     &mut carried_arguments,
                 );
             }
-            let mut owner_path = owner_path_prefix.to_vec();
-            owner_path.extend(field.owner_path.iter().copied());
-            if let Some(mut loans) = super::returned_carriers::result_loans(
+            if let Some(mut loans) = super::returned_carriers::relative_result_loans(
                 program,
                 state_symbol,
                 statement_index,
                 machine_symbol,
                 local_data,
                 argument,
-                &owner_path,
                 loan_trackers,
             ) {
                 super::returned_carriers::attenuate(&mut loans, &field.kind);
                 for loan in &mut loans {
+                    loan.owner_path = owner_path.clone();
                     loan.place.segments.extend_from_slice(&projection);
                 }
                 return loans;
@@ -318,13 +318,11 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
                 .map(|source| {
                     let mut place = source.place.clone();
                     place.segments.extend_from_slice(&projection);
-                    let mut owner_path = owner_path_prefix.to_vec();
-                    owner_path.extend(field.owner_path.iter().copied());
                     StatementBorrowLoan {
                         formation_expression: argument,
                         owner_symbol: local_data.symbol,
                         owner_name: local_data.name.clone(),
-                        owner_path,
+                        owner_path: owner_path.clone(),
                         place,
                         source_owner_symbol: source.source_owner_symbol,
                         supplying_loan: Default::default(),

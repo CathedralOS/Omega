@@ -1,0 +1,1 @@
+mutates `second` while local borrow `selected` is still active

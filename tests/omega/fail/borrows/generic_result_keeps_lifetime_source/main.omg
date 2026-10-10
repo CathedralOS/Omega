@@ -1,0 +1,8 @@
+data Envelope<T> { payload: T; }
+
+machine invalid<'first, 'second>(first: &'first i32, second: &'second i32)
+-> Envelope<&'first i32> {
+    Envelope { payload: second }
+}
+
+machine main() {}
