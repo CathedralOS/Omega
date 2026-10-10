@@ -313,18 +313,8 @@ const fn procedure_target_section(target: ElfProcedureLinkageSemanticTarget) -> 
     }
 }
 
-const fn dynamic_target_section(target: ElfDynamicAddressTarget) -> u32 {
-    match target {
-        ElfDynamicAddressTarget::ProcedureGot => 9,
-        ElfDynamicAddressTarget::SystemVHash => 4,
-        ElfDynamicAddressTarget::GnuHash => 7,
-        ElfDynamicAddressTarget::DynamicString => 2,
-        ElfDynamicAddressTarget::DynamicSymbol => 3,
-        ElfDynamicAddressTarget::ProcedureRelocation => 10,
-        ElfDynamicAddressTarget::GnuSymbolVersion => 5,
-        ElfDynamicAddressTarget::GnuVersionRequirement => 6,
-        ElfDynamicAddressTarget::GeneralRelocation => 11,
-    }
+fn dynamic_target_section(target: ElfDynamicAddressTarget) -> u32 {
+    crate::dynamic_executable::load_placement::resolved_dynamic_table::target_section_index(target)
 }
 
 fn validate_candidate(

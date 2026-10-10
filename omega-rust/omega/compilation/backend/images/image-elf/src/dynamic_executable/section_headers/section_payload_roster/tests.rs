@@ -9,12 +9,8 @@ use super::{
 };
 use crate::plan_elf_dynamic_link_inputs;
 use arena::Handle;
-use image::{
-    FinalImage, FinalImageMemory,
-};
-use target::{
-    TargetProfile, normalize_elf_interpreter_plan,
-};
+use image::{FinalImage, FinalImageMemory};
+use target::{TargetProfile, normalize_elf_interpreter_plan};
 
 #[derive(Clone, Copy)]
 struct ImportFixture {
@@ -56,8 +52,14 @@ fn headers(
     );
     for (index, fixture) in imports.iter().enumerate() {
         let symbol_handle = crate::test_support::insert_import_fixture(
-            &mut image, "__omega_payload_roster_import_", index, fixture.object, fixture.symbol,
-            fixture.version, target, "valid payload-roster locator",
+            &mut image,
+            "__omega_payload_roster_import_",
+            index,
+            fixture.object,
+            fixture.symbol,
+            fixture.version,
+            target,
+            "valid payload-roster locator",
         );
         crate::test_support::insert_text_call_relocations(
             &mut image,
