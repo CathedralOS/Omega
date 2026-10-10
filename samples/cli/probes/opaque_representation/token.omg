@@ -1,0 +1,13 @@
+// Opaque Token representation for the probe package: a
+// boundary data carrier whose byte-level view is
+// TokenBytes, authorized by the named satisfies.
+
+use omega::language::core::representation;
+
+pub boundary data Token;
+
+pub data TokenBytes [copy] {
+    value: u64;
+}
+
+pub TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }
