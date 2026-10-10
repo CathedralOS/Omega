@@ -179,18 +179,8 @@ impl TerminalExecution<'_> {
                 } else {
                     signature.multiplicity
                 },
-                self.live_claims
-                    .values()
-                    .filter(|live| live.place == Some(*source))
-                    .map(|live| live.path.as_slice()),
-                &|current| {
-                    crate::structural_inputs::case_membership::stored_case_at_projection(
-                        &self.program.structural_types(),
-                        self.structural_values.get(&current.place)?,
-                        &self.structural_cases,
-                        &current.path,
-                    )
-                },
+                self.live_claim_paths_at(*source),
+                &|current| self.stored_case_at_discard(&self.structural_values, current),
             )?;
             if self
                 .live_affine_frontier

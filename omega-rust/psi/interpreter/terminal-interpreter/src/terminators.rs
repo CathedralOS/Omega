@@ -43,6 +43,33 @@ struct SelectedSuccessor<'edge> {
 }
 
 impl TerminalExecution<'_> {
+    /// Claim paths under one live place — every terminator-side frontier
+    /// walk reads the same projection.
+    fn live_claim_paths_at(
+        &self,
+        place: PlaceId,
+    ) -> impl Iterator<Item = &[StructuralPathSegment]> + '_ {
+        self.live_claims
+            .values()
+            .filter(move |claim| claim.place == Some(place))
+            .map(|claim| claim.path.as_slice())
+    }
+
+    /// The stored case at one discard's projection — the membership lookup
+    /// every terminator-side frontier and exclusion call passes in.
+    fn stored_case_at_discard(
+        &self,
+        structural_values: &BTreeMap<PlaceId, crate::values::TerminalStructuralValue>,
+        discard: &StructuralAffineDiscard,
+    ) -> Option<semantic_vocabulary::StructuralCaseId> {
+        crate::structural_inputs::case_membership::stored_case_at_projection(
+            &self.program.structural_types(),
+            structural_values.get(&discard.place)?,
+            &self.structural_cases,
+            &discard.path,
+        )
+    }
+
     /// Consumes a projected structural argument against this execution's
     /// program catalogs and live frontier — the shape every terminator-side
     /// affine consumption shares.

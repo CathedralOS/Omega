@@ -427,17 +427,9 @@ impl TerminalExecution<'_> {
                             argument.place,
                             parameter.structural_type,
                             parameter.multiplicity,
-                            self.live_claims
-                                .values()
-                                .filter(|claim| claim.place == Some(argument.place))
-                                .map(|claim| claim.path.as_slice()),
+                            self.live_claim_paths_at(argument.place),
                             &|current| {
-                                crate::structural_inputs::case_membership::stored_case_at_projection(
-                                    &self.program.structural_types(),
-                                    self.structural_values.get(&current.place)?,
-                                    &self.structural_cases,
-                                    &current.path,
-                                )
+                                self.stored_case_at_discard(&self.structural_values, current)
                             },
                         )?;
                         if self
@@ -781,14 +773,7 @@ impl TerminalExecution<'_> {
             claims
                 .values()
                 .filter_map(|claim| claim.place.map(|place| (place, claim.path.as_slice()))),
-            &|current| {
-                crate::structural_inputs::case_membership::stored_case_at_projection(
-                    &self.program.structural_types(),
-                    structural.get(&current.place)?,
-                    &self.structural_cases,
-                    &current.path,
-                )
-            },
+            &|current| self.stored_case_at_discard(&structural, current),
         )?;
         let mut element_views = self.bind_element_view_arguments(
             descriptor_parameters,

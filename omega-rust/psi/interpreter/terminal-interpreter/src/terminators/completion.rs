@@ -186,18 +186,8 @@ impl TerminalExecution<'_> {
                     result.place,
                     result.structural_type,
                     result.multiplicity,
-                    self.live_claims
-                        .values()
-                        .filter(|claim| claim.place == Some(result.place))
-                        .map(|claim| claim.path.as_slice()),
-                    &|current| {
-                        crate::structural_inputs::case_membership::stored_case_at_projection(
-                            &self.program.structural_types(),
-                            self.structural_values.get(&current.place)?,
-                            &self.structural_cases,
-                            &current.path,
-                        )
-                    },
+                    self.live_claim_paths_at(result.place),
+                    &|current| self.stored_case_at_discard(&self.structural_values, current),
                 )?;
                 if carried
                     .iter()
