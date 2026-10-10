@@ -193,7 +193,7 @@ pub(in crate::checks::contracts) fn value_proves_qualification_in_contexts(
     // Numeric field domains use the same contextual proof as nominal call
     // arguments; requiring only an existing membership token would reject a
     // construction whose scalar value already establishes the predicate.
-    if typed_trees::domain::supports_symbol_only_proof(program, domain)
+    if typed_trees::domain::has_symbol_only_proof(program, domain)
         && subject.as_ref().is_some_and(|subject| {
             super::super::prover::prove_domain_at_place(
                 program,
@@ -226,7 +226,7 @@ pub(super) fn value_proves_domain_in_contexts(
     domain_symbol: SymbolHandle,
     contexts: &[facts::FactContextHandle],
 ) -> bool {
-    if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
+    if !typed_trees::domain::has_symbol_only_proof(program, domain_symbol) {
         return false;
     }
     if validation::field_domains::string_literal_expression_grants_domain(
@@ -334,7 +334,7 @@ pub(super) fn value_proves_domain_in_contexts(
                 facts::domain_membership_symbol_pattern!(domain_symbol) => domain_symbol,
                 _ => return false,
             };
-            if !typed_trees::domain::supports_symbol_only_proof(program, fact_domain) {
+            if !typed_trees::domain::has_symbol_only_proof(program, fact_domain) {
                 return false;
             }
             if !facts.semantic.domain_implies(fact_domain, domain_symbol)

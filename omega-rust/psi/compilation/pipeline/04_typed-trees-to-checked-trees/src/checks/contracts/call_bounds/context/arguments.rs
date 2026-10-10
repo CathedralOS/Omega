@@ -6,7 +6,7 @@ use super::{
     CheckFacts, ExpressionHandle, ExpressionNode, PrimitiveType,
     StateParameter, SymbolHandle, TypeReferenceHandle,
 };
-use crate::checks::contracts::call_bounds::context::comparison_is_supported;
+use crate::checks::contracts::call_bounds::context::comparison_is_admitted;
 use crate::checks::contracts::call_bounds::context::direct_parameter;
 use crate::checks::contracts::call_bounds::context::fixed_parameter_type;
 use numerics::arithmetic::ArithmeticDomain;
@@ -115,7 +115,7 @@ fn operand_effects_are_known(
         }
         ExpressionNode::Binary(_) => {
             primitive_type(program, facts, owner, parameters, expression).is_some()
-                || comparison_is_supported(program, facts, owner, parameters, expression)
+                || comparison_is_admitted(program, facts, owner, parameters, expression)
         }
         _ => false,
     }

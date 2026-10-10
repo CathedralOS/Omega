@@ -35,7 +35,7 @@ pub(super) fn validate(
         return;
     };
 
-    if calls::unit_statement_call_is_supported(program, machine, state, *expression) {
+    if calls::unit_statement_call_is_admitted(program, machine, state, *expression) {
         // The call signature owns Unit's result. Its evaluated operands still
         // owe arithmetic formation, whose decisions leave this walk together.
         arithmetic_domains::validate_value_range_retaining_decisions(

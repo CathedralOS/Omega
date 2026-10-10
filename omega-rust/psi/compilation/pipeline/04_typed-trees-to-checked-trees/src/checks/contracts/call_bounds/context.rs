@@ -223,7 +223,7 @@ fn prove(
             Some(binding(parameter.symbol, parameter.symbol, primitive))
         })
         .collect::<Vec<_>>();
-    if !comparison_is_supported(program, facts, callee.symbol, parameters, goal) {
+    if !comparison_is_admitted(program, facts, callee.symbol, parameters, goal) {
         return None;
     }
     // Each obligation uses only its own formal operands. An unrelated actual
@@ -310,7 +310,7 @@ fn prove(
         })
         .flat_map(|expression| true_conjuncts(program, facts, caller.machine_symbol, expression))
         .filter(|expression| {
-            comparison_is_supported(
+            comparison_is_admitted(
                 program,
                 facts,
                 caller.machine_symbol,
@@ -452,7 +452,7 @@ fn direct_parameter<'a>(
         .find(|parameter| parameter.symbol == symbol)
 }
 
-fn comparison_is_supported(
+fn comparison_is_admitted(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     owner: SymbolHandle,
@@ -464,8 +464,8 @@ fn comparison_is_supported(
     };
     if binary.operator == BinaryOperator::And {
         return super::super::prover::has_builtin_operators(program, &facts.operators, expression)
-            && comparison_is_supported(program, facts, owner, parameters, binary.left)
-            && comparison_is_supported(program, facts, owner, parameters, binary.right);
+            && comparison_is_admitted(program, facts, owner, parameters, binary.left)
+            && comparison_is_admitted(program, facts, owner, parameters, binary.right);
     }
     let Some(spelling) = typed_trees::operator::comparison_operator_spelling(binary.operator)
     else {

@@ -3,7 +3,7 @@
 
 use super::*;
 
-pub(in crate::execution::terminal_unit) fn checked_state_contracts_supported(
+pub(in crate::execution::terminal_unit) fn checked_state_contracts_have_plan(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -24,7 +24,7 @@ pub(in crate::execution::terminal_unit) fn checked_state_contracts_supported(
             return contract.binding.is_none()
                 && plan.crash.structural_runtime_requirements().is_some();
         }
-        checked_structural_signature_contract_supported(
+        checked_structural_signature_has_plan(
             program,
             state,
             structural_parameters,
@@ -33,7 +33,7 @@ pub(in crate::execution::terminal_unit) fn checked_state_contracts_supported(
     })
 }
 
-pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract_supported(
+pub(in crate::execution::terminal_unit) fn checked_structural_signature_has_plan(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],

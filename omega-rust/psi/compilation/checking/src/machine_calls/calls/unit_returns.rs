@@ -6,7 +6,7 @@ use language_semantics::declaration_selection::BuildOperation;
 /// expression still has the state's return contract. Call this for a direct
 /// statement root; recursive validators must also retain the current use
 /// position, since a reused handle does not make a nested operand a statement.
-pub fn unit_statement_call_is_supported(
+pub fn unit_statement_call_is_admitted(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -27,12 +27,12 @@ pub fn unit_statement_call_is_supported(
         return false;
     }
     if position + 1 == statements.len() {
-        return unit_return_call_is_supported(program, machine, state, expression);
+        return unit_return_call_is_admitted(program, machine, state, expression);
     }
     call_returns_unit(program, machine, expression)
 }
 
-pub fn unit_return_call_is_supported(
+pub fn unit_return_call_is_admitted(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,

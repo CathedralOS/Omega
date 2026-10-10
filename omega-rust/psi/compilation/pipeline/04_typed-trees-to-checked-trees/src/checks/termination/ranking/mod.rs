@@ -1081,7 +1081,7 @@ fn component_has_proven_decrease<'p>(
     if single_state_self_loop {
         return edges.iter().all(|edge| {
             states.get(edge.from).is_some_and(|source| {
-                state_has_proven_supported_self_loop(
+                state_has_provable_self_loop(
                     program,
                     machine,
                     source,
@@ -1152,7 +1152,7 @@ fn cycle_edge_strictly_decreases(
     found
 }
 
-fn state_has_proven_supported_self_loop<'p>(
+fn state_has_provable_self_loop<'p>(
     program: &'p dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

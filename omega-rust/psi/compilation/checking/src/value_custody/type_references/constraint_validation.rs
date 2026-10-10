@@ -227,7 +227,7 @@ pub(super) fn validate_type_constraints_node(
                         ..
                     }
                 ) && [*minimum, *maximum].into_iter().all(|bound| {
-                    crate::proof_contracts::contract_entailment::const_range_bound_is_supported(
+                    crate::proof_contracts::contract_entailment::const_range_bound_is_admitted(
                         program,
                         type_parameter_scope.type_parameters,
                         bound,

@@ -102,7 +102,7 @@ mod transparent_applications;
 pub use arithmetic_judgment::integer_embedding_sources_equal;
 pub use call_requirements::structural_call_requirement_entailed;
 pub(crate) use const_ranges::{
-    const_range_bound_is_supported, selected_const_call_result_bounds, symbolic_range_contains,
+    const_range_bound_is_admitted, selected_const_call_result_bounds, symbolic_range_contains,
     validate_const_range_call, validate_const_range_call_in_environment,
 };
 pub(crate) use contract_refinement::check_contract_refinement;

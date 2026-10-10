@@ -8,7 +8,7 @@ pub(crate) fn domain_proves_expression_label(
 ) -> bool {
     // Rendering a family predicate cannot substitute its retained indices.
     // Keep this fallback restricted to wholly unindexed proof theories.
-    if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
+    if !typed_trees::domain::has_symbol_only_proof(program, domain_symbol) {
         return false;
     }
     let Some(domain) = program.domain_definition(domain_symbol) else {

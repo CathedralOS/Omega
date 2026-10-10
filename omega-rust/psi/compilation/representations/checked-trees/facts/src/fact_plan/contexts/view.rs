@@ -34,7 +34,7 @@ impl<'facts> FactContextView<'facts> {
         place: PlaceHandle,
         domain_symbol: SymbolHandle,
     ) -> bool {
-        if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
+        if !typed_trees::domain::has_symbol_only_proof(program, domain_symbol) {
             return false;
         }
         self.facts().any(|fact| {
@@ -42,7 +42,7 @@ impl<'facts> FactContextView<'facts> {
                 fact.payload,
                 FactPayload::DomainMembership { domain_symbol: fact_domain, .. }
                     | FactPayload::ContractDomainMembership { domain_symbol: fact_domain, .. }
-                    if typed_trees::domain::supports_symbol_only_proof(program, fact_domain)
+                    if typed_trees::domain::has_symbol_only_proof(program, fact_domain)
                         && self.plan.fact_place_equals(fact.place, place)
                 && self.plan.domain_implies(fact_domain, domain_symbol)
             )
@@ -57,7 +57,7 @@ impl<'facts> FactContextView<'facts> {
     ) -> bool {
         // A declaration-only query cannot select an indexed application. Such
         // obligations must compare the exact retained semantic instance.
-        if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
+        if !typed_trees::domain::has_symbol_only_proof(program, domain_symbol) {
             return false;
         }
         self.facts().any(|fact| {
@@ -71,7 +71,7 @@ impl<'facts> FactContextView<'facts> {
                 _ => return false,
             };
 
-            typed_trees::domain::supports_symbol_only_proof(program, fact_domain)
+            typed_trees::domain::has_symbol_only_proof(program, fact_domain)
                 && self.plan.domain_implies(fact_domain, domain_symbol)
                 && self.plan.places_match(program, fact_place, place)
         })

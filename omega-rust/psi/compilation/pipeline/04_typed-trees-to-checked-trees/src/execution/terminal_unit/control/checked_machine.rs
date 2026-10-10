@@ -11,7 +11,7 @@ use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::statement_sequence::StatementSequence;
 use crate::execution::terminal_unit::providers::checked_provider_attachment_requirements;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, checked_state_contracts_supported, is_unit, machine_binders,
+    ShapeCollector, checked_state_contracts_have_plan, is_unit, machine_binders,
     parameter_storage_plans, return_unit_affine_discards, state_flow,
     type_graph_requires_nominal_drop,
 };
@@ -137,7 +137,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         parameter_storage_plans(program, shapes, state, &binders, &scalar_parameters)?;
     let attachment_type_identity = None;
     trace.phase("state contracts");
-    if !checked_state_contracts_supported(
+    if !checked_state_contracts_have_plan(
         program,
         facts,
         machine.symbol,
