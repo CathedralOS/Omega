@@ -1,1 +1,2 @@
 machine `observe` state `entry` reads write-only parameter `source`
+machine `observe_record` state `entry` reads field `code` from write-only parameter `source`

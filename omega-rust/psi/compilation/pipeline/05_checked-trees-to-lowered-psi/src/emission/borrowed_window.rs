@@ -133,6 +133,47 @@ struct ResolvedWindowPlace {
     hole_type: StructuralTypeId,
     spelling: String,
     restoration_required: bool,
+    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+}
+
+impl ResolvedWindowPlace {
+    /// Opaque predicates on an ancestor cannot be preserved by replacing only
+    /// a descendant. Exact hole memberships move with the hole, while sibling
+    /// memberships are untouched. Geometry alone never establishes a domain.
+    fn selected_memberships(
+        &self,
+        carrier_path: &[StructuralPathSegment],
+    ) -> Result<
+        (
+            Vec<semantic_vocabulary::StructuralDomainId>,
+            Vec<terminal_psi::StructuralPathQualification>,
+        ),
+        LoweringError,
+    > {
+        let mut path = carrier_path.to_vec();
+        if self.field.is_some() {
+            let Some(CheckedUnitStructuralPathSegment::Field(identity)) = self.checked_path.last()
+            else {
+                return Err(unpinned(
+                    &self.spelling,
+                    "the qualified hole lost its field identity",
+                ));
+            };
+            path.push(StructuralPathSegment::Field(identity.clone()));
+        }
+        terminal_psi::StructuralPathQualification::select_restorable(
+            &self.qualifications,
+            &self.projected_qualifications,
+            &path,
+        )
+        .ok_or_else(|| {
+            unpinned(
+                &self.spelling,
+                "field replacement cannot restore an ancestor's qualification",
+            )
+        })
+    }
 }
 
 impl BorrowedWindowLedger {
@@ -304,6 +345,7 @@ impl BorrowedWindowLedger {
         let (source, path) = self.evaluated_place(
             moved, &place, evaluation, values, next_value, next_block, next_edge, operations,
         )?;
+        let (qualifications, projected_qualifications) = place.selected_memberships(&path)?;
         if let Some(absent) = self.open.iter().find(|absent| {
             absent.source == source && paths_overlap(&absent.checked_path, &place.checked_path)
         }) {
@@ -332,8 +374,8 @@ impl BorrowedWindowLedger {
                 place: moved_place,
                 structural_type: place.hole_type,
                 multiplicity: terminal_multiplicity(result.multiplicity),
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
+                qualifications,
+                projected_qualifications,
                 claims: result_claims,
             }),
             OperationKind::MoveStructuralField {
@@ -437,6 +479,40 @@ impl BorrowedWindowLedger {
                 "the repair value's type differs from the type moved out of the place",
             ));
         }
+        let (required, required_projected) = place.selected_memberships(&path)?;
+        let (offered, offered_projected) = parameters
+            .iter()
+            .filter(|parameter| parameter.place == value.place)
+            .map(|parameter| {
+                (
+                    &parameter.qualifications,
+                    &parameter.projected_qualifications,
+                )
+            })
+            .chain(operations.operations.iter().filter_map(|operation| {
+                operation
+                    .result
+                    .structural()
+                    .filter(|result| result.place == value.place)
+                    .map(|result| (&result.qualifications, &result.projected_qualifications))
+            }))
+            .next()
+            .ok_or_else(|| {
+                unpinned(
+                    &place.spelling,
+                    "the repair value has no declared membership source",
+                )
+            })?;
+        if !required.iter().all(|domain| offered.contains(domain))
+            || !required_projected
+                .iter()
+                .all(|row| offered_projected.contains(row))
+        {
+            return Err(unpinned(
+                &place.spelling,
+                "the repair value does not restore the hole's exact qualifications",
+            ));
+        }
         runtime_elements::observe_element_extent(
             source,
             place.root_type,
@@ -527,59 +603,69 @@ fn resolve_window_place(
     type_ids: &[(String, StructuralTypeId)],
 ) -> Result<ResolvedWindowPlace, LoweringError> {
     let spelling = spell_place(plan);
-    let (source, root_type, restoration_required) = match plan.source {
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            // Plan coordinates index the retained structural roster. A
-            // composed declaration's `position` belongs to source readers
-            // and may include intervening scalar formals.
-            let parameter = parameters
-                .get(parameter_index as usize)
-                .ok_or_else(|| unpinned(&spelling, "the parameter root is not declared"))?;
-            if parameter.access != StructuralAccess::MutableBorrow {
-                return Err(unpinned(
-                    &spelling,
-                    "the root is not an exclusive `&mut` borrow: shared and write-only loans \
+    let (source, root_type, restoration_required, qualifications, projected_qualifications) =
+        match plan.source {
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                // Plan coordinates index the retained structural roster. A
+                // composed declaration's `position` belongs to source readers
+                // and may include intervening scalar formals.
+                let parameter = parameters
+                    .get(parameter_index as usize)
+                    .ok_or_else(|| unpinned(&spelling, "the parameter root is not declared"))?;
+                if parameter.access != StructuralAccess::MutableBorrow {
+                    return Err(unpinned(
+                        &spelling,
+                        "the root is not an exclusive `&mut` borrow: shared and write-only loans \
                      admit no extraction and owned roots use ordinary partial moves",
-                ));
+                    ));
+                }
+                if !matches!(
+                    parameter.multiplicity,
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                ) {
+                    return Err(unpinned(
+                        &spelling,
+                        "the root carries linear custody the window does not restore",
+                    ));
+                }
+                (
+                    parameter.place,
+                    parameter.structural_type,
+                    true,
+                    parameter.qualifications.clone(),
+                    parameter.projected_qualifications.clone(),
+                )
             }
-            if !parameter.is_unqualified_root() {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                // A window uses the same exclusive destination as an ordinary
+                // field store. Referent traversal below retains the loan carrier;
+                // accepting a local never substitutes its payload for its storage.
+                let root = super::store_destination::local_store_root(
+                    symbol,
+                    &evaluation.structural_locals,
+                    evaluation.structural_root_parameters(),
+                    operations,
+                )
+                .map_err(|error| match error {
+                    LoweringError::Unsupported(reason) => unpinned(&spelling, reason),
+                    error => error,
+                })?;
+                (
+                    root.argument.place,
+                    root.structural_type,
+                    root.argument.access != StructuralAccess::Owned,
+                    root.qualifications.to_vec(),
+                    root.projected_qualifications.to_vec(),
+                )
+            }
+            _ => {
                 return Err(unpinned(
                     &spelling,
-                    "the root carries qualifications or linear custody the window does not \
-                     restore",
+                    "borrowed-storage windows require a mutable-borrowed parameter or an \
+                 established owned or exclusive structural local",
                 ));
             }
-            (parameter.place, parameter.structural_type, true)
-        }
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-            // A window uses the same exclusive destination as an ordinary
-            // field store. Referent traversal below retains the loan carrier;
-            // accepting a local never substitutes its payload for its storage.
-            let root = super::store_destination::local_store_root(
-                symbol,
-                &evaluation.structural_locals,
-                evaluation.structural_root_parameters(),
-                operations,
-            )
-            .map_err(|error| match error {
-                LoweringError::Unsupported(reason) => unpinned(&spelling, reason),
-                error => error,
-            })?;
-            root.require_unqualified()?;
-            (
-                root.argument.place,
-                root.structural_type,
-                root.argument.access != StructuralAccess::Owned,
-            )
-        }
-        _ => {
-            return Err(unpinned(
-                &spelling,
-                "borrowed-storage windows require a mutable-borrowed parameter or an \
-                 established owned or exclusive structural local",
-            ));
-        }
-    };
+        };
     if plan.access != CheckedStructuralAccess::Owned {
         return Err(unpinned(
             &spelling,
@@ -611,6 +697,8 @@ fn resolve_window_place(
             hole_type: root_type,
             spelling,
             restoration_required,
+            qualifications,
+            projected_qualifications,
         });
     }
     let (steps, leaf) =
@@ -663,6 +751,8 @@ fn resolve_window_place(
         hole_type,
         spelling,
         restoration_required,
+        qualifications,
+        projected_qualifications,
     })
 }
 

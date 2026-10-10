@@ -1,36 +1,86 @@
-// COMPILE-ONLY, and named without `_exit`: a qualified linear structural
-// result checks through the claim paths that unqualified results execute
-// natively. `pass` returns its qualified input, so the caller's result
-// continues that input's claim; `issue`'s fresh claim continues into a
-// record field when the result initializes it and again when it reseats the
-// vacated field by assignment. The executable root-result and disposal
-// control is `linear_call_result_claims_exit`; this fixture additionally
-// requires boundary-call realization.
-data Receipt [linear] { code: i32; }
+// Qualification and linear custody survive returned values, construction,
+// projection and reseating. Field reads lend the current owner without
+// forgetting its qualification or consuming the claim acknowledged later.
+use omega::language::core::drop;
 
-domain Receipt::Issued;
+pub data Receipt [linear] { code: i32; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+pub domain Receipt::Issued;
+domain Receipt::Extra(receipt) requires receipt.code >= 0;
+domain Receipt::ExtraIssued = Issued & Extra;
 
-boundary requirement Receipt::ack(receipt: Receipt in Issued);
-
-data Slot { receipt: Receipt in Issued; }
-
-machine pass(receipt: Receipt in Issued) -> Receipt in Issued {
-    receipt
+pub boundary trait Acknowledgement {
+    machine acknowledge(receipt: Receipt in Receipt::Issued);
+}
+Acknowledged satisfies Acknowledgement {
+    machine acknowledge(receipt: Receipt in Receipt::Issued) { drop(receipt); }
 }
 
-machine issue(code: i32) -> Receipt in Issued {
-    let issued: Receipt in Issued = Receipt { code: code };
+data Slot { receipt: Receipt in Receipt::Issued; }
+data Counter [copy] { code: i32; }
+domain Counter::Ready;
+domain Counter::ReadyAlias = Ready;
+data Holder<T> { value: T; }
+
+machine untouched() {}
+
+machine is_zero(counter: &Counter in Counter::Ready) -> bool {
+    counter.code == 0
+}
+
+machine pass(receipt: Receipt in Receipt::Issued) -> Receipt in Receipt::Issued { receipt }
+machine issue(code: i32) -> Receipt in Receipt::Issued {
+    let issued: Receipt in Receipt::Issued = Receipt { code: code };
     issued
 }
 
-machine main() {
-    let fresh: Receipt in Issued = Receipt { code: 6 };
-    let passed: Receipt in Issued = pass(fresh);
-    Receipt::ack(passed);
+machine replace(slot: &mut Slot, replacement: Receipt in Receipt::Issued)
+    reaches Acknowledgement {
+    let previous: Receipt in Receipt::Issued = slot.receipt;
+    slot.receipt = replacement;
+    Acknowledgement::acknowledge(previous);
+}
+
+machine verify(correct: bool) crashes Trap {
+    transition correct { true -> good() _ -> bad() }
+    state good() {}
+    state bad() { crash Trap; }
+}
+
+machine main() reaches Acknowledgement crashes Trap {
+    let zeroed: Counter;
+    let vacuous_zero: Counter in Counter::ReadyAlias;
+    verify(vacuous_zero.code == 0);
+    let counter: Counter in Counter::Ready = Counter { code: 0 };
+    verify(zeroed.code == 0 && is_zero(&counter));
+    let omitted: Counter in Counter::ReadyAlias = Counter {};
+    verify(is_zero(&omitted));
+    let holder: Holder<Counter in Counter::Ready> = Holder { value: counter };
+    verify(holder.value.code == 0);
+    verify(is_zero(&holder.value));
+    untouched();
+    verify(holder.value.code == 0);
+    let fresh: Receipt in Receipt::Issued = Receipt { code: 6 };
+    let passed: Receipt in Receipt::Issued = pass(fresh);
+    verify(passed.code == 6);
+    Acknowledgement::acknowledge(passed);
     let mut slot: Slot = Slot { receipt: issue(1) };
-    let vacated: Receipt in Issued = slot.receipt;
-    Receipt::ack(vacated);
+    verify(slot.receipt.code == 1);
+    let vacated: Receipt in Receipt::Issued = slot.receipt;
+    verify(vacated.code == 1);
+    Acknowledgement::acknowledge(vacated);
     slot.receipt = issue(2);
-    let refilled: Receipt in Issued = slot.receipt;
-    Receipt::ack(refilled);
+    verify(slot.receipt.code == 2);
+    let refilled: Receipt in Receipt::Issued = slot.receipt;
+    verify(refilled.code == 2);
+    Acknowledgement::acknowledge(refilled);
+    slot.receipt = issue(3);
+    replace(&mut slot, issue(4));
+    verify(slot.receipt.code == 4);
+    Acknowledgement::acknowledge(slot.receipt);
+    let stronger: Receipt in Receipt::ExtraIssued = Receipt { code: 5 };
+    let mut stronger_slot: Slot = Slot { receipt: stronger };
+    replace(&mut stronger_slot, issue(6));
+    verify(stronger_slot.receipt.code == 6);
+    Acknowledgement::acknowledge(stronger_slot.receipt);
 }

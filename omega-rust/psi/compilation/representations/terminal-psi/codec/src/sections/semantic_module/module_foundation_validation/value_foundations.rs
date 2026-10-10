@@ -4,9 +4,8 @@
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralFieldType,
-    StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
-    find_structural_case,
+    Operation, OperationKind, OperationResult, StructuralFieldType, StructuralPlaceDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalModule, find_structural_case,
 };
 
 pub(super) fn validate_establish_scalar_array(
@@ -237,8 +236,7 @@ pub(super) fn validate_establish_zeroed_structural(
     if !matches!(
         result.multiplicity,
         terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
+    ) || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()
         || !matches!(

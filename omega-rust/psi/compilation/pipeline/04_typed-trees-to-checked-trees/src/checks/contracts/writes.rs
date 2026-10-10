@@ -75,10 +75,21 @@ pub(super) fn check_domain_field_writes(
                 // initializer: `self in T::Case` and `self.f` membership are
                 // decided by the construction or by live evidence at its
                 // place, never minted by the annotation itself.
-                let predicate_domain = program.domain_definitions().iter().any(|domain| {
-                    domain.symbol == domain_symbol && domain.predicate_body.is_present()
-                });
-                if !(requires_provenance || predicate_domain) {
+                if validation::field_domains::domain_is_vacuous(
+                    program,
+                    domain_symbol,
+                    &mut Vec::new(),
+                ) {
+                    // A predicate-free, route-free domain has a successful
+                    // membership judgment too. Retain that exact initializer
+                    // occurrence; lowering must not infer it from its receiver.
+                    record_qualification(
+                        decisions,
+                        state_flow,
+                        statement_index,
+                        local.initial_value,
+                        semantic_domain,
+                    );
                     continue;
                 }
                 if !value_proves_qualification(

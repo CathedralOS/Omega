@@ -103,8 +103,6 @@ pub(super) fn validate(
             if let Some(parameter) = optimized.structural_parameter(value.place) {
                 if parameter.access != StructuralAccess::Owned
                     || parameter.structural_type != extent.field_type
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -115,8 +113,6 @@ pub(super) fn validate(
                     plan,
                 )?;
                 if home.structural_type() != extent.field_type
-                    || !home.qualifications().is_empty()
-                    || !home.projected_qualifications().is_empty()
                     || home.layout.shape() != extent.shape
                 {
                     return Err(LegalizationError::custody());

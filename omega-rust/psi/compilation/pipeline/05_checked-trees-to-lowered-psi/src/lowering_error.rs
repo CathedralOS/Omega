@@ -16,6 +16,8 @@ use crate::proofs::float_meaning_projection::FloatMeaningProjectionLoweringError
 pub enum LoweringError {
     MachineNotFound(String),
     AmbiguousMachineName(String),
+    /// A closure names storage absent from its retained type catalog.
+    MissingUnitStructuralType(String),
     DebugSourceFileCountOverflow,
     DebugSourceLengthOverflow,
     MissingDebugSourceFile(usize),

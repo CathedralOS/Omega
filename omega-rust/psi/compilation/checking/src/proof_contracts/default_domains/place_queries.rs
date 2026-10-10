@@ -11,6 +11,49 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// Exact declaration provenance, not the absence of an attached data binding.
+/// Inputs arrive under caller checking; initialized locals under construction
+/// checking. Bare local storage has authority only when its complete type
+/// admits zero. Tracked writes/windows take precedence at each consumer.
+pub(super) fn declared_root_established(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    root: symbols::SymbolHandle,
+) -> bool {
+    if !root.is_valid() {
+        return false;
+    }
+    if program.state_parameter_by_symbol(state, root).is_some() {
+        return true;
+    }
+    program
+        .state_local_declaration(state, root)
+        .is_some_and(|(_, local)| {
+            local.initial_value.is_valid()
+                || !crate::value_custody::data::type_requires_establishment(
+                    program,
+                    local.type_reference,
+                )
+        })
+}
+
+/// The resolved storage root of a projection, never a rendered name lookup.
+pub(super) fn expression_root_symbol(
+    program: &dyn crate::CheckingInput,
+    mut expression: ExpressionHandle,
+) -> symbols::SymbolHandle {
+    while expression.is_valid() {
+        expression = match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => return path.head_symbol,
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed) => indexed.collection,
+            ExpressionNode::Borrow(borrow) => borrow.target,
+            _ => break,
+        };
+    }
+    symbols::SymbolHandle::invalid()
+}
+
 /// Render a Name-rooted place (`main.map`, `target`, `local.a`); `None`
 /// for computed receivers. Slice 6: parameter/local roots are tracked too
 /// -- their writes carry the same obligation; only their VALUATION model
@@ -260,7 +303,9 @@ fn data_definition_for_type(
     handle: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
     match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Named { name, .. } => program.data_definition_by_name(name),
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+            program.closed_data_definition(handle)
+        }
         TypeReferenceNode::Reference { referee, .. } => data_definition_for_type(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {
             data_definition_for_type(program, *base_type)

@@ -68,26 +68,26 @@ impl Builder<'_, '_> {
             }
             _ => return None,
         };
-        Some(
-            self.insert(
-                field.primitive_type,
-                CheckedScalarComputationKind::StructuralField {
-                    source_expression: expression,
-                    source_type: field.type_reference,
-                    receiver_value,
-                    subject: CheckedUnitStructuralArgumentPlan {
-                        source,
-                        path: field.path,
-                        type_identity: self
-                            .program
-                            .normalized_type_identity(field.carrier_type_reference)
-                            .into_string(),
-                        access: CheckedStructuralAccess::SharedBorrow,
-                    },
-                    field: field.field,
-                    field_identity: field.field_identity,
+        Some(self.insert(
+            field.primitive_type,
+            CheckedScalarComputationKind::StructuralField {
+                source_expression: expression,
+                source_type: field.type_reference,
+                receiver_value,
+                subject: CheckedUnitStructuralArgumentPlan {
+                    source,
+                    path: field.path,
+                    type_identity: validation::structural_type_identity(
+                        self.program,
+                        field.carrier_type_reference,
+                        &[],
+                        &[],
+                    ),
+                    access: CheckedStructuralAccess::SharedBorrow,
                 },
-            ),
-        )
+                field: field.field,
+                field_identity: field.field_identity,
+            },
+        ))
     }
 }

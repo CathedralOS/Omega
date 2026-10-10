@@ -1,0 +1,11 @@
+// Closed applications keep the same declaration symbol but different children.
+// A zero-valid first child cannot certify a later zero-excluding application.
+data Guarded [copy] { code: i32; }
+domain Guarded::Positive(value) requires value.code > 0;
+data Envelope<T> { value: T; }
+data Context {
+    first: Envelope<i32>;
+    guarded: Envelope<Guarded in Guarded::Positive>;
+}
+
+machine main(context: &mut Context) {}

@@ -1,5 +1,9 @@
 //! Place-rooted structural value production: each root's custody (borrowed,
 //! copied, projected, owned) selects its own establishment path.
+//! All sources publish the stored-carrier identity used by the type registry,
+//! not a second row for ordinary qualification. Exact declared types remain on
+//! nodes and carrier comparisons; descriptors and bounded-byte shapes retain
+//! the shells required by their representation. No lookup grants membership.
 
 use super::super::{Builder, ExpressionHandle, ExpressionNode, PrimitiveType, TypeReferenceNode};
 use super::place_types::{
@@ -141,32 +145,11 @@ impl Builder<'_, '_> {
         if !validation::declared_carriers_match(self.program, projected, expected) {
             return None;
         }
-        // The structural-type registry names a `&[T]` leaf by its borrowed
-        // view carrier — the same identity `add_type` mints for the result —
-        // so a view leaf records its unwrapped referee's identity. Arithmetic
-        // policy likewise changes operations, not storage: owned leaves name
-        // the policy-free carrier registered by ShapeCollector::add_type.
-        // Keep `projected` below and the carrier comparison above qualified
-        // by the declared leaf, never its text.
+        // Copying a leaf lends its stored carrier. Its declared qualification
+        // remains on `projected` and in the comparison above, while descriptors
+        // and bounded-byte shapes follow the same registry rule as owned values.
         let type_identity =
-            if crate::execution::terminal_unit::types::borrowed_slice_view(self.program, projected)
-            {
-                validation::unwrapped_type_reference(self.program, projected).map(|unwrapped| {
-                    self.program
-                        .normalized_type_identity(unwrapped)
-                        .into_string()
-                })
-            } else {
-                None
-            }
-            .unwrap_or_else(|| {
-                self.program
-                    .normalized_type_identity(validation::peel_arithmetic_policy(
-                        self.program,
-                        projected,
-                    ))
-                    .into_string()
-            });
+            validation::stored_structural_type_identity(self.program, projected, &[], &[]);
         Some((
             checked_trees::CheckedUnitStructuralArgumentPlan {
                 source,
@@ -229,10 +212,12 @@ impl Builder<'_, '_> {
         Some(CheckedStructuralValueKind::Projection {
             source,
             path,
-            type_identity: self
-                .program
-                .normalized_type_identity(projected)
-                .into_string(),
+            type_identity: validation::stored_structural_type_identity(
+                self.program,
+                projected,
+                &[],
+                &[],
+            ),
         })
     }
 
@@ -313,10 +298,12 @@ impl Builder<'_, '_> {
             source: checked_trees::CheckedUnitStructuralArgumentPlan {
                 source,
                 path,
-                type_identity: self
-                    .program
-                    .normalized_type_identity(projected)
-                    .into_string(),
+                type_identity: validation::stored_structural_type_identity(
+                    self.program,
+                    projected,
+                    &[],
+                    &[],
+                ),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,
             },
         })
@@ -384,8 +371,12 @@ impl Builder<'_, '_> {
                 local.type_reference,
             )
         };
-        if self.program.normalized_type_identity(reference)
-            != self.program.normalized_type_identity(expected)
+        // Stored carrier identity decides transport. Source checking owns
+        // qualification compatibility (including predicate-only weakening);
+        // the completed source still supplies its actual membership roster.
+        // Keep reference descriptors and representation-bearing shells exact.
+        if validation::stored_structural_type_identity(self.program, reference, &[], &[])
+            != validation::stored_structural_type_identity(self.program, expected, &[], &[])
             || !(validation::has_contents(
                 self.program,
                 reference,
@@ -409,24 +400,12 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        // Sequence storage has its own catalog identity, which ShapeCollector
-        // registers through the shared structural identity rule: a borrowed
-        // view peels its loan and a bounded byte owner keeps its qualification.
-        // The comparison above still requires the complete declared types to
-        // agree.
-        let type_identity = if crate::execution::terminal_unit::types::byte_sequence_carrier(
-            self.program,
-            reference,
-            &[],
-        )
-        .is_some()
-        {
-            validation::structural_type_identity(self.program, reference, &[], &[])
-        } else {
-            self.program
-                .normalized_type_identity(reference)
-                .into_string()
-        };
+        // Every owned value names ShapeCollector's stored carrier namespace.
+        // Qualifications remain on the node and completed source contract,
+        // not as competing storage rows. Stored reference descriptors
+        // and bounded byte owners keep the shells their representation needs.
+        let type_identity =
+            validation::stored_structural_type_identity(self.program, reference, &[], &[]);
         Some(checked_trees::CheckedUnitStructuralArgumentPlan {
             source,
             path: Vec::new(),

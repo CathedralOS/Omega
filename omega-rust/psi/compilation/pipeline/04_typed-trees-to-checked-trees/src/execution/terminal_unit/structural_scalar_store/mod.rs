@@ -951,6 +951,8 @@ fn restores_structural_local(
 
 /// The value is an owned structural parameter read whole: no scalar store
 /// decomposes it — the sequence's bound-value field store plans the move.
+/// Qualification rows stay on the declaration for the window's exact
+/// membership join; their presence cannot turn the value into a scalar.
 fn bound_structural_parameter(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
@@ -984,10 +986,7 @@ fn bound_structural_parameter(
         return false;
     };
     structural_parameters.iter().any(|parameter| {
-        parameter.position == position
-            && parameter.access == CheckedStructuralAccess::Owned
-            && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty()
+        parameter.position == position && parameter.access == CheckedStructuralAccess::Owned
     })
 }
 

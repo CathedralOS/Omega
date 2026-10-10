@@ -105,15 +105,10 @@ pub(super) fn argument(
                     &mut active,
                 )?
             };
-        // A whole owned bounded byte local lends its home's address to a
-        // borrowed bounded-owner formal. Unit validation replayed the formal's
-        // byte predicates from the local's current storage; the qualifications
-        // add no carrier, so the home layout is the loan's whole ABI.
-        let owner_loan = argument.path.is_empty()
-            && abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(
-                declaration,
-                |identity| types.get(&identity).copied(),
-            );
+        // Psi checks the formal's memberships against this exact occurrence.
+        // Borrowing retains the owner's storage and claims; domain rows and
+        // establishment receipts add no address or ABI words. The same layout
+        // join therefore serves every carrier, not only bounded byte owners.
         if argument.access != declaration.access
             || !matches!(
                 argument.access,
@@ -122,15 +117,8 @@ pub(super) fn argument(
                     | StructuralAccess::WriteOnlyBorrow
             )
             || declaration.multiplicity != StructuralMultiplicity::Unrestricted
-            || (!declaration.qualifications.is_empty() && !owner_loan)
-            || !declaration.projected_qualifications.is_empty()
             || projected_type != declaration.structural_type
             || home.access() != StructuralAccess::Owned
-            || (!home.qualifications().is_empty() && !owner_loan)
-            || !home.projected_qualifications().is_empty()
-            || home
-                .operation_result()
-                .is_some_and(|(_, result)| !result.qualification_establishments.is_empty())
             || crate::lowering::structural_layout::internal_parameter_shape(
                 projected_type,
                 projected_shape,

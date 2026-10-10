@@ -8,11 +8,14 @@
 //! that extent from the abstract row and the plan's declarations alone, so the
 //! target rejoin, the legalized projection and the legalized replay each
 //! compare the retained offset and shape with the declared field instead of
-//! trusting the target row. The verified window discipline itself (the move
+//! trusting the target row. The checked window discipline itself (the move
 //! opens restoration debt, nothing observes the hole, the store closes it)
-//! was replayed by the Terminal verifier and optimized-unit ownership replay;
+//! belongs to Psi and the emitted window's sequencing;
 //! it needs no second replay here. A root window (`field: None`, empty path)
 //! names the whole referent of a borrowed-parameter loan at offset zero.
+//! Membership transport is checked against exact selected declaration rows
+//! before physical lowering. Qualifications add no bytes and cannot replace
+//! the independent origin, projection, layout or reference-custody checks here.
 use super::{AbstractOperationPlan, PsiOptimizationFunction};
 use crate::LegalizationError;
 use crate::structural_inputs::structural_reference_input::{self, RuntimeElement};
@@ -72,8 +75,6 @@ pub(in crate::legalization) fn extent(
     let root_type = match root {
         abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
             if parameter.access != StructuralAccess::Owned
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
                 || !function.blocks.iter().any(|candidate| {
                     candidate.id == *block && candidate.structural_parameters.contains(parameter)
                 })
@@ -105,9 +106,6 @@ pub(in crate::legalization) fn extent(
         // An owned completed local home carries no borrowed-window custody;
         // its authority was admitted upstream from the completing producer.
         abstract_operations::StructuralWindowRoot::OwnedResult { result, .. } => {
-            if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
-                return Err(LegalizationError::custody());
-            }
             result.structural_type
         }
     };
@@ -179,10 +177,7 @@ pub(in crate::legalization) fn moved(
     custody: &super::reference_custody::Custody,
 ) -> Result<WindowExtent, LegalizationError> {
     let extent = extent(function, root, path, field, plan, custody)?;
-    if result.structural_type != extent.field_type
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-    {
+    if result.structural_type != extent.field_type {
         return Err(LegalizationError::custody());
     }
     Ok(extent)

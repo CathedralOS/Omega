@@ -3,3 +3,10 @@
 machine observe(source: &write i32) -> i32 {
     source
 }
+
+data Record [copy] { code: i32; }
+domain Record::Ready;
+
+machine observe_record(source: &write Record in Record::Ready) -> i32 {
+    source.code
+}

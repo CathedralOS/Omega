@@ -610,12 +610,13 @@ fn bound_value_source(
             .iter()
             .enumerate()
             .find(|(_, plan)| plan.position == position)?;
-        if parameter.access != CheckedStructuralAccess::Owned
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
+        if parameter.access != CheckedStructuralAccess::Owned {
             return None;
         }
+        // This join selects already-owned storage, not permission to erase
+        // its memberships. The parameter declaration retains those rows;
+        // window emission checks that they satisfy the exact hole's required
+        // memberships before the replacement can be stored.
         // Terminal declarations renumber parameters to their dense
         // structural order: the authored position names the slot here, the
         // dense index names it downstream.

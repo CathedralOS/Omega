@@ -10,8 +10,9 @@
 //! every affected read, independently of entry validity.
 
 use crate::proof_contracts::default_domains::place_queries::{
-    data_definition_for_expression, is_data_rooted, place_spelling_covers, self_place_spelling,
-    transition_evaluated_expressions, write_place_spelling, write_target_index_expressions,
+    data_definition_for_expression, declared_root_established, expression_root_symbol,
+    place_spelling_covers, self_place_spelling, transition_evaluated_expressions,
+    write_place_spelling, write_target_index_expressions,
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
@@ -172,6 +173,30 @@ fn scan_expression_use(
         // also consumes a covering window; a raw scalar projection does not.
         let consumes_record =
             data_definition_for_expression(program, machine, Some(state), expression).is_some();
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Name(_)
+        ) && let Some(definition) =
+            data_definition_for_expression(program, machine, Some(state), expression)
+            && crate::value_custody::data::data_requires_establishment(program, definition)
+        {
+            // Passing or borrowing the whole nominal value cannot bypass the
+            // same establishment gate a projected observation must satisfy.
+            validate_data_read(
+                program,
+                machine,
+                state,
+                definition,
+                &spelling,
+                "<whole value>",
+                expression_root_symbol(program, expression),
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+        }
         let overlaps_consumed_value = |place: &str| {
             place_spelling_covers(&spelling, place)
                 || (consumes_record && place_spelling_covers(place, &spelling))
@@ -347,6 +372,25 @@ fn scan_expression_use(
             );
         }
         ExpressionNode::Borrow(inner) => {
+            if inner.access == language_core::ReferenceAccess::WriteOnly {
+                // An establishment loan exposes storage, not a readable value.
+                // Its formation/forwarding checker owns exact write authority.
+                // Runtime selectors still observe their ordinary operands.
+                for index in write_target_index_expressions(program, inner.target) {
+                    scan_expression_reads(
+                        program,
+                        machine,
+                        state,
+                        index,
+                        tracked,
+                        entry_established,
+                        call_established,
+                        inherited_windows,
+                        diagnostics,
+                    );
+                }
+                return;
+            }
             if let ExpressionNode::Member(member) =
                 program.expression_table.expression(inner.target)
                 && let Some(receiver_spelling) = self_place_spelling(program, member.receiver)
@@ -570,15 +614,11 @@ fn validate_data_read(
         // mutations take precedence and retain their window checks below.
         entry_established
             .iter()
-            .any(|established| established == receiver_spelling)
+            .any(|established| place_spelling_covers(established, receiver_spelling))
             || call_established
                 .iter()
-                .any(|established| established == receiver_spelling)
-            || (receiver_root.is_valid()
-                && program
-                    .state_parameter_by_symbol(state, receiver_root)
-                    .is_some())
-            || !is_data_rooted(data_binding, receiver_spelling)
+                .any(|established| place_spelling_covers(established, receiver_spelling))
+            || declared_root_established(program, state, receiver_root)
     });
     let established = established
         || (data_binding == Some(receiver_spelling)
@@ -624,24 +664,6 @@ fn validate_data_read(
             definition.name.as_str()
         )));
     }
-}
-
-/// The resolved storage root of a projection, without rendering a place or
-/// treating a same-spelled local as the incoming parameter.
-fn expression_root_symbol(
-    program: &dyn crate::CheckingInput,
-    mut expression: ExpressionHandle,
-) -> symbols::SymbolHandle {
-    while expression.is_valid() {
-        expression = match program.expression_table.expression(expression) {
-            ExpressionNode::Name(path) => return path.head_symbol,
-            ExpressionNode::Member(member) => member.receiver,
-            ExpressionNode::Indexed(indexed) => indexed.collection,
-            ExpressionNode::Borrow(borrow) => borrow.target,
-            _ => break,
-        };
-    }
-    symbols::SymbolHandle::invalid()
 }
 
 /// A nested gated field gates its containing machine value, but establishing

@@ -213,6 +213,22 @@ pub(super) fn owned_store_destination(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<StructuralScalarStoreDestination> {
+    let destination = owned_storage_destination(machine, place)?;
+    let StructuralScalarStoreDestination::OwnedResult { result, .. } = &destination else {
+        return None;
+    };
+    // Ordinary scalar stores have no restoration membership operand. Window
+    // stores instead join the removed/replacing subtree's exact memberships.
+    (result.qualifications.is_empty() && result.projected_qualifications.is_empty())
+        .then_some(destination)
+}
+
+/// Resolve completed storage identity without deciding a mutation's evidence
+/// obligations. Scalar stores and restoration windows apply their own joins.
+pub(super) fn owned_storage_destination(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<StructuralScalarStoreDestination> {
     let mut declarations = machine
         .structural_places
         .iter()
@@ -232,8 +248,6 @@ pub(super) fn owned_store_destination(
     let result = operation.result.structural()?;
     (result.place == place
         && result.structural_type == structural_type
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
         && machine
             .content_entry_claims
             .iter()

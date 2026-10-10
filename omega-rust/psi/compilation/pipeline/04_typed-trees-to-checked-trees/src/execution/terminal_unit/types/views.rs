@@ -90,8 +90,10 @@ pub(crate) fn mutable_borrowed_view(
 }
 
 /// The referee a structural view's reference shell lends under exactly
-/// `access`, with `Constrained` shells peeled. The accesses admit different
-/// referees, spelled directly beneath the shell: a shared `&'a V` view lends
+/// `access`, with `Constrained` shells inspected on either side. Classification
+/// looks through qualifications but returns the original referee so its theory
+/// stays in the checked plan. The accesses admit different referees: a shared
+/// `&'a V` view lends
 /// a named or generic referent, primitives included; an exclusive view lends
 /// a non-primitive named referent or a `[T]` slice, while primitive
 /// referents stay with `parts`. Write-only shells lend no structural view.
@@ -102,14 +104,15 @@ pub(crate) fn borrowed_view_referent(
 ) -> Option<TypeReferenceHandle> {
     let shell = validation::reference_shell(program, type_reference)
         .filter(|shell| shell.access == access)?;
-    let referee = program.type_reference_table.type_reference(shell.referee);
+    let carrier = validation::peel_declared_constraints(program, shell.referee);
+    let referee = program.type_reference_table.type_reference(carrier);
     let lends_view = match access {
         language_semantics::ReferenceAccess::Shared => matches!(
             referee,
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
         ),
         language_semantics::ReferenceAccess::Mutable => {
-            program.primitive_type_reference(shell.referee).is_none()
+            program.primitive_type_reference(carrier).is_none()
                 && matches!(
                     referee,
                     TypeReferenceNode::Named { .. }

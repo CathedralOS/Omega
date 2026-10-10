@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 1.58, "load1_start": 1.06, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 2.39, "load1_start": 2.39, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -267,8 +267,9 @@ fail/borrow/write_only_index_selector_observation rejected 212ms expected @c40dc
 fail/borrow/write_only_mutable_widening rejected 312ms expected @69d297ae3ee5
 	machine `widen` state `entry` widens write-only parameter `value` to `&mut`; forward it explicitly as `&write value` instead
 	mutable argument `value` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/borrow/write_only_observation rejected 215ms expected @2d8ed253669f
+fail/borrow/write_only_observation rejected 194ms expected @34440012a21b
 	machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `observe_record` state `entry` reads field `code` from write-only parameter `source`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/borrow/write_only_state_readable_widening rejected 200ms expected @8db36001d9fe+wt
 	machine `widen_mutable` state `entry` widens write-only parameter `pair` to `&mut`; forward it explicitly as `&write pair` instead
 	machine `widen_shared` state `entry` reads field `cell` from write-only parameter `pair`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
@@ -560,6 +561,8 @@ fail/build/generated_source_base_reference_refused rejected 1057ms expected publ
 	machine `Main::main` state `main` uses `ANSWER`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/build/generated_source_unsealed_handoff_refused rejected 865ms expected published:none @a7d5ff53f2ca
 	build-time evaluation of `build` failed: filesystem staging sponsor rejected operation: staging entry is not sealed: output/generated.omg; partial non-admission filesystem evidence: 2 call(s), 0 evaluator-halted, 0 grant refusal(s), 1 logical-handle operand(s)
+fail/build/generic_zero_context_requires_establishment rejected 2872ms expected @34440012a21b
+	entry machine `main` requests a provisioned `Context` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/build/helper_contract_context rejected 396ms expected @e65c3365894e+wt
 	cannot prove ensures contract for exit from incorrect at statement 0: result == 4
 fail/build/hosted_program_entry_visible_parameter rejected 1019ms expected @2d8ed253669f
@@ -1163,6 +1166,19 @@ fail/dependent/mutable_referent_alias_corruption_return_rejected rejected 594ms 
 	cannot prove default-domain field requirement for return from corrupt at statement 2: level.rooms[1].label requires [u8; N]::Utf8
 fail/dependent/nested_gated_field_omitted_rejected rejected 350ms expected @2d8ed253669f
 	construction of `Team` omits gated field `captain`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/dependent/qualified_nested_zero_storage_not_established rejected 808ms expected @34440012a21b
+	reading `envelope.guarded` crosses an open default-domain invariant window before data `Envelope` is established: the zeroed representation is not yet a `Envelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `after_call.guarded` crosses an open default-domain invariant window before data `Envelope` is established: the zeroed representation is not yet a `Envelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `generic.guarded` crosses an open default-domain invariant window before data `GenericEnvelope<Guarded in Guarded::Positive>` is established: the zeroed representation is not yet a `GenericEnvelope<Guarded in Guarded::Positive>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `mixed.guarded.guarded` crosses an open default-domain invariant window before data `GenericEnvelope<Guarded in Guarded::Positive>` is established: the zeroed representation is not yet a `GenericEnvelope<Guarded in Guarded::Positive>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `mixed.guarded` crosses an open default-domain invariant window before data `MixedApplications` is established: the zeroed representation is not yet a `MixedApplications` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `reversed.guarded.guarded` crosses an open default-domain invariant window before data `GenericEnvelope<Guarded in Guarded::Positive>` is established: the zeroed representation is not yet a `GenericEnvelope<Guarded in Guarded::Positive>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `reversed.guarded` crosses an open default-domain invariant window before data `ReversedApplications` is established: the zeroed representation is not yet a `ReversedApplications` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `via_helper.<whole value>` crosses an open default-domain invariant window before data `Envelope` is established: the zeroed representation is not yet a `Envelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `floating.value` crosses an open default-domain invariant window before data `FloatingEnvelope` is established: the zeroed representation is not yet a `FloatingEnvelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `alias.guarded` crosses an open default-domain invariant window before data `GenericEnvelope<Guarded in Guarded::PositiveAlias>` is established: the zeroed representation is not yet a `GenericEnvelope<Guarded in Guarded::PositiveAlias>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `routed.guarded` crosses an open default-domain invariant window before data `RoutedEnvelope` is established: the zeroed representation is not yet a `RoutedEnvelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `exclusive.value` crosses an open default-domain invariant window before data `ExclusiveFloatingEnvelope` is established: the zeroed representation is not yet a `ExclusiveFloatingEnvelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/dependent/relational_loop_invariant_reassigned_index_rejected rejected 282ms expected @c08960bee2b1+wt
 	cannot prove index `main.i` is within length 1 in Main::main::loop_
 fail/dependent/requires_call_unproven_rejected rejected 366ms expected @c08960bee2b1+wt
@@ -1872,6 +1888,10 @@ fail/ownership/linear_live_overwrite rejected 572ms expected @2d8ed253669f
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/ownership/linear_mixed_branch_treatment rejected 633ms expected @2d8ed253669f
 	linear value `receipt` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation
+fail/ownership/linear_qualified_field_observation_after_transfer rejected 296ms expected @34440012a21b
+	cannot use `receipt.code` in machine `consumed` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
+	cannot use `replacement` in machine `reused_replacement` state `entry` (statement 3) after `replacement` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `replacement` first
+	cannot use `slot.receipt.code` in machine `main` state `entry` (statement 2) after `slot.receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `slot.receipt` first
 fail/ownership/linear_qualified_result_requires_membership rejected 370ms expected @d2a4bcea8c9a+wt
 	cannot prove default-domain field requirement for return from missing at statement 0: receipt requires Receipt::Issued
 fail/ownership/linear_replaced_field_second_use rejected 267ms expected @81c6f9927396+wt
@@ -3423,6 +3443,7 @@ pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 294
 pass/dependent/valuation_order_cycle checked 314ms @2d8ed253669f
 pass/dependent/where_field_shadows_module_const_exit checked 2497ms check-target:macos_arm64 @efcffba14022+wt
 pass/dependent/zero_case_absorbs_nested_gate_compile checked 1223ms check-target:macos_arm64 @2d8ed253669f
+pass/dependent/zero_valid_qualified_storage checked 389ms @34440012a21b
 pass/dependent/zeroed_record_member_sum_elision checked 1198ms check-target:macos_arm64 @2d8ed253669f
 pass/domains/bodyless_owner_establishment checked 299ms @2d8ed253669f
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 285ms @2d8ed253669f
@@ -3950,7 +3971,7 @@ pass/ownership/linear_call_result_place_assignment_exit checked 2933ms check-tar
 pass/ownership/linear_computed_binding_receiver_exit checked 2407ms check-target:macos_arm64 @ec4721ab353c+wt
 pass/ownership/linear_computed_call_claim_transfers_exit checked 2651ms check-target:macos_arm64 @c70a706629c8+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit checked 3119ms check-target:macos_arm64 @9c376f77b213+wt
-pass/ownership/linear_qualified_call_result_claims checked 541ms @9c376f77b213+wt
+pass/ownership/linear_qualified_call_result_claims checked 2385ms check-target:macos_arm64 @34440012a21b
 pass/ownership/linear_result_member_projection_arguments_exit checked 3205ms check-target:macos_arm64 @9c376f77b213+wt
 pass/ownership/linear_result_owners_residual_cleanup_exit checked 3024ms check-target:macos_arm64 @9c376f77b213+wt
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f

@@ -622,6 +622,11 @@ pub(super) fn plan(
         } else {
             shapes.add_type(local.type_reference, binders, &[])?
         };
+        // A local's checked initializer judgments need the same domain/carrier
+        // catalogue as signature judgments. Register their theory here even
+        // when no machine parameter happens to mention those domains; this
+        // does not establish membership or add runtime representation.
+        parameter_qualifications(program, shapes, local.type_reference, binders)?;
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,

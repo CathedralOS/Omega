@@ -12,12 +12,13 @@ use semantic_vocabulary::{PlaceId, StructuralTypeId};
 pub(crate) struct LocalStoreRoot<'a> {
     pub(crate) argument: &'a terminal_psi::StructuralArgument,
     pub(crate) structural_type: StructuralTypeId,
-    has_qualifications: bool,
+    pub(crate) qualifications: &'a [semantic_vocabulary::StructuralDomainId],
+    pub(crate) projected_qualifications: &'a [terminal_psi::StructuralPathQualification],
 }
 
 impl LocalStoreRoot<'_> {
     pub(crate) fn require_unqualified(&self) -> Result<(), LoweringError> {
-        if self.has_qualifications {
+        if !self.qualifications.is_empty() || !self.projected_qualifications.is_empty() {
             return unsupported(
                 "store local carries qualification evidence the replacement does not restore",
             );
@@ -34,7 +35,7 @@ pub(crate) fn local_store_root<'a>(
     symbol: symbols::SymbolHandle,
     locals: &'a [crate::expression_preparation::bindings::StructuralLocalBinding],
     parameters: impl Iterator<Item = &'a terminal_psi::StructuralParameterDeclaration>,
-    operations: &crate::emission::operation_emission::buffer::OperationBuffer,
+    operations: &'a crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<LocalStoreRoot<'a>, LoweringError> {
     let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } =
         crate::expression_preparation::bindings::structural_local_by_root(
@@ -56,8 +57,8 @@ pub(crate) fn local_store_root<'a>(
             (
                 parameter.place,
                 parameter.structural_type,
-                !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty(),
+                parameter.qualifications.as_slice(),
+                parameter.projected_qualifications.as_slice(),
             )
         })
         .chain(operations.operations.iter().filter_map(|operation| {
@@ -65,19 +66,20 @@ pub(crate) fn local_store_root<'a>(
                 (
                     result.place,
                     result.structural_type,
-                    !result.qualifications.is_empty()
-                        || !result.projected_qualifications.is_empty(),
+                    result.qualifications.as_slice(),
+                    result.projected_qualifications.as_slice(),
                 )
             })
         }))
-        .find(|(place, _, _)| *place == argument.place)
+        .find(|(place, _, _, _)| *place == argument.place)
         .ok_or(LoweringError::Unsupported(
             "store local has no declared storage root",
         ))?;
     Ok(LocalStoreRoot {
         argument,
         structural_type: declaration.1,
-        has_qualifications: declaration.2,
+        qualifications: declaration.2,
+        projected_qualifications: declaration.3,
     })
 }
 
@@ -92,7 +94,7 @@ pub(crate) fn unqualified_local_store_root<'a>(
     symbol: symbols::SymbolHandle,
     locals: &'a [crate::expression_preparation::bindings::StructuralLocalBinding],
     parameters: impl Iterator<Item = &'a terminal_psi::StructuralParameterDeclaration>,
-    operations: &crate::emission::operation_emission::buffer::OperationBuffer,
+    operations: &'a crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
     let root = local_store_root(symbol, locals, parameters, operations)?;
     root.require_unqualified()?;

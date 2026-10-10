@@ -112,7 +112,10 @@ an independently checked range obligation; nested fields transfer already
 completed whole owned records. See [structural access](structural_access.md#complete-record-construction)
 for exact child custody and the projected-owned construction limit.
 
-Results are unqualified and affine or unrestricted. A record contributes no
+Construction alone establishes no nominal membership. Results retain Psi's
+checked membership judgments for this exact completed occurrence; the receiving
+annotation cannot supply them. Child memberships still come from the actual
+completed operands, not the field declarations. A record contributes no
 claim of its own: an affine result carries each owned member's claims, rebased
 under that member's field, and a linear member keeps its identity through the
 construction. Erased fields remain outside this operation. Affine results

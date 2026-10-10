@@ -2,8 +2,8 @@
 //!
 //! `MoveStructuralField` vacates one declared field beneath a mutable-borrowed
 //! parameter into a fresh owned result; `StoreStructuralField` reseats exactly
-//! that vacancy with an owned subtree of the declared type. The Terminal
-//! verifier proved the window discipline before these rows reach Omega: the
+//! that vacancy with an owned subtree of the declared type. Psi checks the
+//! window discipline before these rows reach Omega: the
 //! move opens restoration debt on the root, no operation, edge or case
 //! dispatch observes the absent subtree, and the store closes the debt before
 //! every non-crash exit (terminal-psi-to-abstract-operations
@@ -20,7 +20,10 @@
 //! `TargetUnitOperation::StoreStructuralField`; selection realizes both
 //! directions with one chunked copy routine rather than a second copy machine.
 //!
-//! Resource claims do not change the byte layout. Reference-bearing storage
+//! Resource claims and domain memberships do not change the byte layout.
+//! Abstract window admission retains the selected memberships and requires
+//! the installed value to supply them; physical transport does not erase or
+//! establish them by accepting a carrier's bytes. Reference-bearing storage
 //! additionally transfers its exact descriptor roster with the bytes, through
 //! the same subtree transfer that construction uses. Backing and parent loan
 //! identities remain unchanged; a missing roster still rejects.
@@ -164,11 +167,7 @@ pub(super) fn store_field(
         &super::scalar_sources::ScalarSources::from(&*live),
     )?;
     let multiplicity = if let Some(home) = live.structural_homes.get(&value.place) {
-        if home.structural_type() != field_type
-            || !home.qualifications().is_empty()
-            || !home.projected_qualifications().is_empty()
-            || home.layout.shape() != shape
-        {
+        if home.structural_type() != field_type || home.layout.shape() != shape {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         home.multiplicity()
@@ -184,8 +183,6 @@ pub(super) fn store_field(
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if declaration.access != StructuralAccess::Owned
             || declaration.structural_type != field_type
-            || !declaration.qualifications.is_empty()
-            || !declaration.projected_qualifications.is_empty()
             || parameter.shape != shape
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -318,8 +315,6 @@ fn window_root(
                         declaration: parameter.clone(),
                     }
                     && parameter.access == StructuralAccess::Owned
-                    && home.qualifications().is_empty()
-                    && home.projected_qualifications().is_empty()
             }),
         abstract_operations::StructuralWindowRoot::Parameter(root) => {
             root.access == StructuralAccess::MutableBorrow
@@ -339,11 +334,7 @@ fn window_root(
         abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } => live
             .structural_homes
             .get(&result.place)
-            .is_some_and(|home| {
-                home.operation_result() == Some((*producer, result))
-                    && home.qualifications().is_empty()
-                    && home.projected_qualifications().is_empty()
-            }),
+            .is_some_and(|home| home.operation_result() == Some((*producer, result))),
     }
 }
 

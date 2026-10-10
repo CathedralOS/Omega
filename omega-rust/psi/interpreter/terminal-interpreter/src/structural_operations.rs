@@ -12,7 +12,7 @@ use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::values::{ScalarFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
-use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use terminal_psi::{
@@ -394,8 +394,7 @@ impl TerminalExecution<'_> {
         if !matches!(
             result.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
-        ) || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
+        ) || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || self.result_place_in_use(result.place)
         {
@@ -404,7 +403,7 @@ impl TerminalExecution<'_> {
         let value = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
-            qualifications: Vec::new(),
+            qualifications: result.qualifications.clone(),
             projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
@@ -814,23 +813,30 @@ impl TerminalExecution<'_> {
             unreachable!("dispatched execute_move_structural_field")
         };
         let result = operation.result.structural().ok_or_else(malformed)?;
-        if !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-            || self.structural_values.contains_key(&result.place)
+        if self.structural_values.contains_key(&result.place) {
+            return Err(malformed());
+        }
+        let selected = self.structural_window_hole(source, path, field)?;
+        if selected.structural_type != result.structural_type
+            || result
+                .qualifications
+                .iter()
+                .any(|domain| !selected.qualifications.contains(domain))
+            || result
+                .projected_qualifications
+                .iter()
+                .any(|row| !selected.projected_qualifications.contains(row))
         {
             return Err(malformed());
         }
-        let (hole, field_type) = self.structural_window_hole(source, path, field)?;
-        if field_type != result.structural_type {
-            return Err(malformed());
-        }
+        let hole = StructuralRuntimePlace::from(&selected);
         let mut frontier = self.live_affine_frontier.clone();
         let claims = self.stage_window_move_custody(source, path, &hole, result, &mut frontier)?;
         let moved = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
+            qualifications: selected.qualifications,
+            projected_qualifications: selected.projected_qualifications,
             path: Vec::new(),
         };
         self.relocate_subtree(&hole, &StructuralRuntimePlace::from(&moved));
@@ -864,7 +870,11 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let (hole, field_type) = self.structural_window_hole(destination, path, field)?;
+        let selected = self.structural_window_hole(destination, path, field)?;
+        let field_type = selected.structural_type;
+        let hole = StructuralRuntimePlace::from(&selected);
+        let (required, projected_required) =
+            self.structural_window_requirements(destination, path, field)?;
         let mut frontier = self.live_affine_frontier.clone();
         frontier.retain(|entry| entry.place != value.place);
         self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)?;
@@ -872,14 +882,111 @@ impl TerminalExecution<'_> {
             self.stage_window_store_claims(destination, path, &hole, value.place, &mut frontier)?;
         let child = crate::custody::verified_structural_place(&self.structural_values, value.place)
             .cloned()?;
-        if child.structural_type != field_type || !child.qualifications.is_empty() {
+        if child.structural_type != field_type
+            || required
+                .iter()
+                .any(|domain| !child.qualifications.contains(domain))
+            || projected_required
+                .iter()
+                .any(|row| !child.projected_qualifications.contains(row))
+        {
             return Err(malformed());
         }
+        // Stage memberships with the custody transaction. Only the repaired
+        // region receives the replacement's actual roster; retained siblings
+        // and containing opaque memberships are never re-established here.
+        let mut memberships = Vec::new();
+        for (place, owner) in &self.structural_values {
+            if owner.opaque_identity != hole.opaque_identity {
+                continue;
+            }
+            let Some(relative) = hole.path.strip_prefix(owner.path.as_slice()) else {
+                continue;
+            };
+            if terminal_psi::StructuralPathQualification::select_restorable(
+                &owner.qualifications,
+                &owner.projected_qualifications,
+                relative,
+            )
+            .is_none()
+            {
+                return Err(malformed());
+            }
+            let mut repaired = owner.clone();
+            if relative.is_empty() {
+                repaired.qualifications = child.qualifications.clone();
+                repaired.projected_qualifications = child.projected_qualifications.clone();
+            } else {
+                repaired
+                    .projected_qualifications
+                    .retain(|row| !row.path.starts_with(relative));
+                terminal_psi::StructuralPathQualification::append_under(
+                    &child.qualifications,
+                    &child.projected_qualifications,
+                    relative,
+                    &mut repaired.projected_qualifications,
+                );
+                repaired.projected_qualifications.sort();
+                repaired.projected_qualifications.dedup();
+            }
+            memberships.push((*place, repaired));
+        }
         self.relocate_subtree(&StructuralRuntimePlace::from(&child), &hole);
+        self.structural_values.extend(memberships);
         self.structural_values.remove(&value.place);
         self.live_affine_frontier = frontier;
         self.live_claims = claims;
         Ok(OperationFlow::Advance)
+    }
+
+    /// Repair owes the destination's declared memberships, not any additional
+    /// facts held by the detached old value. Rejoin the exact producer/parameter
+    /// contract and declaration path independently of the live payload below.
+    fn structural_window_requirements(
+        &self,
+        root: semantic_vocabulary::PlaceId,
+        path: &[StructuralPathSegment],
+        field: Option<semantic_vocabulary::StructuralFieldId>,
+    ) -> Result<
+        (
+            Vec<semantic_vocabulary::StructuralDomainId>,
+            Vec<terminal_psi::StructuralPathQualification>,
+        ),
+        TerminalInterpretError,
+    > {
+        let machine = self.program.verified_machine(self.current_machine)?;
+        let (root_type, whole, projected) =
+            if let Some(parameter) = machine.structural_parameter(root) {
+                (
+                    parameter.structural_type,
+                    parameter.qualifications.as_slice(),
+                    parameter.projected_qualifications.as_slice(),
+                )
+            } else {
+                let result = machine
+                    .operations()
+                    .filter_map(|operation| operation.result.structural())
+                    .find(|result| result.place == root)
+                    .ok_or_else(malformed)?;
+                (
+                    result.structural_type,
+                    result.qualifications.as_slice(),
+                    result.projected_qualifications.as_slice(),
+                )
+            };
+        let projection = terminal_semantics::structural_window_projection(
+            self.program.structural_types().values(),
+            root_type,
+            path,
+            field,
+        )
+        .ok_or_else(malformed)?;
+        terminal_psi::StructuralPathQualification::select_restorable(
+            whole,
+            projected,
+            &projection.path,
+        )
+        .ok_or_else(malformed)
     }
 
     /// The resolved runtime hole path one window operation names and the
@@ -894,7 +1001,7 @@ impl TerminalExecution<'_> {
         root: semantic_vocabulary::PlaceId,
         path: &[StructuralPathSegment],
         field: Option<semantic_vocabulary::StructuralFieldId>,
-    ) -> Result<(StructuralRuntimePlace, StructuralTypeId), TerminalInterpretError> {
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let storage = self.structural_values.get(&root).ok_or_else(malformed)?;
         // A view never owns its elements. Its selected element (already
         // bounded by the view's live length) is a hole in the original
@@ -918,10 +1025,7 @@ impl TerminalExecution<'_> {
                 &collection,
                 &projection.path,
             )?;
-            return Ok((
-                StructuralRuntimePlace::from(&hole),
-                projection.structural_type,
-            ));
+            return Ok(hole);
         }
         // Resolve a reference crossing against its live runtime referent first;
         // the shared window geometry receives storage, never carrier ownership.
@@ -956,8 +1060,6 @@ impl TerminalExecution<'_> {
                 .any(|parameter| {
                     parameter.access == StructuralAccess::MutableBorrow
                         && parameter.multiplicity != StructuralMultiplicity::Linear
-                        && parameter.qualifications.is_empty()
-                        && parameter.projected_qualifications.is_empty()
                         && self
                             .structural_values
                             .get(&parameter.place)
@@ -982,10 +1084,7 @@ impl TerminalExecution<'_> {
             &base,
             &projection.path,
         )?;
-        Ok((
-            StructuralRuntimePlace::from(&hole),
-            projection.structural_type,
-        ))
+        Ok(hole)
     }
 
     /// Move every runtime cell under `from` to the same subtree suffix under

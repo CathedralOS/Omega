@@ -8,8 +8,8 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, ScalarType, StructuralCaseId, StructuralFieldId,
 };
 use terminal_psi::{
-    StructuralOperationResult, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
+    StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, find_structural_type,
 };
 
 /// Admit a zeroed establishment and reconstruct its exact home shape. The
@@ -34,7 +34,6 @@ pub(super) fn home<'a>(
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
         || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || crate::structural_inputs::structural_reference_input::shape(
             result.structural_type,

@@ -786,10 +786,18 @@ pub(crate) fn prepare(
                     subject.element_suffix,
                 ),
                 None => {
-                    let root_identity = checked.normalized_type_identity(*source_type);
+                    // Storage shares the owner's carrier namespace, not its
+                    // qualified theory. The computation retains source_type;
+                    // this lookup neither forgets nor establishes membership.
+                    let root_identity = validation::structural_type_identity(
+                        &checked.typed,
+                        *source_type,
+                        &[],
+                        &[],
+                    );
                     let mut declarations = types
                         .iter()
-                        .filter(|declaration| declaration.identity == root_identity.as_str());
+                        .filter(|declaration| declaration.identity == root_identity);
                     let declaration = declarations.next().ok_or(LoweringError::Unsupported(
                         "record read has no structural namespace",
                     ))?;
@@ -1144,7 +1152,8 @@ pub(crate) fn type_roots(
             else {
                 continue;
             };
-            let identity = checked.normalized_type_identity(*source_type).into_string();
+            let identity =
+                validation::structural_type_identity(&checked.typed, *source_type, &[], &[]);
             if !types.contains(&identity) {
                 types.push(identity);
             }

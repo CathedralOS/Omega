@@ -3,15 +3,15 @@
 //! `MoveStructuralField` vacates one declared structural field beneath a
 //! mutable-borrowed parameter; `StoreStructuralField` reseats exactly
 //! that vacancy with an already-owned subtree of the declared type. The
-//! Terminal verifier already proved the dynamic invariant — the move opens
+//! Psi checking and emission establish the dynamic invariant — the move opens
 //! restoration debt keyed by the hole's canonical field path, no operation,
 //! edge, or case dispatch may observe the absent subtree, and every
-//! non-crash exit leaves the debt empty. This leg re-checks the static shape
-//! the verifier's admission committed to — root authority, declared field
+//! non-crash exit leaves the debt empty. This leg joins the static shape
+//! retained in Terminal — root authority, declared field
 //! type, and the exact result/value custody rows — and retains the complete
 //! root declaration so no consumer reconstructs borrow authority from
 //! physical ABI shape. The dynamic debt itself needs no replay here: the
-//! spelled pairs reach Omega only through a verified module.
+//! spelled pairs retain the checked program's operation identities.
 //! A first-class mutable record reference keeps its own producer/result row
 //! and explicit leading `Referent`; only geometry uses the referent-relative
 //! suffix. Owning that carrier never grants ownership of its referent.
@@ -32,9 +32,7 @@ use terminal_psi::{
 
 use crate::lowering::LoweringError;
 
-use super::structural_scalar_fields::{
-    exact_parameter, has_empty_structural_custody, owned_store_destination,
-};
+use super::structural_scalar_fields::{exact_parameter, owned_storage_destination};
 
 pub(super) fn lower(
     operation: &Operation,
@@ -77,11 +75,8 @@ fn lower_move(
     let result = operation.result.structural().ok_or_else(invalid)?;
     // The moved subtree is a fresh operation result under exact-once custody:
     // its complete declared claims move with it, independently of the
-    // original place's restoration debt. Opaque qualifications still need
-    // their own transport evidence.
-    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
-        return Err(invalid());
-    }
+    // original place's restoration debt. Memberships follow that exact
+    // selected subtree, not the enclosing owner's predicate or sibling.
     if !matches!(
         machine.structural_place(result.place)
             .map(|place| place.kind),
@@ -93,8 +88,19 @@ fn lower_move(
         return Err(invalid());
     }
     let source = borrowed_window_root(machine, source).ok_or_else(invalid)?;
-    if declared_window_field_type(structural_types, &source, path, field)
-        != Some(result.structural_type)
+    let projection =
+        declared_window_projection(structural_types, &source, path, field).ok_or_else(invalid)?;
+    let signature = source_signature(machine, source.place()).ok_or_else(invalid)?;
+    let (qualifications, projected) = terminal_psi::StructuralPathQualification::select_restorable(
+        signature.qualifications,
+        signature.projected_qualifications,
+        &projection.path,
+    )
+    .ok_or_else(invalid)?;
+    if projection.structural_type != result.structural_type
+        || result.qualifications != qualifications
+        || result.projected_qualifications != projected
+        || !result.qualification_establishments.is_empty()
         || !root_window_loan(&source, path, field)
     {
         return Err(invalid());
@@ -125,15 +131,26 @@ fn lower_store(
         return Err(invalid());
     }
     let destination = borrowed_window_root(machine, destination).ok_or_else(invalid)?;
-    let Some(field_type) = declared_window_field_type(structural_types, &destination, path, field)
-    else {
-        return Err(invalid());
-    };
+    let projection = declared_window_projection(structural_types, &destination, path, field)
+        .ok_or_else(invalid)?;
+    let signature = source_signature(machine, destination.place()).ok_or_else(invalid)?;
+    let (required, required_projected) =
+        terminal_psi::StructuralPathQualification::select_restorable(
+            signature.qualifications,
+            signature.projected_qualifications,
+            &projection.path,
+        )
+        .ok_or_else(invalid)?;
     let Some(source) = source_signature(machine, value.place) else {
         return Err(invalid());
     };
-    if source.structural_type != field_type
-        || !source.has_empty_qualifications()
+    if source.structural_type != projection.structural_type
+        || !required
+            .iter()
+            .all(|domain| source.qualifications.contains(domain))
+        || !required_projected
+            .iter()
+            .all(|row| source.projected_qualifications.contains(row))
         || !root_window_loan(&destination, path, field)
     {
         return Err(invalid());
@@ -148,8 +165,8 @@ fn lower_store(
 }
 
 /// The root a window operation may name: a mutable-borrowed entry or block parameter
-/// (borrow authority, a transferable multiplicity, and no qualifications or
-/// entry claims, resolved through the exact parameter row), or an owned local
+/// (borrow authority, a transferable multiplicity, and no entry claims,
+/// resolved through the exact parameter row), or an owned local
 /// home resolved through its exact operation-result storage declaration.
 /// Terminal admission separately establishes completed payload custody or a
 /// returned reference's loan authority. Here the shared storage query retains
@@ -165,15 +182,20 @@ fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<Str
             parameter.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         )
-        && has_empty_structural_custody(machine, place)
+        && !machine
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == place)
+        && !machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == place)
     {
         return Some(StructuralWindowRoot::Parameter(parameter));
     }
     if let Some((block, parameter)) =
         super::primitive_storage::owned_state_parameter(machine, place)
         && block != machine.entry
-        && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
     {
         return Some(StructuralWindowRoot::OwnedBlockParameter {
             block,
@@ -185,7 +207,7 @@ fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<Str
     // check below retain authority: a view descriptor is not owned storage,
     // and a reference carrier crosses only an explicit `Referent`.
     let StructuralScalarStoreDestination::OwnedResult { producer, result } =
-        owned_store_destination(machine, place)?
+        owned_storage_destination(machine, place)?
     else {
         return None;
     };
@@ -211,16 +233,16 @@ fn root_window_loan(
 /// resolved beneath `root` through the spelled path; a root window names the
 /// whole referent with no path. `None` means the place does not host a
 /// structural field there.
-fn declared_window_field_type(
+fn declared_window_projection(
     structural_types: &[StructuralTypeDeclaration],
     root: &StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
-) -> Option<StructuralTypeId> {
+) -> Option<terminal_semantics::StructuralWindowProjection> {
     // The carrier owns its permission, not the referent bytes. Only the
     // explicit crossing changes geometry; keep the original root and path on
     // the emitted operation for loan replay and native pointer transport.
-    let (root, path) = if let Some((StructuralPathSegment::Referent, suffix)) = path.split_first() {
+    if path.first() == Some(&StructuralPathSegment::Referent) {
         if root.parameter().is_some() {
             return None;
         }
@@ -240,45 +262,40 @@ fn declared_window_field_type(
         {
             return None;
         }
-        (referent, suffix)
-    } else {
-        (root.structural_type(), path)
-    };
-    terminal_semantics::structural_window_projection(structural_types.iter(), root, path, field)
-        .map(|projection| projection.structural_type)
+    }
+    terminal_semantics::structural_window_projection(
+        structural_types.iter(),
+        root.structural_type(),
+        path,
+        field,
+    )
 }
 
 /// The declared signature a spelled structural place carries: machine
 /// parameter, block parameter resolved through its place row, then operation
 /// result — the same order the verifier's `source_signature` resolves.
-pub(super) struct SourceSignature {
+pub(super) struct SourceSignature<'declaration> {
     pub(super) structural_type: StructuralTypeId,
-    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
-    projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
-}
-
-impl SourceSignature {
-    fn has_empty_qualifications(&self) -> bool {
-        self.qualifications.is_empty() && self.projected_qualifications.is_empty()
-    }
+    qualifications: &'declaration [semantic_vocabulary::StructuralDomainId],
+    projected_qualifications: &'declaration [terminal_psi::StructuralPathQualification],
 }
 
 pub(super) fn source_signature(
     machine: &TerminalMachine,
     place: PlaceId,
-) -> Option<SourceSignature> {
+) -> Option<SourceSignature<'_>> {
     if let Some(parameter) = machine.structural_parameter(place) {
         return Some(SourceSignature {
             structural_type: parameter.structural_type,
-            qualifications: parameter.qualifications.clone(),
-            projected_qualifications: parameter.projected_qualifications.clone(),
+            qualifications: &parameter.qualifications,
+            projected_qualifications: &parameter.projected_qualifications,
         });
     }
     if let Some(parameter) = block_parameter(machine, place) {
         return Some(SourceSignature {
             structural_type: parameter.structural_type,
-            qualifications: parameter.qualifications.clone(),
-            projected_qualifications: parameter.projected_qualifications.clone(),
+            qualifications: &parameter.qualifications,
+            projected_qualifications: &parameter.projected_qualifications,
         });
     }
     machine.operations().find_map(|operation| {
@@ -288,8 +305,8 @@ pub(super) fn source_signature(
             .filter(|result| result.place == place)
             .map(|result| SourceSignature {
                 structural_type: result.structural_type,
-                qualifications: result.qualifications.clone(),
-                projected_qualifications: result.projected_qualifications.clone(),
+                qualifications: &result.qualifications,
+                projected_qualifications: &result.projected_qualifications,
             })
     })
 }

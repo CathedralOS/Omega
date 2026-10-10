@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 9.95, "load1_start": 10.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 1.88, "load1_start": 1.88, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1245,7 +1245,7 @@ pass/ownership/linear_call_result_claims_exit built 2458ms exit:0 @e007e1d70f35+
 pass/ownership/linear_call_result_place_assignment_exit built 2656ms exit:0 @9c376f77b213+wt
 pass/ownership/linear_computed_call_claim_transfers_exit built 2737ms exit:0 @c70a706629c8+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit built 2790ms exit:0 @9c376f77b213+wt
-pass/ownership/linear_qualified_call_result_claims checked 626ms @9c376f77b213+wt
+pass/ownership/linear_qualified_call_result_claims built 2451ms exit:0 @34440012a21b
 pass/ownership/linear_result_member_projection_arguments_exit built 2676ms exit:0 @9c376f77b213+wt
 pass/ownership/linear_result_owners_residual_cleanup_exit built 2689ms exit:0 @9c376f77b213+wt
 pass/ownership/linear_self_receiver_disposition checked 208ms

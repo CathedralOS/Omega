@@ -96,6 +96,8 @@ pub(super) fn handle_element_store<'program>(
     let data_binding = data_binding.as_deref();
     let position = tracked_receiver(
         program,
+        state,
+        super::place_queries::expression_root_symbol(program, member.receiver),
         tracked,
         receiver_spelling,
         definition,

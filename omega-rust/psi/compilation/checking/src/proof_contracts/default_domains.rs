@@ -564,7 +564,7 @@ fn walk_state(
                         .any(|index| expression_contains_call(program, *index))
                 {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
-                    preserve_proven_establishment(data_binding, &tracked, &mut call_established);
+                    preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
                     collect_call_summaries(
@@ -611,7 +611,7 @@ fn walk_state(
             // R5 summaries preserve exact valuations outside known writes.
             StatementNode::Call(call) => {
                 refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
-                preserve_proven_establishment(data_binding, &tracked, &mut call_established);
+                preserve_proven_establishment(&tracked, &mut call_established);
                 let written = call_frames.and_then(|frames| frames.may_write_paths(machine, call));
                 if let Some(written) = written {
                     tracked.retain(|place| {
@@ -645,7 +645,7 @@ fn walk_state(
             StatementNode::Expression(expression) => {
                 if expression_contains_call(program, *expression) {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
-                    preserve_proven_establishment(data_binding, &tracked, &mut call_established);
+                    preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
                     collect_call_summaries(
@@ -662,7 +662,7 @@ fn walk_state(
                     && expression_contains_call(program, local.initial_value)
                 {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
-                    preserve_proven_establishment(data_binding, &tracked, &mut call_established);
+                    preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
                     collect_call_summaries(
@@ -716,7 +716,7 @@ fn walk_state(
                     .any(|expression| expression_contains_call(program, *expression))
                 {
                     refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
-                    preserve_proven_establishment(data_binding, &tracked, &mut call_established);
+                    preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
                     for expression in &evaluated {
@@ -743,7 +743,14 @@ fn walk_state(
     }
 
     let mut exit_established: Vec<String> = entry_established.to_vec();
-    exit_established.extend(call_established.iter().cloned());
+    // Local validity survives valuation poisoning within this invocation, not
+    // as a same-spelled fact about another state's per-invocation local.
+    exit_established.extend(
+        call_established
+            .iter()
+            .filter(|place| is_data_rooted(data_binding, place))
+            .cloned(),
+    );
     exit_established.extend(
         tracked
             .iter()

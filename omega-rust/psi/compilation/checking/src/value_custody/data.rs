@@ -5,8 +5,11 @@ use crate::value_custody::type_references::{
     validate_generic_instance_argument_bounds, validate_type_reference_handle_with_type_parameters,
 };
 use diagnostics::Diagnostic;
+use numerics::bignum::BigInt;
 use typed_trees::data::{DataMember, DataShapeKind};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(crate) fn validate_data_field_types(
     program: &dyn crate::CheckingInput,
@@ -145,23 +148,49 @@ pub fn type_requires_establishment(
 /// symbol lookups read the build-scope data-definition index rather than a
 /// per-walk declaration table.
 ///
-/// Every key is the declaration's own symbol, not its spelling. Two modules
-/// may declare the same leaf name, and a spelling key answers for whichever
-/// one was inserted first; the symbol is the selected declaration itself. A
+/// Every key retains both the declaration and selected application. Derived
+/// applications keep their template's symbol but substitute different fields;
+/// those rows must not share an answer. Neither spelling nor the base symbol
+/// alone identifies the storage being judged. A
 /// `Named` node whose symbol never resolved keeps the spelling route, which
 /// scans rather than indexing, because an unresolved reference has no
 /// declaration identity to key on.
 struct EstablishmentIndex {
-    seen: std::collections::HashSet<symbols::SymbolHandle>,
-    computed: std::collections::HashMap<symbols::SymbolHandle, bool>,
+    seen: Vec<EstablishmentIdentity>,
+    computed: Vec<(EstablishmentIdentity, bool)>,
 }
 
 impl EstablishmentIndex {
     fn new() -> Self {
         Self {
-            seen: std::collections::HashSet::new(),
-            computed: std::collections::HashMap::new(),
+            seen: Vec::new(),
+            computed: Vec::new(),
         }
+    }
+}
+
+/// The declaration and exact retained application, without source-name identity.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) struct EstablishmentIdentity {
+    declaration: symbols::SymbolHandle,
+    application: TypeReferenceHandle,
+}
+
+impl EstablishmentIdentity {
+    pub(super) fn of(definition: &typed_trees::data::DataDefinition) -> Self {
+        Self {
+            declaration: definition.symbol,
+            application: definition.generic_instance.unwrap_or_default(),
+        }
+    }
+
+    pub(super) fn order(self) -> (u32, u32, u32, u32) {
+        (
+            self.declaration.arena_index(),
+            self.declaration.generation(),
+            self.application.arena_index(),
+            self.application.generation(),
+        )
     }
 }
 
@@ -243,8 +272,21 @@ fn type_requires_establishment_inner(
         return true;
     }
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_requires_establishment_inner(program, *base_type, index)
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            // Representation zero is not declared-domain establishment. Only
+            // an exact, route-free zero judgment can discharge a qualification;
+            // a partial interval of its predicates cannot waive the remainder.
+            program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .any(|constraint| {
+                    constraint_requires_establishment(program, *base_type, constraint)
+                })
+                || type_requires_establishment_inner(program, *base_type, index)
         }
         TypeReferenceNode::FixedArray {
             element_type,
@@ -257,16 +299,128 @@ fn type_requires_establishment_inner(
                 && type_requires_establishment_inner(program, *element_type, index)
         }
         TypeReferenceNode::Named { symbol, name } => {
-            let definition = if symbol.is_valid() {
-                crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
-            } else {
-                program.data_definition_by_name_str(name.as_str())
-            };
+            // A stored open payload has no zero certificate. An unused binder
+            // in a non-home sum case is never visited by the declaration walk.
+            if symbol.is_valid()
+                && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+            {
+                return true;
+            }
+            let definition = program.closed_data_definition(type_reference).or_else(|| {
+                if symbol.is_valid() {
+                    crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
+                } else {
+                    program.data_definition_by_name_str(name.as_str())
+                }
+            });
             definition.is_some_and(|definition| {
                 data_requires_establishment_inner(program, definition, index)
             })
         }
+        TypeReferenceNode::Generic { base_symbol, .. } => {
+            // Prefer substituted fields: a selected child can exclude zero.
+            // For an open declaration, inspect only common/home-case storage.
+            // Unknown stored binders gate that walk; unused type arguments do
+            // not invalidate an empty home case or a provisioned opaque carrier.
+            program
+                .closed_data_definition(type_reference)
+                .or_else(|| {
+                    crate::declarations::data_queries::data_definition_by_symbol(
+                        program,
+                        *base_symbol,
+                    )
+                })
+                .is_none_or(|definition| {
+                    data_requires_establishment_inner(program, definition, index)
+                })
+        }
         _ => false,
+    }
+}
+
+fn constraint_requires_establishment(
+    program: &dyn crate::CheckingInput,
+    carrier: TypeReferenceHandle,
+    constraint: &TypeConstraintNode,
+) -> bool {
+    match constraint {
+        TypeConstraintNode::Domain(domain) => match domain.subject {
+            DomainConstraintSubject::Declared => {
+                // A route-/predicate-free declaration adds no membership
+                // obligation. Alias constituents still pass the same shared
+                // judgment; carrier validity is checked by the recursive walk.
+                if crate::value_custody::field_domains::domain_is_vacuous(
+                    program,
+                    domain.symbol,
+                    &mut Vec::new(),
+                ) {
+                    return false;
+                }
+                let zero_interval = crate::proof_contracts::arithmetic_domains::domain_intervals::exact_declared_domain_interval(program, domain)
+                    .is_some_and(|(minimum, maximum)| {
+                        minimum.is_none_or(|minimum| minimum <= BigInt::zero())
+                            && maximum.is_none_or(|maximum| maximum >= BigInt::zero())
+                    });
+                let zero_bytes = domain.establishment_routes.is_empty()
+                    && domain.semantic_roles == Default::default()
+                    && crate::value_custody::field_domains::domain_admits_empty_byte_sequence(
+                        program,
+                        domain.symbol,
+                    );
+                !zero_interval && !zero_bytes
+            }
+            // These constrain the carrier, or exclude non-finite floats;
+            // they do not require value establishment beyond the base type.
+            DomainConstraintSubject::Carry(_)
+            | DomainConstraintSubject::OmegaLayout { .. }
+            | DomainConstraintSubject::Value(
+                language_semantics::value_domain::ValueDomain::Finite,
+            ) => false,
+        },
+        TypeConstraintNode::Named(_) => true,
+        TypeConstraintNode::Range {
+            minimum,
+            maximum,
+            end_inclusive,
+        } => {
+            // IEEE endpoints keep their declared format and boundary kind.
+            // Integer predecessor arithmetic cannot decide a fractional bound
+            // or whether +0 lies beneath an exclusive signed-zero endpoint.
+            if let Some(
+                primitive @ (typed_trees::types::PrimitiveType::F32
+                | typed_trees::types::PrimitiveType::F64),
+            ) = program.primitive_type_reference(carrier)
+            {
+                let Some(minimum) =
+                    crate::closed_float_range_endpoint(program, *minimum, primitive)
+                else {
+                    return true;
+                };
+                let Some(maximum) =
+                    crate::closed_float_range_endpoint(program, *maximum, primitive)
+                else {
+                    return true;
+                };
+                let zero = if primitive == typed_trees::types::PrimitiveType::F32 {
+                    semantic_vocabulary::IeeeFloatValue::Binary32(0)
+                } else {
+                    semantic_vocabulary::IeeeFloatValue::Binary64(0)
+                };
+                return !crate::ieee_float_range_ordered(minimum, zero)
+                    || !crate::ieee_float_range_ordered(zero, maximum)
+                    || (!end_inclusive && crate::ieee_float_range_ordered(maximum, zero));
+            }
+            let Some(minimum) = crate::closed_integer_range_bound(program, *minimum) else {
+                return true;
+            };
+            let Some(maximum) =
+                crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)
+            else {
+                return true;
+            };
+            minimum > BigInt::zero() || maximum < BigInt::zero()
+        }
+        TypeConstraintNode::ArithmeticDomain(_) => false,
     }
 }
 
@@ -298,14 +452,17 @@ fn data_requires_establishment_inner(
     if definition.zero_gated && !crate::data_predicates_admit_zero(program, definition) {
         return true;
     }
-    let key = definition.symbol;
+    let key = EstablishmentIdentity::of(definition);
     if index.seen.contains(&key) {
         return false;
     }
-    if let Some(answer) = index.computed.get(&key) {
-        return *answer;
+    if let Ok(position) = index
+        .computed
+        .binary_search_by_key(&key.order(), |(identity, _)| identity.order())
+    {
+        return index.computed[position].1;
     }
-    index.seen.insert(key);
+    index.seen.push(key);
 
     let members = program.data_members(definition);
     let common_gated = members.iter().any(|member| match member {
@@ -326,9 +483,15 @@ fn data_requires_establishment_inner(
             })
         });
 
-    index.seen.remove(&key);
+    index.seen.pop();
     let result = common_gated || zero_case_gated;
-    index.computed.insert(key, result);
+    match index
+        .computed
+        .binary_search_by_key(&key.order(), |(identity, _)| identity.order())
+    {
+        Ok(position) => index.computed[position].1 = result,
+        Err(position) => index.computed.insert(position, (key, result)),
+    }
     result
 }
 

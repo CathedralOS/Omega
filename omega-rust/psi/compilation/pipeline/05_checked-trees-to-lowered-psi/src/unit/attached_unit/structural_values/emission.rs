@@ -1201,7 +1201,7 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::Record { .. } => {
                 let place = self.record(value)?;
 
-                self.completed(place, continuation)
+                self.complete_construction(place, node.qualification_decisions, continuation)
             }
             CheckedStructuralValueKind::FixedArray { elements } => {
                 let place = self.fixed_array(&elements, self.type_reference)?;
@@ -1400,7 +1400,7 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::ZeroedStructural { .. } => {
                 let place = self.establish_zeroed()?;
 
-                self.completed(place, continuation)
+                self.complete_construction(place, node.qualification_decisions, continuation)
             }
             CheckedStructuralValueKind::Place(argument) => {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } = &argument.source {

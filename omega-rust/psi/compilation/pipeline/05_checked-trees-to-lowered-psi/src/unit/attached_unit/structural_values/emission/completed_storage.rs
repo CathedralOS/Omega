@@ -59,7 +59,8 @@ impl Emission<'_, '_, '_> {
         &self,
         decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
     ) -> Result<Vec<semantic_vocabulary::StructuralDomainId>, LoweringError> {
-        self.checked
+        let mut domains = self
+            .checked
             .facts
             .qualifications
             .value_formations
@@ -75,7 +76,39 @@ impl Emission<'_, '_, '_> {
                     self.structural_type,
                 )
             })
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?;
+        domains.sort();
+        domains.dedup();
+        Ok(domains)
+    }
+
+    /// A fresh construction publishes its occurrence-bound source judgments
+    /// before joining a continuation. This never relabels a parameter, source
+    /// home or call ABI result, and grants no additional claim or disposal right.
+    /// Both explicit fields and omitted-field zero provisioning use this join.
+    pub(super) fn complete_construction(
+        &mut self,
+        place: PlaceId,
+        decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+        continuation: Option<&super::ValueContinuation>,
+    ) -> Result<PlaceId, LoweringError> {
+        let domains = self.checked_membership_domains(decisions)?;
+        let result = self
+            .operations
+            .operations
+            .iter_mut()
+            .filter_map(|operation| match &mut operation.result {
+                terminal_psi::OperationResult::Structural(result) => Some(result),
+                _ => None,
+            })
+            .find(|result| result.place == place)
+            .ok_or(LoweringError::Unsupported(
+                "fresh construction has no producer",
+            ))?;
+        result.qualifications.extend(domains);
+        result.qualifications.sort();
+        result.qualifications.dedup();
+        self.completed(place, continuation)
     }
 
     /// Publish checked operand facts without relabeling its producer's ABI

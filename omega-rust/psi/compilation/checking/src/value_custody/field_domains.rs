@@ -719,7 +719,7 @@ pub fn domain_is_vacuous(
 }
 
 /// Every `(place path, domain, instance)` a nominal value of `data` promises by
-/// declaration: the predicate-bearing obligations in the same declaration
+/// declaration: the exact obligations in the same declaration
 /// roster used for state entry. Payload paths remain conditional on their
 /// exact `Case` segments; transporting them does not select a case. Fixed-array
 /// rollup rows are evidence only, while a slice's whole extent is an obligation.
@@ -729,11 +729,11 @@ pub fn declared_field_domain_paths(
 ) -> Vec<FieldDomainIdentity> {
     declared_data_field_domain_rows(program, data)
         .into_iter()
-        .filter(|row| {
-            !row.transfer
-                && typed_trees::domain::domain_by_symbol(program, row.domain_symbol)
-                    .is_some_and(|domain| domain.predicate_body.is_present())
-        })
+        // Bodyless qualifications are still declared occurrence memberships.
+        // Readable mutable entry and normal-exit checking consume this same
+        // roster; filtering them here lost a repaired field after a call.
+        // Consumers separately fence routed issuance and predicate reproof.
+        .filter(|row| !row.transfer)
         .map(|row| (row.path, row.domain_symbol, row.semantic_domain))
         .collect()
 }

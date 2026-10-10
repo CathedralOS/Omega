@@ -294,33 +294,24 @@ pub(super) fn shared_record_reference(
     program: &dyn ::validation::CheckingInput,
     expected: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    let TypeReferenceNode::Reference {
-        referee, access, ..
-    } = program.type_reference_table.type_reference(expected)
-    else {
-        return None;
-    };
+    let shell = validation::reference_shell(program, expected)?;
     // Borrowing observes the declared storage; it does not transfer that
     // storage's contents. Requiring an owned-content shape here wrongly
     // rejects records that contain references. Their nested loans remain
     // with the referent, under the ordinary borrow and lifetime checks.
-    if *access != language_semantics::ReferenceAccess::Shared {
+    if shell.access != language_semantics::ReferenceAccess::Shared {
         return None;
     }
-    if program.primitive_type_reference(*referee).is_some() {
-        return Some(*referee);
+    let carrier = validation::peel_declared_constraints(program, shell.referee);
+    if program.primitive_type_reference(carrier).is_some() {
+        return Some(shell.referee);
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(*referee)
-    else {
-        return None;
-    };
-    let record = program.data_definition_by_symbol(*symbol)?;
+    let record = program.closed_data_definition(carrier)?;
     (!program
         .data_members(record)
         .iter()
         .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_))))
-    .then_some(*referee)
+    .then_some(shell.referee)
 }
 
 /// The declared type of a shared borrow's exact target without state scope: a

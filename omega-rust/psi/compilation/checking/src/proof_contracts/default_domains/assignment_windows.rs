@@ -9,9 +9,10 @@
 
 use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
 use crate::proof_contracts::default_domains::place_queries::{
-    data_definition_for_expression, data_has_case_where_facts, domain_definition_by_name,
-    fact_mentions_any_field, fact_span_mentions_field, field_is_where_mentioned, is_data_rooted,
-    is_subplace, membership_field_name, place_spelling_covers, write_place_spelling,
+    data_definition_for_expression, data_has_case_where_facts, declared_root_established,
+    domain_definition_by_name, expression_root_symbol, fact_mentions_any_field,
+    fact_span_mentions_field, field_is_where_mentioned, is_data_rooted, is_subplace,
+    membership_field_name, place_spelling_covers, write_place_spelling,
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
@@ -29,14 +30,13 @@ use typed_trees::state::State;
 /// leave the default domain true. Preserve that monotone fact before clearing
 /// the more precise tracked valuation.
 pub(crate) fn preserve_proven_establishment(
-    data_binding: Option<&str>,
     tracked: &[TrackedPlace<'_>],
     established: &mut Vec<String>,
 ) {
     established.extend(
         tracked
             .iter()
-            .filter(|place| place.established && is_data_rooted(data_binding, &place.spelling))
+            .filter(|place| place.established)
             .map(|place| place.spelling.clone()),
     );
 }
@@ -225,6 +225,8 @@ pub(crate) fn handle_assignment<'program>(
 
     let position = tracked_receiver(
         program,
+        state,
+        expression_root_symbol(program, member.receiver),
         tracked,
         receiver_spelling,
         definition,
@@ -293,7 +295,12 @@ pub(crate) fn handle_assignment<'program>(
         .iter()
         .map(|(name, value)| (name.as_str(), *value))
         .collect();
-    let mut all_hold = range_gates_hold(program, place);
+    // An accepted replacement satisfies its declared field type. It preserves
+    // an established owner's implicit containment/qualification gates without
+    // inventing literal valuations for untouched siblings. Authored cross-field
+    // predicates still require the post-write proof below. A fresh invalid
+    // root must establish its gates; scalar writes cannot mint child membership.
+    let mut all_hold = region_was_established || range_gates_hold(program, place);
     // Interval-only facts each bound one field, and every store to that field
     // is range-checked against it, so they hold after any accepted store.
     let store_checked = super::data_where_field_intervals(program, place.definition).is_some();
@@ -442,6 +449,8 @@ pub(crate) fn handle_assignment<'program>(
 /// The tracked place a store's receiver names, created on first write.
 pub(super) fn tracked_receiver<'program>(
     program: &'program dyn crate::CheckingInput,
+    state: &State,
+    receiver_root: symbols::SymbolHandle,
     tracked: &mut Vec<TrackedPlace<'program>>,
     receiver_spelling: String,
     definition: &'program typed_trees::data::DataDefinition,
@@ -474,6 +483,11 @@ pub(super) fn tracked_receiver<'program>(
             .unwrap_or_default()
     };
     let data_rooted = is_data_rooted(data_binding, &receiver_spelling);
+    let established = tracked.iter().any(|place| {
+        place.established && place_spelling_covers(&place.spelling, &receiver_spelling)
+    }) || declared_root_established(program, state, receiver_root)
+        || (data_rooted
+            && !crate::value_custody::data::data_requires_establishment(program, definition));
     tracked.push(TrackedPlace {
         spelling: receiver_spelling,
         definition,
@@ -485,8 +499,7 @@ pub(super) fn tracked_receiver<'program>(
         // the whole domain). A parameter place arrives ALREADY VALID
         // (the caller's net enforced its domain), so it counts as
         // established for the access gate; its VALUATION stays unknown.
-        established: !crate::value_custody::data::data_requires_establishment(program, definition)
-            || !data_rooted,
+        established,
         born_zero: born_zero && data_rooted && !poisoned,
         window_open: false,
         elements: Vec::new(),

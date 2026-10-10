@@ -18,6 +18,9 @@
 //! Incoming storage and local storage use that same declaration walk. The
 //! last field may itself hold a readable reference: its scalar observation
 //! follows the descriptor, rather than interpreting pointer bits as a value.
+//! Record qualification changes the owner's theory, not its field namespace.
+//! Resolve members beneath that shell while retaining the qualified source
+//! type. This read establishes no membership and discharges no owner claim.
 
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
@@ -56,7 +59,7 @@ pub struct StructuralScalarField {
 /// Established storage is observed here, never equated with its initializer: member
 /// writes need not rebind the local, so absence of `mut` does not freeze fields.
 /// The caller must bind the expression to this authored statement's evaluation
-/// graph. Open generic/qualified owners, erased fields and scalar qualifications
+/// graph. Open generic owners, erased fields and scalar qualifications
 /// without a complete supported predicate require additional facts. Arithmetic
 /// policy changes operations, not storage: retain it alongside the observation.
 /// Restrictions stay on the independently reconstructed field declaration;
@@ -107,21 +110,24 @@ pub fn structural_scalar_field_in_parameters(
         if matches.next().is_some() {
             return None;
         }
-        let carrier = match program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        {
-            TypeReferenceNode::Reference {
-                referee,
-                access:
-                    language_semantics::ReferenceAccess::Shared
-                    | language_semantics::ReferenceAccess::Mutable,
-                ..
-            } => *referee,
-            TypeReferenceNode::Reference { .. } => return None,
-            _ => parameter.type_reference,
-        };
-        program.closed_data_definition(carrier)?;
+        let carrier =
+            match program
+                .type_reference_table
+                .type_reference(crate::peel_declared_constraints(
+                    program,
+                    parameter.type_reference,
+                )) {
+                TypeReferenceNode::Reference {
+                    referee,
+                    access:
+                        language_semantics::ReferenceAccess::Shared
+                        | language_semantics::ReferenceAccess::Mutable,
+                    ..
+                } => *referee,
+                TypeReferenceNode::Reference { .. } => return None,
+                _ => parameter.type_reference,
+            };
+        program.closed_data_definition(crate::peel_declared_constraints(program, carrier))?;
         Some(StructuralSource {
             root: facts::PlaceRoot::Symbol(parameter.symbol),
             receiver_value: ExpressionHandle::invalid(),
@@ -221,16 +227,18 @@ fn structural_scalar_field_with_source(
                 continue;
             }
         };
-        let record = program.closed_data_definition(carrier)?;
-        let field = selected_member_field(program, carrier, record, member, &mut path)?;
+        let declaration_carrier = crate::peel_declared_constraints(program, carrier);
+        let record = program.closed_data_definition(declaration_carrier)?;
+        let field = selected_member_field(program, declaration_carrier, record, member, &mut path)?;
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
             field.path_identity(),
         ));
         carrier = field.type_reference;
     }
     carrier = readable_projection_carrier(program, carrier, &mut path)?;
-    let record = program.closed_data_definition(carrier)?;
-    let field = selected_member_field(program, carrier, record, leaf, &mut path)?;
+    let declaration_carrier = crate::peel_declared_constraints(program, carrier);
+    let record = program.closed_data_definition(declaration_carrier)?;
+    let field = selected_member_field(program, declaration_carrier, record, leaf, &mut path)?;
     let primitive_type = realized_scalar_carrier(program, field.type_reference)?;
     if !matches!(
         primitive_type,
@@ -277,7 +285,13 @@ fn readable_projection_carrier(
     path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
 ) -> Option<TypeReferenceHandle> {
     for _ in 0..program.type_reference_table.type_reference_count() {
-        match program.type_reference_table.type_reference(carrier) {
+        // Qualifications do not authorize a descriptor crossing. Keep the
+        // declared access check, and retain non-reference carrier shells:
+        // a qualified byte array can have a live extent unlike a raw array.
+        match program
+            .type_reference_table
+            .type_reference(crate::peel_declared_constraints(program, carrier))
+        {
             TypeReferenceNode::Reference {
                 referee,
                 access:
@@ -688,14 +702,21 @@ fn structural_source(
                 let (ordinal, source_type) = match (parameter, local) {
                     (Some(parameter), None) => (0, parameter.type_reference),
                     (None, Some((ordinal, local))) => {
-                        // A zeroed declaration owns storage even without an initializer.
+                        // Zero-filled storage supplies a value only when its
+                        // complete type admits zero. Peeling for field geometry
+                        // cannot waive predicates or authorized provenance, but
+                        // a vacuous qualification adds no establishment gate.
                         let declared_zeroed = !local.initial_value.is_valid()
-                            && matches!(
-                                program
-                                    .type_reference_table
-                                    .type_reference(local.type_reference),
-                                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+                            && !crate::value_custody::data::type_requires_establishment(
+                                program,
+                                local.type_reference,
                             )
+                            && program
+                                .closed_data_definition(crate::peel_declared_constraints(
+                                    program,
+                                    local.type_reference,
+                                ))
+                                .is_some()
                             && crate::zeroed_structural_parts(program, local.type_reference);
                         if ordinal >= statement_ordinal as usize
                             || !(program
@@ -749,7 +770,10 @@ fn structural_source(
         };
     // Borrowed storage observes its referent without moving its reference.
     // An expression result must already own its home before it can be read.
-    let carrier = match program.type_reference_table.type_reference(source_type) {
+    let carrier = match program
+        .type_reference_table
+        .type_reference(crate::peel_declared_constraints(program, source_type))
+    {
         TypeReferenceNode::Reference {
             referee,
             access:
@@ -764,7 +788,8 @@ fn structural_source(
     // a whole-content transfer classifier is not a storage-read judgment.
     // The owner's claims remain live: observing one scalar neither transfers
     // the owner nor proves that its disposal obligation has been discharged.
-    let record = program.closed_data_definition(carrier)?;
+    let record =
+        program.closed_data_definition(crate::peel_declared_constraints(program, carrier))?;
     if !record.symbol.is_valid()
         || program.symbols.get(record.symbol).kind != symbols::SymbolKind::Data
     {

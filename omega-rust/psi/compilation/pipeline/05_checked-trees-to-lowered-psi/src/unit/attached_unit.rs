@@ -214,7 +214,7 @@ pub(crate) fn lower_unit_closure(
                     argument.byte_sequence_literal().is_some()
                         && argument.access == checked_trees::CheckedStructuralAccess::Owned
                 })
-            }) || crate::expression_preparation::byte_literals::collect_operation_requirements(
+            }) || crate::expression_preparation::structural_value_requirements::collect_operation_requirements(
                 checked,
                 *machine_symbol,
                 operation,

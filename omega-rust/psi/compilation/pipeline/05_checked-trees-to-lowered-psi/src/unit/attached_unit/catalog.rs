@@ -45,16 +45,10 @@ fn collect_value_roots(
         | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. } => {
             roots.push(source.type_identity.clone());
         }
-        checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf } => {
-            // The source retains qualifications; catalog roots name storage.
-            // Already-projected view identities keep their existing spelling.
-            let identity =
-                if checked.normalized_type_identity(*leaf).as_str() == source.type_identity {
-                    validation::stored_structural_type_identity(&checked.typed, *leaf, &[], &[])
-                } else {
-                    source.type_identity.clone()
-                };
-            roots.push(identity);
+        checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
+            // The producer retains the qualified leaf separately and publishes
+            // the exact stored carrier, including reference descriptors/views.
+            roots.push(source.type_identity.clone());
         }
         checked_trees::CheckedStructuralValueKind::Projection {
             source,
@@ -484,9 +478,7 @@ fn selected_declaration<'a>(
     }
     let mut selected = None;
     select_from(plans.structural_types(), identity, &mut selected)?;
-    selected.ok_or_else(|| {
-        LoweringError::Unsupported("Unit closure references a missing structural type")
-    })
+    selected.ok_or_else(|| LoweringError::MissingUnitStructuralType(identity.to_owned()))
 }
 
 pub(crate) fn lower_unit_structural_type_roots(
@@ -801,7 +793,7 @@ pub(super) fn lower_unit_structural_domains(
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
         for operation in body.operations() {
-            crate::expression_preparation::byte_literals::collect_operation_requirements(
+            crate::expression_preparation::structural_value_requirements::collect_operation_requirements(
                 checked,
                 *symbol,
                 operation,
@@ -813,7 +805,7 @@ pub(super) fn lower_unit_structural_domains(
         for value in crate::expression_preparation::computation_graph::reachable_structural_values(
             checked, *symbol,
         )? {
-            crate::expression_preparation::byte_literals::collect_value_requirements(
+            crate::expression_preparation::structural_value_requirements::collect_value_requirements(
                 checked,
                 *symbol,
                 value,

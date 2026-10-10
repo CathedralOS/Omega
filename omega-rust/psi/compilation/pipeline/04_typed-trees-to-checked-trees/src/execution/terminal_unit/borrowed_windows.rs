@@ -263,11 +263,13 @@ pub(in crate::execution::terminal_unit) fn window_place(
             .find(|(_, parameter)| parameter.position == position)?;
         if parameter.access != CheckedStructuralAccess::MutableBorrow
             || parameter.multiplicity == Multiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
         {
             return None;
         }
+        // The declaration's memberships describe the root and its children;
+        // they do not revoke its exclusive storage authority. Window emission
+        // retains the exact selected memberships and rejects any replacement
+        // that would leave a qualified ancestor or the hole unestablished.
         (
             CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(parameter_index).ok()?,

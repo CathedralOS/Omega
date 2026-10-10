@@ -720,6 +720,13 @@ pub(super) fn build_traced(
                         return None;
                     }
                     let reference = reference();
+                    // Qualifications restrict the arriving value, not the
+                    // carrier its loan lends. Inspect the declared shell once;
+                    // access and qualification transport remain checked above
+                    // and by each successor's custody judgment.
+                    let borrowed_shell = validation::reference_shell(program, reference);
+                    let borrowed_carrier = borrowed_shell
+                        .map(|shell| validation::peel_declared_constraints(program, shell.referee));
                     // A primitive referent is storage just like a record leaf.
                     // State arrivals retain the loan's declared access; they
                     // do not need readable contents to carry its address.
@@ -734,12 +741,9 @@ pub(super) fn build_traced(
                     // application such as `&FixedBuffer<2>` in a
                     // specialization.
                     let borrowed_named_referent = matches!(
-                        program.type_reference_table.type_reference(reference),
-                        TypeReferenceNode::Reference { referee, .. }
-                            if matches!(
-                                program.type_reference_table.type_reference(*referee),
-                                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                            )
+                        borrowed_carrier
+                            .map(|carrier| program.type_reference_table.type_reference(carrier)),
+                        Some(TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. })
                     );
                     // Fixed arrays have structural rather than nominal
                     // identity. Their registered shape and plain owned
@@ -747,13 +751,13 @@ pub(super) fn build_traced(
                     // across an ordinary call; access and qualifications
                     // remain checked above and by each successor transfer.
                     let borrowed_array_referent = matches!(
-                        program.type_reference_table.type_reference(reference),
-                        TypeReferenceNode::Reference { referee, .. }
+                        borrowed_shell,
+                        Some(shell)
                             if matches!(
-                                program.type_reference_table.type_reference(*referee),
-                                TypeReferenceNode::FixedArray { .. }
+                                borrowed_carrier.map(|carrier| program.type_reference_table.type_reference(carrier)),
+                                Some(TypeReferenceNode::FixedArray { .. })
                             ) && validation::has_contents(
-                                program, *referee, validation::ContentsRequirement::NumericOwned)
+                                program, shell.referee, validation::ContentsRequirement::NumericOwned)
                     ) && matches!(
                         shapes
                             .types

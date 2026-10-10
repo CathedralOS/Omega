@@ -93,6 +93,25 @@ pub struct StructuralPathQualification {
 }
 
 impl StructuralPathQualification {
+    /// Select memberships that a same-typed restoration can preserve. A
+    /// predicate on a strict ancestor may relate the hole to its siblings;
+    /// replacing the hole cannot re-establish that opaque predicate. Exact
+    /// hole and descendant memberships move with the selected value instead.
+    pub fn select_restorable(
+        whole: &[StructuralDomainId],
+        projected: &[Self],
+        path: &[StructuralPathSegment],
+    ) -> Option<(Vec<StructuralDomainId>, Vec<Self>)> {
+        if (!path.is_empty() && !whole.is_empty())
+            || projected
+                .iter()
+                .any(|row| row.path.len() < path.len() && path.starts_with(&row.path))
+        {
+            return None;
+        }
+        Some(Self::select(whole, projected, path))
+    }
+
     /// Preserve a completed child's memberships below its new parent path.
     /// The prefix identifies storage, not a receiving declaration's requirements;
     /// callers supply actual memberships after selecting the operand subtree.

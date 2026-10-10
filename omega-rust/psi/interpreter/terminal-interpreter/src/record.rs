@@ -36,9 +36,9 @@ impl TerminalExecution<'_> {
         result: &terminal_psi::StructuralOperationResult,
         fields: &[terminal_psi::RecordFieldInitializer],
     ) -> Result<(), TerminalInterpretError> {
-        if !result.qualifications.is_empty() {
-            return Err(malformed());
-        }
+        // Whole-result memberships are Psi's checked construction judgments.
+        // The constructor establishes storage, not those judgments; retaining
+        // them must not weaken the actual-child qualification/custody joins.
         let declaration = self
             .program
             .structural_types()
@@ -60,7 +60,7 @@ impl TerminalExecution<'_> {
         let mut value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
             result.structural_type,
-            Vec::new(),
+            result.qualifications.clone(),
         );
         let mut staged = BTreeMap::new();
         let mut storage = ConstructorStorage::default();

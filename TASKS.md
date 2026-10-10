@@ -508,10 +508,10 @@ defines the complete product bar.
     retained inner-loan evidence; a reference-shaped type alone must not
     invent it. Omega's
     `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_windows.rs`
-    requires an owned activation home and rejects reference-bearing, linear,
-    claimed or qualified replacement values; complete those cases, including
-    values arriving as owned parameters/block arguments, without double
-    disposal or a fabricated move window. Unbounded `UInt`/`Int` fields have no runtime
+    needs exact activation/incoming storage and retained descriptor origins;
+    complete missing provenance cases, including values arriving as owned
+    parameters/block arguments, without double disposal or a fabricated move
+    window. Unbounded `UInt`/`Int` fields have no runtime
     representation and stay rejected. `pass/filesystem/windows_canonicalize_exit`
     is recorded rejected ("performed write has unknown destination origins")
     and needs its stored UnitResult; coordinate **FILESYSTEM-RELEASE-CONTRACT**,
@@ -542,10 +542,7 @@ defines the complete product bar.
     Keep `pass/ownership/linear_computed_binding_receiver_exit` at 0 in both
     engines: ordinary direct/projected Binding parameters, nested context
     establishment and mixed borrowed/owned helper arguments retain custody.
-    Remaining: migrate the retired standalone requirement in
-    `pass/ownership/linear_qualified_call_result_claims` to its trait/provider
-    form and execute qualified results through field reseating and subsequent
-    observations. Preserve projected replacement and sibling custody in
+    Preserve projected replacement and sibling custody in
     `pass/ownership/linear_call_result_place_assignment_exit` and reject
     `fail/ownership/linear_replaced_field_second_use`. Preserve ordinary
     qualified result, state-return and disposal custody in

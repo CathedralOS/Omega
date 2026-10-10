@@ -246,9 +246,6 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let Some(result) = operation.result.structural() else {
         return malformed("structural field move has no structural result");
     };
-    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
-        return malformed("structural field move result carries unattested qualifications");
-    }
     // A moved value retains its declared linear frontier. Result claim-path
     // structure is checked by the common result foundation; current custody
     // and its transfer are not a second storage-shape classification here.
@@ -258,6 +255,14 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let field_type = window_field_type(module, root_type, path, *field)?;
     if result.structural_type != field_type {
         return malformed("structural field move result type does not match field");
+    }
+    let (qualifications, projected) =
+        window_memberships(module, machine, *source, root_type, path, *field)?;
+    if result.qualifications != qualifications
+        || result.projected_qualifications != projected
+        || !result.qualification_establishments.is_empty()
+    {
+        return malformed("structural field move does not retain the selected source memberships");
     }
     Ok(())
 }
@@ -288,6 +293,18 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let field_type = window_field_type(module, root_type, path, *field)?;
     if structural_place_type(machine, value.place) != Some(field_type) {
         return malformed("structural field store value type does not match field");
+    }
+    let (required, required_projected) =
+        window_memberships(module, machine, *destination, root_type, path, *field)?;
+    let Some((offered, offered_projected)) = declared_memberships(machine, value.place) else {
+        return malformed("structural field store value has no membership declaration");
+    };
+    if !required.iter().all(|domain| offered.contains(domain))
+        || !required_projected
+            .iter()
+            .all(|row| offered_projected.contains(row))
+    {
+        return malformed("structural field store does not restore the selected memberships");
     }
     Ok(())
 }
@@ -373,26 +390,23 @@ fn borrowed_field_store_root_type(
             parameter.access,
             terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow
         )
-        && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
         && (parameter.access == terminal_psi::StructuralAccess::Owned
-            || parameter.is_unqualified_root())
+            || matches!(
+                parameter.multiplicity,
+                terminal_psi::nonlinear_multiplicity_pair_pattern!()
+            ))
     {
         return Some(parameter.structural_type);
     }
     machine
         .operations()
         .filter_map(|producer| producer.result.structural())
-        .find(|result| {
-            result.place == place
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-        })
+        .find(|result| result.place == place)
         .map(|result| result.structural_type)
 }
 
 /// A declared mutable-borrowed machine or block parameter with transferable
-/// multiplicity and no qualifications or entry claims.
+/// multiplicity and no entry claims. Memberships are retained separately.
 fn mutable_borrowed_parameter_type(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
@@ -408,8 +422,6 @@ fn mutable_borrowed_parameter_type(
                     parameter.multiplicity,
                     terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
                 && !machine
                     .entry_claims
                     .iter()
@@ -420,6 +432,72 @@ fn mutable_borrowed_parameter_type(
                     .any(|claim| claim.input.root == place)
         })
         .map(|parameter| parameter.structural_type)
+}
+
+/// Qualification paths describe exact storage subtrees, not a restriction on
+/// their representation. Moves retain the selected declaration's memberships;
+/// replacements supply them from their value. This checks encoded roster
+/// consistency, not ordered liveness or a new establishment proof.
+fn window_memberships(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+    root_type: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) -> Result<
+    (
+        Vec<semantic_vocabulary::StructuralDomainId>,
+        Vec<terminal_psi::StructuralPathQualification>,
+    ),
+    CodecError,
+> {
+    let Some(projection) = terminal_semantics::structural_window_projection(
+        module.structural_types.iter(),
+        root_type,
+        path,
+        field,
+    ) else {
+        return malformed("qualified structural window has no declared projection");
+    };
+    let Some((whole, projected)) = declared_memberships(machine, place) else {
+        return malformed("structural window has no membership declaration");
+    };
+    terminal_psi::StructuralPathQualification::select_restorable(whole, projected, &projection.path)
+        .ok_or_else(|| {
+            CodecError::MalformedStructuralFoundation(
+                "structural window cannot restore an ancestor's qualification",
+            )
+        })
+}
+
+fn declared_memberships(
+    machine: &TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<(
+    &[semantic_vocabulary::StructuralDomainId],
+    &[terminal_psi::StructuralPathQualification],
+)> {
+    machine
+        .structural_parameter(place)
+        .map(|parameter| {
+            (
+                parameter.qualifications.as_slice(),
+                parameter.projected_qualifications.as_slice(),
+            )
+        })
+        .or_else(|| {
+            machine
+                .operations()
+                .filter_map(|operation| operation.result.structural())
+                .find(|result| result.place == place)
+                .map(|result| {
+                    (
+                        result.qualifications.as_slice(),
+                        result.projected_qualifications.as_slice(),
+                    )
+                })
+        })
 }
 
 /// Resolve the same exact storage projection the operation encodes. Bounds
@@ -492,28 +570,6 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     // dominance, live ownership and loans at this observation.
     if let Some((producer, local)) = machine
         .operations()
-        .filter(|producer| {
-            matches!(
-                producer.kind,
-                OperationKind::EstablishStructuralArray { .. }
-                    | OperationKind::EstablishRecord { .. }
-                    | OperationKind::EstablishZeroedStructural { .. }
-                    | OperationKind::EstablishStructuralLocal { .. }
-                    | terminal_psi::call_structural_pair_pattern!(..)
-                    // A boundary call's result is the same class of readable
-                    // observation source: the call's declared result custody
-                    // is the local's own, as it is for an in-module call.
-                    | OperationKind::BoundaryCall { .. }
-                    | terminal_psi::structural_leaf_copy_pair_pattern!()
-                    // A loan carrier is equally a readable observation source:
-                    // `&cells[i]` mints its referent storage through the
-                    // reference establishment, and a view local reads its
-                    // element fields through the view descriptor the same way
-                    // the store arm admits it as a write destination.
-                    | OperationKind::EstablishReference { .. }
-                    | terminal_psi::element_view_establish_pair_pattern!(..)
-            )
-        })
         .filter_map(|producer| producer.result.structural().map(|local| (producer, local)))
         .find(|(_, local)| local.place == *source)
     {
@@ -559,11 +615,12 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             || (!owns_observed_storage(module, local.structural_type, access)
                 && (local.multiplicity == StructuralMultiplicity::Linear
                     || !local.claims.is_empty()))
-            || !local.qualifications.is_empty()
-            || !local.projected_qualifications.is_empty()
         {
             return malformed("scalar record field has invalid local result custody");
         }
+        // A scalar snapshot neither consumes the source nor establishes any
+        // of its memberships. Readable access and exact declared geometry are
+        // the same for qualified records and every structural producer.
         return Ok(());
     }
     let Some(parameter) = machine.signature_structural_parameter(*source).or_else(|| {
@@ -628,17 +685,15 @@ fn scalar_observation_authorized(
     field: &StructuralFieldType,
     access: terminal_psi::StructuralAccess,
 ) -> bool {
-    !matches!(field, StructuralFieldType::Atomic(_))
-        || matches!(
-            terminal_semantics::observed_field_backing_access(
-                module.structural_types.iter(),
-                root,
-                path,
-                access,
-            ),
-            Some(
-                terminal_psi::StructuralAccess::Owned
-                    | terminal_psi::StructuralAccess::MutableBorrow
-            )
-        )
+    let Some(access) = terminal_semantics::observed_field_backing_access(
+        module.structural_types.iter(),
+        root,
+        path,
+        access,
+    ) else {
+        return false;
+    };
+    access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+        && (!matches!(field, StructuralFieldType::Atomic(_))
+            || matches!(access, terminal_psi::mutating_access_pair_pattern!()))
 }

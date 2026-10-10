@@ -53,17 +53,23 @@ pub(crate) fn memoized_owns_drop_hook(
 }
 
 pub(crate) struct EstablishmentQueries {
-    rows: Vec<(SymbolHandle, OnceLock<bool>)>,
+    rows: Vec<(super::data::EstablishmentIdentity, OnceLock<bool>)>,
 }
 
 impl EstablishmentQueries {
     fn of(program: &dyn crate::CheckingInput) -> Self {
-        let symbols = program
+        let mut identities = program
             .data_definitions()
             .iter()
-            .map(|definition| definition.symbol);
+            .map(super::data::EstablishmentIdentity::of)
+            .collect::<Vec<_>>();
+        identities.sort_by_key(|identity| identity.order());
+        identities.dedup();
         Self {
-            rows: crate::frozen_program::once_lock_rows(symbols),
+            rows: identities
+                .into_iter()
+                .map(|identity| (identity, OnceLock::new()))
+                .collect(),
         }
     }
 }
@@ -80,11 +86,8 @@ pub(crate) fn memoized_data_requires_establishment(
         .establishment
         .get_or_init(|| EstablishmentQueries::of(program));
     let Ok(position) = queries.rows.binary_search_by_key(
-        &(
-            definition.symbol.arena_index(),
-            definition.symbol.generation(),
-        ),
-        |(symbol, _)| (symbol.arena_index(), symbol.generation()),
+        &super::data::EstablishmentIdentity::of(definition).order(),
+        |(identity, _)| identity.order(),
     ) else {
         return compute();
     };
