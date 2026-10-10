@@ -53,21 +53,7 @@ pub(crate) struct ElfDynamicFileFragmentPlacement {
 }
 
 impl ElfDynamicFileFragmentPlacement {
-    pub const fn ordinal(&self) -> u32 {
-        self.ordinal
-    }
 
-    pub const fn kind(&self) -> ElfDynamicFileFragmentKind {
-        self.kind
-    }
-
-    pub const fn file_offset(&self) -> u64 {
-        self.file_offset
-    }
-
-    pub const fn byte_count(&self) -> u64 {
-        self.byte_count
-    }
 }
 
 /// Independently replayed, non-runnable dynamic ELF file bytes.
@@ -86,10 +72,6 @@ impl ValidatedElfAssembledDynamicFile {
 
     pub fn bytes(&self) -> &[u8] {
         &self.contents.bytes
-    }
-
-    pub(crate) fn fragment_placements(&self) -> &[ElfDynamicFileFragmentPlacement] {
-        &self.contents.fragment_placements
     }
 
     /// Compatibility/report coordinate only. A later mutation/admission rung

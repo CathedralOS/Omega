@@ -53,20 +53,6 @@ impl ValidatedElfDynamicTagPlan {
         self.contents.rows.len()
     }
 
-    pub(crate) fn needed_row_count(&self) -> usize {
-        self.descriptors
-            .templates()
-            .linkage()
-            .descriptors()
-            .payloads()
-            .plan()
-            .needed_object_count()
-    }
-
-    pub(crate) fn address_obligation_count(&self) -> usize {
-        self.contents.address_obligations.len()
-    }
-
     /// Compatibility fingerprint of the owning eleven-section descriptor
     /// identity, exact typed row sequence, and eight semantic address
     /// obligations. This is not final-byte or loader identity.

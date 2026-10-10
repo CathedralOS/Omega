@@ -53,26 +53,6 @@ impl ValidatedElfDynamicSectionPayloads {
         self.payloads.dynstr.len()
     }
 
-    pub(crate) fn dynamic_symbol_byte_count(&self) -> usize {
-        self.payloads.dynsym.len()
-    }
-
-    pub(crate) fn system_v_hash_byte_count(&self) -> usize {
-        self.payloads.sysv_hash.len()
-    }
-
-    pub(crate) fn gnu_hash_byte_count(&self) -> usize {
-        self.payloads.gnu_hash.len()
-    }
-
-    pub(crate) fn symbol_version_byte_count(&self) -> usize {
-        self.payloads.versym.len()
-    }
-
-    pub(crate) fn version_requirement_byte_count(&self) -> usize {
-        self.payloads.verneed.len()
-    }
-
     /// Compatibility fingerprint of the exact source content identity,
     /// ELF64-LSB encoding selection, section-kind boundaries, and serialized
     /// bytes. This is a content compatibility coordinate, not image or loader authority.

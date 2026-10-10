@@ -60,10 +60,6 @@ impl ValidatedElfProcedureLinkageSectionDescriptorPlan {
         UPSTREAM_DESCRIPTOR_COUNT + self.contents.descriptors.len()
     }
 
-    pub(crate) fn appended_descriptor_count(&self) -> usize {
-        self.contents.descriptors.len()
-    }
-
     pub fn section_name_seed_byte_count(&self) -> usize {
         self.contents.section_name_table_seed.len()
     }

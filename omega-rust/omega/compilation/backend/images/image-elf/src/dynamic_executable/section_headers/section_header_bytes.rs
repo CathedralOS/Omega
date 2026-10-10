@@ -58,10 +58,6 @@ impl ValidatedElfSectionHeaderTableTemplate {
         self.contents.bytes.len()
     }
 
-    pub(crate) fn placement_fixup_count(&self) -> usize {
-        self.contents.placement_fixups.len()
-    }
-
     /// Compatibility fingerprint of the exact roster identity, ELF64-LSB
     /// bytes, and typed placement-fixup coordinates. This is not placed-header
     /// or final-image identity.

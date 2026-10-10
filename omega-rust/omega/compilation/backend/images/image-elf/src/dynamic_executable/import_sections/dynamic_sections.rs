@@ -56,14 +56,6 @@ impl ValidatedElfDynamicSectionPlan {
         self.contents.needed.len()
     }
 
-    pub(crate) fn required_version_count(&self) -> usize {
-        self.contents
-            .verneed
-            .iter()
-            .map(|need| need.auxiliaries.len())
-            .sum()
-    }
-
     /// Compatibility fingerprint of the selected profile, exact interpreter
     /// contents, canonical table contents, normalized import identities, and
     /// their assigned dynamic-symbol/version indexes. This is deterministic

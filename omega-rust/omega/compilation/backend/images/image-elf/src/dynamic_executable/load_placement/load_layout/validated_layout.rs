@@ -78,14 +78,6 @@ impl ValidatedElfDynamicLoadLayout {
         self.section_header_table_file_offset
     }
 
-    pub(crate) fn section_header_table_byte_size(&self) -> usize {
-        self.relative.payloads().section_headers().byte_count()
-    }
-
-    pub(crate) fn dynamic_section(&self) -> &ElfPlacedDynamicSection {
-        &self.sections[ElfPlacedDynamicSectionKind::DynamicTable as usize]
-    }
-
     /// Compatibility fingerprint only; this is not a runnable-image identity.
     pub const fn non_authoritative_layout_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_layout_compatibility_fingerprint
