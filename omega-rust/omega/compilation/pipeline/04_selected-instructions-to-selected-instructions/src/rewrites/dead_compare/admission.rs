@@ -24,7 +24,8 @@ use register_model::RegisterOperandAccess;
 use register_model::RegisterUnitId;
 use selected_instructions::{
     SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedValueTransport, VirtualRegisterId,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedValueTransport, VirtualRegisterId,
 };
 
 use super::DeadCompareError;
@@ -341,4 +342,36 @@ pub(super) fn apply<E>(
     .map_err(map_error)?;
     block.instructions.remove(admitted.compare_index);
     Ok(())
+}
+
+/// Shared remove-one-compare orchestration: admit through the family's
+/// `admit`, apply the admitted removal into a cloned plan with the family's
+/// error map, then seal through the family's `seal`.
+pub(super) fn remove_compare<'source, S, E, V>(
+    source: &'source S,
+    function_index: usize,
+    compare: SelectedInstructionId,
+    environment: &'source ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+    admit: fn(
+        &'source S,
+        usize,
+        SelectedInstructionId,
+        &'source ValidatedTargetRegisterEnvironment,
+        OptimizationWorkBudget,
+    ) -> Result<Admission<'source>, E>,
+    map_error: impl Fn(DeadCompareError) -> E,
+    seal: impl Fn(&'source S, usize, SelectedInstructionId, SelectedInstructionPlan) -> Result<V, E>,
+) -> Result<V, E>
+where
+    S: ValidatedSelectedAnalysis + ?Sized,
+{
+    let admitted = admit(source, function_index, compare, environment, budget)?;
+    let mut transformed = source.selected_plan().clone();
+    apply(
+        &admitted,
+        &mut transformed.functions[function_index],
+        map_error,
+    )?;
+    seal(source, function_index, compare, transformed)
 }
