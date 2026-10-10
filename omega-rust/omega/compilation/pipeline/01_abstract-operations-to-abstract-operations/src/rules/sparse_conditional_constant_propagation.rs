@@ -48,14 +48,12 @@ macro_rules! constant_fold_rules {
 /// twice.
 macro_rules! realized_node_provenance {
     ($location:expr, $node:expr) => {
-        ProvenanceRewrite {
-            input: PsiRealizationSite::Node($location),
-            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(
-                $location,
-            )),
-            sources: $node.provenance.clone(),
-            fuel: $node.fuel.clone(),
-        }
+        $crate::rules::control_flow_cleanup::provenance_realized_at(
+            PsiRealizationSite::Node($location),
+            PsiRealizationSite::Node($location),
+            &$node.provenance,
+            &$node.fuel,
+        )
     };
 }
 
@@ -242,5 +240,9 @@ pub(crate) enum IntegerRangePairComparisonKind {
 /// One node-occurrence location shared by every candidate-producing match arm
 /// in this family.
 pub(super) fn node_location(machine: MachineId, block: BlockId, node: u32) -> NodeLocation {
-    NodeLocation { machine, block, node }
+    NodeLocation {
+        machine,
+        block,
+        node,
+    }
 }

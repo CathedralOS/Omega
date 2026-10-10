@@ -8,8 +8,7 @@ use optimization_core::{
     AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    BooleanConstantRewrite, IntegerEvaluationWitness, ProvenanceDisposition,
-    ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    BooleanConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
     ValueRangeSupport,
 };
 use semantic_vocabulary::{IntegerType, IntegerValue};

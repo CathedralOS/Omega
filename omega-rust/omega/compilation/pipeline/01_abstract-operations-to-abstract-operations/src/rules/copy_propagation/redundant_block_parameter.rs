@@ -8,12 +8,13 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    BlockParameterIncomingBinding, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
+    BlockParameterIncomingBinding, NodeLocation, ProvenanceRewrite,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
     RedundantBlockParameterWitness,
 };
 
 use crate::rules::COPY_PROPAGATION_PASS_NAME;
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -121,12 +122,12 @@ pub(super) fn propose(
                                 machine: function.machine,
                                 edge: edge.psi_edge,
                             };
-                            provenance.push(ProvenanceRewrite {
-                                input: site,
-                                disposition: ProvenanceDisposition::RealizedAt(site),
-                                sources: edge.provenance.clone(),
-                                fuel: edge.fuel.clone(),
-                            });
+                            provenance.push(provenance_realized_at(
+                                site,
+                                site,
+                                &edge.provenance,
+                                &edge.fuel,
+                            ));
                         }
                         if changes_use {
                             affected_blocks.insert(source.id);
@@ -137,12 +138,12 @@ pub(super) fn propose(
                                     node: u32::try_from(node_index)
                                         .expect("unit node index fits u32"),
                                 });
-                                provenance.push(ProvenanceRewrite {
-                                    input: site,
-                                    disposition: ProvenanceDisposition::RealizedAt(site),
-                                    sources: node.provenance.clone(),
-                                    fuel: node.fuel.clone(),
-                                });
+                                provenance.push(provenance_realized_at(
+                                    site,
+                                    site,
+                                    &node.provenance,
+                                    &node.fuel,
+                                ));
                             }
                         }
                     }

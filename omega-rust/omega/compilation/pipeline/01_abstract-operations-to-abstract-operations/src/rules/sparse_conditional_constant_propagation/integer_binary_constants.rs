@@ -19,8 +19,7 @@ use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
 use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, ProvenanceDisposition,
-    ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    IntegerConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{IntegerType, IntegerValue, MachineId, OperationId, ValueId};
 

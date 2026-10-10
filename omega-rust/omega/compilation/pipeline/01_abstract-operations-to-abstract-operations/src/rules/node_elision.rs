@@ -9,12 +9,13 @@
 use abstract_operations::AbstractOperation;
 use optimization_core::{AnalysisKind, OptimizationRuleContract};
 use optimization_unit::{
-    DeadScalarNodeRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
+    DeadScalarNodeRewrite, NodeLocation, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{BlockId, OperationId, ScalarType, ValueId};
 
 use super::accepted_obligations::accepted_obligation_fact;
+use crate::rules::control_flow_cleanup::provenance_realized_at;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -153,12 +154,12 @@ pub(super) fn node_elision_accounting(
     let block = &function.blocks[block_position];
     let removed = block.nodes.get(node_position)?;
     block.nodes.get(node_position.checked_add(1)?)?;
-    let mut provenance = vec![ProvenanceRewrite {
-        input: PsiRealizationSite::Node(removed_location),
-        disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(removed_location)),
-        sources: removed.provenance.clone(),
-        fuel: removed.fuel.clone(),
-    }];
+    let mut provenance = vec![provenance_realized_at(
+        PsiRealizationSite::Node(removed_location),
+        PsiRealizationSite::Node(removed_location),
+        &removed.provenance,
+        &removed.fuel,
+    )];
     for (index, node) in block.nodes.iter().enumerate().skip(node_position + 1) {
         if node.provenance.is_empty() {
             continue;
@@ -172,12 +173,12 @@ pub(super) fn node_elision_accounting(
             node: old.node.checked_sub(1)?,
             ..old
         };
-        provenance.push(ProvenanceRewrite {
-            input: PsiRealizationSite::Node(old),
-            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(new)),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+        provenance.push(provenance_realized_at(
+            PsiRealizationSite::Node(old),
+            PsiRealizationSite::Node(new),
+            &node.provenance,
+            &node.fuel,
+        ));
     }
     let mut affected = vec![block.id];
     for later in function.blocks.iter().skip(block_position + 1) {
@@ -191,12 +192,9 @@ pub(super) fn node_elision_accounting(
                 block: later.id,
                 node: u32::try_from(index).ok()?,
             });
-            provenance.push(ProvenanceRewrite {
-                input: site,
-                disposition: ProvenanceDisposition::RealizedAt(site),
-                sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
-            });
+            provenance.push(provenance_realized_at(
+                site, site, &node.provenance, &node.fuel,
+            ));
         }
     }
     for use_block in &function.blocks {
@@ -215,12 +213,9 @@ pub(super) fn node_elision_accounting(
                 block: use_block.id,
                 node: u32::try_from(index).ok()?,
             });
-            provenance.push(ProvenanceRewrite {
-                input: site,
-                disposition: ProvenanceDisposition::RealizedAt(site),
-                sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
-            });
+            provenance.push(provenance_realized_at(
+                site, site, &node.provenance, &node.fuel,
+            ));
         }
     }
     affected.sort();

@@ -7,7 +7,7 @@ use abstract_operations::AbstractOperation as O;
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
     BooleanConstantRewrite, IntegerEvaluationWitness, OptimizationNode,
-    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiOptimizationFunction, PsiOptimizationUnit,
     PsiRealizationSite, PsiRewriteCandidate,
 };
 use semantic_vocabulary::{OperationId, ValueId};

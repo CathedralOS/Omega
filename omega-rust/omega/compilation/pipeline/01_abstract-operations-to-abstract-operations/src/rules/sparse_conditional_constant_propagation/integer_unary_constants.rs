@@ -4,8 +4,7 @@
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, ProvenanceDisposition,
-    ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    IntegerConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
 
 use crate::rules::sparse_conditional_constant_propagation::{
