@@ -79,6 +79,7 @@ use typed_trees::types::TypeReferenceHandle;
 pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
 };
+pub use value_custody::constants::validate_constant_literal_integer_ranges;
 pub use value_custody::content_classes::classify_program_content_classes;
 pub use value_custody::content_conservation::{data_variant_name, push_structural_field};
 pub use value_custody::dispatch_extraction::DispatchExtraction;

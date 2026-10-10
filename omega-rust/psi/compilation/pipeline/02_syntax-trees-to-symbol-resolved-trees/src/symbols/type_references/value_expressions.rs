@@ -12,17 +12,50 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::{expressions::assign_statement_expression_symbols, scope::MachineScope};
 
-/// A field's type can contain the same value expressions as a parameter's type.
+/// Constant and field types contain the same value expressions as parameter types.
 /// Resolve them after declaration and type identities exist, before typing can
 /// copy an unresolved call into a constant position. Data owns its generic and
 /// field names but has no machine activation: no state parameters or locals are
 /// in scope. Field references remain symbolic, not same-spelled global constants.
-pub(in crate::symbols) fn assign_data_type_value_expression_symbols(
+pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
     program: &mut symbol_resolved_trees::SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
     let attached_machines = crate::symbols::scope::attached_machines(program);
     let declarations = &mut program.tables.declarations;
+    // Constants own type-bound expressions too, including unused declarations.
+    // Resolve under their exact source/module owner before typed endpoint
+    // evaluation; no machine parameter or data field is in this scope.
+    program
+        .roots
+        .const_declarations
+        .for_each_mut(|declaration| {
+            let scope = MachineScope {
+                symbol: declaration.symbol,
+                lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
+                attached_machines: &attached_machines,
+                resolution_indexes: &program.resolution_indexes,
+                type_parameters: &[],
+                attached_data: None,
+                attached_data_symbol: SymbolHandle::invalid(),
+                inherited_data_members: None,
+                owned_data: &[],
+                prior_statements: &[],
+                data_definitions: &program.roots.data_definitions,
+                data_members: &declarations.data_members,
+                data_payload_fields: &declarations.data_payload_fields,
+                type_constraints: &program.tables.types.constraints,
+            };
+            assign_type_value_expression_symbols(
+                symbols,
+                &scope,
+                &[],
+                SymbolHandle::invalid(),
+                &mut program.tables.bodies.expressions,
+                &mut declarations.child_type_references,
+                &mut declaration.declared_type,
+            );
+        });
     let mut field_updates = Vec::new();
     let mut payload_updates = Vec::new();
     for definition in program.roots.data_definitions.iter() {

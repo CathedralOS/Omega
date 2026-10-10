@@ -4746,3 +4746,6 @@ fail/contracts/referent_replacement_false_guarantee rejected 468ms expected @b4e
 	cannot prove ensures contract for exit from replace at statement 2: pair.first.value == 7
 	cannot prove ensures contract for exit from overwrite at statement 2: pair.first.value == 7
 pass/ownership/runtime_referent_replacement_fact_transport_exit checked 3450ms check-target:macos_arm64 @b4e03c503cb3+wt
+pass/modules/literal_constant_range_call_endpoint checked 11516ms @61ce8f513be3
+fail/modules/literal_constant_array_range_rejected rejected 455ms expected @61ce8f513be3
+	constant initializer: constant initializer literal does not satisfy its declared integer range

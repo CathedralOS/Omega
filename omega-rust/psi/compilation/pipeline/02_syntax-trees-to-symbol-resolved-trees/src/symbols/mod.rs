@@ -337,7 +337,7 @@ fn assign_program_symbols(
         generic_origin_frontier,
     );
     assign_type_reference_symbols(program, symbols);
-    type_references::assign_data_type_value_expression_symbols(program, symbols);
+    type_references::assign_declaration_type_value_expression_symbols(program, symbols);
     propositions::assign_proposition_expression_symbols(program, symbols);
     mathematical::assign_mathematical_expression_symbols(program, symbols);
     measures::assign_measure_expression_symbols(program, symbols);

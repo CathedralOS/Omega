@@ -1,0 +1,5 @@
+use other;
+use selected;
+const GOOD: u64 [0..=selected::limit()] = 2;
+machine limit() -> u64 { 0 }
+machine main() {}

@@ -57,6 +57,15 @@ pub(crate) fn validate(
                 "constant declaration lost its exact materialized initializer root",
             ));
         }
+        // The continuation has completed this declaration and its endpoints.
+        // Earlier helper probes contain private stand-ins: they cannot prove
+        // literal membership or make an unready bound a declaration failure.
+        validation::validate_constant_literal_integer_ranges(
+            typed,
+            declaration.declared_type,
+            declaration.materialized_initializer,
+        )
+        .map_err(|reason| super::failure(reference, reason))?;
         let mut retained_call = false;
         for occurrence in typed
             .expression_table

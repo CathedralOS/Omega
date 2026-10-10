@@ -1,0 +1,1 @@
+An unused array constant still owes its element range at declaration checking. The authored element 3 is outside 0..=2. Run `python3 tools/corpus_gate.py --filter literal_constant_array_range_rejected`.

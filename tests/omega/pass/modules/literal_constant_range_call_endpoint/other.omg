@@ -1,0 +1,2 @@
+module other;
+machine limit() -> u64 { 0 }
