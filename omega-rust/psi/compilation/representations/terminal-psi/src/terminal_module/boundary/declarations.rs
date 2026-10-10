@@ -25,6 +25,9 @@ pub struct BoundaryStructuralResultDeclaration {
     pub structural_type: StructuralTypeId,
     pub multiplicity: StructuralMultiplicity,
     pub qualifications: Vec<StructuralDomainId>,
+    /// Memberships promised by the declared descendant types, not inferred
+    /// from the receiving annotation or a selected member's private guarantees.
+    pub projected_qualifications: Vec<crate::StructuralPathQualification>,
 }
 
 /// Closed result role of one bodyless boundary declaration.

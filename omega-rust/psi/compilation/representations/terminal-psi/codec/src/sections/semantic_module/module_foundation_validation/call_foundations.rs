@@ -541,17 +541,17 @@ pub(super) fn validate_boundary_call(
     let actual_result = match &operation.result {
         OperationResult::Unit => Some(BoundaryMachineResult::Unit),
         OperationResult::Scalar(result) => Some(BoundaryMachineResult::Scalar(result.scalar_type)),
-        OperationResult::Structural(result) if result.projected_qualifications.is_empty() => {
+        OperationResult::Structural(result) => {
             validate_result_claim_shape(module, result)?;
             Some(BoundaryMachineResult::Structural(
                 BoundaryStructuralResultDeclaration {
                     structural_type: result.structural_type,
                     multiplicity: result.multiplicity,
                     qualifications: result.qualifications.clone(),
+                    projected_qualifications: result.projected_qualifications.clone(),
                 },
             ))
         }
-        OperationResult::Structural(_) => None,
     };
     if actual_result.as_ref() != Some(&boundary.result) {
         return malformed("boundary call result disagrees with its declaration");

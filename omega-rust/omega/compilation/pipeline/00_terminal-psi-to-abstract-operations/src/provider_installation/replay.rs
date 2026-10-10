@@ -247,7 +247,8 @@ fn replays_result(
                 // result qualifications — joined above by the
                 // abstract/terminal equality.
                 && occurrence.qualifications == boundary.qualifications
-                && occurrence.projected_qualifications.is_empty()
+                && occurrence.projected_qualifications == boundary.projected_qualifications
+                && boundary.projected_qualifications.iter().all(|row| candidate.projected_qualifications.contains(row))
                 && occurrence.claims.is_empty()
         }
         _ => false,

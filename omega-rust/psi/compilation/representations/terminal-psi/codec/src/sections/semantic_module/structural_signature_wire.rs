@@ -92,6 +92,7 @@ pub(crate) fn encode_boundary_machine(
             for qualification in &result.qualifications {
                 writer.id(*qualification);
             }
+            encode_projected_qualifications(writer, &result.projected_qualifications)?;
         }
     }
     writer.len(
@@ -296,6 +297,7 @@ pub(crate) fn decode_boundary_machine(
                     tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
                 },
                 qualifications: decode_ids(reader, "boundary result qualifications")?,
+                projected_qualifications: decode_projected_qualifications(reader)?,
             }),
             tag => return Err(CodecError::InvalidTag("BoundaryMachineResult", tag)),
         },

@@ -138,6 +138,7 @@ pub(super) fn encode_boundary_machine(
                 StructuralMultiplicity::Linear => 3,
             });
             encode_ids(bytes, &result.qualifications);
+            encode_projected_qualification_roster(bytes, &result.projected_qualifications);
         }
     }
     bytes.slice(&declaration.requires, encode_domain_requirement);

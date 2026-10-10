@@ -59,6 +59,7 @@ pub(in crate::legalization) fn result_at(
             if result.structural_type != declared.structural_type
                 || result.multiplicity != declared.multiplicity
                 || result.qualifications != declared.qualifications
+                || result.projected_qualifications != declared.projected_qualifications
                 || !result.projected_qualifications.is_empty()
                 || !result.qualification_establishments.is_empty()
                 || !result.claims.is_empty()

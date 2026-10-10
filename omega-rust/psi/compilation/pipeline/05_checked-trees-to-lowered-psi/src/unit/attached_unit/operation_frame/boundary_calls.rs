@@ -146,6 +146,7 @@ impl OperationFrame<'_, '_> {
             type_identity,
             multiplicity,
             qualifications,
+            projected_qualifications,
         } = &target.result
         else {
             return unsupported("Unit structural result target is not a structural boundary");
@@ -205,7 +206,15 @@ impl OperationFrame<'_, '_> {
                     lookup_domain_id_for_carrier(self.callees.domain_ids, *domain, structural_type)
                 })
                 .collect::<Result<Vec<_>, _>>()?,
-            projected_qualifications: Vec::new(),
+            // The call publishes only the head's declared rows. Selected
+            // members cover them through ordinary return transport; this does
+            // not issue membership or import member-private result facts.
+            projected_qualifications: super::super::parameters::lower_projected_qualifications(
+                projected_qualifications,
+                self.callees.domain_ids,
+                structural_type,
+                self.structural_types.declarations(),
+            )?,
             claims: result_claims,
         };
         self.operations.push(Operation {

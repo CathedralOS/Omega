@@ -22,6 +22,9 @@ pub enum CheckedBoundaryMachineResultPlan {
         type_identity: TypeIdentityId,
         multiplicity: Multiplicity,
         qualifications: Vec<SemanticDomainId>,
+        /// Declared descendant memberships, distinct from root domains and
+        /// stronger facts private to a selected implementation.
+        projected_qualifications: Vec<super::CheckedStructuralPathQualification>,
     },
 }
 

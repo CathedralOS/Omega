@@ -245,6 +245,7 @@ pub(super) fn checked_unit_provider_candidates(
                     type_identity,
                     multiplicity,
                     qualifications,
+                    projected_qualifications,
                 } => {
                     let candidate = callable_candidate(checked, plans, machine)?;
                     let checked_trees::CheckedControlResultPlan::Structural(result) =
@@ -266,6 +267,9 @@ pub(super) fn checked_unit_provider_candidates(
                     if *multiplicity == Multiplicity::Linear
                         || result.type_identity != *type_identity
                         || result.multiplicity != *multiplicity
+                        || projected_qualifications
+                            .iter()
+                            .any(|row| !result.projected_qualifications.contains(row))
                         || result
                             .qualifications
                             .iter()

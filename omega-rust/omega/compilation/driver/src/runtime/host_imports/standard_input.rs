@@ -67,6 +67,7 @@ impl<'input> ReadByteImport<'input> {
             || !signature.structural_parameters.is_empty()
             || result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
             || !empty.fields.is_empty()
             || field.relevance.is_erased()
             || carrier.sign() != IntegerSign::Signed

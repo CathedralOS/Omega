@@ -101,7 +101,7 @@ pub(crate) fn lower_declarations(
             scalar_parameters: scalar_parameters.clone(),
             crash_routes,
             structural_parameters: parameters.clone(),
-            result: lower_boundary_result(&plan.result, type_ids, domain_ids)?,
+            result: lower_boundary_result(&plan.result, type_ids, structural_types, domain_ids)?,
             requires,
             program_local_root_introductions: lower_program_local_root_introductions(
                 checked,
@@ -330,6 +330,7 @@ fn lower_requirements(
 pub(super) fn lower_boundary_result(
     result: &CheckedBoundaryMachineResultPlan,
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[StructuralDomainBinding],
 ) -> Result<BoundaryMachineResult, LoweringError> {
     Ok(match result {
@@ -341,6 +342,7 @@ pub(super) fn lower_boundary_result(
             type_identity,
             multiplicity,
             qualifications,
+            projected_qualifications,
         } => BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
             structural_type: lookup_type_id(type_ids, type_identity)?,
             multiplicity: terminal_multiplicity(*multiplicity),
@@ -354,6 +356,12 @@ pub(super) fn lower_boundary_result(
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?,
+            projected_qualifications: super::parameters::lower_projected_qualifications(
+                projected_qualifications,
+                domain_ids,
+                lookup_type_id(type_ids, type_identity)?,
+                structural_types,
+            )?,
         }),
     })
 }

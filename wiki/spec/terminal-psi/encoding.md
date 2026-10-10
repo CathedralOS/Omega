@@ -1106,7 +1106,7 @@ ranked control cycles and the contracts of opaque calls.
 | --- | --- |
 | 0 | Unit |
 | 1 | Scalar | scalar type |
-| 2 | Structural | structural type id + structural multiplicity + counted qualification domain ids |
+| 2 | Structural | structural type id + structural multiplicity + counted qualification domain ids + counted projected qualifications |
 
 <!-- boundary-content-guarantee-tags -->
 

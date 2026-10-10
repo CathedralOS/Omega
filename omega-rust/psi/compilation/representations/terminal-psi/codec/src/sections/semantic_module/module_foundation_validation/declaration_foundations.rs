@@ -3,7 +3,7 @@
 
 use super::{
     has_service, has_structural_type, require_known_services, validate_service_parent_graph,
-    validate_structural_parameters,
+    validate_structural_parameters, validate_structural_qualifications,
 };
 use crate::codec_error::{CodecError, malformed};
 use terminal_psi::TerminalModule;
@@ -61,6 +61,17 @@ pub(super) fn validate_boundary_machine(
         return malformed("boundary machine has an unknown attachment type");
     }
     validate_structural_parameters(module, &boundary.structural_parameters)?;
+    if let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result {
+        if !has_structural_type(module, result.structural_type) {
+            return malformed("boundary result references an unknown structural type");
+        }
+        validate_structural_qualifications(
+            module,
+            result.structural_type,
+            &result.qualifications,
+            &result.projected_qualifications,
+        )?;
+    }
     if !boundary.has_valid_parameter_order() {
         return malformed("boundary parameter order does not cover its lanes exactly");
     }

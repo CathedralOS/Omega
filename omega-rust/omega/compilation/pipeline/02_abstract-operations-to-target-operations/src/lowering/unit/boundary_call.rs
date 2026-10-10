@@ -210,6 +210,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     if result.structural_type != expected.structural_type
                         || result.multiplicity != expected.multiplicity
                         || result.qualifications != expected.qualifications
+                        || result.projected_qualifications != expected.projected_qualifications
                         || !result.projected_qualifications.is_empty()
                         || !result.claims.is_empty()
                     {

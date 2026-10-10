@@ -748,7 +748,8 @@ pub(crate) fn lower_projected_qualifications(
     root: StructuralTypeId,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<terminal_psi::StructuralPathQualification>, LoweringError> {
-    rows.iter()
+    let mut qualifications = rows
+        .iter()
         .map(|row| {
             if row.path.is_empty() {
                 return unsupported("projected qualification has an empty path");
@@ -768,7 +769,14 @@ pub(crate) fn lower_projected_qualifications(
                 domain: lookup_domain_id_for_carrier(domain_ids, row.domain, carrier)?,
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    // Terminal domain IDs use catalog order, not the source semantic-domain
+    // order. Canonicalize after remapping without collapsing duplicate evidence.
+    qualifications.sort();
+    if qualifications.windows(2).any(|pair| pair[0] == pair[1]) {
+        return unsupported("projected qualifications contain duplicate domain paths");
+    }
+    Ok(qualifications)
 }
 
 /// The primitive storage each borrowed primitive formal lends (`&u8`,

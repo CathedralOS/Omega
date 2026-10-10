@@ -148,6 +148,7 @@ pub(super) fn validate_installed_provider_calls(
                         actual.structural_type == expected.structural_type
                             && actual.multiplicity == expected.multiplicity
                             && actual.qualifications == expected.qualifications
+                            && actual.projected_qualifications == expected.projected_qualifications
                     }
                     _ => false,
                 }

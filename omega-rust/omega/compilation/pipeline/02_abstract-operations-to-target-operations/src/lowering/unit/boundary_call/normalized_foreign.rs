@@ -724,6 +724,7 @@ pub(super) fn lower_normalized_foreign_result(
         if result.structural_type != expected.structural_type
             || result.multiplicity != expected.multiplicity
             || result.qualifications != expected.qualifications
+            || result.projected_qualifications != expected.projected_qualifications
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || !result.qualification_establishments.is_empty()

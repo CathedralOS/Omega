@@ -304,6 +304,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 || result.structural_type != declared.structural_type
                 || result.multiplicity != declared.multiplicity
                 || result.qualifications != declared.qualifications
+                || result.projected_qualifications != declared.projected_qualifications
                 || !retained_types
                     .structural_types
                     .iter()

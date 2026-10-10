@@ -205,14 +205,33 @@ pub(crate) fn checked_unit_boundary_identity(
         .find(|operator| operator.is_boundary && operator.symbol == symbol)
     {
         return Ok(checked.typed.callable_identity_by_text(
-            &typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator),
+            &typed_trees::operator::boundary_operator_requirement_identity(
+                &checked.typed,
+                operator,
+            ),
         ));
     }
-    // An owner-qualified boundary machine keeps its qualified display name.
-    // Qualification contributes no receiver, so its selection class is the
-    // bodyless `Unsupported` one rather than `Attached`.
-    unique_terminal_selection(checked, symbol)
-        .map(|selection| checked.typed.callable_identity_by_text(&selection.name))
+    // A bodyless selection proves this declaration belongs to the closure,
+    // but its name is diagnostic payload, not callable identity. Rejoin the
+    // exact declaration's overload telescope; rehydrating a display path loses
+    // identity when overload identities are interned.
+    unique_terminal_selection(checked, symbol)?;
+    let mut declarations = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == symbol);
+    let Some(declaration) = declarations.next() else {
+        return unsupported("boundary selection has no machine declaration");
+    };
+    if declarations.next().is_some() {
+        return unsupported("boundary selection has ambiguous machine declarations");
+    }
+    let identity = checked.typed.machine_callable_identity(declaration);
+    if !identity.is_valid() {
+        return unsupported("boundary declaration has no normalized callable identity");
+    }
+    Ok(identity)
 }
 
 /// The machine an ordinary call enters inside the Unit roster: every ordinary

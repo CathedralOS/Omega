@@ -169,7 +169,6 @@ pub(crate) fn checked_call_erased_scalar_arguments(
         .collect()
 }
 
-
 /// `projected_argument_path` with runtime-index admission for the borrowed
 /// lanes — a `&`-rooted call receiver or argument, or a `self.nodes[i]`-shape
 /// copied leaf. A runtime `Index` segment retains `RuntimeIndex` naming the
@@ -306,7 +305,6 @@ pub(crate) fn projected_evaluated_path(
 ) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
     projected_argument_path(program, state, statement, place, Some(machine), selector)
 }
-
 
 /// The segment prefix ending before `position` re-rooted as its own place and
 /// resolved to its container type — the descend every member, index, window or
@@ -1108,7 +1106,7 @@ pub(crate) fn target_contract_mentions_projected_parameter(
                     || place.root == facts::PlaceRoot::Symbol(parameter.symbol))
                     && !(requires
                         && place.segments.is_empty()
-                        && byte_parameter_qualification_carries_membership(
+                        && parameter_qualification_carries_membership(
                             program, parameter, membership,
                         ))
             })
@@ -1150,35 +1148,22 @@ pub(crate) fn target_contract_mentions_projected_parameter(
         })
 }
 
-/// A declared byte qualification also appears as a source requires fact. Its
-/// exact domain is already carried by the formal and independently checked by
-/// bounded-owner loan admission, or for a shared view formal by the stored
-/// view field's declared predicates; it does not need a second
-/// projected-contract representation. Other memberships and all exit
-/// contracts still need theirs.
-fn byte_parameter_qualification_carries_membership(
+/// A declared root qualification also appears as a source requires fact.
+/// Argument formation already retains and checks that exact domain; projecting
+/// the actual does not create a second contract obligation or membership grant.
+/// Extra authored memberships and all exit contracts still need their own
+/// represented correspondence. This is independent of the carrier's storage.
+fn parameter_qualification_carries_membership(
     program: &dyn ::validation::CheckingInput,
     parameter: &StateParameter,
     membership: &typed_trees::domain::ProofMembershipFact,
 ) -> bool {
-    let carrier_carries_domain = match byte_sequence_carrier(program, parameter.type_reference, &[])
-    {
-        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }) => true,
-        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }) => {
-            structural_access_for_type_reference(program, parameter.type_reference)
-                == Some(CheckedStructuralAccess::SharedBorrow)
-        }
-        _ => false,
-    };
-    if !carrier_carries_domain
-        || !membership.semantic_domain.is_valid()
+    if !membership.semantic_domain.is_valid()
         || !membership.domain_arguments.is_empty()
         || !program.domain_definitions().iter().any(|definition| {
             definition.symbol == membership.domain_symbol
                 && definition.semantic_id == membership.semantic_domain
         })
-        || typed_trees::byte_predicates::domain_byte_predicate(program, membership.domain_symbol)
-            .is_none()
     {
         return false;
     }

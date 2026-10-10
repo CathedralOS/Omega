@@ -344,9 +344,10 @@ pub(in crate::legalization) fn selected_boundary_operation(
             && candidate_result.structural_type == boundary_result.structural_type
             && result.multiplicity == boundary_result.multiplicity
             && candidate_result.multiplicity == boundary_result.multiplicity
-            // Opaque signatures currently publish only root qualifications.
-            // A member's stronger projected rows cannot become head facts.
-            && result.projected_qualifications.is_empty()
+            // The caller keeps the head's declared descendant memberships,
+            // never a selected member's stronger private roster.
+            && result.projected_qualifications == boundary_result.projected_qualifications
+            && boundary_result.projected_qualifications.iter().all(|row| candidate_result.projected_qualifications.contains(row))
             // Requirement `ensures result in D` ensurances land on the
             // boundary decl while the conformer's own result decl mints at
             // return — coverage is proven by the `provider` conformance row

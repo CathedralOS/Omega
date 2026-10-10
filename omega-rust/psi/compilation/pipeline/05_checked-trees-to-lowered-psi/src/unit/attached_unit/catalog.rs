@@ -485,9 +485,9 @@ fn selected_declaration<'a>(
 ) -> Result<&'a CheckedUnitStructuralTypePlan, LoweringError> {
     let mut selected = None;
     select_from(plans.structural_types(), identity, &mut selected)?;
-    selected.ok_or_else(|| LoweringError::MissingUnitStructuralType(
-        "<structural type identity>".to_owned(),
-    ))
+    selected.ok_or_else(|| {
+        LoweringError::MissingUnitStructuralType("<structural type identity>".to_owned())
+    })
 }
 
 pub(crate) fn lower_unit_structural_type_roots(
@@ -871,6 +871,18 @@ pub(super) fn lower_unit_structural_domains(
         }
     }
     for (boundary, _) in boundaries {
+        let (result_domains, result_projected): (
+            &[SemanticDomainId],
+            &[checked_trees::CheckedStructuralPathQualification],
+        ) = match &boundary.result {
+            CheckedBoundaryMachineResultPlan::Structural {
+                qualifications,
+                projected_qualifications,
+                ..
+            } => (qualifications, projected_qualifications),
+            CheckedBoundaryMachineResultPlan::Unit
+            | CheckedBoundaryMachineResultPlan::Scalar(_) => (&[], &[]),
+        };
         for domain in boundary
             .structural_parameters
             .iter()
@@ -888,13 +900,8 @@ pub(super) fn lower_unit_structural_domains(
                     .iter()
                     .map(|requirement| &requirement.domain),
             )
-            .chain(match &boundary.result {
-                CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
-                    qualifications.iter()
-                }
-                CheckedBoundaryMachineResultPlan::Unit
-                | CheckedBoundaryMachineResultPlan::Scalar(_) => [].iter(),
-            })
+            .chain(result_domains)
+            .chain(result_projected.iter().map(|row| &row.domain))
         {
             if !selected.contains(domain) {
                 selected.push(*domain);

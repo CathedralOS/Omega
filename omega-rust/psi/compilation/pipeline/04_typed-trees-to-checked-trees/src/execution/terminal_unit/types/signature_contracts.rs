@@ -346,6 +346,7 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
         type_identity,
         multiplicity,
         mut qualifications,
+        projected_qualifications,
     } = result
     else {
         return None;
@@ -361,6 +362,7 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
         type_identity,
         multiplicity,
         qualifications,
+        projected_qualifications,
     })
 }
 

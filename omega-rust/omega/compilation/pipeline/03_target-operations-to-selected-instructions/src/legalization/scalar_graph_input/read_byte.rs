@@ -123,6 +123,7 @@ pub(in crate::legalization) fn validate(
         || signature.structural_type != result.structural_type
         || signature.multiplicity != result.multiplicity
         || signature.qualifications != result.qualifications
+        || signature.projected_qualifications != result.projected_qualifications
         || declaration.attachment.is_some()
         || !declaration.scalar_parameters.is_empty()
         || !declaration.structural_parameters.is_empty()

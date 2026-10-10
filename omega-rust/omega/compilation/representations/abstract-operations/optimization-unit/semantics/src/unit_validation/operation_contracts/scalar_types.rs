@@ -412,7 +412,7 @@ pub(crate) fn operation_scalar_types_match(
                     actual.structural_type == expected.structural_type
                         && actual.multiplicity == expected.multiplicity
                         && actual.qualifications == expected.qualifications
-                        && actual.projected_qualifications.is_empty()
+                        && actual.projected_qualifications == expected.projected_qualifications
                         && actual.claims.is_empty()
                 }
                 _ => false,

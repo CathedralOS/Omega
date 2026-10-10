@@ -415,6 +415,22 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         ));
     }
     for declaration in &module.boundary_machines {
+        if let terminal_psi::BoundaryMachineResult::Structural(result) = &declaration.result {
+            if !strictly_increasing(result.qualifications.iter().copied()) {
+                return Err(CodecError::NonCanonicalOrder(
+                    "boundary result qualifications by StructuralDomainId",
+                ));
+            }
+            if result
+                .projected_qualifications
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            {
+                return Err(CodecError::NonCanonicalOrder(
+                    "boundary result projected qualifications by path and domain",
+                ));
+            }
+        }
         if !crash_routes_are_canonical(&declaration.crash_routes) {
             return Err(CodecError::NonCanonicalOrder(
                 "boundary crash route buckets",

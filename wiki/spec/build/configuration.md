@@ -231,11 +231,12 @@ member handles. Portable runtime calls use an independent bodyless family head:
 callers meet every member's premises and the joined conservative effect/crash
 envelope without importing a member's private result guarantees. Native and
 Terminal execution select the exact deployment-tag member and preserve ordinary
-call custody, including returned linear owners and claims inside affine records.
+call custody, including returned linear owners, claims inside affine records,
+and declaration-owned descendant qualifications.
 Closed generic applications retain the whole specialized cohort;
 unsupported generic demand conjunctions reject rather than adopt a lexical
 prototype. Explicit boundary requirements and target-local calls retain their
-own contracts. Complete requirement-conjunction and projected-result transport,
+own contracts. Complete requirement-conjunction transport,
 all entry/result routes, source-free target-default effects and one-artifact
 multi-target realization remain unfinished. The
 [pipeline route items](../../../TASKS.md#pipeline-route) own the repair.

@@ -2557,8 +2557,9 @@ crash and native exit behavior.
     It supplies no provider grant or boundary issuance.
     The conformance frontier is differing or nested per-member requirement
     conjunctions, not ordinary named evidence arguments or named maps. Result
-    transport still needs declaration-owned projected memberships and complete
-    entry/result-route coverage. Keep `targets/runtime_family_composed_owned_results_exit`
+    transport still needs complete entry/result-route coverage. Keep
+    `targets/runtime_family_nested_projected_results_exit`,
+    `targets/runtime_family_composed_owned_results_exit`
     and `targets/runtime_family_current_completion_paths_exit` running through
     both engines while completing those routes (`tools/corpus_gate.py --both
     --filter <fixture>`).

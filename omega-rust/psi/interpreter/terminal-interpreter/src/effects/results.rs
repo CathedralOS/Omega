@@ -214,6 +214,8 @@ impl TerminalExecution<'_> {
             ) if declaration.structural_type == expected.structural_type
                 && declaration.multiplicity == expected.multiplicity
                 && declaration.qualifications == expected.qualifications
+                && declaration.projected_qualifications.is_empty()
+                && expected.projected_qualifications.is_empty()
                 && self.supports_scalar_case_result(declaration) =>
             {
                 self.publish_scalar_case(declaration, value)?;
@@ -225,6 +227,11 @@ impl TerminalExecution<'_> {
             ) if declaration.structural_type == expected.structural_type
                 && declaration.multiplicity == expected.multiplicity
                 && declaration.qualifications == expected.qualifications
+                // Host adapters do not return descendant-membership evidence.
+                // Checked family members use ordinary structural return custody
+                // instead; an annotation cannot grant this authority to a host.
+                && declaration.projected_qualifications.is_empty()
+                && expected.projected_qualifications.is_empty()
                 && value.structural_type == expected.structural_type
                 && value.qualifications == expected.qualifications
                 && value.path.is_empty()

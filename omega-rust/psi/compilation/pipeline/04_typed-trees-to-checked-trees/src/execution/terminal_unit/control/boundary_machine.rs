@@ -798,5 +798,11 @@ pub(crate) fn boundary_result_plan(
         type_identity: shapes.add_type(type_reference, binders, substitutions)?,
         multiplicity: crate::checks::type_multiplicity(program, type_reference),
         qualifications: parameter_qualifications(program, shapes, type_reference, binders)?,
+        projected_qualifications: projected_parameter_qualifications(
+            program,
+            shapes,
+            type_reference,
+            binders,
+        )?,
     })
 }
