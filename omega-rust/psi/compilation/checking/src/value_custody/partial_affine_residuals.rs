@@ -86,15 +86,27 @@ fn validate_type(
     active: &mut Vec<TypeIdentityId>,
     complete: &mut Vec<TypeIdentityId>,
 ) -> Option<()> {
-    if complete.iter().any(|identity| *identity == current_type) {
+    if complete.contains(&current_type) {
         return Some(());
     }
-    if active.iter().any(|identity| *identity == current_type) {
+    if active.contains(&current_type) {
         return None;
     }
     let declaration = *types.get(&current_type)?;
     active.push(current_type);
     match &declaration.shape {
+        // Array elements have standalone type rows, while record fields carry
+        // their scalar leaf inline. Both use the same cleanup-free leaf rule;
+        // neither representation grants authority to discard an opaque carrier.
+        CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
+            if declaration.scalar_restriction.as_ref().map_or_else(
+                || {
+                    is_partial_affine_field_type(&CheckedUnitStructuralFieldType::Scalar(
+                        *primitive,
+                    ))
+                },
+                is_partial_affine_field_type,
+            ) => {}
         CheckedUnitStructuralTypeShape::Record { fields, .. } => {
             for (index, field) in fields.iter().enumerate() {
                 if !field.identity.is_valid()
@@ -194,11 +206,7 @@ fn visit(
     if moved_paths.iter().any(|(path, _)| path.is_empty()) {
         return (moved_paths.len() == 1 && moved_paths[0].1 == current_type).then_some(0);
     }
-    if traversal
-        .active_types
-        .iter()
-        .any(|identity| *identity == current_type)
-    {
+    if traversal.active_types.contains(&current_type) {
         return None;
     }
     traversal.active_types.push(current_type);
@@ -553,7 +561,9 @@ pub fn reconstruct(
     boundaries: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
     max_residuals: usize,
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
-    let select_case = |prefix: &[CheckedUnitStructuralPathSegment], _: TypeIdentityId, case: &checked_trees::CheckedMemberIdentity| {
+    let select_case = |prefix: &[CheckedUnitStructuralPathSegment],
+                       _: TypeIdentityId,
+                       case: &checked_trees::CheckedMemberIdentity| {
         let mut selected = None;
         for (path, _) in moved_paths.iter().chain(boundaries) {
             let Some([CheckedUnitStructuralPathSegment::Case(identity), ..]) =
@@ -561,7 +571,9 @@ pub fn reconstruct(
             else {
                 continue;
             };
-            if selected.is_some_and(|earlier: &checked_trees::CheckedMemberIdentity| earlier != identity) {
+            if selected
+                .is_some_and(|earlier: &checked_trees::CheckedMemberIdentity| earlier != identity)
+            {
                 return None;
             }
             selected = Some(identity);

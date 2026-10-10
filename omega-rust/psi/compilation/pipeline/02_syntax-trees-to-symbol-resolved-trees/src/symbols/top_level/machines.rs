@@ -153,6 +153,18 @@ pub(super) fn assign_machine_symbols(
             });
         }
 
+        // The attached application above and its source signature must name
+        // the same owner telescope. In particular a universal cleanup hook
+        // cannot introduce method-local binders to repair an unresolved T.
+        if let Some(owner) = data_definitions.iter().find(|definition| {
+            definition.symbol == machine.attached_data_symbol
+        }) {
+            local_type_parameters = crate::symbols::scope::declaration_type_scope(
+                &local_type_parameters,
+                data_type_parameters.span_or_empty(owner.type_parameters),
+            );
+        }
+
         for bound in &mut machine.conformance_bounds {
             bound.binder = next_child_of_kind(
                 &mut machine_children,

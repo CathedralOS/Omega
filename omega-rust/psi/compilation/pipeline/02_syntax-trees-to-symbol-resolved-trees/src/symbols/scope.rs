@@ -1,9 +1,31 @@
 use arena::{Arena, OrderedRootArena};
 use language_core::is_self_receiver;
-use symbol_resolved_trees::data::{DataDefinition, DataMember};
+use symbol_resolved_trees::data::{DataDefinition, DataMember, TypeParameter};
 use symbol_resolved_trees::lookup_indexes::ResolvedIndexes;
 use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolLookup, SymbolTable};
+
+/// Owner binders retain their declaration identities in attached signatures
+/// and bodies. Method-local names shadow them without rebinding the owner's
+/// telescope. This supplies a lexical type scope, not an implicit receiver,
+/// value argument, or new machine-local generic parameter.
+pub(super) fn declaration_type_scope(
+    local_parameters: &[TypeParameter],
+    owner_parameters: &[TypeParameter],
+) -> Vec<TypeParameter> {
+    let mut parameters = local_parameters.to_vec();
+    parameters.extend(
+        owner_parameters
+            .iter()
+            .filter(|owner| {
+                !local_parameters
+                    .iter()
+                    .any(|local| local.name == owner.name)
+            })
+            .cloned(),
+    );
+    parameters
+}
 
 #[derive(Clone, Copy)]
 pub(super) struct AttachedMachine {
@@ -137,9 +159,7 @@ fn collect_trait_requirements(
         return;
     }
     visited.push(trait_symbol);
-    let Some(trait_definition) = program
-        .trait_definition(trait_symbol)
-    else {
+    let Some(trait_definition) = program.trait_definition(trait_symbol) else {
         return;
     };
     for requirement in program.trait_machine_signatures(trait_definition.machines) {

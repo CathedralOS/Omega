@@ -294,6 +294,78 @@ fn generic_type_identity(
     )
 }
 
+/// A closed declaration retains its original static telescope. Region-only
+/// uses of that declaration supply their own regions, not the occurrence that
+/// happened to materialize it. Read that association without allocating a type
+/// row or deriving an owner from its generated spelling.
+fn generic_reference_identity<'program>(
+    program: &'program TypedTrees,
+    mut symbol: SymbolHandle,
+    mut name: &'program crate::name::Identifier,
+    lifetimes: &[crate::name::Identifier],
+    mut arguments: arena::HandleSpan<TypeReferenceHandle>,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    if arguments.is_empty()
+        && let Some(definition) = program.unique_data_definition_by_symbol(symbol)
+        && program.data_type_parameters(definition).is_empty()
+        && let Some(origin) = definition.generic_instance
+        && program.type_reference_table.contains_type_reference(origin)
+        && let TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            arguments: origin_arguments,
+            ..
+        } = program.type_reference_table.type_reference(origin)
+        && *base_symbol != symbol
+    {
+        symbol = *base_symbol;
+        name = base_name;
+        arguments = *origin_arguments;
+    }
+    // Regions matter to loan identity, not to the erased runtime carrier.
+    if arguments.is_empty() && (lifetimes.is_empty() || context.invalid_application.is_none()) {
+        return compound(
+            "named",
+            [normalize_const_or_nominal_name(
+                program,
+                symbol,
+                name.as_str(),
+                "name",
+                context,
+            )],
+        );
+    }
+    generic_type_identity(
+        program,
+        symbol,
+        name.as_str(),
+        lifetimes,
+        program
+            .type_reference_table
+            .type_reference_handles(arguments)
+            .iter()
+            .enumerate()
+            .map(|(ordinal, argument)| {
+                let is_index = context.invalid_application.is_some()
+                    && program
+                        .data_definition_by_symbol(symbol)
+                        .and_then(|data| program.data_type_parameters(data).get(ordinal))
+                        .is_some_and(|parameter| parameter.kind.is_const_or_value());
+                if is_index {
+                    substitution::index_argument(
+                        program,
+                        super::IndexIdentityArgument::TypeReference(*argument),
+                        context,
+                    )
+                } else {
+                    normalize_type_reference(program, *argument, context)
+                }
+            }),
+        context,
+    )
+}
+
 /// A source static type application and a type-reference application denote
 /// the same carrier. Read both through one grammar without allocating a type
 /// node merely to compare a retained source operand.
@@ -438,62 +510,18 @@ pub(crate) fn normalize_type_reference(
             "slice",
             [normalize_type_reference(program, *element_type, context)],
         ),
-        // Region applications retain their lifetime arguments for loan checks,
-        // but a lifetime-only application has the same runtime nominal carrier
-        // as the bare declaration. An empty runtime argument list must not add
-        // a generic wrapper after those regions have been erased.
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
             lifetime_arguments,
             arguments,
             ..
-        } if arguments.is_empty()
-            && (lifetime_arguments.is_empty() || context.invalid_application.is_none()) =>
-        {
-            compound(
-                "named",
-                [normalize_const_or_nominal_name(
-                    program,
-                    *base_symbol,
-                    base_name.as_str(),
-                    "name",
-                    context,
-                )],
-            )
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            base_name,
-            lifetime_arguments,
-            arguments,
-            ..
-        } => generic_type_identity(
+        } => generic_reference_identity(
             program,
             *base_symbol,
-            base_name.as_str(),
+            base_name,
             lifetime_arguments,
-            program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-                .iter()
-                .enumerate()
-                .map(|(ordinal, argument)| {
-                    let is_index = context.invalid_application.is_some()
-                        && program
-                            .data_definition_by_symbol(*base_symbol)
-                            .and_then(|data| program.data_type_parameters(data).get(ordinal))
-                            .is_some_and(|parameter| parameter.kind.is_const_or_value());
-                    if is_index {
-                        substitution::index_argument(
-                            program,
-                            super::IndexIdentityArgument::TypeReference(*argument),
-                            context,
-                        )
-                    } else {
-                        normalize_type_reference(program, *argument, context)
-                    }
-                }),
+            *arguments,
             context,
         ),
         TypeReferenceNode::ConstExpression(expression) => compound(

@@ -652,8 +652,12 @@ defines the complete product bar.
     for unexamined sums and projected aggregate arguments. Keep
     `runtime_generic_borrowed_case_restore_exit` (0) for generic affine
     outcome carriers retaining the original backing across both repairs;
-    qualify its remaining bound hosts. Generic linear construction and
-    owner-scoped cleanup still need their ordinary custody/realization paths.
+    qualify its remaining bound hosts. Keep
+    `pass/drops/runtime_owner_scoped_generic_cleanup_exit` (0) for universal
+    owner hooks across distinct static argument tuples and observable writes
+    through retained borrowed fields; qualify its remaining bound hosts.
+    Generic linear construction still needs its ordinary conserved-claim
+    producer at state-call results; do not infer a claim from constructor syntax.
     Keep
     `fail/ownership/linear_case_result_second_transfer` for exact-once returned
     payload custody. The result programs still need Windows x86-64 and

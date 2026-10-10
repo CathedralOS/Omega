@@ -1338,6 +1338,9 @@ fail/drops/cleanup_helper_guarantee_after_parent_hook rejected 351ms expected @e
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: owner.token does not establish Token::drop clause `token.value == 9 && token.ready`
 fail/drops/cleanup_helper_guarantee_after_write rejected 348ms expected @e830e1bb7013+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: token does not establish Token::drop clause `token.value == 9 && token.ready`
+fail/drops/cleanup_method_local_type_parameter rejected 286ms expected @c195d9f0b52f
+	cleanup machine `Envelope::drop` must take exactly one exclusive loan of its own data and no other parameters, as `drop(value: &mut Envelope)`
+	cleanup machine `Envelope::drop` may not declare method-local lifetime or type parameters
 fail/drops/cleanup_mutated_integer_contract rejected 371ms expected @4cc11cbadf31+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: token does not establish Token::drop clause `token.value == 7`
 fail/drops/cleanup_owner_application_mismatch rejected 474ms expected @6c4a80209849+wt
@@ -3704,6 +3707,7 @@ pass/drops/runtime_owned_nominal_replacement_exit checked 1940ms check-target:ma
 pass/drops/runtime_owned_record_replacement_exit checked 1944ms check-target:macos_arm64 @04d0fbe9d97c
 pass/drops/runtime_owned_replacement_composition_exit checked 1958ms check-target:macos_arm64 @04d0fbe9d97c
 pass/drops/runtime_owned_replacement_reestablishment_exit checked 2826ms check-target:macos_arm64 @d83ae44b78cd
+pass/drops/runtime_owner_scoped_generic_cleanup_exit checked 3950ms check-target:macos_arm64 @c195d9f0b52f
 pass/drops/runtime_parent_hook_preserves_linear_descendants_exit checked 2513ms check-target:macos_arm64 @e0e325f7052d+wt
 pass/drops/runtime_projected_nominal_cleanup_exit checked 2301ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_projected_nominal_core_exit checked 2218ms check-target:macos_arm64 @9beb2be72f2d+wt

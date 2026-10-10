@@ -72,6 +72,12 @@ fn assign_machine_references(
             .find(|data_definition| data_definition.symbol == machine.attached_data_symbol);
         let inherited_data_members = data_definition
             .map(|data_definition| data_members.span_or_empty(data_definition.members));
+        let lexical_type_parameters = super::scope::declaration_type_scope(
+            data_type_parameters.span_or_empty(machine_type_parameters),
+            data_definition.map_or(&[], |owner| {
+                data_type_parameters.span_or_empty(owner.type_parameters)
+            }),
+        );
         let symbol_resolved_trees::machine::MachineStorage {
             owned_data,
             satisfies: _,
@@ -91,7 +97,7 @@ fn assign_machine_references(
             // requirement names; every other machine is outside any trait.
             lexical_requirements: trait_scopes
                 .requirements_of(machine.trait_default_origin.declaring_trait),
-            type_parameters: data_type_parameters.span_or_empty(machine_type_parameters),
+            type_parameters: &lexical_type_parameters,
             attached_data: machine.attached_data.as_ref(),
             attached_data_symbol: machine.attached_data_symbol,
             inherited_data_members,
