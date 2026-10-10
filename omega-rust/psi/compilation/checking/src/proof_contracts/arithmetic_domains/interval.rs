@@ -4,26 +4,26 @@
 /// checked, so an overflowing corner becomes `None` (unbounded) -- which fails
 /// the containment test and so is reported as a possible overflow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Interval {
-    pub(crate) low: Option<i64>,
-    pub(crate) high: Option<i64>,
+pub struct Interval {
+    pub low: Option<i64>,
+    pub high: Option<i64>,
 }
 
 impl Interval {
-    pub(super) const UNBOUNDED: Interval = Interval {
+    pub const UNBOUNDED: Interval = Interval {
         low: None,
         high: None,
     };
 
-    pub(crate) fn low(&self) -> Option<i64> {
+    pub fn low(&self) -> Option<i64> {
         self.low
     }
 
-    pub(crate) fn high(&self) -> Option<i64> {
+    pub fn high(&self) -> Option<i64> {
         self.high
     }
 
-    pub(super) fn constant(value: i64) -> Self {
+    pub fn constant(value: i64) -> Self {
         Self {
             low: Some(value),
             high: Some(value),
@@ -223,6 +223,56 @@ impl Interval {
         }
     }
 
+    /// Saturating `a + b`: an overflowing end saturates rather than dropping
+    /// to unbounded. A saturated endpoint is still a sound (weaker) bound —
+    /// construction-fold clients keep the extra information.
+    pub fn saturating_add(self, other: Self) -> Self {
+        Self {
+            low: self
+                .low
+                .zip(other.low)
+                .map(|(left, right)| left.saturating_add(right)),
+            high: self
+                .high
+                .zip(other.high)
+                .map(|(left, right)| left.saturating_add(right)),
+        }
+    }
+
+    /// Saturating `a - b`: `[a,b] - [c,d]` over the crossed ends.
+    pub fn saturating_subtract(self, other: Self) -> Self {
+        Self {
+            low: self
+                .low
+                .zip(other.high)
+                .map(|(left, right)| left.saturating_sub(right)),
+            high: self
+                .high
+                .zip(other.low)
+                .map(|(left, right)| left.saturating_sub(right)),
+        }
+    }
+
+    /// Saturating `a * b` over the four endpoint products. Requires every
+    /// end finite — an unbounded operand's product claims no finite corner,
+    /// and this flavor does not guess zero-annihilation.
+    pub fn saturating_multiply(self, other: Self) -> Self {
+        let (Some(a), Some(b), Some(c), Some(d)) = (self.low, self.high, other.low, other.high)
+        else {
+            return Interval::UNBOUNDED;
+        };
+        let products = [
+            a.saturating_mul(c),
+            a.saturating_mul(d),
+            b.saturating_mul(c),
+            b.saturating_mul(d),
+        ];
+        Self {
+            low: products.iter().min().copied(),
+            high: products.iter().max().copied(),
+        }
+    }
+
     /// `min(a, b)`: the result is <= both operands and >= the smaller of the two
     /// possible values. Unbounded ends behave as the appropriate infinity (a
     /// `None` low is -inf, a `None` high is +inf), so `min(x, 100)` upper-bounds
@@ -275,7 +325,7 @@ impl Interval {
     /// Widest interval covering both (`[min(lows), max(highs)]`, an unbounded end
     /// on EITHER side making that side unbounded). Used to union a callee's
     /// multiple return paths when inferring its return range.
-    pub(crate) fn union(self, other: Self) -> Self {
+    pub fn union(self, other: Self) -> Self {
         Self {
             low: match (self.low, other.low) {
                 (Some(a), Some(b)) => Some(a.min(b)),
@@ -291,7 +341,7 @@ impl Interval {
     /// Tightest interval contained in both (`[max(lows), min(highs)]`, an
     /// unbounded end deferring to the other). Used to intersect a guard bound
     /// with a place's type range.
-    pub(crate) fn intersect(self, other: Self) -> Self {
+    pub fn intersect(self, other: Self) -> Self {
         Self {
             low: match (self.low, other.low) {
                 (Some(a), Some(b)) => Some(a.max(b)),

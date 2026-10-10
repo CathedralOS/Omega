@@ -8,49 +8,11 @@ use super::{
     BinaryOperator, ExpressionHandle, Machine, State, StatementNode, SymbolHandle,
     TransitionGuardNode,
 };
+use validation::Interval;
 use crate::checks::ranges::loop_invariants::assignment_counter_field;
 use crate::checks::ranges::loop_invariants::expression_is_counter_member;
 use crate::checks::ranges::loop_invariants::integer_literal;
 use crate::checks::ranges::loop_invariants::transition_target_symbol;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Bounds {
-    lower: Option<i64>,
-    upper: Option<i64>,
-}
-
-impl Bounds {
-    const UNKNOWN: Self = Self {
-        lower: None,
-        upper: None,
-    };
-
-    fn join(self, other: Self) -> Self {
-        Self {
-            lower: self
-                .lower
-                .zip(other.lower)
-                .map(|(left, right)| left.min(right)),
-            upper: self
-                .upper
-                .zip(other.upper)
-                .map(|(left, right)| left.max(right)),
-        }
-    }
-
-    fn intersect(self, other: Self) -> Self {
-        Self {
-            lower: match (self.lower, other.lower) {
-                (Some(left), Some(right)) => Some(left.max(right)),
-                (left, right) => left.or(right),
-            },
-            upper: match (self.upper, other.upper) {
-                (Some(left), Some(right)) => Some(left.min(right)),
-                (left, right) => left.or(right),
-            },
-        }
-    }
-}
 
 pub(super) fn updates_preserve_order(
     program: &dyn ::validation::CheckingInput,
@@ -62,9 +24,9 @@ pub(super) fn updates_preserve_order(
     minimum_initial: i64,
     maximum_initial: i64,
 ) -> bool {
-    let mut head_bounds = Bounds {
-        lower: Some(minimum_initial),
-        upper: Some(maximum_initial),
+    let mut head_bounds = Interval {
+        low: Some(minimum_initial),
+        high: Some(maximum_initial),
     };
     for state in states
         .iter()
@@ -77,7 +39,7 @@ pub(super) fn updates_preserve_order(
             for (target, positive) in [(transition.target, true), (transition.continuation, false)]
             {
                 if transition_target_symbol(program, target) == Some(head) {
-                    head_bounds = head_bounds.join(transition_bounds(
+                    head_bounds = head_bounds.union(transition_bounds(
                         program,
                         machine,
                         state,
@@ -111,12 +73,15 @@ pub(super) fn updates_preserve_order(
                     machine,
                     state,
                     assignment.value,
-                    bounds.lower,
-                    bounds.upper,
+                    bounds.low,
+                    bounds.high,
                 ) else {
                     return false;
                 };
-                bounds = Bounds { lower, upper };
+                bounds = Interval {
+                    low: lower,
+                    high: upper,
+                };
             }
             let StatementNode::Transition(transition) = statement else {
                 continue;
@@ -141,23 +106,23 @@ pub(super) fn updates_preserve_order(
                     counter,
                     positive,
                 ));
-                if matches!((incoming.lower, incoming.upper), (Some(lower), Some(upper)) if lower > upper)
+                if matches!((incoming.low, incoming.high), (Some(lower), Some(upper)) if lower > upper)
                 {
                     continue;
                 }
                 let next = match arrivals[target_index] {
                     None => incoming,
                     Some(previous) => {
-                        let joined = previous.join(incoming);
+                        let joined = previous.union(incoming);
                         // A widening endpoint is independently unknown; retain
                         // the other endpoint if it has already stabilized.
                         if changes[target_index] > states.len() {
-                            Bounds {
-                                lower: (joined.lower == previous.lower)
-                                    .then_some(joined.lower)
+                            Interval {
+                                low: (joined.low == previous.low)
+                                    .then_some(joined.low)
                                     .flatten(),
-                                upper: (joined.upper == previous.upper)
-                                    .then_some(joined.upper)
+                                high: (joined.high == previous.high)
+                                    .then_some(joined.high)
                                     .flatten(),
                             }
                         } else {
@@ -185,7 +150,7 @@ pub(super) fn updates_preserve_order(
                     counter,
                     false,
                 ));
-                if matches!((bounds.lower, bounds.upper), (Some(lower), Some(upper)) if lower > upper)
+                if matches!((bounds.low, bounds.high), (Some(lower), Some(upper)) if lower > upper)
                 {
                     break;
                 }
@@ -202,9 +167,9 @@ fn transition_bounds(
     guard: TransitionGuardNode,
     counter: SymbolHandle,
     positive: bool,
-) -> Bounds {
+) -> Interval {
     match guard {
-        TransitionGuardNode::Always => Bounds::UNKNOWN,
+        TransitionGuardNode::Always => Interval::UNBOUNDED,
         TransitionGuardNode::When(guard) => {
             guard_bounds(program, machine, state, guard, counter, positive, 0)
         }
@@ -219,14 +184,14 @@ fn guard_bounds(
     counter: SymbolHandle,
     positive: bool,
     depth: usize,
-) -> Bounds {
+) -> Interval {
     if depth >= 128
         || !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard)
     {
-        return Bounds::UNKNOWN;
+        return Interval::UNBOUNDED;
     }
     let Some(binary) = program.expression_table.binary_node(guard) else {
-        return Bounds::UNKNOWN;
+        return Interval::UNBOUNDED;
     };
     if matches!(
         binary.operator,
@@ -277,10 +242,10 @@ fn guard_bounds(
         operator = operator.mirrored();
         integer_literal(program, binary.left)
     } else {
-        return Bounds::UNKNOWN;
+        return Interval::UNBOUNDED;
     };
     let Some(literal) = literal else {
-        return Bounds::UNKNOWN;
+        return Interval::UNBOUNDED;
     };
     if !positive {
         operator = match operator {
@@ -289,30 +254,30 @@ fn guard_bounds(
             BinaryOperator::Greater => BinaryOperator::LessOrEqual,
             BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
             BinaryOperator::NotEqual => BinaryOperator::Equal,
-            _ => return Bounds::UNKNOWN,
+            _ => return Interval::UNBOUNDED,
         };
     }
     match operator {
-        BinaryOperator::Less => Bounds {
-            lower: None,
-            upper: literal.checked_sub(1),
+        BinaryOperator::Less => Interval {
+            low: None,
+            high: literal.checked_sub(1),
         },
-        BinaryOperator::LessOrEqual => Bounds {
-            lower: None,
-            upper: Some(literal),
+        BinaryOperator::LessOrEqual => Interval {
+            low: None,
+            high: Some(literal),
         },
-        BinaryOperator::Greater => Bounds {
-            lower: literal.checked_add(1),
-            upper: None,
+        BinaryOperator::Greater => Interval {
+            low: literal.checked_add(1),
+            high: None,
         },
-        BinaryOperator::GreaterOrEqual => Bounds {
-            lower: Some(literal),
-            upper: None,
+        BinaryOperator::GreaterOrEqual => Interval {
+            low: Some(literal),
+            high: None,
         },
-        BinaryOperator::Equal => Bounds {
-            lower: Some(literal),
-            upper: Some(literal),
+        BinaryOperator::Equal => Interval {
+            low: Some(literal),
+            high: Some(literal),
         },
-        _ => Bounds::UNKNOWN,
+        _ => Interval::UNBOUNDED,
     }
 }

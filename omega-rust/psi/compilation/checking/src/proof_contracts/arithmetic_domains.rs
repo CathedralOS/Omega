@@ -52,6 +52,7 @@ mod ordered_values;
 mod place_paths;
 mod range_constraints;
 mod return_ranges;
+pub use interval::Interval;
 pub use return_ranges::normal_return_integer_bounds;
 mod stored_integer_writes;
 pub(crate) use guard_narrowing::occurrence_value_environment;
@@ -89,7 +90,6 @@ pub(crate) use integer_ranges::{
     validate_anonymous_integer_range, validate_value_range,
     validate_value_range_retaining_decisions,
 };
-pub(crate) use interval::Interval;
 pub(crate) use invariant_bounds::{
     call_result_interval, immutable_integer_expression_interval, standing_integer_interval,
     upper_bound_beyond_place_carrier,
