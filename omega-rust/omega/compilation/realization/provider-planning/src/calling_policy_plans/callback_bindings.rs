@@ -683,7 +683,7 @@ pub fn close_outbound_callback_materializations(
         layout::build_layout_plan(checked, native_target, opaque_representation_selections)
             .map_err(|diagnostic| vec![diagnostic])?;
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
-        &checked.typed,
+        checked,
         package_inputs.map(|inputs| {
             std::sync::Arc::new(inputs.clone())
                 as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
@@ -703,7 +703,7 @@ pub fn close_outbound_callback_materializations(
             .map(|demand| (demand, None))
             .collect::<Vec<_>>();
         let binder_requirement_catalog =
-            exact_callback_requirement_catalog(&checked.typed, &realization.callback_binders)
+            exact_callback_requirement_catalog(checked, &realization.callback_binders)
                 .map_err(|reason| {
                     vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
                 })?;
@@ -806,7 +806,7 @@ pub fn close_outbound_callback_materializations(
         signature.callback_demands = demands.clone();
         signature.callback_layout_catalog = entries.into_iter().flatten().collect();
         let validated = evaluate_materialized_calling_policy_plan(
-            &checked.typed,
+            checked,
             &admission,
             &realization.policy_machine,
             &signature,

@@ -26,7 +26,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
     expression: ExpressionHandle,
 ) -> Result<Option<(symbols::SymbolHandle, String, symbols::SymbolHandle)>, Diagnostic> {
     let overload_identity =
-        typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
+        typed_trees::operator::boundary_operator_requirement_identity(checked, operator);
     if overload_identity.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected checked operator at expression {expression:?} has an empty canonical overload identity",
@@ -105,7 +105,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
     };
     let direct_provider = provider_planning::exact_checked_adapter(
         provider_planning::ProviderPlanningContext::new(
-            &checked.typed,
+            checked,
             source::DependencyScope::Product,
         ),
         plan,
@@ -149,7 +149,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
     };
     if !provider_planning::provider_row_matches(
         provider_planning::ProviderPlanningContext::new(
-            &checked.typed,
+            checked,
             source::DependencyScope::Product,
         ),
         plan,
@@ -166,13 +166,13 @@ pub(super) fn resolve_checked_adapter_for_operator(
             "selected checked-operator adapter `{machine_identity}` is not a checked body",
         )));
     }
-    let Some(entry) = checked.typed.machine_states(provider).first() else {
+    let Some(entry) = checked.machine_states(provider).first() else {
         return Err(Diagnostic::error(format!(
             "selected checked-operator adapter `{machine_identity}` has no executable entry state",
         )));
     };
 
-    let [namespace, requirement] = checked.typed.operator_path_members(operator.name) else {
+    let [namespace, requirement] = checked.operator_path_members(operator.name) else {
         return Err(Diagnostic::error(format!(
             "selected checked operator overload `{overload_identity}` has no exact namespace and requirement path",
         )));
@@ -187,13 +187,13 @@ pub(super) fn resolve_checked_adapter_for_operator(
                 && conformance.requirement.as_ref().map(|name| name.as_str())
                     == Some(requirement.as_str())
                 && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-                    &checked.typed,
+                    checked,
                     provider,
                     conformance,
                 )
                 .is_some_and(|resolved| resolved.symbol == operator.symbol)
                     || typed_trees::operator::resolve_specialized_checked_operator_application(
-                        &checked.typed,
+                        checked,
                         provider,
                         namespace.as_str(),
                         requirement.as_str(),
@@ -301,7 +301,7 @@ pub(super) fn requirement_overload_identity(
     realization_label: &str,
 ) -> Result<String, Diagnostic> {
     let identity =
-        typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
+        typed_trees::operator::boundary_operator_requirement_identity(checked, operator);
     if identity.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected {realization_label} realization has an empty requirement identity",

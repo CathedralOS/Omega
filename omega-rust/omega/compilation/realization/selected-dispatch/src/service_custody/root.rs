@@ -456,7 +456,7 @@ fn nested_source_record(
     checked.data_definitions().iter().find(|definition| {
         definition.symbol == symbol
             && checked.data_type_parameters(definition).is_empty()
-            && !validation::data_requires_establishment(&checked.typed, definition)
+            && !validation::data_requires_establishment(checked, definition)
     })
 }
 

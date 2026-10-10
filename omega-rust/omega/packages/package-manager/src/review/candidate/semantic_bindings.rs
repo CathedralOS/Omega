@@ -322,8 +322,8 @@ pub(super) fn candidate_service_bindings(
         let mut candidate_packages = referenced
             .iter()
             .filter_map(|&service| {
-                (checked.typed.symbols.display_path(service, "::") == *path)
-                    .then(|| checked.typed.symbols.symbol_package_identity(service))
+                (checked.symbols.display_path(service, "::") == *path)
+                    .then(|| checked.symbols.symbol_package_identity(service))
                     .flatten()
             })
             .collect::<BTreeSet<_>>();
@@ -338,7 +338,7 @@ pub(super) fn candidate_service_bindings(
                 .filter(|definition| {
                     definition.symbol == requirement
                         && definition.is_boundary
-                        && checked.typed.symbols.display_path(definition.symbol, "::") == *path
+                        && checked.symbols.display_path(definition.symbol, "::") == *path
                 })
                 .collect::<Vec<_>>();
             let [definition] = definitions.as_slice() else {
@@ -388,7 +388,7 @@ pub(super) fn candidate_service_bindings(
                     .symbols
                     .symbol_package_identity(definition.symbol)
                     == Some(**package)
-                    && checked.typed.symbols.display_path(definition.symbol, "::") == *path
+                    && checked.symbols.display_path(definition.symbol, "::") == *path
             })
             .collect::<Vec<_>>();
         let [definition] = definitions.as_slice() else {
@@ -401,7 +401,7 @@ pub(super) fn candidate_service_bindings(
         };
         let Some(service_schema) = provider_planning::service_schema::from_typed(
             provider_planning::ProviderPlanningContext::new(
-                &checked.typed,
+                checked,
                 source::DependencyScope::Product,
             ),
             &checked.providers().boundary_calling_plan_realizations,
@@ -465,7 +465,7 @@ pub(super) fn candidate_target_entry_binding(
             },
         );
     }
-    let path = checked.typed.symbols.display_path(definition.symbol, "::");
+    let path = checked.symbols.display_path(definition.symbol, "::");
     let binding = checked
         .execution()
         .candidate_service_binding(
@@ -482,7 +482,7 @@ pub(super) fn candidate_target_entry_binding(
         )?;
     let service_schema = provider_planning::service_schema::from_typed(
         provider_planning::ProviderPlanningContext::new(
-            &checked.typed,
+            checked,
             source::DependencyScope::Product,
         ),
         &checked.providers().boundary_calling_plan_realizations,
@@ -523,7 +523,7 @@ fn checked_callable_service_references(
             package: consumer.clone(),
             diagnostics: vec![diagnostics::Diagnostic::error(format!(
                 "checked callable `{}` has no service-reach or synchronous-invocation facts",
-                checked.typed.symbols.display_path(machine.symbol, "::"),
+                checked.symbols.display_path(machine.symbol, "::"),
             ))],
         };
         let reach = reaches.for_machine(machine.symbol).ok_or_else(missing)?;
@@ -658,8 +658,8 @@ fn candidate_hosted_exit_provider_package(
     let provider = &retained.plan;
     let package = provider.provider_type_package_identity?;
     let schema = retained.provider.schema.symbol();
-    let schema_package = checked.typed.symbols.symbol_package_identity(schema);
-    let schema_path = checked.typed.symbols.display_path(schema, "::");
+    let schema_package = checked.symbols.symbol_package_identity(schema);
+    let schema_path = checked.symbols.display_path(schema, "::");
     let expected_schema_owner = match role {
         AcceptedSemanticBindingRole::ConsoleExitProcessI32 => {
             schema_path == "Console" && schema_package == Some(package)
@@ -667,7 +667,7 @@ fn candidate_hosted_exit_provider_package(
         AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => {
             schema_path == "ProcessExit"
                 && schema_package.is_none()
-                && checked.typed.symbols.symbol_source_origin(schema)
+                && checked.symbols.symbol_source_origin(schema)
                     == Some(source::SourceOrigin::Toolchain)
         }
         _ => false,

@@ -64,7 +64,7 @@ pub struct CheckedCompilationInputs {
 ///
 /// ```compile_fail
 /// fn replace_program(checked: &mut compilation_products::CheckedCompilation) {
-///     checked.typed = Default::default();
+///     let _ = &mut checked.execution;
 /// }
 /// ```
 #[derive(Debug, Clone)]

@@ -24,7 +24,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
     let mut pending = Vec::new();
     let mut diagnostics = Vec::new();
     let provider_context =
-        crate::ProviderPlanningContext::new(&checked.typed, source::DependencyScope::Product);
+        crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product);
     for plan in selected.plans() {
         let top_level_requirements = checked
             .typed
@@ -71,7 +71,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
         // requirements. Candidate validation has already replayed their exact
         // typed operator schema. Do not make the trait-only installation-reach
         // pass reinterpret them as missing trait requirements.
-        let is_boundary_operator_plan = checked.typed.operators().iter().any(|operator| {
+        let is_boundary_operator_plan = checked.operators().iter().any(|operator| {
             crate::service_schema::from_typed_operator(provider_context, operator).as_ref()
                 == Some(&plan.schema)
         });
@@ -84,7 +84,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 .traits()
                 .iter()
                 .filter(|owner| {
-                    crate::service_schema::is_product_declaration(&checked.typed, owner.symbol)
+                    crate::service_schema::is_product_declaration(checked, owner.symbol)
                 })
                 .flat_map(|owner| {
                     checked
@@ -125,7 +125,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 .machines()
                 .iter()
                 .filter(|machine| {
-                    crate::service_schema::is_product_declaration(&checked.typed, machine.symbol)
+                    crate::service_schema::is_product_declaration(checked, machine.symbol)
                 })
                 .filter(|machine| {
                     if is_named_provider {
@@ -143,7 +143,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                             .any(|conformance| {
                                 conformance.requirement.is_some() && {
                                     exact_satisfied_requirement_identity(
-                                        &checked.typed,
+                                        checked,
                                         conformance.symbol,
                                         conformance.requirement_symbol,
                                     ) == row.requirement_identity
@@ -184,7 +184,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
         }
     }
     substitute_nested_installation_reaches(
-        &checked.typed,
+        checked,
         &mut resolutions,
         pending,
         &mut diagnostics,
@@ -224,7 +224,7 @@ fn append_top_level_installation_reach_resolution<'a>(
         .machines()
         .iter()
         .filter(|machine| {
-            checked.typed.attached_data_path(machine).as_deref()
+            checked.attached_data_path(machine).as_deref()
                 == Some(plan.provider_type.as_str())
         })
         .filter(|machine| {
@@ -237,7 +237,7 @@ fn append_top_level_installation_reach_resolution<'a>(
                         && conformance.requirement_symbol == requirement.symbol
                         && matches!(
                             typed_trees::machine::resolve_satisfied_declaration(
-                                &checked.typed,
+                                checked,
                                 machine,
                                 conformance,
                             ),

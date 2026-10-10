@@ -25,7 +25,7 @@ pub fn candidate_process_exit_binding(
             plan.schema.trait_name == "ProcessExit"
                 && plan.rows.iter().any(|row| row.method == "exit_process")
                 && provenance.provider.provider_type.is_some_and(|provider| {
-                    checked.typed.symbols.symbol_package_identity(provider) == Some(owner)
+                    checked.symbols.symbol_package_identity(provider) == Some(owner)
                 })
         })
         .collect::<Vec<_>>();

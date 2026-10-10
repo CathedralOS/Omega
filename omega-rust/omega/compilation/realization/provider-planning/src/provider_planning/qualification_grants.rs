@@ -33,14 +33,14 @@ pub(super) fn validate(
         }
     }
     let mut receipt_diagnostics = Vec::new();
-    let traits = checked.typed.traits();
-    if traits.len() != checked.typed.roots.traits.count() as usize {
+    let traits = checked.traits();
+    if traits.len() != checked.roots.traits.count() as usize {
         receipt_diagnostics.push(diagnostics::Diagnostic::error(
             "admitted qualification receipt binding has an invalid typed trait span",
         ));
     }
     for definition in traits {
-        if checked.typed.trait_machine_signatures(definition).len()
+        if checked.trait_machine_signatures(definition).len()
             != definition.machines.count() as usize
         {
             receipt_diagnostics.push(diagnostics::Diagnostic::error(format!(
@@ -142,7 +142,7 @@ pub(super) fn validate(
             .filter(|grant| {
                 crate::service_schema::schema_binds_exact_boundary_trait(
                     crate::ProviderPlanningContext::new(
-                        &checked.typed,
+                        checked,
                         source::DependencyScope::Product,
                     ),
                     &grant.selected_plan.schema,

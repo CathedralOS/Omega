@@ -25,7 +25,7 @@ pub(crate) fn derive_selected_compiler_intrinsic_execution_identity(
     requirement_symbol: symbols::SymbolHandle,
 ) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
     let Some(selected_realization) =
-        selected_compiler_intrinsic_realization(&checked.typed, plan, requirement_symbol)?
+        selected_compiler_intrinsic_realization(checked, plan, requirement_symbol)?
     else {
         return Ok(None);
     };
@@ -45,7 +45,7 @@ pub(crate) fn derive_selected_compiler_intrinsic_execution_identity(
         )));
     }
     if let NamedFloatRealization::Convert(domain) = realization {
-        let Some(requirement) = IntrinsicRequirement::by_symbol(&checked.typed, requirement_symbol)
+        let Some(requirement) = IntrinsicRequirement::by_symbol(checked, requirement_symbol)
         else {
             return Err(Diagnostic::error(format!(
                 "selected ProviderPlan `{}` resolves conversion requirement symbol {:?} to no intrinsic requirement declaration",
@@ -67,7 +67,7 @@ pub(crate) fn derive_selected_compiler_intrinsic_execution_identity(
                 function.name(),
             ))
         })?;
-    if checked.typed.symbols.builtin_function_for_symbol(symbol) != Some(function) {
+    if checked.symbols.builtin_function_for_symbol(symbol) != Some(function) {
         return Err(Diagnostic::error(format!(
             "compiler builtin `{}` does not round-trip through its exact root slot",
             function.name(),

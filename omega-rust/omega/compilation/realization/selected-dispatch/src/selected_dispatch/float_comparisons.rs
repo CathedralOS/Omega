@@ -17,7 +17,7 @@ pub(super) fn selected_executions(
     scope: source::DependencyScope,
     providers: &[SelectedProviderReviewProvenance],
 ) -> Result<Vec<CheckedSelectedFloatComparisonExecution>, Vec<Diagnostic>> {
-    let context = ProviderPlanningContext::new(&checked.typed, scope);
+    let context = ProviderPlanningContext::new(checked, scope);
     let mut executions = Vec::new();
     for (handle, operator_use) in checked.facts.operators.uses.iter() {
         if operator_use.origin.machine_symbol().is_some_and(|symbol| {
@@ -37,7 +37,7 @@ pub(super) fn selected_executions(
         let Some((comparison, primitive)) = checked
             .facts
             .operators
-            .selected_float_comparison(&checked.typed, handle)
+            .selected_float_comparison(checked, handle)
         else {
             continue;
         };
@@ -76,7 +76,7 @@ pub(super) fn selected_executions(
         }
         let plan = &provider.plan;
         let execution = super::derive_selected_primitive_float_binary_execution(
-            &checked.typed,
+            checked,
             plan,
             operator_use.selected_operator_symbol,
         )
@@ -108,7 +108,7 @@ pub(super) fn selected_executions(
             ));
         }
         let Some(execution) = CheckedSelectedFloatComparisonExecution::from_selected_provider(
-            &checked.typed,
+            checked,
             &checked.facts.operators,
             handle,
             comparison,

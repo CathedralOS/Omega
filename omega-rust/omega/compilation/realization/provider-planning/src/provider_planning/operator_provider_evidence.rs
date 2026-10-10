@@ -18,10 +18,10 @@ pub(crate) fn validate_selected_operator_provider_evidence(
     // plans that passed this gate.
     let mut diagnostics = Vec::new();
     for plan in selected.plans() {
-        let operator = checked.typed.operators().iter().find(|operator| {
+        let operator = checked.operators().iter().find(|operator| {
             crate::service_schema::schema_binds_exact_boundary_operator(
                 crate::ProviderPlanningContext::new(
-                    &checked.typed,
+                    checked,
                     source::DependencyScope::Product,
                 ),
                 &plan.schema,
@@ -141,7 +141,7 @@ fn selected_requirement_provider_evidence(
     requirement_symbol: symbols::SymbolHandle,
 ) -> Result<(), diagnostics::Diagnostic> {
     let Some(requirement) =
-        crate::IntrinsicRequirement::by_symbol(&checked.typed, requirement_symbol)
+        crate::IntrinsicRequirement::by_symbol(checked, requirement_symbol)
     else {
         return Ok(());
     };
@@ -150,7 +150,7 @@ fn selected_requirement_provider_evidence(
     }
     let slot = requirement.display();
     let provider_context =
-        crate::ProviderPlanningContext::new(&checked.typed, source::DependencyScope::Product);
+        crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product);
     if !candidates
         .iter()
         .any(|candidate| requirement.schema_binds(provider_context, &candidate.schema))
@@ -180,14 +180,14 @@ fn selected_requirement_provider_evidence(
         ProviderBinding::CheckedAdapter { .. } => {}
         ProviderBinding::CompilerIntrinsic { machine, .. } => {
             requirement
-                .diagnostic_label(&checked.typed)
+                .diagnostic_label(checked)
                 .ok_or_else(|| {
                     diagnostics::Diagnostic::error(format!(
                         "selected boundary-requirement ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
                         plan.name,
                     ))
                 })?;
-            if !requirement.intrinsic_realization_matches(&checked.typed, machine) {
+            if !requirement.intrinsic_realization_matches(checked, machine) {
                 return Err(diagnostics::Diagnostic::error(format!(
                     "selected boundary-requirement ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact slot `{slot}` as an external leaf",
                     plan.name,
@@ -219,7 +219,7 @@ fn selected_operator_provider_evidence(
         return Ok(());
     };
     let slot =
-        typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
+        typed_trees::operator::boundary_operator_requirement_identity(checked, operator);
     let operator_package = checked
         .typed
         .symbols
@@ -259,7 +259,7 @@ fn selected_operator_provider_evidence(
         machine_package_identity,
     } = &row.binding
     {
-        let [namespace, requirement] = checked.typed.operator_path_members(operator.name) else {
+        let [namespace, requirement] = checked.operator_path_members(operator.name) else {
             return Err(diagnostics::Diagnostic::error(format!(
                 "selected checked boundary-operator ProviderPlan `{}` targets `{slot}`, whose source path is not the supported `Namespace::requirement` shape",
                 plan.name,
@@ -311,7 +311,7 @@ fn selected_operator_provider_evidence(
             }
         };
         let direct_provider = exact_checked_adapter(
-            crate::ProviderPlanningContext::new(&checked.typed, source::DependencyScope::Product),
+            crate::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
             plan,
             row,
         );
@@ -323,7 +323,7 @@ fn selected_operator_provider_evidence(
             |realization| {
                 demanded_application.is_none_or(|application| {
                     validation::checked_operator_application_matches_realization(
-                        &checked.typed,
+                        checked,
                         application,
                         realization,
                     )
@@ -358,13 +358,13 @@ fn selected_operator_provider_evidence(
                 .any(|conformance| {
                     conformance.external_binding.is_none()
                         && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-                            &checked.typed,
+                            checked,
                             checked_provider,
                             conformance,
                         )
                         .is_some_and(|resolved| resolved.symbol == operator.symbol)
                             || typed_trees::operator::resolve_specialized_checked_operator_application(
-                                &checked.typed,
+                                checked,
                                 checked_provider,
                                 namespace.as_str(),
                                 requirement.as_str(),
@@ -386,15 +386,15 @@ fn selected_operator_provider_evidence(
             plan.name, row.binding,
         )));
     };
-    let requirement = crate::IntrinsicRequirement::from_operator(&checked.typed, operator)
-        .filter(|requirement| requirement.diagnostic_label(&checked.typed).is_some())
+    let requirement = crate::IntrinsicRequirement::from_operator(checked, operator)
+        .filter(|requirement| requirement.diagnostic_label(checked).is_some())
         .ok_or_else(|| {
             diagnostics::Diagnostic::error(format!(
                 "selected boundary-operator ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
                 plan.name,
             ))
         })?;
-    if !requirement.intrinsic_realization_matches(&checked.typed, machine) {
+    if !requirement.intrinsic_realization_matches(checked, machine) {
         return Err(diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact slot `{slot}` as an external leaf",
             plan.name,
@@ -427,7 +427,7 @@ pub fn selected_use_plan<'a>(
         return None;
     }
     let (index, plan) = selected_requirement_plan(
-        crate::ProviderPlanningContext::new(&checked.typed, scope),
+        crate::ProviderPlanningContext::new(checked, scope),
         plans,
         requirement,
     )?;
@@ -501,7 +501,7 @@ fn use_site_is_generic_template(
     checked
         .typed
         .machine(machine_symbol)
-        .is_some_and(|machine| !checked.typed.machine_type_parameters(machine).is_empty())
+        .is_some_and(|machine| !checked.machine_type_parameters(machine).is_empty())
 }
 
 pub(crate) fn provider_type_package_identity(
@@ -544,7 +544,7 @@ pub fn specialized_provider_machines<'checked>(
         .iter()
         .filter(|specialization| {
             validation::machine_specialization_matches_template_identity(
-                &checked.typed,
+                checked,
                 specialization,
                 machine_identity,
                 machine_package_identity,
@@ -556,7 +556,7 @@ pub fn specialized_provider_machines<'checked>(
                         && application_matches(realization)
                 })
         })
-        .filter_map(|specialization| checked.typed.machine(specialization.instance))
+        .filter_map(|specialization| checked.machine(specialization.instance))
         .filter(|machine| {
             checked
                 .typed

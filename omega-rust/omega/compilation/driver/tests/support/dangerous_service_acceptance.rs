@@ -84,7 +84,7 @@ pub fn required_dangerous_services(
     checked: &CheckedCompilation,
     owner: PackageKeyIdentity,
 ) -> RequiredDangerousServices {
-    let program = &checked.typed;
+    let program = checked;
     let owned_by_package =
         |symbol: SymbolHandle| program.symbols.symbol_package_identity(symbol) == Some(owner);
     let mut services = RequiredDangerousServices::default();
@@ -177,7 +177,7 @@ fn resolved_boundary_call_names(
     checked: &CheckedCompilation,
     requirement: SymbolHandle,
 ) -> Vec<&str> {
-    let program = &checked.typed;
+    let program = checked;
     let Some(definition) = program.trait_definition_by_symbol(requirement) else {
         return Vec::new();
     };

@@ -68,14 +68,14 @@ pub(crate) fn resolve_accepted_service_binding(
                     .symbols
                     .symbol_package_identity(definition.symbol)
                     != Some(binding.package())
-                || checked.typed.symbols.display_path(definition.symbol, "::")
+                || checked.symbols.display_path(definition.symbol, "::")
                     != binding.declaration_path()
             {
                 return None;
             }
             let schema = provider_planning::service_schema::from_typed(
                 provider_planning::ProviderPlanningContext::new(
-                    &checked.typed,
+                    checked,
                     source::DependencyScope::Product,
                 ),
                 calling_plans,
@@ -355,7 +355,7 @@ fn resolve_terminal_authority_permissions_for_symbol(
     };
     let Some(schema) = provider_planning::service_schema::from_typed(
         provider_planning::ProviderPlanningContext::new(
-            &checked.typed,
+            checked,
             source::DependencyScope::Product,
         ),
         calling_plans,

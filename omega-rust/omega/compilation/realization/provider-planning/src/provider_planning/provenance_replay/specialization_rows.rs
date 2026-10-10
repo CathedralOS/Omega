@@ -21,7 +21,7 @@ pub(crate) fn derive_selected_requirement_specializations(
     checked: &checked_trees::CheckedTrees,
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<effects::SelectedRequirementSpecialization>, Vec<diagnostics::Diagnostic>> {
-    let typed = &checked.typed;
+    let typed = checked;
     let provider_context =
         crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let mut diagnostics = Vec::new();

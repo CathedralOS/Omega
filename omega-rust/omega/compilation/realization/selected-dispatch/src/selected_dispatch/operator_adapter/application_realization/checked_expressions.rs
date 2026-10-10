@@ -149,7 +149,7 @@ fn derive_checked_expression_operator_application_realization(
         return Ok(None);
     };
     if !operator.lifetime_parameters.is_empty()
-        || !checked.typed.operator_type_parameters(operator).is_empty()
+        || !checked.operator_type_parameters(operator).is_empty()
     {
         return Err(Diagnostic::error(format!(
             "selected canonical-empty boundary application at expression {expression:?} names a generic boundary operator",

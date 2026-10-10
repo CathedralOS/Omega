@@ -89,7 +89,7 @@ pub(crate) fn row_execution_identity(
     if matches!(schema, ProviderSchemaDeclaration::BoundaryOperator(_))
         || (matches!(schema, ProviderSchemaDeclaration::BoundaryRequirement(_))
             && provider_planning::IntrinsicRequirement::by_symbol(
-                &checked.typed,
+                checked,
                 requirement_symbol,
             )
             .is_some_and(|requirement| {
@@ -301,7 +301,7 @@ impl HostedIntrinsicRow {
         accepted: Option<AcceptedRowBinding<'_>>,
     ) -> Result<bool, Diagnostic> {
         let bundled = self.service.bundled_binding(
-            &checked.typed,
+            checked,
             trait_symbol,
             requirement_symbol,
             realization_symbol,
@@ -424,7 +424,7 @@ fn accepted_binding_matches_process_exit_row_identity(
     realization_symbol: SymbolHandle,
     binding: &package_compilation::AcceptedSemanticBinding,
 ) -> bool {
-    let typed = &checked.typed;
+    let typed = checked;
     binding.role() == package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32
         && typed
             .symbols
@@ -498,7 +498,7 @@ fn boundary_row_shape(
     realization_name: &str,
     shape: ConsoleIntrinsicShape,
 ) -> Result<bool, Diagnostic> {
-    let typed = &checked.typed;
+    let typed = checked;
 
     let traits = typed
         .traits()
@@ -668,7 +668,7 @@ pub(crate) fn accepted_binding_matches_selected_row_identity(
     realization_symbol: SymbolHandle,
     binding: &package_compilation::AcceptedSemanticBinding,
 ) -> bool {
-    let typed = &checked.typed;
+    let typed = checked;
     binding.role() == package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32
         && [trait_symbol, requirement_symbol, realization_symbol]
             .into_iter()

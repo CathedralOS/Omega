@@ -82,11 +82,11 @@ fn plan_selected_boundary_adapter_dispatch(
     // requiring its calls to join Product plans would replay the wrong purpose.
     // Select all Product roots, not a guessed reachable subset or callee names.
     let context = provider_planning::ProviderPlanningContext::new(
-        &checked.typed,
+        checked,
         source::DependencyScope::Product,
     );
     let product_roots = typed_trees::references::DeclarationSelection::from_symbols(
-        typed_trees::references::collect_program_declarations(&checked.typed)
+        typed_trees::references::collect_program_declarations(checked)
             .into_iter()
             .filter(|symbol| context.contains(*symbol)),
     );
@@ -94,7 +94,7 @@ fn plan_selected_boundary_adapter_dispatch(
     // work; excluded Build declarations remain available for exact lookup but
     // cannot supply a Product row. Source-free generated roots are included by
     // the context above, just as in the former declaration projection.
-    let typed = &checked.typed;
+    let typed = checked;
     let product_references =
         typed_trees::references::collect_selected_program_references(typed, &product_roots);
     let mut adapters = Vec::new();

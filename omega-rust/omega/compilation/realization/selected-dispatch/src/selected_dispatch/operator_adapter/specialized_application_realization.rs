@@ -77,7 +77,7 @@ fn derive_one(
         ));
     };
     let operator = exact_operator_definition(checked, expression, application.requirement_symbol)?;
-    if !operator.is_boundary || checked.typed.operator_type_parameters(operator).is_empty() {
+    if !operator.is_boundary || checked.operator_type_parameters(operator).is_empty() {
         return Err(Diagnostic::error(format!(
             "nonempty boundary application at expression {expression:?} does not name a generic boundary operator",
         )));
@@ -239,7 +239,7 @@ pub(super) fn applications_match(
     realization: &typed_trees::operator::ClosedOperatorRealizationApplication,
 ) -> bool {
     validation::checked_operator_application_matches_realization(
-        &checked.typed,
+        checked,
         demand_row,
         realization,
     )
