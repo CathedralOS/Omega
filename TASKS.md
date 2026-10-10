@@ -5009,7 +5009,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   extend from it. Reuse
   `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/type_equations/`
   and `.../preparation/machine_equations.rs`; array, anonymous reference/slice
-  and integer/Boolean application matching exist.
+  and integer/Boolean application matching exist, including source-selected
+  constructor constants with declared-carrier custody.
 
   - Combine equations with argument/result inference and keep obligations
     through forwarding beyond closed scalar constructor indices, retained

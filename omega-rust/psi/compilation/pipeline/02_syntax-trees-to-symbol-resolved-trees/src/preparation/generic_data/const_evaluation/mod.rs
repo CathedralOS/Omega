@@ -35,12 +35,13 @@ pub(super) use templates::{
     normalize_generic_template_const_expressions, replace_const_expression_names_from,
     replace_machine_const_expression_names_from,
 };
+pub(in crate::preparation) use values::canonicalize_selected_const_definition;
 pub(crate) use values::closed_fixed_array_length;
 pub(super) use values::{
     canonicalize_const_definition, canonicalize_const_expression,
-    canonicalize_selected_const_definition, canonicalize_selected_declaration_value,
-    canonicalize_selected_index_expression, checked_fact_integer, const_integer_in_envelope,
-    syntax_type_identity, validate_const_index_type, validate_syntax_integer_range,
+    canonicalize_selected_declaration_value, canonicalize_selected_index_expression,
+    checked_fact_integer, const_integer_in_envelope, syntax_type_identity,
+    validate_const_index_type, validate_syntax_integer_range,
 };
 
 /// A `name` selection that names a module-scoped const value or const

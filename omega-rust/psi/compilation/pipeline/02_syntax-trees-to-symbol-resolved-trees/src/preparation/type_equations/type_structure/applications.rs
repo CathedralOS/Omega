@@ -9,14 +9,20 @@
 //! Forwarded const binders retain their declared carrier until the selected
 //! constructor telescope has checked it. Scalar bindings alone cannot carry
 //! this authority: matching and reconstruction normalize them to values.
+//! Closed named constructor indices instead select in the equation's authored
+//! source scope. Their declarations pass the ordinary const-index canonicalizer
+//! against the constructor's carrier before name erasure. Matching, construction
+//! and repeated equality share that selection; equal scalar payloads cannot
+//! justify a different carrier, and unresolved names never use a lexical map.
 
 use super::super::{Binding, Solver, const_binder_envelope, normalized_boolean_argument};
 use crate::preparation::generic_data::{
-    ClosedArgumentIdentity, DomainCarrier, DomainHead, closed_argument_identity,
-    closed_name_identity, domain_application_head, domain_index_telescope, selected_domain_family,
+    ClosedArgumentIdentity, DomainCarrier, DomainHead, canonicalize_selected_const_definition,
+    closed_argument_identity, closed_name_identity, domain_application_head,
+    domain_index_telescope, selected_domain_family,
 };
 use diagnostics::Diagnostic;
-use language_semantics::const_value::CanonicalConstValue;
+use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use numerics::bignum::BigInt;
 use source::SourceSpan;
 use syntax_trees::identifier::Identifier;
@@ -314,17 +320,17 @@ impl Solver<'_, '_> {
                 }
                 TypeParameterKind::Const { type_reference } => {
                     if self.boolean_constructor_parameter(type_reference) {
-                        self.match_application_boolean(pattern, actual, span)?;
+                        self.match_application_boolean(pattern, actual, type_reference, span)?;
                         continue;
                     }
-                    let value =
-                        self.application_integer(actual, false, span)?
-                            .ok_or_else(|| {
-                                self.type_structure_error(
-                                    "requires a normalized integer constructor argument",
-                                    span,
-                                )
-                            })?;
+                    let value = self
+                        .application_integer(actual, type_reference, false, span)?
+                        .ok_or_else(|| {
+                            self.type_structure_error(
+                                "requires a normalized integer constructor argument",
+                                span,
+                            )
+                        })?;
                     self.validate_application_integer(type_reference, &value, span)?;
                     if let Some(name) = self
                         .syntax
@@ -340,7 +346,9 @@ impl Solver<'_, '_> {
                             ));
                         }
                         self.bind_integer(position, value, span)?;
-                    } else if self.application_integer(pattern, true, span)? != Some(value) {
+                    } else if self.application_integer(pattern, type_reference, true, span)?
+                        != Some(value)
+                    {
                         return Err(self
                             .type_structure_error("has conflicting constructor constants", span));
                     }
@@ -377,7 +385,9 @@ impl Solver<'_, '_> {
                 }
                 TypeParameterKind::Const { type_reference } => {
                     if self.boolean_constructor_parameter(type_reference) {
-                        let Some(value) = self.application_boolean(argument, true, span)? else {
+                        let Some(value) =
+                            self.application_boolean(argument, type_reference, true, span)?
+                        else {
                             return Ok(None);
                         };
                         arguments.push(self.syntax.type_references.insert(
@@ -387,7 +397,9 @@ impl Solver<'_, '_> {
                         ));
                         continue;
                     }
-                    let Some(value) = self.application_integer(argument, true, span)? else {
+                    let Some(value) =
+                        self.application_integer(argument, type_reference, true, span)?
+                    else {
                         return Ok(None);
                     };
                     self.validate_application_integer(type_reference, &value, span)?;
@@ -438,6 +450,7 @@ impl Solver<'_, '_> {
     pub(super) fn application_integer(
         &self,
         reference: TypeReferenceHandle,
+        parameter_type: TypeReferenceHandle,
         binders: bool,
         span: SourceSpan,
     ) -> Result<Option<BigInt>, Diagnostic> {
@@ -463,16 +476,47 @@ impl Solver<'_, '_> {
                 _ => Err(self.type_structure_error("requires an integer const binding", span)),
             };
         }
-        name.as_str()
-            .parse::<i128>()
-            .map(BigInt::from_i128)
-            .map(Some)
-            .map_err(|_| {
-                self.type_structure_error(
-                    "requires a normalized integer constructor argument",
-                    span,
-                )
-            })
+        if let Ok(value) = name.as_str().parse::<i128>() {
+            return Ok(Some(BigInt::from_i128(value)));
+        }
+        match self
+            .selected_constructor_constant(name, parameter_type)?
+            .decode_encoding()
+        {
+            Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
+                Ok(Some(BigInt::from_i128(value)))
+            }
+            _ => Err(self.type_structure_error("requires an integer constructor constant", span)),
+        }
+    }
+
+    /// Selection and index validation precede scalar observation. In particular,
+    /// a named u32 with value four is not an argument for a u64 constructor.
+    fn selected_constructor_constant(
+        &self,
+        name: &Identifier,
+        parameter_type: TypeReferenceHandle,
+    ) -> Result<CanonicalConstValue, Diagnostic> {
+        let span = name.source_span();
+        let selection = self.selection.ok_or_else(|| {
+            self.type_structure_error(
+                "requires source-scoped constructor constant selection",
+                span,
+            )
+        })?;
+        let definition = selection.select(self.syntax, name)?.ok_or_else(|| {
+            self.type_structure_error(
+                "requires an unambiguous selected constructor constant",
+                span,
+            )
+        })?;
+        canonicalize_selected_const_definition(
+            self.syntax,
+            &definition,
+            parameter_type,
+            Some(selection),
+        )
+        .map_err(|reason| self.type_structure_error(&reason, span))
     }
 
     fn boolean_constructor_parameter(&self, reference: TypeReferenceHandle) -> bool {
@@ -493,6 +537,7 @@ impl Solver<'_, '_> {
     fn application_boolean(
         &self,
         reference: TypeReferenceHandle,
+        parameter_type: TypeReferenceHandle,
         binders: bool,
         span: SourceSpan,
     ) -> Result<Option<bool>, Diagnostic> {
@@ -521,30 +566,33 @@ impl Solver<'_, '_> {
                 _ => Err(self.type_structure_error("requires a Boolean const binding", span)),
             };
         }
-        normalized_boolean_argument(name.as_str())
-            .map(Some)
-            .ok_or_else(|| {
-                self.type_structure_error(
-                    "requires a normalized Boolean constructor argument",
-                    span,
-                )
-            })
+        if let Some(value) = normalized_boolean_argument(name.as_str()) {
+            return Ok(Some(value));
+        }
+        match self
+            .selected_constructor_constant(name, parameter_type)?
+            .decode_encoding()
+        {
+            Some(DecodedCanonicalConstValue::Boolean(value)) => Ok(Some(value)),
+            _ => Err(self.type_structure_error("requires a Boolean constructor constant", span)),
+        }
     }
 
     fn match_application_boolean(
         &mut self,
         pattern: TypeReferenceHandle,
         actual: TypeReferenceHandle,
+        parameter_type: TypeReferenceHandle,
         span: SourceSpan,
     ) -> Result<(), Diagnostic> {
         let value = self
-            .application_boolean(actual, false, span)?
+            .application_boolean(actual, parameter_type, false, span)?
             .ok_or_else(|| {
                 self.type_structure_error("requires a closed Boolean constructor argument", span)
             })?;
         // Check the declared binder carrier even when it already has an explicit
         // value: equal encodings cannot justify a Boolean/integer kind mixture.
-        let expected = self.application_boolean(pattern, true, span)?;
+        let expected = self.application_boolean(pattern, parameter_type, true, span)?;
         if let Some(expected) = expected {
             if expected != value {
                 return Err(
@@ -701,9 +749,20 @@ impl Solver<'_, '_> {
                 TypeParameterKind::Type => {
                     self.require_equal_type_structure(expected, actual, span)?;
                 }
-                TypeParameterKind::Const { .. } => {
-                    let expected = self.application_integer(expected, false, span)?;
-                    let actual = self.application_integer(actual, false, span)?;
+                TypeParameterKind::Const { type_reference } => {
+                    if self.boolean_constructor_parameter(type_reference) {
+                        let expected =
+                            self.application_boolean(expected, type_reference, false, span)?;
+                        let actual =
+                            self.application_boolean(actual, type_reference, false, span)?;
+                        if expected != actual || expected.is_none() {
+                            return Err(undecidable());
+                        }
+                        continue;
+                    }
+                    let expected =
+                        self.application_integer(expected, type_reference, false, span)?;
+                    let actual = self.application_integer(actual, type_reference, false, span)?;
                     if expected != actual || expected.is_none() {
                         return Err(undecidable());
                     }

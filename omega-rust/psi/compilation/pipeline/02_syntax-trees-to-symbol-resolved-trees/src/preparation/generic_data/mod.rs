@@ -48,7 +48,6 @@ pub(crate) use arguments::{
 pub(in crate::preparation::generic_data) use arguments::{
     canonicalize_monomorphizable_argument_handles, complete_argument_tuple,
 };
-pub(in crate::preparation) use const_evaluation::collect_type_positions;
 pub(crate) use const_evaluation::{
     ConstFactValue, ConstScalarSpelling, ConstScalarValue, closed_fixed_array_length,
     evaluate_const_fact_binary, evaluate_const_fact_expression, evaluate_const_membership_fact,
@@ -56,16 +55,18 @@ pub(crate) use const_evaluation::{
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{
     EvaluatedConst, canonicalize_closed_domain_indices, canonicalize_const_definition,
-    canonicalize_selected_const_definition, canonicalize_selected_declaration_value,
-    canonicalize_selected_index_expression, capture_machine_runtime_template_names,
-    checked_fact_integer, collect_data_type_reference_positions,
-    collect_machine_type_reference_positions, consider_generic_spelling, const_integer_in_envelope,
-    const_integer_type, domain_index_parameters, evaluate_const_argument_expression,
-    generic_const_integer_types, integer_literal_value,
-    normalize_generic_template_const_expressions, prove_const_leaf_domain_constraints,
-    qualified_const_name, replace_const_expression_names_from,
+    canonicalize_selected_declaration_value, canonicalize_selected_index_expression,
+    capture_machine_runtime_template_names, checked_fact_integer,
+    collect_data_type_reference_positions, collect_machine_type_reference_positions,
+    consider_generic_spelling, const_integer_in_envelope, const_integer_type,
+    domain_index_parameters, evaluate_const_argument_expression, generic_const_integer_types,
+    integer_literal_value, normalize_generic_template_const_expressions,
+    prove_const_leaf_domain_constraints, qualified_const_name, replace_const_expression_names_from,
     replace_machine_const_expression_names_from, syntax_type_identity, validate_const_index_type,
     validate_syntax_integer_range,
+};
+pub(in crate::preparation) use const_evaluation::{
+    canonicalize_selected_const_definition, collect_type_positions,
 };
 pub(crate) use discovery::{ClosedArgumentIdentity, ClosedConstraintIdentity, selected_data_item};
 pub(in crate::preparation::generic_data) use discovery::{

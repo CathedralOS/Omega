@@ -167,7 +167,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_definition(
     canonicalize_selected_const_definition(syntax, definition, parameter_type, None)
 }
 
-pub(in crate::preparation::generic_data) fn canonicalize_selected_const_definition(
+pub(in crate::preparation) fn canonicalize_selected_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
     parameter_type: TypeReferenceHandle,

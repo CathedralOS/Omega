@@ -4662,3 +4662,10 @@ pass/modules/selected_constant_array_alias_named_extent_exit checked 55762ms che
 fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected rejected 12271ms expected @141e5d32a85a
 	cannot prove ensures contract for exit from bounded at statement 0: result >= -9223372036854775806
 pass/arithmetic/runtime_signed_minimum_remainder_postcondition_exit checked 105044ms check-target:macos_arm64 @141e5d32a85a
+fail/generics/equation_constructor_selected_const_carrier rejected 14ms expected @e86d47de16ba+wt
+	generic data `Verified` where type equation const `Counts::FOUR` declares type `u32`, but the parameter requires `u64`
+fail/generics/equation_constructor_selected_const_conflict rejected 11ms expected @e86d47de16ba+wt
+	generic data `Verified` where type equation has conflicting constructor constants
+fail/generics/equation_constructor_selected_const_unresolved rejected 10ms expected @e86d47de16ba+wt
+	generic data `Verified` where type equation requires an unambiguous selected constructor constant
+pass/generics/runtime_equation_constructor_selected_const_exit checked 4934ms check-target:linux_x86_64 @e86d47de16ba+wt
