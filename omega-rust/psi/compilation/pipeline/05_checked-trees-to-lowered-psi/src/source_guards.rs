@@ -10,8 +10,13 @@ use std::path::Path;
 /// Every `(file, line number, line)` of this crate's non-test sources, outside
 /// line comments.
 fn source_lines() -> Vec<(String, usize, String)> {
-    let source_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut directories = vec![source_root.clone()];
+    lines_under(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src"))
+}
+
+/// Every `(file, line number, line)` of non-test sources below `source_root`,
+/// outside line comments.
+fn lines_under(source_root: &Path) -> Vec<(String, usize, String)> {
+    let mut directories = vec![source_root.to_path_buf()];
     let mut lines = Vec::new();
     while let Some(directory) = directories.pop() {
         let entries = fs::read_dir(&directory)
@@ -39,7 +44,7 @@ fn source_lines() -> Vec<(String, usize, String)> {
             let source = fs::read_to_string(&path)
                 .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
             let file = path
-                .strip_prefix(&source_root)
+                .strip_prefix(source_root)
                 .expect("scanned source stays within the crate")
                 .display()
                 .to_string();
@@ -158,5 +163,41 @@ fn lowering_refusals_do_not_revalidate_the_plan() {
     assert!(
         violations.is_empty(),
         "lowering refusals must name an unsupported shape, not re-validate the plan: {violations:?}"
+    );
+}
+
+/// One plan carries every successor transition: a single
+/// `CheckedStructuralControlSuccessorPlan` construction mints each edge —
+/// scalar terminators leave the rosters empty, the composed route fills them —
+/// and `successor_edge` is the only lowering of successor transfers.
+#[test]
+fn successor_transitions_have_one_plan_and_one_lowering() {
+    let compilation_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let mut constructors = Vec::new();
+    let mut lowerings = Vec::new();
+    for (file, line_number, line) in lines_under(&compilation_root) {
+        let trimmed = line.trim_start();
+        if trimmed.contains(concat!("CheckedStructuralControl", "SuccessorPlan {"))
+            && !trimmed.starts_with(concat!("struct", " "))
+            && !trimmed.starts_with(concat!("pub", " struct"))
+            && !trimmed.starts_with(concat!("impl", " "))
+        {
+            constructors.push(format!("{file}:{line_number}: {}", trimmed));
+        }
+        if trimmed.contains(concat!("fn ", "successor_edge(")) {
+            lowerings.push(format!("{file}:{line_number}: {}", trimmed));
+        }
+    }
+    constructors.sort();
+    lowerings.sort();
+    assert_eq!(
+        constructors.len(),
+        1,
+        "exactly one successor-plan construction: {constructors:?}"
+    );
+    assert_eq!(
+        lowerings.len(),
+        1,
+        "exactly one lowering of successor transfers: {lowerings:?}"
     );
 }

@@ -705,9 +705,9 @@ fn internal_destination(
         {
             match terminal_calls::external_callable(program, machine, fused, transition) {
                 Some(target) => {
-                    (target == selected.target).then_some(symbols::SymbolHandle::default())
+                    (target == selected.target_state).then_some(symbols::SymbolHandle::default())
                 }
-                None => Some(selected.target),
+                None => Some(selected.target_state),
             }
         }
         checked_trees::CheckedScalarBranchDestination::Return {

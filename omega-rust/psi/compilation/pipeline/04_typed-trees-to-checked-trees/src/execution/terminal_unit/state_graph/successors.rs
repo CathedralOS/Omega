@@ -953,15 +953,18 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     .cloned()
             })
             .collect::<Option<Vec<_>>>()?;
-    Some(CheckedStructuralControlSuccessorPlan {
-        statement_ordinal: ordinal,
-        target_state: target.symbol,
+    // The composed route mints full rosters through the one successor-plan
+    // constructor; ordinary edges never select a continuation.
+    Some(CheckedStructuralControlSuccessorPlan::new(
+        ordinal,
+        target.symbol,
+        false,
         transfers,
         scalar_arguments,
         erased_arguments,
         erased_proof_arguments,
-        trivial_affine_discard_parameter_positions: Vec::new(),
-    })
+        Vec::new(),
+    ))
 }
 
 /// Resolve a finite field/index path below an established source root.

@@ -101,7 +101,7 @@ pub use checked_trees::{
     CheckedScalarExpressionBindings, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
     CheckedScalarGuardedExit, CheckedScalarGuardedTail, CheckedScalarReadProjection,
     CheckedScalarReturnPlan, CheckedScalarSelector, CheckedScalarStateTerminator,
-    CheckedScalarStoreValue, CheckedScalarSuccessor, CheckedSelectedFloatComparisonExecution,
+    CheckedScalarStoreValue, CheckedSelectedFloatComparisonExecution,
     CheckedSemanticDependencies, CheckedSemanticDependency, CheckedSemanticDependencyExposure,
     CheckedSemanticDependencyKind, CheckedServiceParameterCarrier, CheckedServiceParameterError,
     CheckedSpecializationIdentities, CheckedStateLocal, CheckedStateNaturalRank,

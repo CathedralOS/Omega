@@ -2818,21 +2818,6 @@ routes in dependency order. New capability work
 never a new per-route case. Land coherent cuts that delete their superseded
 code and preserve check/native behavior for the named customer slices.
 
-- **ONE-TRANSITION-LOWERING.** (new-scope) Stage 05 lowers successor
-  transitions with parameter transfer only through the composed route,
-  `unit/attached_unit/composed_control/state_graph/emission/successor_edge.rs`,
-  after `state_graph/edges.rs` re-checks each edge against source. Stage 04
-  still builds two successor plans: `CheckedStructuralControlSuccessorPlan`
-  in `execution/terminal_unit/state_graph/successors.rs` (also for
-  `state_graph/closed_sum.rs`), and `CheckedScalarSuccessor` in
-  `execution/terminal_scalar/mod.rs::checked_successor`, which names only the
-  target, arity and continuation identity inside a state's
-  `CheckedScalarStateTerminator`. Carry continuation identity on
-  `CheckedStructuralControlSuccessorPlan` and build one plan. Acceptance:
-  a source-scanning guard finds a single constructor and a single lowering
-  of successor transfers; corpus `--filter control_flow/,transitions,termination/,calls/`
-  is unchanged in check and native.
-
 - **ONE-CALL-LOWERING.** (new-scope) Composed graphs, ordinary bodies and
   structural-value members all reach `OperationFrame::emit_call`
   (`unit/attached_unit/operation_frame/calls.rs`), and `DirectCall` selects

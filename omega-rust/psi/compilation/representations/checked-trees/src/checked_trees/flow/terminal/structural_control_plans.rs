@@ -64,6 +64,11 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
 pub struct CheckedStructuralControlSuccessorPlan {
     pub statement_ordinal: u32,
     pub target_state: SymbolHandle,
+    /// Whether the transition selects the state's authored continuation
+    /// rather than its ordinary target. Scalar terminators and the composed
+    /// route share this one plan; a scalar edge carries only this identity
+    /// and leaves the rosters empty.
+    pub is_continuation: bool,
     pub transfers: Vec<CheckedStructuralControlTransferPlan>,
     pub scalar_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
     /// Proof-only erased actuals pairing the target's erased formals with the
@@ -76,6 +81,32 @@ pub struct CheckedStructuralControlSuccessorPlan {
 }
 
 impl CheckedStructuralControlSuccessorPlan {
+    /// The one construction site for successor plans: the composed route
+    /// mints full transfer rosters; scalar terminators mint the same plan
+    /// with continuation identity and empty rosters.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        statement_ordinal: u32,
+        target_state: SymbolHandle,
+        is_continuation: bool,
+        transfers: Vec<CheckedStructuralControlTransferPlan>,
+        scalar_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
+        erased_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
+        erased_proof_arguments: Vec<CheckedProofTerm>,
+        trivial_affine_discard_parameter_positions: Vec<u32>,
+    ) -> Self {
+        CheckedStructuralControlSuccessorPlan {
+            statement_ordinal,
+            target_state,
+            is_continuation,
+            transfers,
+            scalar_arguments,
+            erased_arguments,
+            erased_proof_arguments,
+            trivial_affine_discard_parameter_positions,
+        }
+    }
+
     /// The calls this edge runs to establish its fresh composite arguments,
     /// in catalog order. They execute after the edge's selection, so their
     /// effects and custody belong to this edge alone.

@@ -2,6 +2,7 @@
 //! every state's ordered guarded exits. Unit planning, composed admission and
 //! scalar completion read them.
 
+use crate::checked_trees::flow::terminal::CheckedStructuralControlSuccessorPlan;
 use symbols::SymbolHandle;
 
 /// Every state's ordered guarded exits:
@@ -52,7 +53,7 @@ pub enum CheckedScalarStateTerminator {
     Crash {
         statement_ordinal: u32,
     },
-    Jump(CheckedScalarSuccessor),
+    Jump(CheckedStructuralControlSuccessorPlan),
     Conditional {
         guard_statement_ordinal: u32,
         when_true: CheckedScalarBranchDestination,
@@ -63,7 +64,7 @@ pub enum CheckedScalarStateTerminator {
 /// A selected scalar arm transfers into a state, returns, or crashes without a successor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarBranchDestination {
-    Jump(CheckedScalarSuccessor),
+    Jump(CheckedStructuralControlSuccessorPlan),
     /// The exact standalone source crash retains its cause and site custody.
     Crash {
         statement_ordinal: u32,
@@ -73,13 +74,4 @@ pub enum CheckedScalarBranchDestination {
         /// The false sibling of a combined transition has its own value role.
         is_continuation: bool,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedScalarSuccessor {
-    pub statement_ordinal: u32,
-    pub is_continuation: bool,
-    pub target: SymbolHandle,
-    /// Complete authored arity, before partitioning the target namespaces.
-    pub argument_count: u32,
 }

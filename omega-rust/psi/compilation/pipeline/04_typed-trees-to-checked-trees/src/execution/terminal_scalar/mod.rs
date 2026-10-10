@@ -19,9 +19,9 @@
 //! for scalar machines, and these facts are what they read.
 
 use checked_trees::{
-    CheckedScalarBranchDestination, CheckedScalarStateTerminator, CheckedScalarSuccessor,
-    CheckedTerminalMachineSelection, CheckedTerminalMachineSelections,
-    CheckedTerminalSignatureEligibility,
+    CheckedScalarBranchDestination, CheckedScalarStateTerminator,
+    CheckedStructuralControlSuccessorPlan, CheckedTerminalMachineSelection,
+    CheckedTerminalMachineSelections, CheckedTerminalSignatureEligibility,
 };
 
 pub(crate) fn build_checked_terminal_machine_selections(
@@ -137,13 +137,11 @@ fn checked_successor(
     statement_ordinal: u32,
     transition: &typed_trees::statement::TableTransition,
     is_continuation: bool,
-) -> Option<CheckedScalarSuccessor> {
+) -> Option<CheckedStructuralControlSuccessorPlan> {
     if transition.exit != TransitionExit::Ordinary {
         return None;
     }
-    let TransitionTargetNode::Named {
-        path, arguments, ..
-    } = program
+    let TransitionTargetNode::Named { path, .. } = program
         .statement_table
         .transition_target(if is_continuation {
             transition.continuation
@@ -170,13 +168,19 @@ fn checked_successor(
             .1
             .symbol
     };
-    Some(CheckedScalarSuccessor {
+    // Scalar terminators and the composed route share the one successor
+    // plan; a scalar edge carries only the edge identity and continuation
+    // selection, leaving transfer rosters to the structural path.
+    Some(CheckedStructuralControlSuccessorPlan::new(
         statement_ordinal,
-        is_continuation,
         target,
-        argument_count: u32::try_from(program.statement_table.expression_handles(*arguments).len())
-            .ok()?,
-    })
+        is_continuation,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    ))
 }
 
 /// Retain authored exit coordinates independently of the preceding operation values.

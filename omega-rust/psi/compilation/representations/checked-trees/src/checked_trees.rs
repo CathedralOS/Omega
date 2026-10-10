@@ -115,7 +115,7 @@ pub use flow::{
     CheckedRankEdgeCoordinate, CheckedReferenceResultSourcePlan, CheckedReferenceStorage,
     CheckedRuntimeIndex, CheckedScalarBranchDestination, CheckedScalarCaseFieldPlan,
     CheckedScalarGuardedExit, CheckedScalarGuardedTail, CheckedScalarReturnPlan,
-    CheckedScalarStateTerminator, CheckedScalarStoreValue, CheckedScalarSuccessor,
+    CheckedScalarStateTerminator, CheckedScalarStoreValue,
     CheckedSemanticDependencies, CheckedSemanticDependency, CheckedSemanticDependencyExposure,
     CheckedSemanticDependencyKind, CheckedStateNaturalRank, CheckedStoreDestination,
     CheckedStoreLeaf, CheckedStorePlan, CheckedStoreRoot, CheckedStoreValue,
