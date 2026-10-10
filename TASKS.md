@@ -3059,12 +3059,10 @@ of a check the same flow already performed, not the check itself.
   copies, arrays, joins and returns without granting permissions to inactive
   payloads;
   `runtime_case_qualified_reference_storage_exit` retains the growing `Chain`
-  and mixed-case execution controls. Exclusive sum construction still stops in
-  source-to-Terminal local structural call binding; integrate the completed-child
-  construction contract owned by **STATE-LOCAL-VALUE-FRONTIER** before claiming
-  that qualification. Native formation, release, edge and call-result custody
-  still retain local replay restrictions; replace their necessary storage relationships
-  rather than restoring a whole-operation borrow preflight.
+  and mixed-case execution controls. Native formation, release, edge and
+  call-result custody still retain local replay restrictions; replace their
+  necessary storage relationships rather than restoring a whole-operation
+  borrow preflight.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete

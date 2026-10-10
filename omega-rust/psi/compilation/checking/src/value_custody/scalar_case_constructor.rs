@@ -56,7 +56,7 @@ fn is_case_value(
         program,
         reference,
         &[],
-        crate::value_custody::storage_contents::ContentsRequirement::PlainOwned
+        crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
     ) {
         return false;
     }
@@ -177,36 +177,23 @@ fn case_constructor_parts(
     if case.name != authored_case.name || case.identity != authored_case.identity {
         return None;
     }
-    // A scalar construction needs numeric-owned contents throughout; the
-    // structural route classifies common and payload members recursively.
-    // Erased members retain their semantic type but produce no runtime storage.
-    let contents = if erased_member_owner {
-        crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::StructuralConstruction
-    )
-    } else {
-        crate::has_contents(
-        program,
-        reference,
-        &[],
-        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned
-    )
-    };
-    // Common members obey the same recursive contents and establishment
-    // rules as payload members. The structural producer retains omitted
-    // common zeros as ordinary checked operands; the scalar-only producer
-    // remains a payload-only interface, not a mixed-value fallback.
-    if !contents
-        || program
+    // Structural construction composes completed operands, just like a record;
+    // it does not require the whole carrier to be copyable or borrow-free.
+    // An exclusive descriptor keeps its own formation and transfer obligations.
+    // This classifier only pairs exact declarations with authored operands;
+    // structural producers establish each field and omitted common zero.
+    // The scalar-only interface still requires numeric-owned payloads and has
+    // no vocabulary for common fields or structural children.
+    if (!erased_member_owner
+        && (!crate::has_contents(
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        ) || program
             .data_members(owner)
             .iter()
-            .any(|member| match member {
-                DataMember::Field(_) => !erased_member_owner,
-                DataMember::Variant(_) => false,
-            })
+            .any(|member| matches!(member, DataMember::Field(_)))))
         || program.symbols.get(selected).parent != authored_owner.symbol
     {
         return None;

@@ -28,7 +28,7 @@ machine main() crashes Trap {
     let head: u8 = view[0];
     let inside: u8 = peek(middle, 1);
     let seen: u8 = view[3];
-    let tail: &mut [u8] = items[6..8];
+    let tail: &mut [u8] = &mut items[6..8];
     let first: u8 = items[0];
     zero(tail);
     let last: u8 = items[6];

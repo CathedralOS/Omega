@@ -1,7 +1,10 @@
 //! Call arguments are checked once against each other and the active loans.
 //! Flow supplies the left-to-right access lifetimes; this pass judges overlap
-//! and mutable argument writability over the original borrow facts. An
-//! operand named through a local reference is judged against the active loans
+//! over the original borrow facts. Source validation already judges reference
+//! formation against the exact receiving leaf, including every enclosing
+//! reference's access. Rechecking only a captured place's root here loses that
+//! authority: an immutable owned aggregate can contain an exclusive descriptor.
+//! An operand named through a local reference is judged against the active loans
 //! at the storage that reference's loans captured, by the same place-access
 //! judgment as a read or a write through it.
 
@@ -12,15 +15,12 @@ use crate::labels::call_target_label;
 
 mod conflicts;
 mod receiver;
-mod writability;
 
 pub(super) use receiver::{
     ReceiverSummaries, check_exclusive_place_use, check_receiver_footprint_against_argument_loans,
 };
 
 use self::conflicts::check_call_access_conflicts;
-use self::writability::check_mutable_argument_writability;
-use super::overlap::StatedOrderingPremise;
 use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 
 pub(super) fn check_compatibility<'p>(
@@ -67,11 +67,15 @@ pub(super) fn check_compatibility<'p>(
                 &mut available_premises,
                 bound_lookup,
             );
-            check_call_borrows(
+            let target_name = call_target_label(program, call.target_symbol);
+            let entry_constraints = call_borrow_constraints(call, state_flow, facts);
+            check_call_access_conflicts(
                 program,
                 facts,
                 state_flow,
                 call,
+                entry_constraints,
+                &target_name,
                 &available_premises,
                 call_frames,
                 diagnostics,
@@ -79,41 +83,6 @@ pub(super) fn check_compatibility<'p>(
             );
         }
     }
-}
-
-fn check_call_borrows<'p>(
-    program: &'p dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state_flow: &FlowStateFact,
-    borrow_call: &BorrowCallFact,
-    stated_premises: &[StatedOrderingPremise],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    diagnostics: &mut Vec<Diagnostic>,
-    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
-) {
-    let target_name = call_target_label(program, borrow_call.target_symbol);
-    let entry_constraints = call_borrow_constraints(borrow_call, state_flow, facts);
-    check_call_access_conflicts(
-        program,
-        facts,
-        state_flow,
-        borrow_call,
-        entry_constraints,
-        &target_name,
-        stated_premises,
-        call_frames,
-        diagnostics,
-        bound_lookup,
-    );
-    check_mutable_argument_writability(
-        program,
-        facts,
-        state_flow,
-        borrow_call,
-        entry_constraints,
-        &target_name,
-        diagnostics,
-    );
 }
 
 fn call_borrow_constraints<'a>(
