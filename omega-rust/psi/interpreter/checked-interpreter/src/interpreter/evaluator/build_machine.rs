@@ -21,8 +21,34 @@ pub(in crate::interpreter::evaluator) mod provider_selections;
 pub(in crate::interpreter::evaluator) mod root_bindings;
 
 use super::{Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, Value};
+use symbols::SymbolHandle;
 
 impl Evaluator<'_> {
+    /// Shared 2-operand product description call: facet-method match, the
+    /// facet+path operand pair, then the per-kind issuer.
+    pub(in crate::interpreter::evaluator) fn try_build_product_description_call(
+        &mut self,
+        facet_method: &'static str,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        occurrence: source::SourceSpan,
+        frame: &mut Frame,
+        arity_message: &'static str,
+        eval_operand: impl FnOnce(&mut Self, ExpressionHandle, &mut Frame) -> EvalResult<Vec<u8>>,
+        issue: impl FnOnce(&mut Self, &[u8], source::SourceSpan) -> EvalResult<Value>,
+    ) -> EvalResult<Option<Value>> {
+        if !target.is_valid()
+            || !self.exact_build_facet_method("BuildProduct", facet_method, target)
+        {
+            return Ok(None);
+        }
+        let [facet, path] = arguments else {
+            return Err(Halt::Trap(arity_message.to_owned()));
+        };
+        self.require_product_facet(*facet, frame)?;
+        let path = eval_operand(self, *path, frame)?;
+        issue(self, &path, occurrence).map(Some)
+    }
     /// A Build declaration borrows this activation's original cell. A value
     /// with the same type is not authority to configure the product.
     pub(in crate::interpreter::evaluator) fn require_root_build_argument(

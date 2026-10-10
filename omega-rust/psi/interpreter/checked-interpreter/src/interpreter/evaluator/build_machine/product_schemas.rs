@@ -97,18 +97,16 @@ impl<'program> Evaluator<'program> {
         occurrence: source::SourceSpan,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if !target.is_valid() || !self.exact_build_facet_method("BuildProduct", "schema", target) {
-            return Ok(None);
-        }
-        let [facet, path] = arguments else {
-            return Err(Halt::Trap(
-                "product schema selection requires an explicit facet and path".to_owned(),
-            ));
-        };
-        self.require_product_facet(*facet, frame)?;
-        let path = self.eval_product_schema_operand(*path, frame)?;
-        self.issue_product_schema_description(&path, occurrence)
-            .map(Some)
+        self.try_build_product_description_call(
+            "schema",
+            target,
+            arguments,
+            occurrence,
+            frame,
+            "product schema selection requires an explicit facet and path",
+            |engine, path, frame| engine.eval_product_schema_operand(path, frame),
+            |engine, path, occurrence| engine.issue_product_schema_description(path, occurrence),
+        )
     }
 
     /// Rejoin a `ProductTypeSchema` runtime value to the description the

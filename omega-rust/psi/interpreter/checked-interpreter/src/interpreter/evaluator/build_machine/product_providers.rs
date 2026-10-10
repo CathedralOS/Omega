@@ -34,19 +34,16 @@ impl<'program> Evaluator<'program> {
         occurrence: source::SourceSpan,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if !target.is_valid() || !self.exact_build_facet_method("BuildProduct", "provider", target)
-        {
-            return Ok(None);
-        }
-        let [facet, path] = arguments else {
-            return Err(Halt::Trap(
-                "product provider selection requires an explicit facet and path".to_owned(),
-            ));
-        };
-        self.require_product_facet(*facet, frame)?;
-        let path = self.eval_product_provider_operand(*path, frame)?;
-        self.issue_product_provider_description(&path, occurrence)
-            .map(Some)
+        self.try_build_product_description_call(
+            "provider",
+            target,
+            arguments,
+            occurrence,
+            frame,
+            "product provider selection requires an explicit facet and path",
+            |engine, path, frame| engine.eval_product_provider_operand(path, frame),
+            |engine, path, occurrence| engine.issue_product_provider_description(path, occurrence),
+        )
     }
 
     /// Rejoin a `ProductProviderRef` runtime value to the description the
