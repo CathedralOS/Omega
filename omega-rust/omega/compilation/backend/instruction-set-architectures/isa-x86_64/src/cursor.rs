@@ -2,4 +2,4 @@
 //! plus a position. Truncation is the only failure the cursor itself owns;
 //! each decoder maps it into its own error type.
 
-pub(crate) use optimization_core::cursor::{Cursor, Truncated};
+pub(crate) use optimization_core::cursor::Cursor;
