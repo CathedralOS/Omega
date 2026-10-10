@@ -264,7 +264,7 @@ pub(super) fn emit_state(
                     erased_proof_formals: source_erased_proof_formals,
                     operation_start: &mut operation_start,
                     blocks,
-                }.emit(&regions, &mut values, next_value, next_block, next_edge, operations)?;
+                }.emit(identities, &regions, &mut values, next_block, next_edge, next_value, operations)?;
                 Vec::new()
             } else {
                 regions.into_iter().map(|region| region.action).collect()

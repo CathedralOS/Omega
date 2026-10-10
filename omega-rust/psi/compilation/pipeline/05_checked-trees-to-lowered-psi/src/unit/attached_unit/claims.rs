@@ -151,20 +151,11 @@ pub(super) fn lower_owned_transfer_claims(
     structural_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
-    lower_owned_operand_claims(
-        checked,
-        machine,
-        state,
-        statement_index,
-        expression,
-        Some(evaluation),
-        Some(language_semantics::PermissionEventSource::Statement {
+    lower_owned_operand_claims(identities, checked, state, machine, statement_index, expression, Some(language_semantics::PermissionEventSource::Statement {
             statement_index: statement_index as usize,
-        }),
-        bindings,
-        structural_type,
-        structural_types,
-    )
+        }), Some(language_semantics::PermissionEventSource::Statement {
+            statement_index: statement_index as usize,
+        }), bindings, structural_type, structural_types)
 }
 
 /// Resolve one consumed occurrence, not every move from its source place in
@@ -373,8 +364,8 @@ pub(super) fn lower_owned_operand_claims(
                         ))?;
                 claims.push(terminal_psi::StructuralResultClaimBinding {
                     claim: lookup_claim_id(
-            identities,bindings, claim.claim_identity)?,
-                    path: lower_static_argument_path(relative, structural_type, structural_types)?,
+            bindings, claim.claim_identity)?,
+                    path: lower_static_argument_path(identities, relative, structural_type, structural_types)?,
                 });
             }
         }
@@ -476,16 +467,8 @@ pub(super) fn lower_unit_entry_claims(
             return unsupported("Unit entry claim identity is duplicated");
         }
         let id = claim_id(
-            identities,allocate_dense(&mut next_claim)?);
-        entry_claims.push(identities, identities, EntryClaim {
-            claim: id,
-            input: parameter.place,
-            path: lower_static_argument_path(
-                &claim.path,
-                parameter.structural_type,
-                structural_types,
-            )?,
-        });
+            allocate_dense(&mut next_claim)?);
+        entry_claims.push(identities);
         source_claims.push((claim.claim_identity, id));
     }
     Ok(LoweredUnitClaims {

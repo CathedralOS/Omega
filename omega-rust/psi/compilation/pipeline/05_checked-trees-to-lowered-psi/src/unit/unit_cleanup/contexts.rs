@@ -162,6 +162,7 @@ pub(crate) fn prepare_signature(
                     "nominal cleanup caller predicate parameter is absent",
                 ))?;
             requires.push(field_clause(
+                identities,
                 types,
                 parameter,
                 &requirement.field_identity,

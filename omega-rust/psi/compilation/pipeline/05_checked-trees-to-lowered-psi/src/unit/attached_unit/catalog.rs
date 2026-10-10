@@ -416,9 +416,10 @@ pub(super) fn lower_unit_structural_types_including(
             for state in states {
                 let loans =
                     crate::scalar_lowering::computations::fields::prepare_place_observations(
+                        identities,
                         checked,
-                        *machine,
                         state,
+                        *machine,
                         &declarations,
                     );
                 needs_coordinate |= loans.iter().any(|loan| {
@@ -527,6 +528,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                 checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
                 | checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
             ) => collect(
+                identities,
                 checked,
                 plans,
                 BYTE_VIEW_ELEMENT_TYPE_IDENTITY,
@@ -542,20 +544,20 @@ pub(crate) fn lower_unit_structural_type_roots(
             CheckedUnitStructuralTypeShape::BorrowedSliceView {
                 element_type_identity,
             } => {
-                collect(checked, plans, element_type_identity, active, selected)?;
+                collect(identities, checked, plans,  element_type_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::Record { fields, .. } => {
                 for type_identity in fields.iter().flat_map(
                     checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
                 ) {
-                    collect(identities, identities, identities, checked, plans, type_identity, active, selected)?;
+                    collect(identities, checked, plans, type_identity, active, selected)?;
                 }
             }
             CheckedUnitStructuralTypeShape::FixedArray {
                 element_type_identity,
                 ..
             } => {
-                collect(checked, plans, element_type_identity, active, selected)?;
+                collect(identities, checked, plans,  element_type_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 for type_identity in cases.iter().flat_map(|case| &case.fields).flat_map(
@@ -582,9 +584,9 @@ pub(crate) fn lower_unit_structural_type_roots(
     }
 
     let mut selected = Vec::new();
-    let mut active = Vec::new(identities, identities, );
+    let mut active = Vec::new();
     for identity in roots {
-        collect(checked, plans, identity, &mut active, &mut selected)?;
+        collect(identities, checked, plans, identity, &mut selected, &mut active)?;
     }
     selected.sort_by(|left, right| left.identity.cmp(&right.identity));
     let referent_names = selected
@@ -690,7 +692,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                         // retains this exact path; the child marker prohibits record
                         // construction and still requires entry/transfer establishment.
                         (field.relevance, StructuralFieldType::Structural(
-                            lookup_type_id(identities, identities, &type_ids, provider_type_identity)?,
+                            lookup_type_id(&type_ids, provider_type_identity)?,
                         ))
                     }
                     field_type => (field.relevance, crate::structural_types::lower_field_type(field_type, &type_ids)?),
@@ -759,7 +761,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                             },
                         })
                     })
-                    .collect::<Result<Vec<_>, LoweringError>>(identities, identities, identities, identities, )?;
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
                 StructuralTypeShape::Sum { cases }
             }
             CheckedUnitStructuralTypeShape::Mixed { fields, cases } => StructuralTypeShape::Mixed {
@@ -951,7 +953,7 @@ pub(super) fn lower_unit_structural_domains(
                 &plan.carrier_type_identity,
             )?;
             let establishment_routes =
-                lower_establishment_routes(checked, &plan.establishment_routes)?;
+                lower_establishment_routes(identities, checked, &plan.establishment_routes)?;
             Ok(StructuralDomainDeclaration {
                 byte_predicate: plan.byte_predicate,
                 establishment_routes,
@@ -1044,7 +1046,7 @@ pub(super) fn lower_establishment_routes(
 ) -> Result<Vec<terminal_psi::StructuralEstablishmentRoute>, LoweringError> {
     let mut lowered = routes
         .iter()
-        .map(|route| lower_establishment_route(checked, *route))
+        .map(|route| lower_establishment_route(identities, checked, *route))
         .collect::<Result<Vec<_>, _>>()?;
     lowered.sort();
     if lowered.windows(2).any(|pair| pair[0] == pair[1]) {
@@ -1064,6 +1066,7 @@ pub(super) fn lower_establishment_routes(
 /// ordinary call's issuer identity and no binding is emitted rather than one
 /// the verifier could not check.
 pub(super) fn call_result_qualification_establishments(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     caller_state: symbols::SymbolHandle,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
@@ -1120,7 +1123,7 @@ pub(super) fn call_result_qualification_establishments(
         if !established_here {
             continue;
         }
-        let catalog = lower_establishment_routes(checked, &plan.establishment_routes)?;
+        let catalog = lower_establishment_routes(identities, checked, &plan.establishment_routes)?;
         for route in &plan.establishment_routes {
             let authorized = matches!(
                 route,
@@ -1132,7 +1135,7 @@ pub(super) fn call_result_qualification_establishments(
             if !authorized {
                 continue;
             }
-            let row = lower_establishment_route(checked, *route)?;
+            let row = lower_establishment_route(identities, checked, *route)?;
             let Some(index) = catalog.iter().position(|candidate| *candidate == row) else {
                 continue;
             };
@@ -1157,14 +1160,7 @@ pub(super) fn lower_unit_services(
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     provider_candidates: &[CheckedUnitProviderCandidate],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
-    lower_unit_services_including(
-        checked,
-        plans,
-        closure,
-        boundaries,
-        provider_candidates,
-        &[],
-    )
+    lower_unit_services_including(identities, checked, plans, closure, boundaries, &[], &[])
 }
 
 pub(super) fn lower_unit_services_including(
@@ -1226,7 +1222,7 @@ pub(super) fn lower_unit_services_including(
             &mut selected,
         )?;
     }
-    lower_selected_unit_services(checked, selected)
+    lower_selected_unit_services(identities, checked, selected)
 }
 
 pub(super) fn lower_selected_unit_services(

@@ -123,17 +123,18 @@ pub(crate) fn emit(
             }
             let leaf_scalar = leaf_scalar_type(&field.field_type)?;
             let indexes = runtime_elements::evaluate_selectors(
+                identities,
                 &steps,
                 checked,
-                machine,
                 state,
+                machine,
                 store.statement_index,
                 evaluation,
                 source_value_count,
                 values,
-                next_value,
                 next_block,
                 next_edge,
+                next_value,
                 operations,
                 calls,
             )?;
@@ -169,20 +170,21 @@ pub(crate) fn emit(
         CheckedUnitStructuralPathSegment::FixedIndex(_)
         | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
             let destination = prepare_byte_destination(
+                identities,
                 destination,
                 parameter.structural_type,
                 &store.destination.path,
                 None,
                 checked,
-                machine,
                 state,
+                machine,
                 store.statement_index,
                 evaluation,
                 source_value_count,
                 values,
-                next_value,
                 next_block,
                 next_edge,
+                next_value,
                 operations,
                 calls,
                 structural_types,
@@ -464,20 +466,21 @@ pub(crate) fn prepare_byte_destination(
             }
             0
         }
-        _ => return unsupported(identities, identities, "byte representation store has no element coordinate"),
+        _ => return unsupported("byte representation store has no element coordinate"),
     };
     let mut indexes = runtime_elements::evaluate_selectors(
+        identities,
         &steps,
         checked,
-        machine,
         state,
+        machine,
         statement_index,
         evaluation,
         source_value_count,
         values,
-        next_value,
         next_block,
         next_edge,
+        next_value,
         operations,
         calls,
     )?;

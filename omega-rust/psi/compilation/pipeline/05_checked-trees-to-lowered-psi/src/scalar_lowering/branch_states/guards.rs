@@ -135,15 +135,7 @@ pub(crate) fn evaluate(
         bindings: Vec::new(),
         terminator: branch,
     });
-    let target = computations.retained_value(
-        state,
-        statement,
-        CheckedScalarExpressionRole::Guard,
-        bindings,
-        source_types,
-        ScalarType::Boolean.into(),
-        target,
-    )?;
+    let target = computations.retained_value(identities, state, statement, CheckedScalarExpressionRole::Guard, bindings, ScalarType::Boolean.into(), ScalarType::Boolean.into(), target)?;
     Ok(LoweredScalarBranchTerminator::Jump {
         cleanup_actions: Vec::new(),
         structural_arguments: Vec::new(),

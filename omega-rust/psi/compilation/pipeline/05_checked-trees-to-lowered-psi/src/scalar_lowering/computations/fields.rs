@@ -90,20 +90,7 @@ impl super::Expansion<'_> {
                     "unimplemented: computed receiver disposal requires its nontrivial cleanup plan",
                 );
             }
-            let prepared = structural_values::prepare_value(
-                self.checked,
-                self.qualifications,
-                site.state,
-                facts::PlaceRoot::Expression(values.nodes.get(receiver).expression),
-                site.statement,
-                receiver,
-                values.calls_for_root(receiver).unwrap_or(&[]),
-                root.type_reference,
-                site.bindings,
-                input_types,
-                self.structural_types,
-                receiver_storage(self.fields, subject, field)?,
-            )?;
+            let prepared = structural_values::prepare_value(identities, self.checked, self.qualifications, site.state, facts::PlaceRoot::Expression(values.nodes.get(receiver).expression), site.statement, receiver, values.calls_for_root(receiver).unwrap_or(&[]), root.type_reference, site.bindings, input_types, receiver_storage(self.fields, subject, field)?, self.structural_types)?;
             if self.checked.type_multiplicity(root.type_reference)
                 == language_semantics::Multiplicity::Affine
             {
@@ -147,7 +134,7 @@ impl super::Expansion<'_> {
             ),
         });
         match completed {
-            Some(value) => value.finish(site.state, site.bindings, input_types, observation, self),
+            Some(value) => value.finish(identities, site.state, site.bindings, input_types, observation, self),
             None => Ok(observation),
         }
     }
@@ -614,22 +601,15 @@ pub(crate) fn loaned_store(
     types: &[StructuralTypeDeclaration],
 ) -> Result<Option<LoanedStore>, LoweringError> {
     let checked_trees::CheckedStoreRoot::Local { symbol } = root else {
-        return Ok(identities, None);
+        return Ok(None);
     };
-    let Some(identities, loan) = loan_subject(checked, machine, state, symbol, types)? else {
+    let Some(identities, loan) = loan_subject(identities, checked, state, symbol, machine, types)? else {
         return Ok(None);
     };
     if loan.access != checked_trees::CheckedStructuralAccess::MutableBorrow {
-        return unsupported(
-            identities, "record store requires a mutable captured loan");
+        return unsupported("record store requires a mutable captured loan");
     }
-    let field = crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
-        primitive_type,
-        carrier_path,
-        field_identity,
-        loan.terminal,
-        types,
-    )?;
+    let field = crate::emission::structural_scalar_store::lower_structural_scalar_store_local(identities, primitive_type, carrier_path, loan.terminal, field_identity, types)?;
     let mut path = captured_store_path(&loan)?;
     let byte_overlay = if let Some(overlay) = loan.byte_overlay {
         // Byte-region admission requires a recursively fact-free referee.
@@ -674,9 +654,9 @@ pub(crate) fn loaned_primitive_store(
     types: &[StructuralTypeDeclaration],
 ) -> Result<Option<LoanedStore>, LoweringError> {
     let checked_trees::CheckedStoreRoot::Local { symbol } = destination else {
-        return Ok(identities, None);
+        return Ok(None);
     };
-    let Some(identities, loan) = loan_subject(checked, machine, state, *symbol, types)? else {
+    let Some(identities, loan) = loan_subject(identities, checked, state, *symbol, machine, types)? else {
         return Ok(None);
     };
     let Some(overlay) = &loan.byte_overlay else {

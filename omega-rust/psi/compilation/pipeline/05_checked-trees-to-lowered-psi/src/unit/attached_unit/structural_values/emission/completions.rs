@@ -105,7 +105,7 @@ impl Emission<'_, '_, '_> {
             return unsupported("owned selection has untransported residual candidates");
         }
         let selected_path = projection
-            .map(identities, |projected| projected.lowered_path(self.type_ids, self.structural_types))
+            .map(|projected| projected.lowered_path(identities, self.type_ids, self.structural_types))
             .transpose()?
             .unwrap_or_default();
         structural_arguments.push(StructuralArgument {
@@ -151,13 +151,9 @@ impl Emission<'_, '_, '_> {
                 )?
                 .iter()
                 .map(|residual| {
-                    Ok(identities, terminal_psi::StructuralAffineDiscard {
+                    Ok(terminal_psi::StructuralAffineDiscard {
                         place: selected,
-                        path: lower_static_argument_path(
-                            &residual.path,
-                            lookup_type_id(self.type_ids, &projected.root_type_identity)?,
-                            self.structural_types,
-                        )?,
+                        path: lower_static_argument_path(identities, lookup_type_id(self.type_ids, &projected.root_type_identity)?, self.type_ids, self.structural_types)?,
                         structural_type: lookup_type_id(self.type_ids, &residual.type_identity)?,
                     })
                 })

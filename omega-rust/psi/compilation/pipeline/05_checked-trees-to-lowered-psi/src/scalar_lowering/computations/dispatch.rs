@@ -15,7 +15,7 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn dispatch(
         &mut self,
-        subject: Computation,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, subject: Computation,
         arms: arena::HandleSpan<CheckedScalarDispatchArm>,
         result_type: QualifiedScalarType,
         input_types: &[QualifiedScalarType],
@@ -78,6 +78,7 @@ impl Expansion<'_> {
             // Arm bodies receive the original prefix. The saved subject and
             // last pattern value are no longer live once an arm is selected.
             let selected = self.argument(
+                identities,
                 &Argument::Computation(arm.value),
                 input_types,
                 target,
@@ -151,6 +152,7 @@ impl Expansion<'_> {
                         terminator,
                     });
                     self.argument(
+                        identities,
                         &Argument::Computation(pattern),
                         &saved_types,
                         tested,
@@ -164,6 +166,7 @@ impl Expansion<'_> {
         let continuation =
             continuation.ok_or(LoweringError::Unsupported("scalar dispatch has no arms"))?;
         self.argument(
+            identities,
             &Argument::Computation(subject),
             input_types,
             continuation,

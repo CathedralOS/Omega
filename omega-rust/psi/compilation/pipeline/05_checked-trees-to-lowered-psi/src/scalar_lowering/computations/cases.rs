@@ -81,6 +81,7 @@ pub(crate) struct Construction {
 }
 
 pub(crate) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
@@ -102,6 +103,7 @@ pub(crate) fn prepare(
                     "computed case lost its constructor",
                 ))?;
             slots.push(reserve(
+                identities,
                 checked,
                 subject.expression,
                 &source,
@@ -323,7 +325,7 @@ impl Expansion<'_> {
                     let identity = structural_case_identity(self.checked, observed_case)?;
                     let expression = site
                         .bindings
-                        .element_case_observation(argument, &source, &identity.spelling())?;
+                        .element_case_observation(identities, argument, &source, &identity.spelling())?;
                     return Ok(self.binding(
                         input_types,
                         input_types.len(),
@@ -340,6 +342,7 @@ impl Expansion<'_> {
                 let (
             identities,path, case) =
                     crate::expression_preparation::bindings::structural_cases::resolve_at(
+                        identities,
                         self.structural_types,
                         structural_type,
                         &argument.path,
@@ -467,7 +470,7 @@ impl Expansion<'_> {
                 cleanup_actions: Vec::new(),
             },
         });
-        self.sequence(&operands, input_types, constructor, site, active)
+        self.sequence(identities, &operands, input_types, constructor, site, active)
     }
 }
 

@@ -16,14 +16,7 @@ pub(crate) fn computation_value_type(
     bindings: &storage::ScalarBindings,
     source_types: &[QualifiedScalarType],
 ) -> Result<QualifiedScalarType, LoweringError> {
-    value_type(
-        checked,
-        qualifications,
-        root,
-        bindings,
-        source_types,
-        &mut Vec::new(),
-    )
+    value_type(identities, checked, qualifications, root, bindings, &mut Vec::new(), )
 }
 
 fn value_type(
@@ -61,6 +54,7 @@ fn value_type(
             // Boolean operand must be unqualified, matching Select's
             // condition convention.
             if value_type(
+                identities,
                 checked,
                 qualifications,
                 *operand,
@@ -86,6 +80,7 @@ fn value_type(
             ..
         } => {
             let left = value_type(
+                identities,
                 checked,
                 qualifications,
                 *when_true,
@@ -94,6 +89,7 @@ fn value_type(
                 active,
             )?;
             let right = value_type(
+                identities,
                 checked,
                 qualifications,
                 *when_false,
@@ -116,6 +112,7 @@ fn value_type(
             let mut result = None;
             for arm in arms {
                 let value = value_type(
+                    identities,
                     checked,
                     qualifications,
                     arm.value,

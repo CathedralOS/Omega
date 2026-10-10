@@ -18,6 +18,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     let plan = &partial.machine;
     // The lane's dispatcher joins the ordinary roster for this closure.
     let mut source_mapped = lower_unit_closure(
+        identities,
         checked,
         &UnitClosureRequest {
             plans: UnitPlans::with_staged(&checked.facts.flow.terminal_unit_effects, plan),

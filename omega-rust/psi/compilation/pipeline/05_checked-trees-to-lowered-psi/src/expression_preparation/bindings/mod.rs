@@ -497,6 +497,7 @@ impl ScalarBindings {
                 "borrowed argument lost its published selected type",
             ))?;
         let prepared = structural_paths::prepare_structural_argument_path(
+            identities,
             checked,
             argument,
             root,
@@ -520,7 +521,7 @@ impl ScalarBindings {
     /// the same declaration walk without evaluating a selector.
     pub(crate) fn element_case_observation(
         &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         source: &StructuralArgument,
         case: &str,
     ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
@@ -563,11 +564,12 @@ impl ScalarBindings {
         };
         let (identities, place, path, element_path, case, observes_element_view_length) =
             structural_cases::resolve_runtime_element(
+                identities,
                 self.structural_fields.declarations(),
                 structural_type,
                 source.place,
-                &static_path(&argument.path[..selector_position])?,
                 &static_path(&argument.path[selector_position + 1..])?,
+                &static_path(&argument.path[..selector_position])?,
                 &checked_trees::CheckedMemberIdentity::of_spelling(&case),
             )?;
         let index = match selector {
@@ -576,11 +578,7 @@ impl ScalarBindings {
             }
             checked_trees::CheckedRuntimeIndex::StructuralField(
             identities,field) => {
-                structural_fields::resolve_typed(
-                    &self.structural_fields,
-                    field.parameter_position,
-                    &field.path,
-                )?
+                structural_fields::resolve_typed(identities, field.parameter_position, &field.path, field.parameter_position)?
             }
             // Hoisted computations and addressed primitive locals share the
             // authored value/home join with ordinary element observations.
@@ -876,7 +874,7 @@ impl ScalarBindings {
 
     pub(crate) fn byte_record_observation(
         &self,
-        proven_indexes: &[checked_trees::expression::ExpressionHandle],
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, proven_indexes: &[checked_trees::expression::ExpressionHandle],
         symbol: symbols::SymbolHandle,
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
         index: &CheckedScalarExpression,
@@ -884,6 +882,7 @@ impl ScalarBindings {
         primitive: PrimitiveType,
     ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
         crate::expression_preparation::bindings::place_observations::byte_record_observation(
+            identities,
             &self.place_observations,
             self,
             proven_indexes,
@@ -935,7 +934,7 @@ impl ScalarBindings {
     /// computed call operand takes.
     pub(crate) fn scalar_parameter_borrow(
         &self,
-        checked: &checked_trees::CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<StructuralArgument, LoweringError> {
@@ -950,7 +949,7 @@ impl ScalarBindings {
                 .ok_or(LoweringError::Unsupported(
                     "borrowed scalar formal has no published home",
                 ))?;
-        self.primitive_borrow(checked, argument, *scalar_type, structural_types)
+        self.primitive_borrow(identities, checked, argument, *scalar_type, structural_types)
     }
 
     pub(crate) fn prepared_primitive_borrow(
@@ -1084,12 +1083,13 @@ impl ScalarBindings {
             crate::emission::operation_emission::calls::PreparedStructuralArgument {
                 place: source.place,
                 root_type: self.structural_place_type(
-            identities,source.place),
+            source.place),
                 path: source
                     .path
                     .into_iter()
                     .map(structural_paths::PreparedStructuralPathSegment::Static)
                     .chain(structural_paths::prepare_structural_argument_path(
+                        identities,
                         checked,
                         argument,
                         root_type,
@@ -1106,17 +1106,17 @@ impl ScalarBindings {
     /// published storage. Their ordinals share one namespace and cannot alias.
     pub(crate) fn owned_call_argument(
         &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         results: &[(
             u32,
             crate::emission::operation_emission::buffer::StructuralBinding,
         )],
     ) -> Result<StructuralArgument, LoweringError> {
         let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
-            return self.owned_argument(argument);
+            return self.owned_argument(identities, argument);
         };
         let Some((_, binding)) = results.iter().find(|(candidate, _)| *candidate == ordinal) else {
-            return self.owned_argument(argument);
+            return self.owned_argument(identities, argument);
         };
         // A prepared result is consumed whole; this lane has no route for an
         // owned projection out of it.
@@ -1138,7 +1138,7 @@ impl ScalarBindings {
     /// whole-value use rather than a widening.
     pub(crate) fn owned_argument(
         &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
         let mut source = self.owned_argument_home(argument)?;
         let selected_root =
@@ -1149,6 +1149,7 @@ impl ScalarBindings {
         source
             .path
             .extend(structural_paths::lower_static_argument_path(
+                identities,
                 &argument.path,
                 selected_root,
                 self.structural_fields.declarations(),
@@ -1451,7 +1452,7 @@ impl ScalarBindings {
             .ok_or(LoweringError::Unsupported(
                 "scalar computation needs one checked expression and one source binding",
             ))?;
-        self.expression(&checked.facts.proven_scalar_indexes, expression)
+        self.expression(identities, expression,  expression)
     }
 
     /// A selected dispatch copied this scalar payload before the arm began.
@@ -1482,6 +1483,7 @@ impl ScalarBindings {
         field: &checked_trees::CheckedStructuralParameterField,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         let observation = structural_fields::resolve_typed(
+            identities,
             &self.structural_fields,
             field.parameter_position,
             &field.path,
@@ -1556,8 +1558,9 @@ impl ScalarBindings {
         expression: &CheckedScalarExpression,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         let mut expression = expression.clone();
-        self.scalar(identities, &mut expression)?;
+        self.scalar(&mut expression)?;
         crate::expression_preparation::prepare_expression::lower_checked_scalar_expression_with_parameters(
+            identities,
             &expression,
             &self.structural_parameters,
             &self.structural_fields,

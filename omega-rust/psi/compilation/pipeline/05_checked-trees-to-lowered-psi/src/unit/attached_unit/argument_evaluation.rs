@@ -178,7 +178,7 @@ impl Evaluation {
     /// evaluation's prepared tables.
     fn scalar_computation_expansion<'a>(
         &'a self,
-        checked: &'a CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &'a CheckedTrees,
         qualifications: &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
         machine: symbols::SymbolHandle,
     ) -> crate::scalar_lowering::computations::Expansion<'a> {
@@ -190,7 +190,7 @@ impl Evaluation {
             .with_subslices(&self.subslices)
             .with_cases(&self.cases)
             .with_fields(&self.record_fields)
-            .enter_proof_scope(&self.erased_proof_formals)
+            .enter_proof_scope(identities, &self.erased_proof_formals)
     }
 
     pub(crate) fn cleanup_parameter_places(&self) -> Vec<PlaceId> {
@@ -667,7 +667,7 @@ impl Evaluation {
     /// affine owners on the completed call's normal continuation.
     pub(crate) fn continue_values(
         &mut self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         mut cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -699,11 +699,12 @@ impl Evaluation {
             blocks: &mut self.blocks,
         }
         .continue_actions(
+            identities,
             cleanup_actions,
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
         )
     }
@@ -714,7 +715,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn require_value_refinements(
         &mut self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         machine: semantic_vocabulary::MachineId,
         predicates: Vec<checked_trees::CheckedBooleanExpression>,
         values: &mut Vec<ValueDeclaration>,
@@ -728,12 +729,13 @@ impl Evaluation {
             return Ok(());
         }
         let edge = self.continue_values(
+            identities,
             checked,
             Vec::new(),
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
         )?;
         let clauses = predicates
@@ -825,7 +827,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn arguments(
         &mut self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         operation: &CheckedUnitEffectOperationPlan,
@@ -837,16 +839,17 @@ impl Evaluation {
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<Option<Vec<ValueDeclaration>>, LoweringError> {
         self.arguments_slice(
+            identities,
             checked,
-            machine,
             state,
+            machine,
             operation,
             None,
             values.len(),
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
             calls,
         )
@@ -858,7 +861,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn call_selector(
         &mut self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         operation: &CheckedUnitEffectOperationPlan,
@@ -900,17 +903,18 @@ impl Evaluation {
                         "call selector lost its source computation",
                     ))?;
                 self.source_value(
+                    identities,
                     checked,
-                    machine,
                     state,
+                    machine,
                     source.statement_ordinal,
                     source.role,
                     &CheckedCallScalarArgument::Computation(*root),
                     source_value_count,
                     values,
-                    next_value,
                     next_block,
                     next_edge,
+                    next_value,
                     operations,
                     calls,
                 )?
@@ -918,7 +922,7 @@ impl Evaluation {
             checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
                 checked_trees::CheckedRuntimeIndex::StructuralField(field),
             ) => {
-                let expression = self.contextual_bindings().runtime_index_field(field)?;
+                let expression = self.contextual_bindings().runtime_index_field(identities, field)?;
                 let source_types = values
                     .iter()
                     .map(|value| value.value_type())
@@ -946,7 +950,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn argument_at(
         &mut self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         operation: &CheckedUnitEffectOperationPlan,
@@ -960,16 +964,17 @@ impl Evaluation {
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let arguments = self.arguments_slice(
+            identities,
             checked,
-            machine,
             state,
+            machine,
             operation,
             Some(argument_ordinal),
             source_value_count,
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
             calls,
         )?;
@@ -1057,12 +1062,9 @@ impl Evaluation {
                 .iter()
                 .zip(&argument_types)
                 .map(|(argument, scalar_type)| {
-                    let expression = source_bindings.expression(
-                        &checked.facts.proven_scalar_indexes,
-                        argument.as_pure().ok_or(LoweringError::Unsupported(
+                    let expression = source_bindings.expression(identities, argument.as_pure().ok_or(LoweringError::Unsupported(
                             "computed call argument requires ordered control",
-                        ))?,
-                    )?;
+                        ))?,  expression)?;
                     validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
                     Ok(ValueDeclaration {
                         qualifications: scalar_type.qualifications,
@@ -1074,8 +1076,9 @@ impl Evaluation {
                 .map(Some);
         }
 
-        let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
+        let mut expansion = self.scalar_computation_expansion(identities, checked, qualifications, machine);
         let entry_index = expansion.call_arguments(
+            identities,
             state,
             coordinate,
             arguments,
@@ -1084,16 +1087,17 @@ impl Evaluation {
             &source_types,
             0,
         )?;
-        let states = expansion.finish(identities, );
+        let states = expansion.finish();
         self.complete_expansion(
+            identities,
             checked,
             &states,
             entry_index,
             &argument_types,
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
             calls,
         )
@@ -1104,7 +1108,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn field_assignment_value(
         &mut self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         statement_index: u32,
@@ -1178,22 +1182,10 @@ impl Evaluation {
                 1,
             )
             .with_structural_types(&self.structural_types)
-            .enter_proof_scope(&self.erased_proof_formals);
+            .enter_proof_scope(identities, &self.erased_proof_formals);
             let entry = expansion.direct_value(&source_types, 0, expression)?;
             let states = expansion.finish();
-            return self.single_completed_expansion(
-                checked,
-                &states,
-                entry,
-                scalar_type.into(),
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-                calls,
-                "field assignment has no single completed RHS",
-            );
+            return self.single_completed_expansion(identities, checked, &states, scalar_type.into(), scalar_type.into(), values, next_block, next_edge, next_value, operations, calls, "field assignment has no single completed RHS");
         }
         let (root, role) = computation.ok_or(LoweringError::Unsupported(
             "field assignment lost its exact scalar computation root",
@@ -1209,8 +1201,9 @@ impl Evaluation {
             &bindings,
             &source_types,
         )?;
-        let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
+        let mut expansion = self.scalar_computation_expansion(identities, checked, qualifications, machine);
         let entry = expansion.retained_value(
+            identities,
             state,
             statement_index,
             role,
@@ -1221,14 +1214,15 @@ impl Evaluation {
         )?;
         let states = expansion.finish();
         self.single_completed_expansion(
+            identities,
             checked,
             &states,
             entry,
             result_type,
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
             calls,
             "field assignment has no single completed RHS",
@@ -1240,7 +1234,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     fn single_completed_expansion(
         &mut self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         states: &[LoweredScalarBranchState],
         entry: usize,
         result_type: QualifiedScalarType,
@@ -1253,14 +1247,15 @@ impl Evaluation {
         message: &'static str,
     ) -> Result<ValueDeclaration, LoweringError> {
         let result = self.complete_expansion(
+            identities,
             checked,
             states,
             entry,
             &[result_type],
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
             calls,
         )?;
@@ -1343,23 +1338,24 @@ impl Evaluation {
                 cleanup_actions: Vec::new(),
             },
         });
-        for index in scalar_state_emission_order(identities, states, entry_index)? {
+        for index in scalar_state_emission_order(states, entry_index)? {
             let state = &states[index];
             emit_state(
+                identities,
                 checked,
                 state,
                 targets[index + 1],
-                &parameters[index + 1],
                 &self.erased_scalar_formals,
+                &parameters[index + 1],
                 &self.erased_proof_formals,
                 &targets,
                 &parameters,
                 self.machine,
                 &self.shared_qualifications.catalog().sets,
                 &mut self.qualification_coercions,
-                next_value,
                 next_block,
                 next_edge,
+                next_value,
                 operations,
                 calls,
                 &mut self.blocks,

@@ -302,6 +302,7 @@ self,
                     ))?;
                 let (path, field) =
                     crate::emission::structural_scalar_store::lower_structural_field_place(
+                        identities,
                         carrier_path,
                         field_identity,
                         parameter,

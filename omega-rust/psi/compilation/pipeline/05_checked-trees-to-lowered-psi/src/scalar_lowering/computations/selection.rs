@@ -18,7 +18,7 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn selection(
         &mut self,
-        condition: Computation,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, condition: Computation,
         when_true: Computation,
         when_false: Computation,
         result_type: QualifiedScalarType,
@@ -72,6 +72,7 @@ impl Expansion<'_> {
                 terminator: LoweredScalarBranchTerminator::jump(target, arguments),
             });
             let when_true_target = self.argument(
+                identities,
                 &Argument::Computation(when_true),
                 carried,
                 completion,
@@ -97,6 +98,7 @@ impl Expansion<'_> {
                 when_true_target
             } else {
                 let when_false_target = self.argument(
+                    identities,
                     &Argument::Computation(when_false),
                     carried,
                     completion,
@@ -130,6 +132,7 @@ impl Expansion<'_> {
                 // completed values are available while emitting this node.
                 self.completed.truncate(saved + position);
                 continuation = self.argument(
+                    identities,
                     &Argument::Computation(*computation),
                     &prefixes[position],
                     continuation,

@@ -132,6 +132,7 @@ pub(super) fn prepare(
         .iter()
         .map(|argument| {
             crate::scalar_lowering::contracts::checked_proof_term(
+                identities,
                 checked,
                 argument,
                 caller_erased_proof_parameters,
@@ -150,12 +151,13 @@ pub(super) fn prepare(
         .iter()
         .map(|argument| {
             let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument else {
-                return unsupported(identities, "erased Unit call actual must be a pure checked expression");
+                return unsupported("erased Unit call actual must be a pure checked expression");
             };
             crate::proofs::crash_routes::checked_scalar_term(
+                identities,
                 expression,
-                caller_scalar_values,
                 caller_erased_scalar_parameters,
+                caller_scalar_values,
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -181,28 +183,12 @@ pub(super) fn prepare(
 
     let claim_transfers = emitted_claim_transfers(
         claim_transfers,
-        calls.claims.bindings(identities, ),
+        calls.claims.bindings(),
             identities,
         target.parameters,
         structural_types,
     )?;
-    let terminal_arguments = lower_structural_arguments(
-        checked,
-        structural_arguments,
-        structural_types,
-        parameters,
-        local_places,
-        structural_result_places,
-        &operations.structural_values.clone(),
-        call_byte_places,
-        primitive_local_places,
-        structural_locals,
-        Some(scalar_bindings),
-        Some(caller_scalar_values),
-        &mut selector_values,
-        Some(calls),
-        Some((next_value, operations)),
-    )?;
+    let terminal_arguments = lower_structural_arguments(identities, checked, structural_arguments, structural_types, parameters, local_places, structural_result_places, &operations.structural_values.clone(), call_byte_places, primitive_local_places, structural_locals, Some(caller_scalar_values), Some(scalar_bindings), &mut selector_values, Some((next_value, operations)), Some(calls))?;
 
     let crash_continuations = prepare_crash_continuations(
         Target { ..target },
@@ -215,6 +201,7 @@ pub(super) fn prepare(
                 Ok(Vec::new())
             } else {
                 structural_crash_route_argument_prefix(
+                    identities,
                     argument,
                     parameters,
                     local_places,
@@ -268,6 +255,7 @@ pub(crate) fn prepare_requirement_obligations(
 /// physical argument prefix; none may lower structural guards as scalar terms.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_crash_continuations(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     target: Target<'_>,
     routes: &[checked_trees::CrashRouteBucket],
     terminal_scalar_values: &[ValueDeclaration],
@@ -301,7 +289,7 @@ pub(crate) fn prepare_crash_continuations(
     let mut crash_continuations = {
         let target_routes = routes.to_vec();
         if target.parameters.is_empty() {
-            lower_checked_crash_route_buckets(&target_routes, terminal_scalar_values)?
+            lower_checked_crash_route_buckets(identities, &target_routes, terminal_scalar_values)?
         } else {
             // Only structural crash substitution reads the callee's runtime
             // requirements, instantiated at this call. A callee without
@@ -322,6 +310,7 @@ pub(crate) fn prepare_crash_continuations(
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             lower_structural_crash_route_buckets(
+                identities,
                 &target_routes,
                 terminal_scalar_values,
                 target.predicate_parameters,
@@ -389,10 +378,11 @@ pub(super) fn emit_structural(
         qualifications: custody
             .result_qualifications
             .iter(
-            identities,)
+            )
             .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
-            .collect::<Result<Vec<_>, _>>(identities, )?,
+            .collect::<Result<Vec<_>, _>>()?,
         projected_qualifications: super::parameters::lower_projected_qualifications(
+            identities,
             validation::structural_result_projected_qualifications(
                 &checked.typed,
                 checked
@@ -415,6 +405,7 @@ pub(super) fn emit_structural(
         )?,
         claims: crate::emission::claim_bindings::emit_call_result_claims(
             &crate::emission::claim_bindings::prepare_call_result_claims(
+                identities,
                 &custody.result_claims,
                 structural_type,
                 structural_types,

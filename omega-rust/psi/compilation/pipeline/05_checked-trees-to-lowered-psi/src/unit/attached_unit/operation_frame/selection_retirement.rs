@@ -38,8 +38,9 @@ impl OperationFrame<'_, '_> {
                         "selected residual lost its receiving declaration",
                     ))?;
                 let types = self.structural_types.declarations(
-            identities,);
+            );
                 let path = structural_paths::lower_static_argument_path(
+                    identities,
                     &complement.path,
                     root_type,
                     types,
@@ -67,11 +68,12 @@ impl OperationFrame<'_, '_> {
                     };
                     let (
             identities,prefix, case) = structural_cases::resolve_at(
+                        identities,
                         types,
                         root_type,
                         &complement.path[..position],
                         identity,
-                    )?;
+            )?;
                     let sum = terminal_semantics::runtime_structural_path_tip(
                         types.iter(),
                         root_type,
@@ -111,12 +113,13 @@ impl OperationFrame<'_, '_> {
         }
         if !regions.is_empty() {
             self.evaluation.continue_cleanup_regions(
+                identities,
                 self.checked,
                 regions,
                 self.values,
-                self.next_value,
                 self.next_block,
                 self.next_edge,
+                self.next_value,
                 self.operations,
             )?;
         }

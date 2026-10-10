@@ -16,7 +16,7 @@ use checked_trees::CheckedStructuralValueHandle;
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn fixed_array(
         &mut self,
-        elements: &[CheckedStructuralValueHandle],
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, elements: &[CheckedStructuralValueHandle],
         type_reference: checked_trees::types::TypeReferenceHandle,
     ) -> Result<PlaceId, LoweringError> {
         let declaration =
@@ -44,6 +44,7 @@ impl emission::Emission<'_, '_, '_> {
             let element_index = u64::try_from(element_position)
                 .map_err(|_| LoweringError::Unsupported("array element identity overflow"))?;
             let operand = self.child_constructor_operand(
+                identities,
                 element,
                 *value,
                 element_reference,

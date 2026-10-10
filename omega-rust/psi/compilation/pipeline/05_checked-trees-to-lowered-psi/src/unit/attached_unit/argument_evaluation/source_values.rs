@@ -21,7 +21,7 @@ impl Evaluation {
     /// same observation root at entry and on another arrival has new actuals.
     pub(crate) fn retained_observation(
         &mut self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         root: &checked_trees::CheckedScalarComputationRoot,
         bindings: &crate::expression_preparation::bindings::ScalarBindings,
         values: &mut Vec<ValueDeclaration>,
@@ -43,18 +43,19 @@ impl Evaluation {
             &source_types,
         )?;
         let mut expansion =
-            self.scalar_computation_expansion(checked, &self.shared_qualifications, root.machine);
-        let entry = expansion.retained_root(root, bindings, &source_types, result_type, 0)?;
+            self.scalar_computation_expansion(identities, checked, &self.shared_qualifications, root.machine);
+        let entry = expansion.retained_root(identities, root, bindings, &source_types, result_type, 0)?;
         let states = expansion.finish();
         self.single_completed_expansion(
+            identities,
             checked,
             &states,
             entry,
             result_type,
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
             calls,
             "retained observation has no single completed value",
@@ -123,7 +124,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn guard_value(
         &mut self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         statement: u32,
@@ -162,17 +163,18 @@ impl Evaluation {
             CheckedCallScalarArgument::Pure(value.clone())
         };
         let value = self.source_value(
+            identities,
             checked,
-            machine,
             state,
+            machine,
             statement,
             role,
             &value,
             values.len(),
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
             calls,
         )?;
@@ -293,9 +295,10 @@ impl Evaluation {
                 scalar_type,
             });
         }
-        let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
+        let mut expansion = self.scalar_computation_expansion(identities, checked, qualifications, machine);
         let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(
+                identities,
                 state,
                 statement,
                 role,
@@ -305,6 +308,7 @@ impl Evaluation {
                 0,
             )?,
             CheckedCallScalarArgument::Computation(_) => expansion.retained_value(
+                identities,
                 state,
                 statement,
                 role,
@@ -316,14 +320,15 @@ impl Evaluation {
         };
         let states = expansion.finish();
         self.single_completed_expansion(
+            identities,
             checked,
             &states,
             entry,
             result_type,
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
             calls,
             "scalar source has no single completed value",

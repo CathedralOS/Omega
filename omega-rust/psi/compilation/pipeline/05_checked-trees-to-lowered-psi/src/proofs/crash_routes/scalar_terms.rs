@@ -50,7 +50,7 @@ pub(crate) fn checked_boolean_scalar_term(
             );
         }
         CheckedBooleanExpression::Not(operand) => {
-            ScalarTerm::boolean_not(identities, checked_boolean_scalar_term(operand, values, erased)?)
+            ScalarTerm::boolean_not(checked_boolean_scalar_term(identities, operand, erased, values)?)
                 .map_err(LoweringError::InvalidCrashPredicate)?
         }
         CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
@@ -134,20 +134,9 @@ pub(crate) fn checked_scalar_term_with_views(
 ) -> Result<ScalarTerm, LoweringError> {
     let scalar_bindings = crate::expression_preparation::bindings::ScalarBindings::new(
         values.iter(
-            identities,).map(|value| value.scalar_type),
+            ).map(|value| value.scalar_type),
     );
-    let expression = lower_checked_scalar_expression_with_parameters(
-        expression,
-        structural_parameters,
-        &Default::default(),
-        &[],
-        &[],
-        element_views,
-        &[],
-        &[],
-        Some(&scalar_bindings),
-        &[],
-    )?;
+    let expression = lower_checked_scalar_expression_with_parameters(identities, expression, &Default::default(), &Default::default(), &[], &[], element_views, &[], &[], Some(&scalar_bindings), &[])?;
     lowered_direct_scalar_term(&expression, values, erased)
 }
 

@@ -195,9 +195,10 @@ pub(crate) fn prepare_value(
     let structural_type = carrier_declaration(
             identities, checked, types, reference)?.id;
     let claims = prepare_establishment_claims(
+        identities,
         checked,
-        machine.symbol,
         state,
+        machine.symbol,
         statement as usize,
         owner,
         reference,
@@ -312,7 +313,7 @@ impl Preparation<'_> {
             if producers.next().is_some() || self.consumed_calls.contains(&value) {
                 return unsupported("structural value call has duplicate producer custody");
             }
-            let place = self.prepare_calls(producer)?;
+            let place = self.prepare_calls(identities, producer)?;
             self.consumed_calls.push(value);
             let decisions = self
                 .checked
@@ -334,7 +335,7 @@ impl Preparation<'_> {
             }
             let mut source = self
                 .bindings
-                .structural_copy_source(place, &[], self.types)?;
+                .structural_copy_source(identities, place, &[], self.types)?;
             source.formation_qualifications = decisions
                 .iter()
                 .map(|decision| decision.semantic_domain)
@@ -351,7 +352,7 @@ impl Preparation<'_> {
             return Ok(completed);
         }
         if let CheckedStructuralValueKind::Place(argument) = &node.kind {
-            let source = self.bindings.owned_argument(argument)?;
+            let source = self.bindings.owned_argument(identities, argument)?;
             if self.checked.type_multiplicity(reference) == Multiplicity::Unrestricted {
                 return self.bind_place(
                     value,
@@ -375,8 +376,9 @@ impl Preparation<'_> {
         }
         if let CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } = &node.kind {
             let (machine, state) =
-                crate::declarations::state_declaration(identities, self.checked, self.state)?;
+                crate::declarations::state_declaration(self.checked, self.state)?;
             let mut source = self.bindings.copied_place_source(
+                identities,
                 source,
                 machine,
                 self.checked.state_parameters(state),
@@ -435,8 +437,9 @@ impl Preparation<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed case lost its exact authored constructor",
                 ))?;
-            let place = self.reserved.place(identities, value)?;
+            let place = self.reserved.place(value)?;
             let slot = computations::cases::reserve(
+                identities,
                 self.checked,
                 node.expression,
                 &source,
@@ -543,13 +546,12 @@ impl Preparation<'_> {
                 self.checked.type_reference_table.type_reference(reference)
             else {
                 return unsupported(
-            identities,"structural array source has a nonarray carrier");
+            "structural array source has a nonarray carrier");
             };
             let element_reference = *element_type;
-            if u64::try_from(
-            identities,  elements.len(
-            identities, )).ok(identities, identities, ) != Some(length)
-                || carrier_declaration(self.checked, self.types, element_reference)?.id != element
+            if u64::try_from(elements.len(
+            )).ok() != Some(length)
+                || carrier_declaration(identities, self.checked, self.types, element_reference)?.id != element
             {
                 return unsupported("structural array elements differ from their declared carrier");
             }
@@ -558,9 +560,9 @@ impl Preparation<'_> {
                 let mut child_path = claim_path.to_vec();
                 child_path.push(terminal_psi::StructuralPathSegment::FixedIndex(
                     u64::try_from(element_index)
-                        .map_err(identities, identities, |_| LoweringError::Unsupported("array claim index exceeds u64"))?,
+                        .map_err(identities)?,
                 ));
-                completed.push(self.value(*child, element_reference, &child_path)?);
+                completed.push(self.value(identities, *child, element_reference, &child_path)?);
             }
             let place = self.reserved.place(value)?;
             let multiplicity = terminal_multiplicity(self.checked.type_multiplicity(reference));
@@ -761,9 +763,9 @@ impl Preparation<'_> {
                             child_path.push(terminal_psi::StructuralPathSegment::Case(case));
                         }
                         child_path.push(terminal_psi::StructuralPathSegment::Field(
-                            target.identity.clone(identities, identities, ),
+                            target.identity.clone(),
                         ));
-                        Field::Structural(self.value(child, field.type_reference, &child_path)?)
+                        Field::Structural(self.value(identities, child, field.type_reference, &child_path)?)
                     }
                 }
             };
@@ -876,7 +878,7 @@ impl Preparation<'_> {
 impl PreparedValue {
     pub(crate) fn finish(
         self,
-        state: symbols::SymbolHandle,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, state: symbols::SymbolHandle,
         bindings: &storage::ScalarBindings,
         source_types: &[QualifiedScalarType],
         target: usize,
@@ -916,6 +918,7 @@ impl PreparedValue {
                     argument,
                     prefix,
                 } => computations.call_arguments(
+                    identities,
                     state,
                     coordinate,
                     std::slice::from_ref(&argument),
@@ -925,7 +928,7 @@ impl PreparedValue {
                     target,
                 )?,
                 Step::Value { prepared, prefix } => {
-                    prepared.finish(state, bindings, &prefix, target, computations)?
+                    prepared.finish(identities, state, bindings, &prefix, target, computations)?
                 }
                 Step::Bind {
                     source,
@@ -961,6 +964,7 @@ impl PreparedValue {
                     result_type,
                     prefix,
                 } => computations.retained_value(
+                    identities,
                     state,
                     self.statement,
                     role,

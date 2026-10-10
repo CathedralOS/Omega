@@ -52,6 +52,7 @@ pub(super) fn result(
     });
     let structural_type = lookup_type_id(&catalogs.type_ids, &result.type_identity)?;
     let reference_sources = crate::unit::attached_unit::parameters::lower_reference_result_sources(
+        identities,
         checked,
         reference_sources,
         structural_type,
@@ -70,9 +71,10 @@ pub(super) fn result(
                 .map(|domain| {
                     lookup_domain_id_for_carrier(&catalogs.domain_ids, *domain, structural_type)
                 })
-                .collect::<Result<Vec<_>, _>>(identities, )?,
+                .collect::<Result<Vec<_>, _>>()?,
             projected_qualifications:
                 crate::unit::attached_unit::parameters::lower_projected_qualifications(
+                    identities,
                     &result.projected_qualifications,
                     &catalogs.domain_ids,
                     structural_type,

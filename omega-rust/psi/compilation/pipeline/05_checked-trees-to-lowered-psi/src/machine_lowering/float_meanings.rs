@@ -20,6 +20,7 @@ use crate::proofs::float_meaning_projection::{
 /// Retain the checked float-meaning projections and equalities on the
 /// selected module, renumbering transitional fallback inputs densely.
 pub(crate) fn retain_float_meanings(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     projection_sources: &[(SymbolHandle, MachineId)],
     lowered: &mut LoweredPsi,
@@ -32,6 +33,7 @@ pub(crate) fn retain_float_meanings(
         .cloned()
         .map(|projection| {
             let direct_source = resolve_direct_float_source_binding(
+                identities,
                 checked,
                 projection_sources,
                 &lowered.semantic_module.machines,

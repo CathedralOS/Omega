@@ -107,6 +107,7 @@ pub(super) fn lower(
             );
         }
         let parameters = lower_unit_parameters(
+            identities,
             plan.structural_parameters,
             type_ids,
             structural_types,
@@ -142,11 +143,12 @@ pub(super) fn lower(
                 )
             })
             .transpose()?;
-        let erased_proof_parameters = plan.erased_proof_parameters.to_vec(identities, );
+        let erased_proof_parameters = plan.erased_proof_parameters.to_vec();
         // Claims stay machine-local: unrelated callees cannot shift these IDs.
         let claims = lower_unit_entry_claims(
-            plan.machine,
+            identities,
             plan.state,
+            plan.machine,
             plan.entry_claims,
             &parameters,
             structural_types,
@@ -180,11 +182,12 @@ pub(super) fn lower(
                 position: source.position,
                 ..terminal.clone()
             })
-            .collect(identities, );
+            .collect();
     }
 
     for signature in &mut signatures {
         let cleanup_context = crate::unit::unit_cleanup::contexts::prepare_signature(
+            identities,
             checked,
             signature.source,
             &mut signature.predicate_parameters,

@@ -226,12 +226,7 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
                 statement_index,
                 destination,
-            } => self.windows.capture_assignment_destination(
-                destination,
-                self.parameters,
-                self.structural_types.declarations(),
-                self.type_ids,
-                &mut crate::emission::borrowed_window::WindowEvaluation {
+            } => self.windows.capture_assignment_destination(identities, destination, self.parameters, self.structural_types.declarations(), self.type_ids, &mut crate::emission::borrowed_window::WindowEvaluation {
                     checked: self.checked,
                     machine: self.machine,
                     state: self.state,
@@ -239,57 +234,51 @@ impl OperationFrame<'_, '_> {
                     evaluation: self.evaluation,
                     source_value_count: self.source_value_count,
                     calls: self.calls,
-                },
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-            ),
+                }, self.values, self.next_block, self.next_edge, self.next_value, self.operations),
             CheckedUnitEffectOperationPlan::PortWrite {
                 service_reach,
                 port,
                 value,
                 ..
             } => self.port_write(service_reach, *port, *value),
-            CheckedUnitEffectOperationPlan::Store(store) => self.store(store),
+            CheckedUnitEffectOperationPlan::Store(store) => self.store(identities, store),
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {
-                self.establish_scalar_local(result, value)
+                self.establish_scalar_local(identities, result, value)
             }
             CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {
-                self.establish_scalar_array(operation)
+                self.establish_scalar_array(identities, operation)
             }
             CheckedUnitEffectOperationPlan::MoveStructuralField {
                 result,
                 source,
                 expression,
-            } => self.move_structural_field(identities, identities, result, source, *expression),
+            } => self.move_structural_field(result, source, *expression),
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary,
                 cleanup_actions,
-            } => self.continuation_cleanup(boundary, cleanup_actions),
+            } => self.continuation_cleanup(identities, boundary, cleanup_actions),
             CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
-                self.establish_byte_sequence(operation)
+                self.establish_byte_sequence(identities, operation)
             }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
-                self.establish_view_subslice(operation)
+                self.establish_view_subslice(identities, operation)
             }
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-                self.establish_structural_value(operation)
+                self.establish_structural_value(identities, operation)
             }
             CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. } => {
-                self.establish_structural_local(identities, identities, operation)
+                self.establish_structural_local(operation)
             }
             CheckedUnitEffectOperationPlan::EstablishReference {
                 formation_expression,
                 result,
                 source,
                 storage,
-            } => self.establish_reference(*formation_expression, result, source, *storage),
+            } => self.establish_reference(identities, *formation_expression, result, source, *storage),
             CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
-                self.release_reference(operation)
+                self.release_reference(identities, operation)
             }
-            CheckedUnitEffectOperationPlan::AtomicAccess(access) => self.atomic_access(access),
+            CheckedUnitEffectOperationPlan::AtomicAccess(access) => self.atomic_access(identities, access),
             _ => unsupported("operation frame received a call operation"),
         }
     }
@@ -309,13 +298,13 @@ impl OperationFrame<'_, '_> {
         storage: checked_trees::CheckedReferenceStorage,
     ) -> Result<(), LoweringError> {
         self.results
-            .require_next(identities, result, "reference result binding is not dense")?;
+            .require_next(result, "reference result binding is not dense")?;
         let argument =
             if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
                 parameter_index,
             } = source.source
             {
-                self.primitive_parameter_source(parameter_index, source)?
+                self.primitive_parameter_source(identities, parameter_index, source)?
             } else {
                 let earlier = self.results.earlier(
                     std::slice::from_ref(source),
@@ -327,12 +316,13 @@ impl OperationFrame<'_, '_> {
                     self.state,
                     source.structural_storage_root(),
                     self.values,
-                    self.structural_types.declarations(identities, ),
+                    self.structural_types.declarations(),
                     self.next_place,
                     self.operations,
                     self.private_places,
                 )?;
                 let mut selectors = parameters::mint_runtime_index_selectors(
+                    identities,
                     std::slice::from_ref(source),
                     &self.evaluation.structural_fields,
                     self.values,
@@ -340,8 +330,9 @@ impl OperationFrame<'_, '_> {
                     self.operations,
                 )?
                 .into_iter(
-            identities,);
+            );
                 parameters::lower_reference_source(
+                    identities,
                     self.checked,
                     source,
                     self.structural_types.declarations(),
@@ -434,6 +425,7 @@ impl OperationFrame<'_, '_> {
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<StructuralArgument, LoweringError> {
         self.evaluation.prepare_borrowed_argument(
+            identities,
             self.checked,
             self.state,
             source,
@@ -521,6 +513,7 @@ impl OperationFrame<'_, '_> {
                 // Their captured loan boundary does not change their geometry
                 // into a stored reference or consume their borrowed backing.
                 self.evaluation.continue_cleanup_regions(
+                    identities,
                     self.checked,
                     vec![crate::unit::unit_cleanup::CleanupRegion {
                         conditions: Vec::new(),
@@ -537,15 +530,15 @@ impl OperationFrame<'_, '_> {
                         },
                     }],
                     self.values,
-                    self.next_value,
                     self.next_block,
                     self.next_edge,
+                    self.next_value,
                     self.operations,
                 )?;
             }
             _ => return unsupported("loan retirement requires a descriptor carrier"),
         }
-        self.retire_selection_complements(selection_complements)?;
+        self.retire_selection_complements(identities, selection_complements)?;
         if path.is_empty() {
             // A whole descriptor release ends this physical owner. Keeping it
             // in the selection frontier would move a dead parent on the next
@@ -568,24 +561,8 @@ impl OperationFrame<'_, '_> {
     ) -> Result<Vec<StructuralArgument>, LoweringError> {
         let mut selector_values =
             parameters::call_index_selectors(
-            identities,arguments, evaluated_selectors)?.into_iter();
-        parameters::lower_structural_arguments(
-            self.checked,
-            arguments,
-            self.structural_types.declarations(),
-            self.parameters,
-            &[],
-            earlier,
-            &self.operations.structural_values.clone(),
-            byte_places,
-            self.primitive_locals,
-            &self.evaluation.structural_locals,
-            Some(&self.evaluation.scalar_bindings),
-            Some(self.values),
-            &mut selector_values,
-            Some(&mut *self.calls),
-            Some((self.next_value, self.operations)),
-        )
+            arguments, evaluated_selectors)?.into_iter();
+        parameters::lower_structural_arguments(identities, self.checked, arguments, self.structural_types.declarations(), &[], &[], earlier, &self.operations.structural_values.clone(), byte_places, self.primitive_locals, &self.evaluation.structural_locals, Some(self.values), Some(self.values), &mut selector_values, Some((self.next_value, self.operations)), Some((self.next_value, self.operations)))
     }
 
     /// Append one Unit-result operation at the next identity.

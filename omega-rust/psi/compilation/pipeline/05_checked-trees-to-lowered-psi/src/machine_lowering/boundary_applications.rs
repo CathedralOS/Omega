@@ -135,6 +135,7 @@ pub(super) fn retain(
             identities, checked, exact_toolchain_sources, application)?;
         if retained_applications.insert((requirement.clone(), arguments.clone())) {
             candidates::retain(
+                identities,
                 checked,
                 exact_toolchain_sources,
                 application,

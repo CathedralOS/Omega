@@ -66,23 +66,7 @@ pub(crate) fn lower_reference_source(
             None,
         ),
     };
-    let arguments = lower_structural_arguments(
-        checked,
-        std::slice::from_ref(&prefix),
-        structural_types,
-        parameters,
-        trivial_affine_locals,
-        structural_results,
-        &[],
-        &[],
-        primitive_locals,
-        structural_locals,
-        None,
-        values,
-        selectors,
-        calls,
-        emission,
-    )?;
+    let arguments = lower_structural_arguments(identities, checked, std::slice::from_ref(&prefix), structural_types, parameters, trivial_affine_locals, &[], &[], &[], primitive_locals, structural_locals, None, values, selectors, calls, emission)?;
     let [mut argument] = <[StructuralArgument; 1]>::try_from(arguments)
         .map_err(|_| LoweringError::Unsupported("reference source is not one argument"))?;
     let retains_leaf_marker = if has_leaf_marker && source.borrowed_root_type_identity().is_some() {
@@ -162,26 +146,11 @@ pub(crate) fn lower_reference_result_sources(
 ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, LoweringError> {
     let mut references = references
         .iter()
-        .map(
-            identities,|reference| {
-            let source = lower_reference_source(
-                checked,
-                &reference.source,
-                structural_types,
-                parameters,
-                &[],
-                &[],
-                &[],
-                &[],
-                None,
-            )?;
+        .map(|reference| {
+            let source = lower_reference_source(identities, checked, &reference.source, structural_types, &[], &[], &[], &[], &[], None)?;
             Ok(
-            identities,terminal_psi::StructuralReferenceResultSource {
-                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                    &reference.path,
-                    result_type,
-                    structural_types,
-                )?,
+            terminal_psi::StructuralReferenceResultSource {
+                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &reference.path, result_type, structural_types)?,
                 sources: vec![source],
             })
         })

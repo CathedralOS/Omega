@@ -170,7 +170,7 @@ fn lower_terminal_selection(
             identities, checked, selection)?;
     if lowered.semantic_module.target_machine_families.len()
         != crate::unit::attached_unit::target_families::runtime_families(
-            identities, checked)?.len()
+            checked)?.len()
     {
         return unsupported("entry lowering did not retain the complete target-family catalog");
     }
@@ -179,32 +179,37 @@ fn lower_terminal_selection(
         .map(|(source, _)| *source)
         .collect::<Vec<_>>();
     declarations::retain(
+        identities,
         checked,
         exact_toolchain_sources,
         &source_machine_ids,
         &mut lowered.semantic_module,
     )
     .map_err(LoweringError::Unsupported)?;
-    retain_nominal_cleanup_roles(identities, checked, &source_machine_ids, &mut lowered.semantic_module)?;
+    retain_nominal_cleanup_roles(checked, &source_machine_ids, &mut lowered.semantic_module)?;
     retain_admitted_reborrow_root_handoffs(
+        identities,
         checked,
         &source_machines,
         &source_machine_ids,
         &mut lowered.semantic_module,
     )?;
     closed_reach_applications::retain_closed_reach_applications(
+        identities,
         checked,
         &source_machine_ids,
         &lowered.source_call_occurrences,
         &mut lowered.semantic_module,
     )?;
     retain_selected_placed_view_inputs(
+        identities,
         checked,
         selection.machine,
         lowered.semantic_module.entry,
         &mut lowered.semantic_module,
     )?;
     reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
+        identities,
         checked,
         selection.machine,
         lowered.semantic_module.entry,
@@ -213,12 +218,14 @@ fn lower_terminal_selection(
         &mut lowered.semantic_module.reborrow_restored_call_uses,
     )?;
     suspension_call_plan::retain_suspension_call_plans(
+        identities,
         checked,
         &source_machines,
         &lowered.source_call_occurrences,
         &mut lowered.semantic_module,
     )?;
     retained_borrow_custody::retain_foreign_borrow_custodies(
+        identities,
         checked,
         &mut lowered.semantic_module,
     )?;
@@ -237,24 +244,24 @@ fn lower_terminal_selection(
     // entry returns one exact payloadless case is a fact of its lowered body,
     // whichever producer emitted it.
     reject_unguarded_outcome_guarantees(
-            identities,
-        checked,
+            checked,
         &source_machines,
         selection.machine,
         &lowered.semantic_module,
     )?;
     crate::retention::conformance_applications::lower_closed_conformance_applications(
+        identities,
         checked,
         &source_machines,
         &mut lowered.semantic_module,
     )?;
     crate::unit::dynamic_dispatch::lower_dynamic_dispatch_catalog(
+        identities,
         checked,
         &source_machines,
         &mut lowered.semantic_module,
     )?;
-    retain_float_meanings(
-        checked, &source_machine_ids, &mut lowered)?;
+    retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
     lower_and_install_evidence_artifacts(identities, checked, selection.machine, &mut lowered)?;
     // Proof-only quotient correspondence rows join module identity before
     // validation; a nonempty table is then refused by the execution gate below

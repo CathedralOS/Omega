@@ -107,7 +107,7 @@ impl Evaluation {
     /// homes. The later edge forwards these whole captures, not their old paths.
     pub(crate) fn capture_cleanup_arguments(
         &mut self,
-        checked: &checked_trees::CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &checked_trees::CheckedTrees,
         arguments: &mut Vec<terminal_psi::StructuralArgument>,
         declarations: &[terminal_psi::StructuralParameterDeclaration],
         values: &mut Vec<ValueDeclaration>,
@@ -129,14 +129,15 @@ impl Evaluation {
             blocks: &mut self.blocks,
         }
         .capture_arguments(
+            identities,
             arguments,
             declarations,
             values,
             next_place,
             places,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
         )
     }
@@ -157,15 +158,21 @@ impl Evaluation {
             return Ok(regions.into_iter().map(|region| region.action).collect());
         }
         self.continue_cleanup_regions(
+            identities,
             checked,
-            regions, values, next_value, next_block, next_edge, operations,
+            regions,
+            values,
+            next_block,
+            next_edge,
+            next_value,
+            operations,
         )?;
         Ok(Vec::new())
     }
 
     pub(crate) fn continue_cleanup_regions(
         &mut self,
-        checked: &checked_trees::CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &checked_trees::CheckedTrees,
         mut regions: Vec<CleanupRegion>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -195,16 +202,14 @@ impl Evaluation {
             operation_start: &mut self.operation_start,
             blocks: &mut self.blocks,
         }
-        .emit(
-            &regions, values, next_value, next_block, next_edge, operations,
-        )
+        .emit(identities, &regions, values, next_block, next_edge, next_value, operations)
     }
 }
 
 impl CleanupEmission<'_> {
     pub(crate) fn capture_arguments(
         &mut self,
-        arguments: &mut Vec<terminal_psi::StructuralArgument>,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, arguments: &mut Vec<terminal_psi::StructuralArgument>,
         declarations: &[terminal_psi::StructuralParameterDeclaration],
         values: &mut Vec<ValueDeclaration>,
         next_place: &mut u64,
@@ -256,10 +261,11 @@ impl CleanupEmission<'_> {
             });
         }
         self.cleanup_jump(
+            identities,
             target,
             &parameters,
-            Vec::new(),
             std::mem::take(arguments),
+            Vec::new(),
             values,
             next_edge,
             operations,
@@ -271,16 +277,14 @@ impl CleanupEmission<'_> {
 
     pub(crate) fn emit(
         &mut self,
-        regions: &[CleanupRegion],
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, regions: &[CleanupRegion],
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
-        self.cleanup_scope(
-            regions, 0, values, next_value, next_block, next_edge, operations,
-        )
+        self.cleanup_scope(identities, regions, 0, values, next_block, next_edge, next_value, operations)
     }
 
     fn proof_arguments(&self) -> Result<Vec<ProofTerm>, LoweringError> {
@@ -310,18 +314,10 @@ impl CleanupEmission<'_> {
             &values
                 .iter()
                 .map(|value| value.value_type())
-                .collect::<Vec<_>>(identities, identities, ),
+                .collect::<Vec<_>>(),
             next_value,
         )?;
-        self.cleanup_jump(
-            continuation,
-            &parameters,
-            actions,
-            Vec::new(),
-            values,
-            next_edge,
-            operations,
-        )
+        self.cleanup_jump(identities, continuation, &parameters, Vec::new(), Vec::new(), values, next_edge, operations)
     }
 
     fn cleanup_scope(
@@ -373,20 +369,10 @@ impl CleanupEmission<'_> {
                 &values
                     .iter()
                     .map(|value| value.value_type())
-                    .collect::<Vec<_>>(identities, identities, ),
+                    .collect::<Vec<_>>(),
                 next_value,
             )?;
-            self.cleanup_cases(
-                &remaining[..count],
-                depth,
-                join,
-                &join_parameters,
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-            )?;
+            self.cleanup_cases(identities, &remaining[..count], depth, join, values, values, next_block, next_edge, next_value, operations)?;
             remaining = &remaining[count..];
         }
         Ok(())
@@ -462,10 +448,11 @@ impl CleanupEmission<'_> {
             self.blocks.push(Block {
                 id: *self.current,
                 parameters: std::mem::take(self.parameters),
-                structural_parameters: std::mem::take(identities, self.structural_parameters),
+                structural_parameters: std::mem::take(self.structural_parameters),
                 erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
                 erased_proof_formals:
                     crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                        identities,
                         self.checked,
                         self.erased_proof_formals,
                     ),
@@ -481,15 +468,17 @@ impl CleanupEmission<'_> {
             *values = when_true_parameters;
             *self.operation_start = operations.len();
             self.cleanup_scope(
+                identities,
                 &remaining[..count],
                 depth + 1,
                 values,
-                next_value,
                 next_block,
                 next_edge,
+                next_value,
                 operations,
             )?;
             self.cleanup_jump(
+                identities,
                 join,
                 join_parameters,
                 Vec::new(),
@@ -522,11 +511,12 @@ impl CleanupEmission<'_> {
         let edge = edge_id(allocate_dense(next_edge)?);
         self.blocks.push(Block {
             id: *self.current,
-            parameters: std::mem::take(identities, self.parameters),
+            parameters: std::mem::take(self.parameters),
             structural_parameters: std::mem::take(self.structural_parameters),
             erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    identities,
                     self.checked,
                     self.erased_proof_formals,
                 ),

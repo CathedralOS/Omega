@@ -145,6 +145,7 @@ pub(crate) fn prepare_call_argument_path(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
     prepare_structural_argument_projection(
+        identities,
         checked,
         argument,
         argument.call_projection(),
@@ -202,9 +203,7 @@ fn prepare_structural_argument_projection(
             StructuralPathSegment::Referent,
         ));
     }
-    prepared.extend(
-            identities,prepare_argument_path(
-            identities,projection, logical_root.id, types)?);
+    prepared.extend(prepare_argument_path(identities, projection, logical_root.id, types)?);
     Ok(prepared)
 }
 
@@ -442,9 +441,8 @@ pub(crate) fn prepare_unscoped_path(
                 Ok( PreparedStructuralPathSegment::ComputedIndex(
             identities,*root))
             }
-            segment => Ok(
-            identities,PreparedStructuralPathSegment::Static(
-                lower_structural_path(std::slice::from_ref(segment))?.remove(0),
+            segment => Ok(PreparedStructuralPathSegment::Static(
+                lower_structural_path(identities, std::slice::from_ref(segment))?.remove(0),
             )),
         })
         .collect()
@@ -492,13 +490,14 @@ pub(crate) fn lower_typed_argument_path(
 /// serves). An `AssignmentIndex` segment belongs to a store destination, not
 /// a call argument, so it is refused here.
 pub(crate) fn lower_argument_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     path: &[CheckedUnitStructuralPathSegment],
     caller_scalar_values: Option<&[ValueDeclaration]>,
     selector_values: &mut dyn Iterator<Item = ValueId>,
     calls: Option<&mut CallEmissionContext<'_>>,
 ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
     emit_argument_path(
-        &prepare_unscoped_path(path)?,
+        &prepare_unscoped_path(identities, path)?,
         caller_scalar_values,
         selector_values,
         calls,

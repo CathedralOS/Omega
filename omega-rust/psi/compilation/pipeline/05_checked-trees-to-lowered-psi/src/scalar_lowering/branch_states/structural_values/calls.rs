@@ -205,8 +205,9 @@ impl Preparation<'_> {
                     if positions[operation].len() != call.scalar_arguments.len() {
                         return unsupported("structural call has incomplete scalar preparation");
                     }
-                    let result = self.result(binding)?;
+                    let result = self.result(identities, binding)?;
                     let mut prepared = super::super::unit_operations::prepare(
+                        identities,
                         self.checked,
                         &caller,
                         operations[operation],
@@ -260,9 +261,10 @@ impl Preparation<'_> {
                         .expression;
                     let reference = self.checked.facts.resolved_types.result(expression);
                     if !reference.is_valid() {
-                        return unsupported(identities, "structural operand construction lost its type");
+                        return unsupported("structural operand construction lost its type");
                     }
                     let prepared = prepare_value(
+                        identities,
                         self.checked,
                         self.qualifications,
                         self.state,
@@ -288,7 +290,7 @@ impl Preparation<'_> {
                     {
                         return unsupported("structural operand result is established twice");
                     }
-                    results.push((result.binding_ordinal, self.result(result)?.into()));
+                    results.push((result.binding_ordinal, self.result(identities, result)?.into()));
                 }
                 _ => {
                     return unsupported(

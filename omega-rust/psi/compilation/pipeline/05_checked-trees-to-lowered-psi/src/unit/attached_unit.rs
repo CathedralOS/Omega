@@ -159,6 +159,7 @@ pub(crate) fn lower_scalar_effect_closure(
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_unit_closure(
+        identities,
         checked,
         &UnitClosureRequest {
             scalar_entry: true,
@@ -223,9 +224,7 @@ pub(crate) fn lower_unit_closure(
                 operation,
                 &mut Vec::new(),
             )? {
-                crate::emission::structural_byte_sequence_store::literal_view_type(
-                    &mut structural_types,
-                )?;
+                crate::emission::structural_byte_sequence_store::literal_view_type(identities, &mut structural_types)?;
             }
             if let Some(identities, value) = operation.stored_bytes() {
                 crate::emission::structural_byte_sequence_store::prepare_types(
@@ -239,10 +238,11 @@ pub(crate) fn lower_unit_closure(
                 operation
                 && let Ok(declared) = lookup_type_id(&type_ids, &result.type_identity)
                 && structural_types.iter().any(|declaration| {
-                    declaration.id == declared && declaration.shape.is_bounded_owned_byte_sequence(identities, )
+                    declaration.id == declared && declaration.shape.is_bounded_owned_byte_sequence()
                 })
             {
                 crate::emission::structural_byte_sequence_store::prepare_types(
+                    identities,
                     value,
                     &mut structural_types,
                 )?;
@@ -253,13 +253,7 @@ pub(crate) fn lower_unit_closure(
             identities,structural_domains, domain_ids) =
         catalog::lower_unit_structural_domains(
             identities, checked, plans, &closure, &boundaries, &type_ids)?;
-    let (services, service_ids) = catalog::lower_unit_services(
-        checked,
-        plans,
-        &closure,
-        &boundaries,
-        &provider_candidate_plans,
-    )?;
+    let (services, service_ids) = catalog::lower_unit_services(identities, checked, plans, &closure, &boundaries, &provider_candidate_plans)?;
     let root_service_reach = lower_root_service_reach(
             identities, checked, entry, &service_ids)?;
 
@@ -267,15 +261,7 @@ pub(crate) fn lower_unit_closure(
     // claims and requirements, then every machine's Terminal identity.
     let mut next_place = 1_u64;
     let (
-            identities,boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(
-        checked,
-        &boundaries,
-        &type_ids,
-        &structural_types,
-        &domain_ids,
-        &service_ids,
-        &mut next_place,
-    )?;
+            identities,boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(identities, checked, &boundaries, &type_ids, &domain_ids, &domain_ids, &service_ids, &mut next_place)?;
     // One scalar qualification namespace for every machine the closure
     // emits; every body's signature declares against it.
     let qualifications =
@@ -285,42 +271,26 @@ pub(crate) fn lower_unit_closure(
             &closure,
         )?;
     let mut next_value = 1_u64;
-    let machine_signatures = signatures::lower(
-        checked,
-        &admitted_bodies,
-        &qualifications,
-        &type_ids,
-        &domain_ids,
-        &structural_types,
-        &mut next_place,
-        &mut next_value,
-    )?;
+    let machine_signatures = signatures::lower(identities, checked, &admitted_bodies, &qualifications, &domain_ids, &domain_ids, &structural_types, &mut next_value, &mut next_place)?;
     let machine_ids = closure
         .iter()
         .enumerate()
         .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
         .collect::<Result<Vec<_>, LoweringError>>(
-            identities,)?;
+            )?;
     let mut placed_view_inputs = checked
         .facts
         .placed_view_inputs
         .iter(
-            identities, )
-        .filter(
-            identities, |input| {
+            )
+        .filter(|input| {
             machine_ids
                 .iter(
-            identities, )
-                .any(
-            identities, |(
-            identities, symbol, _)| *symbol == input.machine)
+            )
+                .any(|(symbol, _)| *symbol == input.machine)
         })
         .map(|input| {
-            lower_placed_view_input(
-                checked,
-                input,
-                lookup_machine_id(&machine_ids, input.machine)?,
-            )
+            lower_placed_view_input(identities, checked, lookup_machine_id(&machine_ids, input.machine)?, lookup_machine_id(&machine_ids, input.machine)?)
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     placed_view_inputs.sort();
@@ -370,7 +340,7 @@ pub(crate) fn lower_unit_closure(
         };
         let parameters = &signature.parameters;
         let scalar_parameters = signature.scalar_parameters.clone(
-            identities,);
+            );
         if let admission::AdmittedBody::Composed {
             source: source_plan,
             body: admitted,
@@ -378,6 +348,7 @@ pub(crate) fn lower_unit_closure(
         {
             let (machine, composed, mut invariants, mut coercions) =
                 composed_control::callable::emit(
+                    identities,
                     checked,
                     source_plan,
                     admitted,
@@ -414,16 +385,16 @@ pub(crate) fn lower_unit_closure(
             occurrences
                 .source_checked_obligations
                 .extend(
-            identities,composed.source_checked_obligations);
+            composed.source_checked_obligations);
             occurrences.state_blocks.extend(composed.state_blocks);
             scalar_block_invariants.append(&mut invariants);
-            scalar_qualification_coercions.append(
-            identities, &mut coercions);
+            scalar_qualification_coercions.append(&mut coercions);
             continue;
         }
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::new();
     let plan = body.ordinary()?;
         let emitted = ordinary_machine::emit(
+            identities,
             checked,
             signature,
             plan,
@@ -441,7 +412,7 @@ pub(crate) fn lower_unit_closure(
         )
         .map_err(attributed)?;
         scalar_block_invariants.extend(
-            identities,emitted.scalar_block_invariants);
+            emitted.scalar_block_invariants);
         scalar_qualification_coercions.extend(emitted.qualification_coercions);
         machines.push(emitted.machine);
         occurrences.retain(
@@ -452,7 +423,7 @@ pub(crate) fn lower_unit_closure(
         occurrences
             .source_checked_obligations
             .extend(
-            identities,emitted.source_checked_obligations);
+            emitted.source_checked_obligations);
     }
     super::unit_cleanup::finalize_nominal_cleanup_actions(
         checked,
@@ -461,26 +432,18 @@ pub(crate) fn lower_unit_closure(
         &machine_ids,
         &machine_signatures
             .iter(
-            identities,)
-            .filter_map(
-            identities,|signature| {
+            )
+            .filter_map(|signature| {
                 signature
                     .cleanup_receiver
                     .map(|receiver| (
-            identities,signature.source, receiver))
+            signature.source, receiver))
             })
             .collect::<Vec<_>>(),
         &scalar_requirement_counts,
         &mut next_call_obligation,
     )?;
-    let provider_candidates = providers::conformances(
-        checked,
-        &provider_candidate_plans,
-        &lowered_boundary_parameters,
-        &boundary_machines,
-        &machine_ids,
-        &machines,
-    )?;
+    let provider_candidates = providers::conformances(identities, checked, &lowered_boundary_parameters, &boundary_machines, &boundary_machines, &machine_ids, &machines)?;
 
     // Publication: one module in canonical roster order.
     let target_machine_families =

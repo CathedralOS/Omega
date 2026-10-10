@@ -181,15 +181,8 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
             }) else {
                 return unsupported("dynamic interface slot has no checked call shape");
             };
-            slots.push(
-            identities,  lower_slot(
-                checked,
-                plan,
-                u32::try_from(slot)
-                    .map_err(|_| LoweringError::Unsupported("dynamic slot id overflows"))?,
-                &type_ids,
-                &module.structural_types,
-            )?);
+            slots.push(lower_slot(identities, checked, u32::try_from(slot)
+                    .map_err(|_| LoweringError::Unsupported("dynamic slot id overflows"))?, plan, &type_ids, &module.structural_types)?);
         }
         catalog.interfaces.push(TerminalDynamicInterface {
             id: interface_id,
@@ -313,11 +306,9 @@ fn lower_slot(
         let formal = structural_parameters.get(claim.argument_index as usize).ok_or(
             LoweringError::Unsupported("dynamic slot claim has no structural formal"),
         )?;
-        Ok(identities, TerminalDynamicClaimPath {
+        Ok(TerminalDynamicClaimPath {
             argument_index: claim.argument_index,
-            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                &claim.path, formal.structural_type, structural_types,
-            )?,
+            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &claim.path, formal.structural_type, structural_types)?,
         })
     }).collect::<Result<Vec<_>, LoweringError>>()?;
     entry_claim_paths.sort();

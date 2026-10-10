@@ -26,7 +26,7 @@ impl OperationFrame<'_, '_> {
     /// slots but never shift this local's authored ordinal.
     pub(super) fn establish_scalar_local(
         &mut self,
-        result: &checked_trees::CheckedUnitScalarResultBindingPlan,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, result: &checked_trees::CheckedUnitScalarResultBindingPlan,
         value: &checked_trees::CheckedCallScalarArgument,
     ) -> Result<(), LoweringError> {
         // The source value is keyed by the local's authored ordinal, not by
@@ -43,17 +43,18 @@ impl OperationFrame<'_, '_> {
             }
         };
         let lowered = self.evaluation.source_value(
+            identities,
             self.checked,
-            self.machine,
             self.state,
+            self.machine,
             result.statement_index,
             role,
             value,
             self.source_value_count,
             self.values,
-            self.next_value,
             self.next_block,
             self.next_edge,
+            self.next_value,
             self.operations,
             self.calls,
         )?;
@@ -129,13 +130,14 @@ impl OperationFrame<'_, '_> {
         )?;
         self.values.push(value);
         self.evaluation.require_value_refinements(
+            identities,
             self.checked,
             machine,
             predicates,
             self.values,
-            self.next_value,
             self.next_block,
             self.next_edge,
+            self.next_value,
             self.operations,
             self.calls,
         )?;
@@ -150,7 +152,7 @@ impl OperationFrame<'_, '_> {
     /// statement-source construction additionally binds the declared local.
     pub(super) fn establish_scalar_array(
         &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishScalarArray {
             source,
@@ -167,9 +169,10 @@ impl OperationFrame<'_, '_> {
             let element_ordinal = u32::try_from(ordinal)
                 .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
             let value = self.evaluation.source_value(
+                identities,
                 self.checked,
-                self.machine,
                 self.state,
+                self.machine,
                 result.statement_index,
                 CheckedScalarExpressionRole::ArrayElement {
                     source: *source,
@@ -178,9 +181,9 @@ impl OperationFrame<'_, '_> {
                 element,
                 self.source_value_count,
                 self.values,
-                self.next_value,
                 self.next_block,
                 self.next_edge,
+                self.next_value,
                 self.operations,
                 self.calls,
             )?;
@@ -264,16 +267,7 @@ impl OperationFrame<'_, '_> {
             None
         };
         let prepared_claims = if let Some((owner, reference)) = owner {
-            crate::emission::claim_bindings::prepare_establishment_claims(
-                self.checked,
-                self.machine,
-                self.state,
-                statement_index as usize,
-                owner,
-                reference,
-                lookup_type_id(self.type_ids, &result.type_identity)?,
-                self.structural_types.declarations(),
-            )?
+            crate::emission::claim_bindings::prepare_establishment_claims(identities, self.checked, self.state, self.machine, statement_index as usize, owner, lookup_type_id(self.type_ids, &result.type_identity)?, self.type_ids, self.structural_types.declarations())?
         } else {
             Vec::new()
         };
@@ -290,21 +284,7 @@ impl OperationFrame<'_, '_> {
             source_value_count: self.source_value_count,
             calls: &mut *self.calls,
         };
-        self.windows.emit_move(
-            moved,
-            result,
-            result_claims,
-            self.parameters,
-            self.structural_types.declarations(),
-            self.type_ids,
-            &mut evaluation,
-            self.values,
-            self.next_place,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-        )
+        self.windows.emit_move(identities, moved, result, result_claims, self.parameters, self.structural_types.declarations(), self.type_ids, &mut evaluation, self.values, self.next_value, self.next_block, self.next_edge, self.next_place, self.operations)
     }
 
     /// A window store evaluated through this frame, pairing the move.
@@ -324,20 +304,7 @@ impl OperationFrame<'_, '_> {
             source_value_count: self.source_value_count,
             calls: &mut *self.calls,
         };
-        self.windows.emit_store(
-            destination,
-            opening,
-            value,
-            self.parameters,
-            self.structural_types.declarations(),
-            self.type_ids,
-            &mut evaluation,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-        )
+        self.windows.emit_store(identities, destination, opening, value, self.parameters, self.structural_types.declarations(), self.type_ids, &mut evaluation, self.values, self.next_block, self.next_edge, self.next_value, self.operations)
     }
 
     /// Move one whole structural field out of borrowed storage into the
@@ -430,10 +397,11 @@ impl OperationFrame<'_, '_> {
             .iter()
             .any(|declaration| {
                 declaration.id == structural_type
-                    && declaration.shape.is_bounded_owned_byte_sequence(identities, )
+                    && declaration.shape.is_bounded_owned_byte_sequence()
             })
         {
             return self.establish_owned_byte_sequence(
+                identities,
                 result,
                 value,
                 structural_type,
@@ -517,6 +485,7 @@ impl OperationFrame<'_, '_> {
         }
         let (identities, declaration, produced) =
             crate::emission::structural_byte_sequence_store::emit_owned_value(
+                identities,
                 value,
                 structural_type,
                 qualifications,
@@ -524,9 +493,9 @@ impl OperationFrame<'_, '_> {
                 &self.evaluation.structural_locals,
                 self.structural_types.declarations(),
                 self.private_places,
-                self.next_place,
                 self.next_value,
                 &mut self.calls.next_obligation_identity,
+                self.next_place,
                 self.operations,
             )?;
         self.register_structural_result(declaration, result, produced)
@@ -569,7 +538,7 @@ impl OperationFrame<'_, '_> {
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_view_locals(&self.evaluation.view_locals)
             .with_place_observations(&self.evaluation.place_observations);
-        let destination = place_id(identities, allocate_dense(self.next_place)?);
+        let destination = place_id(allocate_dense(self.next_place)?);
         let site = ViewRangeSite {
             state: self.state,
             statement: result.statement_index,
@@ -577,6 +546,7 @@ impl OperationFrame<'_, '_> {
         };
         let result_type = lookup_type_id(self.type_ids, &result.type_identity)?;
         let storage = super::super::view_ranges::storage(
+            identities,
             self.checked,
             self.state,
             result.statement_index,
@@ -585,9 +555,10 @@ impl OperationFrame<'_, '_> {
         )?;
         let whole = storage
             .requires_establishment()
-            .then(identities, || allocate_dense(self.next_place).map(place_id))
-            .transpose(identities, )?;
+            .then(|| allocate_dense(self.next_place).map(place_id))
+            .transpose()?;
         let (range_source, establishment) = storage.bind(
+            identities,
             self.checked,
             self.state,
             &bindings,
@@ -604,6 +575,7 @@ impl OperationFrame<'_, '_> {
             self.private_places.push(declaration);
         }
         let declaration = super::super::view_ranges::emit(
+            identities,
             self.checked,
             site,
             range_source,
@@ -612,9 +584,9 @@ impl OperationFrame<'_, '_> {
             self.evaluation,
             self.values.len(),
             self.values,
-            self.next_value,
             self.next_block,
             self.next_edge,
+            self.next_value,
             self.operations,
             self.calls,
         )?;
@@ -912,11 +884,7 @@ impl OperationFrame<'_, '_> {
                     } if destination.source == old_value.source
                         && destination.path == old_value.path =>
                     {
-                        self.windows.captured_assignment_place(
-                            *statement_index,
-                            source,
-                            selected_path,
-                        )?
+                        self.windows.captured_assignment_place(identities, source, selected_path, selected_path)?
                     }
                     _ => None,
                 };
@@ -933,13 +901,10 @@ impl OperationFrame<'_, '_> {
                         let value = self
                             .results
                             .repair_value(binding_ordinal, self.operations)?;
-                        Ok(identities, (place, value.structural_type))
+                        Ok((place, value.structural_type))
                     },
                 )?;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    selected_path, root_type, self.structural_types.declarations(),
-                    None, &mut std::iter::empty(), None,
-                )?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, selected_path, root_type, self.structural_types.declarations(), None, &mut std::iter::empty(), None)?;
                 Ok((place, path))
             },
             |cleanup, place, structural_type, path| {
@@ -956,12 +921,13 @@ impl OperationFrame<'_, '_> {
             },
         )?;
         self.evaluation.continue_cleanup_regions(
+            identities,
             self.checked,
             actions,
             self.values,
-            self.next_value,
             self.next_block,
             self.next_edge,
+            self.next_value,
             self.operations,
         )
     }

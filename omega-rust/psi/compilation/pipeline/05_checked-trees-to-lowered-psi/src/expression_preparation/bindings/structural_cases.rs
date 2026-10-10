@@ -96,9 +96,7 @@ pub(crate) fn resolve_at(
         "case observation has no exact declared carrier",
     ))?;
     Ok(
-            identities,(
-            identities,path, selected_case(
-            identities,declarations, sum.id, identity)?))
+            identities)
 }
 
 pub(crate) fn resolve(
@@ -116,9 +114,8 @@ pub(crate) fn resolve(
 > {
     let mut matching = bindings
         .iter(
-            identities, )
-        .filter(
-            identities, |binding| binding.source_position == subject.parameter_position);
+            )
+        .filter(|binding| binding.source_position == subject.parameter_position);
     let binding = matching.next(
             identities,).ok_or(
             LoweringError::Unsupported(
@@ -127,19 +124,14 @@ pub(crate) fn resolve(
     if matching.next(
             identities, ).is_some() {
         return unsupported(
-            identities, "case observation has ambiguous source bindings");
+            "case observation has ambiguous source bindings");
     }
     let (
-            identities, sum, path) = walk(
-        &binding.declarations,
-        binding.structural_type,
-        &subject.path,
-    )?;
-    Ok(
-            identities, (
+            identities, sum, path) = walk(identities, &binding.declarations, binding.structural_type, &subject.path)?;
+    Ok((
         binding.source,
         path,
-        selected_case(identities, &binding.declarations, sum, identity)?,
+        selected_case(identities, sum,  sum, identity)?,
     ))
 }
 
@@ -187,11 +179,10 @@ pub(crate) fn resolve_runtime_element(
             identities, ) => (
             identities, *element, true),
         _ => {
-            return unsupported(
-            identities,"runtime case observation requires an array or whole element view");
+            return unsupported("runtime case observation requires an array or whole element view");
         }
     };
-    let (sum, element_path) = walk(declarations, element, element_path)?;
+    let (sum, element_path) = walk(identities, element,  structural_type, element_path)?;
     let case = selected_case(identities, declarations, sum, identity)?;
     Ok((
         source,

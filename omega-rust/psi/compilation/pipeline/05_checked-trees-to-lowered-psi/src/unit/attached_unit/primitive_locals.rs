@@ -250,7 +250,7 @@ impl OperationFrame<'_, '_> {
     /// keeps the returned referent in its own roster and declares its place.
     pub(super) fn establish_primitive_local(
         self,
-        operation: &CheckedUnitEffectOperationPlan,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<PrimitiveLocal, LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
             statement_index,
@@ -283,17 +283,18 @@ impl OperationFrame<'_, '_> {
         // computation evaluates its calls and selections in authored order
         // before the storage exists, so it can never read its own local.
         let initializer = self.evaluation.source_value(
+            identities,
             self.checked,
-            self.machine,
             self.state,
+            self.machine,
             *statement_index,
             CheckedScalarExpressionRole::StorageInitializer,
             value,
             self.source_value_count,
             self.values,
-            self.next_value,
             self.next_block,
             self.next_edge,
+            self.next_value,
             self.operations,
             self.calls,
         )?;

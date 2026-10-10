@@ -60,6 +60,7 @@ struct PayloadCaseDispatchArm {
 /// expression machinery pushes the state that evaluates the return and jumps
 /// the completion.
 fn push_arm_target(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
@@ -95,6 +96,7 @@ fn push_arm_target(
         })
     {
         expansion.retained_value(
+            identities,
             state,
             *statement_ordinal,
             role,
@@ -105,6 +107,7 @@ fn push_arm_target(
         )
     } else {
         expansion.retained_pure_value(
+            identities,
             state,
             *statement_ordinal,
             role,
@@ -467,6 +470,7 @@ impl Evaluation {
         let (fallback_target, fallback_arguments) = if let Some(fallback) = fallback {
             (
                 push_arm_target(
+                    identities,
                     expansion,
                     checked,
                     state,
@@ -519,7 +523,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn scalar_control_result(
         &mut self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         control: &checked_trees::CheckedUnitScalarControlPlan,
@@ -545,7 +549,7 @@ impl Evaluation {
             terminal_scalar_type(control.primitive_type)?,
             qualifications,
         )?;
-        let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
+        let mut expansion = self.scalar_computation_expansion(identities, checked, qualifications, machine);
         let mut completion_types = source_types.clone();
         completion_types.push(result_type);
         let completions = cleanups
@@ -579,6 +583,7 @@ impl Evaluation {
         let terminator = match &control.terminator {
             CheckedScalarStateTerminator::Return { statement_ordinal } => {
                 let target = push_arm_target(
+                    identities,
                     &mut expansion,
                     checked,
                     state,
@@ -682,6 +687,7 @@ impl Evaluation {
                             &completions,
                         )?;
                         let false_target = push_arm_target(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -711,6 +717,7 @@ impl Evaluation {
                             &completions,
                         )?;
                         let other_target = push_arm_target(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -730,6 +737,7 @@ impl Evaluation {
                     }
                     (None, None) => {
                         let true_target = push_arm_target(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -740,6 +748,7 @@ impl Evaluation {
                             &completions,
                         )?;
                         let false_target = push_arm_target(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -821,6 +830,7 @@ impl Evaluation {
                                 &completions,
                             )?,
                             None => push_arm_target(
+                                identities,
                                 &mut expansion,
                                 checked,
                                 state,
@@ -835,6 +845,7 @@ impl Evaluation {
                     }
                     let mut next = if let Some(fallback) = fallback {
                         push_arm_target(
+                            identities,
                             &mut expansion,
                             checked,
                             state,
@@ -928,14 +939,15 @@ impl Evaluation {
         });
         let states = expansion.finish();
         self.single_completed_expansion(
+            identities,
             checked,
             &states,
             entry,
             result_type,
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
             calls,
             "ordered scalar control has no unique completed value",

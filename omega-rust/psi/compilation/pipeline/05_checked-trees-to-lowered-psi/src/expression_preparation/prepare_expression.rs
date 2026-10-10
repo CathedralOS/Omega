@@ -148,10 +148,11 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
     match expression {
         CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
             let count_type = terminal_scalar_type(
-            identities, PrimitiveType::U64)?;
+            PrimitiveType::U64)?;
             if !path.is_empty(
-            identities,  ) {
+            ) {
                 return sequence_field_observation(
+                    identities,
                     structural_fields,
                     structural_locals,
                     view_locals,
@@ -166,7 +167,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             if let Some(bindings) = scalar_bindings
                 && let Some((home, structural_type)) = bindings.captured_storage_home(*root)?
             {
-                return captured_sequence_length(bindings, &home, structural_type, count_type);
+                return captured_sequence_length(identities, bindings, &home, structural_type, count_type);
             }
             let (source, carrier) = match *root {
                 checked_trees::CheckedStorageRoot::Parameter {
@@ -277,8 +278,8 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 ))
             ) {
                 return Ok(
-            identities,
-                    match crate::expression_preparation::bindings::structural_fields::resolve_case_payload(
+            match crate::expression_preparation::bindings::structural_fields::resolve_case_payload(
+                        identities,
                         structural_fields,
                         *parameter_position,
                         path,
@@ -295,6 +296,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 );
             }
             crate::expression_preparation::bindings::structural_fields::resolve(
+                identities,
                 structural_fields,
                 *parameter_position,
                 path,
@@ -317,7 +319,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
         } => Ok(LoweredDirectExpression::ImplementationSelection {
             implementation: *implementation,
             interface_identity: *interface_identity,
-            scalar_type: crate::emission::scalar_types::selector_scalar_type(identities, ),
+            scalar_type: crate::emission::scalar_types::selector_scalar_type(),
         }),
         CheckedScalarExpression::IntegerBinary {
             kind,
@@ -327,8 +329,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             formation_decided,
         } => {
             let scalar_type = terminal_scalar_type(
-            identities,  *primitive_type)?;
+            *primitive_type)?;
             let left = lower_checked_scalar_expression_with_parameters(
+                identities,
                 left,
                 structural_parameters,
                 structural_fields,
@@ -341,6 +344,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 proven_indexes,
             )?;
             let right = lower_checked_scalar_expression_with_parameters(
+                identities,
                 right,
                 structural_parameters,
                 structural_fields,
@@ -440,7 +444,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 scalar_type,
                 left: Box::new(left),
                 right: Box::new(
-            identities,right),
+            right),
                 formation_decided: *formation_decided,
             })
         }
@@ -448,10 +452,11 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             primitive_type,
             operand,
         } => Ok(
-            identities, LoweredDirectExpression::IntegerBitwiseNot {
+            LoweredDirectExpression::IntegerBitwiseNot {
             scalar_type: terminal_scalar_type(
-            identities,*primitive_type)?,
+            *primitive_type)?,
             operand: Box::new(lower_checked_scalar_expression_with_parameters(
+                identities,
                 operand,
                 structural_parameters,
                 structural_fields,
@@ -470,6 +475,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
         } => Ok(  LoweredDirectExpression::IntegerWiden {
             scalar_type: terminal_scalar_type(*primitive_type)?,
             operand: Box::new(lower_checked_scalar_expression_with_parameters(
+                identities,
                 operand,
                 structural_parameters,
                 structural_fields,
@@ -493,6 +499,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             if let checked_trees::CheckedStorageRoot::ViewLocal { symbol } = *root
                 && let Some(bindings) = scalar_bindings
                 && let Some(observation) = bindings.byte_record_observation(
+                    identities,
                     proven_indexes,
                     symbol,
                     path,
@@ -506,6 +513,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
 
             let lower_selector = |selector: &CheckedScalarExpression| {
                 lower_checked_scalar_expression_with_parameters(
+                    identities,
                     selector,
                     structural_parameters,
                     structural_fields,
@@ -523,7 +531,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             // Bounded bytes read their live length, never capacity. A projected
             // byte field also retains its declaration and containing selectors.
             if element_path.is_empty(
-            identities,)
+            )
                 && *primitive_type == PrimitiveType::U8
                 && matches!(
                     path.last(),
@@ -532,6 +540,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     ))
                 )
                 && let Some((source, path, field)) = byte_field_observation(
+                    identities,
                     structural_fields,
                     structural_locals,
                     view_locals,
@@ -635,7 +644,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
             {
                 return unsupported(
-            identities,"indexed read exceeds its selector namespace");
+            "indexed read exceeds its selector namespace");
             }
             let mut selectors = Vec::new();
             let geometry = element_path
@@ -645,7 +654,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     checked_trees::CheckedScalarReadProjection::RuntimeIndex(
             identities,selector) => {
                         let depth = selectors.len(
-            identities,) as u32;
+            ) as u32;
                         selectors.push(selector);
                         checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(
                             checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
@@ -653,7 +662,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     }
                 })
                 .collect::<Vec<_>>(
-            identities,);
+            );
             // Every established root shares the storage roster. The sequence
             // registry above selects live-extent observations only; record and
             // fixed-array references retain their stored descriptor and let
@@ -661,8 +670,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             let (source, structural_type) =
                 structural_fields.observation_source(*root, structural_locals, view_locals)?;
             let (source, path, explicit_path, scalar_type) =
-                crate::expression_preparation::bindings::structural_fields::resolve_indexed_element(
-                    structural_fields, source, structural_type, path, &geometry)?;
+                crate::expression_preparation::bindings::structural_fields::resolve_indexed_element(identities, structural_fields, source, structural_type, &geometry, path)?;
             if scalar_type != terminal_scalar_type(*primitive_type)? {
                 return unsupported("indexed read changes its declared scalar carrier");
             }
@@ -714,7 +722,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         bound_decided,
                     })
                 }
-                _ => Ok(identities, identities, LoweredDirectExpression::IndexedPrimitiveRead {
+                _ => Ok(LoweredDirectExpression::IndexedPrimitiveRead {
                     source,
                     path,
                     index,
@@ -733,6 +741,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             operand,
         } => {
             let operand = lower_checked_scalar_expression_with_parameters(
+                identities,
                 operand,
                 structural_parameters,
                 structural_fields,
@@ -747,7 +756,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             crate::expression_preparation::representation_view::replay(
                 operand,
                 terminal_scalar_type(
-            identities,*primitive_type)?,
+            *primitive_type)?,
             )
         }
         CheckedScalarExpression::IntegerExactCast {
@@ -757,6 +766,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             ..
         } => crate::expression_preparation::integer_coercion::coerce_integer_carrier(
             lower_checked_scalar_expression_with_parameters(
+                identities,
                 operand,
                 structural_parameters,
                 structural_fields,
@@ -773,6 +783,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
         ),
         CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
             expression: Box::new(lower_checked_boolean_expression_with_parameters(
+                identities,
                 expression,
                 structural_parameters,
                 structural_fields,
@@ -803,6 +814,7 @@ fn lower_checked_boolean_expression_with_parameters(
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
     let lower = |expression: &CheckedBooleanExpression| {
         lower_checked_boolean_expression_with_parameters(
+            identities,
             expression,
             structural_parameters,
             structural_fields,
@@ -835,7 +847,7 @@ fn lower_checked_boolean_expression_with_parameters(
             {
                 return Ok(LoweredBooleanReturnExpression::ScalarObservation {
                     operand: Box::new(
-            identities,observation),
+            observation),
                 });
             }
             let (
@@ -860,7 +872,7 @@ fn lower_checked_boolean_expression_with_parameters(
             path,
         } => {
             if !structural_fields.is_empty(
-            identities, )
+            )
                 && matches!(
                     path.first(),
                     Some(checked_trees::CheckedStructuralPredicatePathSegment::Case(
@@ -870,6 +882,7 @@ fn lower_checked_boolean_expression_with_parameters(
             {
                 return Ok(
                     match crate::expression_preparation::bindings::structural_fields::resolve_case_payload(
+                        identities,
                         structural_fields,
                         *parameter_position,
                         path,
@@ -877,7 +890,7 @@ fn lower_checked_boolean_expression_with_parameters(
                     )? {
                         CasePayloadRead::Observation { expression } =>
                             crate::expression_preparation::bindings::structural_fields::boolean_observation(
-            identities,expression),
+            expression),
                         CasePayloadRead::Established { position } => {
                             LoweredBooleanReturnExpression::Parameter { position }
                         }
@@ -887,6 +900,7 @@ fn lower_checked_boolean_expression_with_parameters(
             if !structural_fields.is_empty() {
                 let observation =
                     crate::expression_preparation::bindings::structural_fields::resolve(
+                        identities,
                         structural_fields,
                         *parameter_position,
                         path,
@@ -911,7 +925,7 @@ fn lower_checked_boolean_expression_with_parameters(
                     }
                 })
                 .collect::<Result<Vec<_>, _>>(
-            identities,)?;
+            )?;
             LoweredBooleanReturnExpression::UnresolvedStructuralParameterField {
                 parameter_position: *parameter_position,
                 path,
@@ -924,6 +938,7 @@ fn lower_checked_boolean_expression_with_parameters(
         } => {
             if !path.is_empty() {
                 let (source, path, field) = byte_field_observation(
+                    identities,
                     structural_fields,
                     structural_locals,
                     view_locals,
@@ -972,6 +987,7 @@ fn lower_checked_boolean_expression_with_parameters(
         CheckedBooleanExpression::ByteSequenceEqual { left, right } => {
             let operand = |field: &checked_trees::CheckedStructuralParameterField| {
                 byte_field_observation(
+                    identities,
                     structural_fields,
                     structural_locals,
                     view_locals,
@@ -1001,7 +1017,7 @@ fn lower_checked_boolean_expression_with_parameters(
         CheckedBooleanExpression::Not(
             identities,operand) => LoweredBooleanReturnExpression::Not {
             operand: Box::new(
-            identities,lower(operand)?),
+            lower(operand)?),
         },
         CheckedBooleanExpression::Equal { left, right } => LoweredBooleanReturnExpression::Equal {
             left: Box::new(lower(left)?),
@@ -1009,7 +1025,7 @@ fn lower_checked_boolean_expression_with_parameters(
         },
         CheckedBooleanExpression::IntegerMathComparison { .. } => {
             return unsupported(
-            identities, "mathematical contract predicate has no executable Boolean value");
+            "mathematical contract predicate has no executable Boolean value");
         }
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             LoweredBooleanReturnExpression::IntegerComparison {
@@ -1023,7 +1039,8 @@ fn lower_checked_boolean_expression_with_parameters(
                     }
                 },
                 left: Box::new(
-            identities,lower_checked_scalar_expression_with_parameters(
+            lower_checked_scalar_expression_with_parameters(
+                    identities,
                     left,
                     structural_parameters,
                     structural_fields,
@@ -1034,8 +1051,9 @@ fn lower_checked_boolean_expression_with_parameters(
                     structural_locals,
                     scalar_bindings,
                     proven_indexes,
-                )?),
+            )?),
                 right: Box::new(lower_checked_scalar_expression_with_parameters(
+                    identities,
                     right,
                     structural_parameters,
                     structural_fields,
@@ -1055,6 +1073,7 @@ fn lower_checked_boolean_expression_with_parameters(
             ))?;
             let (source, path, case) =
                 crate::expression_preparation::bindings::structural_cases::resolve(
+                    identities,
                     structural_cases,
                     &subject,
                     case,
@@ -1161,8 +1180,7 @@ fn captured_sequence_length(
         path: prefix
             .iter()
             .cloned()
-            .map(
-            identities,LoweredElementPathSegment::Static)
+            .map(LoweredElementPathSegment::Static)
             .collect(),
         field: field.id,
         scalar_type,
@@ -1187,6 +1205,7 @@ fn byte_field_observation(
 > {
     Ok(
         match sequence_field_observation(
+            identities,
             fields,
             structural_locals,
             view_locals,
@@ -1216,13 +1235,13 @@ fn sequence_field_observation(
 ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
     use crate::emission::runtime_elements::ProjectionStep;
     let path_endpoint = path.last(
-            identities,);
+            );
     let captured = bindings
         .map(|bindings| bindings.captured_storage_home(root))
         .transpose(
-            identities,)?
+            )?
         .flatten(
-            identities,);
+            );
     let (home, structural_type) = if let Some(captured) = captured {
         captured
     } else {
@@ -1240,6 +1259,7 @@ fn sequence_field_observation(
     let source = home.place;
     let Some((source, steps, field, carrier)) =
         crate::expression_preparation::bindings::structural_fields::resolve_sequence_projection(
+            identities,
             source,
             structural_type,
             fields.declarations(),
@@ -1282,7 +1302,7 @@ fn sequence_field_observation(
                 ProjectionStep::RuntimeIndexLiteral { index } => {
                     LoweredDirectExpression::IntegerLiteral {
                         value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(index)),
-                        scalar_type: terminal_scalar_type(identities, identities, PrimitiveType::U64)?,
+                        scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
                     }
                 }
                 step => {
@@ -1302,7 +1322,7 @@ fn sequence_field_observation(
                             );
                         }
                     };
-                    exact_u64_index(element_path_runtime_selector(fields, bindings, &selector)?)?
+                    exact_u64_index(element_path_runtime_selector(identities, fields, bindings, &selector)?)?
                 }
             };
             let extent = (view_prefix == Some(ordinal)).then(|| {
@@ -1384,6 +1404,7 @@ fn element_path_runtime_selector(
         checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
             let observation =
                 crate::expression_preparation::bindings::structural_fields::resolve_typed(
+                    identities,
                     structural_fields,
                     field.parameter_position,
                     &field.path,

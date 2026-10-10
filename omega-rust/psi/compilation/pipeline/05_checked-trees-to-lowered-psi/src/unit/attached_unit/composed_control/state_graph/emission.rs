@@ -116,8 +116,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     )?;
     let entry = &plan.states[0];
     let mut claims = crate::unit::attached_unit::claims::lower_unit_entry_claims(
-        plan.machine,
+        identities,
         entry.state,
+        plan.machine,
         &entry.entry_claims,
         &parameters,
         &catalogs.structural_types,
@@ -258,9 +259,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     }
     catalogs
         .scalar_calls
-        .bind_claim_namespace(identities, &claims.source_claims);
+        .bind_claim_namespace(&claims.source_claims);
     let content_entry_claims =
         crate::proofs::content_conservation::lower_whole_content_entry_claims(
+            identities,
             checked,
             &catalogs.structural_types,
             &entry.structural_parameters,
@@ -305,11 +307,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             state_contract_rosters.push(Vec::new());
             state_values.push(Vec::new());
             state_erased.push(Vec::new());
-            state_erased_proof.push(identities, Vec::new());
+            state_erased_proof.push(Vec::new());
             continue;
         }
         if position != 0 || entry_reentered {
             let mut block_parameters = lower_unit_parameters(
+                identities,
                 &state.structural_parameters,
                 &catalogs.type_ids,
                 &catalogs.structural_types,
@@ -420,8 +423,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             continue;
         }
         let lowered = crate::unit::attached_unit::claims::lower_unit_entry_claims(
-            state_owners[position].1,
+            identities,
             state.state,
+            state_owners[position].1,
             &state.entry_claims,
             &state_views[position],
             &catalogs.structural_types,
@@ -447,9 +451,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             id: entry,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(
-            identities,),
+            ),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    identities,
                     checked,
                     &plan.states[0].erased_proof_parameters,
                 ),
@@ -707,18 +712,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         let boundaries = catalogs
             .lowered_boundaries
             .iter()
-            .map(identities, |boundary| (boundary.source, boundary.id))
+            .map(|boundary| (boundary.source, boundary.id))
             .collect::<Vec<_>>();
         structural_places.extend(
-            crate::unit::attached_unit::provider_attachments::lower_provider_attachment_places(
-                checked,
-                attachment,
-                declaration,
-                &catalogs.structural_types,
-                &plan.provider_attachment_requirements,
-                &boundaries,
-                &mut catalogs.next_place,
-            )?,
+            crate::unit::attached_unit::provider_attachments::lower_provider_attachment_places(identities, checked, attachment, declaration, &catalogs.structural_types, &plan.provider_attachment_requirements, &boundaries, &mut catalogs.next_place)?,
         );
     }
     let mut machine = TerminalMachine {
@@ -756,11 +753,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             id: contract_id(terminal_machine.get()),
             requires: Vec::new(),
             ensures: Vec::new(
-            identities,),
-            crash_routes: Vec::new(identities, identities, ),
+            ),
+            crash_routes: Vec::new(),
             erased_scalar_formals: entry_erased_formals,
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    identities,
                     checked,
                     &plan.states[0].erased_proof_parameters,
                 ),
@@ -788,7 +786,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &catalogs.structural_types,
     )?;
     machine.contract.crash_routes =
-        lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &machine.parameters)?;
+        lower_checked_crash_route_buckets(identities, &catalogs.root_crash_routes, &machine.parameters)?;
     ranking::retain(&mut machine, &block_ranks, &rank_edges)?;
     Ok((
         machine,

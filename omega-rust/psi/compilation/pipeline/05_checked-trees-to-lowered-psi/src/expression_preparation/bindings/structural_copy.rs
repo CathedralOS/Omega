@@ -53,11 +53,12 @@ impl ScalarBindings {
             .map(structural_paths::PreparedStructuralPathSegment::Static)
             .collect::<Vec<_>>();
         path.extend(structural_paths::prepare_argument_path(
+            identities,
             &argument.path,
             root_type,
             types,
         )?);
-        self.structural_copy_source(source.place, &path, types)
+        self.structural_copy_source(identities, source.place, &path, types)
     }
 
     /// Bind selector reads now, but evaluate them only at the copy's scheduled
@@ -65,7 +66,7 @@ impl ScalarBindings {
     /// are distinct; all runtime selectors use the ordinary binding resolver.
     pub(crate) fn structural_copy_source(
         &self,
-        place: PlaceId,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, place: PlaceId,
         path: &[structural_paths::PreparedStructuralPathSegment],
         types: &[StructuralTypeDeclaration],
     ) -> Result<PreparedStructuralCopy, LoweringError> {
@@ -132,7 +133,7 @@ impl ScalarBindings {
                     }) => self.runtime_index_local(*position)?,
                     Segment::RuntimeIndex(checked_trees::CheckedRuntimeIndex::StructuralField(
                         field,
-                    )) => self.runtime_index_field(field)?,
+                    )) => self.runtime_index_field(identities, field)?,
                     Segment::ViewExtent { .. } => {
                         return unsupported(
                             "copied projection has no retained nested descriptor home",

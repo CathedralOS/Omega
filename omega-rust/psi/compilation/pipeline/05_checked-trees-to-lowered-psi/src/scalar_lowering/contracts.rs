@@ -221,6 +221,7 @@ pub(crate) fn checked_proof_term(
                     Ok(LoweredProofTermField {
                         field_identity: checked.symbols.display_path(field.field_symbol, "::"),
                         term: checked_proof_term(
+                            identities,
                             checked,
                             &field.term,
                             caller_erased_proof_parameters,
@@ -328,6 +329,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
         };
         let parameters = self.authored_structural_parameters();
         crate::proofs::crash_routes::lower_structural_case_membership(
+            identities,
             subject,
             case,
             &parameters,
@@ -341,7 +343,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
         // entry requirements use, so a member leaf below arithmetic
         // (`self.length - 1`) resolves in the same namespace as a bare one.
         // Closed contracts carry no partial operation's safety evidence.
-        crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.leaf(leaf))
+        crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.leaf(identities, leaf))
     }
 
     fn boolean(&self,
@@ -378,6 +380,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                 } else {
                     let (root, path, field) =
                         crate::proofs::crash_routes::lower_structural_member_path(
+                            identities,
                             position,
                             path,
                             &parameters,
@@ -415,9 +418,10 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
             _ => crate::proofs::crash_routes::checked_boolean_scalar_term(
+                identities,
                 expression,
-                self.namespace,
                 self.erased,
+                self.namespace,
             ),
         }
     }
@@ -436,6 +440,7 @@ impl ScalarContractTerms<'_> {
     ) -> Result<ScalarTerm, LoweringError> {
         let parameters = self.authored_structural_parameters();
         crate::proofs::crash_routes::lower_structural_member_term(
+            identities,
             parameter_position,
             path,
             scalar_type,
@@ -468,6 +473,7 @@ impl ScalarContractTerms<'_> {
                 "closed sequence extent requires a structural formal",
             ))?;
             return crate::proofs::crash_routes::lower_sequence_extent_term(
+                identities,
                 position,
                 path,
                 &self.authored_structural_parameters(),
@@ -492,13 +498,14 @@ impl ScalarContractTerms<'_> {
                 *parameter_position,
                 path,
                 crate::emission::scalar_types::terminal_scalar_type(
-            identities,*primitive_type)?,
+            *primitive_type)?,
             );
         }
         crate::proofs::crash_routes::checked_scalar_term_with_views(
+            identities,
             expression,
-            self.namespace,
             self.erased,
+            self.namespace,
             self.views.parameters,
             self.views.element_views,
         )

@@ -98,6 +98,7 @@ pub(super) fn prepare(
         .iter()
         .map(|term| {
             crate::scalar_lowering::contracts::checked_proof_term(
+                identities,
                 checked,
                 term,
                 state.erased_proof_parameters,
@@ -231,7 +232,7 @@ pub(super) fn prepare(
             return unsupported("scalar Unit argument does not retain a plain primitive borrow");
         }
         if argument.access == checked_trees::CheckedStructuralAccess::Owned {
-            let source = bindings.owned_call_argument(argument, results)?;
+            let source = bindings.owned_call_argument(identities, argument, results)?;
             lowered_arguments.push(source);
             continue;
         }
@@ -253,12 +254,7 @@ pub(super) fn prepare(
                 .ok_or(LoweringError::Unsupported(
                     "scalar Unit borrow is not primitive",
                 ))?;
-        lowered_arguments.push(bindings.primitive_borrow(
-            checked,
-            argument,
-            terminal_scalar_type(primitive)?,
-            structural_types,
-        )?);
+        lowered_arguments.push(bindings.primitive_borrow(identities, checked, terminal_scalar_type(primitive)?, terminal_scalar_type(primitive)?, structural_types)?);
     }
     let argument_types = target
         .scalar_parameters
@@ -273,9 +269,10 @@ pub(super) fn prepare(
                 structural_types,
             )?
         }
-        _ => Vec::new(identities, ),
+        _ => Vec::new(),
     };
     let claim_transfers = crate::emission::claim_bindings::prepare_checked_claim_transfers(
+        identities,
         checked,
         claim_transfers,
         target.structural_parameters,

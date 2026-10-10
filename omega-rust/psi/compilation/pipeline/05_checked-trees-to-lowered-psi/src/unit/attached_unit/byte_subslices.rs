@@ -94,6 +94,7 @@ pub(super) fn emit(
     let structural_type = lookup_type_id(context.type_ids, &argument.type_identity)?;
     let destination = place_id(allocate_dense(next_place)?);
     let storage = view_ranges::storage(
+        identities,
         checked,
         context.state,
         site.statement,
@@ -103,8 +104,9 @@ pub(super) fn emit(
     let whole = storage
         .requires_establishment()
         .then(|| allocate_dense(next_place).map(place_id))
-        .transpose(identities, )?;
+        .transpose()?;
     let (source, establishment) = storage.bind(
+        identities,
         checked,
         context.state,
         context.bindings,
@@ -120,6 +122,7 @@ pub(super) fn emit(
         ));
     }
     let declaration = view_ranges::emit(
+        identities,
         checked,
         site,
         source,
@@ -128,9 +131,9 @@ pub(super) fn emit(
         evaluation,
         source_value_count,
         values,
-        next_value,
         next_block,
         next_edge,
+        next_value,
         operations,
         calls,
     )?;

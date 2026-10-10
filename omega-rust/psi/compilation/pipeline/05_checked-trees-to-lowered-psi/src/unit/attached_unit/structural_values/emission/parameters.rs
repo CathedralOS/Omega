@@ -193,7 +193,7 @@ impl Emission<'_, '_, '_> {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     };
-                let declaration = self.emit_operand_call(call)?;
+                let declaration = self.emit_operand_call(identities, call)?;
                 let StructuralPlaceKind::OperationResult { .. } = declaration.kind else {
                     return unsupported("projected selection call has no result place");
                 };

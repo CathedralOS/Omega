@@ -145,6 +145,7 @@ impl CallEmissionContext<'_> {
 }
 
 pub(super) fn emit_scalar_call_binding(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     call: &LoweredDirectCallBinding,
     parameters: &[ValueDeclaration],
@@ -170,16 +171,13 @@ pub(super) fn emit_scalar_call_binding(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     emit_direct_call_operation(
+        identities,
         checked,
         call,
-        // Terminal calls retain the callee's published routes substituted onto
-        // evaluated argument values. Source-refined surviving buckets can fold
-        // a literal guard to Truth or remove it, which is not that exact value
-        // substitution and disagrees with the independently verified callee.
         &call.parameter_relative_crash_routes,
-        &arguments,
         parameters,
         caller_erased_formals,
+        &arguments,
         &arguments,
         next_value_identity,
         operations,
@@ -188,6 +186,7 @@ pub(super) fn emit_scalar_call_binding(
 }
 
 fn emit_direct_call_operation(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     call: &LoweredDirectCallBinding,
     crash_routes: &[checked_trees::CrashRouteBucket],
@@ -264,7 +263,7 @@ fn emit_direct_call_operation(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let crash_continuations = if call.structural_arguments.is_empty() {
-        lower_checked_crash_route_buckets(crash_routes, crash_values)?
+        lower_checked_crash_route_buckets(identities, crash_routes, crash_values)?
     } else {
         let signature = crate::unit::attached_unit::signatures::find(
             call_emission.signatures,
@@ -286,6 +285,7 @@ fn emit_direct_call_operation(
                     ),
                 )?;
                 crate::proofs::crash_routes::structural_crash_route_prefix_from_type(
+                    identities,
                     argument,
                     root_type,
                     call_emission.structural_types,

@@ -44,6 +44,7 @@ impl StateGraphEmission<'_, '_> {
             edge: edge_id(allocate_dense(next_edge)?),
             cause: crash.cause,
             site_guard: lower_checked_crash_predicates(
+                identities,
                 &crash.site_guard,
                 &self.state_values[position],
             )?,
@@ -110,6 +111,7 @@ impl StateGraphEmission<'_, '_> {
                     &self.catalogs.structural_types,
                 ),
             record_fields: crate::scalar_lowering::computations::fields::prepare(
+                identities,
                 checked,
                 plan.machine,
                 &owners,
@@ -117,30 +119,35 @@ impl StateGraphEmission<'_, '_> {
                 &mut self.catalogs.next_place,
             )?,
             literals: crate::scalar_lowering::computations::literals::prepare(
+                identities,
                 checked,
                 plan.machine,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
             copies: crate::scalar_lowering::computations::copies::prepare(
+                identities,
                 checked,
                 plan.machine,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
             produced_values: crate::scalar_lowering::computations::produced_values::prepare(
+                identities,
                 checked,
                 &owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
             subslices: crate::scalar_lowering::computations::subslices::prepare(
+                identities,
                 checked,
                 &owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
             cases: crate::scalar_lowering::computations::cases::prepare(
+                identities,
                 checked,
                 &owners,
                 &self.catalogs.structural_types,
@@ -274,13 +281,14 @@ impl StateGraphEmission<'_, '_> {
             let mut calls = self.catalogs.scalar_calls.emission_context();
             let observation_entry = evaluation.current;
             let observed = evaluation.retained_observation(
+                identities,
                 checked,
                 root,
                 &bindings,
                 &mut values,
-                &mut next_value,
                 &mut next_block,
                 &mut next_edge,
+                &mut next_value,
                 &mut operations,
                 &mut calls,
             )?;
@@ -301,6 +309,7 @@ impl StateGraphEmission<'_, '_> {
             None
         };
         super::super::super::emission::emit_call_operations(
+            identities,
             checked,
             owner,
             state,
@@ -311,18 +320,19 @@ impl StateGraphEmission<'_, '_> {
             &mut evaluation,
             &mut values,
             &self.state_erased[position],
-            &mut next_value,
             &mut next_block,
             &mut next_edge,
+            &mut next_value,
             &mut operations,
         )?;
-        if operations.external_completion.is_some(identities, ) {
+        if operations.external_completion.is_some() {
             evaluation.remap_transported_call_operands(&mut operations);
             let terminator = operations.take_external_completion(&mut next_edge)?.ok_or(
                 LoweringError::Unsupported("external completion lost its evaluated invocation"),
             )?;
             let body_end = operations.len();
             return self.seal_state(
+                identities,
                 position,
                 terminator,
                 Vec::new(),
@@ -371,13 +381,14 @@ impl StateGraphEmission<'_, '_> {
             None => state.statement_count,
         };
         evaluation.prepare_storage_before(
+            identities,
             self.checked,
             state.state,
             capture_boundary,
             &self.catalogs.structural_types,
             &values,
-            &mut self.catalogs.next_place,
             &mut next_value,
+            &mut self.catalogs.next_place,
             &mut operations,
             &mut self.catalogs.temporary_places,
         )?;
@@ -404,6 +415,7 @@ impl StateGraphEmission<'_, '_> {
         };
         let condition = if let Some(true_ordinal) = conditional_true_ordinal {
             branch_guard = evaluation.branch_guard(
+                identities,
                 checked,
                 state.state,
                 true_ordinal,
@@ -415,14 +427,15 @@ impl StateGraphEmission<'_, '_> {
             } else {
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let condition = evaluation.guard_value(
+                    identities,
                     checked,
-                    owner,
                     state.state,
+                    owner,
                     true_ordinal,
                     &mut values,
-                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
+                    &mut next_value,
                     &mut operations,
                     &mut calls,
                 )?;
@@ -443,6 +456,7 @@ impl StateGraphEmission<'_, '_> {
                 return unsupported("guarded jump chain lost its ordered arms");
             }
             branch_guard = evaluation.branch_guard(
+                identities,
                 checked,
                 state.state,
                 first.statement_ordinal(),
@@ -454,26 +468,28 @@ impl StateGraphEmission<'_, '_> {
             } else {
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let condition = evaluation.guard_value(
+                    identities,
                     checked,
-                    owner,
                     state.state,
+                    owner,
                     first.statement_ordinal(),
                     &mut values,
-                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
+                    &mut next_value,
                     &mut operations,
                     &mut calls,
                 )?;
                 self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-                Some(identities, condition.id)
+                Some(condition.id)
             }
         } else {
             None
         };
         let body_end = operations.len(
-            identities,);
+            );
         let prepared_cases = case_emission::prepare(
+            identities,
             state,
             self.catalogs,
             &state_parameters,
@@ -481,6 +497,7 @@ impl StateGraphEmission<'_, '_> {
             &mut next_value,
         )?;
         let guarded_return = super::super::guarded::emit(
+            identities,
             checked,
             plan,
             state,
@@ -490,12 +507,12 @@ impl StateGraphEmission<'_, '_> {
             &mut evaluation,
             &mut values,
             &self.state_erased[position],
-            &mut next_value,
             &mut next_block,
             &mut next_edge,
+            &mut next_value,
             &mut operations,
         )?;
-        let is_guarded_return = guarded_return.is_some(identities, );
+        let is_guarded_return = guarded_return.is_some();
         // A scalar-result state evaluates the value its selected exit returns
         // through the same exit evaluator an ordinary scalar body uses; its
         // private arm and join blocks stay inside this state.
@@ -507,6 +524,7 @@ impl StateGraphEmission<'_, '_> {
                 // its counter snapshot. Proofs are produced from the completed
                 // graph, where the selected arm and result effects are known.
                 let cleanups = super::super::cleanup::scalar_returns(
+                    identities,
                     self.checked,
                     state,
                     self.catalogs,
@@ -515,19 +533,7 @@ impl StateGraphEmission<'_, '_> {
                     &operations,
                 )?;
                 let mut calls = self.catalogs.scalar_calls.emission_context();
-                let value = evaluation.scalar_control_result(
-                    checked,
-                    owner,
-                    state.state,
-                    exits,
-                    &cleanups,
-                    &mut values,
-                    &mut next_value,
-                    &mut next_block,
-                    &mut next_edge,
-                    &mut operations,
-                    &mut calls,
-                )?;
+                let value = evaluation.scalar_control_result(identities, checked, state.state, owner, exits, &cleanups, &mut values, &mut next_block, &mut next_edge, &mut next_value, &mut operations, &mut calls)?;
                 self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
                 Some(value)
             }
@@ -579,13 +585,14 @@ impl StateGraphEmission<'_, '_> {
                 &state.terminator
             {
                 self.stage_guarded_chain(
+                    identities,
                     position,
                     arms,
                     &mut values,
                     &mut evaluation,
-                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
+                    &mut next_value,
                     &mut operations,
                 )?
             } else {
@@ -604,25 +611,12 @@ impl StateGraphEmission<'_, '_> {
             {
                 let arm_namespace = match &planned_guard {
                     Some((_, namespace)) if *return_when_true => namespace.clone(),
-                    _ => values.clone(identities, ),
+                    _ => values.clone(),
                 };
-                Some(self.conditional_return_arm(
-                    position,
-                    &state_parameters,
-                    arm_namespace,
-                    match &planned_guard {
+                Some(self.conditional_return_arm(identities, position, &state_parameters, match &planned_guard {
                         Some((planned, _)) if *return_when_true => &planned.established,
                         _ => &[],
-                    },
-                    &[],
-                    &[],
-                    return_arm,
-                    &mut evaluation,
-                    &mut next_value,
-                    &mut next_block,
-                    &mut next_edge,
-                    &mut operations,
-                )?)
+                    }, &[], &[], &[], return_arm, &mut evaluation, &mut next_block, &mut next_edge, &mut next_value, &mut operations)?)
             } else {
                 None
             };
@@ -638,25 +632,13 @@ impl StateGraphEmission<'_, '_> {
             {
                 let true_namespace = match &planned_guard {
                     Some((_, namespace)) => namespace.clone(),
-                    None => values.clone(identities, ),
+                    None => values.clone(),
                 };
-                let true_edge = self.conditional_return_arm(
-                    position,
-                    &state_parameters,
-                    true_namespace,
-                    planned_guard
+                let true_edge = self.conditional_return_arm(identities, position, &state_parameters, planned_guard
                         .as_ref()
-                        .map_or(identities, identities, &[], |(guard, _)| guard.established.as_slice()),
-                    &[],
-                    &[],
-                    when_true,
-                    &mut evaluation,
-                    &mut next_value,
-                    &mut next_block,
-                    &mut next_edge,
-                    &mut operations,
-                )?;
+                        .map_or(identities,&[], |(guard, _)| guard.established.as_slice()), &[], &[], &[], when_true, &mut evaluation, &mut next_block, &mut next_edge, &mut next_value, &mut operations)?;
                 let false_edge = self.conditional_return_arm(
+                    identities,
                     position,
                     &state_parameters,
                     values.clone(),
@@ -665,9 +647,9 @@ impl StateGraphEmission<'_, '_> {
                     &[],
                     when_false,
                     &mut evaluation,
-                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
+                    &mut next_value,
                     &mut operations,
                 )?;
                 Some((true_edge, false_edge))
@@ -745,13 +727,14 @@ impl StateGraphEmission<'_, '_> {
                             .enumerate()
                             .map(|(ordinal, field)| EstablishedCasePayload {
                                 source: prepared.source,
-                                path: prepared.path.clone(identities, ),
+                                path: prepared.path.clone(),
                                 case: case.identity,
                                 field: *field,
-                                position: values.len(identities, ) + ordinal,
+                                position: values.len() + ordinal,
                             })
                             .collect::<Vec<_>>();
                         let edge = self.conditional_return_arm(
+                            identities,
                             position,
                             &state_parameters,
                             namespace,
@@ -760,9 +743,9 @@ impl StateGraphEmission<'_, '_> {
                             &case_subject_discards,
                             return_arm,
                             &mut evaluation,
-                            &mut next_value,
                             &mut next_block,
                             &mut next_edge,
+                            &mut next_value,
                             &mut operations,
                         )?;
                         if case.values.is_empty() {
@@ -806,20 +789,7 @@ impl StateGraphEmission<'_, '_> {
                                     ChainGuard::Value(identities, _) => (draft.5.clone(), &[][..]),
                                 }
                             };
-                            staged.push(Some(self.conditional_return_arm(
-                                position,
-                                &state_parameters,
-                                namespace,
-                                established,
-                                &[],
-                                &[],
-                                &plan.return_arm,
-                                &mut evaluation,
-                                &mut next_value,
-                                &mut next_block,
-                                &mut next_edge,
-                                &mut operations,
-                            )?));
+                            staged.push(Some(self.conditional_return_arm(identities, position, namespace, established, &[], &[], &[], &plan.return_arm, &mut evaluation, &mut next_block, &mut next_edge, &mut next_value, &mut operations)?));
                         }
                     }
                 }
@@ -861,14 +831,15 @@ impl StateGraphEmission<'_, '_> {
         let mut ordinary_return_cleanup = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
                 completion: checked_trees::CheckedScalarReturnPlan::Exits(_),
-            } => Some(identities, Vec::new()),
+            } => Some(Vec::new()),
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
                 let [cleanup] = state.normal_exit_cleanups.as_slice(
-            identities,) else {
-                    return unsupported(identities, "ordinary return has no unique source cleanup coordinate");
+            ) else {
+                    return unsupported("ordinary return has no unique source cleanup coordinate");
                 };
                 let mut regions = super::super::cleanup::for_exit_regions(
+                identities,
                 self.checked,
                     state,
                     cleanup.exit,
@@ -926,6 +897,7 @@ impl StateGraphEmission<'_, '_> {
                              established: &[EstablishedCasePayload]|
          -> Result<SuccessorEdge, LoweringError> {
             self.successor_edge(
+                identities,
                 &frame,
                 &mut super::successor_edge::EmittedState {
                     operations: &mut operations,
@@ -1092,6 +1064,7 @@ impl StateGraphEmission<'_, '_> {
                 };
                 if let Some((planned, guard_values)) = &planned_guard {
                     emit_short_circuit_decision(
+                        identities,
                         self.checked,
                         planned,
                         guard_values,
@@ -1104,11 +1077,11 @@ impl StateGraphEmission<'_, '_> {
                         },
                         &mut self.block_ranks,
                         &mut self.rank_edges,
-                        &mut edge_blocks,
                         &mut evaluation.blocks,
-                        &mut next_block,
+                        &mut edge_blocks,
                         &mut next_value,
                         &mut next_edge,
+                        &mut next_block,
                         &mut operations,
                     )?
                 } else {
@@ -1204,38 +1177,25 @@ impl StateGraphEmission<'_, '_> {
                             when_false,
                         },
                         ChainGuard::Decision(
-            identities,(planned, namespace)) => emit_short_circuit_decision(
-                            self.checked,
-                            &planned,
-                            &namespace,
-                            [when_true, when_false],
-                            ShortCircuitFrame {
+            identities,(planned, namespace)) => emit_short_circuit_decision(identities, &planned, &namespace, guard_values, [when_true, when_false], ShortCircuitFrame {
                                 erased_scalar_formals: &self.state_erased[position],
                                 erased_proof_formals: &self.state_erased_proof[position],
                                 current_rank,
                                 inherited_lengths: &inherited_lengths,
-                            },
-                            &mut self.block_ranks,
-                            &mut self.rank_edges,
-                            &mut edge_blocks,
-                            &mut evaluation.blocks,
-                            &mut next_block,
-                            &mut next_value,
-                            &mut next_edge,
-                            &mut operations,
-                        )?,
+                            }, &mut self.block_ranks, &mut self.rank_edges, &mut evaluation.blocks, &mut edge_blocks, &mut next_value, &mut next_edge, &mut next_block, &mut operations)?,
                     };
                     if let Some(rank) = current_rank {
                         self.block_ranks.insert(id, rank);
                     }
                     edge_blocks.push(
-            identities, Block {
+            Block {
                         id,
                         parameters,
                         erased_scalar_formals: self.state_erased[position].clone(
-            identities,),
+            ),
                         erased_proof_formals:
                             crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                                identities,
                                 self.checked,
                                 &self.state_erased_proof[position],
                             ),
@@ -1246,13 +1206,14 @@ impl StateGraphEmission<'_, '_> {
                 }
                 let first_false = decision_edge(
                     guarded_decisions[0],
-                    self.state_erased_proof[position].len(identities, ),
+                    self.state_erased_proof[position].len(),
                     current_rank,
                     &mut self.rank_edges,
                     &mut next_edge,
                 )?;
                 match &planned_guard {
                     Some((planned, namespace)) => emit_short_circuit_decision(
+                        identities,
                         self.checked,
                         planned,
                         namespace,
@@ -1265,11 +1226,11 @@ impl StateGraphEmission<'_, '_> {
                         },
                         &mut self.block_ranks,
                         &mut self.rank_edges,
-                        &mut edge_blocks,
                         &mut evaluation.blocks,
-                        &mut next_block,
+                        &mut edge_blocks,
                         &mut next_value,
                         &mut next_edge,
+                        &mut next_block,
                         &mut operations,
                     )?,
                     None => Terminator::Conditional {
@@ -1342,16 +1303,17 @@ impl StateGraphEmission<'_, '_> {
                             cleanup_actions: Vec::new(),
                         })
                     })
-                    .collect::<Result<Vec<_>, LoweringError>>(identities, )?;
+                    .collect::<Result<Vec<_>, LoweringError>>()?;
                 Terminator::StructuralCase {
                     source: prepared.source,
-                    path: prepared.path.clone(identities, ),
+                    path: prepared.path.clone(),
                     cases,
                 }
             }
         };
         let dispatches = condition.is_some() || branch_guard.is_some() || prepared_cases.is_some();
         self.seal_state(
+            identities,
             position,
             terminator,
             edge_blocks,
@@ -1503,24 +1465,25 @@ fn emit_short_circuit_decision(
     operations
         .length_observations
         .clone_from(
-            identities,frame.inherited_lengths);
+            frame.inherited_lengths);
     let true_block = block_id(
-            identities,allocate_dense(next_block)?);
+            allocate_dense(next_block)?);
     let false_block = block_id(allocate_dense(next_block)?);
     for (
             identities,id, successor) in [(
             identities,true_block, when_true), (false_block, when_false)] {
         if let Some(rank) = frame.current_rank {
-            block_ranks.insert(identities, id, rank);
+            block_ranks.insert(id, rank);
         }
         edge_blocks.push(Block {
             id,
             parameters: Vec::new(
-            identities, ),
+            ),
             erased_scalar_formals: frame.erased_scalar_formals.to_vec(
-            identities,),
+            ),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    identities,
                     checked,
                     frame.erased_proof_formals,
                 ),

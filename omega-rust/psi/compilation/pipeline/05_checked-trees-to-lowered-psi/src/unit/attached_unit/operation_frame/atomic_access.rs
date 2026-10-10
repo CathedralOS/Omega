@@ -23,7 +23,7 @@ use terminal_psi::{AtomicAccessEvent, AtomicReadModifyWrite};
 impl OperationFrame<'_, '_> {
     pub(super) fn atomic_access(
         &mut self,
-        access: &CheckedAtomicAccessPlan,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, access: &CheckedAtomicAccessPlan,
     ) -> Result<(), LoweringError> {
         let scalar_type = terminal_scalar_type(access.primitive_type)?;
         // Rejoin the plan to its authored carrier before emitting anything.
@@ -51,11 +51,12 @@ impl OperationFrame<'_, '_> {
         let place = parameter.place;
         let (
             identities,path, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
+            identities,
             parameter.structural_type,
             &access.carrier_path,
             &access.field_identity,
             self.structural_types.declarations(),
-        )?;
+            )?;
         let field = field.id;
         let mut operands = Vec::new();
         for (ordinal, operand) in access.event.operands().into_iter().enumerate() {
@@ -65,17 +66,18 @@ impl OperationFrame<'_, '_> {
                 })?,
             };
             let value = self.evaluation.source_value(
+                identities,
                 self.checked,
-                self.machine,
                 self.state,
+                self.machine,
                 access.statement_index,
                 role,
                 operand,
                 self.source_value_count,
                 self.values,
-                self.next_value,
                 self.next_block,
                 self.next_edge,
+                self.next_value,
                 self.operations,
                 self.calls,
             )?;

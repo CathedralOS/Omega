@@ -61,6 +61,7 @@ pub(super) fn validate_reference_roster(
 /// different, same-typed ingress together.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
@@ -96,14 +97,15 @@ pub(super) fn emit(
     for (position, guard) in guards.iter().enumerate() {
         let mut calls = catalogs.scalar_calls.emission_context();
         let condition = evaluation.guard_value(
+            identities,
             checked,
-            plan.machine,
             state.state,
+            plan.machine,
             guard.guard_statement_ordinal,
             values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
             &mut calls,
         )?;
@@ -148,23 +150,7 @@ pub(super) fn emit(
         let mut selected_evaluation = evaluation.branch(selected, operations.len());
         let mut selected_values = values.clone();
         operations.length_observations.clear();
-        let terminator = emit_return(
-            checked,
-            plan,
-            state,
-            super::cleanup::destination(checked, state, &guard.destination)?,
-            &return_values[position],
-            catalogs,
-            parameters,
-            claims,
-            &mut selected_evaluation,
-            &mut selected_values,
-            erased_parameters,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-        )?;
+        let terminator = emit_return(identities, checked, plan, super::cleanup::destination(checked, state, &guard.destination)?, state, &return_values[position], catalogs, parameters, claims, &mut selected_evaluation, &mut selected_values, erased_parameters, next_block, next_edge, next_value, operations)?;
         if exhausted {
             evaluation.blocks.append(&mut selected_evaluation.blocks);
             std::mem::swap(&mut evaluation.blocks, &mut selected_evaluation.blocks);
@@ -203,6 +189,7 @@ pub(super) fn emit(
                 "ordered return lost its exhaustive final destination",
             ))?;
     emit_return(
+        identities,
         checked,
         plan,
         state,
@@ -214,9 +201,9 @@ pub(super) fn emit(
         evaluation,
         values,
         erased_parameters,
-        next_value,
         next_block,
         next_edge,
+        next_value,
         operations,
     )
     .map(Some)
@@ -242,25 +229,23 @@ pub(super) fn emit_return(
     operations: &mut OperationBuffer,
 ) -> Result<Terminator, LoweringError> {
     super::super::emission::emit_call_operations(
+        identities,
         checked,
         plan.machine,
         state,
-        std::slice::from_ref(identities, operation),
+        std::slice::from_ref(operation),
         catalogs,
         parameters,
         claims,
         evaluation,
         values,
         erased_parameters,
-        next_value,
         next_block,
         next_edge,
+        next_value,
         operations,
     )?;
-    complete_structural_return(
-        checked, state, exit, operation, catalogs, parameters, evaluation, values, next_value, next_block,
-        next_edge, operations,
-    )
+    complete_structural_return(identities, checked, state, exit, operation, catalogs, parameters, evaluation, values, next_block, next_edge, next_value, operations)
 }
 
 /// Complete an emitted structural producer using the selected exit's checked
@@ -298,18 +283,23 @@ pub(super) fn complete_structural_return(
     let mut returned_claims = binding.claims().to_vec();
     // The returned value carries every claim it holds; the caller binds them
     // by path.
-    returned_claims.sort_by_key(
-            identities,|binding| binding.claim);
+    returned_claims.sort_by_key(|binding| binding.claim);
     let mut regions = super::cleanup::for_exit_regions(
+        identities,
         checked,
-        state, exit, catalogs, parameters, evaluation, operations,
+        state,
+        exit,
+        catalogs,
+        parameters,
+        evaluation,
+        operations,
     )?;
     super::cleanup::selection(state, evaluation, operations, &mut regions)?;
     let completion = Terminator::ReturnStructural {
         edge: edge_id(allocate_dense(next_edge)?),
         source,
         returned_claims,
-        cleanup_actions: Vec::new(identities, identities, ),
+        cleanup_actions: Vec::new(),
     };
     // Every structural completion consumes its selected subtree at the exit.
     // Returning an alias's containing root instead would change both the value
@@ -317,10 +307,20 @@ pub(super) fn complete_structural_return(
     // independent of whether a conditional or ordered guard selected the exit.
     let (
             identities,completion, arrival) = super::returns::projected::materialize(
+        identities,
         checked,
-        &binding, source, completion, regions, catalogs, evaluation, values, next_value,
-        next_block, next_edge, operations,
-    )?;
+        &binding,
+        source,
+        completion,
+        regions,
+        catalogs,
+        evaluation,
+        values,
+        next_block,
+        next_edge,
+        next_value,
+        operations,
+            )?;
     if let Some(arrival) = arrival {
         evaluation.blocks.push(arrival);
     }

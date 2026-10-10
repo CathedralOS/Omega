@@ -146,17 +146,18 @@ pub(crate) fn evaluate_selectors(
                     .assignment_index_is_proven(state, statement_index, *depth);
 
                 let index = evaluation.source_value(
+                    identities,
                     checked,
-                    machine,
                     state,
+                    machine,
                     statement_index,
                     role,
                     &source,
                     source_value_count,
                     values,
-                    next_value,
                     next_block,
                     next_edge,
+                    next_value,
                     operations,
                     calls,
                 )?;
@@ -193,6 +194,7 @@ pub(crate) fn evaluate_selectors(
             ProjectionStep::RuntimeIndexField(field) => {
                 let observation =
                     crate::expression_preparation::bindings::structural_fields::resolve_typed(
+                        identities,
                         &evaluation.structural_fields,
                         field.parameter_position,
                         &field.path,

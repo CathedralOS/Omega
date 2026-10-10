@@ -157,7 +157,7 @@ pub(crate) fn lower_proposition_vocabulary(
             evidence_interface: application
                 .evidence_interface
                 .as_ref(
-            identities,)
+            )
                 .map( |interface| lower_evidence_interface(
             identities, checked, interface))
                 .transpose()?,
@@ -365,51 +365,42 @@ pub(crate) fn lower_evidence_terms(
             .proposition
             .binder_arguments
             .iter(
-            identities, )
-            .map(
-            identities,|argument| {
+            )
+            .map(|argument| {
                 let evidence_projection = argument
                     .evidence_projection
                     .as_ref(
-            identities, )
+            )
                     .map(
             identities, |projection| {
-                        let projection_index = usize::try_from(
-            identities, projection.term.arena_index() - 1)
+                        let projection_index = usize::try_from(projection.term.arena_index() - 1)
                             .expect("arena indices fit the host address space");
-                        evidence_projection_identity(
-                            checked,
-                            projection,
-                            term_ids.get(projection_index).copied().flatten().ok_or(
+                        evidence_projection_identity(identities, projection, term_ids.get(projection_index).copied().flatten().ok_or(
                                 LoweringError::Unsupported(
                                     "evidence-term proposition projects an unrelated term",
                                 ),
-                            )?,
-                        )
+                            )?, projection)
                     })
                     .transpose(
             identities,)?;
                 Ok(PropositionBinderArgumentIdentity {
                     kind: super::binder_argument_kind(
-            identities,argument.kind),
+            argument.kind),
                     identity: identities.intern(
-            identities,&argument.diagnostic_label.clone(
-            identities,)),
+            &checked),
                     evidence_projection,
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         let proposition = applications
             .iter(
-            identities, )
-            .find(
-            identities,|application| {
+            )
+            .find(|application| {
                 application.declaration == declaration
                     && application.binder_arguments == binder_arguments
                     && application.arguments == term.proposition.arguments
             })
-            .map(
-            identities, |application| application.id)
+            .map(|application| application.id)
             .ok_or(
             LoweringError::Unsupported(
                 "checked evidence term has no terminal proposition application",
@@ -417,12 +408,12 @@ pub(crate) fn lower_evidence_terms(
         let checked_interface =
             term.evidence_interface
                 .as_ref(
-            identities,)
+            )
                 .ok_or(
             LoweringError::Unsupported(
                     "terminal evidence term has an unresolved carrierless interface",
                 ))?;
-        let interface = lower_evidence_interface(checked, checked_interface)?;
+        let interface = lower_evidence_interface(identities, checked, checked_interface)?;
         if let Some((previous_proposition, previous_interface)) = identities_by_id.get(&id) {
             if *previous_proposition != proposition || *previous_interface != interface {
                 return Err(LoweringError::Unsupported(

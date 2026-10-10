@@ -131,8 +131,7 @@ pub(crate) fn place(
 ) -> Result<TerminalBorrowPlace, LoweringError> {
     Ok(TerminalBorrowPlace {
         root_identity: identities.intern(
-            identities,  &identity(
-            identities,  checked, place.root_symbol))?,
+            &identity(checked, target_symbol))?,
         segments: place_segments(
             identities, checked, &place.segments)?,
     })
@@ -317,16 +316,13 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
                 );
             if !exact_resources {
                 return unsupported(
-            identities, "reborrow root custody checked replay disagrees");
+            "reborrow root custody checked replay disagrees");
             }
 
-            terminal_lineage.push(
-            identities,  TerminalReborrowRootHandoffStep {
+            terminal_lineage.push(TerminalReborrowRootHandoffStep {
                 child_owner_identity: identities.intern(
-            identities,&identity(
-            identities,  checked, child.owner_symbol))?,
-                child_owner_path: owner_path(
-            identities,  checked, &child.owner_path)?,
+            &identity(checked, target_symbol))?,
+                child_owner_path: owner_path(identities, checked, &child.owner_path)?,
                 child_place: place(
             identities,  checked, &child.captured_place)?,
                 projection_remainder: place_segments(
@@ -358,7 +354,7 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
         let events = borrow
             .reborrow_disposition_events
             .iter(
-            identities,)
+            )
             .filter(|(_, candidate)| candidate.child_resource == leaf_handle)
             .map(|(_, candidate)| candidate)
             .collect::<Vec<_>>();
@@ -366,7 +362,7 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             return unsupported("reborrow root custody requires one leaf disposition event");
         };
         let exact_path = event.retired_parent_path.len(
-            identities,) == lineage.len()
+            ) == lineage.len()
             && event
                 .retired_parent_path
                 .iter()
@@ -375,8 +371,7 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
                     step.resource == child.parent_resource
                         && step.weakening == child.parent_end_status.parent_weakening
                 });
-        let exact_event = std::ptr::eq(
-            identities,*exact_leaf_event, event)
+        let exact_event = std::ptr::eq(*exact_leaf_event, event)
             && event.child_loan == leaf.loan
             && event.child_activation == leaf.parent_suspension.child_activation
             && event.child_weakening == leaf.parent_end_status.child_weakening
@@ -386,32 +381,31 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             && leaf.weakening_reason == FlowBorrowWeakeningReason::StateExit
             && event.boundary_phase == CheckedBorrowResourceLifecyclePhase::StateExit
             && event.shared_cohort.is_empty(
-            identities, )
+            )
             && exact_path
             && event.final_target
                 == CheckedBorrowResourceDispositionTarget::DirectRootLifetime(
                     parent.parent_lifetime.clone(
-            identities,),
+            ),
                 );
         if !exact_event {
             return unsupported(
-            identities, "reborrow root custody terminal disposition disagrees");
+            "reborrow root custody terminal disposition disagrees");
         }
-        retained_children.extend(
-            identities,lineage.iter(
-            identities,).map(|(handle, _)| *handle));
+        retained_children.extend(lineage.iter(
+            ).map(|(handle, _)| *handle));
         let root_weakening = checked
             .facts
             .flow
             .borrow_lifetimes
             .weakenings
             .get(
-            identities,lineage[0].1.parent_end_status.parent_weakening);
+            lineage[0].1.parent_end_status.parent_weakening);
         rows.push(  
-            identities,TerminalReborrowRootHandoff {
+            TerminalReborrowRootHandoff {
             machine: terminal_machine,
             source_machine_identity: identities.intern(
-            identities,&identity(checked, leaf.machine_symbol))?,
+            &identity(checked, target_symbol))?,
             source_state_identity: identities.intern(&identity(checked, leaf.state_symbol))?,
             direct_root_owner_identity: identities.intern(&identity(checked, parent.owner_symbol))?,
             direct_root_owner_path: owner_path(identities, checked, &parent.owner_path)?,

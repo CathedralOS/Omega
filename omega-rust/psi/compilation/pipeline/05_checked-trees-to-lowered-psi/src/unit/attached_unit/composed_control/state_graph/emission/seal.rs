@@ -63,6 +63,7 @@ impl StateGraphEmission<'_, '_> {
             )?;
             let exit = super::super::cleanup::coordinate(state, statement_index, false)?;
             let mut regions = super::super::cleanup::for_exit_regions(
+            identities,
             self.checked,
                 state,
                 exit,
@@ -83,6 +84,7 @@ impl StateGraphEmission<'_, '_> {
                 let source = evaluation.current_structural_place(binding.place());
                 let (
             identities,completion, arrival) = super::super::returns::projected::materialize(
+                    identities,
                     self.checked,
                     &binding,
                     source,
@@ -91,11 +93,11 @@ impl StateGraphEmission<'_, '_> {
                     self.catalogs,
                     &mut evaluation,
                     &mut values,
-                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
+                    &mut next_value,
                     &mut operations,
-                )?;
+            )?;
                 terminator = completion;
                 if let Some(arrival) = arrival {
                     if let Some(rank) = current_rank {
@@ -205,9 +207,10 @@ impl StateGraphEmission<'_, '_> {
             // The authored state's own erased roster rides on its root block;
             // a plain entry's formals already live on the machine contract.
             root.erased_scalar_formals = self.state_erased[position].clone(
-            identities,);
+            );
             root.erased_proof_formals =
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    identities,
                     self.checked,
                     &self.state_erased_proof[position],
                 );

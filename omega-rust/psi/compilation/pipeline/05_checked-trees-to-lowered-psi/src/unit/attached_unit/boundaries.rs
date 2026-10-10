@@ -44,6 +44,7 @@ pub(crate) fn lower_declarations(
         // that roster; deriving and comparing it again would replay checking
         // against the same source in the same compilation.
         let parameters = lower_unit_parameters(
+            identities,
             &plan.structural_parameters,
             type_ids,
             structural_types,
@@ -73,6 +74,7 @@ pub(crate) fn lower_declarations(
             )
             .collect::<Vec<_>>();
         let crash_routes = lower_boundary_crash_routes(
+            identities,
             checked,
             plan,
             &scalar_parameters,

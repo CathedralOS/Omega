@@ -108,6 +108,7 @@ impl emission::Emission<'_, '_, '_> {
             let value = match field.value {
                 checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
                     let evaluated = self.scalar(
+                        identities,
                         CheckedScalarExpressionRole::RecordField {
                             expression: node.expression,
                             field_ordinal: u32::try_from(ordinal).map_err(|_| {
@@ -131,16 +132,18 @@ impl emission::Emission<'_, '_, '_> {
                             scalar_type,
                             &target.field_type,
                             &mut scalar_positions,
-                            initialized.len(identities, ),
+                            initialized.len(),
                         )?
                     } else {
                         let child_type = super::field_carrier::resolve(
+                            identities,
                             self.checked,
                             self.structural_types,
                             &target.field_type,
                             field.type_reference,
                         )?;
                         let completed = self.child_constructor_operand(
+                            identities,
                             child_type,
                             value,
                             field.type_reference,

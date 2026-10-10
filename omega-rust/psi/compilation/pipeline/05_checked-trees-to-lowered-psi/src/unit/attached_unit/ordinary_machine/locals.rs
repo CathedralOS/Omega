@@ -13,7 +13,7 @@ use crate::unit::{
 impl MachineEmission<'_> {
     pub(super) fn establish_scalar_array(
         &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<Option<OperationKind>, LoweringError> {
         let checked = self.checked;
         let plan = self.plan;
@@ -37,9 +37,10 @@ impl MachineEmission<'_> {
             let element_ordinal = u32::try_from(ordinal)
                 .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
             let value = self.evaluation.source_value(
+                identities,
                 checked,
-                plan.machine,
                 plan.state,
+                plan.machine,
                 result.statement_index,
                 CheckedScalarExpressionRole::ArrayElement {
                     source: *source,
@@ -48,9 +49,9 @@ impl MachineEmission<'_> {
                 element,
                 source_value_count,
                 &mut self.scalar_result_values,
-                &mut self.next_value_identity,
                 &mut self.next_block,
                 &mut self.next_edge,
+                &mut self.next_value_identity,
                 &mut self.operations,
                 &mut self.scalar_calls,
             )?;

@@ -312,6 +312,7 @@ pub(crate) fn resolve_typed(
         });
     }
     let prepared = super::structural_paths::prepare_argument_path(
+        identities,
         &projection.segments,
         binding.structural_type,
         &binding.declarations,
@@ -581,7 +582,7 @@ pub(crate) fn resolve_case_payload(
             checked_trees::CheckedStructuralPredicatePathSegment::Field(_),
             projection @ ..,
         ] if !projection.is_empty(
-            identities,  ) => {
+            ) => {
             let mut payload = plan_case_payload_leaf(
             identities,fields, position, path).ok_or(
                 LoweringError::Unsupported(
@@ -719,9 +720,9 @@ pub(crate) fn plan_case_payload_leaf(
         source: binding.source,
         structural_type: member_type,
         declarations: std::sync::Arc::clone(
-            identities, &binding.declarations),
+            &binding.declarations),
         case_payloads: Vec::new(
-            identities,),
+            ),
     };
     let observation = resolve_typed(
             identities,std::slice::from_ref(&projected), position, projection).ok()?;
@@ -750,13 +751,13 @@ pub(crate) fn resolve_sequence_projection(
 > {
     let Some((checked_trees::CheckedStructuralPredicatePathSegment::Field(identity), carrier)) =
         path.split_last(
-            identities,)
+            )
     else {
         return unsupported("sequence field length requires an exact field endpoint");
     };
     let carrier = carrier
         .iter(
-            identities,)
+            )
         .map(|segment| match segment {
             checked_trees::CheckedStructuralPredicatePathSegment::Field(
             identities,identity) => {
@@ -775,10 +776,11 @@ pub(crate) fn resolve_sequence_projection(
             identities,)),
             ),
             _ => unsupported(
-            identities,"sequence field length has an unsupported case path"),
+            "sequence field length has an unsupported case path"),
         })
-        .collect::<Result<Vec<_>, _>>(identities, )?;
+        .collect::<Result<Vec<_>, _>>()?;
     let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_steps(
+        identities,
         structural_type,
         &carrier,
         identity,
@@ -844,18 +846,17 @@ pub(crate) fn resolve_indexed_element(
     let projection =
         observation_paths::explicit_path(
             identities,structural_type, path, fields.declarations(
-            identities,))?;
+            ))?;
     let element = match &projection
         .declaration
-        .ok_or(
-            identities, LoweringError::Unsupported(
+        .ok_or(LoweringError::Unsupported(
             "indexed observation lost its collection carrier",
         ))?
         .shape
     {
         StructuralTypeShape::FixedArray { element, .. } => *element,
         StructuralTypeShape::ElementView { element, .. } if projection.segments.is_empty(
-            identities, ) => {
+            ) => {
             *element
         }
         StructuralTypeShape::ElementView { .. } => {
@@ -864,18 +865,20 @@ pub(crate) fn resolve_indexed_element(
             );
         }
         _ => return unsupported(
-            identities, "indexed observation requires an element collection"),
+            "indexed observation requires an element collection"),
     };
     let element_projection =
         observation_paths::explicit_path(
-            identities, element, element_path, fields.declarations(identities, identities, ))?;
+            identities, element, element_path, fields.declarations())?;
     let element_path = element_projection.segments;
     let scalar_type = crate::emission::primitive_store::indexed_element_scalar_type(
+        identities,
         element,
         &element_path,
-        fields.declarations(identities, identities, ),
+        fields.declarations(),
     )?;
     let path = super::structural_paths::prepare_argument_path(
+        identities,
         &projection.segments,
         structural_type,
         fields.declarations(),
@@ -913,7 +916,7 @@ fn resolve_case_primitive(
     // Canonical geometry still grants neither active-case facts nor copy custody.
     let Some(mut canonical) = projection.canonical else {
         return unsupported(
-            identities,"case primitive observation requires an inline canonical carrier");
+            "case primitive observation requires an inline canonical carrier");
     };
     let Some(Canonical::FixedIndex(index)) = canonical.pop() else {
         return unsupported("case primitive observation requires an indexed primitive carrier");
@@ -923,9 +926,10 @@ fn resolve_case_primitive(
         binding.structural_type,
         &canonical,
     ) else {
-        return unsupported(identities, identities, "primitive observation lost its canonical carrier");
+        return unsupported("primitive observation lost its canonical carrier");
     };
     let (path, declared) = crate::emission::primitive_store::lower_path(
+        identities,
         structural_type,
         &[CheckedUnitStructuralPathSegment::FixedIndex(index)],
         &binding.declarations,

@@ -60,6 +60,7 @@ impl OperationFrame<'_, '_> {
         // as explicit reference construction and storage observations do.
         for argument in &call.structural_arguments {
             self.evaluation.prepare_borrowed_argument(
+                identities,
                 self.checked,
                 self.state,
                 argument,
@@ -81,15 +82,15 @@ impl OperationFrame<'_, '_> {
                 Ok(())
             }
             (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(result)) => {
-                let value = self.scalar_call(operation, call, result, &inputs)?;
+                let value = self.scalar_call(identities, operation, call, result, &inputs)?;
                 self.bind_scalar_result(call.coordinate, value)
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
-                self.boundary_call(call, &inputs)?;
+                self.boundary_call(identities, call, &inputs)?;
                 Ok(())
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(result)) => {
-                let value = self.boundary_scalar_call(call, result, &inputs)?;
+                let value = self.boundary_scalar_call(identities, call, result, &inputs)?;
                 self.bind_scalar_result(call.coordinate, value)
             }
             (
@@ -100,6 +101,7 @@ impl OperationFrame<'_, '_> {
                 },
             ) => {
                 self.boundary_structural_call(
+                    identities,
                     operation,
                     call,
                     binding,
@@ -113,9 +115,9 @@ impl OperationFrame<'_, '_> {
                     interface_identity, ..
                 },
                 _,
-            ) => self.dynamic_call(call, interface_identity, &inputs),
+            ) => self.dynamic_call(identities, call, interface_identity, &inputs),
         }?;
-        self.publish_loan_completions(call)
+        self.publish_loan_completions(identities, call)
     }
 
     /// A retained scalar call result is the next dense value, so it also
@@ -580,13 +582,14 @@ impl OperationFrame<'_, '_> {
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
         let prepared = ordinary_calls::prepare(
+            identities,
             checked,
             operation,
             signatures::find(self.callees.signatures, *target_machine)?.call_target(),
-            inputs.evaluated_scalar_arguments,
             inputs.evaluated_selectors,
-            self.values,
+            inputs.evaluated_scalar_arguments,
             self.caller.erased_scalar_parameters,
+            self.values,
             self.caller.erased_proof_parameters,
             self.parameters,
             self.caller.local_places,
@@ -612,6 +615,7 @@ impl OperationFrame<'_, '_> {
             let register = matches!(self.results, StructuralResults::Dense(_));
             let frontier = self.suspension_source_frontier(*coordinate)?;
             let declaration = ordinary_calls::emit_structural(
+                identities,
                 checked,
                 self.state,
                 operation,
@@ -705,18 +709,9 @@ self,
         let owner = if result.local.is_named() {
             facts::PlaceRoot::Symbol(result.local.symbol)
         } else {
-            facts::PlaceRoot::Expression(identities, occurrence.expression)
+            facts::PlaceRoot::Expression(occurrence.expression)
         };
-        let prepared_claims = crate::emission::claim_bindings::prepare_establishment_claims(
-            checked,
-            machine,
-            state,
-            result.statement_index as usize,
-            owner,
-            occurrence.type_reference,
-            lookup_type_id(type_ids, &result.type_identity)?,
-            structural_types,
-        )?;
+        let prepared_claims = crate::emission::claim_bindings::prepare_establishment_claims(identities, checked, state, machine, result.statement_index as usize, owner, lookup_type_id(type_ids, &result.type_identity)?, type_ids, structural_types)?;
         let result_claims = crate::emission::claim_bindings::emit_establishment_claims(
             &prepared_claims,
             &mut calls.claims,
@@ -781,10 +776,11 @@ self,
                     },
                 };
                 if OperationFrame::lowers(operand) {
-                    frame.emit(operand)?;
+                    frame.emit(identities, operand)?;
                     return Ok(None);
                 }
                 frame.emit_call(
+                    identities,
                     operand,
                     CallInputs {
                         evaluated_scalar_arguments: evaluated,
@@ -807,28 +803,9 @@ self,
                 .ok_or(LoweringError::Unsupported(
                     "structural operand result has no declaration",
                 ))?;
-                Ok(identities, Some(declaration))
+                Ok(Some(declaration))
             };
-        let declaration = structural_values::emit(
-            checked,
-            machine,
-            state,
-            operation,
-            structural_types,
-            type_ids,
-            callees.domain_ids,
-            next_place,
-            private_places,
-            &mut emit_operand,
-            calls,
-            evaluation,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-            result_claims,
-        )?;
+        let declaration = structural_values::emit(identities, checked, state, machine, operation, structural_types, type_ids, callees.domain_ids, next_place, private_places, calls, &mut emit_operand, evaluation, values, next_block, next_edge, next_value, operations, result_claims)?;
         results.require_next(result, "structural value result binding is not dense")?;
         // A call-rooted value's place was catalogued by the call emitter
         // itself as its own call result; there is no fresh declaration to
@@ -917,7 +894,7 @@ self,
             .len()
             != target.erased_parameters().len()
         {
-            return unsupported(identities, identities, "scalar call erased lane disagrees with its target roster");
+            return unsupported("scalar call erased lane disagrees with its target roster");
         }
         // Structural guards resolve through the same allocated signature and
         // completed operands as Unit calls. A scalar result changes publication,
@@ -926,13 +903,14 @@ self,
             self.results
                 .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
         let prepared = ordinary_calls::prepare(
+            identities,
             checked,
             operation,
             signature.call_target(),
-            inputs.evaluated_scalar_arguments,
             inputs.evaluated_selectors,
-            self.values,
+            inputs.evaluated_scalar_arguments,
             self.caller.erased_scalar_parameters,
+            self.values,
             self.caller.erased_proof_parameters,
             self.parameters,
             self.caller.local_places,

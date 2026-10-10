@@ -96,14 +96,7 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
             operation_start: &mut operation_start,
             blocks: &mut evaluation.blocks,
         }
-        .emit(
-            &regions,
-            &mut Vec::new(),
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-        )?;
+        .emit(identities, &mut Vec::new(), &mut Vec::new(), next_block, next_edge, next_value, operations)?;
         Vec::new()
     } else {
         regions.into_iter().map(|region| region.action).collect()
@@ -113,6 +106,7 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
         parameters: arrival_parameters,
         erased_scalar_formals: Vec::new(),
         erased_proof_formals: crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+            identities,
             checked,
             &evaluation.erased_proof_formals,
         ),

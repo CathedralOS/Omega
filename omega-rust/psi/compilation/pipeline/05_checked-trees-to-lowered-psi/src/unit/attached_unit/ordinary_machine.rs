@@ -195,6 +195,7 @@ pub(super) fn emit(
     let entry_claims = &signature.claims.entry_claims;
     let claim_bindings = &signature.claims.source_claims;
     let content_entry_claims = content_conservation::lower_whole_content_entry_claims(
+        identities,
         checked,
         structural_types,
         &plan.structural_parameters,
@@ -213,8 +214,9 @@ pub(super) fn emit(
     let provider_places = if let Some(attachment) = attachment {
         let attachment_declaration =
             terminal_psi::find_structural_type(structural_types, attachment)
-                .expect(identities, "lowered attachment declaration exists");
+                .expect("lowered attachment declaration exists");
         lower_provider_attachment_places(
+            identities,
             checked,
             attachment,
             attachment_declaration,
@@ -289,15 +291,17 @@ pub(super) fn emit(
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
     evaluation.shared_qualifications = prepared_scalar_qualifications.clone();
     evaluation.machine = Some(terminal_machine);
-    evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone(identities, );
+    evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
     evaluation.place_observations =
         crate::scalar_lowering::computations::fields::prepare_place_observations(
+            identities,
             checked,
-            plan.machine,
             plan.state,
+            plan.machine,
             structural_types,
         );
     evaluation.record_fields = crate::scalar_lowering::computations::fields::prepare(
+        identities,
         checked,
         plan.machine,
         &[plan.machine],
@@ -305,30 +309,35 @@ pub(super) fn emit(
         &mut next_place,
     )?;
     evaluation.literals = crate::scalar_lowering::computations::literals::prepare(
+        identities,
         checked,
         plan.machine,
         structural_types,
         &mut next_place,
     )?;
     evaluation.copies = crate::scalar_lowering::computations::copies::prepare(
+        identities,
         checked,
         plan.machine,
         structural_types,
         &mut next_place,
     )?;
     evaluation.produced_values = crate::scalar_lowering::computations::produced_values::prepare(
+        identities,
         checked,
         &[plan.machine],
         structural_types,
         &mut next_place,
     )?;
     evaluation.subslices = crate::scalar_lowering::computations::subslices::prepare(
+        identities,
         checked,
         &[plan.machine],
         structural_types,
         &mut next_place,
     )?;
     evaluation.cases = crate::scalar_lowering::computations::cases::prepare(
+        identities,
         checked,
         &[plan.machine],
         structural_types,
@@ -429,7 +438,7 @@ pub(super) fn emit(
         .peekable();
     while let Some(step) = schedule.next() {
         let finishes_argument_group = matches!(schedule.peek(), Some(argument_schedule::Step::End));
-        emission.lower_step(step, finishes_argument_group)?;
+        emission.lower_step(identities, step, finishes_argument_group)?;
         if emission.operations.external_completion.is_some() {
             break;
         }
@@ -465,9 +474,10 @@ pub(super) fn emit(
     let crash_routes = {
         let effective = crate::unit::effective_crash_routes(checked, plan.machine)?;
         if parameters.is_empty() {
-            lower_checked_crash_route_buckets(&effective, &scalar_parameters)?
+            lower_checked_crash_route_buckets(identities, &effective, &scalar_parameters)?
         } else {
             lower_structural_crash_route_buckets(
+                identities,
                 &effective,
                 &scalar_parameters,
                 &signature.predicate_parameters,
@@ -483,7 +493,8 @@ pub(super) fn emit(
     {
         external_result = Some(if let Some(result) = &plan.structural_result {
             TerminalMachineResult::Structural(
-            identities,lower_structural_result_declaration(
+            lower_structural_result_declaration(
+                identities,
                 checked,
                 plan,
                 result,
@@ -539,15 +550,16 @@ pub(super) fn emit(
             // completion adds only the selected guard/arm evaluation and join.
             scalar_calls.next_obligation_identity = next_call_obligation;
             let result = evaluation.scalar_control_result(
+                identities,
                 checked,
-                plan.machine,
                 plan.state,
+                plan.machine,
                 control,
                 &[],
                 &mut scalar_result_values,
-                &mut next_value_identity,
                 &mut next_block,
                 &mut next_edge,
+                &mut next_value_identity,
                 &mut operations,
                 &mut scalar_calls,
             )?;
@@ -606,13 +618,13 @@ pub(super) fn emit(
         // A projected owned argument can move the complete subtree roster out
         // of a result carrier, in which case the frontier retires the place at
         // the consuming call and the return roster must not discard its root.
-        let moved_subtrees = projected_moves::moved_subtrees(identities, &operations.operations);
+        let moved_subtrees = projected_moves::moved_subtrees(&operations.operations);
         // Resolve contextual disposal against the current storage before
         // constructing the production roster. A name is not disposal
         // authority: reference descriptors can owe affine retirement without
         // an owned-storage StateExit row. Only an actual contextual action
         // replaces their independently recorded production cleanup.
-        let results = StructuralResults::Dense(identities, &mut structural_result_places);
+        let results = StructuralResults::Dense(&mut structural_result_places);
         let normal_regions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
             checked,
             crate::unit::unit_cleanup::outstanding_actions(
@@ -624,11 +636,11 @@ pub(super) fn emit(
             structural_types,
             type_ids,
             |source, path| {
-                let (identities, place, root_type) =
+                let (place, root_type) =
                     evaluation.cleanup_storage(
-            identities,source, parameters, |binding| {
+            source, parameters, |binding| {
                         let value = results.repair_value(binding, &operations)?;
-                        Ok(identities, (value.place, value.structural_type))
+                        Ok((value.place, value.structural_type))
                     })?;
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                     path, root_type, structural_types, None, &mut std::iter::empty(), None,
@@ -812,12 +824,13 @@ pub(super) fn emit(
                     &operations,
                     scalar_calls.claims.bindings(),
                     lookup_type_id(
-            identities,type_ids, &result.type_identity)?,
+            type_ids, &result.type_identity)?,
                     structural_types,
                 )?;
                 Ok::<_, LoweringError>((
                     source,
                     lower_structural_result_declaration(
+                        identities,
                         checked,
                         plan,
                         result,
@@ -865,12 +878,13 @@ pub(super) fn emit(
                 })
                 .transpose()?;
             evaluation.continue_cleanup_regions(
+                identities,
                 checked,
                 cleanup_regions,
                 &mut scalar_result_values,
-                &mut next_value,
                 &mut next_block,
                 &mut next_edge,
+                &mut next_value,
                 &mut operations,
             )?;
             if let Some(position) = return_position {
@@ -1070,19 +1084,20 @@ pub(super) fn emit(
         },
         content_entry_claims,
         content_identity_reshuffles: Vec::new(
-            identities,),
+            ),
         content_partition_compositions: Vec::new(
-            identities,),
+            ),
         entry: evaluation.entry,
         blocks: evaluation.blocks,
         contract: MachineContract {
             id: contract_id(
-            identities, terminal_machine.get( )),
+            terminal_machine.get( )),
             crash_routes,
             erased_scalar_formals: signature.erased_scalar_parameters.clone(
-            identities, ),
+            ),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    identities,
                     checked,
                     &signature.erased_proof_parameters,
                 ),
@@ -1140,7 +1155,7 @@ fn lower_structural_result_declaration(
     // completion this route can emit.
     if (crate::reference_custody::stored_loan_parts(checked, state.return_type).is_some()
         || crate::reference_custody::is_reference_record(
-            identities,checked, state.return_type))
+            checked, state.return_type))
         && !crate::reference_custody::returns_complete_reference_origins(checked, state)
     {
         return unsupported("reference completion has no exact returned leaf origins");
@@ -1150,24 +1165,22 @@ fn lower_structural_result_declaration(
     // carrier identity the result spells, so the machine publishes them
     // as its own qualifications.
     let qualifications =
-        validation::view_result_carrier_qualifications(
-            identities,&checked.typed, return_type)
+        validation::view_result_carrier_qualifications(&checked.typed, return_type)
             .map_err(
             LoweringError::Unsupported)?
             .iter(
-            identities,)
+            )
             .map(|domain| lookup_domain_id_for_carrier(
-            identities,domain_ids, *domain, structural_type))
+            domain_ids, *domain, structural_type))
             .collect::<Result<Vec<_>, _>>()?;
     Ok(terminal_psi::StructuralResultDeclaration {
         place,
         structural_type,
         multiplicity: crate::terminal_identities::structural_multiplicity(
-            identities, result.multiplicity),
+            result.multiplicity),
         qualifications,
         projected_qualifications: parameters::lower_projected_qualifications(
-            &validation::structural_result_projected_qualifications(
-            identities,&checked.typed, return_type)
+            &validation::structural_result_projected_qualifications(&checked.typed, return_type)
                 .map_err(
             LoweringError::Unsupported)?,
             domain_ids,
@@ -1175,6 +1188,7 @@ fn lower_structural_result_declaration(
             structural_types,
         )?,
         reference_sources: parameters::lower_reference_result_sources(
+            identities,
             checked,
             &result.reference_sources,
             structural_type,
@@ -1316,7 +1330,7 @@ impl MachineEmission<'_> {
     /// with its source-call record.
     fn lower_step(
         &mut self,
-        step: argument_schedule::Step,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, step: argument_schedule::Step,
         finishes_argument_group: bool,
     ) -> Result<(), LoweringError> {
         let checked = self.checked;
@@ -1325,13 +1339,14 @@ impl MachineEmission<'_> {
         let (operation_index, staged) = match step {
             argument_schedule::Step::CaptureBefore(statement) => {
                 self.evaluation.prepare_storage_before(
+                    identities,
                     self.checked,
                     self.plan.state,
                     statement,
                     self.structural_types,
                     &self.scalar_result_values,
-                    &mut self.next_place,
                     &mut self.next_value_identity,
+                    &mut self.next_place,
                     &mut self.operations,
                     &mut self.private_places,
                 )?;
@@ -1369,16 +1384,17 @@ impl MachineEmission<'_> {
                     return unsupported("staged scalar argument ordinals are not dense");
                 }
                 let value = self.evaluation.argument_at(
+                    identities,
                     checked,
-                    plan.machine,
                     plan.state,
+                    plan.machine,
                     &plan.operations[operation],
-                    ordinal,
                     source_value_count,
+                    ordinal,
                     &mut self.scalar_result_values,
-                    &mut self.next_value_identity,
                     &mut self.next_block,
                     &mut self.next_edge,
+                    &mut self.next_value_identity,
                     &mut self.operations,
                     &mut self.scalar_calls,
                 )?;
@@ -1398,17 +1414,18 @@ impl MachineEmission<'_> {
                             "selector staging has no source prefix",
                         ))?;
                 let value = self.evaluation.call_selector(
+                    identities,
                     checked,
-                    plan.machine,
                     plan.state,
+                    plan.machine,
                     &plan.operations[operation],
-                    argument,
                     segment,
                     source_value_count,
+                    argument,
                     &mut self.scalar_result_values,
-                    &mut self.next_value_identity,
                     &mut self.next_block,
                     &mut self.next_edge,
+                    &mut self.next_value_identity,
                     &mut self.operations,
                     &mut self.scalar_calls,
                 )?;
@@ -1446,6 +1463,7 @@ impl MachineEmission<'_> {
                     bindings: &bindings,
                 };
                 let place = byte_subslices::emit(
+                    identities,
                     checked,
                     &context,
                     &plan.operations[operation],
@@ -1454,10 +1472,10 @@ impl MachineEmission<'_> {
                     source_value_count,
                     &mut self.scalar_result_values,
                     &mut self.subslice_places,
-                    &mut self.next_place,
                     &mut self.next_value_identity,
                     &mut self.next_block,
                     &mut self.next_edge,
+                    &mut self.next_place,
                     &mut self.operations,
                     &mut self.scalar_calls,
                 )?;
@@ -1484,7 +1502,7 @@ impl MachineEmission<'_> {
             CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
         ) {
             let source_value_count = self.scalar_result_values.len();
-            return self.emit_through_frame(operation, source_value_count);
+            return self.emit_through_frame(identities, operation, source_value_count);
         }
         let source_value_count = self
             .retained_scalar_prefix
@@ -1504,14 +1522,15 @@ impl MachineEmission<'_> {
             )
         } else {
             self.evaluation.arguments(
+                identities,
                 checked,
-                plan.machine,
                 plan.state,
+                plan.machine,
                 operation,
                 &mut self.scalar_result_values,
-                &mut self.next_value_identity,
                 &mut self.next_block,
                 &mut self.next_edge,
+                &mut self.next_value_identity,
                 &mut self.operations,
                 &mut self.scalar_calls,
             )?
@@ -1548,21 +1567,21 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
             | checked_trees::reference_hold_pattern!() => {
-                return self.emit_through_frame(operation, step.source_value_count);
+                return self.emit_through_frame(identities, operation, step.source_value_count);
             }
             CheckedUnitEffectOperationPlan::Call(_) => {
-                return self.emit_call_through_frame(operation, step);
+                return self.emit_call_through_frame(identities, operation, step);
             }
             CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. } => {
                 let local = self
                     .frame(step.source_value_count)
-                    .establish_primitive_local(operation)?;
+                    .establish_primitive_local(identities, operation)?;
                 self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                 self.primitive_local_places.push(local);
                 return Ok(());
             }
             CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {
-                self.establish_scalar_array(operation)?
+                self.establish_scalar_array(identities, operation)?
             }
             CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {
                 self.establish_trivial_affine_local(operation)?
@@ -1593,10 +1612,10 @@ impl<'a> MachineEmission<'a> {
     /// states share.
     fn emit_through_frame(
         &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, operation: &CheckedUnitEffectOperationPlan,
         source_value_count: usize,
     ) -> Result<(), LoweringError> {
-        self.frame(source_value_count).emit(operation)?;
+        self.frame(source_value_count).emit(identities, operation)?;
         self.next_call_obligation = self.scalar_calls.next_obligation_identity;
         Ok(())
     }
@@ -1606,7 +1625,7 @@ impl<'a> MachineEmission<'a> {
     /// retained until the group ends; every other result the frame publishes.
     fn emit_call_through_frame(
         &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, operation: &CheckedUnitEffectOperationPlan,
         step: StepInputs,
     ) -> Result<(), LoweringError> {
         // The literal roster preallocates the byte-sequence literals of every
@@ -1625,6 +1644,7 @@ impl<'a> MachineEmission<'a> {
             self.scalar_result_values.truncate(step.source_value_count);
         }
         self.frame(step.source_value_count).emit_call(
+            identities,
             operation,
             CallInputs {
                 evaluated_scalar_arguments: step.evaluated_scalar_arguments.as_deref(),

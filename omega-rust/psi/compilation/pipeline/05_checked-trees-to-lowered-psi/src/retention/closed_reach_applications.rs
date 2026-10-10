@@ -238,13 +238,15 @@ pub(crate) fn retain_closed_reach_applications(
                             "closed reach selected machine has no normalized identity",
                         ))?;
                     let upper_bound = retain_services(
+                        identities,
                         checked,
                         checked
                             .service_reach_rows
-                            .services(identities, view.signature().service_reach_row),
+                            .services(view.signature().service_reach_row),
                         module,
                     )?;
                     let selected_reach = retain_services(
+                        identities,
                         checked,
                         checked.facts.service_reaches.rows.services(reach.effective),
                         module,
@@ -330,6 +332,7 @@ pub(crate) fn retain_closed_reach_applications(
             identities,binding) if binding.schema.is_some(
             identities,) => {
                             let Some(application) = closed_call_application(
+                                identities,
                                 checked,
                                 source_machines,
                                 call.target_state_symbol,
@@ -349,18 +352,20 @@ pub(crate) fn retain_closed_reach_applications(
             module.services.truncate(original_service_count);
             continue;
         }
-        calls.sort_by_key(identities, |call| call.operation);
+        calls.sort_by_key(|call| call.operation);
         // Type/const specialization selects actual custody leaves. Retain
         // their contractual contribution beside the template dependency; it
         // cannot be recovered from authored calls alone or by subtracting a
         // callback ceiling from the owner's flattened row.
         let mut fixed = retain_services(
+            identities,
             checked,
             inferred.rows.services(
-            identities,  template.dependency.concrete),
+            template.dependency.concrete),
             module,
         )?;
         fixed.extend(  retain_services(
+            identities,
             checked,
             inferred.rows.services(instance.cleanup_contribution),
             module,

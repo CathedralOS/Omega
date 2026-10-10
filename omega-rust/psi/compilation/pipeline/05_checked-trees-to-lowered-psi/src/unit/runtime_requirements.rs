@@ -197,18 +197,12 @@ impl RuntimeRequirementTerms<'_> {
                 parameter_position,
                 path,
                 primitive_type,
-            } => lower_structural_member_term(
-                *parameter_position,
-                path,
-                terminal_scalar_type(*primitive_type)?,
-                self.parameters,
-                self.structural_types,
-            ),
+            } => lower_structural_member_term(identities, *parameter_position, terminal_scalar_type(*primitive_type)?, terminal_scalar_type(*primitive_type)?, self.parameters, self.structural_types),
             CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
                 let position = root.parameter().ok_or(LoweringError::Unsupported(
                     "runtime sequence extent requires a structural formal",
                 ))?;
-                lower_sequence_extent_term(position, path, self.parameters, self.structural_types)
+                lower_sequence_extent_term(identities, position, path, self.parameters, self.structural_types)
             }
             CheckedScalarExpression::IntegerLiteral { literal } => {
                 let scalar_type = integer_landing_scalar_type(literal)?;
@@ -229,9 +223,10 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
     ) -> Result<Proposition, LoweringError> {
         let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression
         else {
-            return unsupported(identities, "runtime case requirement has no case subject");
+            return unsupported("runtime case requirement has no case subject");
         };
         crate::proofs::crash_routes::lower_structural_case_membership(
+            identities,
             subject,
             case,
             self.parameters,
@@ -240,7 +235,7 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
         )
     }
     fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
-        crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.scalar_leaf(leaf))
+        crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.scalar_leaf(identities, leaf))
     }
 
     fn boolean(&self,
@@ -262,6 +257,7 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
                 parameter_position,
                 path,
             } => lower_structural_member_term(
+                identities,
                 *parameter_position,
                 path,
                 ScalarType::Boolean,

@@ -77,6 +77,7 @@ pub(crate) fn prepare(
                     continue;
                 }
                 slots.push(reserve(
+                    identities,
                     checked,
                     root.state,
                     root.statement_ordinal,
@@ -112,7 +113,7 @@ fn reserve(
         .ok_or(LoweringError::Unsupported(
             "computed range has no structural type namespace",
         ))?;
-    let storage = view_ranges::storage(checked, state, statement, argument, types)?;
+    let storage = view_ranges::storage(identities, checked, state, statement, argument, types)?;
     let whole_view = storage
         .requires_establishment()
         .then(|| super::super::allocate_dense(next_place).map(super::super::place_id))
@@ -146,9 +147,10 @@ impl super::Expansion<'_> {
         let bytes =
             range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
         if slot.expression != range.expression || slot.bytes != bytes {
-            return unsupported(identities, "computed range disagrees with its descriptor reservation");
+            return unsupported("computed range disagrees with its descriptor reservation");
         }
         let (mut source, establishment) = slot.storage.bind(
+            identities,
             self.checked,
             site.state,
             site.bindings,
@@ -184,7 +186,7 @@ impl super::Expansion<'_> {
             let argument = match endpoint {
                 checked_trees::CheckedCallScalarArgument::Pure(value) => super::Argument::Value(
                     site.bindings
-                        .expression(&self.checked.facts.proven_scalar_indexes, &value)?,
+                        .expression(identities, &self.checked.facts.proven_scalar_indexes, &value)?,
                 ),
                 checked_trees::CheckedCallScalarArgument::Computation(handle) => {
                     super::Argument::Computation(handle)
@@ -225,7 +227,7 @@ impl super::Expansion<'_> {
             structural_effects: vec![effect],
             terminator: LoweredScalarBranchTerminator::jump(target, super::parameters(input_types)),
         });
-        let entry = self.sequence(&endpoints, input_types, finish, site, active)?;
+        let entry = self.sequence(identities, &endpoints, input_types, finish, site, active)?;
         let Some(establishment) = establishment else {
             return Ok(entry);
         };

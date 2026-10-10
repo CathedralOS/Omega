@@ -233,7 +233,7 @@ pub(crate) fn emit(
                         call.structural_arguments.clone(),
                         claim_transfers,
                         Vec::new(),
-                        lower_checked_crash_route_buckets(&call.crash_routes, &arguments)?,
+                        lower_checked_crash_route_buckets(identities, &call.crash_routes, &arguments)?,
                         call.result
                             .as_ref()
                             .map_or(DirectCallResult::Unit, |result| {

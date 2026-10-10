@@ -80,11 +80,7 @@ impl StateGraphEmission<'_, '_> {
                 cleanup_actions: Vec::new(),
             },
             checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
-                super::super::guarded::emit_return(
-                    checked,
-                    plan,
-                    state,
-                    super::super::cleanup::coordinate(
+                super::super::guarded::emit_return(identities, checked, plan, super::super::cleanup::coordinate(
                         state,
                         return_arm
                             .statement_ordinal()
@@ -92,19 +88,7 @@ impl StateGraphEmission<'_, '_> {
                                 "return arm lost its source coordinate",
                             ))? as usize,
                         false,
-                    )?,
-                    operation,
-                    self.catalogs,
-                    state_parameters,
-                    self.claims.published(),
-                    &mut arm_evaluation,
-                    &mut arm_values,
-                    &self.state_erased[position],
-                    next_value,
-                    next_block,
-                    next_edge,
-                    operations,
-                )?
+                    )?, "return arm lost its source coordinate", operation, self.catalogs, state_parameters, self.claims.published(), &mut arm_evaluation, &mut arm_values, &self.state_erased[position], next_block, next_edge, next_value, operations)?
             }
             // The selected arm evaluates its operands and invokes its call
             // once. Ordinary completion then forwards the exact result the
@@ -119,6 +103,7 @@ impl StateGraphEmission<'_, '_> {
                     .cloned()
                     .collect::<Vec<_>>();
                 super::super::super::emission::emit_call_operations(
+                    identities,
                     checked,
                     plan.machine,
                     state,
@@ -129,9 +114,9 @@ impl StateGraphEmission<'_, '_> {
                     &mut arm_evaluation,
                     &mut arm_values,
                     &self.state_erased[position],
-                    next_value,
                     next_block,
                     next_edge,
+                    next_value,
                     operations,
                 )?;
                 arm_evaluation.remap_transported_call_operands(operations);
@@ -143,13 +128,10 @@ impl StateGraphEmission<'_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "Unit graph call arm lost its call result",
                         ))?
-                        .result(identities, );
+                        .result();
                     match result {
                         checked_trees::CheckedUnitCallResult::Structural { .. } => {
-                            super::super::guarded::complete_structural_return(
-                                self.checked,
-                                state,
-                                super::super::cleanup::coordinate(
+                            super::super::guarded::complete_structural_return(identities, self.checked, super::super::cleanup::coordinate(
                                     state,
                                     return_arm.statement_ordinal().ok_or(
                                         LoweringError::Unsupported(
@@ -157,17 +139,7 @@ impl StateGraphEmission<'_, '_> {
                                         ),
                                     )? as usize,
                                     false,
-                                )?,
-                                operation,
-                                self.catalogs,
-                                state_parameters,
-                                &mut arm_evaluation,
-                                &mut arm_values,
-                                next_value,
-                                next_block,
-                                next_edge,
-                                operations,
-                            )?
+                                )?, "return arm lost its source coordinate", operation, self.catalogs, state_parameters, &mut arm_evaluation, &mut arm_values, next_block, next_edge, next_value, operations)?
                         }
                         checked_trees::CheckedUnitCallResult::Unit => Terminator::ReturnUnit {
                             edge: edge_id(allocate_dense(next_edge)?),
@@ -217,17 +189,18 @@ impl StateGraphEmission<'_, '_> {
                 };
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let value = arm_evaluation.source_value(
+                    identities,
                     checked,
-                    plan.machine,
                     state.state,
+                    plan.machine,
                     *statement_ordinal,
                     role,
                     &retained,
                     arm_values.len(),
                     &mut arm_values,
-                    next_value,
                     next_block,
                     next_edge,
+                    next_value,
                     operations,
                     &mut calls,
                 )?;
@@ -254,8 +227,9 @@ impl StateGraphEmission<'_, '_> {
                         "return arm lost its source coordinate",
                     ))?;
             let exit = super::super::cleanup::coordinate(
-            identities,state, statement_ordinal as usize, false)?;
+            state, statement_ordinal as usize, false)?;
             let mut regions = super::super::cleanup::for_exit_regions(
+            identities,
             checked,
                 state,
                 exit,

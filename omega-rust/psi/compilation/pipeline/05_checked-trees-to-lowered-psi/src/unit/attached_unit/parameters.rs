@@ -247,12 +247,7 @@ pub(crate) fn lower_unit_parameters(
                 ),
                 access: terminal_access(parameter.access),
                 qualifications,
-                projected_qualifications: lower_projected_qualifications(
-                    &parameter.projected_qualifications,
-                    domain_ids,
-                    lookup_type_id(type_ids, &parameter.type_identity)?,
-                    structural_types,
-                )?,
+                projected_qualifications: lower_projected_qualifications(identities, &parameter.projected_qualifications, lookup_type_id(type_ids, &parameter.type_identity)?, type_ids, structural_types)?,
             })
         })
         .collect()
@@ -454,11 +449,7 @@ pub(crate) fn mint_runtime_index_selectors(
                 continue;
             };
             let observation =
-                crate::expression_preparation::bindings::structural_fields::resolve_typed(
-                    fields,
-                    field.parameter_position,
-                    &field.path,
-                )?;
+                crate::expression_preparation::bindings::structural_fields::resolve_typed(identities, field.parameter_position, &field.path, field.parameter_position)?;
             if !matches!(observation.scalar_type(), ScalarType::Integer(integer) if !integer.is_address())
             {
                 return unsupported("runtime index field selector is not an integer read");
@@ -501,12 +492,7 @@ pub(crate) fn lower_structural_arguments(
                           place,
                           prefix: &[terminal_psi::StructuralPathSegment]| {
         let suffix =
-            crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(
-                checked,
-                argument,
-                root,
-                structural_types,
-            )?;
+            crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(identities, checked, root, argument, structural_types)?;
         let path = prefix.iter().cloned().map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static).chain(suffix).collect::<Vec<_>>();
         crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
             &path,
@@ -641,7 +627,7 @@ pub(crate) fn lower_structural_arguments(
                     .ok_or(LoweringError::Unsupported(
                         "borrowed scalar formal has no scalar namespace",
                     ))?
-                    .scalar_parameter_borrow(checked, argument, structural_types);
+                    .scalar_parameter_borrow(identities, checked, argument, structural_types);
             }
             let source_parameter_index =
                 argument

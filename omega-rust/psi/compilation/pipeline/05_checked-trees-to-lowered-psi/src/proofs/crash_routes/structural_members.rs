@@ -148,6 +148,7 @@ pub(crate) fn lower_structural_member_path(
 /// distinguishes element counts from byte storage; neither field names nor
 /// an equally numbered scalar parameter supply descriptor authority.
 pub(crate) fn lower_sequence_extent_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     parameter_position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     parameters: &[StructuralParameterDeclaration],
@@ -170,6 +171,7 @@ pub(crate) fn lower_sequence_extent_term(
         )
     } else {
         crate::proofs::crash_routes::lower_structural_member_path(
+            identities,
             parameter_position,
             path,
             parameters,
@@ -219,6 +221,7 @@ pub(crate) fn lower_sequence_extent_term(
 }
 
 pub(crate) fn lower_structural_member_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     parameter_position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     expected: ScalarType,
@@ -226,7 +229,7 @@ pub(crate) fn lower_structural_member_term(
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     let (identities, root, terminal_path, actual) =
-        lower_structural_member_path(parameter_position, path, parameters, structural_types)?;
+        lower_structural_member_path(identities, parameter_position, path, parameters, structural_types)?;
     if actual.scalar_type() != Some(expected) {
         return unsupported(
             "structural scalar contract path does not end at the retained scalar type",
@@ -251,6 +254,7 @@ pub(crate) fn lower_ieee_float_field(
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<IeeeFloatStructuralField, LoweringError> {
     let (root, path, actual) = lower_structural_member_path(
+        identities,
         field.parameter_position,
         &field.path,
         parameters,
@@ -269,6 +273,7 @@ pub(crate) fn lower_byte_sequence_field(
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<ByteSequenceStructuralField, LoweringError> {
     let (root, path, actual) = lower_structural_member_path(
+        identities,
         field.parameter_position,
         &field.path,
         parameters,
@@ -282,6 +287,7 @@ pub(crate) fn lower_byte_sequence_field(
 }
 
 pub(crate) fn lower_structural_sum_subject(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     subject: &checked_trees::CheckedStructuralParameterField,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
@@ -293,6 +299,7 @@ pub(crate) fn lower_structural_sum_subject(
             "structural sum predicate names a non-structural parameter",
         ))?;
     lower_sum_path(
+        identities,
         parameter.place,
         parameter.structural_type,
         &subject.path,

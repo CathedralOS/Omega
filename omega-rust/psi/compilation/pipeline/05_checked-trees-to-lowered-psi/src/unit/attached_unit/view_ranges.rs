@@ -154,13 +154,7 @@ impl RangeStorage {
             .path
             .into_iter()
             .map(LoweredElementPathSegment::Static)
-            .chain(
-            identities,collection_path(
-                &self.collection,
-                bindings,
-                root,
-                declarations,
-            )?)
+            .chain(collection_path(identities, &self.collection, bindings, root, declarations)?)
             .collect::<Vec<_>>();
         let (place, path, establishment) = if let Some(element) = self.collection_element {
             let destination = destination.ok_or(LoweringError::Unsupported(
@@ -239,7 +233,7 @@ fn collection_path(
                         bindings.runtime_index_local(position)?
                     }
                     checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
-                        bindings.runtime_index_field(&field)?
+                        bindings.runtime_index_field(identities, &field)?
                     }
                     _ => {
                         return unsupported("collection view cannot borrow an assignment selector");
@@ -438,6 +432,7 @@ pub(crate) struct ViewRangeSite<'a> {
 /// retire after formation; the source loan prevents replacement meanwhile.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     site: ViewRangeSite<'_>,
     source: ViewRangeSource,
@@ -478,17 +473,18 @@ pub(crate) fn emit(
     {
         if let Some(value) = value {
             let completed = evaluation.source_value(
+                identities,
                 checked,
-                machine.symbol,
                 site.state,
+                machine.symbol,
                 site.statement,
                 role,
                 value,
                 source_value_count,
                 values,
-                next_value,
                 next_block,
                 next_edge,
+                next_value,
                 operations,
                 calls,
             )?;

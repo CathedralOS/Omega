@@ -195,9 +195,7 @@ pub(crate) fn prepare_call_result_claims(
     received.iter().map(|received| {
         Ok(PreparedResultClaim {
             received: received.clone(),
-            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                &received.path, structural_type, types,
-            )?,
+            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &received.path, structural_type, types)?,
         })
     }).collect()
 }
@@ -260,12 +258,10 @@ pub(crate) fn prepare_claim_transfers(
 ) -> Result<Vec<PreparedClaimTransfer>, LoweringError> {
     transfers.iter().map(|transfer| {
         let root = argument_type(transfer.argument_index)?;
-        Ok(identities, PreparedClaimTransfer {
+        Ok(PreparedClaimTransfer {
             identity: transfer.claim_identity,
             argument_index: transfer.argument_index,
-            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                &transfer.path, root, types,
-            )?,
+            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &transfer.path, root, types)?,
         })
     }).collect()
 }

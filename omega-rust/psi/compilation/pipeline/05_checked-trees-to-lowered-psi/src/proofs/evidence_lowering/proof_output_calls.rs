@@ -43,6 +43,7 @@ pub(crate) fn lower_proof_output_calls(
                 invocation,
             )?;
             let static_requirement_dispatch = lower_static_requirement_dispatch(
+                identities,
                 checked,
                 terminal_machine,
                 semantic_module,
@@ -61,6 +62,7 @@ pub(crate) fn lower_proof_output_calls(
                             )
                         })?,
                         callee_proposition: terminal_proposition_application_id(
+                            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -78,6 +80,7 @@ pub(crate) fn lower_proof_output_calls(
                             "terminal proof-output source input has no canonical identity",
                         )?,
                         instantiated_proposition: terminal_proposition_application_id(
+                            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -90,25 +93,24 @@ pub(crate) fn lower_proof_output_calls(
             let outputs = invocation
                 .outputs
                 .iter(
-            identities,)
+            )
                 .map(|output| {
                     let callee_output =
                         checked.facts.proof.evidence_terms.get(
-            identities, output.callee_output);
+            output.callee_output);
                     let forwarded_input_position =
                         proof_output_forwarded_input_position(
-            identities, checked, invocation, output)?;
-                    Ok(
-            identities, ProofOutput {
-                        output_position: u32::try_from(
-            identities, output.output_position).map_err(
-            identities,|_| {
+            checked, invocation, output)?;
+                    Ok(ProofOutput {
+                        output_position: u32::try_from(output.output_position).map_err(
+            |_| {
                             LoweringError::Unsupported(
-            identities, "terminal proof-output position exceeds u32")
+            "terminal proof-output position exceeds u32")
                         })?,
                         output_field: callee_output.name.clone(
-            identities,),
+            ),
                         callee_proposition: terminal_proposition_application_id(
+                            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -117,9 +119,9 @@ pub(crate) fn lower_proof_output_calls(
                         )?,
                         callee_output: (
             identities, forwarded_input_position.is_none(
-            identities,)
+            )
                             && invocation.static_requirement_dispatch.is_none(
-            identities,))
+            ))
                         .then(
             identities,|| {
                             terminal_evidence_term_id(
@@ -131,6 +133,7 @@ pub(crate) fn lower_proof_output_calls(
                         .transpose(
             identities,)?,
                         instantiated_proposition: terminal_proposition_application_id(
+                            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -448,46 +451,43 @@ pub(crate) fn terminal_proposition_application_id(
         .proposition_vocabulary
         .declarations
         .iter(
-            identities,)
-        .find_map(
-            identities,|declaration| {
-            (
-            identities,declaration.symbol == application.declaration).then_some(declaration.name.as_str())
+            )
+        .find_map(|declaration| {
+            (declaration.symbol == application.declaration).then_some(declaration.name.as_str())
         })
-        .ok_or(
-            identities,LoweringError::Unsupported(
+        .ok_or(LoweringError::Unsupported(
             "proof-output proposition has no checked declaration",
         ))?;
     let declaration = declarations
         .iter(
-            identities, )
-        .find_map(
-            identities, |declaration| (declaration.name == declaration_name).then_some(declaration.id))
+            )
+        .find_map(|declaration| (declaration.name == declaration_name).then_some(declaration.id))
         .ok_or(LoweringError::Unsupported(
             "proof-output proposition has no terminal declaration",
         ))?;
     let binder_arguments = application
         .binder_arguments
         .iter(
-            identities,  )
+            )
         .map(|argument| {
             let evidence_projection = argument
                 .evidence_projection
                 .as_ref(
-            identities,)
-                .map(identities, |projection| {
-                    evidence_projection_identity(
-                        checked,
-                        projection,
-                        terminal_evidence_term_id(
+            )
+                .map(|projection| {
+                    evidence_projection_identity(identities, checked, terminal_evidence_term_id(
                             term_ids,
                             projection.term,
                             "proof-output proposition projects an unrelated evidence term",
-                        )?,
-                    )
+                        )?, terminal_evidence_term_id(
+            identities,
+                            term_ids,
+                            projection.term,
+                            "proof-output proposition projects an unrelated evidence term",
+                        )?)
                 })
                 .transpose(
-            identities,)?;
+            )?;
             Ok(PropositionBinderArgumentIdentity {
                 kind: super::binder_argument_kind(argument.kind),
                 identity: identities.intern(&argument.diagnostic_label.clone()),
@@ -495,11 +495,11 @@ pub(crate) fn terminal_proposition_application_id(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>(
-            identities,)?;
+            )?;
     let evidence_interface = application
         .evidence_interface
-        .as_ref(identities, )
-        .map(|interface| lower_evidence_interface(checked, interface))
+        .as_ref()
+        .map(|interface| lower_evidence_interface(identities, checked, interface))
         .transpose()?;
     applications
         .iter()

@@ -23,6 +23,7 @@ pub(super) struct StagedArguments<'a> {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn evaluate(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
@@ -46,10 +47,7 @@ pub(super) fn evaluate(
             return Ok((Some(staged.scalars.to_vec()), Vec::new()));
         }
         let mut calls = catalogs.scalar_calls.emission_context();
-        let values = evaluation.arguments(
-            checked, machine, state, operation, values, next_value, next_block, next_edge,
-            operations, &mut calls,
-        )?;
+        let values = evaluation.arguments(identities, checked, state, machine, operation, values, next_block, next_edge, next_value, operations, &mut calls)?;
         catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
         return Ok((values, Vec::new()));
     }
@@ -122,17 +120,18 @@ pub(super) fn evaluate(
                         ))?
                 } else {
                     stage_range(
+                        identities,
                         checked,
                         state_plan,
                         operation,
-                        structural_ordinal,
                         source_value_count,
+                        structural_ordinal,
                         catalogs,
                         evaluation,
                         values,
-                        next_value,
                         next_block,
                         next_edge,
+                        next_value,
                         operations,
                     )?
                 };
@@ -144,16 +143,17 @@ pub(super) fn evaluate(
         {
             let mut calls = catalogs.scalar_calls.emission_context();
             let value = evaluation.argument_at(
+                identities,
                 checked,
-                machine,
                 state,
+                machine,
                 operation,
-                scalar_slots.len(),
                 source_value_count,
+                scalar_slots.len(),
                 values,
-                next_value,
                 next_block,
                 next_edge,
+                next_value,
                 operations,
                 &mut calls,
             )?;
@@ -189,6 +189,7 @@ pub(super) fn evaluate(
 /// read, before any of this call's own operands evaluated.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn stage_range(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     operation: &CheckedUnitEffectOperationPlan,
@@ -222,6 +223,7 @@ pub(super) fn stage_range(
     };
     let mut calls = catalogs.scalar_calls.emission_context();
     let result = byte_subslices::emit(
+        identities,
         checked,
         &context,
         operation,
@@ -230,10 +232,10 @@ pub(super) fn stage_range(
         source_value_count,
         values,
         &mut catalogs.temporary_places,
-        &mut catalogs.next_place,
         next_value,
         next_block,
         next_edge,
+        &mut catalogs.next_place,
         operations,
         &mut calls,
     );

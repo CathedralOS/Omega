@@ -147,11 +147,12 @@ pub(crate) fn lower_structural_scalar_store_place(
     let scalar_type = terminal_scalar_type(primitive_type)?;
     let (
             identities,steps, field) = lower_structural_field_place_steps(
+        identities,
         carrier_path,
         field_identity,
         parameter,
         structural_types,
-    )?;
+            )?;
     LoweredStructuralScalarStore::at_field(scalar_type, steps, field)
 }
 
@@ -178,6 +179,7 @@ pub(crate) fn lower_structural_scalar_store_local(
 /// borrowed parameter independently of payload type, for routes whose
 /// carrier names no runtime element.
 pub(crate) fn lower_structural_field_place<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &checked_trees::CheckedMemberIdentity,
     parameter: &StructuralParameterDeclaration,
@@ -191,11 +193,12 @@ pub(crate) fn lower_structural_field_place<'a>(
 > {
     let (
             identities,steps, field) = lower_structural_field_place_steps(
+        identities,
         carrier_path,
         field_identity,
         parameter,
         structural_types,
-    )?;
+            )?;
     Ok((
         crate::emission::runtime_elements::static_segments(steps)?,
         field,
@@ -218,8 +221,9 @@ pub(crate) fn lower_structural_field_place_steps<'a>(
     LoweringError,
 > {
     validate_root_access(
-            identities,parameter)?;
+            parameter)?;
     lower_structural_field_steps(
+        identities,
         parameter.structural_type,
         carrier_path,
         field_identity,

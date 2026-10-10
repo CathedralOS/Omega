@@ -118,8 +118,8 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                     child_place: place(
             identities, checked, &member.captured_place)?,
                     child_access: access(
-            identities,member.access.clone(
-            identities,)),
+            member.access.clone(
+            )),
                     child_activation: boundary(
             identities,  checked, member_activation.source)?,
                     child_weakening: boundary(
@@ -188,21 +188,19 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
         let callee_id = *callee;
         let callee = terminal_machines
             .iter(
-            identities, )
-            .find(
-            identities, |machine| machine.id == callee_id)
-            .ok_or(
-            identities, LoweringError::Unsupported(
+            )
+            .find(|machine| machine.id == callee_id)
+            .ok_or(LoweringError::Unsupported(
                 "restored reborrow call use names an absent Terminal callee",
             ))?;
         let [_] = callee.structural_parameters.as_slice(
-            identities,) else {
+            ) else {
             return unsupported(
                 "restored reborrow call use callee does not have one structural parameter",
             );
         };
         let child_owner_identity = identity(
-            identities, checked, child.owner_symbol)?;
+            checked, child.owner_symbol)?;
         let child_owner_path = owner_path(
             identities,  checked, &child.owner_path)?;
         let child_place = place(identities, checked, &child.captured_place)?;
@@ -212,7 +210,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
         let child_weakening = boundary(
             identities, checked, child_weakening.source)?;
         rows.push(
-            identities,TerminalReborrowRestoredCallUse {
+            TerminalReborrowRestoredCallUse {
             machine: terminal_machine,
             operation: terminal_operation,
             restoration_class: if shared_freeze_cohort {
@@ -221,31 +219,25 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 TerminalReborrowRestorationClass::ExclusiveReactivation
             },
             call_boundary: terminal_psi::TerminalBorrowBoundarySource::Call {
-                statement_index: u64::try_from(
-            identities, call.statement_index).map_err(
-            identities, |_| {
+                statement_index: u64::try_from(call.statement_index).map_err(|_| {
                     LoweringError::Unsupported(
                         "restored reborrow call statement index exceeds Terminal range",
                     )
                 })?,
-                call_ordinal: u64::try_from(
-            identities, call.call_ordinal).map_err(
-            identities,|_| {
+                call_ordinal: u64::try_from(call.call_ordinal).map_err(|_| {
                     LoweringError::Unsupported(
                         "restored reborrow call ordinal exceeds Terminal range",
                     )
                 })?,
                 target_identity: identities.intern(
-            identities, &identity(
-            identities, checked, call.target_symbol))?,
+            identities)?,
             },
             call_target_machine: callee_id,
             source_machine_identity: identities.intern(
-            identities, &identity(
-            identities, checked, event.machine_symbol))?,
+            &identity(checked, member.owner_symbol))?,
             source_state_identity: identities.intern(&identity(checked, event.state_symbol))?,
             direct_root_owner_identity: identities.intern(
-            identities,&identity(checked, parent.owner_symbol))?,
+            identities)?,
             direct_root_owner_path: owner_path(identities, checked, &parent.owner_path)?,
             direct_root_place: place(
             identities, checked, &parent.captured_place)?,

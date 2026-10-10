@@ -25,6 +25,7 @@ impl OperationFrame<'_, '_> {
         }
         if let Source::ByteSequenceLiteral { bytes } = &source.source {
             return byte_store::emit_literal_view(
+                identities,
                 bytes,
                 Vec::new(),
                 self.structural_types.declarations(),
@@ -78,6 +79,7 @@ impl OperationFrame<'_, '_> {
             && let Some(identities, range) = super::super::view_ranges::range(source)
         {
             let storage = super::super::view_ranges::storage(
+                identities,
                 self.checked,
                 self.state,
                 statement_index,
@@ -87,8 +89,9 @@ impl OperationFrame<'_, '_> {
             let whole = storage
                 .requires_establishment()
                 .then(|| allocate_dense(self.next_place).map(place_id))
-                .transpose(identities, )?;
+                .transpose()?;
             let (range_source, establishment) = storage.bind(
+                identities,
                 self.checked,
                 self.state,
                 &bindings,
@@ -107,6 +110,7 @@ impl OperationFrame<'_, '_> {
             let destination = place_id(allocate_dense(self.next_place)?);
             let result_type = range_source.structural_type;
             let declaration = super::super::view_ranges::emit(
+                identities,
                 self.checked,
                 ViewRangeSite {
                     state: self.state,
@@ -119,9 +123,9 @@ impl OperationFrame<'_, '_> {
                 self.evaluation,
                 self.values.len(),
                 self.values,
-                self.next_value,
                 self.next_block,
                 self.next_edge,
+                self.next_value,
                 self.operations,
                 self.calls,
             )?;
@@ -140,9 +144,10 @@ impl OperationFrame<'_, '_> {
         }
         let fields = crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
             &self.evaluation.structural_parameters,
-            self.structural_types.declarations(identities, ),
+            self.structural_types.declarations(),
         );
         let mut selectors = parameters::mint_runtime_index_selectors(
+            identities,
             std::slice::from_ref(source),
             &fields,
             self.values.as_slice(),
@@ -153,6 +158,7 @@ impl OperationFrame<'_, '_> {
         let mut path = home.path;
         path.extend(
             crate::expression_preparation::bindings::structural_paths::lower_argument_path(
+                identities,
                 &source.path,
                 Some(self.values.as_slice()),
                 &mut selectors,

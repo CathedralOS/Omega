@@ -190,7 +190,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
         .content
         .retained_borrow_custodies
         .iter(
-            identities,  )
+            )
         .map(  |fact| lower_custody(
             identities, checked, fact))
         .collect::<Result<Vec<_>, _>>()?;

@@ -17,6 +17,7 @@ use crate::proofs::{
 };
 
 pub(crate) fn lower_structural_crash_route_buckets(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     buckets: &[checked_trees::CrashRouteBucket],
     scalar_parameters: &[ValueDeclaration],
     parameters: &[StructuralParameterDeclaration],
@@ -43,6 +44,7 @@ pub(crate) fn lower_structural_crash_route_buckets(
                         let proposition = if let Some(expression) = predicate.scalar_expression() {
                             let mut remaining = boolean_input_budget(expression)?;
                             terms.lower_proposition(
+                                identities,
                                 expression,
                                 &mut remaining,
                                 0,
@@ -58,6 +60,7 @@ pub(crate) fn lower_structural_crash_route_buckets(
                             Proposition::Equal(
                                 ScalarTerm::boolean(true),
                                 lower_structural_member_term(
+                                    identities,
                                     parameter_position,
                                     &path
                                         .into_iter()
@@ -116,6 +119,7 @@ impl RouteTerms<'_> {
                 parameter_position,
                 path,
             } => lower_structural_member_term(
+                identities,
                 *parameter_position,
                 path,
                 ScalarType::Boolean,
@@ -123,19 +127,19 @@ impl RouteTerms<'_> {
                 self.structural_types,
             ),
             CheckedBooleanExpression::Not(operand) => {
-                ScalarTerm::boolean_not(self.lower_term(operand)?)
+                ScalarTerm::boolean_not(self.lower_term(identities, operand)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
             CheckedBooleanExpression::Equal { left, right } => {
-                ScalarTerm::boolean_equal(self.lower_term(left)?, self.lower_term(right)?)
+                ScalarTerm::boolean_equal(self.lower_term(identities, left)?, self.lower_term(identities, right)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
             CheckedBooleanExpression::IntegerMathComparison { .. } => {
                 unsupported("mathematical comparison is a proof proposition, not a scalar term")
             }
             CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-                let left = self.lower_integer_term(left)?;
-                let right = self.lower_integer_term(right)?;
+                let left = self.lower_integer_term(identities, left)?;
+                let right = self.lower_integer_term(identities, right)?;
                 let Some(integer_type) = left.scalar_type().as_integer() else {
                     return unsupported("structural crash comparison operand is not an integer");
                 };
@@ -186,7 +190,7 @@ impl RouteTerms<'_> {
             self.runtime_requirements,
             &|expression| match expression {
                 expression if !uses_structural_storage(
-            identities,expression) => {
+            expression) => {
                     checked_scalar_term(identities, expression, self.scalar_parameters, &[])
                 }
                 CheckedScalarExpression::StructuralParameterField {
@@ -201,6 +205,7 @@ impl RouteTerms<'_> {
                         );
                     };
                     lower_structural_member_term(
+                        identities,
                         *parameter_position,
                         path,
                         ScalarType::Integer(integer_type),
@@ -217,14 +222,14 @@ impl RouteTerms<'_> {
 
     fn lower_polarity(
         &self,
-        expression: &CheckedBooleanExpression,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, expression: &CheckedBooleanExpression,
         positive: bool,
         remaining: &mut usize,
         depth: usize,
     ) -> Result<Proposition, LoweringError> {
         charge_boolean_expansion(remaining, depth)?;
         let lower = |operand: &CheckedBooleanExpression, polarity, budget: &mut usize| {
-            self.lower_polarity(operand, polarity, budget, depth + 1)
+            self.lower_polarity(identities, polarity,  polarity, budget, depth + 1)
         };
         match expression {
             CheckedBooleanExpression::Not(operand) => lower(operand, !positive, remaining),
@@ -241,7 +246,7 @@ impl RouteTerms<'_> {
                             left, right, positive, remaining, lower,
                         )
                     }
-                    _ => self.lower_atom_polarity(expression, positive, remaining, depth + 1),
+                    _ => self.lower_atom_polarity(identities, expression, positive, remaining, depth + 1),
                 }
             }
             CheckedBooleanExpression::And { left, right }
@@ -252,13 +257,13 @@ impl RouteTerms<'_> {
                     matches!(expression, CheckedBooleanExpression::And { .. }) == positive,
                 )
             }
-            _ => self.lower_atom_polarity(expression, positive, remaining, depth + 1),
+            _ => self.lower_atom_polarity(identities, expression, positive, remaining, depth + 1),
         }
     }
 
     fn lower_atom_polarity(
         &self,
-        expression: &CheckedBooleanExpression,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, expression: &CheckedBooleanExpression,
         positive: bool,
         remaining: &mut usize,
         depth: usize,
@@ -268,6 +273,7 @@ impl RouteTerms<'_> {
             CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         ) {
             return super::crash_predicates::checked_boolean_atom_polarity(
+                identities,
                 expression,
                 self.scalar_parameters,
                 positive,
@@ -277,7 +283,7 @@ impl RouteTerms<'_> {
         }
         charge_boolean_expansion(remaining, depth)?;
         if positive || contains_structural_atomic_proposition(expression) {
-            let proposition = self.lower_proposition(expression, remaining, depth + 1)?;
+            let proposition = self.lower_proposition(identities, expression, remaining, depth + 1)?;
             return Ok(if positive {
                 proposition
             } else {
@@ -287,7 +293,7 @@ impl RouteTerms<'_> {
                 }
             });
         }
-        let term = self.lower_term(expression)?;
+        let term = self.lower_term(identities, expression)?;
         crate::proofs::contract_predicates::canonical_equality(
             ScalarTerm::boolean(true),
             ScalarTerm::boolean_not(term).map_err(LoweringError::InvalidCrashPredicate)?,
@@ -312,6 +318,7 @@ impl RouteTerms<'_> {
                 if matches!(operand.as_ref(), CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }))
         {
             return super::crash_predicates::checked_boolean_proposition_with_budget(
+                identities,
                 expression,
                 self.scalar_parameters,
                 remaining,
@@ -329,13 +336,13 @@ impl RouteTerms<'_> {
                 if contains_boolean_connective(operand)
                     && !contains_structural_atomic_proposition(operand))
         {
-            return self.lower_polarity(expression, true, remaining, depth + 1);
+            return self.lower_polarity(identities, expression, true, remaining, depth + 1);
         }
         if let CheckedBooleanExpression::Not(operand) = expression
             && contains_structural_atomic_proposition(operand)
         {
             return Ok(Proposition::Implication {
-                premise: Box::new(self.lower_proposition(operand, remaining, depth + 1)?),
+                premise: Box::new(self.lower_proposition(identities, operand, remaining, depth + 1)?),
                 conclusion: Box::new(Proposition::Falsehood),
             });
         }
@@ -352,9 +359,9 @@ impl RouteTerms<'_> {
                 _ => return unsupported("structural IEEE equality has a non-float format"),
             };
             let mut left =
-                lower_ieee_float_field(left, format, self.parameters, self.structural_types)?;
+                lower_ieee_float_field(identities, left, format, self.parameters, self.structural_types)?;
             let mut right =
-                lower_ieee_float_field(right, format, self.parameters, self.structural_types)?;
+                lower_ieee_float_field(identities, right, format, self.parameters, self.structural_types)?;
             if kind.is_symmetric() && left > right {
                 std::mem::swap(&mut left, &mut right);
             }
@@ -366,16 +373,17 @@ impl RouteTerms<'_> {
             });
         }
         if let CheckedBooleanExpression::ByteSequenceEqual { left, right } = expression {
-            let mut left = lower_byte_sequence_field(left, self.parameters, self.structural_types)?;
+            let mut left = lower_byte_sequence_field(identities, left, self.parameters, self.structural_types)?;
             let mut right =
-                lower_byte_sequence_field(right, self.parameters, self.structural_types)?;
+                lower_byte_sequence_field(identities, right, self.parameters, self.structural_types)?;
             if left > right {
                 std::mem::swap(&mut left, &mut right);
             }
-            return Ok(identities, Proposition::ByteSequenceEqual { left, right });
+            return Ok(Proposition::ByteSequenceEqual { left, right });
         }
         if let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression {
             return super::structural_members::lower_structural_case_membership(
+                identities,
                 subject,
                 case,
                 self.parameters,
@@ -385,9 +393,9 @@ impl RouteTerms<'_> {
         }
         if let CheckedBooleanExpression::PayloadlessSumEqual { left, right, cases } = expression {
             let (left, left_type) =
-                lower_structural_sum_subject(left, self.parameters, self.structural_types)?;
+                lower_structural_sum_subject(identities, left, self.parameters, self.structural_types)?;
             let (right, right_type) =
-                lower_structural_sum_subject(right, self.parameters, self.structural_types)?;
+                lower_structural_sum_subject(identities, right, self.parameters, self.structural_types)?;
             if left_type != right_type {
                 return unsupported("payload-less sum equality operands have different types");
             }
@@ -462,7 +470,7 @@ impl RouteTerms<'_> {
             flatten_checked_boolean_connective(right, conjunction, &mut leaves);
             let propositions = leaves
                 .into_iter()
-                .map(|leaf| self.lower_proposition(leaf, remaining, depth + 1))
+                .map(|leaf| self.lower_proposition(identities, leaf, remaining, depth + 1))
                 .collect::<Result<Vec<_>, _>>()?;
             let mut flattened = Vec::new();
             for proposition in propositions {
@@ -500,7 +508,7 @@ impl RouteTerms<'_> {
             });
         }
         let mut left = ScalarTerm::boolean(true);
-        let mut right = self.lower_term(expression)?;
+        let mut right = self.lower_term(identities, expression)?;
         let order_key = |term: &ScalarTerm| {
             terminal_codec::canonical_scalar_term_order_key(term).map_err(|_| {
                 LoweringError::Unsupported("mixed crash Boolean term is not canonically encodable")

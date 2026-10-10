@@ -79,13 +79,13 @@ pub(crate) fn prepare_types(
     value: &CheckedByteSequenceValuePlan,
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<(), LoweringError> {
-    literal_view_type(types)?;
+    literal_view_type(identities, types)?;
     if value
         .nodes
         .iter()
         .any(|(_, node)| matches!(node, ByteValue::Descriptor { .. }))
     {
-        descriptor_value_type(types)?;
+        descriptor_value_type(identities, types)?;
     }
     for (identity, node) in value.nodes.iter() {
         let capacity = match node {
@@ -275,6 +275,7 @@ pub(crate) fn emit_content_store(
             let (path, field) = match &root {
                 StoreRoot::Parameter(parameter) => {
                     crate::emission::structural_scalar_store::lower_structural_field_place(
+                        identities,
                         carrier_path,
                         field_identity,
                         parameter,
@@ -299,6 +300,7 @@ pub(crate) fn emit_content_store(
                         );
                     }
                     crate::emission::structural_scalar_store::lower_structural_field_path(
+                        identities,
                         *structural_type,
                         carrier_path,
                         field_identity,
@@ -350,6 +352,7 @@ pub(crate) fn emit_content_store(
                         );
                     }
                     crate::emission::structural_scalar_store::lower_structural_field_path(
+                        identities,
                         *structural_type,
                         carrier_path,
                         field_identity,
@@ -383,7 +386,7 @@ pub(crate) fn emit_content_store(
         },
     };
     let (
-            identities,operand, capacity) = emitter.emit(value.root, 0)?;
+            identities,operand, capacity) = emitter.emit(identities, value.root, 0)?;
     let (source, length) = match operand {
         ByteSequenceOperand::Whole { source, length }
             if !matches!(
@@ -402,7 +405,7 @@ pub(crate) fn emit_content_store(
             // Parameter sources retain the store's exact formal-access
             // contract; generated literals and concatenations are already
             // independent sources.
-            let (empty, _) = emitter.emission.literal(&[])?;
+            let (empty, _) = emitter.emission.literal(identities, &[])?;
             emitter.owned(
             identities,source, empty, capacity)?
         }
@@ -495,12 +498,7 @@ pub(crate) fn prepare_descriptor_store(
             identities,parameter) => (
             parameter.place,
             parameter.structural_type,
-            crate::emission::structural_scalar_store::lower_structural_field_place_steps(
-                carrier_path,
-                field_identity,
-                parameter,
-                structural_types,
-            )?,
+            crate::emission::structural_scalar_store::lower_structural_field_place_steps(identities, carrier_path, parameter, parameter, structural_types)?,
         ),
         StoreRoot::Reference {
             place,
@@ -514,6 +512,7 @@ pub(crate) fn prepare_descriptor_store(
             *place,
             *structural_type,
             crate::emission::structural_scalar_store::lower_structural_field_steps(
+                identities,
                 *structural_type,
                 carrier_path,
                 field_identity,
@@ -571,6 +570,7 @@ pub(crate) fn emit_descriptor_store(
 /// descriptor operands. Literal syntax changes backing residence, not the
 /// consuming store's lifetime or predicate rules.
 pub(crate) fn emit_literal_view(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     bytes: &[u8],
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     structural_types: &[StructuralTypeDeclaration],
@@ -578,7 +578,7 @@ pub(crate) fn emit_literal_view(
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<semantic_vocabulary::PlaceId, LoweringError> {
-    let structural_type = existing_literal_view_type(structural_types)?;
+    let structural_type = existing_literal_view_type(identities, structural_types)?;
     let source = place_id(allocate_dense(next_place)?);
     let declaration_ordinal = super::next_byte_sequence_literal_ordinal(places)?;
     places.push(StructuralPlaceDeclaration {
@@ -639,7 +639,7 @@ pub(crate) fn emit_owned_value(
     })) =
         terminal_psi::find_structural_type(structural_types, structural_type).map(|row| &row.shape)
     else {
-        return unsupported(identities, identities, "owned byte local has no bounded carrier");
+        return unsupported("owned byte local has no bounded carrier");
     };
     let mut emitter = ValueEmitter {
         plan: value,
@@ -654,13 +654,13 @@ pub(crate) fn emit_owned_value(
             operations,
         },
     };
-    let (operand, maximum_length) = emitter.emit(value.root, 0)?;
+    let (operand, maximum_length) = emitter.emit(identities, value.root, 0)?;
     if maximum_length > *capacity {
         return unsupported("owned byte initializer exceeds its declared capacity");
     }
     // Snapshot into the declaration's carrier even when the operand is an
     // existing owner. The local is an independent value, never an alias.
-    let (empty, _) = emitter.emission.literal(&[])?;
+    let (empty, _) = emitter.emission.literal(identities, &[])?;
     emitter
         .emission
         .concatenate(operand, empty, structural_type, qualifications)
@@ -701,8 +701,8 @@ pub(crate) fn emit_owned_literal(
         next_obligation,
         operations,
     };
-    let (literal, _) = emission.literal(bytes)?;
-    let (empty, _) = emission.literal(&[])?;
+    let (literal, _) = emission.literal(identities, bytes)?;
+    let (empty, _) = emission.literal(identities, &[])?;
     emission.concatenate(literal, empty, structural_type, qualifications)
 }
 
@@ -802,8 +802,9 @@ impl ByteEmission<'_> {
         Ok(length)
     }
 
-    fn literal(&mut self, bytes: &[u8]) -> Result<(ByteSequenceOperand, u64), LoweringError> {
+    fn literal(&mut self, identities: &mut terminal_psi::TerminalIdentityTableBuilder, bytes: &[u8]) -> Result<(ByteSequenceOperand, u64), LoweringError> {
         let source = emit_literal_view(
+            identities,
             bytes,
             Vec::new(),
             self.structural_types,
@@ -1018,7 +1019,7 @@ impl ValueEmitter<'_> {
             return unsupported("byte value plan has an invalid child");
         }
         match self.plan.nodes.get(node) {
-            ByteValue::Literal(bytes) => self.emission.literal(bytes),
+            ByteValue::Literal(bytes) => self.emission.literal(identities, bytes),
             ByteValue::Descriptor { .. } => {
                 unsupported("descriptor value is not an owned byte-content snapshot")
             }
@@ -1106,7 +1107,7 @@ impl ValueEmitter<'_> {
                         terminal_psi::StructuralAccess::SharedBorrow,
                     ),
                 })?;
-                Ok(identities, identities, (ByteSequenceOperand::Whole { source, length }, *capacity))
+                Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
             }
             ByteValue::Field {
                 root,
@@ -1161,8 +1162,8 @@ impl ValueEmitter<'_> {
                 right,
                 capacity,
             } => {
-                let (left, left_capacity) = self.emit(*left, depth + 1)?;
-                let (right, right_capacity) = self.emit(*right, depth + 1)?;
+                let (left, left_capacity) = self.emit(identities, *left, depth + 1)?;
+                let (right, right_capacity) = self.emit(identities, *right, depth + 1)?;
                 if left_capacity.checked_add(right_capacity) != Some(*capacity) {
                     return unsupported(
                         "byte concatenation capacity differs from operand carriers",

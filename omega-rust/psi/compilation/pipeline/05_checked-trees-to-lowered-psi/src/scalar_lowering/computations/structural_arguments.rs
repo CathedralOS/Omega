@@ -63,9 +63,7 @@ pub(super) fn lower(
                         selector_positions: Vec::new(),
                         place: slot.place,
                         root_type: Some(slot.structural_type),
-                        path: crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
-                            &argument.path, slot.structural_type, structural_types,
-                        )?,
+                        path: crate::expression_preparation::bindings::structural_paths::prepare_argument_path(identities, &argument.path, slot.structural_type, structural_types)?,
                         access: match argument.access {
                             checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                             checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
@@ -76,17 +74,15 @@ pub(super) fn lower(
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
                 let source = bindings.owned_argument_home(argument)?;
                 let selected_root = bindings.structural_argument_type(
-            identities,&source).ok_or(
+            &source).ok_or(
                     LoweringError::Unsupported(
-            identities, "computed owned argument lost its published carrier"),
+            "computed owned argument lost its published carrier"),
                 )?;
                 let mut prepared = PreparedStructuralArgument::from_static(
-            identities,  source.clone(
-            identities, ), bindings.structural_place_type(
-            identities,source.place))?;
-                prepared.path.extend(crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
-                    &argument.path, selected_root, structural_types,
-                )?);
+            source.clone(
+            ), bindings.structural_place_type(
+            source.place))?;
+                prepared.path.extend(crate::expression_preparation::bindings::structural_paths::prepare_argument_path(identities, &argument.path, selected_root, structural_types)?);
                 return Ok(prepared);
             }
             // The callee's plan row names the primitive a borrowed formal
@@ -127,28 +123,26 @@ pub(super) fn lower(
                         ))?;
                     if !argument.path.is_empty() {
                         return unsupported(
-            identities,"computed literal cannot project its view");
+            "computed literal cannot project its view");
                     }
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
                         place: slot.place,
                         root_type: Some(slot.structural_type),
                         path: Vec::new(
-            identities,),
+            ),
                         access: StructuralAccess::SharedBorrow,
                     });
                 }
                 let source = bindings.borrowed_structural_home(
-            identities,argument, caller_machine, caller_parameters)?;
+            argument, caller_machine, caller_parameters)?;
                 let root_type = bindings.structural_argument_type(&source).ok_or(
                     LoweringError::Unsupported("structural argument lost its exact published carrier"),
                 )?;
                 let mut path = source.path.into_iter().map(
                     crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
-                ).collect::<Vec<_>>(identities, );
-                path.extend(crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
-                    checked, argument, root_type, structural_types,
-                )?);
+                ).collect::<Vec<_>>();
+                path.extend(crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(identities, checked, argument, root_type, structural_types)?);
                 return Ok(PreparedStructuralArgument {
                     selector_positions: Vec::new(),
                     place: source.place,
@@ -162,7 +156,7 @@ pub(super) fn lower(
                 });
             };
             bindings
-                .prepared_primitive_borrow(checked, argument, terminal_scalar_type(primitive)?, structural_types)
+                .prepared_primitive_borrow(identities, checked, terminal_scalar_type(primitive)?,  terminal_scalar_type(primitive)?, structural_types)
         })
         .collect()
 }

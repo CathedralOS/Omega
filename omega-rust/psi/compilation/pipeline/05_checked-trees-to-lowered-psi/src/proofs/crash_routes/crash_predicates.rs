@@ -11,13 +11,14 @@ use crate::proofs::{
 use checked_trees::CheckedIeeeFloatComparisonKind;
 
 pub(crate) fn lower_checked_crash_predicates(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     predicates: &[CheckedBooleanExpression],
     values: &[ValueDeclaration],
 ) -> Result<Vec<terminal_psi::CrashPredicateTerm>, LoweringError> {
     let mut predicates = predicates
         .iter()
         .map(|predicate| {
-            checked_boolean_proposition(predicate, values)
+            checked_boolean_proposition(identities, predicate, values)
                 .map(terminal_psi::CrashPredicateTerm::new)
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -45,11 +46,12 @@ pub(crate) fn flatten_checked_boolean_connective<'expression>(
 }
 
 pub(crate) fn checked_boolean_proposition(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
 ) -> Result<Proposition, LoweringError> {
     let mut remaining = boolean_input_budget(expression)?;
-    checked_boolean_proposition_with_budget(expression, values, &mut remaining, 0)
+    checked_boolean_proposition_with_budget(identities, expression, values, &mut remaining, 0)
 }
 
 pub(crate) fn boolean_input_budget(
@@ -95,26 +97,27 @@ pub(super) fn checked_boolean_proposition_with_budget(
     charge_boolean_expansion(remaining, depth)?;
     match expression {
         CheckedBooleanExpression::Not(operand) if contains_boolean_connective(operand) => {
-            checked_boolean_connective_polarity(operand, values, false, remaining, depth + 1)
+            checked_boolean_connective_polarity(identities, operand, values, false, remaining, depth + 1)
         }
         // IEEE `!=` is the true negation of `==` (NaN included), so negation
         // distributes into the atomic kind rather than an outer proposition.
         CheckedBooleanExpression::Not(operand)
             if let CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } =
-                operand.as_ref(identities, ) =>
+                operand.as_ref() =>
         {
             scalar_ieee_float_comparison_proposition(
-                negated_float_comparison_kind(identities, identities, *kind),
-                left,
+                identities,
+                negated_float_comparison_kind(*kind),
                 right,
+                left,
                 values,
             )
         }
         CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
-            scalar_ieee_float_comparison_proposition(*kind, left, right, values)
+            scalar_ieee_float_comparison_proposition(identities, *kind, right, left, values)
         }
         CheckedBooleanExpression::Equal { .. } if contains_boolean_connective(expression) => {
-            checked_boolean_connective_polarity(expression, values, true, remaining, depth + 1)
+            checked_boolean_connective_polarity(identities, expression, values, true, remaining, depth + 1)
         }
         CheckedBooleanExpression::Constant(value) => Ok(if *value {
             Proposition::Truth
@@ -130,7 +133,7 @@ pub(super) fn checked_boolean_proposition_with_budget(
             let mut propositions = leaves
                 .into_iter()
                 .map(|leaf| {
-                    checked_boolean_proposition_with_budget(leaf, values, remaining, depth + 1)
+                    checked_boolean_proposition_with_budget(identities, leaf, values, remaining, depth + 1)
                 })
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
@@ -156,11 +159,11 @@ pub(super) fn checked_boolean_proposition_with_budget(
             Ok(if conjunction {
                 Proposition::Conjunction(propositions)
             } else {
-                Proposition::Disjunction(identities, identities, propositions)
+                Proposition::Disjunction(propositions)
             })
         }
         expression => {
-            let mut left = checked_boolean_scalar_term(expression, values, &[])?;
+            let mut left = checked_boolean_scalar_term(identities, expression, &[], values)?;
             let mut right = ScalarTerm::boolean(true);
             if left > right {
                 std::mem::swap(&mut left, &mut right);
@@ -185,6 +188,7 @@ pub(crate) fn contains_boolean_connective(expression: &CheckedBooleanExpression)
 /// one eagerly evaluated scalar Boolean term. Keep the existing atomic leaf
 /// lowering (including numeric meanings) and only distribute Boolean polarity.
 fn checked_boolean_connective_polarity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
     positive: bool,
@@ -199,12 +203,13 @@ fn checked_boolean_connective_polarity(
             Proposition::Falsehood
         }),
         CheckedBooleanExpression::Not(operand) => {
-            checked_boolean_connective_polarity(operand, values, !positive, remaining, depth + 1)
+            checked_boolean_connective_polarity(identities, operand, values, !positive, remaining, depth + 1)
         }
         CheckedBooleanExpression::Equal { left, right } => match (left.as_ref(), right.as_ref()) {
             (CheckedBooleanExpression::Constant(value), operand)
             | (operand, CheckedBooleanExpression::Constant(value)) => {
                 checked_boolean_connective_polarity(
+                    identities,
                     operand,
                     values,
                     *value == positive,
@@ -220,6 +225,7 @@ fn checked_boolean_connective_polarity(
                     remaining,
                     |operand, polarity, budget| {
                         checked_boolean_connective_polarity(
+                            identities,
                             operand,
                             values,
                             polarity,
@@ -229,7 +235,7 @@ fn checked_boolean_connective_polarity(
                     },
                 )
             }
-            _ => checked_boolean_atom_polarity(expression, values, positive, remaining, depth + 1),
+            _ => checked_boolean_atom_polarity(identities, expression, values, positive, remaining, depth + 1),
         },
         CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } => {
@@ -238,6 +244,7 @@ fn checked_boolean_connective_polarity(
             let mut flattened = Vec::new();
             for operand in [left.as_ref(), right.as_ref()] {
                 let proposition = checked_boolean_connective_polarity(
+                    identities,
                     operand,
                     values,
                     positive,
@@ -279,7 +286,7 @@ fn checked_boolean_connective_polarity(
                 Proposition::Disjunction(children)
             })
         }
-        _ => checked_boolean_atom_polarity(expression, values, positive, remaining, depth + 1),
+        _ => checked_boolean_atom_polarity(identities, expression, values, positive, remaining, depth + 1),
     }
 }
 
@@ -291,7 +298,7 @@ pub(super) fn checked_boolean_atom_polarity(
     remaining: &mut usize,
     depth: usize,
 ) -> Result<Proposition, LoweringError> {
-    charge_boolean_expansion(identities, identities, remaining, depth)?;
+    charge_boolean_expansion(remaining, depth)?;
     if let CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } = expression {
         return scalar_ieee_float_comparison_proposition(
             if positive {
@@ -305,9 +312,9 @@ pub(super) fn checked_boolean_atom_polarity(
         );
     }
     if positive {
-        return checked_boolean_proposition_with_budget(identities, identities, expression, values, remaining, depth + 1);
+        return checked_boolean_proposition_with_budget(identities, expression, values, remaining, depth + 1);
     }
-    let mut left = ScalarTerm::boolean_not(checked_boolean_scalar_term(expression, values, &[])?)
+    let mut left = ScalarTerm::boolean_not(checked_boolean_scalar_term(identities, expression, &[], values)?)
         .map_err(LoweringError::InvalidCrashPredicate)?;
     let mut right = ScalarTerm::boolean(true);
     if left > right {
