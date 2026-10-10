@@ -4,6 +4,9 @@
 //! names the original referent. Record construction relocates only the key.
 //! Disposal removes descriptor subtrees, not the storage they permit access to.
 //! Loan ancestry and disposal order are independently checked before execution.
+//! Projection crosses both references and element windows through that captured
+//! backing. A descriptor path identifies its home; only its association supplies
+//! the next storage root and, for windows, the selected index offset.
 use crate::custody::project_structural_value;
 use crate::custody::resolve_structural_path_type;
 use crate::errors::{TerminalInterpretError, malformed};
@@ -795,22 +798,6 @@ impl TerminalExecution<'_> {
         access: StructuralAccess,
     ) -> Result<(TerminalStructuralValue, Option<AggregateViewTip>), TerminalInterpretError> {
         let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
-        // An element selected through a live element view (`&mut cells[2]`
-        // for `cells: &mut [Cell]`) lives in the view's original collection:
-        // the window offsets the index, and the view's own access bounds the
-        // requested authority. The descriptor never owns its elements.
-        if let Some(view) = self.element_view_values.get(&place)
-            && matches!(path.first(), Some(StructuralPathSegment::FixedIndex(_)))
-        {
-            if !view.matches_descriptor_home(owner) || !access_covers(view.access(), access) {
-                return Err(malformed());
-            }
-            let (collection, selected) =
-                view.structural_projection(path, access != StructuralAccess::SharedBorrow)?;
-            return self
-                .resolve_reference_view_path(&collection, &selected, access)?
-                .ok_or_else(malformed);
-        }
         if path.contains(&StructuralPathSegment::Referent) {
             let authority = self.reference_carrier_access(place, owner, path)?;
             if !access_covers(authority, access) {
@@ -849,9 +836,30 @@ impl TerminalExecution<'_> {
         let mut remaining = path;
         let mut aggregate_view = None;
         loop {
-            let boundary = remaining
-                .iter()
-                .position(|segment| *segment == StructuralPathSegment::Referent);
+            // Inline geometry ends at each descriptor. Resolving the whole
+            // suffix statically would either invent an extent or address the
+            // descriptor itself instead of its captured backing.
+            let mut boundary = None;
+            for (position, segment) in remaining.iter().enumerate() {
+                if *segment == StructuralPathSegment::Referent {
+                    boundary = Some(position);
+                    break;
+                }
+                if matches!(segment, StructuralPathSegment::FixedIndex(_)) {
+                    let prefix_type = resolve_structural_path_type(
+                        &types,
+                        aggregate_view.unwrap_or(value.structural_type),
+                        &remaining[..position],
+                    )?;
+                    if matches!(
+                        types.get(&prefix_type).ok_or_else(malformed)?.shape,
+                        StructuralTypeShape::ElementView { .. }
+                    ) {
+                        boundary = Some(position);
+                        break;
+                    }
+                }
+            }
             let prefix = &remaining[..boundary.unwrap_or(remaining.len())];
             let translated;
             let mut tip = None;
@@ -882,6 +890,42 @@ impl TerminalExecution<'_> {
                 project_structural_value(&types, &value, prefix)?
             };
             if let Some(boundary) = boundary {
+                if matches!(remaining[boundary], StructuralPathSegment::FixedIndex(_)) {
+                    let view = self.element_view_at_resolved_home(&value)?;
+                    if !access_covers(view.access(), access) {
+                        return Err(malformed());
+                    }
+                    let (collection, selected) = view.structural_projection(
+                        &remaining[boundary..boundary + 1],
+                        access != StructuralAccess::SharedBorrow,
+                    )?;
+                    // Consume this selector once in the actual collection.
+                    // The suffix remains in its observed element declaration;
+                    // a re-view must not become an untyped backing path.
+                    aggregate_view = match tip {
+                        Some(AggregateViewTip::Aggregate { view, .. }) => {
+                            let StructuralTypeShape::ElementView { element } =
+                                types.get(&view).ok_or_else(malformed)?.shape
+                            else {
+                                return Err(malformed());
+                            };
+                            Some(element)
+                        }
+                        None => None,
+                        Some(AggregateViewTip::Scalar { .. }) => return Err(malformed()),
+                    };
+                    value = if access == StructuralAccess::SharedBorrow {
+                        crate::custody::project_shared_structural_observation(
+                            &types,
+                            &collection,
+                            &selected,
+                        )?
+                    } else {
+                        project_structural_value(&types, &collection, &selected)?
+                    };
+                    remaining = &remaining[boundary + 1..];
+                    continue;
+                }
                 let (referent_type, authority) = self.reference_contract(value.structural_type)?;
                 if !access_covers(authority, access) {
                     return Err(malformed());

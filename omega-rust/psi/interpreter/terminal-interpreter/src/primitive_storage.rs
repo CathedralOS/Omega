@@ -1204,24 +1204,26 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    /// Observe the final scalar field under its original runtime record.
-    /// Admission checked the complete primitive-read path before the loop
-    /// replaced runtime selectors with fixed indices. Resolve every stored
-    /// reference in that selected path before locating the field; rechecking
-    /// read eligibility on a suffix would lose the preceding selectors.
-    /// Restricted fields retain their declared scalar carrier and stored value,
-    /// without manufacturing primitive homes or granting store authority.
-    fn scalar_field_read(
+    /// Join a selected record and its observed declaration to the original
+    /// scalar cell. Primitive reads and direct/recast element views use this
+    /// same field identity and carrier relationship; neither recreates storage.
+    pub(crate) fn scalar_field_at_record(
         &self,
-        source: PlaceId,
+        record: TerminalStructuralValue,
+        view: Option<crate::reference::AggregateViewTip>,
         path: &[StructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
-        let Some((StructuralPathSegment::Field(identity), carrier)) = path.split_last() else {
+    ) -> Result<
+        Option<(
+            TerminalStructuralValue,
+            &terminal_psi::StructuralFieldDeclaration,
+            ScalarType,
+        )>,
+        TerminalInterpretError,
+    > {
+        let Some(StructuralPathSegment::Field(identity)) = path.last() else {
             return Ok(None);
         };
-        let (record, view) =
-            self.resolve_live_view_projection(source, carrier, StructuralAccess::SharedBorrow)?;
         // Through an aggregate re-view the field is the view's; its backing
         // field at the same position holds the cell under its own carrier.
         let translated;
@@ -1280,9 +1282,32 @@ impl TerminalExecution<'_> {
         if field.relevance.is_erased() || declared != stored_type {
             return Err(malformed());
         }
+        Ok(Some((record, field, stored_type)))
+    }
+
+    /// Observe the final scalar field under its original runtime record.
+    /// Admission checked the complete read path before runtime selection;
+    /// eligibility on a suffix would lose the preceding selectors. Restricted
+    /// fields keep their stored carrier, without granting store authority.
+    fn scalar_field_read(
+        &self,
+        source: PlaceId,
+        path: &[StructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
+        let Some((StructuralPathSegment::Field(_), carrier)) = path.split_last() else {
+            return Ok(None);
+        };
+        let (record, view) =
+            self.resolve_live_view_projection(source, carrier, StructuralAccess::SharedBorrow)?;
+        let Some((record, field, stored_type)) =
+            self.scalar_field_at_record(record, view, path, scalar_type)?
+        else {
+            return Ok(None);
+        };
         let mut leaf = record.clone();
         leaf.path
-            .push(StructuralPathSegment::Field(identity.clone()));
+            .push(StructuralPathSegment::Field(field.identity.clone()));
         if let Some((storage, logical_scalar)) =
             self.reference_byte_region_access(&record, &leaf)?
         {

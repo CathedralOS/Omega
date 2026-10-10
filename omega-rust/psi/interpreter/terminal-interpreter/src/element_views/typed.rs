@@ -135,16 +135,26 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let (position, source, target) = typed.selected(view, index, path, expected)?;
-        let value = if let Some(field) = self.element_scalar_field(
+        let value = if let Some((field, stored_type)) = self.element_scalar_field(
             typed.collection.as_ref(),
             position,
             &source.path,
             source.scalar_type,
+            StructuralAccess::SharedBorrow,
         )? {
-            self.structural_scalar_fields
+            let value = self
+                .structural_scalar_fields
                 .get(&field)
                 .copied()
-                .ok_or_else(malformed)?
+                .ok_or_else(malformed)?;
+            if value.scalar_type() != stored_type {
+                return Err(malformed());
+            }
+            if stored_type == source.scalar_type {
+                value
+            } else {
+                crate::primitive_storage::scalar_reference_observation(value, source.scalar_type)?
+            }
         } else {
             let source_path = typed.home.selected_path(position, &source.path)?;
             self.read_primitive_home(typed.home.storage, &source_path, source.scalar_type)?
@@ -180,12 +190,16 @@ impl TerminalExecution<'_> {
         if !checked_value(value, source) {
             return Err(malformed());
         }
-        if let Some(field) = self.element_scalar_field(
+        if let Some((field, stored_type)) = self.element_scalar_field(
             typed.collection.as_ref(),
             position,
             &source.path,
             source.scalar_type,
+            StructuralAccess::MutableBorrow,
         )? {
+            if stored_type != source.scalar_type {
+                return Err(malformed());
+            }
             let stored = self
                 .structural_scalar_fields
                 .get_mut(&field)

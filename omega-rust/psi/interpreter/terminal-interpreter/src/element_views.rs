@@ -14,7 +14,6 @@
 //! structural identity, so nested primitive leaves and record fields both write
 //! through after calls without manufacturing a second element snapshot.
 
-use crate::custody::project_structural_value;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -784,8 +783,9 @@ impl TerminalExecution<'_> {
         position: usize,
         path: &[StructuralPathSegment],
         scalar_type: ScalarType,
-    ) -> Result<Option<StructuralScalarRuntimeField>, TerminalInterpretError> {
-        let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() else {
+        access: StructuralAccess,
+    ) -> Result<Option<(StructuralScalarRuntimeField, ScalarType)>, TerminalInterpretError> {
+        let Some((StructuralPathSegment::Field(_), prefix)) = path.split_last() else {
             return Ok(None);
         };
         let mut selected_path = Vec::with_capacity(1 + prefix.len());
@@ -793,38 +793,21 @@ impl TerminalExecution<'_> {
             u64::try_from(position).map_err(|_| malformed())?,
         ));
         selected_path.extend_from_slice(prefix);
-        let parent = project_structural_value(
-            &self.program.structural_types(),
-            collection.ok_or_else(malformed)?,
-            &selected_path,
-        )?;
-        let StructuralTypeShape::Record { fields, .. } = &self
-            .program
-            .structural_types()
-            .get(&parent.structural_type)
-            .ok_or_else(malformed)?
-            .shape
+        // The element may itself contain windows or references. Its record
+        // cell belongs to the final captured backing, not to an inline walk
+        // through the outer collection's descriptor storage. Typed element
+        // views supply their source-layout path and scalar carrier here.
+        let (parent, view) = self
+            .resolve_reference_view_path(collection.ok_or_else(malformed)?, &selected_path, access)?
+            .ok_or_else(malformed)?;
+        let Some((parent, field, stored_type)) =
+            self.scalar_field_at_record(parent, view, path, scalar_type)?
         else {
-            return Err(malformed());
-        };
-        let mut matching = fields
-            .iter()
-            .filter(|field| field.identity == *identity && !field.relevance.is_erased());
-        let (Some(field), None) = (matching.next(), matching.next()) else {
-            return Err(malformed());
-        };
-        if matches!(
-            field.field_type,
-            terminal_psi::StructuralFieldType::Structural(_)
-        ) {
             return Ok(None);
-        }
-        if field.field_type.scalar_type() != Some(scalar_type) {
-            return Err(malformed());
-        }
-        Ok(Some(StructuralScalarRuntimeField::member(
-            StructuralRuntimePlace::from(&parent),
-            field.id,
+        };
+        Ok(Some((
+            StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&parent), field.id),
+            stored_type,
         )))
     }
 
@@ -839,13 +822,26 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let position = view.window.start.checked_add(index).ok_or_else(malformed)?;
-        if let Some(field) =
-            self.element_scalar_field(Some(collection), position, path, scalar_type)?
-        {
-            self.structural_scalar_fields
+        if let Some((field, stored_type)) = self.element_scalar_field(
+            Some(collection),
+            position,
+            path,
+            scalar_type,
+            StructuralAccess::SharedBorrow,
+        )? {
+            let value = self
+                .structural_scalar_fields
                 .get(&field)
                 .copied()
-                .ok_or_else(malformed)
+                .ok_or_else(malformed)?;
+            if value.scalar_type() != stored_type {
+                return Err(malformed());
+            }
+            if stored_type == scalar_type {
+                Ok(value)
+            } else {
+                crate::primitive_storage::scalar_reference_observation(value, scalar_type)
+            }
         } else {
             let home = view.home.as_ref().ok_or_else(malformed)?;
             self.read_primitive_home(
@@ -867,9 +863,16 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let position = view.window.start.checked_add(index).ok_or_else(malformed)?;
-        if let Some(field) =
-            self.element_scalar_field(Some(collection), position, path, scalar.scalar_type())?
-        {
+        if let Some((field, stored_type)) = self.element_scalar_field(
+            Some(collection),
+            position,
+            path,
+            scalar.scalar_type(),
+            StructuralAccess::MutableBorrow,
+        )? {
+            if stored_type != scalar.scalar_type() {
+                return Err(malformed());
+            }
             let stored = self
                 .structural_scalar_fields
                 .get_mut(&field)

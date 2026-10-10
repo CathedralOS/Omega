@@ -3110,6 +3110,13 @@ of a check the same flow already performed, not the check itself.
   independent validation/proof owners; no checking-time mutation or typed
   commitment fallback is permitted.
 
+  Projected length aliases still fail to establish element bounds (`let count =
+  envelope.items.len; count == 2` before an element read). Multi-field arrivals
+  below nested descriptor windows stop in native target lowering (`UnknownValue`
+  for a composed record-field, inline-array and Boolean arrival at `820596967a9`).
+  Repair those source-fact and native-value joins while preserving the nested
+  window, stored re-view and invalid-bound corpus controls.
+
   Remaining: qualify exact erased applications, clone correspondence and
   lexical owners through folding and substitution against the full check
   corpus and focused native cohort. Stored references now retain finite closed
