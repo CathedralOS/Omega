@@ -1,0 +1,4 @@
+owner: Omega6 / reviewed runtime selector capture
+provenance: agent=codex model=gpt-6.1-sol effort=medium lane=runtime-indexing review=e7e96f6 independent-review=PASS authored-oracles=unchanged host=linux-x86_64
+ticket: b83db96f2a1e42daafc23be2c8678f2e
+published_utc: 2026-10-10T01:28:48.891039+00:00
