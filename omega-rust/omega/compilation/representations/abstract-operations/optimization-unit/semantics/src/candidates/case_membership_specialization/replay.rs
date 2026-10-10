@@ -18,6 +18,7 @@
 //! exactly, rebuilds the output itself, and reconstructs the exact node
 //! custody the folded observations carry.
 
+use crate::candidates::provenance_realized_at;
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
@@ -305,12 +306,7 @@ fn accepted_provenance(
             .and_then(|block| block.nodes.get(index))
             .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
         let site = PsiRealizationSite::Node(row.site);
-        provenance.push(ProvenanceRewrite {
-            input: site,
-            disposition: ProvenanceDisposition::RealizedAt(site),
-            sources: node.provenance.clone(),
-            fuel: node.fuel.clone(),
-        });
+        provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
     }
     provenance.sort_by_key(|row| {
         (

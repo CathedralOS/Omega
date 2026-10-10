@@ -1,4 +1,5 @@
 //! Independent constant-conditional replay mechanics.
+use crate::candidates::provenance_realized_at;
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::sparse_conditional_constant_propagation::literal_boolean_fact;
 use crate::candidates::{candidate_block, candidate_function, set_node_effect_link};
@@ -220,12 +221,7 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
         .collect::<BTreeSet<_>>();
     let mut affected = BTreeSet::from([decision.block]);
     affected.extend(removed.iter().copied());
-    let mut realized = vec![optimization_unit::ProvenanceRewrite {
-        input: selected_site,
-        disposition: ProvenanceDisposition::RealizedAt(selected_site),
-        sources: selected.provenance.clone(),
-        fuel: selected.fuel.clone(),
-    }];
+    let mut realized = vec![provenance_realized_at(selected_site, selected_site, &selected.provenance, &selected.fuel)];
     let mut unreachable = vec![optimization_unit::ProvenanceRewrite {
         input: rejected_site,
         disposition: ProvenanceDisposition::ProvenUnreachableAt(rejected_site),
@@ -277,12 +273,7 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    realized.push(optimization_unit::ProvenanceRewrite {
-                        input: site,
-                        disposition: ProvenanceDisposition::RealizedAt(site),
-                        sources: node.provenance.clone(),
-                        fuel: node.fuel.clone(),
-                    });
+                    realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;

@@ -153,6 +153,23 @@ impl ValidatedPsiRewrite {
 }
 
 /// The unit's function at `machine`, or CandidateLocationMissing.
+/// One realized-at rewrite shared by every candidate family's site stamp:
+/// the disposition lands at `realized_at` while provenance and fuel move over
+/// from the stamped source.
+pub(crate) fn provenance_realized_at(
+    input: optimization_unit::PsiRealizationSite,
+    realized_at: optimization_unit::PsiRealizationSite,
+    sources: &[optimization_unit::PsiProvenance],
+    fuel: &[optimization_unit::FuelSettlement],
+) -> ProvenanceRewrite {
+    ProvenanceRewrite {
+        input,
+        disposition: optimization_unit::ProvenanceDisposition::RealizedAt(realized_at),
+        sources: sources.to_vec(),
+        fuel: fuel.to_vec(),
+    }
+}
+
 pub(crate) fn candidate_function(
     input: &PsiOptimizationUnit,
     machine: semantic_vocabulary::MachineId,

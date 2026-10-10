@@ -1,4 +1,5 @@
 //! Integer constant-evaluation candidate acceptance.
+use crate::candidates::provenance_realized_at;
 use crate::candidates::sparse_conditional_constant_propagation::{
     observation_at,
 };
@@ -63,12 +64,7 @@ pub(crate) fn validate_integer_evaluation_candidate(
     if provenance.fuel != node.fuel {
         return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
     }
-    let accepted_provenance = vec![optimization_unit::ProvenanceRewrite {
-        input: site,
-        disposition: ProvenanceDisposition::RealizedAt(site),
-        sources: node.provenance.clone(),
-        fuel: node.fuel.clone(),
-    }];
+    let accepted_provenance = vec![provenance_realized_at(site, site, &node.provenance, &node.fuel)];
 
     let (source_operation, result, scalar_type, evaluated, safety_class) =
         evaluate_integer_operation(function, node, candidate)?;

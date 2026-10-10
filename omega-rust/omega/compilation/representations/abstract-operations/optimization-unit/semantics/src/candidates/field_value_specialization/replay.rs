@@ -23,6 +23,7 @@
 //! replay also recomputes the substitution set, the exact use-site roster,
 //! initializer dominance, and the shifted-custody provenance ledger.
 
+use crate::candidates::provenance_realized_at;
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
@@ -377,12 +378,7 @@ fn expected_accounting(
                 block: block.id,
                 node: output_index,
             });
-            provenance.push(ProvenanceRewrite {
-                input: input_site,
-                disposition: ProvenanceDisposition::RealizedAt(output_site),
-                sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
-            });
+            provenance.push(provenance_realized_at(input_site, output_site, &node.provenance, &node.fuel));
         }
         if block_affected {
             affected.insert(block.id);

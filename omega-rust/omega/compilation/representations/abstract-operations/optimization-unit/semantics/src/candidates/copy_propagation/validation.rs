@@ -1,4 +1,5 @@
 //! Redundant-parameter witness reconstruction and rewrite acceptance.
+use crate::candidates::provenance_realized_at;
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_uses,
 };
@@ -92,23 +93,13 @@ pub(super) fn validate_redundant_block_parameter_candidate(
                     machine: patch.machine,
                     edge: edge.psi_edge,
                 };
-                expected_provenance.push(optimization_unit::ProvenanceRewrite {
-                    input: site,
-                    disposition: ProvenanceDisposition::RealizedAt(site),
-                    sources: edge.provenance.clone(),
-                    fuel: edge.fuel.clone(),
-                });
+                expected_provenance.push(provenance_realized_at(site, site, &edge.provenance, &edge.fuel));
             }
             if changes_use {
                 affected_blocks.insert(source.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
-                    expected_provenance.push(optimization_unit::ProvenanceRewrite {
-                        input: site,
-                        disposition: ProvenanceDisposition::RealizedAt(site),
-                        sources: node.provenance.clone(),
-                        fuel: node.fuel.clone(),
-                    });
+                    expected_provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
                 }
             }
             if node

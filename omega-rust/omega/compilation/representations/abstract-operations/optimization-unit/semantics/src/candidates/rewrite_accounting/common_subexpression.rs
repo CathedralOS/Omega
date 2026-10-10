@@ -1,3 +1,4 @@
+use crate::candidates::provenance_realized_at;
 use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
 use optimization_unit::{
     DeadScalarNodeRewrite, LocalScalarCommonSubexpressionRewrite, NodeLocation,
@@ -35,12 +36,7 @@ pub(crate) fn reconstruct_local_cse_accounting(
                 block: use_block.id,
                 node: u32::try_from(index).ok()?,
             });
-            provenance.push(optimization_unit::ProvenanceRewrite {
-                input: site,
-                disposition: ProvenanceDisposition::RealizedAt(site),
-                sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
-            });
+            provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
         }
     }
     blocks.sort();
@@ -75,12 +71,7 @@ pub(crate) fn reconstruct_phi_translated_cse_accounting(
             machine: function.machine,
             edge: incoming.edge,
         };
-        provenance.push(optimization_unit::ProvenanceRewrite {
-            input: site,
-            disposition: ProvenanceDisposition::RealizedAt(site),
-            sources: edge.provenance.clone(),
-            fuel: edge.fuel.clone(),
-        });
+        provenance.push(provenance_realized_at(site, site, &edge.provenance, &edge.fuel));
     }
     blocks.sort();
     blocks.dedup();

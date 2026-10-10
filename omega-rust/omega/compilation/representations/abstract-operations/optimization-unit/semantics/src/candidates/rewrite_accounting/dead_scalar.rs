@@ -1,3 +1,4 @@
+use crate::candidates::provenance_realized_at;
 use optimization_unit::{
     DeadScalarNodeRewrite, NodeLocation, ProvenanceDisposition, PsiOptimizationFunction,
     PsiRealizationSite,
@@ -51,12 +52,7 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
                 block: later.id,
                 node: u32::try_from(index).ok()?,
             });
-            provenance.push(optimization_unit::ProvenanceRewrite {
-                input: site,
-                disposition: ProvenanceDisposition::RealizedAt(site),
-                sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
-            });
+            provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
         }
     }
     blocks.sort();

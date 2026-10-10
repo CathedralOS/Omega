@@ -6,6 +6,7 @@
 //! reconstruction names its own patch, then runs the shared dead-node
 //! accounting plus the use-site provenance rows below.
 
+use crate::candidates::provenance_realized_at;
 use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
 use optimization_unit::{
     DeadScalarNodeRewrite, NodeLocation, ProofCertifiedScalarIdentityRewrite,
@@ -70,12 +71,7 @@ fn reconstruct_scalar_identity_accounting(
                 block: use_block.id,
                 node: u32::try_from(index).ok()?,
             });
-            provenance.push(optimization_unit::ProvenanceRewrite {
-                input: site,
-                disposition: ProvenanceDisposition::RealizedAt(site),
-                sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
-            });
+            provenance.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
         }
     }
     blocks.sort();

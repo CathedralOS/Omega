@@ -1,3 +1,4 @@
+use crate::candidates::provenance_realized_at;
 use optimization_unit::{
     NodeLocation, ProvenanceDisposition, PsiOptimizationFunction, PsiRealizationSite,
     SharedJumpFusionRewrite,
@@ -28,24 +29,9 @@ pub(crate) fn reconstruct_shared_terminal_fusion_accounting(
     });
     let output_clone = PsiRealizationSite::Node(patch.predecessor);
     let mut provenance = vec![
-        optimization_unit::ProvenanceRewrite {
-            input: input_edge,
-            disposition: ProvenanceDisposition::RealizedAt(output_clone),
-            sources: incoming.provenance.clone(),
-            fuel: incoming.fuel.clone(),
-        },
-        optimization_unit::ProvenanceRewrite {
-            input: input_terminal,
-            disposition: ProvenanceDisposition::RealizedAt(output_clone),
-            sources: terminal.provenance.clone(),
-            fuel: terminal.fuel.clone(),
-        },
-        optimization_unit::ProvenanceRewrite {
-            input: input_terminal,
-            disposition: ProvenanceDisposition::RealizedAt(input_terminal),
-            sources: terminal.provenance.clone(),
-            fuel: terminal.fuel.clone(),
-        },
+        provenance_realized_at(input_edge, output_clone, &incoming.provenance, &incoming.fuel),
+        provenance_realized_at(input_terminal, output_clone, &terminal.provenance, &terminal.fuel),
+        provenance_realized_at(input_terminal, input_terminal, &terminal.provenance, &terminal.fuel),
     ];
     provenance.sort_by_key(|row| {
         (

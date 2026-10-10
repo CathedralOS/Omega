@@ -6,6 +6,7 @@
 //! to equal the replayed rows exactly, rebuilds the output itself, and
 //! reconstructs the exact edge custody the fused traversals carry.
 
+use crate::candidates::provenance_realized_at;
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::sparse_conditional_constant_propagation::validator_scalar_constant_facts;
 use crate::candidates::{candidate_block, candidate_function};
@@ -613,18 +614,8 @@ fn accepted_provenance(
             machine,
             edge: row.taken_edge,
         };
-        provenance.push(ProvenanceRewrite {
-            input: incoming_site,
-            disposition: ProvenanceDisposition::RealizedAt(incoming_site),
-            sources: incoming.provenance.clone(),
-            fuel: incoming.fuel.clone(),
-        });
-        provenance.push(ProvenanceRewrite {
-            input: resolved_site,
-            disposition: ProvenanceDisposition::RealizedAt(incoming_site),
-            sources: resolved.provenance.clone(),
-            fuel: resolved.fuel.clone(),
-        });
+        provenance.push(provenance_realized_at(incoming_site, incoming_site, &incoming.provenance, &incoming.fuel));
+        provenance.push(provenance_realized_at(resolved_site, incoming_site, &resolved.provenance, &resolved.fuel));
         resolved_edges.insert(row.taken_edge);
     }
     for taken_edge in resolved_edges {
@@ -633,12 +624,7 @@ fn accepted_provenance(
             machine,
             edge: taken_edge,
         };
-        provenance.push(ProvenanceRewrite {
-            input: resolved_site,
-            disposition: ProvenanceDisposition::RealizedAt(resolved_site),
-            sources: resolved.provenance.clone(),
-            fuel: resolved.fuel.clone(),
-        });
+        provenance.push(provenance_realized_at(resolved_site, resolved_site, &resolved.provenance, &resolved.fuel));
     }
     provenance.sort_by_key(|row| {
         (

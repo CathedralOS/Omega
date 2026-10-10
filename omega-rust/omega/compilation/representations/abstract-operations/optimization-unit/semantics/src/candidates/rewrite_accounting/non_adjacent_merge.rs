@@ -1,3 +1,4 @@
+use crate::candidates::provenance_realized_at;
 use optimization_unit::{
     NodeLocation, NonAdjacentBlockMergeRewrite, ProvenanceDisposition, PsiOptimizationFunction,
     PsiRealizationSite, ScalarSubstitution,
@@ -137,12 +138,7 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
                 block: block.id,
                 node: u32::try_from(node_index).ok()?,
             });
-            realized.push(optimization_unit::ProvenanceRewrite {
-                input: site,
-                disposition: ProvenanceDisposition::RealizedAt(site),
-                sources: node.provenance.clone(),
-                fuel: node.fuel.clone(),
-            });
+            realized.push(provenance_realized_at(site, site, &node.provenance, &node.fuel));
         }
     }
     realized.sort_by_key(|row| {
