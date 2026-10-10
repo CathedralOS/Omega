@@ -2783,10 +2783,6 @@ crash and native exit behavior.
     control graph custody) and two `pass/capabilities/` rows,
     `sysv_small_aggregate_import_compile` and
     `win64_pointer_length_vs_descriptor_compile` (borrowed windows closed).
-  - `pass/memory/bump_allocator_canary` (checked/built until 68cadd5a83a,
-    **BORROWED-STORAGE-RESTORATION**'s claim transport): linear validation
-    of `source/library/alloc/bump.omg` reports
-    `retained_buffer::Held.storage` already transferred at three moves.
   - `interrupt_table_canary` and `secondary_processor_canary` select providers
     but lack an executable intrinsic: **CHECKED-ASM-LABEL-CONTRACTS** owns that
     dependency.

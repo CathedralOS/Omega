@@ -326,7 +326,7 @@ fail/borrows/byte_view_shared_element_mutable_reference rejected 139ms expected 
 	mutable argument `bytes` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/case_payload_borrowed_affine_copy rejected 225ms expected @53e6e3215d6a
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `inspect`, state `entry` (statement 1)
-fail/borrows/case_payload_duplicate_transfer rejected 2890ms expected @94f3c704bf39+wt
+fail/borrows/case_payload_duplicate_transfer rejected 4679ms expected @6696e926e20b
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect", reason: "projected custody overlaps an earlier transfer or release", gap: None })
 fail/borrows/case_payload_shared_clone_mutation rejected 238ms expected @69d297ae3ee5
 	mutable argument `source` for state `clone` is not writable in this state; the source cannot lend the requested exclusive access
@@ -1849,7 +1849,7 @@ fail/machines/static_namespace_has_no_fields rejected 383ms expected @0bb2f2c02d
 	machine `Counter::read_without_value` state `read_without_value` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/memory/bump_allocator_cast_minted_vacant rejected 423ms expected @2d8ed253669f
 	declared instance `Vacant` has no establishment: `as` mints an instance of domain family `Vacant` on custody-marked carrier `Extent` -- the family declares no predicate body and no `establishment` route, and a linear carrier that route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at exercise::entry:statement-0)
-fail/memory/bump_allocator_live_allocation_dropped rejected 651ms expected @2d8ed253669f
+fail/memory/bump_allocator_live_allocation_dropped rejected 381ms expected @6696e926e20b
 	linear value `issued.allocation` reaches scope exit without being consumed or transferred
 fail/memory/bump_allocator_place_into_occupied rejected 296ms expected @61726859ba27+wt
 	implicit domain weakening in argument `storage` for state `place` drops `Resident<SlotPlacement, Slot>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
@@ -1995,7 +1995,7 @@ fail/ownership/linear_call_result_field_live_overwrite rejected 644ms expected @
 	assignment would overwrite live linear value `pair.left`; consume or transfer the existing obligation first
 fail/ownership/linear_call_result_field_scope_loss rejected 500ms expected @9c376f77b213+wt
 	linear value `pair.left` reaches scope exit without being consumed or transferred
-fail/ownership/linear_case_result_second_transfer rejected 664ms expected @6c4a80209849+wt
+fail/ownership/linear_case_result_second_transfer rejected 261ms expected @6696e926e20b
 	cannot use `returned` in machine `main` state `entry` (statement 4) after `returned` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `returned` first
 fail/ownership/linear_computed_binding_receiver_second_use rejected 358ms expected @ec4721ab353c+wt
 	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
@@ -2009,7 +2009,7 @@ fail/ownership/linear_constructor_call_member_second_use rejected 320ms expected
 	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
 fail/ownership/linear_forwarded_result_original_second_use rejected 318ms expected @6605065c28a7
 	cannot use `original` in machine `main` state `entry` (statement 2) after `original` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `original` first
-fail/ownership/linear_inline_argument_result_scope_loss rejected 552ms expected @9c376f77b213+wt
+fail/ownership/linear_inline_argument_result_scope_loss rejected 382ms expected @6696e926e20b
 	linear value `passed` reaches scope exit without being consumed or transferred
 fail/ownership/linear_inline_argument_result_second_use rejected 453ms expected @9c376f77b213+wt
 	cannot use `passed` in machine `main` state `entry` (statement 2) after `passed` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `passed` first
@@ -2020,7 +2020,7 @@ fail/ownership/linear_live_overwrite rejected 572ms expected @2d8ed253669f
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/ownership/linear_mixed_branch_treatment rejected 633ms expected @2d8ed253669f
 	linear value `receipt` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation
-fail/ownership/linear_mixed_common_payload_duplicate_operand rejected 769ms expected @9cc6a58bcdc4+wt
+fail/ownership/linear_mixed_common_payload_duplicate_operand rejected 266ms expected @6696e926e20b
 	cannot use `receipt` in machine `main` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/linear_qualified_field_observation_after_transfer rejected 296ms expected @34440012a21b
 	cannot use `receipt.code` in machine `consumed` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
@@ -2060,6 +2060,12 @@ fail/ownership/read_through_consumed_owner_rejected rejected 732ms expected @78c
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
 fail/ownership/read_through_dropped_owner_rejected rejected 771ms expected @78cf629f34f9+wt
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
+fail/ownership/reconstructed_case_carrier_second_transfer rejected 259ms expected @6696e926e20b
+	cannot use `value.slot` in machine `main` state `entry` (statement 2) after `value.slot` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value.slot` first
+fail/ownership/reconstructed_case_write_keeps_linear_debt rejected 365ms expected @6696e926e20b
+	linear value `returned.slot::Held.token` reaches scope exit without being consumed or transferred
+fail/ownership/reconstructed_unknown_case_keeps_linear_debt rejected 369ms expected @6696e926e20b
+	linear value `returned.slot::Held.token` reaches scope exit without being consumed or transferred
 fail/ownership/selected_carrier_partial_refill_contains_consumed_owner rejected 417ms expected @ee5c54594b4f+wt
 	owned value may have been transferred by an earlier match; it cannot be used here
 fail/ownership/selected_carrier_refill_reads_consumed_source rejected 380ms expected @ee5c54594b4f+wt
@@ -4037,23 +4043,7 @@ pass/locals/static_local_field_names_exit checked 1406ms check-target:macos_arm6
 pass/machines/static_namespace_constant_exit checked 3435ms check-target:macos_arm64 @0bb2f2c02dae+wt
 pass/math/extent_no_wrap_requires_denotation checked 454ms @eacf26da8078
 pass/memory/address_translation_canary checked 435ms @9a54cbcf1d68+wt
-pass/memory/bump_allocator_canary rejected 1814ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @e95f2c8d09cf+wt
-	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
-	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
-	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/memory/bump_allocator_canary checked 2657ms check-target:linux_x86_64 @6696e926e20b
 pass/memory/interrupt_table_canary rejected 952ms @693920652f41
 	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(InterruptAcknowledgement\\\\\\)\\\\\\)\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/runtime_large_entry_record_field_exit checked 1175ms check-target:macos_arm64 @3ce19b649c88+wt
@@ -4199,6 +4189,7 @@ pass/ownership/runtime_captured_construction_selector_exit checked 1771ms check-
 pass/ownership/runtime_captured_replacement_selector_exit checked 1771ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/ownership/runtime_captured_selector_call_exit checked 1775ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 1674ms check-target:macos_arm64 @ecd601af92fb
+pass/ownership/runtime_inactive_case_carrier_transfer_exit checked 2411ms check-target:macos_arm64 @6696e926e20b
 pass/ownership/runtime_known_case_scalar_call_exit checked 1651ms check-target:macos_arm64 @a2adbadfe3b3+wt
 pass/ownership/runtime_linear_case_payload_forward_exit checked 1710ms check-target:macos_arm64 @332ced10410b+wt
 pass/ownership/runtime_nested_projected_claim_return_exit checked 1603ms check-target:macos_arm64 @cd27c16e2c35

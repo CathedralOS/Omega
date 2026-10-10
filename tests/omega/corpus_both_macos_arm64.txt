@@ -526,6 +526,7 @@ pass/ownership/runtime_captured_replacement_selector_exit built 1791ms exit:0 in
 pass/ownership/runtime_captured_selector_call_exit built 1791ms exit:0 interpreter-exit:0 interpreter:agrees @441e8f33f8c7+wt
 pass/ownership/runtime_carried_loan_field_replacement_exit built 1718ms exit:42 interpreter-exit:42 interpreter:agrees @037ba5906d07
 pass/ownership/runtime_computed_selector_snapshot_window_exit built 4974ms exit:0 interpreter-exit:0 interpreter:agrees @8d1d3601885d
+pass/ownership/runtime_inactive_case_carrier_transfer_exit built 2577ms exit:0 interpreter-exit:0 interpreter:agrees @6696e926e20b
 pass/ownership/runtime_known_case_scalar_call_exit built 1647ms exit:0 interpreter-exit:0 interpreter:agrees @a2adbadfe3b3+wt
 pass/ownership/runtime_linear_case_payload_forward_exit built 1724ms exit:0 interpreter-exit:0 interpreter:agrees @332ced10410b+wt
 pass/ownership/runtime_local_subslice_element_window_exit built 5001ms exit:0 interpreter-exit:0 interpreter:agrees @8d1d3601885d
