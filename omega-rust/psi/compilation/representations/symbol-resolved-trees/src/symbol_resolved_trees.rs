@@ -669,10 +669,7 @@ impl SymbolResolvedTrees {
         &self,
         span: HandleSpan<crate::name::DiagnosticName>,
     ) -> &[crate::name::DiagnosticName] {
-        self.tables
-            .declarations
-            .operator_path_members
-            .span_or_empty(span)
+        self.operator_path_members(span)
     }
 
     pub fn trait_machine_signatures(
@@ -704,8 +701,7 @@ impl SymbolResolvedTrees {
                 requirement,
                 ..
             } => {
-                let trait_definition = self
-                    .trait_definition(*trait_definition)?;
+                let trait_definition = self.trait_definition(*trait_definition)?;
                 let requirement = self
                     .trait_machine_signatures(trait_definition.machines)
                     .iter()
