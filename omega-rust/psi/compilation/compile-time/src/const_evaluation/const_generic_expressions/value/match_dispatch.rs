@@ -33,7 +33,7 @@ impl MatchSubject {
         builtin: impl FnMut(ExpressionHandle) -> bool,
     ) -> Result<Self, String> {
         if let Value::Anonymous(expression) = value {
-            validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+            validation::evaluate_anonymous_numeric_expression(
                 program, expression, selected, builtin,
             )
             .map(Self::Anonymous)
@@ -53,7 +53,7 @@ impl MatchSubject {
         match (self, pattern) {
             (Self::Anonymous(subject), Value::Anonymous(expression)) => {
                 let pattern =
-                    validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+                    validation::evaluate_anonymous_numeric_expression(
                         program, expression, selected, builtin,
                     )
                     .ok_or("constant Match needs a defined anonymous pattern")?;
@@ -363,7 +363,7 @@ fn landing_summaries(
                 }
                 _ => {
                     let value =
-                        validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+                        validation::evaluate_anonymous_numeric_expression(
                             program,
                             expression,
                             &[],
@@ -542,7 +542,7 @@ pub(super) fn validate_anonymous_fragments(
             pending.push(binary.right);
             pending.push(binary.left);
         } else {
-            validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+            validation::evaluate_anonymous_numeric_expression(
                 program,
                 expression,
                 &[],
@@ -595,7 +595,7 @@ pub(super) fn coerce(
 ) -> Result<Value, String> {
     match (value, shape) {
         (Value::Anonymous(expression), Shape::Float(format)) => {
-            let exact = validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+            let exact = validation::evaluate_anonymous_numeric_expression(
                 program,
                 expression,
                 selected,

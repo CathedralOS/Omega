@@ -150,10 +150,11 @@ impl Evaluator<'_> {
         destination: Option<PrimitiveType>,
     ) -> EvalResult<Option<Value>> {
         if let Some(destination) = destination.filter(|primitive| primitive.is_fixed_integer())
-            && let Some(literal) = validation::land_anonymous_integer_expression(
+            && let Some((literal, _)) = validation::land_anonymous_integer_expression(
                 self.program,
                 expression,
                 destination,
+                &[],
                 |expression| match self
                     .operator_facts
                     .and_then(|facts| facts.expression_use(expression))

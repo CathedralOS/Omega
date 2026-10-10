@@ -266,7 +266,7 @@ fn prove(
             // than requiring an unrelated literal-stamping pass to have run.
             && !(arguments::is_unlanded_integer(program, *argument)
                 && validation::land_anonymous_integer_expression(
-                    program, *argument, primitive, |_| false,
+                    program, *argument, primitive, &[], |_| false,
                 ).is_some())
         {
             return None;

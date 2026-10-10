@@ -293,13 +293,14 @@ pub(crate) fn land_anonymous_scalar_expression(
     expression: ExpressionHandle,
     destination: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
-    validation::land_anonymous_integer_expression(program, expression, destination, |expression| {
-        match operators.expression_use(expression) {
+    validation::land_anonymous_integer_expression(
+        program, expression, destination, &[],
+        |expression| match operators.expression_use(expression) {
             Some(operator) => operator.status == CheckedOperatorResolutionStatus::BuiltinFallback,
             None => validation::has_anonymous_operator_meaning(program, expression),
-        }
-    })
-    .map(|literal| CheckedScalarExpression::IntegerLiteral { literal })
+        },
+    )
+    .map(|(literal, _)| CheckedScalarExpression::IntegerLiteral { literal })
 }
 
 pub(crate) fn lower_scalar_operands(
@@ -414,9 +415,9 @@ pub(crate) fn lower_scalar_expression(
                 literal: if literal.landing().is_some() {
                     literal.clone()
                 } else {
-                    validation::land_anonymous_integer_expression(program, leaf, primitive, |_| {
-                        false
-                    })?
+                    validation::land_anonymous_integer_expression(
+                        program, leaf, primitive, &[], |_| false,
+                    )?.0
                 },
             }
         } else {

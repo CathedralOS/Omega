@@ -240,10 +240,11 @@ fn anonymous_integer_argument_range(
 ) -> Option<IntegerRange> {
     let program = proof_plan.program;
     let primitive = program.primitive_type_reference(destination)?;
-    let literal = validation::land_anonymous_integer_expression(
+    let (literal, _) = validation::land_anonymous_integer_expression(
         program,
         argument,
         primitive,
+        &[],
         |expression| validation::has_anonymous_operator_meaning(program, expression),
     )?;
     integer_range_for_literal(&literal)

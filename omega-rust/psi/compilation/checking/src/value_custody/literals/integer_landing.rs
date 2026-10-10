@@ -24,37 +24,12 @@ pub(crate) use destinations::anonymous_integer_landing_warnings;
 /// Render a wholly anonymous numeric expression at its first fixed-integer
 /// destination. The caller owns operator-selection evidence. No named value,
 /// cast, call, prior landing, or target-semantic observation is evaluated here.
-pub fn land_anonymous_integer_expression(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    destination: PrimitiveType,
-    mut builtin: impl FnMut(ExpressionHandle) -> bool,
-) -> Option<IntegerLiteral> {
-    let value = anonymous_numeric_value(program, expression, &mut builtin)?;
-    land_integer_value(&value.value.to_integer_exact()?, destination)
-}
-
-/// Land one selected anonymous subtree and retain its first fractional
-/// intermediate warning. Callers publish the warning only after full admission.
-pub fn land_anonymous_integer_expression_with_warning(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    destination: PrimitiveType,
-    builtin: impl FnMut(ExpressionHandle) -> bool,
-) -> Option<(IntegerLiteral, Option<Diagnostic>)> {
-    land_anonymous_integer_expression_with_selected_match_arms(
-        program,
-        expression,
-        destination,
-        &[],
-        builtin,
-    )
-}
-
 /// Land an anonymous calculation using the caller's already selected Match
 /// result edges. Each edge must belong to that exact dispatch; the caller owns
-/// subject evaluation, ordered selection, coverage, and all-arm static checking.
-pub fn land_anonymous_integer_expression_with_selected_match_arms(
+/// subject evaluation, ordered selection, coverage, and all-arm static
+/// checking. One selected subtree retains its first fractional intermediate
+/// warning; callers publish the warning only after full admission.
+pub fn land_anonymous_integer_expression(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     destination: PrimitiveType,
@@ -73,22 +48,9 @@ pub fn land_anonymous_integer_expression_with_selected_match_arms(
 /// arithmetic node. A Boolean result grants no declaration-selection authority;
 /// callers retain that evidence separately. Non-comparisons, prior landings,
 /// invalid trees and anonymous division by zero return None.
-pub fn evaluate_anonymous_numeric_comparison(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    builtin: impl FnMut(ExpressionHandle) -> bool,
-) -> Option<bool> {
-    evaluate_anonymous_numeric_comparison_with_selected_match_arms(
-        program,
-        expression,
-        &[],
-        builtin,
-    )
-}
-
-/// Compare anonymous operands through exact result edges selected by the
+/// Anonymous operands compare through exact result edges selected by the
 /// caller. These edges convey no operator or declaration-selection authority.
-pub fn evaluate_anonymous_numeric_comparison_with_selected_match_arms(
+pub fn evaluate_anonymous_numeric_comparison(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
@@ -146,7 +108,7 @@ pub(crate) fn evaluate_anonymous_numeric_equality(
 /// the saved subject of ordered scalar dispatch. No carrier is introduced;
 /// selected result edges and builtin authority obey the ordinary rational
 /// evaluator's checks. Fractional landing diagnostics remain destination-owned.
-pub fn evaluate_anonymous_numeric_expression_with_selected_match_arms(
+pub fn evaluate_anonymous_numeric_expression(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],

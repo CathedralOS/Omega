@@ -469,6 +469,7 @@ fn argument_matches_type_reference_using(
                     program,
                     argument,
                     primitive_type,
+                    &[],
                     |expression| {
                         crate::value_custody::literals::has_anonymous_operator_meaning(
                             program, expression,

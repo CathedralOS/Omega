@@ -65,7 +65,7 @@ use typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
 };
-use validation::evaluate_anonymous_numeric_expression_with_selected_match_arms;
+use validation::evaluate_anonymous_numeric_expression;
 
 pub(super) fn excludes_zero(
     program: &TypedTrees,
@@ -141,7 +141,7 @@ fn analyze(
                     pending.push(Step::Enter(binary.left));
                 }
                 ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
-                    let value = evaluate_anonymous_numeric_expression_with_selected_match_arms(
+                    let value = evaluate_anonymous_numeric_expression(
                         program,
                         expression,
                         &[],

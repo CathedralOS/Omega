@@ -256,7 +256,7 @@ fn evaluate_scalar_in(
         Value::Anonymous(expression)
             if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
         {
-            let exact = validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+            let exact = validation::evaluate_anonymous_numeric_expression(
                 program,
                 expression,
                 &selected_arms,
@@ -1254,7 +1254,7 @@ fn compare_anonymous(
     expression: ExpressionHandle,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
 ) -> Result<bool, String> {
-    validation::evaluate_anonymous_numeric_comparison_with_selected_match_arms(
+    validation::evaluate_anonymous_numeric_comparison(
         program,
         expression,
         selected_arms,
@@ -1275,7 +1275,7 @@ fn land_anonymous(
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Value, String> {
     let (literal, warning) =
-        validation::land_anonymous_integer_expression_with_selected_match_arms(
+        validation::land_anonymous_integer_expression(
             program,
             expression,
             destination,
@@ -1326,7 +1326,7 @@ fn land_anonymous_float(
     format: FloatFormat,
     selected_arms: &[(ExpressionHandle, ExpressionHandle)],
 ) -> Result<u64, String> {
-    let exact = validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+    let exact = validation::evaluate_anonymous_numeric_expression(
         program,
         expression,
         selected_arms,
@@ -1666,7 +1666,7 @@ pub(crate) fn evaluate_integer_endpoint(
     )?;
     let (integer, landing) = match value {
         Value::Anonymous(expression) => {
-            let exact = validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+            let exact = validation::evaluate_anonymous_numeric_expression(
                 program,
                 expression,
                 &selected_arms,

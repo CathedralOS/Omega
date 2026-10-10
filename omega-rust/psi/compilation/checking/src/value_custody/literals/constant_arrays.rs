@@ -323,6 +323,7 @@ pub fn closed_literal_array_elements(
                         program,
                         expression,
                         primitive,
+                        &[],
                         |_| false,
                     )?;
                 }

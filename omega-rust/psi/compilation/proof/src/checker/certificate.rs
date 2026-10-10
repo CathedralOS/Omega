@@ -473,6 +473,7 @@ fn guarded_transition_certificate(
                 proof_plan.program,
                 obligation.argument,
                 primitive,
+                &[],
                 |expression| {
                     validation::has_anonymous_operator_meaning(proof_plan.program, expression)
                 },
@@ -1105,10 +1106,11 @@ fn bounded_integer_value(
                     program,
                     value,
                     primitive,
+                    &[],
                     |expression| validation::has_anonymous_operator_meaning(program, expression),
                 )
             });
-        if let Some(landed) = landed {
+        if let Some((landed, _)) = landed {
             // The anonymous leg owns this verdict -- including a landed value
             // that fails the target -- so a landed expression must never fall
             // through to the literal or declared legs. The certificate covers

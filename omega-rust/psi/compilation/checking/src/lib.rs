@@ -276,13 +276,10 @@ pub use value_custody::expression_types::{
 pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;
 pub use value_custody::literals::evaluate_anonymous_numeric_comparison;
-pub use value_custody::literals::evaluate_anonymous_numeric_comparison_with_selected_match_arms;
-pub use value_custody::literals::evaluate_anonymous_numeric_expression_with_selected_match_arms;
+pub use value_custody::literals::evaluate_anonymous_numeric_expression;
 pub use value_custody::literals::has_anonymous_numeric_results;
 pub use value_custody::literals::has_anonymous_operator_meaning;
 pub use value_custody::literals::land_anonymous_integer_expression;
-pub use value_custody::literals::land_anonymous_integer_expression_with_selected_match_arms;
-pub use value_custody::literals::land_anonymous_integer_expression_with_warning;
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.

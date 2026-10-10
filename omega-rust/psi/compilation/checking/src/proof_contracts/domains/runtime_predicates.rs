@@ -216,10 +216,14 @@ impl Predicate<'_> {
         if crate::exact_domain_subject_type(self.program, self.domain, expression).is_some() {
             return Some(self.subject.clone());
         }
-        crate::land_anonymous_integer_expression(self.program, expression, self.primitive, |node| {
-            (self.builtin_closed)(self.domain, node)
-        })
-        .map(|literal| Scalar::IntegerLiteral { literal })
+        crate::land_anonymous_integer_expression(
+            self.program,
+            expression,
+            self.primitive,
+            &[],
+            |node| (self.builtin_closed)(self.domain, node),
+        )
+        .map(|(literal, _)| Scalar::IntegerLiteral { literal })
     }
 }
 
