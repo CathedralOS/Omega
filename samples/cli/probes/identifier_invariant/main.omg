@@ -1,0 +1,20 @@
+// `invariant` is not reserved syntax: it binds as an
+// ordinary local name. Semantic invariant windows,
+// default-domain facts, and loop reasoning stay
+// independent mechanisms — the word costs nothing.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let invariant: i32 = 25;
+    transition invariant == 25 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

@@ -1,0 +1,27 @@
+// 60 levels of parenthesis nesting — well within
+// MAX_NESTING_DEPTH but deep enough to have overflowed
+// the default parser stack before the pipeline gained
+// its large-stack compile thread. It must still reach
+// checked semantics.
+//
+// Compile-checked only: no standard-library dependency,
+// no ProcessExit provider.
+
+data Console {}
+
+machine Console::exit_process(console: &Console, code: i32) {}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let console: Console;
+    let x: i32 = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((7))))))))))))))))))))))))))))))))))))))))))))))))))))))))))));
+    Console::exit_process(&console, x);
+    transition x == 7 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
