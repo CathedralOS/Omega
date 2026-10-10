@@ -532,121 +532,105 @@ crashes Trap
     }
 }
 
-// Whether a type holds a reference: a reference, or an array or data whose
-// element, field or type argument holds one, within eight levels.
+// Whether a type may hold a reference through its elements, fields or type
+// arguments. Explicit traversal frames retain the next sibling at each depth;
+// calls do not recurse. One depth budget follows every structural edge, and
+// its limit conservatively retains possible loans.
 pub machine Checker::holds_references(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition { _ -> level(syntax, typing, handle, 0) }
+    let mut handles: [u64 in Trapping; 9] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let mut offsets: [u64 in Trapping; 9] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+    handles[0] = handle;
+    transition { _ -> visit(syntax, typing, &mut handles, &mut offsets, 0) }
 
-    state level(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> bool {
+    state visit(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping) -> bool
+    requires depth < 9
+    {
+        let handle: u64 in Trapping = handles[depth];
+        let offset: u64 in Trapping = offsets[depth];
         let row: TypeRow = TypeTable::row(&typing.types, handle);
         transition row.kind {
             TypeKind::Reference -> answer(true)
-            TypeKind::Array -> array(syntax, typing, row, depth)
-            TypeKind::Data -> data(syntax, typing, row, depth)
-            _ -> answer(false)
+            TypeKind::Array -> array(syntax, typing, handles, offsets, depth, offset, row)
+            TypeKind::Data -> data(syntax, typing, handles, offsets, depth, offset, row)
+            _ -> finished(syntax, typing, handles, offsets, depth)
         }
     }
 
-    state array(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> bool {
+    state array(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow) -> bool {
         transition depth < 8 {
-            true -> level(syntax, typing, row.inner, depth + 1)
-            _ -> answer(false)
+            true -> element(syntax, typing, handles, offsets, depth, offset, row)
+            _ -> answer(true)
         }
     }
 
-    state data(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, depth: u64 in Trapping) -> bool {
+    state element(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow) -> bool
+    requires depth < 8
+    {
+        transition offset == 0 {
+            true -> descend(syntax, typing, handles, offsets, depth, offset, row.inner)
+            _ -> finished(syntax, typing, handles, offsets, depth)
+        }
+    }
+
+    state data(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow) -> bool {
         let item: DataItem = SyntaxTrees::data_item(syntax, row.item);
-        let fields: bool = Checker::fields_hold_references(syntax, typing, item, depth);
-        transition fields {
-            true -> answer(true)
-            _ -> arguments(typing, row)
+        transition depth < 8 {
+            true -> field(syntax, typing, handles, offsets, depth, offset, row, item)
+            _ -> answer(true)
         }
     }
 
-    state arguments(typing: &Typing, row: TypeRow) -> bool {
-        let referenced: bool = Checker::arguments_hold_references(typing, row);
-        transition { _ -> answer(referenced) }
+    state field(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow, item: DataItem) -> bool
+    requires depth < 8
+    {
+        transition offset < item.field_count {
+            true -> field_type(syntax, typing, handles, offsets, depth, offset, item)
+            _ -> argument(syntax, typing, handles, offsets, depth, offset, row, item.field_count)
+        }
     }
 
-    state answer(holds: bool) -> bool {
-        holds
-    }
-}
-
-// Whether a data item's fields hold references: a field typed as a
-// reference, or as an array of references or of data whose own fields do,
-// one level deeper than `depth`.
-machine Checker::fields_hold_references(syntax: &SyntaxTrees, typing: &Typing, item: DataItem, depth: u64 in Trapping) -> bool
-crashes Trap
-{
-    transition depth < 8 {
-        true -> next(syntax, typing, item, depth, item.first_field)
-        _ -> answer(false)
+    state field_type(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, item: DataItem) -> bool
+    requires depth < 8
+    {
+        let field: DataField = SyntaxTrees::field(syntax, item.first_field + offset);
+        let handle: u64 in Trapping = Typing::reference_type(typing, field.type_reference);
+        transition { _ -> descend(syntax, typing, handles, offsets, depth, offset, handle) }
     }
 
-    state next(syntax: &SyntaxTrees, typing: &Typing, item: DataItem, depth: u64 in Trapping, index: u64 in Trapping) -> bool {
-        transition index < item.first_field + item.field_count {
-            true -> field(syntax, typing, item, depth, index)
+    state argument(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow, fields: u64 in Trapping) -> bool
+    requires depth < 8
+    {
+        let argument: u64 in Trapping = offset - fields;
+        transition argument < row.argument_count {
+            true -> argument_type(syntax, typing, handles, offsets, depth, offset, row, argument)
+            _ -> finished(syntax, typing, handles, offsets, depth)
+        }
+    }
+
+    state argument_type(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, row: TypeRow, argument: u64 in Trapping) -> bool
+    requires depth < 8
+    {
+        let handle: u64 in Trapping = TypeTable::argument(&typing.types, row.first_argument + argument);
+        transition { _ -> descend(syntax, typing, handles, offsets, depth, offset, handle) }
+    }
+
+    state descend(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool
+    requires depth < 8
+    {
+        offsets[depth] = offset + 1;
+        handles[depth + 1] = handle;
+        offsets[depth + 1] = 0;
+        transition { _ -> visit(syntax, typing, handles, offsets, depth + 1) }
+    }
+
+    state finished(syntax: &SyntaxTrees, typing: &Typing, handles: &mut [u64 in Trapping; 9], offsets: &mut [u64 in Trapping; 9], depth: u64 in Trapping) -> bool
+    requires depth < 9
+    {
+        transition depth > 0 {
+            true -> visit(syntax, typing, handles, offsets, depth - 1)
             _ -> answer(false)
-        }
-    }
-
-    state field(syntax: &SyntaxTrees, typing: &Typing, item: DataItem, depth: u64 in Trapping, index: u64 in Trapping) -> bool {
-        let field: DataField = SyntaxTrees::field(syntax, index);
-        let field_type: u64 in Trapping = Typing::reference_type(typing, field.type_reference);
-        let direct: bool = Checker::directly_references(typing, field_type);
-        transition direct {
-            true -> answer(true)
-            _ -> next(syntax, typing, item, depth, index + 1)
-        }
-    }
-
-    state answer(holds: bool) -> bool {
-        holds
-    }
-}
-
-// Whether a type is a reference or an array of references, through arrays.
-machine Checker::directly_references(typing: &Typing, handle: u64 in Trapping) -> bool
-crashes Trap
-{
-    transition { _ -> level(typing, handle, 0) }
-
-    state level(typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> bool {
-        let row: TypeRow = TypeTable::row(&typing.types, handle);
-        let reference: bool = row.kind == TypeKind::Reference;
-        transition row.kind == TypeKind::Array && depth < 8 {
-            true -> level(typing, row.inner, depth + 1)
-            _ -> answer(reference)
-        }
-    }
-
-    state answer(holds: bool) -> bool {
-        holds
-    }
-}
-
-// Whether a data type's arguments are references.
-machine Checker::arguments_hold_references(typing: &Typing, row: TypeRow) -> bool
-crashes Trap
-{
-    transition { _ -> next(typing, row, 0) }
-
-    state next(typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool {
-        transition offset < row.argument_count {
-            true -> argument(typing, row, offset)
-            _ -> answer(false)
-        }
-    }
-
-    state argument(typing: &Typing, row: TypeRow, offset: u64 in Trapping) -> bool {
-        let handle: u64 in Trapping = TypeTable::argument(&typing.types, row.first_argument + offset);
-        let direct: bool = Checker::directly_references(typing, handle);
-        transition direct {
-            true -> answer(true)
-            _ -> next(typing, row, offset + 1)
         }
     }
 
