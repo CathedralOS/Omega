@@ -4,7 +4,7 @@ use language_semantics::DataSupplyMode;
 use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn validate_supported_shapes(
+pub(super) fn validate_erased_field_shapes(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -43,7 +43,7 @@ pub(super) fn validate_supported_shapes(
         // generic runtime layout or method body.
         if has_attached_machines
             && program.data_type_parameters(definition).is_empty()
-            && !supports_erased_attached_machine_record(program, definition)
+            && !erased_attached_machine_record_is_admitted(program, definition)
         {
             diagnostics.push(unsupported(
                 definition,
@@ -182,7 +182,7 @@ fn erased_qualifier(
 /// runtime storage and are checked at each synthesized closed use. Admitted and
 /// boundary providers need additional representation or evidence rules and
 /// therefore remain behind the existing fail-closed fence.
-fn supports_erased_attached_machine_record(
+fn erased_attached_machine_record_is_admitted(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
 ) -> bool {

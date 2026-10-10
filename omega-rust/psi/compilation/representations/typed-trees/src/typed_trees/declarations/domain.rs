@@ -308,7 +308,7 @@ impl Default for ProofMembershipFact {
 /// family symbol, including through an alias or an intermediate membership.
 /// Carrier-only generic parameters remain eligible. This is a fail-closed
 /// proof-reader fence, not an identity or metadata-normalization judgment.
-pub fn supports_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHandle) -> bool {
+pub fn has_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHandle) -> bool {
     fn visit(program: &TypedTrees, symbol: SymbolHandle, visited: &mut Vec<SymbolHandle>) -> bool {
         let Some(domain) = domain_by_symbol(program, symbol) else {
             return false;

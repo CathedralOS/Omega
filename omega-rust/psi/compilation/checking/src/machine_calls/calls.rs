@@ -44,7 +44,7 @@ pub(crate) mod signature_queries;
 mod unit_returns;
 mod write_frames;
 
-pub use unit_returns::{unit_return_call_is_supported, unit_statement_call_is_supported};
+pub use unit_returns::{unit_return_call_is_admitted, unit_statement_call_is_admitted};
 
 use argument_bounds::report_argument_bounds;
 use expression_scanning::receiver_member_chain;
@@ -53,8 +53,8 @@ pub(crate) use expression_scanning::{
     validate_value_position_calls,
 };
 pub use expression_scanning::{
-    nested_boundary_applications_compose, result_initializer_call_is_supported,
-    unit_result_initializer_call_is_supported,
+    nested_boundary_applications_compose, result_initializer_call_is_admitted,
+    unit_result_initializer_call_is_admitted,
 };
 use generic_bounds::{
     validate_machine_call_type_parameter_bounds, validate_resolved_target_type_parameter_bounds,

@@ -1,9 +1,9 @@
 //! The existing scalar-return boundary operation with a whole parameter receiver.
 use super::{
-    ExpressionHandle, ExpressionNode, Machine, StatementNode, initializer_target_is_supported,
+    ExpressionHandle, ExpressionNode, Machine, StatementNode, initializer_target_is_admitted,
 };
 
-pub(super) fn is_supported(
+pub(super) fn is_admitted(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
@@ -41,7 +41,7 @@ pub(super) fn is_supported(
     {
         return false;
     }
-    initializer_target_is_supported(
+    initializer_target_is_admitted(
         program,
         machine,
         local.initial_value,

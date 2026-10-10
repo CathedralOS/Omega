@@ -28,8 +28,8 @@ mod traversal;
 pub(crate) use result_realization::report_nested_call_in_local_initializer;
 use result_realization::report_void_value_callee;
 pub use result_realization::{
-    nested_boundary_applications_compose, result_initializer_call_is_supported,
-    unit_result_initializer_call_is_supported,
+    nested_boundary_applications_compose, result_initializer_call_is_admitted,
+    unit_result_initializer_call_is_admitted,
 };
 pub(crate) use target_resolution::declared_receiver_type_reference;
 use target_resolution::{named_type_reference_name, report_unresolved_value_call};
@@ -217,7 +217,7 @@ fn validate_expression_call_bounds(
         return;
     }
     let unit_statement = statement_root
-        && crate::machine_calls::calls::unit_statement_call_is_supported(
+        && crate::machine_calls::calls::unit_statement_call_is_admitted(
             program,
             current_machine,
             current_state,

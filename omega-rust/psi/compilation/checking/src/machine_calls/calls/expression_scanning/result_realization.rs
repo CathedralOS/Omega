@@ -21,7 +21,7 @@ mod boundary_return;
 
 /// Result operations own the outer call while their operands use the shared
 /// scalar evaluator. Each caller family retains its existing source topology.
-pub fn result_initializer_call_is_supported(
+pub fn result_initializer_call_is_admitted(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
@@ -37,10 +37,10 @@ pub fn result_initializer_call_is_supported(
             Some(StatementNode::Expression(expression)) if *expression == value)
         && program.expression_table.expression_is_valid(value)
     {
-        return initializer_target_is_supported(program, machine, value, state.return_type, true);
+        return initializer_target_is_admitted(program, machine, value, state.return_type, true);
     }
-    unit_result_initializer_call_is_supported(program, machine, value)
-        || boundary_return::is_supported(program, machine, value)
+    unit_result_initializer_call_is_admitted(program, machine, value)
+        || boundary_return::is_admitted(program, machine, value)
 }
 
 /// Local calls retain ordered operands in either their computation or structural
@@ -54,7 +54,7 @@ pub(crate) fn report_nested_call_in_local_initializer(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if local_initializer_has_operand_evaluation(program, machine, value)
-        || result_initializer_call_is_supported(program, machine, value)
+        || result_initializer_call_is_admitted(program, machine, value)
     {
         // This exempts a destination, not its semantics. Ordinary call checks
         // still validate every argument; unsupported computation nodes or call
@@ -69,7 +69,7 @@ pub(crate) fn report_nested_call_in_local_initializer(
 /// compatibility; this predicate does not supply those semantic judgments.
 /// Scalar and owned structural results use the authored statement sequence.
 /// Structural ownership and cleanup are checked by that sequence's producer.
-pub fn unit_result_initializer_call_is_supported(
+pub fn unit_result_initializer_call_is_admitted(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
@@ -93,7 +93,7 @@ pub fn unit_result_initializer_call_is_supported(
         && crate::is_closed_primitive_array_type(program, state.return_type)
         && program.machine_states(machine).len() == 1
     {
-        return initializer_target_is_supported(program, machine, value, state.return_type, true);
+        return initializer_target_is_admitted(program, machine, value, state.return_type, true);
     }
     let mut initializers =
         statements
@@ -113,7 +113,7 @@ pub fn unit_result_initializer_call_is_supported(
     let has_boundary_scalar_initializer = program
         .primitive_type_reference(local.type_reference)
         .is_some()
-        && initializer_target_is_supported(
+        && initializer_target_is_admitted(
             program,
             machine,
             local.initial_value,
@@ -149,7 +149,7 @@ pub fn unit_result_initializer_call_is_supported(
     {
         return false;
     }
-    initializer_target_is_supported(
+    initializer_target_is_admitted(
         program,
         machine,
         local.initial_value,
@@ -172,7 +172,7 @@ fn boundary_structural_initializer(
             local.type_reference,
             crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
         )
-        && initializer_target_is_supported(
+        && initializer_target_is_admitted(
             program,
             machine,
             local.initial_value,
@@ -231,7 +231,7 @@ fn ordinary_structural_result_type(
     }
 }
 
-fn initializer_target_is_supported(
+fn initializer_target_is_admitted(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     value: ExpressionHandle,
@@ -557,7 +557,7 @@ pub(super) fn report_void_value_callee(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if callee_state.return_type.is_valid()
-        || crate::machine_calls::calls::unit_statement_call_is_supported(
+        || crate::machine_calls::calls::unit_statement_call_is_admitted(
             program,
             current_machine,
             current_state,

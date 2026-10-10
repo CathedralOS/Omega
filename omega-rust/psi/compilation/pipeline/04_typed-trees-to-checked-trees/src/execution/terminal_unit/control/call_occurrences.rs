@@ -114,7 +114,7 @@ pub(in crate::execution::terminal_unit) fn unit_statement_call<'a>(
         return None;
     }
     let call = program.expression_table.call_node(*expression)?;
-    validation::unit_statement_call_is_supported(program, machine, state, *expression)
+    validation::unit_statement_call_is_admitted(program, machine, state, *expression)
         .then_some((*expression, call))
 }
 

@@ -103,7 +103,7 @@ pub(crate) fn validate_checked_write_only_slice(
                 }
 
                 for root in &roots {
-                    if !is_supported_checked_referee(program, root.referee)
+                    if !is_admitted_checked_referee(program, root.referee)
                         && receiver::record(program, root).is_none()
                     {
                         diagnostics.push(Diagnostic::error(format!(
@@ -231,7 +231,7 @@ fn literal_fixed_array_length(
     Some(*length)
 }
 
-fn is_supported_checked_referee(
+fn is_admitted_checked_referee(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
@@ -389,7 +389,7 @@ fn is_unrestricted_write_only_array_element(
         || is_unrestricted_write_only_sum(program, type_reference)
 }
 
-fn whole_root_replacement_is_supported(
+fn whole_root_replacement_is_admitted(
     program: &dyn crate::CheckingInput,
     root: &WriteOnlyRoot,
 ) -> bool {
@@ -689,7 +689,7 @@ fn write_only_call_subloan(
         }
         return match declared_referee {
             Some(declared) => {
-                is_supported_checked_referee(program, referee)
+                is_admitted_checked_referee(program, referee)
                     && (crate::value_custody::type_references::type_references_match(
                         program, referee, declared,
                     ) || reject_subloan_referee_mismatch(
@@ -829,7 +829,7 @@ fn validate_statement<'p>(
         ),
         StatementNode::Assignment(assignment) => {
             if let Some(root) = direct_write_only_root(program, assignment.target, roots) {
-                if !whole_root_replacement_is_supported(program, root) {
+                if !whole_root_replacement_is_admitted(program, root) {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{machine}` state `{state}` replaces whole write-only aggregate `{}`; whole-root replacement requires a freely discardable supported root, so replace one eligible leaf through an invariant-free record path or declare and prove an unrestricted material aggregate instead",
                         root.name,

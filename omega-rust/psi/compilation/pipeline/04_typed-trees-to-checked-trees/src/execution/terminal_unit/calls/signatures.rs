@@ -168,7 +168,7 @@ fn structural_signature_with_partial_affine(
         // an ordinary shared borrow of a primitive referent all admit a
         // borrowed primitive place; the borrow's own custody checks decide
         // whether the callee may read through it.
-        let primitive_access_is_supported = matches!(
+        let primitive_access_is_admitted = matches!(
             access,
             CheckedStructuralAccess::MutableBorrow
                 | CheckedStructuralAccess::WriteOnlyBorrow
@@ -178,7 +178,7 @@ fn structural_signature_with_partial_affine(
         if primitive_referent.is_some()
             && (multiplicity != Multiplicity::Unrestricted
                 || !qualifications.is_empty()
-                || !primitive_access_is_supported)
+                || !primitive_access_is_admitted)
         {
             return None;
         }

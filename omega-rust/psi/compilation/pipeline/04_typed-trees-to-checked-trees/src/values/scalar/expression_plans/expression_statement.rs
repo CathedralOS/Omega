@@ -27,7 +27,7 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
         ..
     } = planner;
     let unit_statement =
-        validation::unit_statement_call_is_supported(program, machine, state, expression);
+        validation::unit_statement_call_is_admitted(program, machine, state, expression);
     retain_expression_call_arguments(
         program,
         operators,

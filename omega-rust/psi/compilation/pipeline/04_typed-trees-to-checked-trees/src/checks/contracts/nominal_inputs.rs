@@ -349,7 +349,7 @@ fn prove_declared_field_domain(
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
     if validation::field_domains::domain_requires_provenance(program, domain_symbol)
-        || !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol)
+        || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
     {
         super::exits::exact_scalar_membership(
             program,

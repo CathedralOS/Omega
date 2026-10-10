@@ -715,7 +715,7 @@ fn context_proves_membership_label(
     value_label: &str,
     required_domain: SymbolHandle,
 ) -> bool {
-    if !typed_trees::domain::supports_symbol_only_proof(program, required_domain) {
+    if !typed_trees::domain::has_symbol_only_proof(program, required_domain) {
         return false;
     }
     let context = semantic.contexts.get(context);
@@ -733,7 +733,7 @@ fn context_proves_membership_label(
             } => (domain_symbol, value),
             _ => return false,
         };
-        if !typed_trees::domain::supports_symbol_only_proof(program, fact_domain) {
+        if !typed_trees::domain::has_symbol_only_proof(program, fact_domain) {
             return false;
         }
         if !semantic.domain_implies(fact_domain, required_domain)

@@ -42,7 +42,7 @@ pub(crate) fn validate_relevance(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let proof_only = crate::proof_only_classification(program);
-    validate_supported_shapes(program, diagnostics);
+    validate_erased_field_shapes(program, diagnostics);
 
     for machine in program.machines() {
         let machine_context = if proof_only.is_proof_machine(program, machine)
@@ -245,7 +245,7 @@ pub(crate) fn validate_relevance(
 
 mod shape_admission;
 pub(super) use shape_admission::erased_fields;
-use shape_admission::validate_supported_shapes;
+use shape_admission::validate_erased_field_shapes;
 
 mod runtime_uses;
 use runtime_uses::validate_expression;

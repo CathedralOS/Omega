@@ -58,7 +58,7 @@ fn binder<'program>(
     })
 }
 
-pub(crate) fn const_range_bound_is_supported(
+pub(crate) fn const_range_bound_is_admitted(
     program: &dyn crate::CheckingInput,
     parameters: &[TypeParameter],
     expression: ExpressionHandle,

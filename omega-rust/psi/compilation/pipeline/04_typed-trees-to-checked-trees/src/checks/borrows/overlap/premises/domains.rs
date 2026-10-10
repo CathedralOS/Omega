@@ -32,7 +32,7 @@ pub(super) fn append_membership_premises(
         || domain.alias.is_some()
         || !domain.semantic_id.is_valid()
         || domain.semantic_id != membership.semantic_domain
-        || !typed_trees::domain::supports_symbol_only_proof(program, domain.symbol)
+        || !typed_trees::domain::has_symbol_only_proof(program, domain.symbol)
     {
         return;
     }
