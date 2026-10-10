@@ -1106,17 +1106,20 @@ pub(crate) fn field_path_identity(
         ))
 }
 
-/// A projected loan's referee can be owned by no signature, result or
-/// operation. Catalog declared record referees independently of their reads or
-/// stores; this supplies geometry, never admission or an owned storage home.
+/// A local loan's referee can be owned by no signature, result or operation.
+/// Retain its concrete storage shape independently of scalar kind: primitive
+/// representation views need the same geometry as record field observations.
+/// This roots only authored local loans, not every stored pointer's referent;
+/// catalog traversal still stops at reference edges, keeping growing recursive
+/// applications finite. Geometry grants neither admission nor a storage home.
 pub(crate) fn type_roots(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<Vec<String>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let mut types = Vec::new();
-    // A loan used only by array reads has neither a field computation nor a
-    // store. Its declared type still owns the projection geometry.
+    // A loan used only by primitive or array reads has no field computation.
+    // Its declared type still owns the observation geometry.
     if let Some(owner) = checked.machine(machine) {
         for state in checked.machine_states(owner) {
             for local in checked.facts.state_locals.locals(state.symbol) {
@@ -1126,10 +1129,6 @@ pub(crate) fn type_roots(
                 else {
                     continue;
                 };
-                let referee_symbol = checked.type_reference_symbol(*referee);
-                if !checked.data_definition_by_symbol(referee_symbol).is_some() {
-                    continue;
-                }
                 // The plan registry's identity rule looks through a
                 // qualification: a loan of an element of `[E; N] in Trapping`
                 // lends plain `E` storage.
