@@ -1,0 +1,55 @@
+NF03 complex carrier ops — candidate public contract
+
+Module: numerics::complex::complex_carrier_ops (requester alias numerics).
+Carrier: pub data Complex<T [copy]> [copy] { real: T; imaginary: T; }
+No implicit operators, conformance, allocation, matrices, backing slices,
+precision promotion or hidden copies. Only f32 and f64 operations are served.
+
+For Format=F32/T=f32 or Format=F64/T=f64:
+ComplexFormat::add(destination: &mut Complex<T>, left: &Complex<T>, right: &Complex<T>)
+ComplexFormat::multiply(destination: &mut Complex<T>, left: &Complex<T>, right: &Complex<T>)
+ComplexFormat::conjugate(destination: &mut Complex<T>, input: &Complex<T>)
+ComplexFormat::norm_squared(input: &Complex<T>) -> T
+ComplexFormat::try_magnitude(input: &Complex<T>) -> ComplexMagnitude<T>
+
+ComplexMagnitude<T [copy]> [copy] = Value(value: T) | NonFiniteInput | Overflow.
+This outcome is specific to complex magnitude, pending NF02 policy integration.
+Shared inputs may alias one another. Destination must be disjoint from every
+input for the call duration. Callers needing an in-place update explicitly copy
+the input into a separate carrier first. Fields are public and mutable.
+
+Numerical policy:
+- Format remains unchanged. Each +, -, *, / and sqrt uses the selected core
+  floating provider and its IEEE binary32/binary64 nearest-even semantics.
+- Multiply uses four rounded products, then one rounded subtract and add.
+  No fused multiply-add or reassociation is requested. Results may overflow
+  or contain NaN; raw add/multiply/norm_squared do not report errors.
+- Conjugate copies real and applies core negate to imaginary, preserving
+  the sign-change semantics for signed zero and exceptional values.
+- norm_squared is re*re + im*im, not magnitude, and can overflow even if
+  magnitude is finite. It is not claimed to be a robust scaled norm.
+- try_magnitude refuses NaN/infinity components, takes absolute values,
+  orders high>=low, handles zero before division, then evaluates
+  high*sqrt(1+(low/high)*(low/high)). A nonfinite final value is Overflow.
+  Scaling prevents avoidable square overflow; small ratios may underflow.
+  No correctly-rounded hypot guarantee, relative-error bound for all inputs,
+  NaN payload guarantee, or sign-of-zero magnitude guarantee is promised.
+- Fixed fixture tolerances live in the samples' ORACLES.md; those checks
+  do not constitute a general numerical accuracy theorem.
+
+Dependency checkpoint / exact needed contracts:
+NF02: exact requested consumer signatures (names are requests, not imports):
+  finite_f32(value: f32) -> bool
+  finite_f64(value: f64) -> bool
+  within_f32(actual: f32, expected: f32, absolute_tolerance: f32, relative_tolerance: f32) -> bool
+  within_f64(actual: f64, expected: f64, absolute_tolerance: f64, relative_tolerance: f64) -> bool
+Also publish the module path and shared numeric error/result representation.
+If equivalent interfaces use different names, return those actual signatures.
+Needed behavior: distinguish nonfinite input from finite-result overflow, and
+state whether NF03's local ComplexMagnitude cases should map to shared errors.
+No NF02 implementation or guessed import is included here.
+NF01: source/library/numerics/build.omg declaring the package and source layout;
+the samples depend_as 'numerics' on this directory. This module declaration
+must be admitted within that package. NF03 does not add competing metadata.
+
+Public source qualification is separate from package integration acceptance.
