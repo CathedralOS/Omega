@@ -15,9 +15,7 @@ use crate::preparation::generic_data::uses::{
 };
 
 use super::substitution::substitute_copied_type_names;
-use super::work_domain::{
-    GenericDataWorkDomain, SynthesisWork, TypePositionPurpose, required_declaration_specializations,
-};
+use super::work_domain::{GenericDataWorkDomain, SynthesisWork, TypePositionPurpose};
 use crate::preparation::generic_data::evaluate_const_fact_expression;
 use crate::preparation::generic_data::evaluate_const_membership_fact;
 use crate::preparation::generic_data::normalize_domain_head_positions;
@@ -316,9 +314,6 @@ pub(crate) fn desugar_generic_data_instances_in(
     if generic_data.is_empty() {
         return Ok(());
     }
-    let required_specializations =
-        required_declaration_specializations(syntax, &generic_data, &attached_machines, selection);
-
     // FIXPOINT. Each round scans every type-reference position for a
     // `Base<Args..>` spelling, synthesizes one concrete record per new distinct
     // spelling, and rewrites the spellings to the instances' plain names. A
@@ -326,9 +321,10 @@ pub(crate) fn desugar_generic_data_instances_in(
     // `Pair<i32>` record whose `a` field is a fresh `Box<i32>` spelling -- picked
     // up and monomorphized by the NEXT round. Only inline storage extends the
     // authored storage roster. A substituted reference describes identity,
-    // not a layout demand. Declaration-owned obligations still extend this
-    // work through references: the finite template dependency closure decides
-    // which applications need the existing specialization/admission operation.
+    // not a layout demand, regardless of const binders, predicates or methods.
+    // Every discovered application still prepares its complete argument tuple;
+    // default-domain predicates are established by value construction/use,
+    // not by naming a possibly uninhabited application.
     // Completion can add closed type owners after an earlier pass. Reuse
     // declarations by retained template/argument identity, never by the name
     // generated for them, and never clone their attached methods twice.
@@ -407,10 +403,7 @@ pub(crate) fn desugar_generic_data_instances_in(
                     instance.template == application.template
                         && instance.argument_identity == application.argument_identity
                 });
-            if prior.is_none()
-                && !storage_positions.contains(&position)
-                && !required_specializations.contains(&application.template)
-            {
+            if prior.is_none() && !storage_positions.contains(&position) {
                 continue;
             }
             // Identity-only uses must still rejoin a declaration already
@@ -617,7 +610,7 @@ fn synthesize_instance(
     // Structural matching selects Boolean indices without turning them
     // into integer endpoints. Synthesis must retain that same value in
     // constructor facts and attached bodies; leaving the binder symbolic
-    // would silently defer a false closed instantiation obligation.
+    // would lose the concrete predicate owed at value establishment.
     let mut const_parameter_scalars = const_parameter_values
         .iter()
         .map(|(name, value)| (name.clone(), ConstScalarValue::Integer(*value)))
@@ -644,10 +637,10 @@ fn synthesize_instance(
         }
     }
 
-    // A fact whose operands are all const-bound is an instantiation
-    // obligation, not a standing runtime invariant. Prove it now and
-    // omit it from the concrete record. Mixed facts retain their field
-    // operands and receive the same const substitution as members.
+    // Data predicates define a default domain, which need not be inhabited.
+    // Omit a proven truth, but retain false and mixed predicates with the same
+    // substitution as members. Construction and observation own establishment;
+    // discovering a contradiction must not make a type declaration illegal.
     let snapshot = syntax.clone();
     let type_watermark = syntax.type_references.node_count();
     let fact_expression_watermark = syntax.expressions.frontier();
@@ -700,14 +693,8 @@ fn synthesize_instance(
                 instance.synthetic_name
             ))]
         })?;
-        if let Some(value) = const_result {
-            if value {
-                continue;
-            }
-            return Err(vec![Diagnostic::error(format!(
-                "const fact for generic instance `{}` is false",
-                instance.synthetic_name
-            ))]);
+        if const_result == Some(true) {
+            continue;
         }
         warnings.truncate(fact_warning_start);
         let source = Handle::from_parts(

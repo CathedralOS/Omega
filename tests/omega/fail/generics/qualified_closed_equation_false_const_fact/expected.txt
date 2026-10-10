@@ -1,1 +1,1 @@
-const fact for generic instance `Check<4>` is false
+literal violates the default domain: a `where` fact evaluates FALSE

@@ -1636,8 +1636,6 @@ fail/generics/const_binder_used_as_field_type rejected 1647ms expected @693af9eb
 	data `Invalid` field `value` uses value parameter `Count` as a type; const and runtime value parameters supply values, not types
 fail/generics/const_container_mismatched_witness rejected 112ms expected @ca8c127c90c5
 	argument `buffer` for state `capacity` expects `&FixedBuffer<Capacity>`, got `named value`
-fail/generics/const_container_zero_extent rejected 5ms expected @ca8c127c90c5
-	const fact for generic instance `FixedBuffer<0>` is false
 fail/generics/const_data_argument_out_of_range rejected 250ms expected @2d8ed253669f
 	const argument `300` for `TinyBuffer::N` does not fit `u8`
 fail/generics/const_data_argument_requires_value rejected 270ms expected @2d8ed253669f
@@ -1646,8 +1644,8 @@ fail/generics/const_data_machine_call_requires_pure rejected 506ms expected @2d8
 	const-generic application evaluation failed: machine `loud_size` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/generics/const_data_machine_call_runtime_argument rejected 14ms expected @ae8939e231af+wt
 	machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
-fail/generics/const_data_where_fact_false rejected 18ms expected @2d8ed253669f
-	const fact for generic instance `FixedBuffer<0>` is false
+fail/generics/const_data_where_fact_false rejected 195ms expected @d09b20d6b400+wt
+	data `FixedBuffer<0>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/const_generic_runtime_argument rejected 265ms expected @2d8ed253669f
 	a value call to generic machine `prefix_count` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 fail/generics/data_equation_constructor_binder_carrier_domain rejected 18ms expected @1843c1a8677b+wt
@@ -3906,6 +3904,7 @@ pass/generics/runtime_container_setter_matrix_exit checked 1388ms check-target:m
 pass/generics/runtime_copied_indexed_case_subject_exit checked 2169ms check-target:macos_arm64 @0c36a0fe0b35
 pass/generics/runtime_equation_named_array_actual_exit checked 4788ms check-target:linux_x86_64 @5025d41fde63+wt
 pass/generics/runtime_finite_recursive_reference_catalog_exit checked 2468ms check-target:macos_arm64 @f5eade25e1fd+wt
+pass/generics/runtime_case_qualified_reference_storage_exit checked 2325ms check-target:macos_arm64 @d09b20d6b400+wt
 pass/generics/runtime_forwarded_value_contract_exit checked 507ms check-target:macos_arm64 @fbbbc025398+wt
 pass/generics/runtime_generic_carrier_binder_equation_exit checked 4877ms check-target:linux_x86_64 @bb32bdfc8620+wt
 pass/generics/runtime_generic_carrier_equation_context_exit checked 5144ms check-target:linux_x86_64 @bb32bdfc8620+wt
@@ -4747,8 +4746,8 @@ run/contained_health_loop_command_branch checked 287ms @4e4bfed13aee+wt
 run/nested_mut_alias_assignment_return checked 783ms check-target:macos_arm64 @2d8ed253669f
 fail/generics/qualified_closed_equation_const_width rejected 12ms expected @8d6cc0f5fef7+wt
 	const fact for generic instance `Check<4>` is invalid: integer value `256` is outside the declared `u8` range
-fail/generics/qualified_closed_equation_false_const_fact rejected 12ms expected @8d6cc0f5fef7+wt
-	const fact for generic instance `Check<4>` is false
+fail/generics/qualified_closed_equation_false_const_fact rejected 763ms expected @d09b20d6b400+wt
+	data `Check<4>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/qualified_closed_equation_nominal_conflict rejected 1241ms expected @8d6cc0f5fef7+wt
 	generic machine `capacity` where equation on `Payload` does not hold: the supplied `Payload` argument is not `models::Token`
 fail/generics/qualified_closed_equation_open_constructor rejected 1199ms expected @8d6cc0f5fef7+wt

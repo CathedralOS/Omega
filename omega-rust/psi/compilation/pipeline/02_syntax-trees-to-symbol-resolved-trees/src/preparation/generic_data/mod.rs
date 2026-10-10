@@ -6,12 +6,12 @@
 //! Exact declaration lookup comes from the shared
 //! `preparation::declaration_selection` owner.
 //!
-//! Closed declaration specialization is demanded by authored applications,
-//! inline storage and unfinished declaration work. Reference identity alone
-//! does not demand a recursively growing catalog. The finite template graph
-//! retains transitive constant/fact/body obligations before indirection can
-//! omit redundant declarations; the existing synthesis operation owns their
-//! discharge. Typed preparation later elaborates finite application field
+//! Closed declaration specialization is demanded by authored applications
+//! and inline storage. Reference identity alone does not demand a recursively
+//! growing catalog, even for const-bearing or constrained declarations. Closed
+//! argument preparation remains independent of declaration copying. Data facts
+//! define default domains; impossible domains are legal to name, not to inhabit
+//! without establishing their predicates. Typed preparation elaborates field
 //! views without reopening the frozen program during checking.
 
 use crate::preparation::declaration_selection;

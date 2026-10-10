@@ -2,11 +2,13 @@
 // Zero extent still retains its element type; it is not permission to erase
 // the growing edge. Held also transports and reads an actual nonempty loan.
 data Cell { value: i32; }
-data Chain<'next, Element> {
+data Chain<'next, Element, const Capacity: u64>
+where Capacity > 0,
+{
     value: Element;
-    next: [&'next Chain<'next, [Element; 2]>; 0];
+    next: [&'next Chain<'next, [Element; 2], Capacity>; 0];
 }
-data Held<'borrow, 'storage> { target: &'borrow Chain<'storage, i32>; }
+data Held<'borrow, 'storage> { target: &'borrow Chain<'storage, i32, 2>; }
 data Loop<'next, Element> {
     value: Element;
     next: [&'next Loop<'next, Element>; 0];
@@ -21,7 +23,14 @@ machine keep<'region>(value: &'region Nest<'region, u8>) -> &'region Nest<'regio
     value
 }
 
-machine read<'storage, 'borrow>(node: &'borrow Chain<'storage, i32>) -> i32 {
+// Merely naming an impossible specialization does not establish its default
+// domain. Indirect wrappers must neither reject it nor expand its reference
+// descendants forever. No reachable operation constructs these values.
+data BufferReference<'next, Element> { marker: Element; buffer: &Chain<'next, u8, 0>; }
+data IndirectBufferReference<'next, Element> { buffer: &BufferReference<'next, Element>; }
+data UninhabitedRoot<'next> { buffer: IndirectBufferReference<'next, u8>; }
+
+machine read<'storage, 'borrow>(node: &'borrow Chain<'storage, i32, 2>) -> i32 {
     let held: Held<'borrow, 'storage> = Held { target: node };
     held.target.value
 }
@@ -31,7 +40,7 @@ machine read_loop<'storage, 'borrow>(node: &'borrow Loop<'storage, i32>) -> i32 
 }
 
 machine exercise<'storage>(source: &'storage Cell) -> bool {
-    let node: Chain<'storage, i32> = Chain { value: source.value, next: [] };
+    let node: Chain<'storage, i32, 2> = Chain { value: source.value, next: [] };
     let regular: Loop<'storage, i32> = Loop { value: 29, next: [] };
     read(&node) == 17 && read_loop(&regular) == 29
 }

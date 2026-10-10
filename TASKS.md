@@ -3034,9 +3034,8 @@ of a check the same flow already performed, not the check itself.
   lexical owners through folding and substitution against the full check
   corpus and focused native cohort. Stored references retain finite closed
   identity edges through Terminal and native catalogs. Identity-only references
-  no longer grow the pre-resolution declaration catalog. Obligation-bearing
-  recursive applications still need a finite admission route independent of
-  layout expansion. Closed case operands consume prepared member types without
+  no longer grow the pre-resolution declaration catalog. Closed case operands
+  consume prepared member types without
   checking-side substitution;
   borrowed array payload observations retain their indexed scalar endpoints.
   Case-qualified descriptor storage now composes through ingress, construction,

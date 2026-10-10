@@ -1,6 +1,4 @@
-// A default-domain fact that depends only on const parameters is an
-// instantiation-time obligation. The false specialization must not synthesize.
-// References remove layout demands, not the obligations reached through them.
+// Naming FixedBuffer<0> is legal; constructing its value must establish N > 0.
 data FixedBuffer<const N: u64>
 where
     N > 0,
@@ -8,10 +6,6 @@ where
     values: [u8; N];
 }
 
-// The wrappers bind only types. Their dependency on the const-bearing leaf,
-// rather than a const binder of their own, must retain specialization work.
-data BufferReference<Element> { marker: Element; buffer: &FixedBuffer<0>; }
-data IndirectBufferReference<Element> { buffer: &BufferReference<Element>; }
-data Main { buffer: IndirectBufferReference<u8>; }
-
-machine main() {}
+machine main() {
+    let buffer: FixedBuffer<0> = FixedBuffer { values: [] };
+}
