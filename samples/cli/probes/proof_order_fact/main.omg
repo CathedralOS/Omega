@@ -1,0 +1,23 @@
+// Proof-artifact machine: `requires i < j ensures i != j`
+// with an empty body — the guarantee discharges from the
+// requirement alone using built-in order rules, so the
+// machine emits no runtime code at all.
+//
+//   * `machine Main::main()` — parameterless bound entry.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+machine distinct_indices(i: u64, j: u64)
+requires
+    i < j
+ensures
+    i != j
+{
+}
+
+data Main {
+}
+
+machine Main::main() {
+}
