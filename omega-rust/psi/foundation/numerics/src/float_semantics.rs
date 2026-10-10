@@ -124,6 +124,16 @@ pub enum FloatPolicyTrap {
     InfinityResult,
 }
 
+impl FloatPolicyTrap {
+    /// The word a trap diagnostic reports for this class.
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::NaNResult => "NaN",
+            Self::InfinityResult => "infinity",
+        }
+    }
+}
+
 impl FloatFormat {
     pub const BINARY32: Self = Self {
         radix: 2,

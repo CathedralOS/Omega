@@ -859,10 +859,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     .map_err(|trap_class| {
                         Halt::Trap(format!(
                             "named float operation `{target}` produced {} in Trapping domain",
-                            match trap_class {
-                                FloatPolicyTrap::NaNResult => "NaN",
-                                FloatPolicyTrap::InfinityResult => "infinity",
-                            }
+                            trap_class.label()
                         ))
                     })?,
                 ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => meaning,

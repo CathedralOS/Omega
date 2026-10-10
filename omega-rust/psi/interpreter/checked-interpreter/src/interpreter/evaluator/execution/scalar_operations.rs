@@ -134,10 +134,7 @@ impl<'program> Evaluator<'program> {
                 .map_err(|trap_class| {
                     Halt::Trap(format!(
                         "named float operation `{operation}` produced {} in Trapping domain",
-                        match trap_class {
-                            FloatPolicyTrap::NaNResult => "NaN",
-                            FloatPolicyTrap::InfinityResult => "infinity",
-                        }
+                        trap_class.label()
                     ))
                 })?,
             Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
@@ -233,10 +230,7 @@ impl<'program> Evaluator<'program> {
                 .map_err(|trap_class| {
                     Halt::Trap(format!(
                         "directed float operation produced {} in Trapping domain",
-                        match trap_class {
-                            FloatPolicyTrap::NaNResult => "NaN",
-                            FloatPolicyTrap::InfinityResult => "infinity",
-                        }
+                        trap_class.label()
                     ))
                 })?,
             Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
@@ -276,10 +270,7 @@ impl<'program> Evaluator<'program> {
                 .map_err(|trap_class| {
                     Halt::Trap(format!(
                         "directed square root produced {} in Trapping domain",
-                        match trap_class {
-                            FloatPolicyTrap::NaNResult => "NaN",
-                            FloatPolicyTrap::InfinityResult => "infinity",
-                        }
+                        trap_class.label()
                     ))
                 })?,
             Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
