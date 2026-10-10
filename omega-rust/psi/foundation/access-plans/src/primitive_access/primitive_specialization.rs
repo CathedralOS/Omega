@@ -96,6 +96,47 @@ pub enum StablePrimitiveOperation {
     Write,
 }
 
+/// Every primitive specialization wrapper exposes the sealed request's shared
+/// read surface verbatim; this macro restates the six identical accessors so
+/// the four wrappers cannot drift apart.
+macro_rules! primitive_request_read_surface {
+    () => {
+        /// The physical base address the retained request targets.
+        pub const fn primitive_address(&self) -> u64 {
+            self.request.primitive_address
+        }
+
+        /// The transfer width of one primitive step in bits.
+        pub const fn transfer_width_bits(&self) -> u16 {
+            self.request.transfer_width_bits
+        }
+
+        /// The logical field extent the retained request covers.
+        pub const fn logical_extent(&self) -> &LogicalFieldExtent {
+            &self.request.logical_extent
+        }
+
+        /// The effect footprint the retained request requires.
+        pub const fn effect_footprint(&self) -> EffectFootprint {
+            self.request.effect_footprint
+        }
+
+        /// Retained physical correspondence, when the originating placed view
+        /// was provider-corresponded. The specialization neither manufactures
+        /// nor requires this separate provider-issued fact.
+        pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
+            self.request.correspondence()
+        }
+
+        /// Borrow the exact sealed primitive request retained by this
+        /// specialization; the borrow exposes provenance for a later consumer
+        /// and establishes no transfer or mutation.
+        pub const fn primitive_request(&self) -> &PrimitiveAccessRequest<'view, 'extent> {
+            &self.request
+        }
+    };
+}
+
 /// Stable-only consumer contract for a sealed primitive access.
 ///
 /// The original request remains intact inside this carrier, retaining its
@@ -114,37 +155,7 @@ impl<'view, 'extent> StablePrimitiveAccessRequest<'view, 'extent> {
         self.operation
     }
 
-    pub const fn primitive_address(&self) -> u64 {
-        self.request.primitive_address
-    }
-
-    pub const fn transfer_width_bits(&self) -> u16 {
-        self.request.transfer_width_bits
-    }
-
-    pub const fn logical_extent(&self) -> &LogicalFieldExtent {
-        &self.request.logical_extent
-    }
-
-    pub const fn effect_footprint(&self) -> EffectFootprint {
-        self.request.effect_footprint
-    }
-
-    /// Retained physical correspondence, when the originating placed view
-    /// was provider-corresponded. This borrows the exact admitted fact; it
-    /// does not copy provider/device identities or require correspondence for
-    /// ordinary Stable storage.
-    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
-        self.request.correspondence()
-    }
-
-    /// Borrow the exact sealed primitive request retained by this
-    /// specialization. Consumers may inspect its complete placement and
-    /// lifetime authority but cannot reconstruct, mutate, or respecialize it.
-    pub const fn primitive_request(&self) -> &PrimitiveAccessRequest<'view, 'extent> {
-        &self.request
-    }
-
+    primitive_request_read_surface!();
     /// Independently replay the complete placed authority and Stable
     /// operation specialization before an outward lowering consumer accepts
     /// this request. Rejection only borrows the carrier, so its exact loan,
@@ -217,34 +228,7 @@ pub struct StableCompoundMutationAccessRequest<'view, 'extent> {
 }
 
 impl<'view, 'extent> StableCompoundMutationAccessRequest<'view, 'extent> {
-    pub const fn primitive_address(&self) -> u64 {
-        self.request.primitive_address
-    }
-
-    pub const fn transfer_width_bits(&self) -> u16 {
-        self.request.transfer_width_bits
-    }
-
-    pub const fn logical_extent(&self) -> &LogicalFieldExtent {
-        &self.request.logical_extent
-    }
-
-    pub const fn effect_footprint(&self) -> EffectFootprint {
-        self.request.effect_footprint
-    }
-
-    /// Retained physical correspondence, when present on the originating
-    /// placed view. The bounded mutation specialization does not manufacture
-    /// or require such evidence.
-    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
-        self.request.correspondence()
-    }
-
-    /// Borrow the exact sealed primitive request retained by this bounded
-    /// mutation specialization without weakening its exclusive authority.
-    pub const fn primitive_request(&self) -> &PrimitiveAccessRequest<'view, 'extent> {
-        &self.request
-    }
+    primitive_request_read_surface!();
 
     /// Independently replay the complete placed authority and bounded
     /// read-patch-write specialization before an outward lowering consumer
@@ -330,36 +314,7 @@ impl<'view, 'extent> ExternalPrimitiveAccessRequest<'view, 'extent> {
         self.operation
     }
 
-    pub const fn primitive_address(&self) -> u64 {
-        self.request.primitive_address
-    }
-
-    pub const fn transfer_width_bits(&self) -> u16 {
-        self.request.transfer_width_bits
-    }
-
-    pub const fn logical_extent(&self) -> &LogicalFieldExtent {
-        &self.request.logical_extent
-    }
-
-    pub const fn effect_footprint(&self) -> EffectFootprint {
-        self.request.effect_footprint
-    }
-
-    /// Retained physical correspondence, when the originating placed view
-    /// was provider-corresponded. This remains distinct from External supply
-    /// compatibility and establishes no device operation.
-    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
-        self.request.correspondence()
-    }
-
-    /// Borrow the exact sealed primitive request retained by this External
-    /// specialization. The borrow exposes provenance for a later consumer but
-    /// establishes no transfer or device operation.
-    pub const fn primitive_request(&self) -> &PrimitiveAccessRequest<'view, 'extent> {
-        &self.request
-    }
-
+    primitive_request_read_surface!();
     /// Independently replay the complete placed authority, admitted supply
     /// substitution, and exact External operation before an outward lowering
     /// consumer accepts this request. Rejection only borrows the carrier, so
@@ -451,35 +406,7 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
         self.operation.ordering_plan()
     }
 
-    pub const fn primitive_address(&self) -> u64 {
-        self.request.primitive_address
-    }
-
-    pub const fn transfer_width_bits(&self) -> u16 {
-        self.request.transfer_width_bits
-    }
-
-    pub const fn logical_extent(&self) -> &LogicalFieldExtent {
-        &self.request.logical_extent
-    }
-
-    pub const fn effect_footprint(&self) -> EffectFootprint {
-        self.request.effect_footprint
-    }
-
-    /// Retained physical correspondence, when present on the originating
-    /// placed view. Atomic specialization neither manufactures nor requires
-    /// this separate provider-issued fact.
-    pub const fn correspondence(&self) -> Option<&AdmittedSchemaDeviceCorrespondence> {
-        self.request.correspondence()
-    }
-
-    /// Borrow the exact sealed primitive request retained by this Atomic
-    /// specialization without weakening its operation or ordering identity.
-    pub const fn primitive_request(&self) -> &PrimitiveAccessRequest<'view, 'extent> {
-        &self.request
-    }
-
+    primitive_request_read_surface!();
     /// Independently replay the complete placed authority, admitted Atomic
     /// supply, operation family, and ordering law before an outward lowering
     /// consumer accepts this request. Rejection only borrows the carrier; it
