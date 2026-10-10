@@ -80,7 +80,17 @@ pub(crate) fn check_selected_execution(
         &build_config.opaque_representation_selections,
     )?;
     let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);
-    if !pending_pre_checks.is_empty() {
+    // Deferred const work decides the block; a surviving `size_of`/`align_of`
+    // query must fold under this target's custody even when nothing else
+    // deferred (e.g. a query in a purely runtime position).
+    let has_layout_queries = typed
+        .expression_table
+        .iter_expressions()
+        .any(|(_, expression)| match expression {
+            typed_trees::expression::ExpressionNode::Call(call) => call.layout_query.is_some(),
+            _ => false,
+        });
+    if !pending_pre_checks.is_empty() || has_layout_queries {
         let operator_selections =
             typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
         SelectedConstantEvaluation::prepare(
@@ -88,6 +98,10 @@ pub(crate) fn check_selected_execution(
                 &typed,
                 source::DependencyScope::Product,
             ),
+            selected_target_profile
+                .map(target::TargetProfile::native_target)
+                .unwrap_or_else(target::NativeTarget::host),
+            opaque_representation_selections,
             &operator_selections,
             &selected_provider_plan_facts,
         )?

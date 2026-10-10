@@ -112,9 +112,9 @@ use crate::{
     SelectedBuildTimeProviderBody, const_evaluation::const_applications,
     const_evaluation::const_domain_facts, const_evaluation::const_generic_calls,
     const_evaluation::const_generic_expressions, const_evaluation::const_initializers,
-    const_evaluation::const_lengths, const_evaluation::range_arguments,
-    const_evaluation::range_endpoints, layouts::placed_views, layouts::plan_laid,
-    layouts::wire_plans,
+    const_evaluation::const_lengths, const_evaluation::data_layout_queries,
+    const_evaluation::range_arguments, const_evaluation::range_endpoints, layouts::placed_views,
+    layouts::plan_laid, layouts::wire_plans,
 };
 
 /// Inputs retained by package-aware probes and generated extension evaluation.
@@ -430,7 +430,8 @@ impl PreCheckEvaluation {
             typed,
             self.selection_authority.clone(),
             &self.domain,
-        )? {
+        )? || data_layout_queries::pending_layout_queries_need_operator_selection(typed)
+        {
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
             const_applications::defer_pending_const_applications(typed, &self.domain)?;
             validation::resolve_selected_dynamic_call_targets(typed, self.domain.work())?;

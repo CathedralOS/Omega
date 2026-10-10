@@ -12,13 +12,21 @@ use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use typed_trees::TypedTrees;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedConstantEvaluation {
     operators: Vec<SelectedBuildTimeBinaryOperator>,
     /// Selected uses whose meaning is the selected provider's ordinary checked
     /// machine body. Each row carries the exact provider entry the semantic
     /// evaluation owner rebinds to on its private evaluation copy.
     provider_bodies: Vec<SelectedBuildTimeProviderBody>,
+    /// The exact selected target the deferred folds are answered under — the
+    /// explicit target custody a retained `size_of`/`align_of` query names its
+    /// subject from. Never the host's facts: a `--target` build folds every
+    /// query against this target's layout closure.
+    native_target: target::NativeTarget,
+    /// The opaque representation selections the layout authority consults for
+    /// the same fold; Build admission has none and supplies an empty set.
+    opaque_representation_selections: Vec<representation_planning::OpaqueRepresentationSelection>,
 }
 
 impl SelectedConstantEvaluation {
@@ -27,11 +35,23 @@ impl SelectedConstantEvaluation {
     /// Preparation may select an executable declaration projection of that same
     /// storage; only its occurrences acquire selected execution. Each fold
     /// lands its value in `typed`.
+    ///
+    /// Retained `size_of`/`align_of` queries fold first, under the selected
+    /// target's custody: every typed call carrying a `layout_query` becomes
+    /// the `u64` literal the layout authority reports for this target, in
+    /// constant and runtime positions alike, before the deferred
+    /// continuations' own evaluation observes the program.
     pub fn evaluate_pending(
         self,
         typed: &mut TypedTrees,
         pending: Vec<PreCheckEvaluation>,
     ) -> Result<(), Vec<Diagnostic>> {
+        provider_planning::data_layout_queries::fold_data_layout_queries(
+            typed,
+            self.native_target,
+            &self.opaque_representation_selections,
+            true,
+        )?;
         for continuation in pending {
             continuation.evaluate_selected_operators(
                 typed,
@@ -41,21 +61,40 @@ impl SelectedConstantEvaluation {
                 },
             )?;
         }
+        // The deferred evaluation installed the validated plan-laid layouts;
+        // queries over `Policy<Schema>` operands fold now, and any operand the
+        // program never instantiated reports the layout authority's own
+        // missing-layout diagnostic.
+        provider_planning::data_layout_queries::fold_data_layout_queries(
+            typed,
+            self.native_target,
+            &self.opaque_representation_selections,
+            false,
+        )?;
         Ok(())
     }
 
     /// Join provider authority once for every retained source use. Psi prepares
     /// semantic operands and independently admits both intrinsic and checked-body
     /// execution. Its coordinator supplies the operator selections; realization
-    /// does not enter a source stage to reconstruct them.
+    /// does not enter a source stage to reconstruct them. `native_target` and
+    /// `opaque_representation_selections` are the exact selection the deferred
+    /// data-layout queries are answered under.
     pub fn prepare(
         context: provider_planning::ProviderPlanningContext<'_>,
+        native_target: target::NativeTarget,
+        opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
         facts: &checked_trees::CheckedOperatorFacts,
         plans: &SelectedProviderPlanFacts,
     ) -> Result<Self, Vec<Diagnostic>> {
         let typed = context.typed;
         let uses = facts.resolved_expression_selections();
-        let mut selected = Self::default();
+        let mut selected = Self {
+            operators: Vec::new(),
+            provider_bodies: Vec::new(),
+            native_target,
+            opaque_representation_selections: opaque_representation_selections.to_vec(),
+        };
         for (expression, origin, requirement, policy) in uses {
             let Some((_, plan)) =
                 provider_planning::selected_requirement_plan(context, plans.plans(), requirement)

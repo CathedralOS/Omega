@@ -98,6 +98,10 @@ pub(crate) fn prepare_checked_build(
             typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
         selected_dispatch::SelectedConstantEvaluation::prepare(
             context,
+            execution_profile
+                .map(target::TargetProfile::native_target)
+                .unwrap_or_else(target::NativeTarget::host),
+            &[],
             &operator_selections,
             &selected_provider_plan_facts,
         )?

@@ -16,6 +16,9 @@ impl TableCallExpression {
     ///   representative operation and role-ordered theorem evidence are
     ///   retained inside the request instead of being spelled as operands, and
     ///   admission is a separate judgment.
+    /// * `layout_query` — a compiler-owned `size_of<T>`/`align_of<T>` request.
+    ///   There is no callee at all; the selected target's validated layout
+    ///   answers it after the Psi boundary, under explicit target custody.
     /// * `private_layout_operation` — an exact compiler-known
     ///   `Plan::place_private<Slot>` request. Its selected conformance is
     ///   proof-static identity that ordinary generic dispatch never sees.
@@ -27,6 +30,7 @@ impl TableCallExpression {
         self.static_requirement_dispatch.is_none()
             && self.quotient_operation.is_none()
             && self.private_layout_operation.is_none()
+            && self.layout_query.is_none()
     }
 
     /// Whether the call supplies its callee nothing but positional

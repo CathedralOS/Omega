@@ -1,1 +1,1 @@
-unimplemented: `size_of` requires a portable Terminal data-layout query
+schema instance has no runtime layout

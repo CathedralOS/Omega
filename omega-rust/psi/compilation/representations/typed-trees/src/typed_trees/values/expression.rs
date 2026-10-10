@@ -1420,6 +1420,13 @@ pub struct TableCallExpression {
     /// conformance is proof-static identity; ordinary generic dispatch never
     /// sees it and source code never receives the resulting private place.
     pub private_layout_operation: Option<PrivateLayoutOperationRequest>,
+    /// Exact compiler-known `size_of<T>`/`align_of<T>` request. The operand's
+    /// lowered static argument keeps the queried type's authored selection
+    /// custody. The answer needs the selected target's validated layout, so
+    /// the request stays a portable query through checking and consumes the
+    /// exact selected layout after the Psi boundary; typed source is never
+    /// rewritten into a target-dependent literal.
+    pub layout_query: Option<DataLayoutQueryRequest>,
     pub arguments: HandleSpan<ExpressionHandle>,
     pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
@@ -1428,6 +1435,19 @@ pub struct TableCallExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateLayoutOperationRequest {
     pub selected_slot: StaticMachineArgument,
+}
+
+/// An authored `size_of<T>`/`align_of<T>` query over the selected target's
+/// validated layout of `operand`. The operand retains its complete static
+/// argument (type reference, path and resolved symbol) so the portable query
+/// can rejoin the exact authored selection instead of re-parsing a name.
+/// Evaluation answers the query from the selected target's materialized
+/// layout — an observation naming its subject from target closure, never a
+/// compiler-host fact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataLayoutQueryRequest {
+    pub kind: language_core::data_layout_queries::DataLayoutQueryKind,
+    pub operand: StaticMachineArgument,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

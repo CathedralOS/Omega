@@ -1160,6 +1160,9 @@ fn visit_call_expression(
     if let Some(layout) = &call.private_layout_operation {
         visit_static_argument(program, retained, &layout.selected_slot);
     }
+    if let Some(query) = &call.layout_query {
+        visit_static_argument(program, retained, &query.operand);
+    }
     for argument in program.expression_table.expression_handles(call.arguments) {
         visit_expression(program, retained, *argument);
     }
