@@ -1,0 +1,53 @@
+// Transitive effect inference: `App::helper` declares
+// `reaches Console`; `App::greet` calls it and propagates the
+// reach WITHOUT repeating the declaration. Effects flow
+// caller-inferred, callee-declared.
+//
+//   * `pub boundary trait Console` + `pub domain [u8]::Utf8`.
+//   * GAP (already filed): a `Binding<Console>` FIELD requires a
+//     selected Fused provider even at --check, so the boundary
+//     call is dropped here — reach still propagates through
+//     ordinary calls.
+//
+// Compile-checked only: declaration surface, no standard-library
+// dependency.
+
+use omega::language::core::binding;
+
+pub domain [u8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+
+pub boundary trait Console {
+    machine write_line(text: &[u8] in Utf8)
+    reaches
+        Console;
+}
+
+data App {
+    marker: u32;
+}
+
+machine App::greet(app: &mut App) {
+    App::helper(app);
+}
+
+machine App::helper(app: &mut App) reaches Console {
+    app.marker = 1;
+}
+
+data Main {
+    hits: i32 in Wrapping;
+    app: App;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    App::greet(&mut main.app);
+    transition main.app.marker == 1 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
