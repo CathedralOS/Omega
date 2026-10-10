@@ -188,7 +188,7 @@ impl RouteTerms<'_> {
         crate::proofs::integer_predicates::lower(
             expression,
             self.runtime_requirements,
-            &|expression| match expression {
+            &mut |expression| match expression {
                 expression if !uses_structural_storage(
             expression) => {
                     checked_scalar_term(identities, expression, self.scalar_parameters, &[])
@@ -228,8 +228,8 @@ impl RouteTerms<'_> {
         depth: usize,
     ) -> Result<Proposition, LoweringError> {
         charge_boolean_expansion(remaining, depth)?;
-        let lower = |operand: &CheckedBooleanExpression, polarity, budget: &mut usize| {
-            self.lower_polarity(identities, polarity,  polarity, budget, depth + 1)
+        let mut lower = |operand: &CheckedBooleanExpression, polarity, budget: &mut usize| {
+            self.lower_polarity(identities, operand, polarity, budget, depth + 1)
         };
         match expression {
             CheckedBooleanExpression::Not(operand) => lower(operand, !positive, remaining),
@@ -414,7 +414,10 @@ impl RouteTerms<'_> {
                 || cases
                     .iter()
                     .zip(declared_cases)
-                    .any(|(checked, declared)| checked.spelling() != declared.identity)
+                    .any(|(checked, declared)| {
+                        checked.spelling()
+                            != identities.text(declared.identity).unwrap_or_default()
+                    })
             {
                 return unsupported("payload-less sum equality case roster was redirected");
             }

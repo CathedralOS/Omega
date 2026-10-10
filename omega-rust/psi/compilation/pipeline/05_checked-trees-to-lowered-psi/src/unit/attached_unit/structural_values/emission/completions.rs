@@ -153,7 +153,7 @@ impl Emission<'_, '_, '_> {
                 .map(|residual| {
                     Ok(terminal_psi::StructuralAffineDiscard {
                         place: selected,
-                        path: lower_static_argument_path(identities, lookup_type_id(self.type_ids, &projected.root_type_identity)?, self.type_ids, self.structural_types)?,
+                        path: lower_static_argument_path(identities, &residual.path, lookup_type_id(self.type_ids, &projected.root_type_identity)?, self.structural_types)?,
                         structural_type: lookup_type_id(self.type_ids, &residual.type_identity)?,
                     })
                 })

@@ -164,7 +164,7 @@ impl ResolvedWindowPlace {
                     "the qualified hole lost its field identity",
                 ));
             };
-            path.push(StructuralPathSegment::Field(identities.intern(identity)));
+            path.push(StructuralPathSegment::Field(identities.intern(&identity.spelling())));
         }
         terminal_psi::StructuralPathQualification::select_restorable(
             &self.qualifications,
@@ -187,7 +187,7 @@ impl BorrowedWindowLedger {
         destination: &CheckedUnitStructuralArgumentPlan,
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
-        type_ids: &[(String, StructuralTypeId)],
+        type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
         evaluation: &mut WindowEvaluation<'_, '_>,
         values: &mut Vec<terminal_psi::ValueDeclaration>,
         next_value: &mut u64,
@@ -227,7 +227,7 @@ impl BorrowedWindowLedger {
             else {
                 return unsupported("captured field destination lost its declaration identity");
             };
-            path.push(StructuralPathSegment::Field(identities.intern(identity)));
+            path.push(StructuralPathSegment::Field(identities.intern(&identity.spelling())));
         }
         self.assignment = Some(CapturedAssignmentDestination {
             statement_index: evaluation.statement_index,
@@ -320,7 +320,7 @@ impl BorrowedWindowLedger {
         result_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
-        type_ids: &[(String, StructuralTypeId)],
+        type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
         evaluation: &mut WindowEvaluation<'_, '_>,
         values: &mut Vec<terminal_psi::ValueDeclaration>,
         next_place: &mut u64,
@@ -414,7 +414,7 @@ impl BorrowedWindowLedger {
         value: BorrowedWindowRepairValue,
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
-        type_ids: &[(String, StructuralTypeId)],
+        type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
         evaluation: &mut WindowEvaluation<'_, '_>,
         values: &mut Vec<terminal_psi::ValueDeclaration>,
         next_value: &mut u64,
@@ -610,7 +610,7 @@ fn resolve_window_place(
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
     operations: &OperationBuffer,
     structural_types: &[StructuralTypeDeclaration],
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
 ) -> Result<ResolvedWindowPlace, LoweringError> {
     let spelling = spell_place(plan);
     let (source, root_type, restoration_required, qualifications, projected_qualifications) =
@@ -830,12 +830,12 @@ fn spell_place(plan: &CheckedUnitStructuralArgumentPlan) -> String {
         match segment {
             CheckedUnitStructuralPathSegment::Case(identity) => {
                 spelling.push_str(".[");
-                spelling.push_str(identity);
+                spelling.push_str(&identity.spelling());
                 spelling.push(']');
             }
             CheckedUnitStructuralPathSegment::Field(identity) => {
                 spelling.push('.');
-                spelling.push_str(identity);
+                spelling.push_str(&identity.spelling());
             }
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 spelling.push_str(&format!("[{index}]"));
@@ -870,9 +870,9 @@ fn spell_place(plan: &CheckedUnitStructuralArgumentPlan) -> String {
                         .map(|segment| match segment {
                             checked_trees::CheckedStructuralPredicatePathSegment::Field(
                                 identity,
-                            ) => identity.clone(),
+                            ) => identity.spelling(),
                             checked_trees::CheckedStructuralPredicatePathSegment::Case(case) => {
-                                format!("as {case}")
+                                format!("as {}", case.spelling())
                             }
                             checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(
                                 index,

@@ -78,6 +78,17 @@ impl TerminalIdentityTableBuilder {
         TerminalIdentityIndex(position)
     }
 
+    /// The index `text` already occupies. Read-only: lowering paths that
+    /// compare rather than mint identities never extend the table.
+    pub fn index_of(&self, text: &str) -> Option<TerminalIdentityIndex> {
+        self.positions.get(text).copied().map(TerminalIdentityIndex)
+    }
+
+    /// The text an interned index carries. Read-only.
+    pub fn text(&self, index: TerminalIdentityIndex) -> Option<&str> {
+        self.entries.get(index.0 as usize).map(String::as_str)
+    }
+
     /// The finished table. `build` runs no deduplication: `intern` already
     /// assigned each distinct text exactly one entry.
     pub fn build(self) -> TerminalIdentityTable {

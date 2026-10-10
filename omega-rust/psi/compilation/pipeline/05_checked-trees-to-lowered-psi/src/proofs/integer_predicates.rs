@@ -14,9 +14,9 @@ use super::{
 pub(crate) fn lower(
     expression: &CheckedScalarExpression,
     runtime_requirements: &[Proposition],
-    leaf: &impl Fn(&CheckedScalarExpression) -> Result<ScalarTerm, LoweringError>,
+    leaf: &mut impl FnMut(&CheckedScalarExpression) -> Result<ScalarTerm, LoweringError>,
 ) -> Result<ScalarTerm, LoweringError> {
-    let lower_operand = |operand| lower(operand, runtime_requirements, leaf);
+    let mut lower_operand = |operand| lower(operand, runtime_requirements, leaf);
     match expression {
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,

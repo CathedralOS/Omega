@@ -32,6 +32,7 @@ pub(crate) fn lower_checked_scalar_expression(
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
 ) -> Result<LoweredDirectExpression, LoweringError> {
     lower_checked_scalar_expression_with_parameters(
+        identities,
         expression,
         &[],
         &Default::default(),
@@ -511,9 +512,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 return Ok( observation);
             }
 
-            let lower_selector = |selector: &CheckedScalarExpression| {
+            let lower_selector = |builder: &mut terminal_psi::TerminalIdentityTableBuilder, selector: &CheckedScalarExpression| {
                 lower_checked_scalar_expression_with_parameters(
-                    identities,
+                    builder,
                     selector,
                     structural_parameters,
                     structural_fields,
@@ -527,7 +528,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 )
                 .and_then(exact_u64_index)
             };
-            let index = Box::new(lower_selector(&index.expression)?);
+            let index = Box::new(lower_selector(identities, &index.expression)?);
             // Bounded bytes read their live length, never capacity. A projected
             // byte field also retains its declaration and containing selectors.
             if element_path.is_empty(
@@ -687,7 +688,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                     "indexed read lost its selector position",
                                 ))?;
                         Ok(LoweredElementPathSegment::RuntimeIndex {
-                            selector: lower_selector(&selector.expression)?,
+                            selector: lower_selector(identities, &selector.expression)?,
                             extent: None,
                             bound_decided: selector_bound_is_decided(selector, proven_indexes),
                         })
@@ -984,9 +985,9 @@ fn lower_checked_boolean_expression_with_parameters(
             }
         }
         CheckedBooleanExpression::ByteSequenceEqual { left, right } => {
-            let operand = |field: &checked_trees::CheckedStructuralParameterField| {
+            let operand = |builder: &mut terminal_psi::TerminalIdentityTableBuilder, field: &checked_trees::CheckedStructuralParameterField| {
                 byte_field_observation(
-                    identities,
+                    builder,
                     structural_fields,
                     structural_locals,
                     view_locals,
@@ -1008,9 +1009,8 @@ fn lower_checked_boolean_expression_with_parameters(
                 ))
             };
             LoweredBooleanReturnExpression::ByteSequenceEqual {
-                left: operand(
-            identities,left)?,
-                right: operand(right)?,
+                left: operand(identities, left)?,
+                right: operand(identities, right)?,
             }
         }
         CheckedBooleanExpression::Not(

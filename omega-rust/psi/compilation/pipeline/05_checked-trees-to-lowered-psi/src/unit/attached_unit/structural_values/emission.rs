@@ -316,7 +316,7 @@ pub(crate) fn emit(
                         emission.calls.claims.bindings(),
                         event.claim_identity,
                     )?,
-                    path: lower_static_argument_path(identities, lookup_type_id(emission.type_ids, &projected.root_type_identity)?, type_ids, emission.structural_types)?,
+                    path: lower_static_argument_path(identities, &projected.path, lookup_type_id(emission.type_ids, &projected.root_type_identity)?, emission.structural_types)?,
                 });
             }
         }
@@ -335,7 +335,7 @@ pub(crate) fn emit(
             {
                 let mut stored_path = path.clone();
                 stored_path.push(terminal_psi::StructuralPathSegment::Field(
-                    identities.intern(&crate::structural_types::field_identity(emission.structural_types, *field)?),
+                    crate::structural_types::field_identity(emission.structural_types, *field)?,
                 ));
                 let stored_claims =
                     completed_place_claims(emission.operations, value.place).collect::<Vec<_>>();
@@ -855,7 +855,7 @@ impl ProjectedMove {
     ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
         let mut path = self.root_path.clone(
             );
-        path.extend(lower_static_argument_path(identities, lookup_type_id(type_ids, &self.root_type_identity)?, type_ids, types)?);
+        path.extend(lower_static_argument_path(identities, &self.path, lookup_type_id(type_ids, &self.root_type_identity)?, types)?);
         Ok(path)
     }
 }
@@ -1130,11 +1130,12 @@ impl Emission<'_, '_, '_> {
             )
         {
             let projected = self.projected_root(identities, source, path, type_identity)?;
+            let lowered = projected.lowered_path(identities, self.type_ids, self.structural_types)?;
             return self.capture_operand(
                 identities,
                 StructuralArgument {
                     place: projected.root,
-                    path: projected.lowered_path(identities, self.type_ids, self.structural_types)?,
+                    path: lowered,
                     access: StructuralAccess::Owned,
                 },
                 node.expression,
@@ -1643,14 +1644,14 @@ impl Emission<'_, '_, '_> {
         let source_claims = super::super::claims::lower_owned_operand_claims(
             identities,
             self.checked,
-            self.state,
             self.machine,
+            self.state,
             self.statement,
             node.expression,
+            None,
             Some(language_semantics::PermissionEventSource::Statement {
                 statement_index: self.statement as usize,
             }),
-            None,
             self.calls.claims.bindings(),
             self.structural_type,
             self.structural_types,
@@ -1853,7 +1854,9 @@ impl Emission<'_, '_, '_> {
                 || element_path.as_slice()
                     != [checked_trees::CheckedScalarReadProjection::Static(
                         checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                            checked_trees::CheckedMemberIdentity::of_spelling(&field.identity),
+                            checked_trees::CheckedMemberIdentity::of_spelling(
+                                identities.text(field.identity).unwrap_or_default(),
+                            ),
                         ),
                     )]
             {
@@ -1960,7 +1963,7 @@ impl Emission<'_, '_, '_> {
             // consumes nothing, so there is no custody edge to join.
             return Ok(place);
         };
-        self.complete_value(identities, place, continuation,  continuation)?;
+        self.complete_value(identities, place, None, continuation)?;
         Ok(continuation.place)
     }
 

@@ -185,7 +185,7 @@ pub(crate) fn byte_record_observation(
     // below stand for these ordered expressions, never emitted source evidence.
     let mut selectors = Vec::new();
     let mut leaf_path = Vec::new();
-    append_observation_path(identities, bindings, &mut leaf_path, &mut selectors,  &mut selectors)?;
+    append_observation_path(identities, bindings, path, &mut leaf_path, &mut selectors)?;
     if let CheckedScalarExpression::IntegerLiteral { literal } = index {
         leaf_path.push(Projection::FixedIndex(literal.value_u64().ok_or(
             LoweringError::Unsupported("record byte observation has an invalid array index"),
@@ -199,7 +199,7 @@ pub(crate) fn byte_record_observation(
     }
     for step in element_path {
         match step {
-            checked_trees::CheckedScalarReadProjection::Static(segment) => append_observation_path(identities, bindings, &mut leaf_path, &mut selectors,  &mut selectors)?,
+            checked_trees::CheckedScalarReadProjection::Static(segment) => append_observation_path(identities, bindings, std::slice::from_ref(segment), &mut leaf_path, &mut selectors)?,
             checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
                 append_coordinate(
                     bindings.expression(identities, proven_indexes, &selector.expression)?,

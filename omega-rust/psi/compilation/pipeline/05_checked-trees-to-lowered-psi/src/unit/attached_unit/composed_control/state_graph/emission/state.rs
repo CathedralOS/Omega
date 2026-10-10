@@ -613,10 +613,10 @@ impl StateGraphEmission<'_, '_> {
                     Some((_, namespace)) if *return_when_true => namespace.clone(),
                     _ => values.clone(),
                 };
-                Some(self.conditional_return_arm(identities, position, &state_parameters, match &planned_guard {
-                        Some((planned, _)) if *return_when_true => &planned.established,
+                Some(self.conditional_return_arm(identities, position, &state_parameters, arm_namespace, match &planned_guard {
+                        Some((planned, _)) if *return_when_true => planned.established.as_slice(),
                         _ => &[],
-                    }, &[], &[], &[], return_arm, &mut evaluation, &mut next_block, &mut next_edge, &mut next_value, &mut operations)?)
+                    }, &[], &[], return_arm, &mut evaluation, &mut next_value, &mut next_block, &mut next_edge, &mut operations)?)
             } else {
                 None
             };
@@ -634,9 +634,9 @@ impl StateGraphEmission<'_, '_> {
                     Some((_, namespace)) => namespace.clone(),
                     None => values.clone(),
                 };
-                let true_edge = self.conditional_return_arm(identities, position, &state_parameters, planned_guard
+                let true_edge = self.conditional_return_arm(identities, position, &state_parameters, true_namespace, planned_guard
                         .as_ref()
-                        .map_or(&[], |(guard, _)| guard.established.as_slice()), &[], &[], &[], when_true, &mut evaluation, &mut next_block, &mut next_edge, &mut next_value, &mut operations)?;
+                        .map_or(&[], |(guard, _)| guard.established.as_slice()), &[], &[], when_true, &mut evaluation, &mut next_value, &mut next_block, &mut next_edge, &mut operations)?;
                 let false_edge = self.conditional_return_arm(
                     identities,
                     position,
@@ -647,9 +647,9 @@ impl StateGraphEmission<'_, '_> {
                     &[],
                     when_false,
                     &mut evaluation,
+                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
-                    &mut next_value,
                     &mut operations,
                 )?;
                 Some((true_edge, false_edge))
@@ -789,7 +789,7 @@ impl StateGraphEmission<'_, '_> {
                                     ChainGuard::Value(_) => (draft.5.clone(), &[][..]),
                                 }
                             };
-                            staged.push(Some(self.conditional_return_arm(identities, position, namespace, established, &[], &[], &[], &plan.return_arm, &mut evaluation, &mut next_block, &mut next_edge, &mut next_value, &mut operations)?));
+                            staged.push(Some(self.conditional_return_arm(identities, position, &state_parameters, namespace, established, &[], &[], &plan.return_arm, &mut evaluation, &mut next_value, &mut next_block, &mut next_edge, &mut operations)?));
                         }
                     }
                 }
@@ -817,9 +817,9 @@ impl StateGraphEmission<'_, '_> {
                     &[],
                     return_arm,
                     &mut evaluation,
+                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
-                    &mut next_value,
                     &mut operations,
                 )?)
             } else {
@@ -922,6 +922,7 @@ impl StateGraphEmission<'_, '_> {
             )?,
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } => {
                 let returned_claims = crate::unit::attached_unit::claims::lower_return_claims(
+                    identities,
                     checked,
                     owner,
                     state.state,
@@ -1179,7 +1180,7 @@ impl StateGraphEmission<'_, '_> {
                             when_false,
                         },
                         ChainGuard::Decision(
-            (planned, namespace)) => emit_short_circuit_decision(identities, &planned, &namespace, guard_values, [when_true, when_false], ShortCircuitFrame {
+            (planned, namespace)) => emit_short_circuit_decision(identities, checked, &planned, &namespace, [when_true, when_false], ShortCircuitFrame {
                                 erased_scalar_formals: &self.state_erased[position],
                                 erased_proof_formals: &self.state_erased_proof[position],
                                 current_rank,
@@ -1472,8 +1473,7 @@ fn emit_short_circuit_decision(
             allocate_dense(next_block)?);
     let false_block = block_id(allocate_dense(next_block)?);
     for (
-            identities,id, successor) in [(
-            identities,true_block, when_true), (false_block, when_false)] {
+            id, successor) in [(true_block, when_true), (false_block, when_false)] {
         if let Some(rank) = frame.current_rank {
             block_ranks.insert(id, rank);
         }
