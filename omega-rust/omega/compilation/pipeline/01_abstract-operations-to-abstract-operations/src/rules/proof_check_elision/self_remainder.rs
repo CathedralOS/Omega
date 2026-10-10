@@ -14,14 +14,9 @@ psi_rule_contract!(
                 b"omega.psi-rule.live-proof-certified-integer-self-remainder-elimination.v1",
                 AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
             ),
-);
-
-psi_optimization_rule_delegate!(
-    LiveProofCertifiedIntegerSelfRemainderEliminationRule,
     propose = propose_proof_certified_integer_constants,
-    contract = Self::contract,
     classify,
-    IntegerType::zero
+    IntegerType::zero,
 );
 
 fn classify(operation: &O) -> Option<(OperationId, ValueId, IntegerType)> {

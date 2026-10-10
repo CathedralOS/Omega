@@ -23,7 +23,7 @@ use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 pub(super) fn propose_proof_certified_integer_constants(
     unit: &PsiOptimizationUnit,
     analyses: RuleAnalysisView<'_>,
-    contract: fn() -> OptimizationRuleContract,
+    contract: OptimizationRuleContract,
     classify: fn(&AbstractOperation) -> Option<(OperationId, ValueId, IntegerType)>,
     constant: fn(IntegerType) -> IntegerValue,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
@@ -60,7 +60,7 @@ pub(super) fn propose_proof_certified_integer_constants(
                 candidates.push(
                     PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
                         unit.identity,
-                        contract(),
+                        contract,
                         vec![block.id],
                         vec![provenance_realized_at(site, site, &node.provenance, &node.fuel)],
                         obligation_fact,

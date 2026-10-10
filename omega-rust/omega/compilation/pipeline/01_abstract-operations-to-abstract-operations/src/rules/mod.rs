@@ -62,9 +62,11 @@ fn representation_specialization_contract(identity: &'static [u8]) -> Optimizati
 /// contract plus a proposal that forwards unit, analyses and the contract
 /// into a shared propose helper with the rule's classify extras. One
 /// declarative row per rule type expands that impl; rules whose proposal
+/// does its own analysis plumbing keep their handwritten impl.
+///
 /// One rule's named type plus its static contract body: the unit-struct
-/// declaration and the inherent `contract()` that handwritten or delegated
-/// impls forward into. Rules expanding this keep only their propose path.
+/// declaration and the inherent `contract()` that handwritten impls
+/// forward into. Rules expanding this keep only their propose path.
 macro_rules! psi_rule_contract {
     ($(#[$meta:meta])* $name:ident, $contract:expr $(,)?) => {
         $(#[$meta])*
@@ -99,25 +101,6 @@ macro_rules! psi_rule_contract {
                 analyses: RuleAnalysisView<'_>,
             ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
                 $propose(unit, analyses, Self::contract(), $($extra),*)
-            }
-        }
-    };
-}
-
-/// does its own analysis plumbing keep their handwritten impl.
-macro_rules! psi_optimization_rule_delegate {
-    ($name:ident, propose = $propose:ident, contract = $contract:expr $(, $extra:expr)*) => {
-        impl PsiOptimizationRule for $name {
-            fn contract(&self) -> OptimizationRuleContract {
-                Self::contract()
-            }
-
-            fn propose(
-                &self,
-                unit: &PsiOptimizationUnit,
-                analyses: RuleAnalysisView<'_>,
-            ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-                $propose(unit, analyses, $contract, $($extra),*)
             }
         }
     };
