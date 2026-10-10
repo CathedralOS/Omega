@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 3.11, "load1_start": 2.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 6.6, "load1_start": 4.92, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -309,7 +309,7 @@ fail/borrows/borrow_mut_and_read rejected 215ms expected @c08960bee2b1+wt
 	state `copy` receives `main.value` as both mutable and read-only
 fail/borrows/borrow_mut_literal rejected 745ms expected @2d8ed253669f
 	mutable argument for state `write` must be a named place
-fail/borrows/borrow_unknown_index_pair_mut rejected 396ms expected @ebf381240e20+wt
+fail/borrows/borrow_unknown_index_pair_mut rejected 558ms expected @edb462c792f9
 	statement 2 creates local borrow `right` while local borrow `left` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 3 mutates `left` while local borrow `right` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	cannot prove index `left_index` is within length 2 in Main::main::main
@@ -387,7 +387,7 @@ fail/borrows/local_record_result_call_mut_and_shared_argument rejected 686ms exp
 	state `absorb` receives `tally` as both mutable and read-only
 fail/borrows/local_record_view_result_holds_loan rejected 663ms expected @2d8ed253669f
 	statement 2 mutates `tally.hits` while local borrow `cell` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/local_subslice_live_parent_mutable_argument rejected 560ms expected @b4e4462a31fc+wt
+fail/borrows/local_subslice_live_parent_mutable_argument rejected 618ms expected @edb462c792f9
 	state `zero` receives `view` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	state `swap_out` receives `view` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
 	state `both` receives `view` while local borrow `middle` is still active
@@ -433,12 +433,11 @@ fail/borrows/nested_result_retains_operand_loan rejected 326ms expected @f0ed096
 	state `observe` receives `value` as mutable more than once
 fail/borrows/nested_retained_mutable_loan_shared_argument rejected 4327ms expected @4c9ecb65211f+wt
 	state `observe_hold` receives `counter` as both mutable and read-only
-fail/borrows/plain_read_during_live_exclusive_loan rejected 376ms expected @4aa20431b027
+fail/borrows/plain_read_during_live_exclusive_loan rejected 643ms expected @edb462c792f9
 	statement 3 reads `view[3]` while local borrow `middle` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 2 reads `items[2]` while local borrow `middle` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `cell.value` while local borrow `selection` is still active (borrowed at statement 1; its last use is at statement 3)
-	cannot prove requires contract for call zero from read_through_parent_view: middle.len >= 1 (needs fact `view.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/borrows/primitive_aggregate_live_owner_read rejected 853ms expected @99b41199ec38
 	state `observe` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 259ms expected @51b4aa0b5a70+wt
@@ -2499,9 +2498,8 @@ fail/slices/result_length_contract_requires_returned_view rejected 663ms expecte
 	cannot prove ensures contract for exit from bogus at statement 0: result.len == 2
 fail/slices/returned_mutable_slice_local_escape rejected 991ms expected @3c4074822bef
 	machine `escape` returns a view borrowing the local `local`, which does not outlive the call; return a borrow of an input parameter or `self` instead
-fail/slices/returned_mutable_slice_overlapping_arguments rejected 993ms expected @3c4074822bef
+fail/slices/returned_mutable_slice_overlapping_arguments rejected 649ms expected @edb462c792f9
 	state `write` receives `selected` as both mutable and read-only
-	cannot prove requires contract for call write from main: selected.len > 0 && selected.len > 0 (needs fact `items.len > 0 && other.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/returned_shared_slice_mutable_call rejected 525ms expected @3c4074822bef
 	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/scalar_copy_invalidated_domain rejected 1226ms expected @72f9cbd4156c+wt
@@ -2904,7 +2902,7 @@ pass/borrow/write_only_whole_scalar_replace checked 293ms @2d8ed253669f
 pass/borrows/borrow_domain_window_write_and_call checked 11682ms check-target:macos_arm64 @51b2cebdd24f
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/borrow_returned_window_write_and_call checked 11704ms check-target:macos_arm64 @51b2cebdd24f
-pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
+pass/borrows/borrow_stated_index_disequality_mut checked 599ms @edb462c792f9
 pass/borrows/borrowed_case_leaf_copy_exit checked 2978ms check-target:macos_arm64 @1deda7b27fe0+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit checked 1715ms check-target:macos_arm64 @4d7bbd96d2bf+wt
 pass/borrows/branch_selected_record_composed_receiver_exit checked 2717ms check-target:macos_arm64 @53d5dde47ae5
@@ -5043,3 +5041,8 @@ fail/generics/contextual_static_machine_unused_evidence rejected 257ms expected 
 fail/generics/contextual_static_machine_wrong_evidence_authority rejected 1317ms expected @fb4bf4786bb2+wt
 	generic machine `relay` cannot bind `Evidence` to conformance `Wrong`: expected a complete `Probe` implementation with the instantiated trait arguments
 	generic machine `probe` cannot bind `Evidence` to conformance `Wrong`: expected a complete `Probe` implementation with the instantiated trait arguments
+fail/borrows/parent_use_before_disjoint_sibling_ends rejected 630ms expected @edb462c792f9
+	state `observe` receives `values` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+pass/borrows/disjoint_branch_closure_with_grandchild checked 4317ms check-target:macos_arm64 @edb462c792f9
+pass/borrows/runtime_disjoint_child_loans_restore_parent_exit checked 4295ms check-target:macos_arm64 @edb462c792f9
+pass/borrows/runtime_mutable_reference_captures_selector_exit checked 4288ms check-target:macos_arm64 @edb462c792f9
