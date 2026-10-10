@@ -1214,10 +1214,15 @@ impl<'program> StructuralJudge<'program> {
         field_name: &str,
         depth: usize,
     ) -> Option<StructuralTerm> {
-        super::observed_projections::project_field(
-            self.resolve_at(receiver_term, depth + 1),
-            field_name,
-        )
+        let value = if self.runtime_body_values {
+            // Runtime projections retain the producing operation tree. A
+            // completed constructor's arithmetic is not folded merely because
+            // a later member read observes it through a public identity.
+            self.completed_value_identity(receiver_term)
+        } else {
+            self.resolve_at(receiver_term, depth + 1)
+        };
+        super::observed_projections::project_field(value, field_name)
     }
 
     /// Form an expression under its actual declaring machine/state before

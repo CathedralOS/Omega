@@ -404,7 +404,9 @@ pub(super) fn bound_term(
                 parameters,
                 member.receiver,
             )?;
-            let owner = crate::value_custody::type_shapes::head_data_symbol(program, reference)?;
+            let carrier =
+                crate::value_custody::places::unwrapped_type_reference(program, reference)?;
+            let owner = crate::value_custody::type_shapes::head_data_symbol(program, carrier)?;
             let data = program.data_definition_by_symbol(owner)?;
             let field = crate::value_custody::places::exact_data_member_field(
                 program,
