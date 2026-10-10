@@ -65,14 +65,8 @@ impl ProofQuestionOwner {
     }
 }
 
-/// Source-independent mirror of the proof-admission classification retained
-/// at optimizer admission.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ProofQuestionAdmissionKind {
-    ForeignBoundaryGuarantee,
-    ProviderFact,
-    CheckedAssemblyClaim,
-}
+/// The proof-admission classification retained at optimizer admission.
+pub type ProofQuestionAdmissionKind = terminal_psi::AdmissionKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProofQuestionClass {
