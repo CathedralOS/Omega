@@ -54,85 +54,84 @@ pub(crate) fn validate_specification_calls(
             }
         }
     }
-    let mut visited = Vec::new();
     let mut requests = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if !program.expression_table.expression_is_valid(expression)
-            || visited.contains(&expression)
-        {
-            continue;
-        }
-        visited.push(expression);
-        let node = program.expression_table.expression(expression);
-        crate::expression_traversal::children(program, node, |child| pending.push(child));
-        let ExpressionNode::Call(call) = node else {
-            continue;
-        };
-        if crate::mathematical_applications::selected_definition(program, call).is_some() {
-            // Checked mathematical signature formation owns the dependent
-            // application. It has no operational closure to classify.
-            // The producer has already checked this source application at
-            // its instantiated generic telescope. Repeating an uninstantiated
-            // carrier check here would lose that exact declaration custody.
-            continue;
-        }
-        let (machine, state) = match selected_call_contract(program, call) {
-            Some(SelectedCallContract::Concrete(machine, state)) => (machine, state),
-            Some(SelectedCallContract::Operator(operator)) => {
-                if super::selected_operator_has_closed_value_denotation(program, operator) {
-                    continue;
-                }
-                let Some(body) = super::selected_operator_authored_body(program, operator) else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "specification call `{}` has no observation-free, reach-free, crash-free value denotation",
-                        program.symbols.name(operator.symbol),
-                    )));
-                    continue;
-                };
-                body
+    crate::expression_traversal::visit_pre_order(
+        program,
+        pending,
+        |expression, node| {
+            let ExpressionNode::Call(call) = node else {
+                return false;
+            };
+            if crate::mathematical_applications::selected_definition(program, call).is_some() {
+                // Checked mathematical signature formation owns the dependent
+                // application. It has no operational closure to classify.
+                // The producer has already checked this source application at
+                // its instantiated generic telescope. Repeating an uninstantiated
+                // carrier check here would lose that exact declaration custody.
+                return false;
             }
-            Some(SelectedCallContract::Signature(signature)) => {
-                // An abstract invocation consumes its selected public promise,
-                // never a realized private implementation's stronger summary.
-                if !matches!(
-                    &signature.termination_guarantee,
-                    language_semantics::TerminationGuarantee::Terminates { premises }
-                        if premises.is_empty()
-                ) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "specification call `{}` is not denotational: the selected machine is not unconditionally terminating",
-                        signature.name,
-                    )));
+            let (machine, state) = match selected_call_contract(program, call) {
+                Some(SelectedCallContract::Concrete(machine, state)) => (machine, state),
+                Some(SelectedCallContract::Operator(operator)) => {
+                    if super::selected_operator_has_closed_value_denotation(program, operator)
+                    {
+                        return false;
+                    }
+                    let Some(body) =
+                        super::selected_operator_authored_body(program, operator)
+                    else {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "specification call `{}` has no observation-free, reach-free, crash-free value denotation",
+                            program.symbols.name(operator.symbol),
+                        )));
+                        return false;
+                    };
+                    body
                 }
-                if !signature_has_closed_value_effects(program, signature) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "specification call `{}` has no observation-free, reach-free, crash-free value denotation",
-                        signature.name,
-                    )));
+                Some(SelectedCallContract::Signature(signature)) => {
+                    // An abstract invocation consumes its selected public promise,
+                    // never a realized private implementation's stronger summary.
+                    if !matches!(
+                        &signature.termination_guarantee,
+                        language_semantics::TerminationGuarantee::Terminates { premises }
+                            if premises.is_empty()
+                    ) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "specification call `{}` is not denotational: the selected machine is not unconditionally terminating",
+                            signature.name,
+                        )));
+                    }
+                    if !signature_has_closed_value_effects(program, signature) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "specification call `{}` has no observation-free, reach-free, crash-free value denotation",
+                            signature.name,
+                        )));
+                    }
+                    return false;
                 }
-                continue;
+                None => return false,
+            };
+            if let Err(reason) = super::checked_value_call_candidate(
+                program,
+                machine,
+                state,
+                operational,
+                service_reaches,
+            ) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "specification call `{}` has no observation-free, reach-free, crash-free value denotation: {reason}",
+                    machine.name,
+                )));
+                return false;
             }
-            None => continue,
-        };
-        if let Err(reason) = super::checked_value_call_candidate(
-            program,
-            machine,
-            state,
-            operational,
-            service_reaches,
-        ) {
-            diagnostics.push(Diagnostic::error(format!(
-                "specification call `{}` has no observation-free, reach-free, crash-free value denotation: {reason}",
-                machine.name,
-            )));
-            continue;
-        }
-        requests.push(SpecificationCallRequest {
-            call_expression: expression,
-            target_machine: machine.symbol,
-            target_state: state.symbol,
-        });
-    }
+            requests.push(SpecificationCallRequest {
+                call_expression: expression,
+                target_machine: machine.symbol,
+                target_state: state.symbol,
+            });
+            false
+        },
+    );
     requests.sort_by_key(|request| {
         (
             request.call_expression.arena_index(),

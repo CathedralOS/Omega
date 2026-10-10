@@ -219,7 +219,6 @@ fn visit_destination_trees(
                     _ => {}
                 }
             }
-            let mut visited = Vec::new();
             let mut pending = Vec::new();
             for statement in program.statement_table.statements(state.statement_nodes) {
                 pending.extend(
@@ -228,66 +227,63 @@ fn visit_destination_trees(
                     ),
                 );
             }
-            while let Some(expression) = pending.pop() {
-                if !program.expression_table.expression_is_valid(expression)
-                    || visited.contains(&expression)
-                {
-                    continue;
-                }
-                visited.push(expression);
-                let node = program.expression_table.expression(expression);
-                match node {
-                    ExpressionNode::StructLiteral(literal) => {
-                        for field in program.expression_table.struct_fields(literal.fields) {
-                            if let Some(destination) = crate::value_custody::struct_literals::selected_construction_field_type(program, literal, field.field_symbol) {
-                                visit_result(destination, field.value);
+            crate::expression_traversal::visit_pre_order(
+                program,
+                pending,
+                |expression, node| {
+                    match node {
+                        ExpressionNode::StructLiteral(literal) => {
+                            for field in program.expression_table.struct_fields(literal.fields) {
+                                if let Some(destination) = crate::value_custody::struct_literals::selected_construction_field_type(program, literal, field.field_symbol) {
+                                    visit_result(destination, field.value);
+                                }
                             }
                         }
-                    }
-                    ExpressionNode::Call(call)
-                        if call.static_requirement_dispatch.is_none()
-                            && call.machine_arguments.is_empty()
-                            && call.evidence_arguments.is_empty()
-                            && call.quotient_operation.is_none()
-                            && call.private_layout_operation.is_none() =>
-                    {
-                        visit_call_arguments(
-                            program, call.target_symbol,
-                            program.expression_table.expression_handles(call.arguments),
-                            &mut visit_result,
-                        );
-                    }
-                    ExpressionNode::Match(_) => {
-                        if let Some(destination) = crate::value_custody::expression_types::expression_result_type_reference(program, machine, state, expression) {
-                            visit_result(destination, expression);
+                        ExpressionNode::Call(call)
+                            if call.static_requirement_dispatch.is_none()
+                                && call.machine_arguments.is_empty()
+                                && call.evidence_arguments.is_empty()
+                                && call.quotient_operation.is_none()
+                                && call.private_layout_operation.is_none() =>
+                        {
+                            visit_call_arguments(
+                                program, call.target_symbol,
+                                program.expression_table.expression_handles(call.arguments),
+                                &mut visit_result,
+                            );
                         }
-                    }
-                    ExpressionNode::Unary(unary)
-                        if unary.operator == typed_trees::expression::UnaryOperator::BitwiseNot =>
-                    {
-                        if let Some(destination) = crate::value_custody::expression_types::expression_result_type_reference(program, machine, state, expression) {
-                            visit_result(destination, unary.operand);
-                        }
-                    }
-                    ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
-                        visit_result(cast.target_type, cast.value);
-                    }
-                    ExpressionNode::Binary(binary)
-                        if !matches!(binary.operator, BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight)
-                            && crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(program, machine, Some(state), expression) =>
-                    {
-                        for (operand, peer) in [(binary.left, binary.right), (binary.right, binary.left)] {
-                            if let Some(destination) = crate::value_custody::expression_types::expression_result_type_reference(program, machine, state, peer)
-                                .and_then(|reference| crate::value_custody::places::unwrapped_type_reference(program, reference))
-                            {
-                                visit_result(destination, operand);
+                        ExpressionNode::Match(_) => {
+                            if let Some(destination) = crate::value_custody::expression_types::expression_result_type_reference(program, machine, state, expression) {
+                                visit_result(destination, expression);
                             }
                         }
+                        ExpressionNode::Unary(unary)
+                            if unary.operator == typed_trees::expression::UnaryOperator::BitwiseNot =>
+                        {
+                            if let Some(destination) = crate::value_custody::expression_types::expression_result_type_reference(program, machine, state, expression) {
+                                visit_result(destination, unary.operand);
+                            }
+                        }
+                        ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
+                            visit_result(cast.target_type, cast.value);
+                        }
+                        ExpressionNode::Binary(binary)
+                            if !matches!(binary.operator, BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight)
+                                && crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(program, machine, Some(state), expression) =>
+                        {
+                            for (operand, peer) in [(binary.left, binary.right), (binary.right, binary.left)] {
+                                if let Some(destination) = crate::value_custody::expression_types::expression_result_type_reference(program, machine, state, peer)
+                                    .and_then(|reference| crate::value_custody::places::unwrapped_type_reference(program, reference))
+                                {
+                                    visit_result(destination, operand);
+                                }
+                            }
+                        }
+                        _ => {}
                     }
-                    _ => {}
-                }
-                children(program, node, |child| pending.push(child));
-            }
+                    false
+                },
+            );
         }
     }
 }

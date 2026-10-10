@@ -103,6 +103,32 @@ pub fn visit_post_order_with_handles(
     inner(program, root, visited, &mut arm);
 }
 
+/// Preorder worklist walk over every reachable expression edge, each handle
+/// once. `arm` observes a node before its children walk; returning true ends
+/// the walk early and propagates the flag.
+pub fn visit_pre_order(
+    program: &dyn crate::CheckingInput,
+    pending: Vec<ExpressionHandle>,
+    mut arm: impl FnMut(ExpressionHandle, &ExpressionNode) -> bool,
+) -> bool {
+    let mut pending = pending;
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !program.expression_table.expression_is_valid(expression)
+            || visited.contains(&expression)
+        {
+            continue;
+        }
+        visited.push(expression);
+        let node = program.expression_table.expression(expression);
+        if arm(expression, node) {
+            return true;
+        }
+        children(program, node, |child| pending.push(child));
+    }
+    false
+}
+
 /// Climb `Member` (non-variant) and `Indexed` projections to the root
 /// expression, returning each projected node outermost-first plus the root.
 /// `None` on a cycle, an invalid cursor, or more than `max_depth` edges.

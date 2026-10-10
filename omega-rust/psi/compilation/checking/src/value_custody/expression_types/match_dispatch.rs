@@ -271,14 +271,7 @@ fn selected_expression_transfers_owned(
             && program.type_multiplicity(reference)
                 != language_semantics::Multiplicity::Unrestricted
     };
-    let mut pending = vec![root];
-    let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if !expression.is_valid() || visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
-        let node = program.expression_table.expression(expression);
+    crate::expression_traversal::visit_pre_order(program, vec![root], |_, node| {
         match node {
             ExpressionNode::Call(call) => {
                 let parameters = crate::machine_calls::calls::machine_state_by_symbol(
@@ -338,9 +331,8 @@ fn selected_expression_transfers_owned(
             }
             _ => {}
         }
-        crate::expression_traversal::children(program, node, |child| pending.push(child));
-    }
-    false
+        false
+    })
 }
 
 /// A discriminant dispatch over a scalar-payload sum subject: every arm is

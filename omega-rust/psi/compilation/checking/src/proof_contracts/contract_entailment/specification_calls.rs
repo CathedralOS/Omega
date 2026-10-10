@@ -662,24 +662,19 @@ fn requirements_are_acyclic(
     for (fact, _) in applicable_requirements_of(program, owner) {
         fact_roots(program, fact, &mut pending);
     }
-    let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if !expression.is_valid() || visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
-        let node = program.expression_table.expression(expression);
-        if let ExpressionNode::Call(call) = node
-            && let Some(nested) = selected_call_contract(program, call)
-            && !requirements_are_acyclic(program, &nested, active, complete)
-        {
-            return false;
-        }
-        children(program, node, |child| pending.push(child));
-    }
+    let cyclic = crate::expression_traversal::visit_pre_order(
+        program,
+        pending,
+        |_, node| {
+            matches!(node, ExpressionNode::Call(call)
+                if selected_call_contract(program, call).is_some_and(|nested| {
+                    !requirements_are_acyclic(program, &nested, active, complete)
+                }))
+        },
+    );
     active.pop();
     complete.push(symbol);
-    true
+    !cyclic
 }
 
 fn requirement_parameters_are_bound(
@@ -687,28 +682,21 @@ fn requirement_parameters_are_bound(
     expression: ExpressionHandle,
     parameters: &[StateParameter],
 ) -> bool {
-    let mut pending = vec![expression];
-    let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if !expression.is_valid() || visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
-        let node = program.expression_table.expression(expression);
-        if let ExpressionNode::Name(path) = node {
-            for symbol in [path.head_symbol, path.symbol] {
-                if program.symbols.get(symbol).kind == SymbolKind::Parameter
+    !crate::expression_traversal::visit_pre_order(
+        program,
+        vec![expression],
+        |_, node| {
+            let ExpressionNode::Name(path) = node else {
+                return false;
+            };
+            [path.head_symbol, path.symbol].iter().any(|symbol| {
+                program.symbols.get(*symbol).kind == SymbolKind::Parameter
                     && !parameters
                         .iter()
-                        .any(|parameter| parameter.symbol == symbol)
-                {
-                    return false;
-                }
-            }
-        }
-        children(program, node, |child| pending.push(child));
-    }
-    true
+                        .any(|parameter| parameter.symbol == *symbol)
+            })
+        },
+    )
 }
 
 fn selected_machine(
@@ -808,20 +796,19 @@ fn names_are_unambiguous(
     hypotheses: &[ExpressionHandle],
     arguments: &[ExpressionHandle],
 ) -> bool {
-    let mut pending = hypotheses
+    let pending = hypotheses
         .iter()
         .chain(arguments)
         .copied()
         .collect::<Vec<_>>();
-    let mut visited = Vec::new();
     let mut names: Vec<(String, SymbolHandle)> = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if !expression.is_valid() || visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
-        let node = program.expression_table.expression(expression);
-        if let ExpressionNode::Name(name) = node {
+    !crate::expression_traversal::visit_pre_order(
+        program,
+        pending,
+        |expression, node| {
+            let ExpressionNode::Name(name) = node else {
+                return false;
+            };
             if let Some(head) = program
                 .expression_table
                 .name_path_members(name.members)
@@ -829,7 +816,7 @@ fn names_are_unambiguous(
             {
                 if let Some((_, symbol)) = names.iter().find(|(known, _)| known == head.as_str()) {
                     if *symbol != name.head_symbol {
-                        return false;
+                        return true;
                     }
                 } else {
                     names.push((head.as_str().to_owned(), name.head_symbol));
@@ -837,14 +824,11 @@ fn names_are_unambiguous(
             }
             let spelling = program.expression_table.display_name(expression);
             if let Some((_, symbol)) = names.iter().find(|(known, _)| *known == spelling) {
-                if *symbol != name.symbol {
-                    return false;
-                }
+                *symbol != name.symbol
             } else {
                 names.push((spelling, name.symbol));
+                false
             }
-        }
-        children(program, node, |child| pending.push(child));
-    }
-    true
+        },
+    )
 }
