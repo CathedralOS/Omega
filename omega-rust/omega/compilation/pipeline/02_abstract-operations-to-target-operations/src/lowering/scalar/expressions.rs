@@ -1,7 +1,7 @@
 use crate::LoweringError;
 use abstract_operations::AbstractParameter;
 use calling_conventions::{ValueLocation, ValuePlacement, ValueShape};
-use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 use std::collections::BTreeMap;
 use target_operations::{
     ScalarParameterLocation, TargetBooleanExpression, TargetIntegerExpression,
@@ -271,5 +271,27 @@ impl KnownInteger {
             },
             Self::Runtime(expression) => expression,
         }
+    }
+}
+
+/// One unsigned-u64 endpoint read shared by the byte- and element-view
+/// lowering match arms: the bound must be a known unsigned 64-bit integer or
+/// the arm refuses with `invalid`.
+pub(in crate::lowering) fn unsigned_u64_endpoint<'a, E>(
+    values: &'a BTreeMap<ValueId, KnownScalar>,
+    invalid: impl Fn() -> E + 'a,
+) -> impl Fn(ValueId) -> Result<Box<TargetIntegerExpression>, E> + 'a {
+    move |value| {
+        let Some(KnownScalar::Integer {
+            scalar_type,
+            value: known,
+        }) = values.get(&value)
+        else {
+            return Err(invalid());
+        };
+        if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
+            return Err(invalid());
+        }
+        Ok(Box::new(known.clone().into_expression(value)))
     }
 }

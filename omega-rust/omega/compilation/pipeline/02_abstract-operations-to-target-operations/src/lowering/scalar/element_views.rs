@@ -1,7 +1,7 @@
 //! Element observation and view operations for common graph lowering.
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
-use crate::lowering::scalar::expressions::insert_value;
+use crate::lowering::scalar::expressions::{insert_value, unsigned_u64_endpoint};
 use crate::lowering::structural_layout::{direct_scalar_field_geometry, runtime_projection};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -528,19 +528,7 @@ pub(in crate::lowering) fn resolve_element_view(
                 end,
                 obligation,
             } => {
-                let endpoint = |value: ValueId| {
-                    let Some(KnownScalar::Integer {
-                        scalar_type,
-                        value: known,
-                    }) = values.get(&value)
-                    else {
-                        return Err(invalid());
-                    };
-                    if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
-                        return Err(invalid());
-                    }
-                    Ok(Box::new(known.clone().into_expression(value)))
-                };
+                let endpoint = unsigned_u64_endpoint(values, &invalid);
                 target_operations::TargetElementViewRegion::RepresentationBytes {
                     start: endpoint(*start)?,
                     end: endpoint(*end)?,
@@ -637,19 +625,7 @@ pub(in crate::lowering) fn resolve_element_view(
     {
         return Err(invalid());
     }
-    let endpoint = |value: ValueId| {
-        let Some(KnownScalar::Integer {
-            scalar_type,
-            value: known,
-        }) = values.get(&value)
-        else {
-            return Err(invalid());
-        };
-        if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
-            return Err(invalid());
-        }
-        Ok(Box::new(known.clone().into_expression(value)))
-    };
+    let endpoint = unsigned_u64_endpoint(values, &invalid);
     let start = endpoint(*start)?;
     let end = endpoint(*end)?;
     if !super::descriptor_operands::observes_count(function, values, *length, source, false) {
