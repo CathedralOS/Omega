@@ -1,4 +1,3 @@
-use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::ExpressionHandle;
 
 use super::super::super::expressions::expression_integer_value;
@@ -63,16 +62,10 @@ fn seed_minimum_length_fact(
     possible_length: ExpressionHandle,
     minimum_length: i64,
 ) {
-    let Some(member) = program.expression_table.member_node(possible_length) else {
+    let Some(collection) = facts.length_collection(program, possible_length) else {
         return;
     };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        != Some(CollectionMeasure::Length)
-    {
-        return;
-    }
-
-    let collection = program.expression_table.display_name(member.receiver);
+    let collection = program.expression_table.display_name(collection);
     facts.prove_minimum_length(collection, minimum_length);
 }
 
@@ -82,12 +75,14 @@ fn seed_length_equality_side(
     value: ExpressionHandle,
     possible_length: ExpressionHandle,
 ) -> bool {
-    let Some(member) = ::validation::length_member(program, possible_length) else {
+    let Some(collection) = facts.length_collection(program, possible_length) else {
         return false;
     };
-
+    if let Some(length) = expression_integer_value(program, facts, value) {
+        facts.prove_exact_length(program.expression_table.display_name(collection), length);
+    }
     facts.prove_range_bound(
-        program.expression_table.display_name(member.receiver),
+        program.expression_table.display_name(collection),
         program.expression_table.display_name(value),
     );
     true

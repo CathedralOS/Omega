@@ -2410,6 +2410,8 @@ fail/slices/call_requires_different_view_extent rejected 265ms expected @0991904
 	cannot prove requires contract for call read from wrong: position < values.len (needs fact `position < values.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/slices/call_requires_direct_view_extent rejected 254ms expected @45782ade0cba+wt
 	cannot prove requires contract for call read from wrong: 2 < values[1..2].len (needs fact `position < values.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/slices/captured_length_after_descriptor_replacement rejected 355ms expected @9cc6a58bcdc4+wt
+	cannot prove index `1` is within unknown slice length of `items` in observe::entry
 fail/slices/inclusive_endpoint_equals_length rejected 344ms expected @dd31f301c60c+wt
 	cannot prove subslice range end bound `..4` is within slice length 4
 fail/slices/inclusive_endpoint_maximum rejected 336ms expected @ebf381240e20+wt

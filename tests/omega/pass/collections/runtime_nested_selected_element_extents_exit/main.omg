@@ -3,21 +3,13 @@ data Pair { left: Bucket; right: Bucket; }
 machine observe(pair: &Pair) -> u64 {
     let first: u64 = pair.left.items.len;
     let second: u64 = pair.right.items.len;
-    transition first == 2 && second == 5 {
+    transition first == 2 && second == 5
+        && pair.left.items[0] == 10 && pair.left.items[1] == 20
+        && pair.right.items[4] == 5 {
         true -> result(0)
         false -> result(1)
     }
     state result(value: u64) -> u64 { value }
-}
-machine observe_elements(pair: &Pair) -> u64 {
-    transition pair.left.items.len >= 2 && pair.right.items.len >= 5 {
-        true -> selected(pair.left.items[0] == 10 && pair.left.items[1] == 20
-            && pair.right.items[4] == 5)
-        false -> selected(false)
-    }
-    state selected(matches: bool) -> u64 {
-        transition matches { true -> (0) false -> (1) }
-    }
 }
 machine main() crashes Trap {
     let first: [u32; 4] = [99, 10, 20, 88];
@@ -27,8 +19,7 @@ machine main() crashes Trap {
     let second_view: &[u32] = second.as_slice();
     let pair: Pair = Pair { left: Bucket { items: first_view }, right: Bucket { items: second_view } };
     let outcome: u64 = observe(&pair);
-    let elements: u64 = observe_elements(&pair);
-    transition outcome == 0 && elements == 0 { true -> done() false -> bad() }
+    transition outcome == 0 { true -> done() false -> bad() }
     state done() {}
     state bad() { crash Trap; }
 }

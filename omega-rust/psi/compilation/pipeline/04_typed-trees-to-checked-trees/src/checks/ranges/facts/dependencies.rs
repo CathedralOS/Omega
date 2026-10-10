@@ -45,6 +45,18 @@ pub(super) struct ScalarBindingDependency {
     machine: SymbolHandle,
     state: SymbolHandle,
     place: CanonicalPlace,
+    length: Option<CapturedLength>,
+}
+
+/// A scalar snapshot may still measure a live descriptor. Keep that relation
+/// at evaluation, not by expanding its initializer when a later guard runs.
+/// Descriptor replacement or selector writes retire the relation without
+/// changing the captured scalar's own value facts; element writes do not.
+#[derive(Clone)]
+struct CapturedLength {
+    collection: ExpressionHandle,
+    descriptor: CanonicalPlace,
+    selectors: Vec<CanonicalPlace>,
 }
 
 /// One row's typed meaning for label-collision judgment: machine, state and
@@ -379,7 +391,119 @@ impl<'field> RangeFacts<'field> {
                 machine: machine.symbol,
                 state: state.symbol,
                 place,
+                length: self.capture_length(program, machine, state, source),
             });
+    }
+
+    /// All length comparisons consume the same live measurement, whether
+    /// authored directly or retained by a scalar binding/copy. Symbols select
+    /// snapshots; expression labels only address the existing fact tables.
+    pub(in crate::checks::ranges) fn length_collection(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<ExpressionHandle> {
+        if let Some(member) = validation::length_member(program, expression) {
+            return Some(member.receiver);
+        }
+        let symbol =
+            validation::expression_traversal::single_segment_name_symbol(program, expression)?;
+        self.scalar_binding_dependencies.iter().find_map(|row| {
+            (row.place.root == facts::PlaceRoot::Symbol(symbol))
+                .then(|| row.length.as_ref().map(|length| length.collection))
+                .flatten()
+        })
+    }
+
+    fn capture_length(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        source: ExpressionHandle,
+    ) -> Option<CapturedLength> {
+        if let Some(symbol) =
+            validation::expression_traversal::single_segment_name_symbol(program, source)
+        {
+            return self.scalar_binding_dependencies.iter().find_map(|row| {
+                (row.machine == machine.symbol
+                    && row.state == state.symbol
+                    && row.place.root == facts::PlaceRoot::Symbol(symbol))
+                .then(|| row.length.clone())
+                .flatten()
+            });
+        }
+        let collection = validation::length_member(program, source)?.receiver;
+        let reference =
+            super::super::types::expression_type_reference(program, machine, state, collection)?;
+        let reference = validation::unwrapped_type_reference(program, reference)?;
+        // A record field merely named `len` is an ordinary scalar. Only the
+        // compiler-owned array/slice metadata operation establishes this edge.
+        if !matches!(
+            program.type_reference_table.type_reference(reference),
+            typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                | typed_trees::types::TypeReferenceNode::Slice { .. }
+        ) {
+            return None;
+        }
+        let descriptor = validation::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            self.statement_index,
+            collection,
+        )?;
+        let mut reads = Vec::new();
+        if !collect_reads(
+            program,
+            machine,
+            state,
+            self.statement_index,
+            collection,
+            self.checked_calls,
+            self.checked_operators,
+            &mut reads,
+            0,
+            self.bound_lookup(),
+        ) || !reads
+            .iter()
+            .any(|read| crate::flow::canonical_places_agree(program, read, &descriptor))
+        {
+            return None;
+        }
+        reads.retain(|read| !crate::flow::canonical_places_agree(program, read, &descriptor));
+        Some(CapturedLength {
+            collection,
+            descriptor,
+            selectors: reads,
+        })
+    }
+
+    pub(super) fn retire_captured_lengths(
+        &mut self,
+        program: &dyn ::validation::CheckingInput,
+        writes: Option<&[CanonicalPlace]>,
+    ) {
+        for row in &mut self.scalar_binding_dependencies {
+            let Some(length) = &row.length else {
+                continue;
+            };
+            if writes.is_none_or(|writes| {
+                writes.iter().any(|write| {
+                    places_overlap(program, &row.place, write)
+                        || super::invalidation::write_covers_place(
+                            program,
+                            write,
+                            &length.descriptor,
+                        )
+                        || length
+                            .selectors
+                            .iter()
+                            .any(|read| places_overlap(program, read, write))
+                })
+            }) {
+                row.length = None;
+            }
+        }
     }
 
     pub(in crate::checks::ranges) fn record_expression_dependencies(

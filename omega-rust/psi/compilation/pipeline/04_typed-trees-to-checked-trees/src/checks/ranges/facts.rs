@@ -9,6 +9,8 @@
 //! reads locals and field integers; `proofs` records and queries the proven
 //! relations; `dependencies` records the typed reads behind each expression
 //! label, so a write can tell which labels it preserves or affects;
+//! scalar binding rows retain live descriptor measurements separately from
+//! the captured scalar's own storage, so guards never replay initializers;
 //! `invalidation` retires facts after an assignment or a call's writes; and
 //! `call_writes` provides `RangeCallContext`, the per-state view of checked
 //! call and borrow facts through which a call's writes are found.

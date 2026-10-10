@@ -1,4 +1,3 @@
-use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 
 use super::super::super::expressions::expression_integer_value;
@@ -46,16 +45,8 @@ fn len_bound_minus_offset(
     if offset < 0 {
         return None;
     }
-    let member = program.expression_table.member_node(binary.left)?;
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        != Some(CollectionMeasure::Length)
-    {
-        return None;
-    }
-    Some((
-        program.expression_table.display_name(member.receiver),
-        offset,
-    ))
+    let collection = facts.length_collection(program, binary.left)?;
+    Some((program.expression_table.display_name(collection), offset))
 }
 
 pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
@@ -73,11 +64,11 @@ pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
         return;
     }
 
-    let Some(member) = ::validation::length_member(program, upper_bound) else {
+    let Some(collection) = facts.length_collection(program, upper_bound) else {
         return;
     };
 
-    let collection_label = program.expression_table.display_name(member.receiver);
+    let collection_label = program.expression_table.display_name(collection);
     prove_index_within_member_length(program, machine, state, facts, index, &collection_label);
 }
 
@@ -141,12 +132,12 @@ pub(in crate::checks::ranges::guards) fn seed_at_most_len_range_bound_fact(
         return;
     }
 
-    let Some(member) = ::validation::length_member(program, upper_bound) else {
+    let Some(collection) = facts.length_collection(program, upper_bound) else {
         return;
     };
 
     facts.prove_range_bound(
-        program.expression_table.display_name(member.receiver),
+        program.expression_table.display_name(collection),
         program.expression_table.display_name(bound),
     );
 }
@@ -183,11 +174,11 @@ pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(
         return;
     };
 
-    let Some(member) = ::validation::length_member(program, upper_bound) else {
+    let Some(collection) = facts.length_collection(program, upper_bound) else {
         return;
     };
 
-    let collection_label = program.expression_table.display_name(member.receiver);
+    let collection_label = program.expression_table.display_name(collection);
     facts.prove_index(
         collection_label.clone(),
         program.expression_table.display_name(index),
