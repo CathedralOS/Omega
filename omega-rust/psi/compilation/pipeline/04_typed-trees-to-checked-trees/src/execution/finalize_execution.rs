@@ -18,14 +18,20 @@ pub(crate) fn finalize_execution(
         crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
             program, &facts,
         );
+    let mut cleanup_diagnostics = Vec::new();
+    // The Unit candidates pass assembles each free `drop<T>` consumer's
+    // complete nominal cleanup plan once and publishes that plan's `.machine`
+    // as the consumer's own ordinary row; attached callers assemble below.
+    let mut free_nominal_cleanups = Vec::new();
     let mut terminal_unit_effects =
         crate::execution::terminal_unit::build_checked_unit_effect_plans_with_call_frames(
             program,
             &facts,
             crate::execution::terminal_unit::ScalarCalleeClosure,
             call_frames.as_ref(),
+            &mut free_nominal_cleanups,
+            &mut cleanup_diagnostics,
         );
-    let mut cleanup_diagnostics = Vec::new();
     // Both cleanup lanes keep their dispatchers apart from the ordinary
     // roster, but every shape a Unit body names lives in that roster's one
     // type namespace. A body that kills a same-statement temporary on a shared
@@ -41,13 +47,27 @@ pub(crate) fn finalize_execution(
             &terminal_unit_effects,
         );
     facts.flow.terminal_partial_affine_unit_cleanups = partial_cleanups;
-    let (nominal_cleanups, nominal_types) =
+    let (mut nominal_cleanups, nominal_types) =
         crate::execution::terminal_unit::build_checked_nominal_affine_unit_cleanup_plans(
             program,
             &facts,
             &terminal_unit_effects,
             &mut cleanup_diagnostics,
         );
+    nominal_cleanups
+        .machines
+        .splice(0..0, free_nominal_cleanups);
+    // Every nominal dispatcher publishes inside the ordinary roster: lower
+    // resolves the machine's plan row there rather than staging a second one.
+    for published in terminal_unit_effects.machines.iter_mut() {
+        if let Some(nominal) = nominal_cleanups
+            .machines
+            .iter()
+            .find(|plan| plan.machine.machine == published.machine)
+        {
+            *published = nominal.machine.clone();
+        }
+    }
     facts.flow.terminal_nominal_affine_unit_cleanups = nominal_cleanups;
     if let Err(identity) =
         terminal_unit_effects.adopt_structural_types(partial_types.into_iter().chain(nominal_types))

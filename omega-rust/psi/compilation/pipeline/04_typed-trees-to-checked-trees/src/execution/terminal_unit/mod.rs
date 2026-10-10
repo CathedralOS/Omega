@@ -183,6 +183,8 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    free_nominal_cleanups: &mut Vec<CheckedNominalAffineUnitCleanupMachinePlan>,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedUnitEffectPlans {
     let mut shapes = ShapeCollector::new(program);
     let mut boundary_machines = program
@@ -266,6 +268,30 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 .filter_map(CheckedComposedUnitControlMachinePlan::callable_entry),
         )
         .collect::<Vec<_>>();
+    // Free `drop<T>` consumers assemble their complete nominal cleanup plan
+    // once, here against the shared shape namespace and the live candidate
+    // entries; the published roster below keeps each plan's `.machine` as the
+    // consumer's own row rather than a second dispatcher. Attached callers
+    // assemble later in `build_checked_nominal_affine_unit_cleanup_plans`.
+    for machine in program
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine.supply_mode == MachineSupplyMode::CheckedBody
+                && machine.attached_data.is_none()
+        })
+    {
+        if let Some(plan) = build_nominal_affine_unit_cleanup_machine(
+            program,
+            facts,
+            &targets,
+            &mut shapes,
+            machine,
+            diagnostics,
+        ) {
+            free_nominal_cleanups.push(plan);
+        }
+    }
     let mut temporary_selections = candidates
         .iter()
         .map(|plan| {
@@ -979,9 +1005,9 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| {
-            // Free consuming bodies carry contextual parameter cleanup on their
-            // ordinary completion now. A second nominal dispatcher would replace
-            // that ordered stream and lose structural children or linear claims.
+            // Free consuming bodies keep their complete nominal plan from the
+            // Unit candidates pass, which published its `.machine` as the
+            // consumer's ordinary row; only attached callers assemble here.
             if machine.attached_data.is_none() {
                 return None;
             }

@@ -69,9 +69,10 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         }
     }
 
-    // The nominal lane's dispatcher joins the ordinary roster for this
-    // closure.
-    let plans = UnitPlans::with_staged(&checked.facts.flow.terminal_unit_effects, plan);
+    // The dispatcher is the ordinary roster's own row for this machine —
+    // the checking stage publishes each nominal plan's `.machine` there —
+    // so no dispatcher stages from outside the published roster.
+    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     // The dispatcher plus each unique cleanup root anchors a transitive call
     // closure; ordinary machines reached by a hook body lower beside it.
     let mut unit_roots = Vec::with_capacity(roots.len() + 1);
