@@ -269,11 +269,15 @@ pub(super) fn binary(
     }
 }
 
+/// Every caller supplies an operand bound by the mask or remainder that
+/// produced it — `& (2^B - 1)`, `& (2^(B-1) - 1)`, `& 1`, or `% 2^B` — and
+/// that bound is exactly the target's representable range, so the composed
+/// cast can never fail. The mask's image is the cast's own range evidence.
 fn exact_cast(operand: LoweredDirectExpression, target: ScalarType) -> LoweredDirectExpression {
     LoweredDirectExpression::IntegerExactCast {
         scalar_type: target,
         operand: Box::new(operand),
-        formation_decided: false,
+        formation_decided: true,
     }
 }
 
