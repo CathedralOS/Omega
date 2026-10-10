@@ -491,8 +491,8 @@ pub(crate) fn emit(
             let completed = evaluation.source_value(
                 identities,
                 checked,
-                site.state,
                 machine.symbol,
+                site.state,
                 site.statement,
                 role,
                 value,

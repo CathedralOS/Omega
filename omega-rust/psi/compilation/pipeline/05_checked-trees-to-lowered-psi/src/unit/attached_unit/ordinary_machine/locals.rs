@@ -40,8 +40,8 @@ impl MachineEmission<'_> {
             let value = self.evaluation.source_value(
                 identities,
                 checked,
-                plan.state,
                 plan.machine,
+                plan.state,
                 result.statement_index,
                 CheckedScalarExpressionRole::ArrayElement {
                     source: *source,
@@ -50,9 +50,9 @@ impl MachineEmission<'_> {
                 element,
                 source_value_count,
                 &mut self.scalar_result_values,
+                &mut self.next_value_identity,
                 &mut self.next_block,
                 &mut self.next_edge,
-                &mut self.next_value_identity,
                 &mut self.operations,
                 &mut self.scalar_calls,
             )?;
