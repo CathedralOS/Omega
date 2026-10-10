@@ -3,13 +3,13 @@
 use crate::proofs::evidence_lowering::evidence_terms::lower_evidence_interface;
 use crate::proofs::evidence_lowering::{
     checked_evidence_machine_identity, checked_evidence_requirement_identity,
-    checked_requirement_family_rows,
+    checked_requirement_family_rows, evidence_projection_identity,
 };
 use crate::proofs::{
-    CheckedTrees, EvidenceProjectionIdentity, EvidenceTermId, LoweringError, MachineId,
-    PrimitiveType, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity, PropositionDeclaration,
-    PropositionId, StaticRequirementDispatch, TerminalModule, terminal_scalar_type, unsupported,
+    CheckedTrees, EvidenceTermId, LoweringError, MachineId, PrimitiveType, ProofOutput,
+    ProofOutputCall, ProofOutputRuntimeCall, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionDeclaration, PropositionId,
+    StaticRequirementDispatch, TerminalModule, terminal_scalar_type, unsupported,
 };
 use terminal_psi::ProofOutputRuntimeResult;
 use typed_trees::closed_conformance_applications_of;
@@ -454,22 +454,15 @@ fn terminal_proposition_application_id(
                 .evidence_projection
                 .as_ref()
                 .map(|projection| {
-                    Ok(EvidenceProjectionIdentity {
-                        term: terminal_evidence_term_id(
+                    evidence_projection_identity(
+                        checked,
+                        projection,
+                        terminal_evidence_term_id(
                             term_ids,
                             projection.term,
                             "proof-output proposition projects an unrelated evidence term",
                         )?,
-                        declaring_trait_identity: checked
-                            .symbols
-                            .display_path(projection.declaring_trait, "::"),
-                        declaring_trait_arguments: projection.declaring_trait_arguments.clone(),
-                        requirement_identity: checked_evidence_requirement_identity(
-                            checked,
-                            projection.declaring_trait,
-                            projection.requirement,
-                        )?,
-                    })
+                    )
                 })
                 .transpose()?;
             Ok(PropositionBinderArgumentIdentity {

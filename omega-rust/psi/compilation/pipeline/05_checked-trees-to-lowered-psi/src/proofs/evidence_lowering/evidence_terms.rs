@@ -1,15 +1,17 @@
 //! The proposition vocabulary, evidence terms, interfaces and contract
 //! lanes in terminal form.
 
-use crate::proofs::evidence_lowering::checked_evidence_requirement_identity;
 use crate::proofs::evidence_lowering::proof_output_calls::proof_output_forwarded_source;
+use crate::proofs::evidence_lowering::{
+    checked_evidence_requirement_identity, evidence_projection_identity,
+};
 use crate::proofs::{
     BTreeMap, BTreeSet, CheckedPropositionBinderKind, CheckedPropositionEvidence, CheckedTrees,
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
-    EvidenceProjectionIdentity, EvidenceRequirementIdentity, EvidenceTermDeclaration,
-    EvidenceTermId, LoweringError, MachineId, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, PropositionId, proposition_id,
+    EvidenceRequirementIdentity, EvidenceTermDeclaration, EvidenceTermId, LoweringError, MachineId,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderDeclaration, PropositionBinderKind, PropositionDeclaration,
+    PropositionEvidence, PropositionId, proposition_id,
 };
 
 fn evidence_term_root(parents: &mut [usize], mut index: usize) -> usize {
@@ -130,18 +132,7 @@ pub(crate) fn lower_proposition_vocabulary(
                     belongs_to_selected_machine = false;
                     break;
                 };
-                Some(EvidenceProjectionIdentity {
-                    term,
-                    declaring_trait_identity: checked
-                        .symbols
-                        .display_path(projection.declaring_trait, "::"),
-                    declaring_trait_arguments: projection.declaring_trait_arguments.clone(),
-                    requirement_identity: checked_evidence_requirement_identity(
-                        checked,
-                        projection.declaring_trait,
-                        projection.requirement,
-                    )?,
-                })
+                Some(evidence_projection_identity(checked, projection, term)?)
             } else {
                 None
             };
@@ -374,22 +365,15 @@ pub(crate) fn lower_evidence_terms(
                     .map(|projection| {
                         let projection_index = usize::try_from(projection.term.arena_index() - 1)
                             .expect("arena indices fit the host address space");
-                        Ok(EvidenceProjectionIdentity {
-                            term: term_ids.get(projection_index).copied().flatten().ok_or(
+                        evidence_projection_identity(
+                            checked,
+                            projection,
+                            term_ids.get(projection_index).copied().flatten().ok_or(
                                 LoweringError::Unsupported(
                                     "evidence-term proposition projects an unrelated term",
                                 ),
                             )?,
-                            declaring_trait_identity: checked
-                                .symbols
-                                .display_path(projection.declaring_trait, "::"),
-                            declaring_trait_arguments: projection.declaring_trait_arguments.clone(),
-                            requirement_identity: checked_evidence_requirement_identity(
-                                checked,
-                                projection.declaring_trait,
-                                projection.requirement,
-                            )?,
-                        })
+                        )
                     })
                     .transpose()?;
                 Ok(PropositionBinderArgumentIdentity {

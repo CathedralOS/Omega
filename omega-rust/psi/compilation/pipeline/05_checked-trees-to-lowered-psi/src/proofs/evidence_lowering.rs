@@ -109,6 +109,27 @@ pub(crate) fn checked_evidence_requirement_identity(
     Ok(exact_trait_requirement(checked, declaring_trait, requirement)?.overload_identity)
 }
 
+/// Every binder-argument evidence projection lowers the same three checked
+/// fields into one identity; only the term-id lookup differs per call site.
+pub(super) fn evidence_projection_identity(
+    checked: &CheckedTrees,
+    projection: &checked_trees::CheckedEvidenceProjection,
+    term: crate::proofs::EvidenceTermId,
+) -> Result<crate::proofs::EvidenceProjectionIdentity, LoweringError> {
+    Ok(crate::proofs::EvidenceProjectionIdentity {
+        term,
+        declaring_trait_identity: checked
+            .symbols
+            .display_path(projection.declaring_trait, "::"),
+        declaring_trait_arguments: projection.declaring_trait_arguments.clone(),
+        requirement_identity: checked_evidence_requirement_identity(
+            checked,
+            projection.declaring_trait,
+            projection.requirement,
+        )?,
+    })
+}
+
 /// One lowered conformance-table row a checked requirement row contributes:
 /// the canonical value tuple and the exact realization that tuple selects.
 pub(crate) struct CheckedRequirementFamilyRow {
