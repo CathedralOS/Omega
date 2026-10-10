@@ -3,6 +3,9 @@
 //! The arithmetic engine receives current parameter atoms, landed literals,
 //! and independently selected Exact addition/subtraction/multiplication trees.
 //! Caller storage and earlier initializers are never replayed.
+//! View metadata uses the selected arrival state's formal coordinates for
+//! both machine entries and named-state transfers. Only surviving caller
+//! facts are premises; an arrival's requirements remain obligations.
 use super::{
     BinaryOperator, CheckFacts, ExpressionHandle, ExpressionNode, FlowCallFact, FlowStateFact,
     OperatorSpelling,
@@ -189,17 +192,16 @@ fn prove(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if head.is_some()
-        && validation::prove_arithmetic_call_requirement(
-            program,
-            caller_machine,
-            caller_state,
-            callee,
-            &arithmetic_hypotheses,
-            goal,
-            arguments,
-        )
-    {
+    if validation::prove_arithmetic_call_requirement(
+        program,
+        caller_machine,
+        caller_state,
+        callee,
+        entry,
+        &arithmetic_hypotheses,
+        goal,
+        arguments,
+    ) {
         return Some(true);
     }
     let caller_parameters = program.state_parameters(caller_state);

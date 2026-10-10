@@ -4285,10 +4285,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     [ownership](wiki/spec/language/ownership.md); record copies already work
     (`slices/runtime_qualified_record_copy_local_exit`, exit 70).
     Unverified: which range-qualified/erased-field cases still fail.
-  - consuming mutable-view forwarding on the Unit-graph route with exact
-    reborrow places at successors;
-  - `omega-rust/psi/interpreter/terminal-interpreter/src/element_views.rs`
-    stores only scalar elements and rejects record paths.
+  - mutable-view result and cyclic forwarding compositions on the Unit-graph
+    route remain unverified. Acyclic named-state subslice forwarding retains
+    caller backing for scalar and record writes (controls:
+    `slices/runtime_mutable_subslice_state_forwarding_exit`,
+    `slices/runtime_dynamic_record_subslice_state_forwarding_exit`), including
+    record field writes through the Terminal interpreter's structural backing.
 
   Acceptance: consuming views execute natively and in the Terminal interpreter
   for scalar and record elements; bounds, element-type, alias and access

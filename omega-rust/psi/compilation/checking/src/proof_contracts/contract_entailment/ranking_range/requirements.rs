@@ -44,11 +44,14 @@ pub fn arithmetic_entry_requirement_is_covered(
 /// Caller and goal engines remain separate even on a self-call: binding a
 /// formal must not rewrite the hypotheses or recursively substitute an actual.
 /// This proves arithmetic implication, not operand execution or type formation.
+/// The selected arrival state owns the goal's formal coordinates, whether the
+/// invocation enters a machine or transfers to one of its named states.
 pub fn prove_arithmetic_call_requirement(
     program: &dyn crate::CheckingInput,
     caller: &Machine,
     caller_state: &State,
     callee: &Machine,
+    callee_state: &State,
     hypotheses: &[(ExpressionHandle, bool)],
     goal: ExpressionHandle,
     arguments: &[ExpressionHandle],
@@ -58,6 +61,7 @@ pub fn prove_arithmetic_call_requirement(
         caller,
         caller_state,
         callee,
+        callee_state,
         hypotheses,
         goal,
         arguments,
@@ -70,11 +74,15 @@ fn prove(
     caller: &Machine,
     caller_state: &State,
     callee: &Machine,
+    callee_state: &State,
     hypotheses: &[(ExpressionHandle, bool)],
     goal: ExpressionHandle,
     arguments: &[ExpressionHandle],
 ) -> Option<bool> {
-    let target = program.machine_states(callee).first()?;
+    // Resolve through the retained owner instead of substituting an entry
+    // state's same-spelled formals for a named state's distinct declaration.
+    let target =
+        typed_trees::state::state_by_symbol(program.machine_states(callee), callee_state.symbol)?;
     let parameters = program.state_parameters(target);
     if parameters.iter().count() != arguments.len()
         || !typed_trees::state::state_by_symbol(program.machine_states(caller), caller_state.symbol)
