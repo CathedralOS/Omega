@@ -237,14 +237,13 @@ pub(crate) fn checked_unit_boundary_identity(
         .iter()
         .find(|operator| operator.is_boundary && operator.symbol == symbol)
     {
-        return Ok(BoundaryIdentity::Requirement(
-            checked.typed.callable_identity_by_text(
-                &typed_trees::operator::boundary_operator_requirement_identity(
-                    &checked.typed,
-                    operator,
-                ),
-            ),
-        ));
+        let identity = checked
+            .typed
+            .boundary_operator_requirement_callable_identity(operator);
+        if !identity.is_valid() {
+            return unsupported("boundary operator has no normalized requirement identity");
+        }
+        return Ok(BoundaryIdentity::Requirement(identity));
     }
     // A foreign import names this physical declaration, not its portable
     // overload. Its display spelling is an export payload, never a lookup

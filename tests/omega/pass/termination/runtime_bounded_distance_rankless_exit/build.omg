@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "runtime_bounded_distance_rankless_exit");
+ Build::bind(builder, macos_arm64::ProgramEntry, program);
+}

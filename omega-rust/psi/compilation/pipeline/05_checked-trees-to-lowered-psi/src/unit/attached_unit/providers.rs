@@ -197,15 +197,12 @@ pub(super) fn checked_unit_provider_candidates(
             } => checked
                 .typed
                 .trait_requirement_callable_identity(definition, signature),
-            CatalogRequirement::TopLevel(requirement) => checked
-                .typed
-                .machine_callable_identity(requirement),
+            CatalogRequirement::TopLevel(requirement) => {
+                checked.typed.machine_callable_identity(requirement)
+            }
             CatalogRequirement::Operator(operator) => checked
                 .typed
-                .callable_identity_by_text(&typed_trees::operator::boundary_operator_requirement_identity(
-                    &checked.typed,
-                    operator,
-                )),
+                .boundary_operator_requirement_callable_identity(operator),
         };
         if !requirement_identity.is_valid() {
             return unsupported("Unit boundary requirement has an empty overload identity");

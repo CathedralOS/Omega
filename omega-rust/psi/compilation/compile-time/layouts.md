@@ -57,6 +57,29 @@ substituted layout. Malformed evidence and a short destination leave the
 destination unchanged. Richer producer-origin chains, quotient custody, and
 target-dependent const applications remain outside this bounded entrance.
 
+## Target-family value policies
+
+A plan-laid value policy may retain a finite target family. Psi evaluates every
+exact checked member with the same complete invariant Schema argument, validates
+every returned plan, and retains the guarded alternatives. A bad member rejects
+even when deployment requests another target. Recasts and narrowed integer writes
+must satisfy every relevant alternative; source checking never chooses host
+geometry.
+
+Terminal Psi retains the exact application, schema argument, family roster and
+member geometries. Omega selects a member through the ordinary target-family
+receipt and supplies an immutable record-geometry overlay to native lowering and
+Terminal execution. The receipt keeps the original canonical artifact identity;
+selection neither rewrites that artifact nor supplies new proof authority. The
+complete artifact conservatively retains the policy bodies and their dependencies.
+
+The current family Schema ABI supports records with at most 32 nonzero live
+fields of scalar or fixed nested-record shape. Active cases, retired identities,
+nested target-dependent schemas and nested policy geometry that has not yet been
+materialized reject explicitly. Private callback layout demands also require a
+separate target-closed publication route. An unresolved family is never treated
+as ordinary packing by legacy typed-layout consumers.
+
 ## Conventional sum materialization
 
 Read-only conventional reports retain the fixed four-byte tag, authored-order

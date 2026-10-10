@@ -601,19 +601,6 @@ impl TerminalExecution<'_> {
                     )?,
                 )
                 .map_err(|_| malformed())?;
-                let projected = match inline_byte {
-                    Some(_) => None,
-                    None => Some(self.resolve_live_projection(
-                        source.place,
-                        &source.path,
-                        source.access,
-                    )?),
-                };
-                let byte_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
-                let captured = match &projected {
-                    Some(view) => self.reference_byte_region(view)?,
-                    None => None,
-                };
                 let byte_endpoint = matches!(
                     self.program
                         .structural_types()
@@ -622,6 +609,32 @@ impl TerminalExecution<'_> {
                         .shape,
                     StructuralTypeShape::PrimitiveScalar(_)
                 );
+                // Primitive capture owns the actual byte endpoint across
+                // scalar arrays, stored arrays and borrowed views. Its retained
+                // referent is also the region lookup coordinate; requiring an
+                // opaque structural row first loses initialized array storage.
+                let byte_loan = if byte_endpoint {
+                    let parameter = StructuralParameterDeclaration {
+                        place: source.place,
+                        position: 0,
+                        structural_type: original_type,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        access: source.access,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                    };
+                    Some(self.capture_primitive_loan(&parameter, source, &mut identity_cursor)?)
+                } else {
+                    None
+                };
+                let projected = match &byte_loan {
+                    Some(loan) => loan.referent.clone(),
+                    None => {
+                        self.resolve_live_projection(source.place, &source.path, source.access)?
+                    }
+                };
+                let byte_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
+                let captured = self.reference_byte_region(&projected)?;
                 if captured.is_none() && !byte_endpoint {
                     // Aggregate storage with identical geometry keeps its own
                     // typed cells: the view names that whole backing under
@@ -635,7 +648,7 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     aggregate_view = Some(referent_type);
-                    region_referent = Some(projected.ok_or_else(malformed)?);
+                    region_referent = Some(projected);
                 } else {
                     let (mut view, region) = if let Some(region) = captured {
                         if byte_offset
@@ -645,7 +658,7 @@ impl TerminalExecution<'_> {
                             return Err(malformed());
                         }
                         (
-                            projected.ok_or_else(malformed)?,
+                            projected,
                             ReferenceByteRegion {
                                 endpoint: crate::primitive_storage::shifted_byte_endpoint(
                                     &region.endpoint,
@@ -655,17 +668,7 @@ impl TerminalExecution<'_> {
                             },
                         )
                     } else {
-                        let parameter = StructuralParameterDeclaration {
-                            place: source.place,
-                            position: 0,
-                            structural_type: original_type,
-                            multiplicity: StructuralMultiplicity::Unrestricted,
-                            access: source.access,
-                            qualifications: Vec::new(),
-                            projected_qualifications: Vec::new(),
-                        };
-                        let mut loan =
-                            self.capture_primitive_loan(&parameter, source, &mut identity_cursor)?;
+                        let mut loan = byte_loan.ok_or_else(malformed)?;
                         self.position_reference_storage(&mut loan, byte_offset, byte_length)?;
                         (
                             loan.referent,

@@ -47,6 +47,29 @@ pub fn build_layout_plan(
     target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<LayoutPlan, Diagnostic> {
+    build_layout_plan_for_roots(
+        program,
+        target,
+        opaque_representation_selections,
+        program.data_definitions().iter().map(|data| data.symbol),
+    )
+}
+
+/// Build the physical catalog reachable from the requested declaration roots.
+///
+/// Callback closure requests only its native parameter roots. Scalar symbols
+/// have no data declaration, and generic, opaque, and proof-only declarations
+/// remain outside the top-level catalog just as in the complete catalog.
+/// Inline field dependencies are laid out recursively. An unresolved family
+/// reached through a requested root still requires a target-closed Terminal
+/// view; unrelated declarations never acquire a physical layout demand.
+pub fn build_layout_plan_for_roots(
+    program: &TypedTrees,
+    target: NativeTarget,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
+    roots: impl IntoIterator<Item = SymbolHandle>,
+) -> Result<LayoutPlan, Diagnostic> {
+    let roots = roots.into_iter().collect::<Vec<_>>();
     let mut builder = LayoutBuilder::new(
         program,
         target,
@@ -62,6 +85,9 @@ pub fn build_layout_plan(
     let proof_only = typed_trees::proof_only::classify(program);
 
     for data_definition in program.data_definitions() {
+        if !roots.contains(&data_definition.symbol) {
+            continue;
+        }
         if !data_definition.type_parameters.is_empty() {
             continue;
         }

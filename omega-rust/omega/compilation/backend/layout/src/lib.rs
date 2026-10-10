@@ -25,13 +25,13 @@ pub use boundary_values::{
     BoundaryTypeBinding, BoundaryValueLayout, append_boundary_value_shape,
     substitute_boundary_type_reference,
 };
-pub use builder::{build_layout_plan, layout_type_reference};
+pub use builder::{build_layout_plan, build_layout_plan_for_roots, layout_type_reference};
 pub use callback_layout::{PrivateCallbackInlineField, PrivateCallbackLayout};
-pub use layout_plan::{
-    LayoutPlan, TargetClosedPlanLaidDataLayoutIdentity,
-    TargetClosedPrivateCallbackDemand, TargetClosedTwoHopPrivateCallbackPath, TypeLayout,
-};
 pub(crate) use layout_plan::{
-    BitFieldFragment, BitFieldLayout, DataLayout, DataShape, ENUM_TAG_BYTES, FieldLayout, RepeatedFieldLayout, StoredIntegerLayout,
-    TypeLayoutDescriptor, VariantLayout};
-
+    BitFieldFragment, BitFieldLayout, DataLayout, DataShape, ENUM_TAG_BYTES, FieldLayout,
+    RepeatedFieldLayout, StoredIntegerLayout, TypeLayoutDescriptor, VariantLayout,
+};
+pub use layout_plan::{
+    LayoutPlan, TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
+    TargetClosedTwoHopPrivateCallbackPath, TypeLayout,
+};

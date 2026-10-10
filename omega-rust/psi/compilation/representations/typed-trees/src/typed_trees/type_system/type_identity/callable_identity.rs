@@ -10,6 +10,11 @@
 //! handles instead: an overload comparison is an integer compare, and the
 //! reverse join is one map read.
 //!
+//! Boundary-operator provider slots retain a separate structural key containing
+//! every operand type and the full result type. Their canonical `operator::`
+//! encoding is distinct from named-callable result dispatch; rehydrating that
+//! encoding must never depend on whether a direct consult already interned it.
+//!
 //! Text survives as a projection, not as the identity. A provider plan, a
 //! package review record and a native artifact each carry an identity across
 //! a serialization boundary and rejoin it in a later compilation, where no
@@ -25,8 +30,8 @@
 //! walks type references and symbol paths, which consult other program-owned
 //! indexes, so every rendering happens outside this interner's lock.
 
-use super::NormalizedResultDispatchSet;
 use super::constraint_identity::{atom, compound};
+use super::{NormalizedResultDispatchSet, TypeIdentityId};
 use crate::TypedTrees;
 use crate::machine::Machine;
 use crate::operator::OperatorDefinition;
@@ -93,6 +98,18 @@ pub(crate) struct CallableIdentityParts {
     pub(crate) result_dispatch: NormalizedResultDispatchSet,
 }
 
+/// A provider requirement identifies the complete operand and result types,
+/// not merely the domains which select a named callable overload. Its existing
+/// external slot rendering remains stable across the handle migration.
+struct BoundaryOperatorIdentityParts {
+    path: String,
+    parameter_types: Vec<TypeIdentityId>,
+    result_type: TypeIdentityId,
+    parameters: String,
+    result_dispatch: NormalizedResultDispatchSet,
+    text: String,
+}
+
 /// Which declaration a memoized identity was derived for. The address is the
 /// exact key: a declaration's roster position is not unique under the forged
 /// duplicate symbols fixtures can declare, and the interner's revision guard
@@ -103,6 +120,7 @@ enum DeclarationKey {
     Machine(usize),
     TraitRequirement(usize, usize),
     Operator(usize),
+    BoundaryOperatorRequirement(usize),
 }
 
 #[derive(Clone)]
@@ -110,7 +128,7 @@ struct CallableIdentityRecord {
     path: CallablePathId,
     parameters: CallableParametersId,
     result_dispatch: CallableResultDispatchId,
-    /// The escaped `named-callable(path(..),parameters(..),result-dispatch(..))`
+    /// The canonical named-callable or boundary-operator requirement
     /// rendering, retained so diagnostics and artifact encoding project it
     /// rather than re-deriving it from the declaration.
     text: Box<str>,
@@ -144,9 +162,14 @@ pub struct CallableIdentityTable {
         ),
         CallableIdentityId,
     >,
+    // Requirement slots retain the full result type, unlike named-callable
+    // overload dispatch. Keep their structural namespace separate.
+    boundary_operator_slots:
+        HashMap<(CallablePathId, Vec<TypeIdentityId>, TypeIdentityId), CallableIdentityId>,
     by_text: HashMap<Box<str>, CallableIdentityId>,
     by_declaration: HashMap<DeclarationKey, CallableIdentityId>,
-    /// Whether every non-target machine in the program has been interned.
+    /// Whether every non-target machine and boundary-operator requirement
+    /// in the program has been interned.
     /// The reverse joins (`by_text`, each record's `machines`) answer for the
     /// whole program only after that sweep.
     swept: bool,
@@ -214,6 +237,31 @@ impl CallableIdentityTable {
         interned
     }
 
+    fn intern_boundary_operator(
+        &mut self,
+        parts: BoundaryOperatorIdentityParts,
+    ) -> CallableIdentityId {
+        let path = self.intern_path(&parts.path);
+        let key = (path, parts.parameter_types, parts.result_type);
+        if let Some(identity) = self.boundary_operator_slots.get(&key) {
+            return *identity;
+        }
+        let parameters = self.intern_parameters(&parts.parameters);
+        let result_dispatch = self.intern_result_dispatch(parts.result_dispatch);
+        let identity = CallableIdentityId::from_slot(self.records.len());
+        let text: Box<str> = parts.text.into();
+        self.records.push(CallableIdentityRecord {
+            path,
+            parameters,
+            result_dispatch,
+            text: text.clone(),
+            machines: Vec::new(),
+        });
+        self.boundary_operator_slots.insert(key, identity);
+        self.by_text.insert(text, identity);
+        identity
+    }
+
     fn record(&self, identity: CallableIdentityId) -> Option<&CallableIdentityRecord> {
         self.records.get(identity.slot()?)
     }
@@ -255,6 +303,70 @@ impl TypedTrees {
             DeclarationKey::Operator(operator as *const OperatorDefinition as usize),
             || Some(self.operator_callable_identity_parts(operator)),
         )
+    }
+
+    /// The exact provider slot of a boundary operator. Ordinary operator
+    /// callable identity is a different judgment: it retains result dispatch,
+    /// while provider satisfaction also depends on the complete result type.
+    /// Token views of requirement machines retain the machine's own identity.
+    pub fn boundary_operator_requirement_callable_identity(
+        &self,
+        operator: &OperatorDefinition,
+    ) -> CallableIdentityId {
+        if !operator.is_boundary {
+            return Default::default();
+        }
+        if let Some(requirement) = self.machine(operator.symbol) {
+            return self.machine_callable_identity(requirement);
+        }
+        let declaration = DeclarationKey::BoundaryOperatorRequirement(
+            operator as *const OperatorDefinition as usize,
+        );
+        let revision = self.structural_fingerprint();
+        if let Some(identity) =
+            self.read_callable_identities(|table| table.by_declaration.get(&declaration).copied())
+        {
+            return identity;
+        }
+        let parts = self.boundary_operator_identity_parts(operator);
+        self.callable_identities
+            .with_mut(revision, CallableIdentityTable::default, |table| {
+                let identity = parts
+                    .map(|parts| table.intern_boundary_operator(parts))
+                    .unwrap_or_default();
+                table.by_declaration.insert(declaration, identity);
+                identity
+            })
+    }
+
+    fn boundary_operator_identity_parts(
+        &self,
+        operator: &OperatorDefinition,
+    ) -> Option<BoundaryOperatorIdentityParts> {
+        let parameter_types = self
+            .operator_parameters(operator)
+            .iter()
+            .map(|parameter| self.normalized_type_identity(parameter.type_reference))
+            .collect::<Vec<_>>();
+        let parameters = parameter_types
+            .iter()
+            .map(|identity| self.type_identity_text(*identity))
+            .collect::<Option<Vec<_>>>()?
+            .join(",");
+        let result_type = if operator.return_type.is_valid() {
+            let identity = self.normalized_type_identity(operator.return_type);
+            identity.is_valid().then_some(identity)?
+        } else {
+            Default::default()
+        };
+        Some(BoundaryOperatorIdentityParts {
+            path: self.operator_path_string(operator.name),
+            parameter_types,
+            result_type,
+            parameters,
+            result_dispatch: self.normalized_result_dispatch_set(operator.return_type),
+            text: crate::operator::boundary_operator_requirement_identity(self, operator),
+        })
     }
 
     fn interned_callable_identity(
@@ -495,8 +607,8 @@ impl TypedTrees {
         )
     }
 
-    /// Intern every non-target machine's identity, so the reverse joins
-    /// answer for the whole program. Only the text rehydration path needs
+    /// Intern every non-target machine and boundary-operator requirement, so
+    /// reverse joins answer for the whole program. Only the text rehydration path needs
     /// it: ordinary consults mint one record at a time.
     fn sweep_callable_identities(&self) {
         let revision = self.structural_fingerprint();
@@ -519,6 +631,18 @@ impl TypedTrees {
                 parts,
             ));
         }
+        let boundary_operators = self
+            .all_operators()
+            .filter(|operator| operator.is_boundary && self.machine(operator.symbol).is_none())
+            .filter_map(|operator| {
+                Some((
+                    DeclarationKey::BoundaryOperatorRequirement(
+                        operator as *const OperatorDefinition as usize,
+                    ),
+                    self.boundary_operator_identity_parts(operator)?,
+                ))
+            })
+            .collect::<Vec<_>>();
         self.callable_identities
             .with_mut(revision, CallableIdentityTable::default, |table| {
                 if table.swept {
@@ -534,6 +658,10 @@ impl TypedTrees {
                     if !positions.contains(&position) {
                         positions.push(position);
                     }
+                }
+                for (declaration, parts) in boundary_operators {
+                    let identity = table.intern_boundary_operator(parts);
+                    table.by_declaration.insert(declaration, identity);
                 }
                 table.swept = true;
             });

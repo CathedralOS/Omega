@@ -1729,16 +1729,8 @@ impl TerminalExecution<'_> {
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
             return Err(malformed());
         }
-        let cell = self.observed_field_cell(source, path, field)?;
-        let value = self
-            .structural_scalar_fields
-            .get(&cell)
-            .copied()
-            .ok_or(TerminalInterpretError::StructuralBooleanFieldMissing { source, field })?;
-        let TerminalScalarValue::Boolean(value) = value else {
-            return Err(malformed());
-        };
-        self.store_scalar(operation, TerminalScalarValue::Boolean(value))
+        let value = self.read_observed_field(source, path, field, ScalarType::Boolean)?;
+        self.store_scalar(operation, value)
     }
 
     pub(crate) fn execute_scalar_structural_field(
@@ -1753,41 +1745,72 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched execute_scalar_structural_field")
         };
-        let result = operation.result.expect_scalar();
-        // Behind an aggregate re-view the observation is declared by the
-        // view; its backing cell may carry the leaf differently.
+        let scalar_type = operation.result.expect_scalar().scalar_type;
+        let value = self.read_observed_field(source, path, field, scalar_type)?;
+        self.store_scalar(operation, value)
+    }
+
+    /// Field operations observe the same retained storage as primitive paths.
+    /// A borrowed byte region has an exact codec instead of a typed field cell;
+    /// forwarding its opaque identity must preserve that distinction.
+    fn read_observed_field(
+        &self,
+        source: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        field: semantic_vocabulary::StructuralFieldId,
+        scalar_type: ScalarType,
+    ) -> Result<TerminalScalarValue, TerminalInterpretError> {
         let (structural_value, view) = self.observation_view_root(source)?;
         let declared_root = match view {
             Some(crate::reference::AggregateViewTip::Aggregate { view, .. }) => view,
             Some(crate::reference::AggregateViewTip::Scalar { .. }) => return Err(malformed()),
             None => structural_value.structural_type,
         };
-        if terminal_semantics::observed_field_declaration(
+        let declaration = terminal_semantics::observed_field_declaration(
             self.program.structural_types().values(),
             declared_root,
             path,
             field,
         )
-        .and_then(|declaration| declaration.field_type.scalar_type())
-            != Some(result.scalar_type)
-        {
+        .ok_or_else(malformed)?;
+        if declaration.field_type.scalar_type() != Some(scalar_type) {
             return Err(malformed());
         }
         let cell = self.observed_field_cell(source, path, field)?;
-        let mut value = self
-            .structural_scalar_fields
-            .get(&cell)
-            .copied()
-            .ok_or(TerminalInterpretError::StructuralScalarFieldMissing { source, field })?;
-        if view.is_some() && value.scalar_type() != result.scalar_type {
-            value =
-                crate::primitive_storage::scalar_reference_observation(value, result.scalar_type)?;
+        // A typed aggregate re-view translates to its backing's cells below.
+        // Byte-backed views already carry their observed declaration, so the
+        // full field path selects the retained region's exact physical codec.
+        if view.is_none() {
+            let mut leaf = structural_value.clone();
+            leaf.path = cell.parent.path.clone();
+            leaf.path
+                .push(StructuralPathSegment::Field(declaration.identity.clone()));
+            if let Some((storage, logical_scalar)) =
+                self.reference_byte_region_access(&structural_value, &leaf)?
+            {
+                return self.read_primitive_storage(
+                    source,
+                    storage,
+                    logical_scalar,
+                    scalar_type,
+                    false,
+                );
+            }
         }
-        if value.scalar_type() != result.scalar_type {
+        let mut value = self.structural_scalar_fields.get(&cell).copied().ok_or(
+            if scalar_type == ScalarType::Boolean {
+                TerminalInterpretError::StructuralBooleanFieldMissing { source, field }
+            } else {
+                TerminalInterpretError::StructuralScalarFieldMissing { source, field }
+            },
+        )?;
+        if view.is_some() && value.scalar_type() != scalar_type {
+            value = crate::primitive_storage::scalar_reference_observation(value, scalar_type)?;
+        }
+        if value.scalar_type() != scalar_type {
             return Err(malformed());
         }
-        self.values.insert(result.id, value);
-        Ok(OperationFlow::Advance)
+        Ok(value)
     }
 
     pub(crate) fn execute_byte_sequence_read(

@@ -123,6 +123,16 @@ pub(super) fn validate(
         else {
             return malformed("layout application has no exact target family");
         };
+        let TargetMachineCallable::Boundary(head) = application.family else {
+            return malformed("layout application has no independent policy contract head");
+        };
+        let Some(policy) = terminal_psi::find_boundary_machine(&module.boundary_machines, head)
+        else {
+            return malformed("layout application has no policy contract declaration");
+        };
+        if policy.identity != application.policy_identity {
+            return malformed("layout application policy identity differs from its exact head");
+        }
         if application.realizations.len() != family.members.len()
             || application.realizations.is_empty()
         {

@@ -18,11 +18,9 @@ fn boundary_application_requirement_identity(
     program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> typed_trees::type_identity::CallableIdentityId {
-    let typed = program.typed_program();
-    if let Some(requirement) = typed.machine(operator.symbol) {
-        return typed.machine_callable_identity(requirement);
-    }
-    typed.callable_identity_by_text(&typed_trees::operator::boundary_operator_requirement_identity(typed, operator))
+    program
+        .typed_program()
+        .boundary_operator_requirement_callable_identity(operator)
 }
 
 /// The requirement-slot identity for a direct requirement-machine use.
@@ -33,7 +31,11 @@ fn requirement_machine_identity(
     program
         .typed_program()
         .machine_by_symbol(requirement_symbol)
-        .map(|requirement| program.typed_program().machine_callable_identity(requirement))
+        .map(|requirement| {
+            program
+                .typed_program()
+                .machine_callable_identity(requirement)
+        })
         .unwrap_or_default()
 }
 
@@ -322,8 +324,8 @@ fn checked_spelled_boundary_application(
     };
     validation::validate_closed_operator_application(program, symbols, operator, &bindings)?;
     Ok(Some(checked_boundary_application_from_bindings(
-            program,
-            operator,
+        program,
+        operator,
         operator_use.application_site(),
         bindings,
     )))

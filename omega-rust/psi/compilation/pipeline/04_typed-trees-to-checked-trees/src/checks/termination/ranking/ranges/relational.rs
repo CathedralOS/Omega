@@ -54,17 +54,27 @@ impl RankArrivalAdmission {
         Self::root_identity(program, machine, Vec::new())
     }
 
-    /// A source proof over one exact declaration frame retains its identity
-    /// coordinates. The caller supplies all independently judged exact local
-    /// edges; this constructor supplies no formation or descent premise.
+    /// A source proof over the entry declaration frame retains its identity
+    /// coordinates. Other states receive no rank bindings only after the shared
+    /// executable topology proves they cannot reach a ranked cycle, including
+    /// through nested calls or any target-family member. Unknown calls remain
+    /// relevant. The caller proves every entry backedge; this constructor
+    /// supplies no formation, descent, or callee progress premise.
     pub(in crate::checks::termination) fn root_identity(
         program: &dyn validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
         edges: Vec<checked_trees::CheckedRankArrivalEdge>,
     ) -> Option<Self> {
-        let [entry] = program.machine_states(machine) else {
+        let states = program.machine_states(machine);
+        let entry = states.first()?;
+        let relevance = validation::rank_relevance(program, &[machine.symbol])?;
+        if states
+            .iter()
+            .skip(1)
+            .any(|state| relevance.requires_rank(state.symbol))
+        {
             return None;
-        };
+        }
         let origins = validation::discover_rank_arrival_correspondence(program, machine)?;
         let coordinates = program
             .state_parameters(entry)
@@ -80,12 +90,22 @@ impl RankArrivalAdmission {
                 }
             })
             .collect();
+        let mut selected = vec![validation::RankStateBindings {
+            state: entry.symbol,
+            coordinates,
+        }];
+        selected.extend(
+            states
+                .iter()
+                .skip(1)
+                .map(|state| validation::RankStateBindings {
+                    state: state.symbol,
+                    coordinates: Vec::new(),
+                }),
+        );
         Some(Self {
             premises: validation::RankingRangePremises::RankInvariant,
-            states: vec![validation::RankStateBindings {
-                state: entry.symbol,
-                coordinates,
-            }],
+            states: selected,
             origins,
             edges,
         })

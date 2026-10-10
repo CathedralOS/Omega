@@ -679,9 +679,19 @@ pub fn close_outbound_callback_materializations(
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let layout_plan =
-        layout::build_layout_plan(checked, native_target, opaque_representation_selections)
-            .map_err(|diagnostic| vec![diagnostic])?;
+    let layout_plan = layout::build_layout_plan_for_roots(
+        checked,
+        native_target,
+        opaque_representation_selections,
+        realizations.iter().flat_map(|realization| {
+            realization
+                .materialized_signature
+                .native_parameters
+                .iter()
+                .map(|parameter| parameter.layout_data_symbol)
+        }),
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
         checked,
         package_inputs.map(|inputs| {
@@ -703,10 +713,11 @@ pub fn close_outbound_callback_materializations(
             .map(|demand| (demand, None))
             .collect::<Vec<_>>();
         let binder_requirement_catalog =
-            exact_callback_requirement_catalog(checked, &realization.callback_binders)
-                .map_err(|reason| {
+            exact_callback_requirement_catalog(checked, &realization.callback_binders).map_err(
+                |reason| {
                     vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
-                })?;
+                },
+            )?;
         let mut demand_requirement_catalog = Vec::new();
         for parameter in &signature.native_parameters {
             for demand in layout_plan

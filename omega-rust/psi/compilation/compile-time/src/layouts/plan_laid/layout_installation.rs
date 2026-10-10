@@ -398,8 +398,8 @@ fn install_geometry(
 ) -> Result<PlanLaidGeometry, Vec<Diagnostic>> {
     let report = &native_report.layout;
     let size = report.size.ok_or_else(|| vec![Diagnostic::error(format!(
-        "plan-laid value type `{}`: policy `{}` produced a dynamic plan; a value type requires fully static geometry",
-        record.synthetic_name, record.policy_machine
+        "policy `{}` produced a dynamic plan: a dynamic plan cannot be a value type -- values need offsets, bytes need mints",
+        record.policy_machine
     ))])?;
     let field_count = schema_fields.len();
 

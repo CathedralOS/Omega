@@ -13,9 +13,11 @@
 //! `index < 8` and `requires index < bytes.len` all bound the cursor. A
 //! collection bound arrives equal only when the edge forwards the same loan.
 //!
-//! The one-state declaration uses its own exact parameter coordinates. This
-//! owner proves every actual cyclic occurrence and retains that same identity
-//! assignment; general transport belongs to complete arrival admission.
+//! The entry declaration uses its own exact parameter coordinates. Additional
+//! states may discard those coordinates only when the shared executable call
+//! topology proves that they cannot return to any ranked cycle. This owner
+//! proves every entry backedge and retains identity only at entry; general
+//! transport between ranked states belongs to complete arrival admission.
 //! An unavailable current value is a failed proof, not permission to reuse a
 //! syntax recognizer whose premises named the pre-write value.
 
@@ -33,8 +35,9 @@ use validation::ScopedArithmeticValue;
 
 /// The live scalar transfer owner covers mutable writes within one exact
 /// declaration frame. Its coordinate assignment is the entry declaration's
-/// identity, not a name/type mapping across states. General state transport
-/// uses the complete coordinate proof owner.
+/// identity, not a name/type mapping across states. The final root-identity
+/// admission permits only rankless suffixes beyond that frame; general state
+/// transport uses the complete coordinate proof owner.
 pub(super) fn admit_root_cycle(
     program: &dyn validation::CheckingInput,
     machine: &Machine,
@@ -42,7 +45,7 @@ pub(super) fn admit_root_cycle(
     measure: DecreaseMeasure,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<RankArrivalAdmission> {
-    let [root] = program.machine_states(machine) else {
+    let [root, ..] = program.machine_states(machine) else {
         return None;
     };
     let rank = scalar_rank(program, root, measure)?;
