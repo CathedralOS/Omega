@@ -1,0 +1,37 @@
+// A callee's `requires` discharges on a bound the caller
+// learned from another call's closed result: `s` binds
+// `opaque()`'s result 4, so `echo(s)` proves `scale <= 5`
+// — the instantiated judgment decides it structurally.
+//
+//   * `let s: u64 = opaque(); echo(s);` — call-result
+//     bound discharges the requires.
+//   * `_ = sink(9);` — underscore discard of a call
+//     result statement.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+machine echo(scale: u64) -> u64
+requires scale <= 5
+{
+    scale
+}
+
+machine opaque() -> u64 { 4u64 }
+
+machine sink(value: u64) -> u64 { value }
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let s: u64 = opaque();
+    let r: u64 = echo(s);
+    _ = sink(9);
+    transition r == 4 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

@@ -1,0 +1,38 @@
+// Bracketed float ranges `f64 [0.0..=0.5]` as parameter
+// and local types: every delivery is proven from the
+// delivered value's facts — literals, a narrower declared
+// range widening into a wider one, and guard facts.
+//
+//   * `machine admit(value: f64 [0.0..=0.5])` — bracketed
+//     range param.
+//   * `forward(value: f64 [0.0..=0.25])` delivers to
+//     `admit` — the narrower declared range satisfies the
+//     wider.
+//   * `let bounded: f64 [0.0..=0.5] = value` — local
+//     range widening through a declared-type binding.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+use omega::language::core::float_operations;
+
+machine admit(value: f64 [0.0..=0.5]) -> f64 { value }
+
+machine forward(value: f64 [0.0..=0.25]) -> f64 {
+    let bounded: f64 [0.0..=0.5] = value;
+    admit(bounded)
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let forwarded: f64 = forward(0.25);
+    let literal: f64 = admit(0.125);
+    transition forwarded == 0.25 && literal == 0.125 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
