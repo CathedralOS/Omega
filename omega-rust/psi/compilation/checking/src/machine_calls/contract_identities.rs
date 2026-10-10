@@ -478,6 +478,26 @@ fn encode_generic_parameter_contract(
                 let identity =
                     program.trait_requirement_callable_identity_text(trait_definition, requirement);
                 encode_identity_text(&identity, bytes);
+                let typed_trees::data::MachineParameterContract::Nominal {
+                    trait_arguments, ..
+                } = contract
+                else {
+                    return Err(Diagnostic::error(
+                        "nominal machine-parameter view lost its authored trait application",
+                    ));
+                };
+                // The declaration does not identify its application: even a
+                // phantom trait argument carries exact nominal authority.
+                bytes.extend((trait_arguments.len() as u64).to_le_bytes());
+                for argument in trait_arguments {
+                    encode_identity_text(
+                        &program.type_identity_request_text(TypeIdentityRequest {
+                            binders,
+                            ..TypeIdentityRequest::ordinary(*argument)
+                        }),
+                        bytes,
+                    );
+                }
                 let requirement_binders = type_parameter_binders(
                     program.trait_type_parameters(trait_definition),
                     binders,

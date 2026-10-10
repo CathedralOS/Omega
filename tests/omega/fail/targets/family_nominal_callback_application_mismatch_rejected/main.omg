@@ -1,0 +1,13 @@
+trait Handler<Value> { machine call() -> bool; }
+
+linux_arm64 machine choose<machine Selected>() -> bool
+where machine Selected satisfies Handler<u64>::call;
+{ Selected() }
+
+macos_arm64 machine choose<machine Callback>() -> bool
+where machine Callback satisfies Handler<bool>::call;
+{ Callback() }
+
+// Equal requirement declarations are not equal applied nominal contracts,
+// even when the trait argument does not change the ordinary calling shape.
+machine main() {}

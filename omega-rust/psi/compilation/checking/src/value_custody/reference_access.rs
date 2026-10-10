@@ -273,7 +273,6 @@ fn source_place_root(
             state,
             prior_statements,
             path.symbol,
-            name.as_str(),
         )
     {
         let owned_root_is_writable = match program.symbols.get(path.symbol).kind {

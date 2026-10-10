@@ -689,7 +689,6 @@ fn scan_expression_calls_at_position(
                 state,
                 writable_roots.statements,
                 root,
-                name,
             )
             .is_some()
         {

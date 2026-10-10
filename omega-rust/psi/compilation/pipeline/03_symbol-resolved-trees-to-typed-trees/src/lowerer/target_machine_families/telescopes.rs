@@ -1,8 +1,10 @@
 //! Family interfaces carry caller demands, not a selected body's telescope.
 //! Ordinary arguments use the shared declared-callable projection, including
 //! relevance and alpha-normalized types. Generic contract payloads reuse the
-//! universal contract encoder; nested callable weakening uses the existing
-//! refinement judgment. Unjoined demands remain an implementation dependency,
+//! universal contract encoder. Nested callable carriers must agree, but their
+//! demands remain separate: checking admits a portable application's selection
+//! against every retained member through ordinary callable refinement.
+//! Unjoined demands remain an implementation dependency,
 //! never permission to silently adopt a weaker first-member interface.
 
 use diagnostics::Diagnostic;
@@ -12,6 +14,8 @@ use typed_trees::data::{MachineParameterContractView, TypeParameterKind};
 use typed_trees::machine::Machine;
 use typed_trees::type_identity::TypeIdentityRequest;
 use validation::contract_structure::{declared_callable, generic_binders};
+
+mod callable_carriers;
 
 pub(super) fn validate(
     program: &TypedTrees,
@@ -90,22 +94,6 @@ pub(super) fn validate(
         ));
     }
     let content_conservation = validation::content_conservation_plans(program);
-    // Signature encoding carries nested binder identities, but the refinement
-    // judgment also checks their complete generic demands. Run it even when
-    // encoded contracts compare equal; byte equality is not that judgment.
-    let generic_types = required.iter().collect::<Vec<_>>();
-    let mut callable_diagnostics = Vec::new();
-    validation::validate_callable_parameter_refinement(
-        program,
-        "target-family callable telescope",
-        required,
-        actual,
-        &generic_types,
-        &mut callable_diagnostics,
-    );
-    if !callable_diagnostics.is_empty() {
-        return Err(unjoined(member, "nested callable generic refinement"));
-    }
     for (required, actual) in required.iter().zip(actual) {
         if std::mem::discriminant(&required.kind) != std::mem::discriminant(&actual.kind) {
             return Err(incompatible(member, "generic parameter category"));
@@ -137,12 +125,29 @@ pub(super) fn validate(
                 ) if required_trait.symbol == actual_trait.symbol
                     && required_machine.symbol == actual_machine.symbol => {}
                 (
-                    MachineParameterContractView::Structural(_),
-                    MachineParameterContractView::Structural(_),
-                ) => {}
+                    MachineParameterContractView::Structural(required),
+                    MachineParameterContractView::Structural(actual),
+                ) => {
+                    if !callable_carriers::compatible(
+                        program,
+                        required,
+                        actual,
+                        &required_binders,
+                        &actual_binders,
+                        &content_conservation,
+                    ) {
+                        return Err(incompatible(member, "nested callable carrier telescope"));
+                    }
+                    // Structural calling shape is shared, while selection
+                    // discharges each member's complete supply demands.
+                    continue;
+                }
                 _ => return Err(unjoined(member, "nominal callable-contract correspondence")),
             }
         }
+        // Nominal applications retain the existing exact contract fence,
+        // including trait arguments. Equal declaration identities alone do
+        // not establish an applied carrier or a conjunction of authorities.
         let required_identity = validation::contract_identities::generic_parameter_contract_bytes(
             program,
             required,
@@ -156,9 +161,6 @@ pub(super) fn validate(
             &content_conservation,
         )?;
         if required_identity != actual_identity {
-            if matches!(required.kind, TypeParameterKind::Machine { .. }) {
-                continue;
-            }
             return Err(unjoined(member, "generic contract refinement/conjunction"));
         }
     }

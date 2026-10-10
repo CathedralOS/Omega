@@ -4,9 +4,11 @@
 //! machine must be concrete, match the authored callable shape, stay within
 //! the required service and operational ceilings, and conservatively refine
 //! conjunctive requires/ensures facts. This pass never invents a callback
-//! contract.
+//! contract. Portable family calls share one specialization, but admit its
+//! selections against every retained member's demands before effects settle.
 
 mod callable_shape;
+mod family_demands;
 mod selected_dependencies;
 pub(crate) use selected_dependencies::machine_selection_dependency_symbols;
 mod closed_types;
@@ -22,6 +24,7 @@ pub(crate) use callable_shape::validate_trait_callable_parameter_refinement;
 pub use callable_shape::validate_trait_callable_parameter_refinement as validate_callable_parameter_refinement;
 pub(crate) use contract_facts::validate_callable_contract_refinement;
 use nominal_admission::validate_nominal_machine_selection;
+use type_refinement::TypeBinding;
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
@@ -356,6 +359,52 @@ fn validate_call_selection(
     diagnostics: &mut Vec<Diagnostic>,
     selections: &mut FormedStaticMachineSelections,
 ) {
+    let call = CallSelection {
+        site,
+        target_symbol,
+        target_name,
+        arguments,
+    };
+    let mut occurrence = FormedStaticMachineSelections::default();
+    form_call_selection(program, index, call, &[], diagnostics, &mut occurrence);
+    family_demands::form(program, index, call, diagnostics, &mut occurrence);
+    selections
+        .rows
+        .nominal_uses
+        .extend(occurrence.rows.nominal_uses);
+    selections
+        .rows
+        .requirement_call_specializations
+        .extend(occurrence.rows.requirement_call_specializations);
+    selections
+        .pending_effects
+        .extend(occurrence.pending_effects);
+}
+
+/// The authored occurrence has one identity even when its family contributes
+/// several independently checked generic-demand telescopes.
+#[derive(Clone, Copy)]
+struct CallSelection<'call> {
+    site: ValidatedNominalMachineUseSite,
+    target_symbol: SymbolHandle,
+    target_name: &'call str,
+    arguments: &'call [StaticMachineArgument],
+}
+
+fn form_call_selection(
+    program: &dyn crate::CheckingInput,
+    index: &MachineStateIndex,
+    call: CallSelection<'_>,
+    initial_bindings: &[TypeBinding],
+    diagnostics: &mut Vec<Diagnostic>,
+    selections: &mut FormedStaticMachineSelections,
+) {
+    let CallSelection {
+        site,
+        target_symbol,
+        target_name,
+        arguments,
+    } = call;
     /// Split a type-parameter signature into its `Machine`-kind contract
     /// requirements and its `Type`-kind generic slots, in declaration order.
     fn contract_and_type_parameters<'p>(
@@ -456,7 +505,7 @@ fn validate_call_selection(
         return;
     }
 
-    let mut bindings = Vec::new();
+    let mut bindings = initial_bindings.to_vec();
     let mut machine_selections = Vec::new();
 
     for (static_machine_ordinal, ((parameter, requirement), selected)) in

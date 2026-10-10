@@ -2559,13 +2559,18 @@ crash and native exit behavior.
     custody, including claims reseated into owned fields; native custody joins
     the complete selected call graph rather than its pointer-only mirror.
     It supplies no provider grant or boundary issuance.
-    The conformance frontier is differing or nested per-member requirement
-    conjunctions, not ordinary named evidence arguments or named maps. Result
-    transport still needs complete entry/result-route coverage. Keep
+    The remaining conformance frontier is nominal or recursively nested
+    per-member requirement conjunctions and differing conformance bounds,
+    not ordinary named evidence arguments or named maps. Keep
+    `targets/runtime_family_callback_requirement_conjunction_exit` and
+    `targets/runtime_family_generic_callback_forwarding_exit` running with
+    their non-first-member precondition and effect-ceiling rejection controls.
+    Every ordinary and attached entry/result producer uses the complete
+    family catalog. Keep
     `targets/runtime_family_nested_projected_results_exit`,
     `targets/runtime_family_composed_owned_results_exit`
     and `targets/runtime_family_current_completion_paths_exit` running through
-    both engines while completing those routes (`tools/corpus_gate.py --both
+    both engines (`tools/corpus_gate.py --both
     --filter <fixture>`).
     The shared Console ranking repair is landed. Recheck std's exit-70
     `targets/target_machine_gating_exit` canary through public package preparation;
@@ -2576,9 +2581,7 @@ crash and native exit behavior.
     fixtures need their authored missing-target checks restored after the shared
     integration dependency is repaired. Publish target-default effects in
     the source-free Build companion and prove distinct tagged realizations
-    consume one unchanged Terminal artifact. Ensure
-    every entry/result lowering route uses the same complete family catalog;
-    entry-only producers currently refuse rather than omit retained members.
+    consume one unchanged Terminal artifact.
   - **PROVIDER-SELECTION-AFTER-TERMINAL** owns Omega's selection from the same
     artifact; independent ownership moves can land first.
 

@@ -10,33 +10,33 @@ pub(crate) use value_scope::StateValueScope;
 
 /// An executable binding belongs to this state and is identified by its
 /// retained declaration, not another state's spelling.
+/// Alpha-rebased contracts retain their authored diagnostic words; only the
+/// exact declaration owner and current parameter/prior-local roster establish
+/// scope. Requiring those words to be renamed would undo resolved identity.
 pub(crate) fn state_binding_type(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     prior_statements: &[StatementNode],
     symbol: symbols::SymbolHandle,
-    name: &str,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     if !symbol.is_valid() {
         return None;
     }
     let declaration = program.symbols.get(symbol);
-    if declaration.parent != state.symbol || program.symbols.name(symbol) != name {
+    if declaration.parent != state.symbol {
         return None;
     }
     match declaration.kind {
         symbols::SymbolKind::Parameter => program
             .state_parameters(state)
             .iter()
-            .find(|parameter| parameter.symbol == symbol && parameter.name.as_str() == name)
+            .find(|parameter| parameter.symbol == symbol)
             .map(|parameter| parameter.type_reference),
         symbols::SymbolKind::Local => {
             prior_statements
                 .iter()
                 .find_map(|statement| match statement {
-                    StatementNode::LocalData(local)
-                        if local.symbol == symbol && local.name.as_str() == name =>
-                    {
+                    StatementNode::LocalData(local) if local.symbol == symbol => {
                         Some(local.type_reference)
                     }
                     _ => None,
@@ -68,7 +68,6 @@ pub(crate) fn state_value_root_is_known(
             state,
             prior_statements,
             root,
-            name,
         )
         .is_some();
     }
@@ -128,7 +127,7 @@ pub(crate) fn state_value_root_is_known(
             }
         }
     }
-    crate::value_custody::locals::state_binding_type(program, state, prior_statements, root, name)
+    crate::value_custody::locals::state_binding_type(program, state, prior_statements, root)
         .is_some()
 }
 

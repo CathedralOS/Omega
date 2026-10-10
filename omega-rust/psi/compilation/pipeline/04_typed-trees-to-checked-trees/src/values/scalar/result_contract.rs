@@ -143,10 +143,17 @@ impl ContractPredicates<'_, '_> {
             })
         {
             if (parameter.is_const)
-                || !matches!(program.expression_table.name_path_members(path.members), [name] if name == &parameter.name)
+                || program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    != 1
             {
                 return None;
             }
+            // Family clauses retain their authored diagnostic spelling after
+            // alpha rebasing. The exact formal symbol and one-component path
+            // establish the observation, not equality of the printed names.
             // An ensures name denotes the post-state, not an implicit old(...).
             if self.allow_result && parameter.is_mutable {
                 return None;
