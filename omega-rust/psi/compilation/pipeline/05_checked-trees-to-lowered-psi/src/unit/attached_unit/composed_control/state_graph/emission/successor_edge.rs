@@ -319,9 +319,10 @@ impl StateGraphEmission<'_, '_> {
                                             "state loan selector lost its exact source occurrence",
                                         ))?;
                                     let value = edge_evaluation.source_value(
+                                        identities,
                                         checked,
-                                        owner,
                                         state.state,
+                                        owner,
                                         edge.statement_ordinal,
                                         root.role,
                                         &checked_trees::CheckedCallScalarArgument::Computation(*handle),
