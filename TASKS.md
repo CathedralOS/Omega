@@ -4975,8 +4975,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Check unspecialized machine/requirement bodies under every admitted
     type-equality alternative, including finite disjunctions and branch-local
     equalities that cannot escape joins.
-  - Extend the typed const-expression and invocation evaluators to remaining
-    equation/index combinations, keeping carrier, policy, selected operation and
+  - Extend the typed const-expression and invocation evaluators to selected
+    computed calls and remaining structured const argument/equation combinations,
+    keeping carrier, policy, selected operation and
     canonical identity; equivalent closed computations select one instance.
     **ARITHMETIC-POLICY-REALIZATION** owns trapping-call exclusion,
     **RUNTIME-VALUE-GENERICS** runtime subjects, **STATE-LOCAL-VALUE-FRONTIER**

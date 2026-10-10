@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 13.06, "load1_start": 13.24, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 0.2, "load1_start": 0.22, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1586,6 +1586,16 @@ fail/generics/indexed_domain_capacity_invalid_initializer rejected 141ms expecte
 	`as ... in AtMost<256>` cannot mint: a `AtMost<256>` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 fail/generics/machine_bound_violated_at_call rejected 131ms expected @2d8ed253669f
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
+fail/generics/machine_equation_open_const_shadow rejected 39ms expected @c6a6397a34af+wt
+	machine equation retains an open caller binder; supply a closed explicit static argument
+fail/generics/machine_equation_selected_const_carrier_conflict rejected 405ms expected @c6a6397a34af+wt
+	const parameter `Count` of `capacity` requires `u64`, but `SelectedCount` declares `u32`
+fail/generics/machine_equation_selected_const_conflict rejected 38ms expected @c6a6397a34af+wt
+	generic machine `capacity` where equation binds `Count` to 4 but its explicit argument is 5
+fail/generics/machine_equation_selected_const_kind_conflict rejected 41ms expected @c6a6397a34af+wt
+	generic machine `capacity` where equation mixes type and value kinds: const binder `Count` holds a non-integer argument
+fail/generics/machine_equation_selected_const_policy_conflict rejected 37ms expected @c6a6397a34af+wt
+	machine equation application constrained const declarations require declaration-site proof checking before they can publish compatibility identity
 fail/generics/nominal_binder_structural_coincidence_rejected rejected 118ms expected @2d8ed253669f
 	static machine argument `lookalike` for nominal parameter `Selected` retains 0 authored satisfaction row(s) for exact requirement `Handler::call`; exactly one is required and structural coincidence establishes none
 fail/generics/omitted_data_binder_explicit_conflict rejected 66ms expected @2d8ed253669f
@@ -3660,6 +3670,8 @@ pass/generics/runtime_generic_multiple_specializations_exit checked 1262ms check
 pass/generics/runtime_grouped_decimal_const_argument_exit checked 3797ms check-target:macos_arm64 @1e24b2973189
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit checked 3452ms check-target:macos_arm64 @1e24b2973189
 pass/generics/runtime_inherited_composite_requirement_exit checked 2333ms check-target:macos_arm64 @eed71058e867
+pass/generics/runtime_machine_equation_selected_boolean_exit checked 5421ms check-target:linux_x86_64 @c6a6397a34af+wt
+pass/generics/runtime_machine_equation_selected_const_exit checked 5350ms check-target:linux_x86_64 @c6a6397a34af+wt
 pass/generics/runtime_mixed_generic_erased_sum_exit checked 515ms check-target:macos_arm64 @ca8c127c90c5
 pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_selected_operator_body_exit checked 11304ms check-target:macos_arm64 @b7c2d2975497

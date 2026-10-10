@@ -1,0 +1,22 @@
+data Flags {}
+const Flags::DISABLED: bool = false;
+const Flags::ENABLED: bool = true;
+
+data Mode<const Enabled: bool> [copy] { value: u64; }
+
+machine enabled<Payload, const Enabled: bool>() -> bool
+where Payload == Mode<Enabled>
+{ Enabled }
+
+data Main { disabled: bool; enabled: bool; }
+
+machine main(main: &mut Main) crashes Trap {
+    main.disabled = enabled<Mode<false>, Flags::DISABLED>();
+    main.enabled = enabled<Mode<true>, Flags::ENABLED>();
+    transition !main.disabled && main.enabled {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

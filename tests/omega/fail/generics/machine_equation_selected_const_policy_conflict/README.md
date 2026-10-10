@@ -1,0 +1,1 @@
+SelectedCount has Wrapping policy while the receiving const binder is Exact u64. The shared declaration evaluator must retain its constrained declaration proof fence; neither the equation matcher nor later specialization may erase that policy to publish an integer identity.

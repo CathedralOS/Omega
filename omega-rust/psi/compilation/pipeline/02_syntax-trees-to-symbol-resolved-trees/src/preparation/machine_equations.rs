@@ -14,7 +14,7 @@ use super::{
 };
 use arena::Handle;
 use diagnostics::Diagnostic;
-use language_semantics::const_value::CanonicalConstValue;
+use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::JoinedPath;
@@ -442,7 +442,7 @@ fn complete_arguments(
                 syntax.type_references.insert(TypeReferenceNode::Named(syntax_trees::identifier::Identifier::generated(value.to_string())))
             }
             TypeParameterKind::Const { .. } => {
-                application_argument_reference(syntax, argument, &parameter.kind, selection)?
+                supplied_const_argument_reference(syntax, argument, selection)?
             }
             _ => return Err(Diagnostic::error("machine equation argument mixes type and value kinds or retains an open static argument").with_source_span(target.source_span())),
         };
@@ -531,6 +531,55 @@ fn complete_arguments(
         completed.push(argument);
     }
     Ok(completed.into_boxed_slice())
+}
+
+/// Expose an authored scalar const's value to equation matching without
+/// replacing its source argument. The immutable static-argument checker still
+/// owns the selected declaration's exact carrier and policy. Constructor slots
+/// below have different custody: normalization erases their nested arguments,
+/// so they must validate those arguments before constructing the type.
+fn supplied_const_argument_reference(
+    syntax: &mut SyntaxTrees,
+    argument: &StaticMachineArgument,
+    selection: &ConstantSelection<'_>,
+) -> Result<TypeReferenceHandle, Diagnostic> {
+    let reject = |reason: &str| Diagnostic::error(format!("machine equation application {reason}"));
+    if argument.type_reference.is_valid()
+        || argument.application.is_some()
+        || argument.evidence_projection.is_some()
+        || argument.const_literal.is_some()
+    {
+        return Err(reject("requires a closed scalar const argument"));
+    }
+    let Some(first) = argument.path.first() else {
+        return Err(reject("requires a selected scalar const argument"));
+    };
+    let name =
+        syntax_trees::identifier::Identifier::new(argument.path.joined_path(), first.source_span());
+    let value = if let Some(value) = type_equations::normalized_boolean_argument(name.as_str()) {
+        CanonicalConstValue::boolean(value)
+    } else {
+        let definition = selection.select(syntax, &name)?.ok_or_else(|| {
+            reject("requires an unambiguous selected scalar const argument")
+                .with_source_span(name.source_span())
+        })?;
+        super::generic_data::canonicalize_selected_declared_const_definition(
+            syntax,
+            &definition,
+            Some(selection),
+        )
+        .map_err(|reason| reject(&reason).with_source_span(name.source_span()))?
+    };
+    let spelling = match value.decode_encoding() {
+        Some(DecodedCanonicalConstValue::Integer { value, .. }) => value.to_string(),
+        Some(DecodedCanonicalConstValue::Boolean(value)) => {
+            CanonicalConstValue::boolean(value).atom()
+        }
+        _ => return Err(reject("requires an integer or Boolean const argument")),
+    };
+    Ok(syntax.type_references.insert(TypeReferenceNode::Named(
+        syntax_trees::identifier::Identifier::generated(spelling),
+    )))
 }
 
 /// The selected type slot determines how a static application is read.
