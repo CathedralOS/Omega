@@ -797,6 +797,13 @@ impl ExpressionTable {
         }
     }
 
+    /// Whether the indexed expression's index operand is a `Range` — a range
+    /// denotes a window, not one element, which every index-semantics rule
+    /// gates on identically.
+    pub fn indexed_on_range(&self, indexed: &TableIndexedExpression) -> bool {
+        matches!(self.expression(indexed.index), ExpressionNode::Range(_))
+    }
+
     /// The typed `Cast` node, or `None` for every other kind.
     pub fn cast_node(&self, handle: ExpressionHandle) -> Option<&TableCastExpression> {
         match self.expression(handle) {

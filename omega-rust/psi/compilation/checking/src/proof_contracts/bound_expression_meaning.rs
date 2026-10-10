@@ -866,10 +866,7 @@ fn operand_place_projection_type(
             // A range denotes a window, not one element; element reads keep
             // the builtin `[]` contract only when no authored index overload
             // selected these operands.
-            if matches!(
-                program.expression_table.expression(indexed.index),
-                ExpressionNode::Range(_)
-            ) {
+            if program.expression_table.indexed_on_range(indexed) {
                 return None;
             }
             let collection_type =

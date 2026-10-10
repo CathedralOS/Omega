@@ -978,10 +978,7 @@ fn selected_value_type(
             crate::declared_constant_array_type(program, expression)
         }
         ExpressionNode::Indexed(indexed) => {
-            if matches!(
-                program.expression_table.expression(indexed.index),
-                ExpressionNode::Range(_)
-            ) {
+            if program.expression_table.indexed_on_range(indexed) {
                 return None;
             }
             let collection = selected_value_type(

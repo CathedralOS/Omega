@@ -73,10 +73,7 @@ fn expression_type(
             .type_reference
         }
         ExpressionNode::Indexed(indexed) => {
-            if matches!(
-                program.expression_table.expression(indexed.index),
-                ExpressionNode::Range(_)
-            ) {
+            if program.expression_table.indexed_on_range(indexed) {
                 return None;
             }
             let collection_type = child_type(indexed.collection)?;

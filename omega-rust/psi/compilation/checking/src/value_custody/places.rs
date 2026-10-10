@@ -491,10 +491,7 @@ pub(crate) fn declared_indexed_projection_type_raw(
                 // shape is checked by the range-assignment rule that knows the
                 // normalized width; treating it as the element type turns
                 // `[u8; M]` replacement into a spurious array-to-`u8` store.
-                if matches!(
-                    program.expression_table.expression(indexed.index),
-                    ExpressionNode::Range(_)
-                ) {
+                if program.expression_table.indexed_on_range(indexed) {
                     return None;
                 }
                 let collection_type = declared_place_type_raw(
