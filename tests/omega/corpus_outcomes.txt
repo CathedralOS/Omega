@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 2.39, "load1_start": 2.39, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 0.88, "load1_start": 0.78, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -1591,6 +1591,8 @@ fail/generics/const_data_where_fact_false rejected 18ms expected @2d8ed253669f
 	const fact for generic instance `FixedBuffer<0>` is false
 fail/generics/const_generic_runtime_argument rejected 265ms expected @2d8ed253669f
 	a value call to generic machine `prefix_count` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+fail/generics/data_equation_constructor_binder_carrier_domain rejected 18ms expected @1843c1a8677b+wt
+	generic data `Box` where type equation constructor const binder has a different declared carrier
 fail/generics/erased_static_arguments_keep_binder_order rejected 147ms expected @e31dda2664298bc891b76cde9f607ecf2a1f5973
 	machine `unused` static argument 2 requires its declared binder kind, not a type argument
 fail/generics/erased_static_const_keeps_declared_carrier rejected 143ms expected @e31dda2664298bc891b76cde9f607ecf2a1f5973
@@ -1626,6 +1628,14 @@ fail/generics/indexed_domain_capacity_invalid_initializer rejected 141ms expecte
 	`as ... in AtMost<256>` cannot mint: a `AtMost<256>` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 fail/generics/machine_bound_violated_at_call rejected 131ms expected @2d8ed253669f
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
+fail/generics/machine_equation_constructor_binder_carrier_constructed rejected 1569ms expected @1843c1a8677b+wt
+	generic machine `capacity` where type equation constructor const binder has a different declared carrier
+fail/generics/machine_equation_constructor_binder_carrier_explicit rejected 1306ms expected @1843c1a8677b+wt
+	generic machine `capacity` where type equation constructor const binder has a different declared carrier
+fail/generics/machine_equation_constructor_binder_carrier_inferred rejected 1344ms expected @1843c1a8677b+wt
+	generic machine `capacity` where type equation constructor const binder has a different declared carrier
+fail/generics/machine_equation_constructor_binder_carrier_signed rejected 1252ms expected @1843c1a8677b+wt
+	generic machine `capacity` where type equation constructor const binder has a different declared carrier
 fail/generics/machine_equation_nested_const_carrier_conflict rejected 64ms expected @c1a3f1688942+wt
 	machine equation application has a constructor argument with a different declared carrier
 fail/generics/machine_equation_nested_const_conflict rejected 66ms expected @c1a3f1688942+wt
@@ -3734,6 +3744,7 @@ pass/generics/runtime_const_data_machine_call_exit checked 1992ms check-target:m
 pass/generics/runtime_const_data_multiple_instances_exit checked 1230ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_const_data_symbolic_expression_exit checked 1300ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_const_data_where_fact_exit checked 1270ms check-target:macos_arm64 @2d8ed253669f
+pass/generics/runtime_constructor_equation_binder_carriers_exit checked 5632ms check-target:linux_x86_64 @1843c1a8677b+wt
 pass/generics/runtime_container_setter_matrix_exit checked 1388ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_copied_indexed_case_subject_exit checked 2169ms check-target:macos_arm64 @0c36a0fe0b35
 pass/generics/runtime_finite_recursive_reference_catalog_exit checked 2468ms check-target:macos_arm64 @f5eade25e1fd+wt

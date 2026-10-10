@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 1.8, "load1_start": 1.58, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": "2", "load1_end": 0.89, "load1_start": 0.88, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_explicit_call_result_policy_exit built 7513ms exit:0 interpreter-exit:0 interpreter:agrees @30eb6513ae80+wt
 pass/atomics/runtime_atomic_bitwise_widths_exit built 5472ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/atomics/shared_receiver_atomic_store built 5511ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
@@ -32,6 +32,7 @@ pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 5398ms exit:0 stdout:m
 pass/float/build_runtime_semantics_twins_x86_baseline built 259139ms @d537c1f08618
 pass/float/runtime_float_digit_separators_exit built 162056ms exit:0 interpreter-exit:0 interpreter:agrees @e129ea486356
 pass/generics/omitted_data_binder_range_equation built 1576ms exit:92 interpreter-exit:92 interpreter:agrees @f64782b89114+wt
+pass/generics/runtime_constructor_equation_binder_carriers_exit built 5015ms exit:0 interpreter-exit:0 interpreter:agrees @1843c1a8677b+wt
 pass/generics/runtime_generic_carrier_binder_equation_exit built 4986ms exit:0 interpreter-exit:0 interpreter:agrees @bb32bdfc8620+wt
 pass/generics/runtime_generic_carrier_equation_context_exit built 4671ms exit:0 interpreter-exit:0 interpreter:agrees @bb32bdfc8620+wt
 pass/generics/runtime_grouped_decimal_const_argument_exit built 6818ms exit:0 interpreter-exit:0 interpreter:agrees @1e24b2973189

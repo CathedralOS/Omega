@@ -6,11 +6,14 @@
 //! the same application, indices bind by the family's declared telescope, and
 //! distinct indices gain no implicit variance — a predicate is never searched
 //! for a maximum.
+//! Forwarded const binders retain their declared carrier until the selected
+//! constructor telescope has checked it. Scalar bindings alone cannot carry
+//! this authority: matching and reconstruction normalize them to values.
 
 use super::super::{Binding, Solver, const_binder_envelope, normalized_boolean_argument};
 use crate::preparation::generic_data::{
-    ClosedArgumentIdentity, DomainCarrier, DomainHead, closed_name_identity,
-    domain_application_head, domain_index_telescope, selected_domain_family,
+    ClosedArgumentIdentity, DomainCarrier, DomainHead, closed_argument_identity,
+    closed_name_identity, domain_application_head, domain_index_telescope, selected_domain_family,
 };
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
@@ -53,7 +56,7 @@ impl Solver<'_, '_> {
             .type_references
             .generic_application_origin(reference);
         let reference = if origin.is_valid() { origin } else { reference };
-        match self.syntax.type_references.type_reference(reference) {
+        let application = match self.syntax.type_references.type_reference(reference) {
             TypeReferenceNode::Generic {
                 base_name,
                 lifetime_arguments,
@@ -137,7 +140,56 @@ impl Solver<'_, '_> {
                 self.domain_constraint_application(*base_type, constraint, span)
             }
             _ => Err(self.type_structure_error("requires an exact declared application", span)),
+        }?;
+        if pattern {
+            self.require_constructor_const_binder_carriers(&application, span)?;
         }
+        Ok(application)
+    }
+
+    fn require_constructor_const_binder_carriers(
+        &self,
+        application: &Application,
+        span: SourceSpan,
+    ) -> Result<(), Diagnostic> {
+        for (argument, parameter) in application.arguments.iter().zip(&application.parameters) {
+            let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                continue;
+            };
+            let Some(name) = self
+                .syntax
+                .type_references
+                .type_reference(*argument)
+                .as_named()
+            else {
+                continue;
+            };
+            let Some((position, is_type)) = self.parameter_position(name.as_str()) else {
+                continue;
+            };
+            let binder_carrier = self.base_info.const_parameter_types[position];
+            if is_type || binder_carrier.is_none() {
+                return Err(self.type_structure_error(
+                    "mixes type and value kinds in a constructor argument",
+                    span,
+                ));
+            }
+            // Compare declaration identities before either direction erases
+            // the binder into an integer/Boolean atom. Equal values or overlapping
+            // numeric envelopes do not authorize forwarding a different carrier.
+            let selected_carrier =
+                closed_argument_identity(self.syntax, self.selection, type_reference, false);
+            let binder_carrier = binder_carrier.and_then(|carrier| {
+                closed_argument_identity(self.syntax, self.selection, carrier, false)
+            });
+            if selected_carrier.is_none() || selected_carrier != binder_carrier {
+                return Err(self.type_structure_error(
+                    "constructor const binder has a different declared carrier",
+                    span,
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// The tuple discipline shared by nominal and domain applications: arity

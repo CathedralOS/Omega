@@ -4972,9 +4972,10 @@ wait for Cathedral's instruction coverage. The interpreter is
   and integer/Boolean application matching exist.
 
   - Combine equations with argument/result inference and keep obligations
-    through forwarding, retained extensions, late-selected receivers,
-    operator/conformance supply and machine/evidence/value binders. Machine
-    preparation still requires closed explicit calls; keep unsolved-equation
+    through forwarding beyond closed scalar constructor indices, retained
+    extensions, late-selected receivers, operator/conformance supply and
+    machine/evidence/value binders. Machine preparation still requires closed
+    explicit calls; keep unsolved-equation
     rejection until each route discharges them. Scalar return-domain inference
     from a typed parameter is separate.
   - Add named-lifetime identity and remaining const-index kinds;
