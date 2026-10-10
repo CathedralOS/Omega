@@ -372,6 +372,18 @@ pub fn weak_head_normalize_retaining(
     }
 }
 
+/// The weak head of the shared type the caller already carries — every
+/// binder-comparison arm below starts by normalizing it the same way.
+fn shared_type_head(
+    arena: &mut TermArena,
+    context: &Context,
+    shared_type: TermHandle,
+    budget: &mut Budget,
+    retained: &impl Fn(u32) -> bool,
+) -> Result<TermHandle, CoreError> {
+    weak_head_normalize_retaining(arena, context.signature(), shared_type, budget, retained)
+}
+
 /// Typed conversion: are `left` and `right` definitionally equal at
 /// `shared_type` under `context`?
 ///
@@ -511,13 +523,7 @@ pub fn convertible_retaining(
                 body: right_body, ..
             },
         ) => {
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                shared_type,
-                budget,
-                retained,
-            )?;
+            let type_head = shared_type_head(arena, context, shared_type, budget, retained)?;
             match arena.get(type_head) {
                 Term::Pi { domain, codomain } => {
                     let extended = context.extend(domain);
@@ -557,13 +563,7 @@ pub fn convertible_retaining(
                 second: right_second,
             },
         ) => {
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                shared_type,
-                budget,
-                retained,
-            )?;
+            let type_head = shared_type_head(arena, context, shared_type, budget, retained)?;
             match arena.get(type_head) {
                 Term::Sigma { domain, codomain } => {
                     if !convertible_retaining(
@@ -804,13 +804,7 @@ pub fn convertible_retaining(
             // Two reflexivity proofs at a shared identity type: the `ty`
             // annotations each convert to the shared carrier, so only
             // the values decide — compared at the shared type's carrier.
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                shared_type,
-                budget,
-                retained,
-            )?;
+            let type_head = shared_type_head(arena, context, shared_type, budget, retained)?;
             match arena.get(type_head) {
                 Term::Id { ty, .. } => convertible_retaining(
                     arena,
@@ -980,13 +974,7 @@ pub fn convertible_retaining(
             // The annotation fields were already checked into the
             // shared `W`, so they decide nothing here; and there is no
             // W eta, so a `sup` never converts to a non-`sup`.
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                shared_type,
-                budget,
-                retained,
-            )?;
+            let type_head = shared_type_head(arena, context, shared_type, budget, retained)?;
             match arena.get(type_head) {
                 Term::W { carrier, children } => {
                     if !convertible_retaining(
@@ -1099,13 +1087,7 @@ pub fn convertible_retaining(
             // comparison is strict-collapsed before it runs; the arm
             // exists so the traversal stays honest if it ever meets
             // one at a non-collapsed shared type.
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                shared_type,
-                budget,
-                retained,
-            )?;
+            let type_head = shared_type_head(arena, context, shared_type, budget, retained)?;
             match arena.get(type_head) {
                 Term::Squash { ty } => convertible_retaining(
                     arena,
@@ -1132,13 +1114,7 @@ pub fn convertible_retaining(
             // two well-typed proofs, so canonical boxes are always
             // equal. Neutrals never reach this arm, which is exactly
             // how boxing keeps irrelevance from escaping.
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                shared_type,
-                budget,
-                retained,
-            )?;
+            let type_head = shared_type_head(arena, context, shared_type, budget, retained)?;
             match arena.get(type_head) {
                 Term::Box { ty } => convertible_retaining(
                     arena,
@@ -1318,13 +1294,7 @@ pub fn convertible_retaining(
         (Term::Pair { first, second }, _) => {
             // Pair eta: a literal pair converts to a non-pair only when the
             // non-pair's projections convert to its components.
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                shared_type,
-                budget,
-                retained,
-            )?;
+            let type_head = shared_type_head(arena, context, shared_type, budget, retained)?;
             match arena.get(type_head) {
                 Term::Sigma { domain, codomain } => {
                     let right_first = arena.insert(Term::Fst { pair: right });
@@ -1355,13 +1325,7 @@ pub fn convertible_retaining(
             }
         }
         (_, Term::Pair { first, second }) => {
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                shared_type,
-                budget,
-                retained,
-            )?;
+            let type_head = shared_type_head(arena, context, shared_type, budget, retained)?;
             match arena.get(type_head) {
                 Term::Sigma { domain, codomain } => {
                     let left_first = arena.insert(Term::Fst { pair: left });
@@ -1395,13 +1359,7 @@ pub fn convertible_retaining(
             // so an `f x` body converts only when `f` itself does; a
             // pointwise match is never enough. A strict `Pi` never reaches
             // here — irrelevance already collapsed its inhabitants.
-            let type_head = weak_head_normalize_retaining(
-                arena,
-                context.signature(),
-                shared_type,
-                budget,
-                retained,
-            )?;
+            let type_head = shared_type_head(arena, context, shared_type, budget, retained)?;
             match arena.get(type_head) {
                 Term::Pi { domain, codomain } => {
                     let (lambda_body, other) = match (arena.get(left), arena.get(right)) {
