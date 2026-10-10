@@ -497,7 +497,7 @@ pub(crate) fn lower_structural_arguments(
                           place,
                           prefix: &[terminal_psi::StructuralPathSegment]| {
         let suffix =
-            crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+            crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(
                 argument,
                 root,
                 structural_types,

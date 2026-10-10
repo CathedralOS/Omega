@@ -112,8 +112,33 @@ pub(crate) fn prepare_structural_argument_path(
     published_root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
+    prepare_structural_argument_projection(argument, &argument.path, published_root, types)
+}
+
+/// A final call addresses the completed value. Its range producer has already
+/// consumed the original collection path; ordinary storage joins above still
+/// require that path when they bind the original source.
+pub(crate) fn prepare_call_argument_path(
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    published_root: semantic_vocabulary::StructuralTypeId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
+    prepare_structural_argument_projection(
+        argument,
+        argument.call_projection(),
+        published_root,
+        types,
+    )
+}
+
+fn prepare_structural_argument_projection(
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    projection: &[CheckedUnitStructuralPathSegment],
+    published_root: semantic_vocabulary::StructuralTypeId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
     let Some(identity) = argument.borrowed_root_type_identity() else {
-        return prepare_argument_path(argument.call_projection(), published_root, types);
+        return prepare_argument_path(projection, published_root, types);
     };
     let mut roots = types.iter().filter(|row| row.identity == identity);
     let logical_root = roots.next().ok_or(LoweringError::Unsupported(
@@ -150,11 +175,7 @@ pub(crate) fn prepare_structural_argument_path(
             StructuralPathSegment::Referent,
         ));
     }
-    prepared.extend(prepare_argument_path(
-        argument.call_projection(),
-        logical_root.id,
-        types,
-    )?);
+    prepared.extend(prepare_argument_path(projection, logical_root.id, types)?);
     Ok(prepared)
 }
 
