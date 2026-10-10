@@ -25,21 +25,32 @@ const REPRESENTATION_SPECIALIZATION_PASS_NAME: &[u8] =
 /// representation pass at version 1 requiring the strongly-connected-
 /// components product and invalidating use-definition, scalar-constant,
 /// value-range and effect-summary products under structural-identity safety.
+/// One built-in rule's contract: each rule declares its identity bytes,
+/// pass, and rosters; the checked-constructor boilerplate stays here.
+fn standard_rule_contract(
+    identity: &'static [u8],
+    pass: &'static [u8],
+    version: u32,
+    required_analyses: AnalysisSet,
+    invalidated_analyses: AnalysisInvalidationSet,
+    safety_class: OptimizationSafetyClass,
+) -> OptimizationRuleContract {
+    standard_rule_contract(identity, pass, version,
+                required_analyses,
+                invalidated_analyses,
+                safety_class)
+}
+
 fn representation_specialization_contract(identity: &'static [u8]) -> OptimizationRuleContract {
-    OptimizationRuleContract::new(
-        OptimizationRuleIdentity::from_canonical_bytes(identity),
-        OptimizationPassIdentity::from_canonical_bytes(REPRESENTATION_SPECIALIZATION_PASS_NAME),
-        1,
-        AnalysisSet::new([AnalysisKind::StronglyConnectedComponents]),
-        AnalysisInvalidationSet::new([
+    standard_rule_contract(identity, REPRESENTATION_SPECIALIZATION_PASS_NAME, 1,
+                AnalysisSet::new([AnalysisKind::StronglyConnectedComponents]),
+                AnalysisInvalidationSet::new([
             AnalysisKind::UseDefinition,
             AnalysisKind::ScalarConstants,
             AnalysisKind::ValueRanges,
             AnalysisKind::EffectSummaries,
         ]),
-        OptimizationSafetyClass::StructuralIdentity,
-    )
-    .expect("built-in rule has nonzero version")
+                OptimizationSafetyClass::StructuralIdentity)
 }
 
 /// The closed rule surface every classify-driven rule exposes: its

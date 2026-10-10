@@ -117,16 +117,11 @@ const REQUIRED_ANALYSES: [AnalysisKind; 3] = [
 const INVALIDATED_ANALYSES: [AnalysisKind; 2] =
     [AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries];
 
-pub(super) fn exact_total_scalar_identity(identity: &[u8]) -> OptimizationRuleContract {
-    OptimizationRuleContract::new(
-        OptimizationRuleIdentity::from_canonical_bytes(identity),
-        OptimizationPassIdentity::from_canonical_bytes(GLOBAL_VALUE_NUMBERING_PASS_NAME),
-        1,
-        AnalysisSet::new(REQUIRED_ANALYSES),
-        AnalysisInvalidationSet::new(INVALIDATED_ANALYSES),
-        OptimizationSafetyClass::ExactOperationSemantics,
-    )
-    .expect("built-in rule has nonzero version")
+pub(super) fn exact_total_scalar_identity(identity: &'static [u8]) -> OptimizationRuleContract {
+    crate::rules::standard_rule_contract(identity, GLOBAL_VALUE_NUMBERING_PASS_NAME, 1,
+                AnalysisSet::new(REQUIRED_ANALYSES),
+                AnalysisInvalidationSet::new(INVALIDATED_ANALYSES),
+                OptimizationSafetyClass::ExactOperationSemantics)
 }
 
 pub(super) fn all_ones(scalar_type: IntegerType) -> IntegerValue {

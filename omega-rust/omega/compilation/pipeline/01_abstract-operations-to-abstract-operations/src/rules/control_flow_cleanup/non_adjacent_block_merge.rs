@@ -25,12 +25,7 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 
 psi_rule_contract!(
     NonAdjacentBlockMergeRule,
-    OptimizationRuleContract::new(
-                OptimizationRuleIdentity::from_canonical_bytes(
-                    b"omega.psi-rule.non-adjacent-unique-predecessor-block-merge.v1",
-                ),
-                OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-                1,
+    crate::rules::standard_rule_contract(b"omega.psi-rule.non-adjacent-unique-predecessor-block-merge.v1", CONTROL_FLOW_CLEANUP_PASS_NAME, 1,
                 AnalysisSet::new([
                     AnalysisKind::ControlFlowGraph,
                     AnalysisKind::Dominators,
@@ -42,9 +37,7 @@ psi_rule_contract!(
                     AnalysisKind::UseDefinition,
                     AnalysisKind::EffectSummaries,
                 ]),
-                OptimizationSafetyClass::StructuralIdentity,
-            )
-            .expect("built-in rule has nonzero version"),
+                OptimizationSafetyClass::StructuralIdentity),
 );
 
 impl PsiOptimizationRule for NonAdjacentBlockMergeRule {

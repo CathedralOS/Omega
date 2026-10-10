@@ -38,18 +38,13 @@ fn proof_check_elision_rule_contract(
     identity: &'static [u8],
     analyses: AnalysisSet,
 ) -> OptimizationRuleContract {
-    OptimizationRuleContract::new(
-        OptimizationRuleIdentity::from_canonical_bytes(identity),
-        OptimizationPassIdentity::from_canonical_bytes(PROOF_CHECK_ELISION_PASS_NAME),
-        1,
-        analyses,
-        AnalysisInvalidationSet::new([
+    crate::rules::standard_rule_contract(identity, PROOF_CHECK_ELISION_PASS_NAME, 1,
+                analyses,
+                AnalysisInvalidationSet::new([
             AnalysisKind::UseDefinition,
             AnalysisKind::EffectSummaries,
         ]),
-        OptimizationSafetyClass::ProofCertified,
-    )
-    .expect("built-in rule has nonzero version")
+                OptimizationSafetyClass::ProofCertified)
 }
 
 pub(crate) use divide_by_one::LiveProofCertifiedIntegerDivideByOneEliminationRule;

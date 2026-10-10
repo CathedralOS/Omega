@@ -15,20 +15,13 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 psi_rule_contract!(
     DeadUnconditionallyTotalScalarEliminationRule,
-    OptimizationRuleContract::new(
-                OptimizationRuleIdentity::from_canonical_bytes(
-                    b"omega.psi-rule.dead-unused-unconditionally-total-scalar-elimination.v1",
-                ),
-                OptimizationPassIdentity::from_canonical_bytes(DEAD_PURE_SCALAR_PASS_NAME),
-                1,
+    crate::rules::standard_rule_contract(b"omega.psi-rule.dead-unused-unconditionally-total-scalar-elimination.v1", DEAD_PURE_SCALAR_PASS_NAME, 1,
                 AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
                 AnalysisInvalidationSet::new([
                     AnalysisKind::UseDefinition,
                     AnalysisKind::EffectSummaries,
                 ]),
-                OptimizationSafetyClass::ExactOperationSemantics,
-            )
-            .expect("built-in rule has nonzero version"),
+                OptimizationSafetyClass::ExactOperationSemantics),
 );
 
 psi_optimization_rule_delegate!(

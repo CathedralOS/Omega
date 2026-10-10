@@ -19,12 +19,7 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 
 psi_rule_contract!(
     SharedJumpFusionRule,
-    OptimizationRuleContract::new(
-                OptimizationRuleIdentity::from_canonical_bytes(
-                    b"omega.psi-rule.shared-terminal-jump-fusion.v2",
-                ),
-                OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-                2,
+    crate::rules::standard_rule_contract(b"omega.psi-rule.shared-terminal-jump-fusion.v2", CONTROL_FLOW_CLEANUP_PASS_NAME, 2,
                 AnalysisSet::new([
                     AnalysisKind::ControlFlowGraph,
                     AnalysisKind::OwnershipFrontiers,
@@ -35,9 +30,7 @@ psi_rule_contract!(
                     AnalysisKind::UseDefinition,
                     AnalysisKind::EffectSummaries,
                 ]),
-                OptimizationSafetyClass::StructuralIdentity,
-            )
-            .expect("built-in rule has nonzero version"),
+                OptimizationSafetyClass::StructuralIdentity),
 );
 
 impl PsiOptimizationRule for SharedJumpFusionRule {

@@ -88,42 +88,32 @@ pub(super) fn built_in_registrations() -> Vec<BuiltInRuleRegistration> {
 }
 
 pub(super) fn same_block_contract(
-    rule_name: &[u8],
+    rule_name: &'static [u8],
     safety: OptimizationSafetyClass,
 ) -> OptimizationRuleContract {
-    OptimizationRuleContract::new(
-        OptimizationRuleIdentity::from_canonical_bytes(rule_name),
-        OptimizationPassIdentity::from_canonical_bytes(GLOBAL_VALUE_NUMBERING_PASS_NAME),
-        1,
-        AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-        safety,
-    )
-    .expect("built-in rule has nonzero version")
+    crate::rules::standard_rule_contract(rule_name, GLOBAL_VALUE_NUMBERING_PASS_NAME, 1,
+                AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+                AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+                safety)
 }
 
 pub(super) fn dominating_contract(
-    rule_name: &[u8],
+    rule_name: &'static [u8],
     safety: OptimizationSafetyClass,
 ) -> OptimizationRuleContract {
-    OptimizationRuleContract::new(
-        OptimizationRuleIdentity::from_canonical_bytes(rule_name),
-        OptimizationPassIdentity::from_canonical_bytes(GLOBAL_VALUE_NUMBERING_PASS_NAME),
-        1,
-        AnalysisSet::new([
+    crate::rules::standard_rule_contract(rule_name, GLOBAL_VALUE_NUMBERING_PASS_NAME, 1,
+                AnalysisSet::new([
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::Dominators,
             AnalysisKind::UseDefinition,
             AnalysisKind::EffectSummaries,
         ]),
-        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-        safety,
-    )
-    .expect("built-in rule has nonzero version")
+                AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+                safety)
 }
 
 pub(super) fn phi_translated_contract(
-    rule_name: &[u8],
+    rule_name: &'static [u8],
     safety: OptimizationSafetyClass,
 ) -> OptimizationRuleContract {
     dominating_contract(rule_name, safety)

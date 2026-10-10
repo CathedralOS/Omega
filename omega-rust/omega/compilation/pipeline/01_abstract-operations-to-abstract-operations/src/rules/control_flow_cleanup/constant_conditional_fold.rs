@@ -20,12 +20,7 @@ use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposal
 
 psi_rule_contract!(
     ConstantConditionalFoldRule,
-    OptimizationRuleContract::new(
-                OptimizationRuleIdentity::from_canonical_bytes(
-                    b"omega.psi-rule.constant-conditional-fold.v5",
-                ),
-                OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-                5,
+    crate::rules::standard_rule_contract(b"omega.psi-rule.constant-conditional-fold.v5", CONTROL_FLOW_CLEANUP_PASS_NAME, 5,
                 AnalysisSet::new([
                     AnalysisKind::ControlFlowGraph,
                     AnalysisKind::ScalarConstants,
@@ -36,9 +31,7 @@ psi_rule_contract!(
                     AnalysisKind::UseDefinition,
                     AnalysisKind::EffectSummaries,
                 ]),
-                OptimizationSafetyClass::ExactOperationSemantics,
-            )
-            .expect("built-in rule has nonzero version"),
+                OptimizationSafetyClass::ExactOperationSemantics),
 );
 
 impl PsiOptimizationRule for ConstantConditionalFoldRule {

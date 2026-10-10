@@ -20,12 +20,7 @@ use crate::{
 
 psi_rule_contract!(
     UnreachablePrivateMachinePruneRule,
-    OptimizationRuleContract::new(
-                OptimizationRuleIdentity::from_canonical_bytes(
-                    b"omega.psi-rule.unreachable-private-machine-pruning.v1",
-                ),
-                OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-                1,
+    crate::rules::standard_rule_contract(b"omega.psi-rule.unreachable-private-machine-pruning.v1", CONTROL_FLOW_CLEANUP_PASS_NAME, 1,
                 AnalysisSet::new([AnalysisKind::CallGraph]),
                 AnalysisInvalidationSet::new([
                     AnalysisKind::ControlFlowGraph,
@@ -33,9 +28,7 @@ psi_rule_contract!(
                     AnalysisKind::UseDefinition,
                     AnalysisKind::EffectSummaries,
                 ]),
-                OptimizationSafetyClass::StructuralIdentity,
-            )
-            .expect("built-in rule has nonzero version"),
+                OptimizationSafetyClass::StructuralIdentity),
 );
 
 impl PsiOptimizationRule for UnreachablePrivateMachinePruneRule {
