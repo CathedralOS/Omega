@@ -2935,9 +2935,12 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   client's private engine. Acceptance: no private integer interval type
   remains outside `arithmetic_domains`; corpus `--filter ranges,arithmetic/,
   collections/,slices/,termination/,contracts` unchanged. Preserve signed-minimum
-  divisor magnitudes and both remainder extrema at every migrated client;
+  divisor magnitudes, both remainder extrema and the dividend hull including
+  zero at every migrated client, even without a finite divisor endpoint;
   `arithmetic/{remainder_signed_minimum_underbound_rejected,runtime_signed_minimum_remainder_exit}`
   constrain this interval meaning independently of divisor definedness.
+  `arithmetic/{runtime_bounded_dividend_remainder_exit,remainder_dividend_range_excludes_zero_rejected,zero_dividend_remainder_requires_nonzero}`
+  constrain dividend precision without assuming a positive remainder floor.
   Preserve zero-product bounds for unbounded integer operands without erasing
   operand formation obligations; `arithmetic/runtime_unbounded_zero_product_exit`
   and `arithmetic/zero_product_operand_{overflow,division}_rejected` constrain

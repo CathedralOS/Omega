@@ -163,6 +163,8 @@ fail/arithmetic/qualified_float_cast_specification_fraction_rejected rejected 58
 	Exact numeric cast in proposition `fractional` to `u8` is not provably denotation preserving; prove source integrality and exact representability independently or use a named numeric conversion
 fail/arithmetic/qualified_float_cast_specification_rounding_rejected rejected 587ms expected @cba4ef8c9ab1
 	Exact numeric cast in proposition `rounded` to `f32` is not provably denotation preserving; prove source integrality and exact representability independently or use a named numeric conversion
+fail/arithmetic/remainder_dividend_range_excludes_zero_rejected rejected 704ms expected @cb7a5a5136b3
+	machine `wrong` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
 fail/arithmetic/remainder_signed_minimum_underbound_rejected rejected 577ms expected @1e7d4009e238
 	machine `remainder` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
 fail/arithmetic/saturating_shift_count_unproven rejected 267ms expected @2d8ed253669f
@@ -214,6 +216,9 @@ fail/arithmetic/wrapping_target_plain_operands_rejected rejected 127ms expected 
 	store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
 fail/arithmetic/wrong_struct_type_argument_rejected rejected 385ms expected @2d8ed253669f
 	argument `f` for state `Main::take_foo::take_foo` expects the `Foo` data type but got `Bar` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+fail/arithmetic/zero_dividend_remainder_requires_nonzero rejected 677ms expected @cb7a5a5136b3
+	partial exact remainder in machine `invalid` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	machine `invalid` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
 fail/arithmetic/zero_product_operand_division_rejected rejected 1004ms expected @373d956d212f
 	partial exact division in machine `product` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/zero_product_operand_overflow_rejected rejected 1003ms expected @373d956d212f
@@ -2692,6 +2697,7 @@ pass/arithmetic/runtime_boolean_field_shift_count_exit checked 1789ms check-targ
 pass/arithmetic/runtime_boolean_guarded_bit_value_exit checked 1681ms check-target:macos_arm64 @e7691b42e321+wt
 pass/arithmetic/runtime_boolean_guarded_product_exit checked 1682ms check-target:macos_arm64 @e7691b42e321+wt
 pass/arithmetic/runtime_boolean_state_shift_count_exit checked 1789ms check-target:macos_arm64 @50b7e26fea31+wt
+pass/arithmetic/runtime_bounded_dividend_remainder_exit checked 7889ms check-target:macos_arm64 @cb7a5a5136b3
 pass/arithmetic/runtime_comparison_signedness_exit checked 1321ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_dispatch_cast_decisions_exit checked 3169ms check-target:macos_arm64 @6dd207b5fbb6+wt
 pass/arithmetic/runtime_domain_boundaries_exit checked 1285ms check-target:macos_arm64 @2d8ed253669f

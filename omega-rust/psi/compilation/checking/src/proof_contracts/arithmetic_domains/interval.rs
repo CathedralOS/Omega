@@ -153,16 +153,24 @@ impl Interval {
 
     /// `a % b`: the remainder's magnitude is strictly below the divisor's
     /// magnitude (truncated-division semantics: the remainder takes the
-    /// dividend's sign). SOUND only when the divisor is provably nonzero with a
-    /// finite magnitude bound; otherwise unbounded (as before). This is what lets
+    /// dividend's sign). A nonzero divisor is required; either operand can
+    /// supply finite result bounds. This is what lets
     /// `self.seed % 100` feed exact arithmetic (`% 100` is in `[-99, 99]`)
     /// instead of poisoning the enclosing op with an unbounded operand. The
     /// divisor magnitude must remain exact even at the signed minimum; an
     /// underestimated magnitude would authorize false bounds in enclosing
     /// arithmetic and declared results.
     pub(super) fn modulo(self, divisor: Self) -> Self {
-        let Some(magnitude) = divisor.nonzero_magnitude_bound() else {
+        if !divisor.excludes_zero() {
             return Interval::UNBOUNDED;
+        }
+        // Remainder cannot exceed the dividend's magnitude, but it can be
+        // zero even when the dividend's interval excludes zero. The hull
+        // preserves both sign regions without taking a signed MIN absolute
+        // value, and remains useful when a u64 divisor has no finite end here.
+        let dividend_bound = self.union(Self::constant(0));
+        let Some(magnitude) = divisor.nonzero_magnitude_bound() else {
+            return dividend_bound;
         };
         // A signed MIN divisor has magnitude 2^63. Keep that unsigned
         // magnitude until subtracting one: saturating abs would exclude the
@@ -173,23 +181,10 @@ impl Interval {
         else {
             return Interval::UNBOUNDED;
         };
-        // Remainder sign follows the dividend: a provably non-negative dividend
-        // yields a non-negative remainder, a non-positive one a non-positive
-        // remainder, an unknown-sign dividend either sign.
-        let low = if self.low.is_some_and(|low| low >= 0) {
-            0
-        } else {
-            -bound
-        };
-        let high = if self.high.is_some_and(|high| high <= 0) {
-            0
-        } else {
-            bound
-        };
-        Self {
-            low: Some(low),
-            high: Some(high),
-        }
+        dividend_bound.intersect(Self {
+            low: Some(-bound),
+            high: Some(bound),
+        })
     }
 
     /// Truncated division is monotone in each operand within each sign region.

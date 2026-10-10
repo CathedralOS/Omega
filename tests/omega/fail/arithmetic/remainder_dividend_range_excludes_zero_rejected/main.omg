@@ -1,0 +1,4 @@
+machine wrong(value: i64, divisor: i64) -> i64 [5..=7]
+    requires value >= 5, value <= 7, divisor >= 2
+{ value % divisor }
+machine main() {}
