@@ -1078,19 +1078,7 @@ fn complete_transformation(
 }
 
 /// The position of the last in-block definition of `register` ahead of
-/// `position` — the same last-definition scan the family's admission
-/// re-derives; discovery uses it only to name producer candidates.
-fn last_definition_before(
-    instructions: &[SelectedInstruction],
-    position: usize,
-    register: selected_instructions::VirtualRegisterId,
-) -> Option<usize> {
-    instructions[..position].iter().rposition(|instruction| {
-        instruction.operands.iter().any(|operand| {
-            operand.access != RegisterOperandAccess::Use && operand.virtual_register == register
-        })
-    })
-}
+use super::super::operand_probes::last_definition_before;
 
 /// Admit the current load. Memory-audit work remains charged against the current
 /// plan; no accepted proposal survives a commit.

@@ -271,7 +271,4 @@ fn bump(value: &mut u64) -> Result<(), FixedViewCopyError> {
     Ok(())
 }
 
-fn add(left: u64, right: u64) -> Result<u64, FixedViewCopyError> {
-    left.checked_add(right)
-        .ok_or(FixedViewCopyError::WorkOverflow)
-}
+use super::super::work::add;

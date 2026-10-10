@@ -21,7 +21,7 @@ pub(super) fn combined_usage(
     })
 }
 
-fn add(left: u64, right: u64) -> Result<u64, FixedViewCopyError> {
+pub(super) fn add(left: u64, right: u64) -> Result<u64, FixedViewCopyError> {
     left.checked_add(right)
         .ok_or(FixedViewCopyError::WorkOverflow)
 }
