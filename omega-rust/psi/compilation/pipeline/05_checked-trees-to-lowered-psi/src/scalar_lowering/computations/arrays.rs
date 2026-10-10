@@ -5,12 +5,13 @@
 //! this producer dominates each use. No array payload crosses a block parameter.
 use super::super::{
     Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
-    ValueDeclaration, emit_direct_expression,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration,
+    emit_direct_expression,
 };
 use super::{LoweringError, unsupported, validate_direct_parameter_types};
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::place_declarations::operation_result_declaration;
 use crate::scalar_lowering::branch_states::prepared::LoweredScalarArrayConstruction;
 
 /// A computed array is a fixed primitive array whose leaf count fits in u64.
@@ -84,15 +85,6 @@ pub(crate) fn declarations(
         if !matches!(operation.kind, OperationKind::EstablishScalarArray { .. }) {
             return None;
         }
-        let Some(result) = operation.result.as_structural() else {
-            return None;
-        };
-        Some(StructuralPlaceDeclaration {
-            id: result.place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: operation.id,
-                structural_type: result.structural_type,
-            },
-        })
+        operation_result_declaration(operation)
     })
 }

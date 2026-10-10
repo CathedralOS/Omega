@@ -6,9 +6,9 @@
 //! a cell: atomic payloads must retain their backing through subsequent loans.
 use super::super::{
     Multiplicity, Operation, OperationKind, OperationResult, PlaceId, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration,
-    allocate_dense, emit_direct_expression, place_id, terminal_scalar_type,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense,
+    emit_direct_expression, place_id, terminal_scalar_type,
 };
 use super::{
     Argument, CheckedScalarComputationKind, CheckedTrees, Computation, Expansion, LoweringError,
@@ -21,6 +21,7 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::place_declarations::operation_result_declaration;
 use crate::expression_preparation::computation_graph::fields;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
@@ -542,16 +543,7 @@ pub(crate) fn declarations(
         ) {
             return None;
         }
-        let Some(result) = operation.result.as_structural() else {
-            return None;
-        };
-        Some(StructuralPlaceDeclaration {
-            id: result.place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: operation.id,
-                structural_type: result.structural_type,
-            },
-        })
+        operation_result_declaration(operation)
     })
 }
 

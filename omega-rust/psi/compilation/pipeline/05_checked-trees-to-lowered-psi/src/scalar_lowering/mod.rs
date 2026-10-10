@@ -23,7 +23,7 @@ use checked_trees::{
 use language_semantics::Multiplicity;
 use semantic_vocabulary::{
     IntegerValue, MachineId, PlaceId, Proposition, QualifiedScalarType, ScalarTerm, ScalarType,
-    StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+    StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,

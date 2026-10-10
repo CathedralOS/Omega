@@ -57,19 +57,25 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
 
 /// Structural storage exists at an emitted result, independently of the source
 /// expression or body representation that selected its producer.
+/// The operation-result place-declaration row every structural-place scan
+/// emits for an operation that produces a structural result.
+pub(crate) fn operation_result_declaration(
+    operation: &terminal_psi::Operation,
+) -> Option<StructuralPlaceDeclaration> {
+    let result = operation.result.as_structural()?;
+    Some(StructuralPlaceDeclaration {
+        id: result.place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation.id,
+            structural_type: result.structural_type,
+        },
+    })
+}
+
 pub(crate) fn operation_results<'a>(
     operations: impl Iterator<Item = &'a terminal_psi::Operation>,
 ) -> impl Iterator<Item = StructuralPlaceDeclaration> {
-    operations.filter_map(|operation| {
-        let result = operation.result.structural()?;
-        Some(StructuralPlaceDeclaration {
-            id: result.place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: operation.id,
-                structural_type: result.structural_type,
-            },
-        })
-    })
+    operations.filter_map(operation_result_declaration)
 }
 
 /// A body may already have declared an ordinary result encountered by this
