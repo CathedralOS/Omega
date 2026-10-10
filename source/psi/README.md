@@ -412,7 +412,9 @@ holding or failing, the left operand of `&&` (or failing `||`) for its right
 operand, a value pattern's arm (the subject equals it), a `let` and an
 assignment add facts, a Boolean place bound from a condition stands for it
 at a later dispatch or guard until a place that existed when it was bound
-is written ([`checking/aliases.omg`](checking/aliases.omg)), a record bound
+is written. A condition that writes while being evaluated, or reads the
+destination overwritten by its assignment, cannot be replayed as an alias
+([`checking/aliases.omg`](checking/aliases.omg)). A record bound
 from another place takes the integer fields known directly below it, and a
 constant whose initializer is an anonymous
 integer tree is that value
@@ -424,10 +426,28 @@ replace the whole referent or its writes are unknown, else the field places
 whose fields it, its callees or its states store
 ([`checking/frames.omg`](checking/frames.omg), derived before any body is
 checked). An operand evaluated before such a call keeps what it read: before
-the call forgets a place, each earlier operand reading it moves to a
-snapshot, an integer to a fresh subject equal to the one it read and a
+the call forgets a place, each earlier operand and its evaluated children
+reading it move to a snapshot, a scalar to a fresh subject equal to the one it read and a
 record to a place holding the fields known of it
-([`checking/snapshots.omg`](checking/snapshots.omg)). A construction's value
+([`checking/snapshots.omg`](checking/snapshots.omg)). Scalar reads through
+references carry typing's `Read` adaptation; a reference passed as a
+reference keeps its live storage identity. Assignment currently evaluates
+its value before its target and captures that value before an effectful
+selector; **Q9** in `OWNER_QUESTIONS.md` remains the evaluation-order decision.
+Subject evaluation that writes storage cannot grant facts by replaying its
+syntax over the changed storage; its case binders still start from their
+declared types.
+
+Local references capture their initializer's canonical storage origin
+([`checking/references.omg`](checking/references.omg)). A reborrow uses the
+same origin, and replacing a mutable shared-reference binding does not
+redirect an earlier alias. Origins reset for each body and state. Returned
+references, reference fields and selected reference values have no modeled
+origin yet; a nonempty write through one rejects `UnsupportedCheck`. A
+complete empty call frame remains allowed. Scalar reference parameters have
+subjects for their referents, distinct from their binding storage.
+
+A construction's value
 is a place of its own whose integer fields stay pending until read: a field
 place entered below it, or below a place copied from it, holds the value
 written, a write drops the pending fields below the place written, and a

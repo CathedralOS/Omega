@@ -2164,7 +2164,7 @@ def main() -> None:
         b"    let mut tally: Tally = Tally { first: Cell { value: 0 }, hits: 0 };\n"
         b"    let cell: &mut Cell = pick(&mut tally);\n"
         b"    tally.hits = 5;\n"
-        b"    cell.value = 7;\n"
+        b"    let observed: i32 = cell.value;\n"
         b"}",
         "LoanConflict",
         b"tally.hits",
@@ -2412,6 +2412,233 @@ def main() -> None:
         b"    state next(count: u64, flag: bool) -> u64 { pick(flag) }\n}",
         "RequirementUnproven",
         b"pick(flag)",
+    )
+
+    # Captured reads survive later effects; aliases may only replay the
+    # values they originally observed. These false obligations once passed.
+    rejected(
+        program,
+        'composite-guard-keeps-captured-comparison',
+        b'data Token [copy] { value: u64; }\n'
+        b'machine mutate(token: &mut Token) -> bool { token.value = 9; true }\n'
+        b'machine run() -> u64 ensures result == 1 {\n'
+        b'let mut token: Token = Token { value: 1 };\n'
+        b'transition { token.value == 1 && mutate(&mut token) -> token.value _ -> 1 }\n'
+        b'}',
+        'GuaranteeUnproven',
+        b'token.value == 1 && mutate(&mut token) -> token.value',
+    )
+    rejected(
+        program,
+        'stored-condition-must-not-replay-mutated-read',
+        b'data Token [copy] { value: u64; }\n'
+        b'machine mutate(token: &mut Token) -> bool { token.value = 9; true }\n'
+        b'machine run() -> u64 ensures result == 1 {\n'
+        b'let mut token: Token = Token { value: 1 };\n'
+        b'let valid: bool = token.value == 1 && mutate(&mut token);\n'
+        b'transition valid { true -> token.value false -> 1 }\n'
+        b'}',
+        'GuaranteeUnproven',
+        b'true -> token.value',
+    )
+    rejected(
+        program,
+        'nested-borrow-write-invalidates-original',
+        b'data Token [copy] { value: u64; }\n'
+        b'data Outer { inner: Token; }\n'
+        b'machine run() -> u64 ensures result == 1 {\n'
+        b'let mut outer: Outer = Outer { inner: Token { value: 0 } };\n'
+        b'outer.inner.value = 1;\n'
+        b'let alias: &mut Token = &mut outer.inner;\n'
+        b'alias.value = 9;\n'
+        b'outer.inner.value\n'
+        b'}',
+        'GuaranteeUnproven',
+        b'outer.inner.value!2',
+    )
+    rejected(
+        program,
+        'construction-expression-reused-on-backedge',
+        b'data Token [copy] { value: u64; }\n'
+        b'machine consume(token: Token) -> u64 requires token.value == 1 { token.value }\n'
+        b'machine run() -> u64 {\n'
+        b'transition { _ -> again(Token { value: 1 }, 0) }\n'
+        b'state again(token: Token, step: u64) -> u64 {\n'
+        b'let saved: Token = Token { value: token.value };\n'
+        b'transition { step == 0 -> again(Token { value: 9 }, 1) _ -> consume(saved) }\n'
+        b'}\n'
+        b'}',
+        'RequirementUnproven',
+        b'consume(saved)',
+    )
+    rejected(
+        program,
+        'composite-transition-subject-keeps-captured-comparison',
+        b'data Token [copy] { value: u64; }\n'
+        b'machine mutate(token: &mut Token) -> bool { token.value = 9; true }\n'
+        b'machine run() -> u64 ensures result == 1 {\n'
+        b'let mut token: Token = Token { value: 1 };\n'
+        b'transition token.value == 1 && mutate(&mut token) { true -> token.value false -> 1 }\n'
+        b'}',
+        'GuaranteeUnproven',
+        b'true -> token.value',
+    )
+    rejected(
+        program,
+        'self-assignment-must-not-create-replay-alias',
+        b'machine run() -> u64 ensures result == 1 {\n'
+        b'let mut flag: bool = false;\n'
+        b'flag = !flag;\n'
+        b'transition flag { true -> 9 false -> 1 }\n'
+        b'}',
+        'GuaranteeUnproven',
+        b'true -> 9',
+    )
+    accepted(
+        program,
+        'pure-comparison-alias-still-proves',
+        b'machine run(value: u64) -> u64 ensures result == 1 {\n'
+        b'let valid: bool = value == 1;\n'
+        b'transition valid { true -> value false -> 1 }\n'
+        b'}',
+    )
+    accepted(
+        program,
+        'boolean-argument-capture',
+        b'data Token [copy] { ready: bool; value: u64; }\n'
+        b'machine reset(token: &mut Token) -> bool { token.ready = false; true }\n'
+        b'machine consume(before: bool, done: bool) requires before {}\n'
+        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; consume(token.ready, reset(&mut token)); }',
+    )
+    rejected(
+        program,
+        'boolean-live-write-invalidates',
+        b'data Token [copy] { ready: bool; value: u64; }\n'
+        b'machine reset(token: &mut Token) -> bool { token.ready = false; true }\n'
+        b'machine consume(now: bool) requires now {}\n'
+        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; _ = reset(&mut token); consume(token.ready); }',
+        'RequirementUnproven',
+        b'consume(token.ready)',
+    )
+    accepted(
+        program,
+        'boolean-unwritten-field-survives',
+        b'data Token [copy] { ready: bool; value: u64; }\n'
+        b'machine write(token: &mut Token) { token.value = 9; }\n'
+        b'machine consume(now: bool) requires now {}\n'
+        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; write(&mut token); consume(token.ready); }',
+    )
+    rejected(
+        program,
+        'boolean-join-keeps-both-arrivals',
+        b'machine consume(flag: bool) requires flag {}\n'
+        b'machine run(choice: bool) { transition choice { true -> next(true) false -> next(false) } state next(flag: bool) { consume(flag); } }',
+        'RequirementUnproven',
+        b'consume(flag)',
+    )
+
+    accepted(
+        program,
+        "scalar-reference-store-proves-referent",
+        b"machine set(value: &mut u64) ensures value == 9 { value = 9; }",
+    )
+
+    accepted(
+        program,
+        'scalar-reference-argument-capture',
+        b'machine mutate(value: &mut u64) -> u64 ensures result == 0 && value == 9 { value = 9; 0 }\n'
+        b'machine consume(before: u64, done: u64) requires before == 1 {}\n'
+        b'machine run() { let mut value: u64 = 1; let alias: &mut u64 = &mut value; consume(alias, mutate(alias)); }',
+    )
+    accepted(
+        program,
+        'scalar-reference-operator-capture',
+        b'machine mutate(value: &mut u64) -> u64 ensures result == 0 && value == 9 { value = 9; 0 }\n'
+        b'machine run() -> u64 ensures result == 1 { let mut value: u64 = 1; let alias: &mut u64 = &mut value; alias + mutate(alias) }',
+    )
+    rejected(
+        program,
+        'scalar-reference-cannot-read-the-later-write',
+        b'machine mutate(value: &mut u64) -> u64 ensures result == 0 && value == 9 { value = 9; 0 }\n'
+        b'machine run() -> u64 ensures result == 9 { let mut value: u64 = 1; let alias: &mut u64 = &mut value; alias + mutate(alias) }',
+        "GuaranteeUnproven",
+        b"alias + mutate(alias)",
+    )
+
+    # Target selectors may mutate storage after the RHS has been read.
+    accepted(
+        program,
+        'selector-keeps-earlier-rhs',
+        b'data Token { value: u64; }\n'
+        b'machine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
+        b'domain u64::One(value) requires value == 1;\n'
+        b'machine run() { let mut items: [u64 in One; 1] = [1]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
+    )
+    rejected(
+        program,
+        'selector-cannot-substitute-later-write',
+        b'data Token { value: u64; }\n'
+        b'machine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
+        b'domain u64::Nine(value) requires value == 9;\n'
+        b'machine run() { let mut items: [u64 in Nine; 1] = [9]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
+        "DomainUnproven",
+        b"items[mutate(&mut token)] = token.value;",
+    )
+
+    # Borrowed locals keep the captured storage identity through reborrows
+    # and binding replacement. Unrepresented write origins fail closed.
+    borrowed = (b"data Token { value: u64; }\n"
+                b"machine run() -> u64 ensures result == ")
+    body = (b" { let mut token: Token = Token { value: 1 }; "
+            b"let first: &mut Token = &mut token; "
+            b"let second: &mut Token = &mut first; second.value = 9; token.value }")
+    accepted(program, "transitive-reference-write", borrowed + b"9" + body)
+    rejected(program, "transitive-reference-old-guarantee", borrowed + b"1" + body,
+             "GuaranteeUnproven", b"token.value")
+    rejected(
+        program,
+        "unknown-returned-reference-write",
+        b"data Token { value: u64; }\n"
+        b"machine relay(token: &mut Token) -> &mut Token { token }\n"
+        b"machine run() -> u64 { let mut token: Token = Token { value: 1 }; "
+        b"let alias: &mut Token = relay(&mut token); alias.value = 9; token.value }",
+        "UnsupportedCheck",
+        b"alias.value = 9;",
+    )
+    rejected(
+        program,
+        "unknown-reference-field-write",
+        b"data Token { value: u64; }\n"
+        b"data Holder { token: &mut Token; }\n"
+        b"machine change(holder: &mut Holder) { holder.token.value = 9; }",
+        "UnsupportedCheck",
+        b"holder.token.value = 9;",
+    )
+    accepted(
+        program,
+        "shared-reference-rebinding-keeps-earlier-alias",
+        b"machine run() -> u64 ensures result == 1 { "
+        b"let first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
+        b"let captured: &u64 = current; current = &second; captured }",
+    )
+
+    accepted(
+        program,
+        "reference-rebinding-preserves-new-referent-facts",
+        b"machine run() -> u64 ensures result == 9 { "
+        b"let first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
+        b"let valid: bool = current == 1; current = &second; "
+        b"transition valid { true -> current false -> 9 } }",
+    )
+    rejected(
+        program,
+        "reference-rebinding-retires-boolean-replay",
+        b"machine run() -> u64 ensures result == 1 { "
+        b"let first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
+        b"let valid: bool = current == 1; current = &second; "
+        b"transition valid { true -> second false -> 1 } }",
+        "GuaranteeUnproven",
+        b"true -> second",
     )
 
     # The product's own psi package, each module under source/psi as

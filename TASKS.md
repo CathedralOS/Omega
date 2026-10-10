@@ -6068,277 +6068,99 @@ agreement nor Rust-specific machinery is bootstrap authority. Bootstrap
 construction stays on `TASKS_BOOTSTRAP.md`.
 
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Finish the Omega-written compiler in
-  `source/psi/` and `source/omega/` (product roots `source/omega/build.omg` and
-  `source/omega/main.omg`). Psi owns parsing, resolution, typing, checking,
-  proof and Terminal Psi; Omega consumes Terminal Psi for provider selection,
-  realization, ABI and emission. The product entry answers one OCREQ V1
-  request with one OCOUT V1 outcome; Psi lexes, parses and name-resolves
-  every root kind the parser accepts, machine bodies and constant values
-  included, under the parser and resolver gates. Extend that one
-  pipeline through the full language in compositional slices; no private
-  dialect, file/AST allowlist, source-shape-only lowering or parallel
-  source-to-native route.
+  `source/psi/` and `source/omega/`, rooted at `source/omega/build.omg` and
+  `source/omega/main.omg`. Psi owns source semantics through proof and
+  Terminal Psi; Omega consumes Terminal Psi for provider selection,
+  realization, ABI and emission. Extend the one package-resolved pipeline
+  through the full language, with one OCREQ V1 request producing one OCOUT V1
+  outcome. No private dialect, file/AST allowlist, source-shape-only lowering
+  or parallel source-to-native route. Implemented judgments and representation
+  boundaries belong in [the Psi source guide](source/psi/README.md), not this
+  execution item.
 
-  Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
-  OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  465 parser cases, `tests/psi/resolver/test-resolver.sh` all 271 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 136 typing cases; run
-  together from a CLI with the plan-identity memo (2d73039fbef), the three
-  gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
-  beside a fourth native build.
-  `tests/product/request/test-request.sh` builds the product entry and passes
-  all 36 OCREQ cases, D's request vectors among them; a well-formed request
-  stops at `coverage_request_semantics` until phase 3, which waits on the
-  owner decision `ocreq-package-key-identity-derivation`. The lexer keeps only
-  semantic tokens. Machines parse with generic parameters shared with data,
-  signatures, clauses shared with states, data and cases (`requires`/`ensures`
-  facts separated by `,` or `;`), bodyless `;` declarations, entry and state
-  statements, transition arms whose targets are calls, terminal values or
-  `{}`, and expressions including float literals, call acknowledgements and
-  static applications; fields, cases and payload fields take stable `#N`
-  identities; every type position shares one nested grammar of references,
-  arrays, slices and applied names or paths with `in` domains. Roots also
-  parse target-scoped and `boundary` machines, opaque `boundary data`, traits
-  with parents and requirement or default member machines, named conformances
-  with checked members and reference rows, domains (predicate, routed, indexed
-  and alias), constants, propositions and `[boundary] let` mathematical
-  definitions; the retired `boundary requirement` and `operator` introducers
-  reject at their word. Machines also take fixed operator tokens, `where
-  machine` contracts, `satisfies Trait<...>::requirement [as Label] [via
-  value]` and `terminates [by subjects [-> View]];` clauses; generic lists take
-  `proposition` and evidence binders; traits take `where proposition`
-  contracts and transparent refinements; expressions take memberships and
-  value-position matches; case patterns take `as` renames; type qualifiers
-  take domain paths. Resolution runs over a source set of packages and their
-  requester-local dependency edges, framed like the request's package and edge
-  rows: each unit belongs to a package and the module its path names there. A
-  `use` path's first member selects one of the requester's product dependency
-  aliases, its own package by name, or, under the toolchain mount
-  `omega::language::core`, the core package; any other path is a module of the
-  requester's own package. Another package's name or a build-scope alias
-  rejects as an undeclared dependency. A reference sees its own module and the
-  modules its unit imports, not transitively, across packages only `pub`
-  declarations (members by their container's), with two visible declarations
-  of one spelling ambiguous. Data, traits and conformances share one type
-  namespace per module, constants and propositions their own; trait
-  requirements and defaults and conformance members are machines named
-  through their container (`Trait::requirement`, `Conformance::member`), the
-  container's generic parameters covering them. It binds every type
-  reference in its declaration's generic scope (trait parents and satisfied
-  traits must name traits; a conformance binds only as a static argument),
-  `in` domains by name and carrier (declared domains with generic carriers
-  included), checks all-or-nothing, distinct stable identities, rejects
-  duplicate generic parameters, parameters, states, declarations and
-  overloads within a module (target-scoped bodies for distinct targets form
-  one family), binds reference rows, establishment routes and alias
-  constituents, and binds every expression name, in bodies and constant
-  values, by the language's resolution order (locals, arm binders, the body's
-  own parameters, value and machine binders, constants, then states,
-  machines, data and cases by position; `Conformance::member` falls back to
-  the conformance's row or trait), binds a membership, and an `in Owner::Name`
-  type qualifier, to its `Type::Case` case or its declared domain (a
-  qualifier's domain must qualify its type), and binds renamed pattern
-  binders. A
-  machine's `requires` and `ensures` facts and a state's `requires` facts
-  bind in their body's parameter scope, `result` naming the returned value
-  unless a parameter spells it, and a data declaration's `where` facts bind
-  its fields bare, a case's own `where` facts its payload fields first. A fact's
-  callee names a machine or a proposition (both of one spelling are
-  ambiguous), and a proposition applies only as a whole fact: inside a larger
-  fact it rejects as unsupported, and in a body, transition target or constant
-  value as proof-only. A
-  `satisfies` clause binds its trait, the trait's static arguments, the
-  requirement it names and its `via` payload (in the machine's static scope,
-  without parameters); a trait named through a module path rejects. A
-  `terminates by` witness binds in the body's parameter scope. A machine's
-  structural `where machine` contract (no generic parameters; `requires`,
-  `crashes`, `suspends` and `blocks` clauses) binds the `machine` binder it
-  names, its signature in the machine's scope and its `requires` facts over
-  its own parameters, and a static argument names a machine for such a
-  binder or forwards one. `let` definitions and trait refinements reject as
-  unsupported declarations, and a nominal `where machine ... satisfies`
-  contract, a `where proposition` contract, a proposition or evidence binder
-  and an operator token other than an owned machine's arithmetic or order
-  token reject at the form, on any declaration; an owned machine's token
-  binds at the data its owner names, in its own package.
-  Typing interns
-  every written type, gives every expression and
-  pattern binder a type, selects each call's machine among its visible
-  overload family by argument admission (equal types, anonymous integer
-  landing, `Never`, implicit shared lending, shared reborrow of an exclusive
-  loan), binds `.field` and `.len`, folds wholly anonymous integer arithmetic
-  exactly and lands it once, keeps arithmetic policies from mixing, reads an
-  element through a policy-qualified collection under that policy, and
-  checks constructions, case patterns, transition targets and terminal
-  results, types constants as their declared types with each value
-  landed there, types every bound fact as a Boolean (a proposition
-  application's arguments admitted at its parameters, a generic proposition's
-  bound like a generic call's), requires a
-  `satisfies` machine's signature to be its requirement's under the clause's
-  trait arguments, selects an arithmetic or order operator over data
-  among the machines binding its token at an operand's data, and drops a
-  non-Unit result only through the intentional discard `_ = call();`; an
-  assignment to a name holding an exclusive loan writes its referent. Anonymous floats land once at `f32` or `f64` and formats never
-  mix; a generic machine call binds its parameters from explicit static
-  arguments and by unifying parameter and argument types, and a generic
-  construction infers its data's arguments from its fields; trait
-  requirement calls, generic conformance members,
-  target-scoped family calls, case domain qualifiers and equality
-  needing a declared conformance reject as unsupported (core's theorems over
-  `Nat`, `Seq` and record values wait on owner decision
-  `proof-fact-data-equality`). An inline array's
-  extent is a static integer or a `const` binder, which substitution and
-  unification carry like an element type (`take(a)` binds `N` from
-  `a: [u8; 3]`); checking proves no index below a `const` extent. A declared
-  domain qualifies its carrier: its predicates bind and type over its subject
-  binder (primitive byte predicates bind by spelling), a carrier value meets
-  a qualified destination by a membership checking proves, a predicate-only
-  qualification disappears implicitly, and a qualified parameter assumes
-  the predicates while arguments, returns, qualified locals, stores and
-  casts prove them unless they carry the qualification; a routed domain is
-  established by carrying it or by the result of a route it names, and
-  byte predicates only by carrying them. A value-position
-  match's patterns meet its subject, its arms' values meet one type (arms of
-  anonymous numbers land arm by arm at its destination) and its arms cover
-  the subject (a wildcard, both Booleans or every case); checking runs each
-  arm on its own pattern's facts, joins the arms after it and widens its
-  value to their hull. Every transition and match covers its subject: a
-  wildcard or the guard `true`, both Booleans, every case, or complementary
-  `==`/`!=` or `== true`/`== false` guards. A value pattern (a literal, or
-  a path or name denoting no case) selects by equality over an
-  intrinsically comparable subject, and checking values a constant at its
-  landed literal. A fixed-array literal joins its elements into one type,
-  its extent its element count, and unlanded elements land level by level
-  at a destination of the literal's shape. A quoted literal copies into an
-  unqualified byte array of its exact length, and a range slice is a view
-  wherever a shared reference stands. A reference to a builtin scalar reads
-  as its referent wherever the scalar is needed. A reference to a whole
-  array views it as a slice, and a range slice reached through an exclusive
-  reference lends exclusively. An assignment writes a `let mut`
-  local, a `mut` parameter or a place behind an exclusive reference, and
-  checking walks every state, an unreached one from its own `requires`
-  facts. A membership is a Boolean, and a whole membership fact decides as
-  its domain's predicates of the value; a case membership that must hold
-  rejects as unsupported. A machine's return type may follow its clauses,
-  a bare `terminates` may end at its body, and `[]` lands at its
-  destination's array type. A machine binder's
-  call is typed through its contract, and a generic call's static machine
-  arguments bind its machine binders, each argument's signature refining its
-  contract under the call's bindings and binding the callee's other generic
-  parameters the contract names. The typing gate types the
-  whole psi package, its 60 units, as one source set (65,381 expressions, 280
-  interned types). Checking (`source/psi/checking/`) walks each body
-  over one difference-bound zone of its integer places, joining each
-  state's arrivals to a fixed point (a state carries the field paths its
-  reads, its successors and its callees' `requires` facts demand), and
-  proves every index, Exact operation, divisor, shift count and `as`
-  conversion (which keeps its value whatever the target's policy);
-  `requires` facts at each call and jump, `ensures` facts at each normal
-  return (assumed of a call's result), data `where` facts at each
-  construction and after each field store, and a case's own `where` facts at
-  each construction of that case (assumed in a chosen arm). A Boolean bound
-  from a condition stands for it at a later dispatch until a place it read
-  is written, two reads of one place are equal, and a record copy carries
-  its known fields. A call forgets
-  below an exclusive argument only what its callee's derived write frame may
-  write; crash routes settle over the call graph, a `satisfies` machine
-  publishing only causes its requirement declares. A machine binder's call
-  owes its contract's `requires` facts, derives the crash causes it declares
-  and releases its exclusive arguments, and each static machine argument
-  publishes only causes its contract declares (one with premises of its own
-  rejects as unsupported). A proposition application
-  owed at a call, return or construction (assumed, one establishes nothing),
-  a store into a field a case's own fact names and contract refinement
-  beyond crash causes reject as unsupported. A `terminates by` witness (view
-  names bind by spelling to the compiler's ranking vocabulary) strictly
-  descends on every cyclic jump or self call (one unsigned subject, a
-  slice's length, a bounded distance or `Nat::IncreasingTo`), a bare
-  `terminates;` promise, its own or a satisfied requirement's, needs every
-  cycle ranked and every callee terminating (termination settles over the
-  call graph as a least fixed point, so call cycles through other machines
-  never terminate), and a witness on a bodyless machine rejects; every
-  body's derived summary serves its callers, exported or not. Ownership
-  walks every body once more: a moved affine or linear place is not used
-  again, nothing moves out of a reference or a borrowed binder, each owed
-  linear place moves whole by every exit and is never discarded, overwritten
-  live or moved on only some paths of a reconvergence, and no call argument
-  overlaps an earlier argument's loan where either is exclusive. A local
-  whose type holds references holds the loans its initializer forms until
-  its last use, and an exit may not return a loan of the body's own
-  storage. Checking reports each rejected machine's first rejection.
-  `tests/psi/checking/test-checking.sh` passes 144 checking cases and accepts
-  the whole psi package, 60 units, in 26 seconds. The parser harness reads all 65 product source files whole and 80
-  of the 102 `source/library/std` and `core` files; the other 22 stop first at
-  13 retired `boundary requirement` declarations (12 std target files and
-  `core/task.omg`) and `core/float_operations.omg`'s retired `boundary
-  operator` rows, which **TOP-LEVEL-BOUNDARY-REQUIREMENTS** has not migrated,
-  4 range suffixes **CANONICALIZE-SCALAR-RANGE-CONTRACTS** keeps
-  (`core/layout.omg`, `std/time.omg`, `std/entry_shapes.omg`,
-  `std/targets/macos_x86_64/entry.omg`), and one each at a `native callback procedure from`
-  telescope row (`std/tests/direct_callback_parameter.omg`), an applied
-  type-position domain (`in Quantity<Units::METER>`), an installation reach
-  row `reaches <= Bound`, and requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
-  in 0..=n`) and indexed membership domains (`in AtMost<8>`) do not parse
-  yet; range slices (`a[s..e]`, `a[s..=e]` and the open forms) parse, type as
-  their collection's slice place and check within its length. Of the 52 std
-  and core files outside target and test directories, 44 parse whole; with
-  the transitive closure of their imports (std as package
-  `omega_language_std`, core as the toolchain package), 27 of the 43
-  measured (`std/build.omg` aside) resolve. The others stop first at 9
-  imports that do not parse, `std/calling.omg` at its trait parameter bound
-  `Policy satisfies CallingPolicy`, `std/process_exit.omg` at a provider type
-  its target implementations name without importing `process_exit` (imports
-  are not transitive), the 3 device-group files (`core/device.omg` with
-  `arena` and `extent`) at `extent`'s `pub let no_wrap(base: addr, length:
-  u64): core::Strict<0>` declaration, `core/slice.omg` at its `boundary machine []`
-  index token, and `core/option.omg` at
-  `zero_value<Optional<T>>()`, a proof-only observation the Rust parser
-  recognizes contextually and no spec page defines (the product parser reads
-  it as a call to an unknown machine). The 73 std and core files that parse
-  whole, targets included,
-  overflow the 1,024-row clause table together with 1,425 clauses, and
-  `std/build.omg` names the build context's `Build`. The product entry's
-  closure (its 3 units, std's `console` with its 5 target implementations,
-  core's `binding` and `external_binding`) parses whole except the Windows
-  console's retired `boundary requirement`; `console.omg`'s writer ranks
-  its loop by `terminates by bytes -> Slice::Length`. Without the Windows
-  file, resolving it stops at `data Main { console: Binding<Console>; }`
-  (core's `Binding<R>` takes a boundary trait, which resolution admits in no
-  type-argument position yet); its console calls
-  (`context.console.read_byte()`) wait on owner decision
-  `binding-receiver-call-form`, and std's target providers still declare
-  defaults through `Owner::provider_defaults` calling
-  `Owner::select_provider<Trait, Owner>(defaults)` over a provider data
-  type, a convention no spec page defines (wiki/spec/build/provider_selection.md
-  selects named implementations through `Build::select_provider<Slot,
-  Provider>(builder)`).
-  The resolver gate resolves the whole psi package, its 58
-  units, as one package `psi`; the shared syntax tables hold
-  4,096 roots, 1,024 uses, 32,000 path members (under a third used by psi; a
-  single name stores none, its expression row holding it), 65,536 type references
-  and call arguments, 2,048 data members, 1,024 fields, 1,536 cases, 2,048
-  clauses, 4,096 construction fields, 2,048 machines, 32,768
-  parameters, 16,384 statements, 8,192 states and transition arms and 131,072
-  expressions, over a 65,536-token unit; edges one unit cannot reach run in
-  the resolver gate's source sets.
-  Next: the proof-only `embed`
-  ([contracts](wiki/spec/proofs/contracts.md)), which the library's device
-  files stop at; `clamp` waits on
-  **Q4: executable-numeric-builtins** in `OWNER_QUESTIONS.md`; typing's declared
-  equality, which needs
-  `Equatable` named conformances
-  ([core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition));
-  and in checking contract refinement. Publish the parser's capacity refusals as the
-  request contract's scalar-resource provisions, whose rows (roots and states
-  4,096; path members, data members, type nodes, statements and expressions
-  16,384) the psi package's own 60,213 expressions exceed, so they must count
-  per source unit, or grow, before D can compile C. Run the
-  three gates on Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
-  structural identity, capacity and determinism controls and range-proven
-  narrowing casts.
+  Current frontier: complete the request-to-source connection and the
+  unsupported language and library closure below, then carry checked source
+  through proof, Terminal Psi and Omega realization. Revalidate the integrated
+  source with the parser, resolver, typing and checking gates, including the
+  whole Psi package; retain the actual remaining diagnostics rather than
+  carrying forward earlier case counts or package-size measurements.
+
+  - Request semantics (`source/omega/request/`): well-formed requests stop at
+    `coverage_request_semantics`. Phase 3 needs **Q3**,
+    `ocreq-package-key-identity-derivation`, in `OWNER_QUESTIONS.md`; implement
+    package identity/order, dependency graph, snapshot materialization,
+    admissions and subject commitment (phases 3, 4, 5, 7 and 8), preserving
+    the contract's diagnostic selection order, then hand the root source to
+    Psi. Keep D's request vectors in `tests/product/request/test-request.sh`.
+  - Parsing and resolution (`source/psi/parse/`, `source/psi/resolve/`): admit
+    the remaining valid forms, including callback telescopes (`native callback
+    procedure from`), applied type-position domains (`in Quantity<Units::METER>`),
+    installation reach (`reaches <= Bound`), juxtaposed requires facts,
+    rank ranges (`terminates by i in 0..=n`) and indexed membership domains
+    (`in AtMost<8>`). Bind mathematical definitions and transparent trait
+    refinements, nominal `where machine ... satisfies` contracts, generic
+    structural contracts and their remaining clauses, `where proposition`
+    contracts and proposition/evidence binders. Complete operator binding
+    beyond ordinary owned arithmetic/order machines, including equality,
+    index and range operators and trait requirements. Preserve the named
+    refusals until each form's ordinary semantics is implemented.
+  - Typing (`source/psi/typing/`): complete trait requirement calls, generic
+    conformance members, conformance static arguments, requirements with
+    their own generic parameters, target-scoped family calls and case domain
+    qualifiers. Implement declared equality through `Equatable` named
+    conformances under [core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition).
+    Core's theorems over `Nat`, `Seq` and records also require **Q7**,
+    `proof-fact-data-equality`; do not infer proof identity from executable
+    equality or from the Rust implementation's source-shape distinction.
+  - Checking and proof (`source/psi/checking/`): implement proof-only `embed`
+    under [contracts](wiki/spec/proofs/contracts.md), mathematical/proposition
+    facts beyond the current whole-fact bindings, and contract refinement
+    beyond crash causes, including satisfier and static-machine-argument
+    premises and guarantees. Prove indexes against symbolic `const` extents,
+    case memberships, memberships inside larger facts, byte predicates and
+    stores affecting case-specific `where` facts. Represent storage origins
+    for returned references, reference fields and selected reference values;
+    nonempty writes through an unknown origin must remain refused rather
+    than acquire independent storage facts. **Q4**,
+    `executable-numeric-builtins`, governs `clamp` and the related numeric
+    functions and the bounds subsequent narrowing conversions require.
+    **Q9**, `store-evaluation-order`, governs when checking and ownership
+    capture a store's target selectors; preserve its three
+    `tests/omega/pass/ownership/` selector/replacement controls until the
+    decision is implemented consistently in both compilers.
+  - Bundled-library and entry closure: remeasure the first actual refusal in
+    each source set rather than retaining the old parse/resolve totals.
+    **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns the remaining retired boundary
+    requirement/operator migration, and **CANONICALIZE-SCALAR-RANGE-CONTRACTS**
+    owns remaining range suffixes; do not accept retired syntax to bypass
+    them. Preserve the outstanding closure cases in `std/calling.omg`
+    (`Policy satisfies CallingPolicy`), the device/arena/extent imports
+    (`extent`'s mathematical `no_wrap` declaration), `core/slice.omg`'s index
+    operator, and `std/process_exit.omg`'s provider type used without a direct
+    import. `core/option.omg`'s `zero_value<Optional<T>>()` observation has no
+    specified source meaning; resolve that contract instead of importing the
+    Rust parser's contextual recognition. `std/build.omg` needs its build
+    context's `Build`. The product entry's console closure also needs the
+    boundary trait argument in `Binding<Console>` and **Q6**,
+    `binding-receiver-call-form`, for calls through it. Reconcile std target
+    providers' undocumented `Owner::provider_defaults` / provider-data
+    convention with named implementation selection in
+    [provider selection](wiki/spec/build/provider_selection.md).
+  - Capacity and validation: publish parser capacity refusals through the
+    [compiler request contract's scalar-resource provisions](wiki/spec/build/compiler_request.md).
+    Its published limits and counting scope must cover the actual shared
+    source-set tables and compiler closure; the implementation's raised
+    capacities alone do not settle whether the request counts per unit or
+    needs larger provisions. Preserve acceptance/rejection twins, lexical
+    handoff, structural identities, capacity edges, deterministic observations
+    and range-proven narrowing casts. Run `tests/psi/{parser,resolver,typing}/`
+    gates on Linux and Windows as well as macOS, and retain checking and
+    request coverage in the shared product suite. Use an explicit fresh
+    `OMEGA_CLI` and `OMEGA_TARGET`; keep the gate decoders semantic-free.
 
   Acceptance: the package-resolved closure implements the
   [compiler product contract](wiki/spec/build/compiler_request.md), passes the
   shared product suite and Rust/Omega differential checks, and publishes a
-  deterministic manifest of all transitive compiler/build inputs. Epsilon-written
-  D and `omega0 -> omega` construction stay on `TASKS_BOOTSTRAP.md`.
+  deterministic manifest of all transitive compiler/build inputs. Rust
+  agreement is not bootstrap authority. Epsilon-written D and
+  `omega0 -> omega` construction stay on `TASKS_BOOTSTRAP.md`.

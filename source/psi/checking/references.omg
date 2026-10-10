@@ -1,3 +1,4 @@
+use psi::checking::aliases;
 use psi::checking::checker;
 use psi::checking::evaluation;
 use psi::checking::flow;
@@ -141,6 +142,9 @@ crashes Trap
 
     state local(checker: &mut Checker, typing: &Typing, declaration: u64 in Trapping, value: Value, type_handle: u64 in Trapping) -> bool {
         let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Local, declaration, 0, type_handle);
+        // Replaying a condition through this binding would now read the
+        // replacement referent. Existing captured references keep theirs.
+        Checker::forget_aliases(checker, place);
         Checker::initialize_place(checker, typing, place, value);
         true
     }
