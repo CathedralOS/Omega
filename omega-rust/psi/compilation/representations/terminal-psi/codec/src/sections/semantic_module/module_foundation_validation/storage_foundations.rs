@@ -100,6 +100,26 @@ fn owned_record_store_carrier(
     .then_some(structural_type)
 }
 
+/// Shared length-result check: the operation must produce an unsigned
+/// 64-bit scalar; source custody and extent provenance stay with full
+/// module validation.
+pub(super) fn validate_u64_length_result(
+    operation: &Operation,
+    malformed_label: &'static str,
+) -> Result<(), CodecError> {
+    let expected = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
+    );
+    if operation
+        .result
+        .scalar()
+        .is_none_or(|result| result.scalar_type != expected)
+    {
+        return malformed(malformed_label);
+    }
+    Ok(())
+}
+
 pub(super) fn validate_establish_reference(
     module: &TerminalModule,
     machine: &TerminalMachine,

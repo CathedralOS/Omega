@@ -110,19 +110,10 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let OperationKind::ElementViewLength { .. } = &operation.kind else {
         unreachable!("dispatched validate_element_view_length")
     };
-    let expected = ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
-    );
-    if operation
-        .result
-        .scalar()
-        .is_none_or(|result| result.scalar_type != expected)
-    {
-        return malformed("element-view length requires an unsigned 64-bit scalar result");
-    }
-    // Full module validation independently checks source custody and the
-    // result's exact extent provenance.
-    Ok(())
+    super::validate_u64_length_result(
+        operation,
+        "element-view length requires an unsigned 64-bit scalar result",
+    )
 }
 
 pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_element_view_read(
