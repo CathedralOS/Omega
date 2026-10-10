@@ -106,10 +106,7 @@ pub(crate) fn lower_selected_machine(
                 .gap_diagnostic(selection.machine, &checked.symbols),
         });
     }
-    Ok(
-            identities,LoweredSelectedMachine::source_mapped(
-            identities, 
-        crate::unit::attached_unit::lower_scalar_effect_closure(
+    Ok(LoweredSelectedMachine::source_mapped(crate::unit::attached_unit::lower_scalar_effect_closure(
             identities, checked, selection.machine)?,
         LoweringCompletion {
             ..Default::default()

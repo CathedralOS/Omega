@@ -213,7 +213,7 @@ pub(super) fn emit(
     let provider_places = if let Some(attachment) = attachment {
         let attachment_declaration =
             terminal_psi::find_structural_type(structural_types, attachment)
-                .expect("lowered attachment declaration exists");
+                .expect(identities, "lowered attachment declaration exists");
         lower_provider_attachment_places(
             checked,
             attachment,
@@ -289,17 +289,15 @@ pub(super) fn emit(
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
     evaluation.shared_qualifications = prepared_scalar_qualifications.clone();
     evaluation.machine = Some(terminal_machine);
-    evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
+    evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone(identities, );
     evaluation.place_observations =
         crate::scalar_lowering::computations::fields::prepare_place_observations(
-            identities,
             checked,
             plan.machine,
             plan.state,
             structural_types,
         );
     evaluation.record_fields = crate::scalar_lowering::computations::fields::prepare(
-            identities,
         checked,
         plan.machine,
         &[plan.machine],
@@ -608,13 +606,13 @@ pub(super) fn emit(
         // A projected owned argument can move the complete subtree roster out
         // of a result carrier, in which case the frontier retires the place at
         // the consuming call and the return roster must not discard its root.
-        let moved_subtrees = projected_moves::moved_subtrees(&operations.operations);
+        let moved_subtrees = projected_moves::moved_subtrees(identities, &operations.operations);
         // Resolve contextual disposal against the current storage before
         // constructing the production roster. A name is not disposal
         // authority: reference descriptors can owe affine retirement without
         // an owned-storage StateExit row. Only an actual contextual action
         // replaces their independently recorded production cleanup.
-        let results = StructuralResults::Dense(&mut structural_result_places);
+        let results = StructuralResults::Dense(identities, &mut structural_result_places);
         let normal_regions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
             checked,
             crate::unit::unit_cleanup::outstanding_actions(
@@ -626,11 +624,11 @@ pub(super) fn emit(
             structural_types,
             type_ids,
             |source, path| {
-                let (place, root_type) =
+                let (identities, place, root_type) =
                     evaluation.cleanup_storage(
             identities,source, parameters, |binding| {
                         let value = results.repair_value(binding, &operations)?;
-                        Ok((value.place, value.structural_type))
+                        Ok(identities, (value.place, value.structural_type))
                     })?;
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                     path, root_type, structural_types, None, &mut std::iter::empty(), None,
@@ -1155,7 +1153,6 @@ fn lower_structural_result_declaration(
         validation::view_result_carrier_qualifications(
             identities,&checked.typed, return_type)
             .map_err(
-            identities,
             LoweringError::Unsupported)?
             .iter(
             identities,)

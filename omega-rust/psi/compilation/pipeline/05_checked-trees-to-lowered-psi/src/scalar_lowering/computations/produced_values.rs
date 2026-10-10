@@ -25,6 +25,7 @@ pub(crate) struct Slot {
 }
 
 pub(crate) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],

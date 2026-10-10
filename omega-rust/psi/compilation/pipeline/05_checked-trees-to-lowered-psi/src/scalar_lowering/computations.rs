@@ -124,7 +124,6 @@ impl<'a> Expansion<'a> {
     ) -> Self {
         self.erased_proof_formals =
             crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-            identities,
                 self.checked,
                 roster,
             );
@@ -411,6 +410,7 @@ impl<'a> Expansion<'a> {
 
     fn argument(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: &Argument,
         input_types: &[QualifiedScalarType],
         target: usize,
@@ -471,6 +471,7 @@ impl<'a> Expansion<'a> {
                 field,
                 ..
             } => self.structural_field(
+            identities,
                 receiver_value,
                 &subject,
                 field,
@@ -703,7 +704,7 @@ impl<'a> Expansion<'a> {
                         when_false_erased_proof_arguments: Vec::new(),
                     },
                 });
-                self.argument(&operand, input_types, dispatch, site, active)?
+                self.argument(identities, &operand, input_types, dispatch, site, active)?
             }
             CheckedScalarComputationKind::Call {
                 source_call,
@@ -747,7 +748,7 @@ impl<'a> Expansion<'a> {
                     operand_types.push(self.argument_type(operand, site, input_types)?);
                 }
                 let expression = site.bindings.clone().with_computation_operands(
-                    input_types.len(),
+                    input_types.len(identities, ),
                     operand_types[input_types.len()..]
                         .iter()
                         .map(|value| value.scalar_type),

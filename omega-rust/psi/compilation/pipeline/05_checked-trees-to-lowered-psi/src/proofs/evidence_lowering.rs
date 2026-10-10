@@ -40,7 +40,6 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         evidence_term_ids.term_ids,
     )?;
     let outcome_specific_ensures = outcome_specific_ensure_rows(
-            identities,
         checked,
         machine,
         lowered.semantic_module.entry,
@@ -55,7 +54,6 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         &evidence_terms.term_ids,
     )?;
     let proof_output_calls = lower_proof_output_calls(
-            identities, 
         checked,
         machine,
         lowered.semantic_module.entry,
@@ -66,7 +64,6 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         &applications,
     )?;
     lower_outcome_specific_call_evidence(
-            identities, 
         checked,
         machine,
         lowered,

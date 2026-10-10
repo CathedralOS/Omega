@@ -113,7 +113,8 @@ pub(crate) fn emit(
             };
             let mut matching = fields
                 .iter()
-                .filter(|field| field.identity == identities.intern(&identity.spelling() && !field.relevance.is_erased()));
+                .filter(|field| field.identity == identities.intern(&identity.spelling())
+                    && !field.relevance.is_erased());
             let field = matching.next().ok_or(LoweringError::Unsupported(
                 "representation view store leaf is absent",
             ))?;
@@ -122,7 +123,6 @@ pub(crate) fn emit(
             }
             let leaf_scalar = leaf_scalar_type(&field.field_type)?;
             let indexes = runtime_elements::evaluate_selectors(
-            identities,
                 &steps,
                 checked,
                 machine,
@@ -454,9 +454,7 @@ pub(crate) fn prepare_byte_destination(
     let Some((leaf, prefix)) = path.split_last() else {
         return unsupported("byte representation store has no backing coordinate");
     };
-    let (
-            identities,mut steps, walked) = walk_carrier_prefix(
-            identities,root_type, prefix, structural_types)?;
+    let (mut steps, walked) = walk_carrier_prefix(identities, root_type, prefix, structural_types)?;
     let capacity = byte_capacity(walked, structural_types)?;
     let fixed_index = match leaf {
         CheckedUnitStructuralPathSegment::FixedIndex(index) => *index,
@@ -466,8 +464,7 @@ pub(crate) fn prepare_byte_destination(
             }
             0
         }
-        _ => return unsupported(
-            identities,"byte representation store has no element coordinate"),
+        _ => return unsupported(identities, identities, "byte representation store has no element coordinate"),
     };
     let mut indexes = runtime_elements::evaluate_selectors(
         &steps,
@@ -592,7 +589,8 @@ fn walk_carrier_prefix<'a>(
                 };
                 let mut matching = fields
                     .iter()
-                    .filter(|field| field.identity == identities.intern(&identity.spelling() && !field.relevance.is_erased()));
+                    .filter(|field| field.identity == identities.intern(identity.spelling())
+                    && !field.relevance.is_erased());
                 let field = matching.next().ok_or(LoweringError::Unsupported(
                     "representation view store carrier field is absent",
                 ))?;

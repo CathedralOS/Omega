@@ -86,6 +86,7 @@ pub(crate) fn charge_boolean_expansion(
 }
 
 pub(super) fn checked_boolean_proposition_with_budget(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
     remaining: &mut usize,
@@ -100,10 +101,10 @@ pub(super) fn checked_boolean_proposition_with_budget(
         // distributes into the atomic kind rather than an outer proposition.
         CheckedBooleanExpression::Not(operand)
             if let CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } =
-                operand.as_ref() =>
+                operand.as_ref(identities, ) =>
         {
             scalar_ieee_float_comparison_proposition(
-                negated_float_comparison_kind(*kind),
+                negated_float_comparison_kind(identities, identities, *kind),
                 left,
                 right,
                 values,
@@ -155,7 +156,7 @@ pub(super) fn checked_boolean_proposition_with_budget(
             Ok(if conjunction {
                 Proposition::Conjunction(propositions)
             } else {
-                Proposition::Disjunction(propositions)
+                Proposition::Disjunction(identities, identities, propositions)
             })
         }
         expression => {
@@ -283,13 +284,14 @@ fn checked_boolean_connective_polarity(
 }
 
 pub(super) fn checked_boolean_atom_polarity(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
     positive: bool,
     remaining: &mut usize,
     depth: usize,
 ) -> Result<Proposition, LoweringError> {
-    charge_boolean_expansion(remaining, depth)?;
+    charge_boolean_expansion(identities, identities, remaining, depth)?;
     if let CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } = expression {
         return scalar_ieee_float_comparison_proposition(
             if positive {
@@ -303,7 +305,7 @@ pub(super) fn checked_boolean_atom_polarity(
         );
     }
     if positive {
-        return checked_boolean_proposition_with_budget(expression, values, remaining, depth + 1);
+        return checked_boolean_proposition_with_budget(identities, identities, expression, values, remaining, depth + 1);
     }
     let mut left = ScalarTerm::boolean_not(checked_boolean_scalar_term(expression, values, &[])?)
         .map_err(LoweringError::InvalidCrashPredicate)?;

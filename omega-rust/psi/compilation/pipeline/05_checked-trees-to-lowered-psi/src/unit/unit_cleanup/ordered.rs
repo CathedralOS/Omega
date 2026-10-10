@@ -80,7 +80,6 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     unit_roots.push(plan.machine);
     unit_roots.extend_from_slice(&roots);
     lower_unit_closure(
-            identities,
         checked,
         &UnitClosureRequest {
             plans,

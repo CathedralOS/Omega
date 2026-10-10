@@ -145,7 +145,6 @@ pub(crate) fn prepare_call_argument_path(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
     prepare_structural_argument_projection(
-            identities,
         checked,
         argument,
         argument.call_projection(),
@@ -474,8 +473,7 @@ pub(crate) fn lower_typed_argument_path(
     calls: Option<&mut CallEmissionContext<'_>>,
 ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
     emit_argument_path(
-            identities,  
-        &prepare_argument_path(path, root, types)?,
+        &prepare_argument_path(identities, path, root, types)?,
         caller_scalar_values,
         selector_values,
         calls,

@@ -48,6 +48,7 @@ impl OperationFrame<'_, '_> {
     /// Emit one call and publish its result.
     pub(in crate::unit::attached_unit) fn emit_call(
         mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
         inputs: CallInputs<'_>,
     ) -> Result<(), LoweringError> {
@@ -76,7 +77,7 @@ impl OperationFrame<'_, '_> {
                 CheckedUnitCallRoute::Module { .. },
                 CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
             ) => {
-                self.unit_call(operation, call, &inputs)?;
+                self.unit_call(identities, operation, call, &inputs)?;
                 Ok(())
             }
             (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(result)) => {
@@ -611,7 +612,6 @@ impl OperationFrame<'_, '_> {
             let register = matches!(self.results, StructuralResults::Dense(_));
             let frontier = self.suspension_source_frontier(*coordinate)?;
             let declaration = ordinary_calls::emit_structural(
-            identities,
                 checked,
                 self.state,
                 operation,
@@ -648,6 +648,7 @@ impl OperationFrame<'_, '_> {
     /// `emit_structural`, registering the member's own result binding.
     pub(super) fn establish_structural_value(
 self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
@@ -704,7 +705,7 @@ self,
         let owner = if result.local.is_named() {
             facts::PlaceRoot::Symbol(result.local.symbol)
         } else {
-            facts::PlaceRoot::Expression(occurrence.expression)
+            facts::PlaceRoot::Expression(identities, occurrence.expression)
         };
         let prepared_claims = crate::emission::claim_bindings::prepare_establishment_claims(
             checked,
@@ -806,10 +807,9 @@ self,
                 .ok_or(LoweringError::Unsupported(
                     "structural operand result has no declaration",
                 ))?;
-                Ok(Some(declaration))
+                Ok(identities, Some(declaration))
             };
         let declaration = structural_values::emit(
-            identities,
             checked,
             machine,
             state,
@@ -861,6 +861,7 @@ self,
     /// structural scalar call shape.
     fn scalar_call(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
         call: &CheckedUnitCallPlan,
         result: &checked_trees::CheckedUnitScalarResultBindingPlan,
@@ -916,7 +917,7 @@ self,
             .len()
             != target.erased_parameters().len()
         {
-            return unsupported("scalar call erased lane disagrees with its target roster");
+            return unsupported(identities, identities, "scalar call erased lane disagrees with its target roster");
         }
         // Structural guards resolve through the same allocated signature and
         // completed operands as Unit calls. A scalar result changes publication,

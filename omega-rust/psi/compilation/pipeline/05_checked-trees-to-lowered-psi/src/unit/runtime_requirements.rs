@@ -175,7 +175,7 @@ struct RuntimeRequirementTerms<'parameters> {
 impl RuntimeRequirementTerms<'_> {
     fn scalar_leaf(
         &self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
         match expression {
@@ -225,17 +225,13 @@ impl RuntimeRequirementTerms<'_> {
 
 impl PredicateTerms for RuntimeRequirementTerms<'_> {
     fn case_membership(
-        &self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-
-        expression: &CheckedBooleanExpression,
+        &self,        expression: &CheckedBooleanExpression,
     ) -> Result<Proposition, LoweringError> {
         let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression
         else {
-            return unsupported("runtime case requirement has no case subject");
+            return unsupported(identities, "runtime case requirement has no case subject");
         };
         crate::proofs::crash_routes::lower_structural_case_membership(
-            identities,
             subject,
             case,
             self.parameters,
@@ -247,8 +243,8 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
         crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.scalar_leaf(leaf))
     }
 
-    fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
-        match expression {
+    fn boolean(&self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {        match expression {
             CheckedBooleanExpression::Not(operand) => {
                 ScalarTerm::boolean_not(self.boolean(operand)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
@@ -260,7 +256,7 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
             CheckedBooleanExpression::Constant(_)
             | CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::ErasedParameter { .. } => {
-                checked_boolean_scalar_term(expression, self.scalar_parameters, self.erased)
+                checked_boolean_scalar_term(identities, expression, self.scalar_parameters, self.erased)
             }
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,

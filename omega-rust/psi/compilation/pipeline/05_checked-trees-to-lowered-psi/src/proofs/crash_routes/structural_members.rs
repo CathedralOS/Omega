@@ -28,6 +28,7 @@ fn indexed_element_type(
 }
 
 pub(crate) fn lower_structural_member_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     parameter_position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     parameters: &[StructuralParameterDeclaration],
@@ -224,7 +225,7 @@ pub(crate) fn lower_structural_member_term(
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
-    let (root, terminal_path, actual) =
+    let (identities, root, terminal_path, actual) =
         lower_structural_member_path(parameter_position, path, parameters, structural_types)?;
     if actual.scalar_type() != Some(expected) {
         return unsupported(
@@ -243,6 +244,7 @@ pub(crate) fn lower_structural_member_term(
 }
 
 pub(crate) fn lower_ieee_float_field(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     field: &checked_trees::CheckedStructuralParameterField,
     format: IeeeFloatFormat,
     parameters: &[StructuralParameterDeclaration],
@@ -261,6 +263,7 @@ pub(crate) fn lower_ieee_float_field(
 }
 
 pub(crate) fn lower_byte_sequence_field(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     field: &checked_trees::CheckedStructuralParameterField,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
@@ -298,6 +301,7 @@ pub(crate) fn lower_structural_sum_subject(
 }
 
 fn lower_sum_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     root: PlaceId,
     mut structural_type: StructuralTypeId,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -408,7 +412,7 @@ pub(crate) fn lower_structural_case_membership(
             let result = result.ok_or(LoweringError::Unsupported(
                 "case membership result is outside the contract namespace",
             ))?;
-            (result.place, result.structural_type)
+            (identities, result.place, result.structural_type)
         }
     };
     let (subject, structural_type) =

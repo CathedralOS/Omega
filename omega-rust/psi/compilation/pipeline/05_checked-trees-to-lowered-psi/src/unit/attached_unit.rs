@@ -159,7 +159,6 @@ pub(crate) fn lower_scalar_effect_closure(
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     lower_unit_closure(
-            identities,
         checked,
         &UnitClosureRequest {
             scalar_entry: true,
@@ -208,7 +207,7 @@ pub(crate) fn lower_unit_closure(
     // Shared namespaces: every emitted machine resolves types, domains, and
     // services against these one catalogs.
     let (mut structural_types, type_ids, structural_referents) =
-        catalog::lower_unit_structural_types(checked, plans, &closure, &boundaries)?;
+        catalog::lower_unit_structural_types(identities, checked, plans, &closure, &boundaries)?;
     // Callable composed bodies borrow a complete shared catalog. Retain the
     // generated immutable carrier before cloning it into any callee emitter.
     for machine_symbol in &closure {
@@ -228,7 +227,7 @@ pub(crate) fn lower_unit_closure(
                     &mut structural_types,
                 )?;
             }
-            if let Some(value) = operation.stored_bytes() {
+            if let Some(identities, value) = operation.stored_bytes() {
                 crate::emission::structural_byte_sequence_store::prepare_types(
                     value,
                     &mut structural_types,
@@ -240,11 +239,10 @@ pub(crate) fn lower_unit_closure(
                 operation
                 && let Ok(declared) = lookup_type_id(&type_ids, &result.type_identity)
                 && structural_types.iter().any(|declaration| {
-                    declaration.id == declared && declaration.shape.is_bounded_owned_byte_sequence()
+                    declaration.id == declared && declaration.shape.is_bounded_owned_byte_sequence(identities, )
                 })
             {
                 crate::emission::structural_byte_sequence_store::prepare_types(
-            identities,
                     value,
                     &mut structural_types,
                 )?;
@@ -409,7 +407,6 @@ pub(crate) fn lower_unit_closure(
                 .map_err(attributed)?;
             machines.push(machine);
             occurrences.retain(
-            identities,
                 composed.source_calls,
                 composed.selected_ieee_float_comparisons,
                 composed.selected_integer_comparisons,
@@ -458,7 +455,6 @@ pub(crate) fn lower_unit_closure(
             identities,emitted.source_checked_obligations);
     }
     super::unit_cleanup::finalize_nominal_cleanup_actions(
-            identities, 
         checked,
         &mut machines,
         &type_ids,

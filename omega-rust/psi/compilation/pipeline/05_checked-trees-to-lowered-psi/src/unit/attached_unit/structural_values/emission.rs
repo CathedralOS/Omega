@@ -317,7 +317,6 @@ pub(crate) fn emit(
                         event.claim_identity,
                     )?,
                     path: lower_static_argument_path(
-            identities,
                         &path,
                         lookup_type_id(emission.type_ids, &projected.root_type_identity)?,
                         emission.structural_types,
@@ -432,7 +431,7 @@ pub(crate) fn emit(
             loan,
         )?
     } else {
-        let place = emission.value(*value, None)?;
+        let place = emission.value(identities, *value, None)?;
         // A moved place is materialized into the result binding; a copied
         // parameter is already a fresh operation result.
         if emission.sources.is_empty()
@@ -853,7 +852,7 @@ impl ProjectedMove {
     /// The complete walk from `root`'s storage to the projected leaf.
     fn lowered_path(
         &self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
         types: &[StructuralTypeDeclaration],
     ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
@@ -1116,6 +1115,7 @@ impl Emission<'_, '_, '_> {
     /// custody; siblings remain attached to the original live root.
     pub(super) fn constructor_operand(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
     ) -> Result<super::operand_claims::CompletedOperand, LoweringError> {
@@ -1146,9 +1146,9 @@ impl Emission<'_, '_, '_> {
         // A fresh operand has its own continuation, not the enclosing
         // selection's result/residual slots. Incoming owners remain live
         // until their actual consuming operation or outer selection edge.
-        let sources = std::mem::take(&mut self.sources);
+        let sources = std::mem::take(identities, &mut self.sources);
         let owners = std::mem::take(&mut self.owners);
-        let parent_reference = std::mem::replace(&mut self.type_reference, reference);
+        let parent_reference = std::mem::replace(identities, &mut self.type_reference, reference);
         let result = self
             .value(value, None)
             .and_then(|place| {
@@ -1542,8 +1542,8 @@ impl Emission<'_, '_, '_> {
                         );
                     }
                 };
-                if !self.source_at(selected).is_some() {
-                    return unsupported("owned selection place is absent from its receipt sources");
+                if !self.source_at(identities, selected).is_some() {
+                    return unsupported(identities, "owned selection place is absent from its receipt sources");
                 }
                 let continuation = continuation.ok_or(LoweringError::Unsupported(
                     "direct owned place requires a structural continuation",
@@ -1596,7 +1596,6 @@ impl Emission<'_, '_, '_> {
                     self.calls,
                 )?;
                 let declaration = crate::scalar_lowering::computations::cases::declarations(
-            identities,
                     &self.operations.operations,
                 )
                 .find(|declaration| declaration.id == place)
@@ -1632,6 +1631,7 @@ impl Emission<'_, '_, '_> {
     /// owned custody; source replay has already checked the exact operand.
     fn materialize_place(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: PlaceId,
         value: CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
@@ -1701,7 +1701,7 @@ impl Emission<'_, '_, '_> {
             self.multiplicity,
         )?);
         let parameters = fresh_value_declarations(self.next_value, self.values)?;
-        self.temporary_places.push(StructuralPlaceDeclaration {
+        self.temporary_places.push(identities, identities, StructuralPlaceDeclaration {
             id: place,
             kind: StructuralPlaceKind::BlockParameter { block, position },
         });
@@ -1808,6 +1808,7 @@ impl Emission<'_, '_, '_> {
     /// evidence establishing it would owe.
     pub(super) fn view_element_copy(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         reads: &[checked_trees::CheckedScalarExpression],
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
@@ -1844,7 +1845,7 @@ impl Emission<'_, '_, '_> {
                 return unsupported("view element copy reads only plain scalar fields");
             }
             if field.relevance.is_erased()
-                || element_path.as_slice()
+                || element_path.as_slice(identities, )
                     != [checked_trees::CheckedScalarReadProjection::Static(
                         checked_trees::CheckedStructuralPredicatePathSegment::Field(
                             checked_trees::CheckedMemberIdentity::of_spelling(&field.identity),
@@ -1878,7 +1879,7 @@ impl Emission<'_, '_, '_> {
             self.evaluation
                 .structural_parameters
                 .iter()
-                .map(|(_, parameter)| parameter),
+                .map(identities, |(_, parameter)| parameter),
             self.operations,
         )?);
         let Some(continuation) = continuation else {
@@ -1949,7 +1950,7 @@ impl Emission<'_, '_, '_> {
             operation,
             self.structural_type,
         ));
-        let Some(continuation) = continuation else {
+        let Some(identities, continuation) = continuation else {
             // At the value root the fresh place publishes directly — the copy
             // consumes nothing, so there is no custody edge to join.
             return Ok(place);

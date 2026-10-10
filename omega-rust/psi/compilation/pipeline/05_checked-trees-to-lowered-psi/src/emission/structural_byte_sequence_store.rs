@@ -44,9 +44,10 @@ pub(crate) enum StoreRoot<'a> {
 
 /// Shared callees must use the closure's existing carrier, not allocate one.
 pub(crate) fn existing_literal_view_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     types: &[StructuralTypeDeclaration],
 ) -> Result<StructuralTypeId, LoweringError> {
-    let declaration = terminal_psi::structural_type_by_identity(types, LITERAL_VIEW_IDENTITY)
+    let declaration = terminal_psi::structural_type_by_identity(types, identities.intern(LITERAL_VIEW_IDENTITY))
         .ok_or(LoweringError::Unsupported(
             "composed callable produced a type absent from the shared catalog",
         ))?;
@@ -103,7 +104,7 @@ pub(crate) fn prepare_types(
                     capacity: *capacity,
                 },
             );
-            if let Some(existing) = terminal_psi::structural_type_by_identity(types, &identity) {
+            if let Some(existing) = terminal_psi::structural_type_by_identity(types, identities.intern(&identity)) {
                 if existing.shape != shape {
                     return unsupported("generated owned byte carrier has a different shape");
                 }
@@ -131,6 +132,7 @@ pub(crate) fn prepare_types(
 
 /// A generated immutable carrier, not a nominal authored type or parameter.
 pub(crate) fn literal_view_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<StructuralTypeId, LoweringError> {
     let shape =
@@ -138,7 +140,7 @@ pub(crate) fn literal_view_type(
             access: Some(terminal_psi::StructuralAccess::SharedBorrow),
         });
     if let Some(declaration) =
-        terminal_psi::structural_type_by_identity(types, LITERAL_VIEW_IDENTITY)
+        terminal_psi::structural_type_by_identity(types, identities.intern(LITERAL_VIEW_IDENTITY))
     {
         return if declaration.shape == shape {
             Ok(declaration.id)
@@ -159,7 +161,7 @@ pub(crate) fn literal_view_type(
     types.push(StructuralTypeDeclaration {
         scalar_restriction: None,
         id,
-        identity: LITERAL_VIEW_IDENTITY.into(),
+        identity: identities.intern(LITERAL_VIEW_IDENTITY),
         shape,
     });
     Ok(id)
@@ -168,6 +170,7 @@ pub(crate) fn literal_view_type(
 /// Projected byte leaves copy to the canonical standalone descriptor shape.
 /// An inline shared field has no nominal standalone type identity of its own.
 pub(crate) fn descriptor_value_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<StructuralTypeId, LoweringError> {
     const IDENTITY: &str = "compiler(shared-byte-descriptor)";
@@ -201,7 +204,7 @@ pub(crate) fn descriptor_value_type(
     types.push(StructuralTypeDeclaration {
         scalar_restriction: None,
         id,
-        identity: IDENTITY.into(),
+        identity: identities.intern(IDENTITY),
         shape,
     });
     Ok(id)
@@ -296,7 +299,6 @@ pub(crate) fn emit_content_store(
                         );
                     }
                     crate::emission::structural_scalar_store::lower_structural_field_path(
-            identities,
                         *structural_type,
                         carrier_path,
                         field_identity,
@@ -348,7 +350,6 @@ pub(crate) fn emit_content_store(
                         );
                     }
                     crate::emission::structural_scalar_store::lower_structural_field_path(
-            identities,
                         *structural_type,
                         carrier_path,
                         field_identity,
@@ -614,6 +615,7 @@ pub(crate) fn emit_literal_view(
 /// caller publishes the declaration in its own result roster.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_owned_value(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     value: &CheckedByteSequenceValuePlan,
     structural_type: StructuralTypeId,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
@@ -637,7 +639,7 @@ pub(crate) fn emit_owned_value(
     })) =
         terminal_psi::find_structural_type(structural_types, structural_type).map(|row| &row.shape)
     else {
-        return unsupported("owned byte local has no bounded carrier");
+        return unsupported(identities, identities, "owned byte local has no bounded carrier");
     };
     let mut emitter = ValueEmitter {
         plan: value,
@@ -1104,7 +1106,7 @@ impl ValueEmitter<'_> {
                         terminal_psi::StructuralAccess::SharedBorrow,
                     ),
                 })?;
-                Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
+                Ok(identities, identities, (ByteSequenceOperand::Whole { source, length }, *capacity))
             }
             ByteValue::Field {
                 root,
@@ -1144,6 +1146,8 @@ impl ValueEmitter<'_> {
                             field,
                         })?;
                 Ok((
+            identities,
+            identities,
                     ByteSequenceOperand::Field {
                         source,
                         field,

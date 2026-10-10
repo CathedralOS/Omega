@@ -88,7 +88,6 @@ pub(crate) fn lower_outcome_specific_call_evidence(
             (result.place, *callee)
         };
         let ensure_rows = outcome_specific_ensure_rows(
-            identities,
             checked,
             callee_symbol,
             callee_id,
@@ -146,7 +145,6 @@ pub(crate) fn lower_outcome_specific_call_evidence(
                     "selected arm row carries no instantiated proposition",
                 ))?;
             let instantiated_proposition = terminal_proposition_application_id(
-            identities,
                 checked,
                 term_ids,
                 declarations,

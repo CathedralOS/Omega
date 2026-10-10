@@ -43,7 +43,6 @@ pub(crate) fn lower_proof_output_calls(
                 invocation,
             )?;
             let static_requirement_dispatch = lower_static_requirement_dispatch(
-            identities,
                 checked,
                 terminal_machine,
                 semantic_module,
@@ -62,7 +61,6 @@ pub(crate) fn lower_proof_output_calls(
                             )
                         })?,
                         callee_proposition: terminal_proposition_application_id(
-            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -80,7 +78,6 @@ pub(crate) fn lower_proof_output_calls(
                             "terminal proof-output source input has no canonical identity",
                         )?,
                         instantiated_proposition: terminal_proposition_application_id(
-            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -112,7 +109,6 @@ pub(crate) fn lower_proof_output_calls(
                         output_field: callee_output.name.clone(
             identities,),
                         callee_proposition: terminal_proposition_application_id(
-            identities,
                             checked,
                             term_ids,
                             declarations,
@@ -479,12 +475,11 @@ pub(crate) fn terminal_proposition_application_id(
                 .evidence_projection
                 .as_ref(
             identities,)
-                .map(|projection| {
+                .map(identities, |projection| {
                     evidence_projection_identity(
                         checked,
                         projection,
                         terminal_evidence_term_id(
-            identities,
                             term_ids,
                             projection.term,
                             "proof-output proposition projects an unrelated evidence term",
@@ -503,7 +498,7 @@ pub(crate) fn terminal_proposition_application_id(
             identities,)?;
     let evidence_interface = application
         .evidence_interface
-        .as_ref()
+        .as_ref(identities, )
         .map(|interface| lower_evidence_interface(checked, interface))
         .transpose()?;
     applications

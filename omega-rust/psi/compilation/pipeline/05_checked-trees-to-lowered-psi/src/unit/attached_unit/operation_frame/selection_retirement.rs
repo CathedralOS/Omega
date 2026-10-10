@@ -40,7 +40,6 @@ impl OperationFrame<'_, '_> {
                 let types = self.structural_types.declarations(
             identities,);
                 let path = structural_paths::lower_static_argument_path(
-            identities,
                     &complement.path,
                     root_type,
                     types,

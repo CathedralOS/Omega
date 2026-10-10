@@ -30,6 +30,7 @@ pub(crate) fn source_bytes(argument: &CheckedUnitStructuralArgumentPlan) -> Opti
 }
 
 pub(crate) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     types: &[StructuralTypeDeclaration],

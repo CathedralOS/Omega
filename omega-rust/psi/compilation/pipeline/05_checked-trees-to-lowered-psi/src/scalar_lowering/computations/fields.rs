@@ -91,7 +91,6 @@ impl super::Expansion<'_> {
                 );
             }
             let prepared = structural_values::prepare_value(
-            identities,
                 self.checked,
                 self.qualifications,
                 site.state,
@@ -386,7 +385,7 @@ fn captured_place_subject(
         }
     };
     let root_identity = carrier_identity(checked, owner, loan.root_type)?;
-    let mut declaration = terminal_psi::structural_type_by_identity(types, &root_identity).ok_or(
+    let mut declaration = terminal_psi::structural_type_by_identity(types, identities.intern(&root_identity)).ok_or(
         LoweringError::Unsupported("record loan's captured root has no structural namespace"),
     )?;
     let mut path = Vec::new();
@@ -615,9 +614,9 @@ pub(crate) fn loaned_store(
     types: &[StructuralTypeDeclaration],
 ) -> Result<Option<LoanedStore>, LoweringError> {
     let checked_trees::CheckedStoreRoot::Local { symbol } = root else {
-        return Ok(None);
+        return Ok(identities, None);
     };
-    let Some(loan) = loan_subject(checked, machine, state, symbol, types)? else {
+    let Some(identities, loan) = loan_subject(checked, machine, state, symbol, types)? else {
         return Ok(None);
     };
     if loan.access != checked_trees::CheckedStructuralAccess::MutableBorrow {
@@ -625,7 +624,6 @@ pub(crate) fn loaned_store(
             identities, "record store requires a mutable captured loan");
     }
     let field = crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
-            identities,
         primitive_type,
         carrier_path,
         field_identity,
@@ -667,6 +665,7 @@ pub(crate) fn loaned_store(
 /// The full leaf path is geometry only; source replay separately rejoins the
 /// authored assignment, and emission still proves each stored byte's bound.
 pub(crate) fn loaned_primitive_store(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -675,9 +674,9 @@ pub(crate) fn loaned_primitive_store(
     types: &[StructuralTypeDeclaration],
 ) -> Result<Option<LoanedStore>, LoweringError> {
     let checked_trees::CheckedStoreRoot::Local { symbol } = destination else {
-        return Ok(None);
+        return Ok(identities, None);
     };
-    let Some(loan) = loan_subject(checked, machine, state, *symbol, types)? else {
+    let Some(identities, loan) = loan_subject(checked, machine, state, *symbol, types)? else {
         return Ok(None);
     };
     let Some(overlay) = &loan.byte_overlay else {
@@ -773,7 +772,7 @@ pub(crate) fn prepare(
             let loan = match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
-                } => loan_subject(checked, plan_machine, root.state, symbol, types)?,
+                } => loan_subject(identities, checked, plan_machine, root.state, symbol, types)?,
                 _ => None,
             };
             let (

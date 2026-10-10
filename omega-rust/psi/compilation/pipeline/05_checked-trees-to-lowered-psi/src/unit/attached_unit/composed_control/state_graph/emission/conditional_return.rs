@@ -24,6 +24,7 @@ impl StateGraphEmission<'_, '_> {
     /// structural exits carry actual continuation identity through `guarded`.
     pub(super) fn conditional_return_arm(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         position: usize,
         state_parameters: &[StructuralParameterDeclaration],
         arm_namespace: Vec<ValueDeclaration>,
@@ -142,11 +143,10 @@ impl StateGraphEmission<'_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "Unit graph call arm lost its call result",
                         ))?
-                        .result();
+                        .result(identities, );
                     match result {
                         checked_trees::CheckedUnitCallResult::Structural { .. } => {
                             super::super::guarded::complete_structural_return(
-            identities,
                                 self.checked,
                                 state,
                                 super::super::cleanup::coordinate(

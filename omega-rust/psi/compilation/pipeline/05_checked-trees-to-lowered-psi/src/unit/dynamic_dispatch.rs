@@ -183,7 +183,6 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
             };
             slots.push(
             identities,  lower_slot(
-            identities,
                 checked,
                 plan,
                 u32::try_from(slot)
@@ -314,7 +313,7 @@ fn lower_slot(
         let formal = structural_parameters.get(claim.argument_index as usize).ok_or(
             LoweringError::Unsupported("dynamic slot claim has no structural formal"),
         )?;
-        Ok(TerminalDynamicClaimPath {
+        Ok(identities, TerminalDynamicClaimPath {
             argument_index: claim.argument_index,
             path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
                 &claim.path, formal.structural_type, structural_types,

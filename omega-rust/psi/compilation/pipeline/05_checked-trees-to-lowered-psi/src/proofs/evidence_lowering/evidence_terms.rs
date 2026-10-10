@@ -412,7 +412,6 @@ pub(crate) fn lower_evidence_terms(
             identities, |application| application.id)
             .ok_or(
             LoweringError::Unsupported(
-            identities,
                 "checked evidence term has no terminal proposition application",
             ))?;
         let checked_interface =

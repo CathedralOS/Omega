@@ -16,7 +16,6 @@ impl OperationFrame<'_, '_> {
         };
         let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let prepared = crate::emission::loan_completions::prepare(
-            identities,
             self.checked,
             self.machine,
             coordinate,

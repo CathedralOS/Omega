@@ -53,7 +53,6 @@ pub(crate) fn retain_admitted_reborrow_root_handoffs(
             return unsupported("reborrow source owner has no unique Terminal machine");
         }
         reborrow_root_handoff::retain_selected_reborrow_root_handoffs(
-            identities,
             checked,
             *source,
             *terminal,

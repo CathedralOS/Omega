@@ -297,6 +297,7 @@ impl CleanupEmission<'_> {
 
     pub(crate) fn continue_actions(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         actions: Vec<TerminalAffineCleanupAction>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -309,7 +310,7 @@ impl CleanupEmission<'_> {
             &values
                 .iter()
                 .map(|value| value.value_type())
-                .collect::<Vec<_>>(),
+                .collect::<Vec<_>>(identities, identities, ),
             next_value,
         )?;
         self.cleanup_jump(
@@ -325,6 +326,7 @@ impl CleanupEmission<'_> {
 
     fn cleanup_scope(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         regions: &[CleanupRegion],
         depth: usize,
         values: &mut Vec<ValueDeclaration>,
@@ -371,7 +373,7 @@ impl CleanupEmission<'_> {
                 &values
                     .iter()
                     .map(|value| value.value_type())
-                    .collect::<Vec<_>>(),
+                    .collect::<Vec<_>>(identities, identities, ),
                 next_value,
             )?;
             self.cleanup_cases(
@@ -460,11 +462,10 @@ impl CleanupEmission<'_> {
             self.blocks.push(Block {
                 id: *self.current,
                 parameters: std::mem::take(self.parameters),
-                structural_parameters: std::mem::take(self.structural_parameters),
+                structural_parameters: std::mem::take(identities, self.structural_parameters),
                 erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
                 erased_proof_formals:
                     crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-            identities,
                         self.checked,
                         self.erased_proof_formals,
                     ),
@@ -521,12 +522,11 @@ impl CleanupEmission<'_> {
         let edge = edge_id(allocate_dense(next_edge)?);
         self.blocks.push(Block {
             id: *self.current,
-            parameters: std::mem::take(self.parameters),
+            parameters: std::mem::take(identities, self.parameters),
             structural_parameters: std::mem::take(self.structural_parameters),
             erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-            identities,
                     self.checked,
                     self.erased_proof_formals,
                 ),

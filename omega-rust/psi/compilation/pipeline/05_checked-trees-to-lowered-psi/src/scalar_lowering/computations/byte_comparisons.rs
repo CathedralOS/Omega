@@ -163,6 +163,7 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn byte_predicate(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         predicate: terminal_psi::ByteSequencePredicate,
         subject: &CheckedUnitStructuralArgumentPlan,
         input_types: &[QualifiedScalarType],
@@ -238,7 +239,7 @@ impl Expansion<'_> {
                     _ => unsupported("byte predicate has no scalar observation path"),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            (site.bindings, root, path)
+            (identities, site.bindings, root, path)
         };
         let evaluation = CheckedBooleanExpression::ByteSequencePredicate {
             predicate,

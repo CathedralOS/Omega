@@ -64,7 +64,6 @@ pub(super) fn lower(
                         place: slot.place,
                         root_type: Some(slot.structural_type),
                         path: crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
-            identities,
                             &argument.path, slot.structural_type, structural_types,
                         )?,
                         access: match argument.access {
@@ -146,7 +145,7 @@ pub(super) fn lower(
                 )?;
                 let mut path = source.path.into_iter().map(
                     crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
-                ).collect::<Vec<_>>();
+                ).collect::<Vec<_>>(identities, );
                 path.extend(crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
                     checked, argument, root_type, structural_types,
                 )?);

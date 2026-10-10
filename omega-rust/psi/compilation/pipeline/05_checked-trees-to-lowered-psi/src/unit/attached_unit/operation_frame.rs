@@ -219,6 +219,7 @@ impl OperationFrame<'_, '_> {
     /// Emit one operation `lowers` admits.
     pub(super) fn emit(
         mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         match operation {
@@ -262,7 +263,7 @@ impl OperationFrame<'_, '_> {
                 result,
                 source,
                 expression,
-            } => self.move_structural_field(result, source, *expression),
+            } => self.move_structural_field(identities, identities, result, source, *expression),
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary,
                 cleanup_actions,
@@ -277,7 +278,7 @@ impl OperationFrame<'_, '_> {
                 self.establish_structural_value(operation)
             }
             CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. } => {
-                self.establish_structural_local(operation)
+                self.establish_structural_local(identities, identities, operation)
             }
             CheckedUnitEffectOperationPlan::EstablishReference {
                 formation_expression,
@@ -308,7 +309,7 @@ impl OperationFrame<'_, '_> {
         storage: checked_trees::CheckedReferenceStorage,
     ) -> Result<(), LoweringError> {
         self.results
-            .require_next(result, "reference result binding is not dense")?;
+            .require_next(identities, result, "reference result binding is not dense")?;
         let argument =
             if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ScalarParameter {
                 parameter_index,
@@ -326,13 +327,12 @@ impl OperationFrame<'_, '_> {
                     self.state,
                     source.structural_storage_root(),
                     self.values,
-                    self.structural_types.declarations(),
+                    self.structural_types.declarations(identities, ),
                     self.next_place,
                     self.operations,
                     self.private_places,
                 )?;
                 let mut selectors = parameters::mint_runtime_index_selectors(
-            identities,
                     std::slice::from_ref(source),
                     &self.evaluation.structural_fields,
                     self.values,
@@ -428,6 +428,7 @@ impl OperationFrame<'_, '_> {
     /// views; no loan copies a previously established referent.
     fn primitive_parameter_source(
 &mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         parameter_index: u32,
         source: &CheckedUnitStructuralArgumentPlan,
@@ -559,7 +560,7 @@ impl OperationFrame<'_, '_> {
     /// declared places.
     pub(super) fn lower_runtime_structural_arguments(
         &mut self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         arguments: &[CheckedUnitStructuralArgumentPlan],
         earlier: &[(Option<StructuralPlaceDeclaration>, bool)],
         byte_places: &[PlaceId],

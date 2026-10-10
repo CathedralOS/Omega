@@ -9,7 +9,7 @@ use checked_trees::{CheckedByteSequenceValue, CheckedUnitStructuralArgumentSourc
 impl OperationFrame<'_, '_> {
     pub(super) fn byte_descriptor_operand(
         &mut self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_index: u32,
         value: &checked_trees::CheckedByteSequenceValuePlan,
     ) -> Result<PlaceId, LoweringError> {
@@ -75,7 +75,7 @@ impl OperationFrame<'_, '_> {
         let structural_type =
             byte_store::existing_descriptor_value_type(self.structural_types.declarations())?;
         if let Source::ByteSequenceSubslice { .. } = &source.source
-            && let Some(range) = super::super::view_ranges::range(source)
+            && let Some(identities, range) = super::super::view_ranges::range(source)
         {
             let storage = super::super::view_ranges::storage(
                 self.checked,
@@ -87,7 +87,7 @@ impl OperationFrame<'_, '_> {
             let whole = storage
                 .requires_establishment()
                 .then(|| allocate_dense(self.next_place).map(place_id))
-                .transpose()?;
+                .transpose(identities, )?;
             let (range_source, establishment) = storage.bind(
                 self.checked,
                 self.state,
@@ -140,10 +140,9 @@ impl OperationFrame<'_, '_> {
         }
         let fields = crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
             &self.evaluation.structural_parameters,
-            self.structural_types.declarations(),
+            self.structural_types.declarations(identities, ),
         );
         let mut selectors = parameters::mint_runtime_index_selectors(
-            identities,
             std::slice::from_ref(source),
             &fields,
             self.values.as_slice(),

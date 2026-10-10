@@ -397,6 +397,7 @@ impl OperationFrame<'_, '_> {
     /// storage with its own live length and declared qualifications.
     pub(super) fn establish_byte_sequence(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishByteSequence {
@@ -429,7 +430,7 @@ impl OperationFrame<'_, '_> {
             .iter()
             .any(|declaration| {
                 declaration.id == structural_type
-                    && declaration.shape.is_bounded_owned_byte_sequence()
+                    && declaration.shape.is_bounded_owned_byte_sequence(identities, )
             })
         {
             return self.establish_owned_byte_sequence(
@@ -514,7 +515,7 @@ impl OperationFrame<'_, '_> {
             crate::emission::structural_byte_sequence_store::prepare_types(
             identities,value, types)?;
         }
-        let (declaration, produced) =
+        let (identities, declaration, produced) =
             crate::emission::structural_byte_sequence_store::emit_owned_value(
                 value,
                 structural_type,
@@ -546,6 +547,7 @@ impl OperationFrame<'_, '_> {
     /// extent and checks the range against it like any other subslice.
     pub(super) fn establish_view_subslice(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } = operation
@@ -567,7 +569,7 @@ impl OperationFrame<'_, '_> {
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_view_locals(&self.evaluation.view_locals)
             .with_place_observations(&self.evaluation.place_observations);
-        let destination = place_id(allocate_dense(self.next_place)?);
+        let destination = place_id(identities, allocate_dense(self.next_place)?);
         let site = ViewRangeSite {
             state: self.state,
             statement: result.statement_index,
@@ -583,8 +585,8 @@ impl OperationFrame<'_, '_> {
         )?;
         let whole = storage
             .requires_establishment()
-            .then(|| allocate_dense(self.next_place).map(place_id))
-            .transpose()?;
+            .then(identities, || allocate_dense(self.next_place).map(place_id))
+            .transpose(identities, )?;
         let (range_source, establishment) = storage.bind(
             self.checked,
             self.state,
@@ -883,7 +885,7 @@ impl OperationFrame<'_, '_> {
 
     /// Commit ordered cleanup at its exact continuation while retaining scalar values.
     pub(super) fn continuation_cleanup(
-&mut self,
+        &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         boundary: &checked_trees::CheckedUnitCleanupBoundary,
@@ -931,11 +933,10 @@ impl OperationFrame<'_, '_> {
                         let value = self
                             .results
                             .repair_value(binding_ordinal, self.operations)?;
-                        Ok((place, value.structural_type))
+                        Ok(identities, (place, value.structural_type))
                     },
                 )?;
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-            identities,
                     selected_path, root_type, self.structural_types.declarations(),
                     None, &mut std::iter::empty(), None,
                 )?;

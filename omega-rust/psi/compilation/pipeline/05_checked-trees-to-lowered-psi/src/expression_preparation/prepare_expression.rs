@@ -32,7 +32,6 @@ pub(crate) fn lower_checked_scalar_expression(
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
 ) -> Result<LoweredDirectExpression, LoweringError> {
     lower_checked_scalar_expression_with_parameters(
-            identities,
         expression,
         &[],
         &Default::default(),
@@ -318,7 +317,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
         } => Ok(LoweredDirectExpression::ImplementationSelection {
             implementation: *implementation,
             interface_identity: *interface_identity,
-            scalar_type: crate::emission::scalar_types::selector_scalar_type(),
+            scalar_type: crate::emission::scalar_types::selector_scalar_type(identities, ),
         }),
         CheckedScalarExpression::IntegerBinary {
             kind,
@@ -715,7 +714,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         bound_decided,
                     })
                 }
-                _ => Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+                _ => Ok(identities, identities, LoweredDirectExpression::IndexedPrimitiveRead {
                     source,
                     path,
                     index,
@@ -746,7 +745,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 proven_indexes,
             )?;
             crate::expression_preparation::representation_view::replay(
-            identities,
                 operand,
                 terminal_scalar_type(
             identities,*primitive_type)?,
@@ -872,7 +870,6 @@ fn lower_checked_boolean_expression_with_parameters(
             {
                 return Ok(
                     match crate::expression_preparation::bindings::structural_fields::resolve_case_payload(
-            identities,
                         structural_fields,
                         *parameter_position,
                         path,
@@ -1226,8 +1223,7 @@ fn sequence_field_observation(
             identities,)?
         .flatten(
             identities,);
-    let (
-            identities,home, structural_type) = if let Some(captured) = captured {
+    let (home, structural_type) = if let Some(captured) = captured {
         captured
     } else {
         let (source, structural_type) =
@@ -1286,7 +1282,7 @@ fn sequence_field_observation(
                 ProjectionStep::RuntimeIndexLiteral { index } => {
                     LoweredDirectExpression::IntegerLiteral {
                         value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(index)),
-                        scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+                        scalar_type: terminal_scalar_type(identities, identities, PrimitiveType::U64)?,
                     }
                 }
                 step => {

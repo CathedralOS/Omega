@@ -16,6 +16,8 @@ use crate::lowering_error::LoweringError;
 // Structural Unit call requirements occupy the upper half of the module-wide
 // obligation namespace. Existing contract and cleanup producers allocate from
 // the lower half, so composing their proof bundles cannot alias a call site.
+pub(crate) const BYTE_VIEW_ELEMENT_TYPE_IDENTITY: &str = "named(name(u8))";
+
 pub(crate) const TERMINAL_UNIT_CALL_OBLIGATION_BASE: u64 = 1_u64 << 63;
 
 /// The Terminal tag for one checked custody multiplicity.

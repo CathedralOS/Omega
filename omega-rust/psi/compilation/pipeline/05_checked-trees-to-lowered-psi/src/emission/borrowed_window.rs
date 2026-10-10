@@ -265,6 +265,7 @@ impl BorrowedWindowLedger {
 
     fn evaluated_place(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         plan: &CheckedUnitStructuralArgumentPlan,
         place: &ResolvedWindowPlace,
         evaluation: &mut WindowEvaluation<'_, '_>,
@@ -280,7 +281,7 @@ impl BorrowedWindowLedger {
             if place.field.is_some() {
                 path.pop();
             }
-            return Ok((source, path));
+            return Ok(identities, identities, (source, path));
         }
         let indexes = runtime_elements::evaluate_selectors(
             &place.steps,
@@ -712,7 +713,7 @@ fn resolve_window_place(
             projected_qualifications,
         });
     }
-    let (steps, leaf) =
+    let (identities, steps, leaf) =
         lower_window_path(root_type, &plan.path, structural_types).map_err(|_| {
             let reason = if plan
                 .path

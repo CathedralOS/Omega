@@ -221,7 +221,6 @@ pub(crate) fn checked_proof_term(
                     Ok(LoweredProofTermField {
                         field_identity: checked.symbols.display_path(field.field_symbol, "::"),
                         term: checked_proof_term(
-            identities,
                             checked,
                             &field.term,
                             caller_erased_proof_parameters,
@@ -321,17 +320,13 @@ struct ScalarContractTerms<'namespace> {
 
 impl PredicateTerms for ScalarContractTerms<'_> {
     fn case_membership(
-        &self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-
-        expression: &CheckedBooleanExpression,
+        &self,        expression: &CheckedBooleanExpression,
     ) -> Result<Proposition, LoweringError> {
         let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression
         else {
             return unsupported("closed case predicate has no structural subject");
         };
-        let parameters = self.authored_structural_parameters(
-            identities,);
+        let parameters = self.authored_structural_parameters();
         crate::proofs::crash_routes::lower_structural_case_membership(
             subject,
             case,
@@ -349,8 +344,8 @@ impl PredicateTerms for ScalarContractTerms<'_> {
         crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.leaf(leaf))
     }
 
-    fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
-        match expression {
+    fn boolean(&self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {        match expression {
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
@@ -379,7 +374,7 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                         terminal_psi::StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
                         _ => None,
                     });
-                    (parameter.place, Vec::new(), carrier)
+                    (identities, parameter.place, Vec::new(), carrier)
                 } else {
                     let (root, path, field) =
                         crate::proofs::crash_routes::lower_structural_member_path(

@@ -245,7 +245,7 @@ pub(super) fn emit_return(
         checked,
         plan.machine,
         state,
-        std::slice::from_ref(operation),
+        std::slice::from_ref(identities, operation),
         catalogs,
         parameters,
         claims,
@@ -258,7 +258,6 @@ pub(super) fn emit_return(
         operations,
     )?;
     complete_structural_return(
-            identities,
         checked, state, exit, operation, catalogs, parameters, evaluation, values, next_value, next_block,
         next_edge, operations,
     )
@@ -302,7 +301,6 @@ pub(super) fn complete_structural_return(
     returned_claims.sort_by_key(
             identities,|binding| binding.claim);
     let mut regions = super::cleanup::for_exit_regions(
-            identities,
         checked,
         state, exit, catalogs, parameters, evaluation, operations,
     )?;
@@ -311,7 +309,7 @@ pub(super) fn complete_structural_return(
         edge: edge_id(allocate_dense(next_edge)?),
         source,
         returned_claims,
-        cleanup_actions: Vec::new(),
+        cleanup_actions: Vec::new(identities, identities, ),
     };
     // Every structural completion consumes its selected subtree at the exit.
     // Returning an alias's containing root instead would change both the value

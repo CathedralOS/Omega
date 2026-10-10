@@ -50,12 +50,12 @@ pub(crate) fn checked_boolean_scalar_term(
             );
         }
         CheckedBooleanExpression::Not(operand) => {
-            ScalarTerm::boolean_not(checked_boolean_scalar_term(operand, values, erased)?)
+            ScalarTerm::boolean_not(identities, checked_boolean_scalar_term(operand, values, erased)?)
                 .map_err(LoweringError::InvalidCrashPredicate)?
         }
         CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
-            checked_boolean_scalar_term(left, values, erased)?,
-            checked_boolean_scalar_term(right, values, erased)?,
+            checked_boolean_scalar_term(identities, left, values, erased)?,
+            checked_boolean_scalar_term(identities, right, values, erased)?,
         )
         .map_err(LoweringError::InvalidCrashPredicate)?,
         CheckedBooleanExpression::IntegerMathComparison { .. } => {

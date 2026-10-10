@@ -135,7 +135,6 @@ pub(super) fn retain(
             identities, checked, exact_toolchain_sources, application)?;
         if retained_applications.insert((requirement.clone(), arguments.clone())) {
             candidates::retain(
-            identities,
                 checked,
                 exact_toolchain_sources,
                 application,
@@ -199,7 +198,7 @@ fn project_application(
                 exact_toolchain_sources,
             })
             .ok_or("boundary application type has no exact package or toolchain owner")?;
-        BoundaryTypeIdentity::new(identities.intern(&checked.type_identity_text(identity).unwrap_or_default()))
+        Ok(BoundaryTypeIdentity::new(identities.intern(&checked.type_identity_text(identity).unwrap_or_default())))
     };
     let mut arguments = Vec::with_capacity(application.arguments.len());
     for (ordinal, argument) in application.arguments.iter().enumerate() {

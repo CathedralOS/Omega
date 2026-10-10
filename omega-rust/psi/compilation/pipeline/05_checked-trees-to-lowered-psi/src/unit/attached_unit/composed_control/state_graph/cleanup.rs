@@ -62,7 +62,6 @@ pub(super) fn scalar_returns(
                 is_continuation: cleanup.exit.kind == FlowClaimJoinExitKind::TransitionContinuation,
             };
             let mut actions = for_exit_regions(
-            identities,
             checked,
                 state,
                 cleanup.exit,
@@ -259,7 +258,7 @@ pub(super) fn for_exit_regions(
                 .cleanup_receiver
                 .map(|receiver| (signature.source, receiver))
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>(identities, );
     let rows = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
         checked,
         crate::unit::unit_cleanup::outstanding_actions(
@@ -280,10 +279,9 @@ pub(super) fn for_exit_regions(
                         .ok_or(LoweringError::Unsupported(
                             "cleanup result is not established",
                         ))?;
-                    Ok((result.place(), result.structural_type()))
+                    Ok(identities, (result.place(), result.structural_type()))
                 })?;
             let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-            identities,
                 path, root_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
             )?;
             Ok((place, path))

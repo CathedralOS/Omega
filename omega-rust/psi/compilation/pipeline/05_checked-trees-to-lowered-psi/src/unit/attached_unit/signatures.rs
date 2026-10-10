@@ -107,7 +107,6 @@ pub(super) fn lower(
             );
         }
         let parameters = lower_unit_parameters(
-            identities,
             plan.structural_parameters,
             type_ids,
             structural_types,
@@ -143,7 +142,7 @@ pub(super) fn lower(
                 )
             })
             .transpose()?;
-        let erased_proof_parameters = plan.erased_proof_parameters.to_vec();
+        let erased_proof_parameters = plan.erased_proof_parameters.to_vec(identities, );
         // Claims stay machine-local: unrelated callees cannot shift these IDs.
         let claims = lower_unit_entry_claims(
             plan.machine,
@@ -181,7 +180,7 @@ pub(super) fn lower(
                 position: source.position,
                 ..terminal.clone()
             })
-            .collect();
+            .collect(identities, );
     }
 
     for signature in &mut signatures {

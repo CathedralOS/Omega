@@ -332,9 +332,9 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
                 projection_remainder: place_segments(
             identities, checked, projection_remainder)?,
                 child_access: access(child.access.clone()),
-                child_activation: boundary(checked, child_activation.source)?,
-                formation_boundary: boundary(checked, suspension.source)?,
-                child_weakening: boundary(checked, child_weakening.source)?,
+                child_activation: boundary(identities, checked, child_activation.source)?,
+                formation_boundary: boundary(identities, checked, suspension.source)?,
+                child_weakening: boundary(identities, checked, child_weakening.source)?,
             });
             expected_parent = CheckedParentBorrowResource::Reborrow {
                 resource: *child_handle,
@@ -390,7 +390,6 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             && exact_path
             && event.final_target
                 == CheckedBorrowResourceDispositionTarget::DirectRootLifetime(
-            identities,
                     parent.parent_lifetime.clone(
             identities,),
                 );
@@ -415,11 +414,11 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             identities,&identity(checked, leaf.machine_symbol))?,
             source_state_identity: identities.intern(&identity(checked, leaf.state_symbol))?,
             direct_root_owner_identity: identities.intern(&identity(checked, parent.owner_symbol))?,
-            direct_root_owner_path: owner_path(checked, &parent.owner_path)?,
-            direct_root_place: place(checked, &parent.captured_place)?,
+            direct_root_owner_path: owner_path(identities, checked, &parent.owner_path)?,
+            direct_root_place: place(identities, checked, &parent.captured_place)?,
             direct_root_access: access(parent.access.clone()),
-            direct_root_activation: boundary(checked, parent.activation_source)?,
-            direct_root_weakening: boundary(checked, root_weakening.source)?,
+            direct_root_activation: boundary(identities, checked, parent.activation_source)?,
+            direct_root_weakening: boundary(identities, checked, root_weakening.source)?,
             direct_root_lifetime_identity: identities.intern(&identity(checked, parent.parent_lifetime.root_symbol))?,
             lineage: terminal_lineage,
         });

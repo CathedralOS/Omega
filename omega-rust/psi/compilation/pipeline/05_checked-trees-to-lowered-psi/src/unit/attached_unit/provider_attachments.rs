@@ -14,6 +14,7 @@ use super::{
 };
 
 pub(crate) fn lower_provider_attachment_places(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     attachment: StructuralTypeId,
     declaration: &StructuralTypeDeclaration,

@@ -11,6 +11,7 @@ use checked_trees::CheckedUnitStructuralArgumentPlan;
 impl Emission<'_, '_, '_> {
     pub(super) fn reference_value(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         formation: super::super::super::reference_results::Formation<'_>,
         source: &CheckedUnitStructuralArgumentPlan,
         continuation: Option<&ValueContinuation>,
@@ -47,7 +48,7 @@ impl Emission<'_, '_, '_> {
                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
                     ) =>
             {
-                bindings.primitive_borrow(self.checked, source, scalar_type, self.structural_types)?
+                bindings.primitive_borrow(identities, self.checked, source, scalar_type, self.structural_types)?
             }
             _ => bindings.borrowed_structural_argument(
                 self.checked,

@@ -67,6 +67,7 @@ impl Evaluation {
     /// Effectful computations keep the existing selective value evaluator.
     pub(crate) fn branch_guard(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         statement: u32,
@@ -95,7 +96,7 @@ impl Evaluation {
                 "guard has no retained source value",
             ))?;
         let bindings = self.contextual_bindings();
-        let expression = bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
+        let expression = bindings.expression(identities, &checked.facts.proven_scalar_indexes, value)?;
         // A short-circuit guard is always a planned decision. So is a whole-root
         // case test whose successor may read that case's payload: only the
         // decision's dispatch establishes the payload for it.
@@ -184,6 +185,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn source_value(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
@@ -263,7 +265,7 @@ impl Evaluation {
         let (pure_expression, result_type) = match value {
             CheckedCallScalarArgument::Pure(value) => {
                 let expression =
-                    bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
+                    bindings.expression(identities, &checked.facts.proven_scalar_indexes, value)?;
                 let result_type = expression.value_type(&source_types)?;
                 (Some(expression), result_type)
             }

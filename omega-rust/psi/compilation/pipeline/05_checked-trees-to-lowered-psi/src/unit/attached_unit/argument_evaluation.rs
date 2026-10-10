@@ -982,6 +982,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     fn arguments_slice(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
@@ -1028,7 +1029,7 @@ impl Evaluation {
             .iter()
             .map(|argument| match argument {
                 CheckedCallScalarArgument::Pure(expression) => source_bindings
-                    .expression(&checked.facts.proven_scalar_indexes, expression)?
+                    .expression(identities, &checked.facts.proven_scalar_indexes, expression)?
                     .value_type(&source_types),
                 CheckedCallScalarArgument::Computation(root) => {
                     let nodes = &checked.facts.values.scalar_computations.nodes;
@@ -1048,7 +1049,7 @@ impl Evaluation {
         let needs_control = arguments.iter().any(|argument| match argument {
             CheckedCallScalarArgument::Computation(_) => true,
             CheckedCallScalarArgument::Pure(expression) => source_bindings
-                .expression(&checked.facts.proven_scalar_indexes, expression)
+                .expression(identities, &checked.facts.proven_scalar_indexes, expression)
                 .is_ok_and(|expression| direct_expression_contains_short_circuit(&expression)),
         });
         if !needs_control {
@@ -1083,7 +1084,7 @@ impl Evaluation {
             &source_types,
             0,
         )?;
-        let states = expansion.finish();
+        let states = expansion.finish(identities, );
         self.complete_expansion(
             checked,
             &states,
@@ -1342,10 +1343,9 @@ impl Evaluation {
                 cleanup_actions: Vec::new(),
             },
         });
-        for index in scalar_state_emission_order(states, entry_index)? {
+        for index in scalar_state_emission_order(identities, states, entry_index)? {
             let state = &states[index];
             emit_state(
-            identities,
                 checked,
                 state,
                 targets[index + 1],

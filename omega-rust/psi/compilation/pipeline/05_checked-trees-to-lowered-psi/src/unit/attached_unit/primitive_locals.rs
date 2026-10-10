@@ -352,7 +352,7 @@ impl super::argument_evaluation::Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::unit::attached_unit) fn prepare_borrowed_argument(
         &mut self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,

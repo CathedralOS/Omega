@@ -127,12 +127,13 @@ impl ClaimBindings<'_> {
 
 /// Resolve every checked transfer through the caller's exact claim table.
 pub(crate) fn emitted_claim_transfers(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<terminal_psi::ClaimTransfer>, LoweringError> {
-    let prepared = prepare_claim_transfers(transfers, types, |index| {
+    let prepared = prepare_claim_transfers(identities, transfers, types, |index| {
         parameters
             .get(index as usize)
             .map(|parameter| parameter.structural_type)
@@ -195,7 +196,6 @@ pub(crate) fn prepare_call_result_claims(
         Ok(PreparedResultClaim {
             received: received.clone(),
             path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-            identities,
                 &received.path, structural_type, types,
             )?,
         })
@@ -230,7 +230,7 @@ pub(crate) fn prepare_checked_claim_transfers(
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedClaimTransfer>, LoweringError> {
-    prepare_claim_transfers(transfers, types, |index| {
+    prepare_claim_transfers(identities, transfers, types, |index| {
         let parameter = parameters
             .get(index as usize)
             .ok_or(LoweringError::Unsupported(
@@ -260,11 +260,10 @@ pub(crate) fn prepare_claim_transfers(
 ) -> Result<Vec<PreparedClaimTransfer>, LoweringError> {
     transfers.iter().map(|transfer| {
         let root = argument_type(transfer.argument_index)?;
-        Ok(PreparedClaimTransfer {
+        Ok(identities, PreparedClaimTransfer {
             identity: transfer.claim_identity,
             argument_index: transfer.argument_index,
             path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-            identities,
                 &transfer.path, root, types,
             )?,
         })
@@ -304,6 +303,7 @@ pub(crate) struct PreparedClaimDisposition {
 /// Translate the selected occurrence once; hooks later select their exact
 /// owned path without rescanning permissions or consuming a containing owner.
 pub(crate) fn prepare_claim_dispositions(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -323,7 +323,7 @@ pub(crate) fn prepare_claim_dispositions(
                 .map_err(
             LoweringError::Unsupported)?;
             Ok(PreparedClaimDisposition { identity: event.claim_identity,
-                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(&path, structural_type, structural_types)?,
+                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &path, structural_type, structural_types)?,
             })
         }).collect()
 }
@@ -332,6 +332,7 @@ pub(crate) fn prepare_claim_dispositions(
 /// Retain that identity independently of storage or the producing operation's
 /// spelling; only this body's authentic fresh establishment may grow custody.
 pub(crate) fn prepare_establishment_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -367,7 +368,7 @@ pub(crate) fn prepare_establishment_claims(
             LoweringError::Unsupported)?;
             Ok(PreparedClaim {
                 identity: event.claim_identity,
-                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(&path, structural_type, structural_types)?,
+                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &path, structural_type, structural_types)?,
                 fresh: established_here,
             })
         }).collect()

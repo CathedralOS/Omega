@@ -99,6 +99,7 @@ pub(super) fn validate_requirements(
 }
 
 pub(crate) fn field_clause(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     types: &[StructuralTypeDeclaration],
     parameter: &StructuralParameterDeclaration,
     identity: &checked_trees::CheckedMemberIdentity,
@@ -123,6 +124,7 @@ pub(crate) fn field_clause(
 }
 
 pub(crate) fn prepare_signature(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     source: SymbolHandle,
     predicate_parameters: &mut Vec<StructuralParameterDeclaration>,

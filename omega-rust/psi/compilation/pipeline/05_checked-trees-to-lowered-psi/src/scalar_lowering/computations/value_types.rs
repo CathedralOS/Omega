@@ -27,6 +27,7 @@ pub(crate) fn computation_value_type(
 }
 
 fn value_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
     handle: Computation,
@@ -53,7 +54,7 @@ fn value_type(
             ..
         } => qualifications.scalar_state_types(checked, *state)?.1,
         CheckedScalarComputationKind::Value(expression) => bindings
-            .expression(&checked.facts.proven_scalar_indexes, expression)?
+            .expression(identities, &checked.facts.proven_scalar_indexes, expression)?
             .value_type(source_types)?,
         CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
             // The conversion result is a bare fixed-integer carrier; the

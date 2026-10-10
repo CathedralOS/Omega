@@ -260,6 +260,7 @@ fn collection_path(
 /// Resolve the collection's declared type before reserving descriptor storage.
 /// This does not confer a loan or discharge range bounds.
 pub(crate) fn storage(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     _statement: u32,
@@ -307,7 +308,7 @@ pub(crate) fn storage(
         checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
         | checked_trees::CheckedStorageRoot::ViewLocal { symbol } => symbol,
     };
-    let collection = terminal_psi::structural_type_by_identity(declarations, &identity).ok_or(
+    let collection = terminal_psi::structural_type_by_identity(declarations, identities.intern(&identity)).ok_or(
         LoweringError::Unsupported("range collection has no exact Terminal type"),
     )?;
     let view = terminal_psi::structural_type_by_identity(declarations, &checked.type_identity_text(argument.type_identity).unwrap_or_default())

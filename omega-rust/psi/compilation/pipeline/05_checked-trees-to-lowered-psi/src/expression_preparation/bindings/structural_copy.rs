@@ -53,7 +53,6 @@ impl ScalarBindings {
             .map(structural_paths::PreparedStructuralPathSegment::Static)
             .collect::<Vec<_>>();
         path.extend(structural_paths::prepare_argument_path(
-            identities,
             &argument.path,
             root_type,
             types,

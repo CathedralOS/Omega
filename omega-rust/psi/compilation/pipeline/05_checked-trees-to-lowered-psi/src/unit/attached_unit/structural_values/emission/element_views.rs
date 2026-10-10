@@ -81,6 +81,7 @@ impl Emission<'_, '_, '_> {
     /// argument through the readable-loan binder, which admits either access.
     pub(super) fn establish_element_view(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
         region: &checked_trees::CheckedElementViewRegion,
         expression: checked_trees::expression::ExpressionHandle,
@@ -96,7 +97,7 @@ impl Emission<'_, '_, '_> {
                 region,
                 checked_trees::CheckedElementViewRegion::WholeCollection
             ) {
-                return unsupported("element range cannot replace a representation-byte region");
+                return unsupported(identities, "element range cannot replace a representation-byte region");
             }
             let storage = view_ranges::storage(
                 self.checked,
@@ -109,7 +110,7 @@ impl Emission<'_, '_, '_> {
             let whole = storage
                 .requires_establishment()
                 .then(|| allocate_dense(self.next_place).map(place_id))
-                .transpose()?;
+                .transpose(identities, )?;
             let (bound, establishment) = storage.bind(
                 self.checked,
                 self.state,
@@ -183,7 +184,7 @@ impl Emission<'_, '_, '_> {
         let parameters = self.checked.state_parameters(authored);
         let argument = match loan {
             LoanAccess::Shared => {
-                bindings.shared_structural_argument(self.checked, source, machine, parameters)?
+                bindings.shared_structural_argument(identities, identities, self.checked, source, machine, parameters)?
             }
             LoanAccess::Mutable => {
                 bindings.borrowed_structural_argument(self.checked, source, machine, parameters)?

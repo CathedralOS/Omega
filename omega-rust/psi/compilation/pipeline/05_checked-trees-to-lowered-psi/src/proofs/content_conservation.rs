@@ -228,6 +228,7 @@ pub(crate) fn lower_structural_content_projection(
 /// Projected qualifications never qualify a sibling or the whole owner. This
 /// binds entry content, not a partition theorem or boundary admission.
 pub(crate) fn lower_whole_content_entry_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     structural_types: &[StructuralTypeDeclaration],
     checked_parameters: &[CheckedUnitStructuralParameterPlan],

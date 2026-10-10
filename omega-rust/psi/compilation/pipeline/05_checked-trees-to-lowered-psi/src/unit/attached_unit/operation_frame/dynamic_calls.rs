@@ -81,7 +81,6 @@ impl OperationFrame<'_, '_> {
             inputs.evaluated_selectors,
         )?;
         let prepared_claims = crate::emission::claim_bindings::prepare_checked_claim_transfers(
-            identities,
             self.checked,
             call.claim_transfers(),
             &slot_plan.structural_parameters,

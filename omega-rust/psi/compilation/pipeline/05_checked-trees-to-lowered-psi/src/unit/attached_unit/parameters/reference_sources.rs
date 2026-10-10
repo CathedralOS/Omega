@@ -67,7 +67,6 @@ pub(crate) fn lower_reference_source(
         ),
     };
     let arguments = lower_structural_arguments(
-            identities,
         checked,
         std::slice::from_ref(&prefix),
         structural_types,

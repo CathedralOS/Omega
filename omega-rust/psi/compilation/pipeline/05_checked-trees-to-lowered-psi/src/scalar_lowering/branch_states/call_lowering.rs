@@ -122,7 +122,6 @@ pub(crate) fn lower_scalar_call(
                     "scalar call erased proof actual is absent",
                 ))?;
             crate::scalar_lowering::contracts::checked_proof_term(
-            identities,
                 checked,
                 term,
                 caller_erased_proof_parameters,

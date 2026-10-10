@@ -477,7 +477,7 @@ pub(super) fn lower_unit_entry_claims(
         }
         let id = claim_id(
             identities,allocate_dense(&mut next_claim)?);
-        entry_claims.push(EntryClaim {
+        entry_claims.push(identities, identities, EntryClaim {
             claim: id,
             input: parameter.place,
             path: lower_static_argument_path(

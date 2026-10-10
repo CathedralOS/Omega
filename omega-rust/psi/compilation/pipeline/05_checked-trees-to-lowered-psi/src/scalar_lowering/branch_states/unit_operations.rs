@@ -98,7 +98,6 @@ pub(super) fn prepare(
         .iter()
         .map(|term| {
             crate::scalar_lowering::contracts::checked_proof_term(
-            identities,
                 checked,
                 term,
                 state.erased_proof_parameters,
@@ -266,7 +265,7 @@ pub(super) fn prepare(
         .iter()
         .map(|parameter| terminal_scalar_type(parameter.primitive_type))
         .collect::<Result<Vec<_>, _>>()?;
-    let result_claims = match (&result, call.structural_custody()) {
+    let result_claims = match (identities, &result, call.structural_custody()) {
         (Some(result), Some(custody)) => {
             crate::emission::claim_bindings::prepare_call_result_claims(
                 &custody.result_claims,
@@ -274,10 +273,9 @@ pub(super) fn prepare(
                 structural_types,
             )?
         }
-        _ => Vec::new(),
+        _ => Vec::new(identities, ),
     };
     let claim_transfers = crate::emission::claim_bindings::prepare_checked_claim_transfers(
-            identities,
         checked,
         claim_transfers,
         target.structural_parameters,

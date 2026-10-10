@@ -157,6 +157,7 @@ pub(crate) struct PrimitiveObservation {
 }
 
 pub(crate) fn byte_record_observation(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     loans: &[PlaceObservation],
     bindings: &super::ScalarBindings,
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
@@ -191,7 +192,7 @@ pub(crate) fn byte_record_observation(
         )?));
     } else {
         append_coordinate(
-            bindings.expression(proven_indexes, index)?,
+            bindings.expression(identities, proven_indexes, index)?,
             &mut leaf_path,
             &mut selectors,
         )?;
@@ -206,7 +207,7 @@ pub(crate) fn byte_record_observation(
             )?,
             checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
                 append_coordinate(
-                    bindings.expression(proven_indexes, &selector.expression)?,
+                    bindings.expression(identities, proven_indexes, &selector.expression)?,
                     &mut leaf_path,
                     &mut selectors,
                 )?

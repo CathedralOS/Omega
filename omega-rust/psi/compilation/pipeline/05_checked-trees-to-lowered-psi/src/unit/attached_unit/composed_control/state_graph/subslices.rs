@@ -38,6 +38,7 @@ pub(super) fn transfer_range(
 /// performs it.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     statement_ordinal: u32,
@@ -70,7 +71,7 @@ pub(super) fn emit(
     let whole = storage
         .requires_establishment()
         .then(|| allocate_dense(&mut catalogs.next_place).map(place_id))
-        .transpose()?;
+        .transpose(identities, )?;
     let (source, establishment) = storage.bind(
         checked,
         state.state,

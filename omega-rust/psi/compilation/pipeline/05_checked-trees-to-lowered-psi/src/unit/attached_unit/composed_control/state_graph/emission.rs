@@ -258,7 +258,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     }
     catalogs
         .scalar_calls
-        .bind_claim_namespace(&claims.source_claims);
+        .bind_claim_namespace(identities, &claims.source_claims);
     let content_entry_claims =
         crate::proofs::content_conservation::lower_whole_content_entry_claims(
             checked,
@@ -305,12 +305,11 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             state_contract_rosters.push(Vec::new());
             state_values.push(Vec::new());
             state_erased.push(Vec::new());
-            state_erased_proof.push(Vec::new());
+            state_erased_proof.push(identities, Vec::new());
             continue;
         }
         if position != 0 || entry_reentered {
             let mut block_parameters = lower_unit_parameters(
-            identities,
                 &state.structural_parameters,
                 &catalogs.type_ids,
                 &catalogs.structural_types,
@@ -417,7 +416,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     }
     let mut block_entry_claims = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
-        if !admitted.live[position] || (position == 0 && !entry_reentered) {
+        if !admitted.live[position] || (identities, identities, position == 0 && !entry_reentered) {
             continue;
         }
         let lowered = crate::unit::attached_unit::claims::lower_unit_entry_claims(
@@ -708,7 +707,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         let boundaries = catalogs
             .lowered_boundaries
             .iter()
-            .map(|boundary| (boundary.source, boundary.id))
+            .map(identities, |boundary| (boundary.source, boundary.id))
             .collect::<Vec<_>>();
         structural_places.extend(
             crate::unit::attached_unit::provider_attachments::lower_provider_attachment_places(
@@ -758,7 +757,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             requires: Vec::new(),
             ensures: Vec::new(
             identities,),
-            crash_routes: Vec::new(),
+            crash_routes: Vec::new(identities, identities, ),
             erased_scalar_formals: entry_erased_formals,
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(

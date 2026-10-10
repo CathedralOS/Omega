@@ -21,7 +21,7 @@ pub(super) fn retain(
         checked
             .exact_owner_nominal_identity(symbol, sources)
             .ok_or("boundary candidate has no exact declaration owner")
-            .and_then(|identity| {
+            .map(|identity| {
                 NominalDeclarationIdentity::new(
                     identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
                 )

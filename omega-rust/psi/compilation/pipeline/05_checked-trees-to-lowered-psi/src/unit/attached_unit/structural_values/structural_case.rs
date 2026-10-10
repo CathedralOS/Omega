@@ -11,7 +11,7 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, structural_re
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn structural_case(
         &mut self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
         let node = self

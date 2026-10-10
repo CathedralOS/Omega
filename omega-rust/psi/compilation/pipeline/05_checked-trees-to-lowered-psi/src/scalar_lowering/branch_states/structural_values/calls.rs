@@ -207,7 +207,6 @@ impl Preparation<'_> {
                     }
                     let result = self.result(binding)?;
                     let mut prepared = super::super::unit_operations::prepare(
-            identities,
                         self.checked,
                         &caller,
                         operations[operation],
@@ -261,10 +260,9 @@ impl Preparation<'_> {
                         .expression;
                     let reference = self.checked.facts.resolved_types.result(expression);
                     if !reference.is_valid() {
-                        return unsupported("structural operand construction lost its type");
+                        return unsupported(identities, "structural operand construction lost its type");
                     }
                     let prepared = prepare_value(
-            identities,
                         self.checked,
                         self.qualifications,
                         self.state,
@@ -304,6 +302,7 @@ impl Preparation<'_> {
 
     fn result(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         binding: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     ) -> Result<super::super::super::StructuralOperationResult, LoweringError> {
         let declaration =

@@ -101,12 +101,13 @@ struct RouteTerms<'a> {
 impl RouteTerms<'_> {
     fn lower_term(
         &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedBooleanExpression,
     ) -> Result<ScalarTerm, LoweringError> {
         match expression {
             CheckedBooleanExpression::Constant(value) => Ok(ScalarTerm::boolean(*value)),
             CheckedBooleanExpression::Parameter { .. } => {
-                checked_boolean_scalar_term(expression, self.scalar_parameters, &[])
+                checked_boolean_scalar_term(identities, expression, self.scalar_parameters, &[])
             }
             CheckedBooleanExpression::StorageRead { .. } => {
                 unsupported("crash predicate cannot reconstruct mutable storage")
@@ -170,7 +171,7 @@ impl RouteTerms<'_> {
 
     fn lower_integer_term(
         &self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
         // Scalar subtrees retain the existing scalar operation and safety
@@ -186,7 +187,7 @@ impl RouteTerms<'_> {
             &|expression| match expression {
                 expression if !uses_structural_storage(
             identities,expression) => {
-                    checked_scalar_term(expression, self.scalar_parameters, &[])
+                    checked_scalar_term(identities, expression, self.scalar_parameters, &[])
                 }
                 CheckedScalarExpression::StructuralParameterField {
                     parameter_position,
@@ -295,6 +296,7 @@ impl RouteTerms<'_> {
 
     fn lower_proposition(
 &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         expression: &CheckedBooleanExpression,
         remaining: &mut usize,
@@ -370,7 +372,7 @@ impl RouteTerms<'_> {
             if left > right {
                 std::mem::swap(&mut left, &mut right);
             }
-            return Ok(Proposition::ByteSequenceEqual { left, right });
+            return Ok(identities, Proposition::ByteSequenceEqual { left, right });
         }
         if let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression {
             return super::structural_members::lower_structural_case_membership(

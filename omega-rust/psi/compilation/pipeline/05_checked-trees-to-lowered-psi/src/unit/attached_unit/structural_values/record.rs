@@ -16,7 +16,7 @@ use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn record(
         &mut self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<PlaceId, LoweringError> {
         let node = self
@@ -131,7 +131,7 @@ impl emission::Emission<'_, '_, '_> {
                             scalar_type,
                             &target.field_type,
                             &mut scalar_positions,
-                            initialized.len(),
+                            initialized.len(identities, ),
                         )?
                     } else {
                         let child_type = super::field_carrier::resolve(

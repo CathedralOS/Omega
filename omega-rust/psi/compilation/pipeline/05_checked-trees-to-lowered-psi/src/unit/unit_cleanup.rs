@@ -99,7 +99,6 @@ pub(crate) fn lower_cleanup_conditions(
             ))?;
             let (
             identities,_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
-            identities,
                 types,
                 structural_type,
                 &[],
@@ -174,10 +173,9 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
     let mut regions = actions
         .into_iter()
         .map(|action| {
-            let (place, path) = storage(action.source(), action.path())?;
+            let (identities, place, path) = storage(action.source(), action.path())?;
             let conditions =
                 lower_cleanup_conditions(
-            identities,
                     checked,
                     control,
                     action.case_conditions(),

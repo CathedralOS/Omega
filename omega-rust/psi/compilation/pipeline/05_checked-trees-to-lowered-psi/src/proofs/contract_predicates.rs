@@ -13,7 +13,6 @@ pub(crate) trait PredicateTerms {
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError>;
     fn case_membership(
         &self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         _expression: &CheckedBooleanExpression,
     ) -> Result<Proposition, LoweringError> {
         unsupported("contract namespace has no structural case subject")

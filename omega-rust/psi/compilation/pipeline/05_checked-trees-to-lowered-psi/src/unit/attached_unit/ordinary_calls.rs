@@ -132,7 +132,6 @@ pub(super) fn prepare(
         .iter()
         .map(|argument| {
             crate::scalar_lowering::contracts::checked_proof_term(
-            identities,
                 checked,
                 argument,
                 caller_erased_proof_parameters,
@@ -151,10 +150,9 @@ pub(super) fn prepare(
         .iter()
         .map(|argument| {
             let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument else {
-                return unsupported("erased Unit call actual must be a pure checked expression");
+                return unsupported(identities, "erased Unit call actual must be a pure checked expression");
             };
             crate::proofs::crash_routes::checked_scalar_term(
-            identities,
                 expression,
                 caller_scalar_values,
                 caller_erased_scalar_parameters,
@@ -183,13 +181,12 @@ pub(super) fn prepare(
 
     let claim_transfers = emitted_claim_transfers(
         claim_transfers,
-        calls.claims.bindings(),
+        calls.claims.bindings(identities, ),
             identities,
         target.parameters,
         structural_types,
     )?;
     let terminal_arguments = lower_structural_arguments(
-            identities,
         checked,
         structural_arguments,
         structural_types,
@@ -394,7 +391,7 @@ pub(super) fn emit_structural(
             .iter(
             identities,)
             .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
-            .collect::<Result<Vec<_>, _>>()?,
+            .collect::<Result<Vec<_>, _>>(identities, )?,
         projected_qualifications: super::parameters::lower_projected_qualifications(
             validation::structural_result_projected_qualifications(
                 &checked.typed,

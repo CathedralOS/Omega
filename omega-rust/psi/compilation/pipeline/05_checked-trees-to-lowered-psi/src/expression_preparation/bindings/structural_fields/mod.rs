@@ -304,7 +304,7 @@ pub(crate) fn resolve_typed(
         })
     {
         let (
-            identities,source, path) = resolve_case_primitive(binding, projection, scalar_type)?;
+            identities,source, path) = resolve_case_primitive(identities, binding, projection, scalar_type)?;
         return Ok(LoweredDirectExpression::PrimitiveRead {
             source,
             path,
@@ -312,7 +312,6 @@ pub(crate) fn resolve_typed(
         });
     }
     let prepared = super::structural_paths::prepare_argument_path(
-            identities,
         &projection.segments,
         binding.structural_type,
         &binding.declarations,
@@ -778,7 +777,7 @@ pub(crate) fn resolve_sequence_projection(
             _ => unsupported(
             identities,"sequence field length has an unsupported case path"),
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, _>>(identities, )?;
     let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_steps(
         structural_type,
         &carrier,
@@ -869,12 +868,12 @@ pub(crate) fn resolve_indexed_element(
     };
     let element_projection =
         observation_paths::explicit_path(
-            identities, element, element_path, fields.declarations())?;
+            identities, element, element_path, fields.declarations(identities, identities, ))?;
     let element_path = element_projection.segments;
     let scalar_type = crate::emission::primitive_store::indexed_element_scalar_type(
         element,
         &element_path,
-        fields.declarations(),
+        fields.declarations(identities, identities, ),
     )?;
     let path = super::structural_paths::prepare_argument_path(
         &projection.segments,
@@ -924,7 +923,7 @@ fn resolve_case_primitive(
         binding.structural_type,
         &canonical,
     ) else {
-        return unsupported("primitive observation lost its canonical carrier");
+        return unsupported(identities, identities, "primitive observation lost its canonical carrier");
     };
     let (path, declared) = crate::emission::primitive_store::lower_path(
         structural_type,

@@ -218,7 +218,7 @@ pub(crate) fn prepare_value(
         consumed: Vec::new(),
         claims,
     };
-    let mut place = preparation.value(value, reference, &[])?;
+    let mut place = preparation.value(identities, value, reference, &[])?;
     if preparation.consumed_calls.len() != calls.len() {
         return unsupported("structural value contains unconsumed call producers");
     }
@@ -295,7 +295,7 @@ struct Preparation<'a> {
 impl Preparation<'_> {
     fn value(
         &mut self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
         claim_path: &[terminal_psi::StructuralPathSegment],
@@ -375,7 +375,7 @@ impl Preparation<'_> {
         }
         if let CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } = &node.kind {
             let (machine, state) =
-                crate::declarations::state_declaration(self.checked, self.state)?;
+                crate::declarations::state_declaration(identities, self.checked, self.state)?;
             let mut source = self.bindings.copied_place_source(
                 source,
                 machine,
@@ -435,7 +435,7 @@ impl Preparation<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed case lost its exact authored constructor",
                 ))?;
-            let place = self.reserved.place(value)?;
+            let place = self.reserved.place(identities, value)?;
             let slot = computations::cases::reserve(
                 self.checked,
                 node.expression,
@@ -548,7 +548,7 @@ impl Preparation<'_> {
             let element_reference = *element_type;
             if u64::try_from(
             identities,  elements.len(
-            identities, )).ok() != Some(length)
+            identities, )).ok(identities, identities, ) != Some(length)
                 || carrier_declaration(self.checked, self.types, element_reference)?.id != element
             {
                 return unsupported("structural array elements differ from their declared carrier");
@@ -558,7 +558,7 @@ impl Preparation<'_> {
                 let mut child_path = claim_path.to_vec();
                 child_path.push(terminal_psi::StructuralPathSegment::FixedIndex(
                     u64::try_from(element_index)
-                        .map_err(|_| LoweringError::Unsupported("array claim index exceeds u64"))?,
+                        .map_err(identities, identities, |_| LoweringError::Unsupported("array claim index exceeds u64"))?,
                 ));
                 completed.push(self.value(*child, element_reference, &child_path)?);
             }
@@ -761,7 +761,7 @@ impl Preparation<'_> {
                             child_path.push(terminal_psi::StructuralPathSegment::Case(case));
                         }
                         child_path.push(terminal_psi::StructuralPathSegment::Field(
-                            target.identity.clone(),
+                            target.identity.clone(identities, identities, ),
                         ));
                         Field::Structural(self.value(child, field.type_reference, &child_path)?)
                     }

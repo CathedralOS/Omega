@@ -113,7 +113,6 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
         parameters: arrival_parameters,
         erased_scalar_formals: Vec::new(),
         erased_proof_formals: crate::scalar_lowering::contracts::erased_proof_formal_declarations(
-            identities,
             checked,
             &evaluation.erased_proof_formals,
         ),

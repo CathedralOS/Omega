@@ -110,7 +110,6 @@ impl StateGraphEmission<'_, '_> {
                     &self.catalogs.structural_types,
                 ),
             record_fields: crate::scalar_lowering::computations::fields::prepare(
-            identities,
                 checked,
                 plan.machine,
                 &owners,
@@ -317,7 +316,7 @@ impl StateGraphEmission<'_, '_> {
             &mut next_edge,
             &mut operations,
         )?;
-        if operations.external_completion.is_some() {
+        if operations.external_completion.is_some(identities, ) {
             evaluation.remap_transported_call_operands(&mut operations);
             let terminator = operations.take_external_completion(&mut next_edge)?.ok_or(
                 LoweringError::Unsupported("external completion lost its evaluated invocation"),
@@ -467,7 +466,7 @@ impl StateGraphEmission<'_, '_> {
                     &mut calls,
                 )?;
                 self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-                Some(condition.id)
+                Some(identities, condition.id)
             }
         } else {
             None
@@ -496,13 +495,13 @@ impl StateGraphEmission<'_, '_> {
             &mut next_edge,
             &mut operations,
         )?;
-        let is_guarded_return = guarded_return.is_some();
+        let is_guarded_return = guarded_return.is_some(identities, );
         // A scalar-result state evaluates the value its selected exit returns
         // through the same exit evaluator an ordinary scalar body uses; its
         // private arm and join blocks stay inside this state.
         let mut scalar_return = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-                completion: checked_trees::CheckedScalarReturnPlan::Exits(exits),
+                completion: checked_trees::CheckedScalarReturnPlan::Exits(identities, exits),
             } => {
                 // Allocate each exit's obligations before the call context takes
                 // its counter snapshot. Proofs are produced from the completed
@@ -592,7 +591,7 @@ impl StateGraphEmission<'_, '_> {
             } else {
                 (Vec::new(), Vec::new(), Vec::new())
             };
-        // The authored `(expression)` arm lowers its value producer into its
+        // The authored `(identities, expression)` arm lowers its value producer into its
         // own block closed by ReturnStructural now, before the successor-edge
         // closure borrows this state's emission slots. The staged edge joins
         // the conditional arms below as the return block's jump target.
@@ -605,7 +604,7 @@ impl StateGraphEmission<'_, '_> {
             {
                 let arm_namespace = match &planned_guard {
                     Some((_, namespace)) if *return_when_true => namespace.clone(),
-                    _ => values.clone(),
+                    _ => values.clone(identities, ),
                 };
                 Some(self.conditional_return_arm(
                     position,
@@ -639,7 +638,7 @@ impl StateGraphEmission<'_, '_> {
             {
                 let true_namespace = match &planned_guard {
                     Some((_, namespace)) => namespace.clone(),
-                    None => values.clone(),
+                    None => values.clone(identities, ),
                 };
                 let true_edge = self.conditional_return_arm(
                     position,
@@ -647,7 +646,7 @@ impl StateGraphEmission<'_, '_> {
                     true_namespace,
                     planned_guard
                         .as_ref()
-                        .map_or(&[], |(guard, _)| guard.established.as_slice()),
+                        .map_or(identities, identities, &[], |(guard, _)| guard.established.as_slice()),
                     &[],
                     &[],
                     when_true,
@@ -746,10 +745,10 @@ impl StateGraphEmission<'_, '_> {
                             .enumerate()
                             .map(|(ordinal, field)| EstablishedCasePayload {
                                 source: prepared.source,
-                                path: prepared.path.clone(),
+                                path: prepared.path.clone(identities, ),
                                 case: case.identity,
                                 field: *field,
-                                position: values.len() + ordinal,
+                                position: values.len(identities, ) + ordinal,
                             })
                             .collect::<Vec<_>>();
                         let edge = self.conditional_return_arm(
@@ -801,10 +800,10 @@ impl StateGraphEmission<'_, '_> {
                             } else {
                                 let draft = &guarded_drafts[index - 1];
                                 match &draft.4 {
-                                    ChainGuard::Decision((guard, namespace)) => {
+                                    ChainGuard::Decision(identities, (guard, namespace)) => {
                                         (namespace.clone(), guard.established.as_slice())
                                     }
-                                    ChainGuard::Value(_) => (draft.5.clone(), &[][..]),
+                                    ChainGuard::Value(identities, _) => (draft.5.clone(), &[][..]),
                                 }
                             };
                             staged.push(Some(self.conditional_return_arm(
@@ -828,13 +827,13 @@ impl StateGraphEmission<'_, '_> {
             } else {
                 Vec::new()
             };
-        // A guarded-jump tail whose `_` arm is an authored `(expression)`
+        // A guarded-jump tail whose `_` arm is an authored `(identities, expression)`
         // returns it: mint its private return block exactly like a
         // conditional return arm's, before the successor-edge closure
         // borrows this state's emission slots.
         let mut guarded_return_edge =
             if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
-                fallback: checked_trees::CheckedGuardedJumpFallbackPlan::Return(return_arm),
+                fallback: checked_trees::CheckedGuardedJumpFallbackPlan::Return(identities, return_arm),
                 ..
             } = &state.terminator
             {
@@ -862,12 +861,12 @@ impl StateGraphEmission<'_, '_> {
         let mut ordinary_return_cleanup = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
                 completion: checked_trees::CheckedScalarReturnPlan::Exits(_),
-            } => Some(Vec::new()),
+            } => Some(identities, Vec::new()),
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
                 let [cleanup] = state.normal_exit_cleanups.as_slice(
             identities,) else {
-                    return unsupported("ordinary return has no unique source cleanup coordinate");
+                    return unsupported(identities, "ordinary return has no unique source cleanup coordinate");
                 };
                 let mut regions = super::super::cleanup::for_exit_regions(
                 self.checked,
@@ -1199,7 +1198,7 @@ impl StateGraphEmission<'_, '_> {
                         "guarded jump chain lost an ordered successor",
                     ))?;
                     let terminator = match guard {
-                        ChainGuard::Value(condition) => Terminator::Conditional {
+                        ChainGuard::Value(identities, condition) => Terminator::Conditional {
                             condition,
                             when_true,
                             when_false,
@@ -1246,9 +1245,8 @@ impl StateGraphEmission<'_, '_> {
                     });
                 }
                 let first_false = decision_edge(
-            identities,
                     guarded_decisions[0],
-                    self.state_erased_proof[position].len(),
+                    self.state_erased_proof[position].len(identities, ),
                     current_rank,
                     &mut self.rank_edges,
                     &mut next_edge,
@@ -1344,10 +1342,10 @@ impl StateGraphEmission<'_, '_> {
                             cleanup_actions: Vec::new(),
                         })
                     })
-                    .collect::<Result<Vec<_>, LoweringError>>()?;
+                    .collect::<Result<Vec<_>, LoweringError>>(identities, )?;
                 Terminator::StructuralCase {
                     source: prepared.source,
-                    path: prepared.path.clone(),
+                    path: prepared.path.clone(identities, ),
                     cases,
                 }
             }
@@ -1513,7 +1511,7 @@ fn emit_short_circuit_decision(
             identities,id, successor) in [(
             identities,true_block, when_true), (false_block, when_false)] {
         if let Some(rank) = frame.current_rank {
-            block_ranks.insert(id, rank);
+            block_ranks.insert(identities, id, rank);
         }
         edge_blocks.push(Block {
             id,

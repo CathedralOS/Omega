@@ -63,7 +63,6 @@ impl StateGraphEmission<'_, '_> {
             )?;
             let exit = super::super::cleanup::coordinate(state, statement_index, false)?;
             let mut regions = super::super::cleanup::for_exit_regions(
-            identities,
             self.checked,
                 state,
                 exit,

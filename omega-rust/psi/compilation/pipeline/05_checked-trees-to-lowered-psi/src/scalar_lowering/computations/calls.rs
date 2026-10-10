@@ -47,6 +47,7 @@ enum Operand {
 /// load-bearing custody — its binding and expression rows must rejoin uniquely
 /// and agree with the computed operand — and at least one must be present.
 fn consume_pure_call_argument(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     bindings: &storage::ScalarBindings,
     state: symbols::SymbolHandle,
@@ -56,7 +57,7 @@ fn consume_pure_call_argument(
     argument_ordinal: u32,
     operand: &checked_trees::CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
-    let operand_expression = bindings.expression(&checked.facts.proven_scalar_indexes, operand)?;
+    let operand_expression = bindings.expression(identities, &checked.facts.proven_scalar_indexes, operand)?;
     let plans = &checked.facts.values.scalar_expressions;
     let mut retained = false;
     for role in [
@@ -161,7 +162,6 @@ impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call(
         &mut self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source_call: Handle<checked_trees::FlowCallFact>,
         callee: &checked_trees::CheckedScalarCallee,
         call_ordinal: u32,
@@ -223,7 +223,6 @@ impl Expansion<'_> {
                     "computed structural arguments have a stale span",
                 ))?;
         let mut structural_arguments = structural_arguments::lower(
-            identities,
             self.checked,
             source_call,
             target_machine,
@@ -430,8 +429,7 @@ impl Expansion<'_> {
             statement_index: source.statement_index,
             call_ordinal: source.call_ordinal,
         };
-        let (
-            identities,_, caller_state) = crate::declarations::state_declaration(self.checked, site.state)?;
+        let (_, caller_state) = crate::declarations::state_declaration(self.checked, site.state)?;
         let loan_completions = crate::emission::loan_completions::prepare(
             self.checked,
             self.machine,
@@ -476,7 +474,6 @@ impl Expansion<'_> {
                     structural_arguments,
                     claim_transfers:
                         crate::emission::claim_bindings::prepare_checked_claim_transfers(
-            identities,
                             self.checked,
                             &claim_transfers,
                             parameters,
@@ -493,18 +490,17 @@ impl Expansion<'_> {
                 result_type,
                 result_policy: crate::emission::operation_emission::boundary_calls::result_policy::BoundaryResultPolicy::prepare(
                     self.checked, self.machine, coordinate,
-                    Some(checked_trees::NominalMachineUseSite::Expression(source.authored_expression)), target_machine,
+                    Some(identities, checked_trees::NominalMachineUseSite::Expression(source.authored_expression)), target_machine,
                 )?,
                 arguments: scalar_actuals,
                 structural_arguments,
                 completion_receipts: crate::emission::claim_bindings::prepare_checked_claim_transfers(
-            identities,
                     self.checked, &claim_transfers, parameters, self.structural_types,
                 )?,
             })
         } else {
-            LoweredScalarBinding::DirectCall(
-            identities, lower_scalar_call(
+            LoweredScalarBinding::DirectCall(lower_scalar_call(
+            identities, 
                 self.checked,
                 self.qualifications,
                 self.machine,
@@ -531,7 +527,7 @@ impl Expansion<'_> {
         if self.calls.contains(&coordinate) {
             return unsupported("scalar computation repeats a call occurrence");
         }
-        self.calls.push(coordinate);
+        self.calls.push(identities, coordinate);
         // The checked call owns retirement, not the producer's source family
         // or its borrowed access. Keep the scalar result and caller prefix live
         // across the exact normal continuation; a crashing call never reaches it.
@@ -637,7 +633,7 @@ impl Expansion<'_> {
     /// exact source to storage and lowers the already selected subtree paths.
     fn temporary_cleanup_actions(
         &self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         state: symbols::SymbolHandle,
         source_call: Handle<checked_trees::FlowCallFact>,
         arguments: &[CheckedScalarComputationStructuralArgument],
@@ -683,7 +679,7 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "temporary retirement has stale residual rows",
                 ))?;
-            let call = self.checked.facts.flow.control.calls.get(source_call);
+            let call = self.checked.facts.flow.control.calls.get(identities, source_call);
             let owner = self
                 .checked
                 .facts
@@ -717,10 +713,9 @@ impl Expansion<'_> {
             identities,"temporary cleanup names a different owner");
                 }
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-            identities,
                     action.path(
             identities,), slot.structural_type, self.structural_types,
-                    None, &mut std::iter::empty(), None,
+                    None, &mut std::iter::empty(identities, ), None,
                 )?;
                 let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
                     self.checked,

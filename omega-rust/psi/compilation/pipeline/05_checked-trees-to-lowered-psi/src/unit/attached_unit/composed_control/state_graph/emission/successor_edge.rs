@@ -334,9 +334,8 @@ impl StateGraphEmission<'_, '_> {
                                     "Unit graph case-payload subject is write-only",
                                 );
                             }
-                            let destination = place_id( allocate_dense(&mut self.catalogs.next_place)?);
+                            let destination = place_id(identities,  allocate_dense(&mut self.catalogs.next_place)?);
                             self.structural_places.push(case_leaf_copy::emit(
-            identities,
                                 &self.catalogs.structural_types, source, root_type, &subject.path,
                                 &case_identity.spelling(), &field_identity.spelling(), path,
                                 target_parameter, destination, operations,
@@ -784,13 +783,12 @@ impl StateGraphEmission<'_, '_> {
                     },
                 )?;
                 crate::proofs::crash_routes::lowered_direct_scalar_term(
-            identities,
                     &expression,
                     &edge_values,
                     &self.state_erased[position],
                 )
             })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+            .collect::<Result<Vec<_>, LoweringError>>(identities, )?;
         // Proof actuals keep the same rule: each checked term resolves
         // against the emitting state's roster and must land in the
         // target state's roster order.
@@ -982,7 +980,7 @@ impl StateGraphEmission<'_, '_> {
                 }
             }
             edge_blocks.extend(edge_evaluation.blocks);
-            edge_blocks.push(Block {
+            edge_blocks.push(identities, identities, Block {
                 id: edge_evaluation.current,
                 parameters: edge_evaluation.parameters,
                 // The forwarding block redeclares the emitting state's

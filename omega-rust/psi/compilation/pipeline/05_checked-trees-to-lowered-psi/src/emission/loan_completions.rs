@@ -70,7 +70,6 @@ pub(crate) fn prepare(
         let mut completed_path = owner.path.clone();
         completed_path.extend(
             crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-            identities,
                 &path,
                 structural_type,
                 types,
@@ -94,12 +93,10 @@ pub(crate) fn prepare(
                 continue;
             }
             let path = validation::structural_claim_path(&checked.typed, reference, event_path)
-                .map_err(
-            identities,LoweringError::Unsupported)?;
-            let mut terminal_path = owner.path.clone(
-            identities,);
+                .map_err(LoweringError::Unsupported)?;
+            let mut terminal_path = owner.path.clone(identities, );
             terminal_path.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                &path, structural_type, types,
+            &path, structural_type, types,
             )?);
             claims.push((event.claim_identity, terminal_path));
         }

@@ -24,6 +24,7 @@ pub(crate) struct Slot {
 pub(super) use crate::unit::attached_unit::view_ranges::range;
 
 pub(crate) fn prepare(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
@@ -90,6 +91,7 @@ pub(crate) fn prepare(
 }
 
 fn reserve(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     statement: u32,
@@ -130,6 +132,7 @@ impl super::Expansion<'_> {
     /// temporaries only after the ordinary descriptor operation consumes them.
     pub(super) fn subslice(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: &CheckedUnitStructuralArgumentPlan,
         slot: &Slot,
         input_types: &[super::QualifiedScalarType],
@@ -143,7 +146,7 @@ impl super::Expansion<'_> {
         let bytes =
             range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
         if slot.expression != range.expression || slot.bytes != bytes {
-            return unsupported("computed range disagrees with its descriptor reservation");
+            return unsupported(identities, "computed range disagrees with its descriptor reservation");
         }
         let (mut source, establishment) = slot.storage.bind(
             self.checked,
@@ -175,7 +178,7 @@ impl super::Expansion<'_> {
         }
         let mut completed = [None, None];
         for (index, endpoint) in [start, end].into_iter().enumerate() {
-            let Some(endpoint) = endpoint else {
+            let Some(identities, endpoint) = endpoint else {
                 continue;
             };
             let argument = match endpoint {

@@ -9,6 +9,7 @@ use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration};
 
 pub(crate) fn resolve(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     declarations: &[StructuralTypeDeclaration],
     field: &StructuralFieldType,

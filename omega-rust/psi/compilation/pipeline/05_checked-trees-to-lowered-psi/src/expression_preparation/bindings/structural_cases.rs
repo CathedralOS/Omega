@@ -131,7 +131,6 @@ pub(crate) fn resolve(
     }
     let (
             identities, sum, path) = walk(
-            identities,
         &binding.declarations,
         binding.structural_type,
         &subject.path,
@@ -140,7 +139,7 @@ pub(crate) fn resolve(
             identities, (
         binding.source,
         path,
-        selected_case(&binding.declarations, sum, identity)?,
+        selected_case(identities, &binding.declarations, sum, identity)?,
     ))
 }
 
@@ -155,6 +154,7 @@ pub(crate) fn resolve(
 /// view's dominating live-length observation. A nested view needs a separately
 /// established descriptor root before its length can be observed.
 pub(crate) fn resolve_runtime_element(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     declarations: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
     source: PlaceId,
@@ -172,7 +172,7 @@ pub(crate) fn resolve_runtime_element(
     LoweringError,
 > {
     let (
-            identities,array, prefix) = walk(declarations, structural_type, prefix)?;
+            identities,array, prefix) = walk(identities, declarations, structural_type, prefix)?;
     let (element, observes_element_view_length) = match &unique_declaration(
         declarations,
         array,
@@ -192,7 +192,7 @@ pub(crate) fn resolve_runtime_element(
         }
     };
     let (sum, element_path) = walk(declarations, element, element_path)?;
-    let case = selected_case(declarations, sum, identity)?;
+    let case = selected_case(identities, declarations, sum, identity)?;
     Ok((
         source,
         prefix,

@@ -117,7 +117,6 @@ pub(in crate::unit::attached_unit) fn emit(
     let (
             identities,mut machine, occurrences, scalar_block_invariants, qualification_coercions) =
         state_graph::emit(
-            identities,
             checked,
             plan,
             admitted,

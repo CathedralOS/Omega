@@ -67,7 +67,6 @@ pub(crate) fn emit_assignment(
 ) -> Result<OperationKind, LoweringError> {
     // The runtime elements' selectors are evaluated before the stored value.
     let indexes = super::runtime_elements::evaluate_selectors(
-            identities,
         &destination.path,
         checked,
         machine,
@@ -163,6 +162,7 @@ pub(crate) fn lower_destination_path(
 }
 
 pub(crate) fn destination_restriction(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
@@ -189,7 +189,7 @@ pub(crate) fn lower_path(
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
-    if let Some((CheckedUnitStructuralPathSegment::Field(identity), carrier)) = path.split_last() {
+    if let Some(identities, (CheckedUnitStructuralPathSegment::Field(identity), carrier)) = path.split_last() {
         // Reads may observe declaration-constrained scalar fields through a
         // pointer. Such a field is not raw primitive store storage. Reuse the
         // carrier walk (including its bounds), then query read-only leaf typing.
@@ -223,7 +223,7 @@ pub(crate) fn indexed_element_scalar_type(
     types: &[StructuralTypeDeclaration],
 ) -> Result<ScalarType, LoweringError> {
     if let Some((CheckedUnitStructuralPathSegment::Field(identity), carrier)) =
-        element_path.split_last()
+        element_path.split_last(identities, )
     {
         let (_, walked) = walk_path(element, carrier, types)?;
         let Walked::Declared(record) = walked else {
@@ -266,7 +266,7 @@ pub(crate) fn indexed_element_scalar_type(
                 );
             }
         };
-        return Ok(scalar_type);
+        return Ok(identities, scalar_type);
     }
     let (_, walked) = walk_path(element, element_path, types)?;
     let scalar_type = match walked {
@@ -302,6 +302,7 @@ pub(crate) fn indexed_element_scalar_type(
 type Walked = terminal_semantics::Position;
 
 fn walk_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],

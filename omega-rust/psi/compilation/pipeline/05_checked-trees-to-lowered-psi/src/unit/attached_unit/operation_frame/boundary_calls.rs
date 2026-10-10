@@ -188,7 +188,6 @@ impl OperationFrame<'_, '_> {
         // through this call's CallEnsures evidence.
         let qualification_establishments =
             super::super::catalog::call_result_qualification_establishments(
-            identities,
                 checked,
                 self.state,
                 *coordinate,
@@ -236,6 +235,7 @@ impl OperationFrame<'_, '_> {
     /// boundary and lower its scalar, structural and receipt operands.
     fn boundary_operands(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         call: &checked_trees::CheckedUnitCallPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<BoundaryOperands, LoweringError> {
@@ -277,7 +277,7 @@ impl OperationFrame<'_, '_> {
         )?
         .iter()
         .map(|value| value.id)
-        .collect();
+        .collect(identities, );
         let structural_arguments = self.lower_runtime_structural_arguments(
             structural_arguments,
             &earlier,

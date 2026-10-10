@@ -300,7 +300,7 @@ pub(super) fn lower_unit_structural_types(
     ),
     LoweringError,
 > {
-    lower_unit_structural_types_including(checked, plans, closure, boundaries, &[])
+    lower_unit_structural_types_including(identities, checked, plans, closure, boundaries, &[])
 }
 
 pub(super) fn lower_unit_structural_types_including(
@@ -397,7 +397,7 @@ pub(super) fn lower_unit_structural_types_including(
         roots.extend(boundary.result.structural_identity().map(str::to_owned));
     }
     let (mut declarations, mut identity_ids, referents) =
-        lower_unit_structural_type_roots(checked, plans, &roots)?;
+        lower_unit_structural_type_roots(identities, checked, plans, &roots)?;
     // A captured coordinate is compiler-owned primitive storage, even when
     // its source is an inline field and no authored signature roots u64.
     // Publish its ordinary carrier before any emission route borrows this
@@ -535,9 +535,8 @@ pub(crate) fn lower_unit_structural_type_roots(
             )?,
             // Dynamic byte descriptors have no implicit backing extent.
             // Their element-view establishment roots u8 through the operation.
-            CheckedUnitStructuralTypeShape::BindingCarrier
             | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
-            | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
+            | CheckedUnitStructuralTypeShape::ByteSequence(_, _, _) => {}
             // A borrowed `&[T]` view is the runtime-length descriptor over an
             // element type that must itself reach the catalog.
             CheckedUnitStructuralTypeShape::BorrowedSliceView {
@@ -549,7 +548,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                 for type_identity in fields.iter().flat_map(
                     checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
                 ) {
-                    collect(identities, checked, plans, type_identity, active, selected)?;
+                    collect(identities, identities, identities, checked, plans, type_identity, active, selected)?;
                 }
             }
             CheckedUnitStructuralTypeShape::FixedArray {
@@ -583,7 +582,7 @@ pub(crate) fn lower_unit_structural_type_roots(
     }
 
     let mut selected = Vec::new();
-    let mut active = Vec::new();
+    let mut active = Vec::new(identities, identities, );
     for identity in roots {
         collect(checked, plans, identity, &mut active, &mut selected)?;
     }
@@ -691,7 +690,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                         // retains this exact path; the child marker prohibits record
                         // construction and still requires entry/transfer establishment.
                         (field.relevance, StructuralFieldType::Structural(
-                            lookup_type_id(&type_ids, provider_type_identity)?,
+                            lookup_type_id(identities, identities, &type_ids, provider_type_identity)?,
                         ))
                     }
                     field_type => (field.relevance, crate::structural_types::lower_field_type(field_type, &type_ids)?),
@@ -760,7 +759,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                             },
                         })
                     })
-                    .collect::<Result<Vec<_>, LoweringError>>()?;
+                    .collect::<Result<Vec<_>, LoweringError>>(identities, identities, identities, identities, )?;
                 StructuralTypeShape::Sum { cases }
             }
             CheckedUnitStructuralTypeShape::Mixed { fields, cases } => StructuralTypeShape::Mixed {
@@ -771,7 +770,7 @@ pub(crate) fn lower_unit_structural_type_roots(
         declarations.push(StructuralTypeDeclaration {
             scalar_restriction: plan
                 .scalar_restriction
-                .as_ref()
+                .as_ref(identities, identities, )
                 .map(|restriction| {
                     crate::structural_types::lower_field_type(restriction, &type_ids)
                 })
@@ -995,6 +994,7 @@ fn establishment_requirement_identity(
 }
 
 fn lower_establishment_route(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     route: language_semantics::DomainEstablishmentRoute,
 ) -> Result<terminal_psi::StructuralEstablishmentRoute, LoweringError> {
@@ -1038,6 +1038,7 @@ fn lower_establishment_route(
 /// canonical normalized overload identity, so private issuers retain their
 /// exact names without gaining consumer authority.
 pub(super) fn lower_establishment_routes(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     routes: &[language_semantics::DomainEstablishmentRoute],
 ) -> Result<Vec<terminal_psi::StructuralEstablishmentRoute>, LoweringError> {
@@ -1229,6 +1230,7 @@ pub(super) fn lower_unit_services_including(
 }
 
 pub(super) fn lower_selected_unit_services(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     mut selected: Vec<ServiceReachId>,
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
@@ -1296,6 +1298,7 @@ pub(super) fn lower_selected_unit_services(
 }
 
 pub(crate) fn lower_root_service_reach(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
     service_ids: &[(ServiceReachId, ServiceId)],

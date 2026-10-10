@@ -101,7 +101,7 @@ impl OperationFrame<'_, '_> {
             CheckedStoreLeaf::ScalarField {
                 primitive_type,
                 range_decision,
-            } => self.scalar_field_store(store, *primitive_type, *range_decision),
+            } => self.scalar_field_store(identities, store, *primitive_type, *range_decision),
             CheckedStoreLeaf::ByteElement { .. } => {
                 let target = self.byte_element_target(store)?;
                 self.indexed_write(target)
@@ -111,7 +111,7 @@ impl OperationFrame<'_, '_> {
                 self.indexed_write(target)
             }
             CheckedStoreLeaf::RepresentationView { view } => {
-                self.representation_view_store(store, *view)
+                self.representation_view_store(identities, store, *view)
             }
             CheckedStoreLeaf::ByteContents | CheckedStoreLeaf::ByteDescriptor => {
                 self.byte_sequence_store(
@@ -173,8 +173,8 @@ impl OperationFrame<'_, '_> {
     /// established primitive local, or a projection below an owned structural
     /// local; through a recast loan local it writes the original backing's
     /// bytes.
-    fn primitive_store(&mut self, store: &CheckedStorePlan) -> Result<(), LoweringError> {
-        let Some((role, value)) = store.value.scalar() else {
+    fn primitive_store(&mut self,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder, store: &CheckedStorePlan) -> Result<(), LoweringError> {        let Some((role, value)) = store.value.scalar() else {
             return unsupported("primitive store holds no scalar value");
         };
         let value = match value {
@@ -208,7 +208,7 @@ impl OperationFrame<'_, '_> {
                 ))?;
             // Capture the destination before evaluating the RHS, just as for
             // field stores. A recast loan never invents another owned home.
-            let destination = self.prepare_loaned_byte_store(statement_index, &loan)?;
+            let destination = self.prepare_loaned_byte_store(identities, statement_index, &loan)?;
             let value = self.evaluation.source_value(
                 self.checked,
                 self.machine,
@@ -280,7 +280,7 @@ impl OperationFrame<'_, '_> {
                     .cloned()
                     .map(crate::emission::runtime_elements::ProjectionStep::Static)
                     .collect::<Vec<_>>();
-                composed.extend(steps);
+                composed.extend(identities, steps);
                 crate::emission::primitive_store::Destination {
                     place: source.place,
                     path: composed,
@@ -374,7 +374,6 @@ impl OperationFrame<'_, '_> {
         if descriptor {
             let mut destination =
                 crate::emission::structural_byte_sequence_store::prepare_descriptor_store(
-            identities,
                     &root,
                     &store.destination.path,
                     self.structural_types.declarations(
@@ -417,7 +416,7 @@ impl OperationFrame<'_, '_> {
             )?;
             self.push_unit(
             identities,kind);
-            return Ok(());
+            return Ok(identities, ());
         }
         let kind = crate::emission::structural_byte_sequence_store::emit_content_store(
             &store.destination.path,
@@ -447,7 +446,7 @@ impl OperationFrame<'_, '_> {
             .with_place_observations(&self.evaluation.place_observations)
             .with_element_views(&self.evaluation.element_views)
             .with_structural_parameters(&self.evaluation.structural_parameters)
-            .with_structural_locals(&self.evaluation.structural_locals)
+            .with_structural_locals(identities, &self.evaluation.structural_locals)
     }
 
     /// One runtime-indexed write: the index, then the value, lower in the
@@ -473,7 +472,7 @@ impl OperationFrame<'_, '_> {
             .evaluation
             .scalar_bindings
             .clone()
-            .with_structural_locals(&self.evaluation.structural_locals)
+            .with_structural_locals(identities, &self.evaluation.structural_locals)
             .with_view_locals(&self.evaluation.view_locals)
             .with_place_observations(&self.evaluation.place_observations);
         // The plan's index is the checked expression bound at the target's
@@ -720,7 +719,7 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(
             identities,),
         )?;
-        if let Some(projection) = &loan.byte_overlay {
+        if let Some(identities, projection) = &loan.byte_overlay {
             let steps = projection
                 .indices
                 .iter()
@@ -768,7 +767,7 @@ impl OperationFrame<'_, '_> {
         range_decision: arena::Handle<checked_trees::CheckedIntegerAssignmentDecision>,
     ) -> Result<(), LoweringError> {
         let Some((_, value)) = store.value.scalar() else {
-            return unsupported("scalar field store holds no scalar value");
+            return unsupported(identities, "scalar field store holds no scalar value");
         };
         let Some((mut carrier_path, field_identity)) = store.destination.field() else {
             return unsupported("scalar field store names no field");
@@ -820,7 +819,7 @@ impl OperationFrame<'_, '_> {
                 )? {
                     self.push_unit(kind);
                 }
-                return Ok(());
+                return Ok(identities, ());
             }
             rejoined = loan.path;
             carrier_path = &rejoined;
@@ -828,7 +827,7 @@ impl OperationFrame<'_, '_> {
         // A parameter destination roots the store at its borrowed place; an
         // owned structural local roots it at the local's live home place,
         // resolved through the structural-local roster.
-        let (destination_place, destination_type, mut lowered) = match root {
+        let (identities, destination_place, destination_type, mut lowered) = match root {
             checked_trees::CheckedStoreRoot::Parameter { position } => {
                 let destination =
                     store_parameter(&self.evaluation.structural_parameters, position)?;
@@ -841,7 +840,7 @@ impl OperationFrame<'_, '_> {
                         self.structural_types.declarations(
             identities,),
                     )?;
-                (destination.place, destination.structural_type, lowered)
+                (identities, destination.place, destination.structural_type, lowered)
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
                 let (
@@ -987,11 +986,11 @@ impl OperationFrame<'_, '_> {
     /// custody action retires it.
     fn sum_field_store(
         &mut self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         store: &CheckedStorePlan,
     ) -> Result<(), LoweringError> {
         let Some((carrier_path, field_identity)) = store.destination.field() else {
-            return unsupported("sum field store names no field");
+            return unsupported(identities, "sum field store names no field");
         };
         // A parameter destination roots the window at its borrowed place; an
         // owned structural local roots it at the local's live home place.
@@ -1110,7 +1109,7 @@ impl OperationFrame<'_, '_> {
     /// namespace and an unnamed common field takes its declared zero.
     fn established_case_literal(
         &mut self,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         statement_index: u32,
         literal: &checked_trees::CheckedCaseLiteralValuePlan,
         hole_type: StructuralTypeId,

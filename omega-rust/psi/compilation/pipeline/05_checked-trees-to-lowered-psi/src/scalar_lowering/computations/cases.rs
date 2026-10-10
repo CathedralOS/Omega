@@ -116,6 +116,7 @@ pub(crate) fn prepare(
 /// Resolve one exact constructor against the shared structural namespace.
 /// The caller owns allocation and the result's lifetime.
 pub(crate) fn reserve(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     expression: checked_trees::expression::ExpressionHandle,
     source: &validation::ScalarCaseConstructor,
@@ -339,7 +340,6 @@ impl Expansion<'_> {
                 let (
             identities,path, case) =
                     crate::expression_preparation::bindings::structural_cases::resolve_at(
-            identities,
                         self.structural_types,
                         structural_type,
                         &argument.path,

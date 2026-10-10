@@ -248,7 +248,6 @@ pub(crate) fn lower_unit_parameters(
                 access: terminal_access(parameter.access),
                 qualifications,
                 projected_qualifications: lower_projected_qualifications(
-            identities,
                     &parameter.projected_qualifications,
                     domain_ids,
                     lookup_type_id(type_ids, &parameter.type_identity)?,
@@ -449,14 +448,13 @@ pub(crate) fn mint_runtime_index_selectors(
     for argument in arguments {
         for segment in &argument.path {
             let CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::StructuralField(field),
+                checked_trees::CheckedRuntimeIndex::StructuralField(identities, field),
             ) = segment
             else {
                 continue;
             };
             let observation =
                 crate::expression_preparation::bindings::structural_fields::resolve_typed(
-            identities,
                     fields,
                     field.parameter_position,
                     &field.path,
@@ -504,7 +502,6 @@ pub(crate) fn lower_structural_arguments(
                           prefix: &[terminal_psi::StructuralPathSegment]| {
         let suffix =
             crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(
-            identities,
                 checked,
                 argument,
                 root,

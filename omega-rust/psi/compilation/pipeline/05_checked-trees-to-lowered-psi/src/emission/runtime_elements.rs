@@ -193,7 +193,6 @@ pub(crate) fn evaluate_selectors(
             ProjectionStep::RuntimeIndexField(field) => {
                 let observation =
                     crate::expression_preparation::bindings::structural_fields::resolve_typed(
-            identities,
                         &evaluation.structural_fields,
                         field.parameter_position,
                         &field.path,
