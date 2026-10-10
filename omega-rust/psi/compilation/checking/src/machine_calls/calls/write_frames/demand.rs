@@ -29,7 +29,7 @@ use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, summarize_state_written_paths,
 };
 use facts::NormalizedWriteFrame;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -110,16 +110,14 @@ pub(crate) struct CallFrameCaches {
         >,
     >,
     /// Whole-program operational and service-reach plans an operand Call node
-    /// consumes to test call-candidate totality. Source custody preparation
-    /// can add implicit cleanup dependencies without changing TypedTrees, so
-    /// the retained operational graph is part of this memo's identity.
-    call_plans: Mutex<
-        Option<
-            std::sync::Arc<(
-                flow_effects::OperationalPlan,
-                flow_effects::ServiceReachInferencePlan,
-            )>,
-        >,
+    /// consumes to test call-candidate totality. The immutable checking
+    /// context owns this pair; changing selected cleanup or other prepared
+    /// inputs replaces its memos, even when TypedTrees stays unchanged.
+    call_plans: OnceLock<
+        std::sync::Arc<(
+            flow_effects::OperationalPlan,
+            flow_effects::ServiceReachInferencePlan,
+        )>,
     >,
 }
 
@@ -131,19 +129,9 @@ impl CallFrameCaches {
         flow_effects::OperationalPlan,
         flow_effects::ServiceReachInferencePlan,
     )> {
-        let operational = crate::infer_operational_may(program);
-        if let Ok(cache) = self.call_plans.lock()
-            && let Some(plans) = cache.as_ref()
-            && plans.0 == operational
-        {
-            return plans.clone();
-        }
-        let service_reaches = crate::infer_service_reaches(program, &operational);
-        let plans = std::sync::Arc::new((operational, service_reaches));
-        if let Ok(mut cache) = self.call_plans.lock() {
-            *cache = Some(plans.clone());
-        }
-        plans
+        self.call_plans
+            .get_or_init(|| std::sync::Arc::new(compute_call_plans(program)))
+            .clone()
     }
 }
 

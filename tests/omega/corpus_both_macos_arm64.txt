@@ -409,6 +409,7 @@ pass/float/named_float_integer_nan_conversion_traps built 9204ms exit:signal sig
 pass/float/named_nan_semantic_only_exit built 32544ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/float/named_operation_retains_collection_element_policy_exit built 6290ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/float/named_provider_directed_divide_exit built 35672ms exit:70 interpreter-exit:70 interpreter:agrees @5889f8b8208f+wt
+pass/float/named_provider_min_max_sqrt_exit built 60835ms exit:70 interpreter-exit:70 interpreter:agrees @503a4a8606d3+wt
 pass/float/public_boolean_result_contract_import_exit built 53225ms exit:0 interpreter-exit:0 interpreter:agrees @d8a6671a4728
 pass/float/public_boolean_result_contract_match_import_exit built 62686ms exit:0 interpreter-exit:0 interpreter:agrees @4a6e7ac34b03
 pass/float/public_boolean_result_contract_short_circuit_import_exit built 62457ms exit:0 interpreter-exit:0 interpreter:agrees @4a6e7ac34b03

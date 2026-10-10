@@ -2786,19 +2786,6 @@ crash and native exit behavior.
     of `source/library/alloc/bump.omg` reports
     `retained_buffer::Held.storage` already transferred and three
     `Extent::Granted` call-result qualifications unproved.
-  - Std console execution is restored on macOS ARM64: ordinary package review
-    and `omega run --both samples/cli/basics/cli_mvp/main.omg` print the exact
-    hello-world/prompt output and exit 0 in native code and the interpreter
-    with LF input. Exact opaque family members now use their selected provider
-    rows while retaining the portable head contract. Console byte input, bounded
-    line LF/full/partial-EOF cases, descriptor I/O, and clock execution agree
-    across both runtimes; an opaque family without a provider still rejects.
-    Universal target layouts, physical boundary identities, and complete local
-    loan referee retention restore all 36 previously rejected valid fixtures in
-    the affected layout/recast/target/termination subset. Mutable-equivalent
-    domain/range recasts now both execute with native/interpreter exit 70;
-    invalid bit-set equivalence and invariant-erasing stores still reject.
-    Other deployment targets need their own native execution measurements.
   - `pass/proofs/case_call_premises` still cannot prove `preserve_empty`'s
     `value in Tree::Empty` from `make_empty`'s guarantee at b7418d4022. Its
     callees are `terminates` proof machines, judged as applications rather
@@ -5769,9 +5756,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     VFMADD213 per format. Without admission the plan join still rejects.
   - Remaining: run that fixture on Linux x86-64 hardware; run
     `x86_fma_plan_association`, `named_provider_fused_multiply_add_exit` and
-    `admitted_numeric_imports_preserve_semantics` (all admit AvxFma3) once std
-    checks again; std shares the Console loop-ranking dependency under
-    **PSI-TARGET-FAMILIES**.
+    `admitted_numeric_imports_preserve_semantics` (all admit AvxFma3) on
+    matching hosts now that std Console source checking is restored.
   - The never-populated image custody (constant-operand
     `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd`, machine-code FMA
     fragments/occurrences, `object_artifact/replay/x86_fma.rs`) waits on

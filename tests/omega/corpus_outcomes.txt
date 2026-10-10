@@ -4616,6 +4616,7 @@ pass/termination/runtime_selected_requirement_rank_composed_prefix_exit checked 
 pass/termination/runtime_selected_requirement_rank_prefix_exit checked 3388ms check-target:macos_arm64 @05ef1dca14f6
 pass/termination/runtime_shrinking_slice_recursion_exit checked 1796ms check-target:macos_arm64 @921839635ad
 pass/termination/runtime_stored_exclusive_endpoint_exit checked 1203ms check-target:macos_arm64 @82ec69a91ceb+wt
+pass/termination/slice_rank_unrelated_float_operator checked 901ms @503a4a8606d3+wt
 pass/termination/stored_reference_endpoint_arrivals checked 320ms @2d8ed253669f
 pass/termination/symbolic_quotient_endpoints checked 334ms @2d8ed253669f
 pass/termination/unsigned_identity_measure_rank_range checked 300ms @2d8ed253669f
