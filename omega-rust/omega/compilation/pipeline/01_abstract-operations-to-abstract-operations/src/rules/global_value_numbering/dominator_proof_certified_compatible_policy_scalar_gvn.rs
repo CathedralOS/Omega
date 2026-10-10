@@ -36,15 +36,8 @@ impl PsiOptimizationRule for DominatorProofCertifiedCompatiblePolicyScalarGvnRul
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::ControlFlowGraph,
-            ));
-        }
-        let Some(AnalysisProduct::Dominators(dominators)) = analyses.get(AnalysisKind::Dominators)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
-        };
+        required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
+        required_analysis!(analyses, AnalysisKind::Dominators => Some(AnalysisProduct::Dominators(dominators)));
         let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
         let mut candidates = Vec::new();
         for function in &unit.functions {

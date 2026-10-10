@@ -45,13 +45,7 @@ impl PsiOptimizationRule for FieldValueSpecializationRule {
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let Some(AnalysisProduct::StronglyConnectedComponents(scc)) =
-            analyses.get(AnalysisKind::StronglyConnectedComponents)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::StronglyConnectedComponents,
-            ));
-        };
+        required_analysis!(analyses, AnalysisKind::StronglyConnectedComponents => Some(AnalysisProduct::StronglyConnectedComponents(scc)));
         // This specialization preserves cyclic machines byte-for-byte.
         let frozen = scc.cyclic_machines(unit);
         let mut candidates = Vec::new();

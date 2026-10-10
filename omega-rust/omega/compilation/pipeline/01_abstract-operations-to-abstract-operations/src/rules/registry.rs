@@ -56,20 +56,8 @@ impl<'a> RuleAnalysisView<'a> {
     pub(crate) fn use_definitions_and_effects(
         self,
     ) -> Result<(&'a UseDefinitionAnalysis, &'a EffectSummaryAnalysis), RuleProposalError> {
-        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
-            self.get(AnalysisKind::UseDefinition)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::UseDefinition,
-            ));
-        };
-        let Some(AnalysisProduct::EffectSummaries(effects)) =
-            self.get(AnalysisKind::EffectSummaries)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::EffectSummaries,
-            ));
-        };
+        required_analysis!(self, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
+        required_analysis!(self, AnalysisKind::EffectSummaries => Some(AnalysisProduct::EffectSummaries(effects)));
         Ok((use_definitions, effects))
     }
 }

@@ -53,23 +53,9 @@ pub(super) fn propose(
     analyses: RuleAnalysisView<'_>,
     contract: OptimizationRuleContract,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-    let Some(AnalysisProduct::ControlFlowGraph(_)) = analyses.get(AnalysisKind::ControlFlowGraph)
-    else {
-        return Err(RuleProposalError::MissingAnalysis(
-            AnalysisKind::ControlFlowGraph,
-        ));
-    };
-    let Some(AnalysisProduct::Dominators(dominators)) = analyses.get(AnalysisKind::Dominators)
-    else {
-        return Err(RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
-    };
-    let Some(AnalysisProduct::UseDefinition(use_definitions)) =
-        analyses.get(AnalysisKind::UseDefinition)
-    else {
-        return Err(RuleProposalError::MissingAnalysis(
-            AnalysisKind::UseDefinition,
-        ));
-    };
+    required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(AnalysisProduct::ControlFlowGraph(_)));
+    required_analysis!(analyses, AnalysisKind::Dominators => Some(AnalysisProduct::Dominators(dominators)));
+    required_analysis!(analyses, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
 
     let mut candidates = Vec::new();
     for function in &unit.functions {

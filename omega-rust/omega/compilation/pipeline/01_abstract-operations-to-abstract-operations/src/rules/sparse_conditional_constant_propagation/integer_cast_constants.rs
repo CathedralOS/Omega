@@ -40,13 +40,7 @@ fn propose(
     analyses: RuleAnalysisView<'_>,
     contract: OptimizationRuleContract,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-    let Some(AnalysisProduct::ScalarConstants(constants)) =
-        analyses.get(AnalysisKind::ScalarConstants)
-    else {
-        return Err(RuleProposalError::MissingAnalysis(
-            AnalysisKind::ScalarConstants,
-        ));
-    };
+    required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
     let mut candidates = Vec::new();
     for function in &unit.functions {
         for block in &function.blocks {

@@ -54,18 +54,8 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let Some(AnalysisProduct::ScalarConstants(constants)) =
-            analyses.get(AnalysisKind::ScalarConstants)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::ScalarConstants,
-            ));
-        };
-        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::ControlFlowGraph,
-            ));
-        }
+        required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
+        required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
         let mut candidates = Vec::new();
         for function in &unit.functions {
             for block in &function.blocks {

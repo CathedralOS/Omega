@@ -36,18 +36,8 @@ fn propose(
     contract: OptimizationRuleContract,
     kind: IntegerRangeComparisonKind,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-    let Some(AnalysisProduct::ScalarConstants(constants)) =
-        analyses.get(AnalysisKind::ScalarConstants)
-    else {
-        return Err(RuleProposalError::MissingAnalysis(
-            AnalysisKind::ScalarConstants,
-        ));
-    };
-    let Some(AnalysisProduct::ValueRanges(ranges)) = analyses.get(AnalysisKind::ValueRanges) else {
-        return Err(RuleProposalError::MissingAnalysis(
-            AnalysisKind::ValueRanges,
-        ));
-    };
+    required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
+    required_analysis!(analyses, AnalysisKind::ValueRanges => Some(AnalysisProduct::ValueRanges(ranges)));
     propose_over(unit, constants, ranges, contract, kind)
 }
 

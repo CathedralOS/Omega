@@ -91,13 +91,7 @@ pub(super) fn propose_proof_certified_scalar_identities(
     contract: OptimizationRuleContract,
     classify: fn(&AbstractOperation) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)>,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-    let Some(AnalysisProduct::ScalarConstants(constants)) =
-        analyses.get(AnalysisKind::ScalarConstants)
-    else {
-        return Err(RuleProposalError::MissingAnalysis(
-            AnalysisKind::ScalarConstants,
-        ));
-    };
+    required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
     let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
     let mut candidates = Vec::new();
     for function in &unit.functions {

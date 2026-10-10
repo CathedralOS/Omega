@@ -60,29 +60,10 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::ControlFlowGraph,
-            ));
-        }
-        let Some(AnalysisProduct::Dominators(dominators)) = analyses.get(AnalysisKind::Dominators)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
-        };
-        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
-            analyses.get(AnalysisKind::UseDefinition)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::UseDefinition,
-            ));
-        };
-        let Some(AnalysisProduct::OwnershipFrontiers(frontiers)) =
-            analyses.get(AnalysisKind::OwnershipFrontiers)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::OwnershipFrontiers,
-            ));
-        };
+        required_analysis!(analyses, AnalysisKind::ControlFlowGraph => Some(_));
+        required_analysis!(analyses, AnalysisKind::Dominators => Some(AnalysisProduct::Dominators(dominators)));
+        required_analysis!(analyses, AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions)));
+        required_analysis!(analyses, AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(frontiers)));
 
         let mut candidates = Vec::new();
         for function in &unit.functions {

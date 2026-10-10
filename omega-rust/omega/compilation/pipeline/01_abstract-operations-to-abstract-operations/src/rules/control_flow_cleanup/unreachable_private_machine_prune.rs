@@ -52,10 +52,7 @@ impl PsiOptimizationRule for UnreachablePrivateMachinePruneRule {
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let Some(AnalysisProduct::CallGraph(call_graph)) = analyses.get(AnalysisKind::CallGraph)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(AnalysisKind::CallGraph));
-        };
+        required_analysis!(analyses, AnalysisKind::CallGraph => Some(AnalysisProduct::CallGraph(call_graph)));
         let machines = rule_unreachable_private_machine_complement(unit, call_graph);
         if machines.is_empty() {
             return Ok(Vec::new());

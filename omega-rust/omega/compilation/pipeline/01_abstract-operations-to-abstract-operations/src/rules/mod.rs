@@ -65,6 +65,18 @@ macro_rules! psi_optimization_rule_delegate {
     };
 }
 
+/// The shared missing-analysis requirement:
+/// `required_analysis!(view, AnalysisKind::K => Some(AnalysisProduct::K(b)))`
+/// reads product `K` through the view's first-match lookup or returns the
+/// rule's `MissingAnalysis` error at the declared prerequisite order.
+macro_rules! required_analysis {
+    ($analyses:expr, $kind:expr => $($product:tt)*) => {
+        let $($product)* = $analyses.get($kind) else {
+            return Err(RuleProposalError::MissingAnalysis($kind));
+        };
+    };
+}
+
 mod accepted_obligations;
 mod catalog;
 mod node_elision;

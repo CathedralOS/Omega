@@ -63,19 +63,8 @@ fn propose(
     classify: Classifier,
     evidence: Evidence,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-    let Some(AnalysisProduct::ValueLiveness(liveness)) = analyses.get(AnalysisKind::ValueLiveness)
-    else {
-        return Err(RuleProposalError::MissingAnalysis(
-            AnalysisKind::ValueLiveness,
-        ));
-    };
-    let Some(AnalysisProduct::EffectSummaries(effects)) =
-        analyses.get(AnalysisKind::EffectSummaries)
-    else {
-        return Err(RuleProposalError::MissingAnalysis(
-            AnalysisKind::EffectSummaries,
-        ));
-    };
+    required_analysis!(analyses, AnalysisKind::ValueLiveness => Some(AnalysisProduct::ValueLiveness(liveness)));
+    required_analysis!(analyses, AnalysisKind::EffectSummaries => Some(AnalysisProduct::EffectSummaries(effects)));
     let mut candidates = Vec::new();
     for function in &unit.functions {
         for block in &function.blocks {
