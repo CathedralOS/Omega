@@ -372,11 +372,7 @@ impl PropositionContext {
                         });
                     }
                 }
-                ScalarTerm::BooleanField { root, .. }
-                | ScalarTerm::IntegerField { root, .. }
-                | ScalarTerm::IeeeFloatField { root, .. }
-                | ScalarTerm::ViewExtent { root, .. }
-                | ScalarTerm::ByteSequencePredicate { root, .. } => {
+                crate::scalar_term_predicate_quint_pattern!(root, ..) => {
                     if !self.structural_places.contains_key(root) {
                         return Err(PropositionError::UnknownStructuralPlace(*root));
                     }

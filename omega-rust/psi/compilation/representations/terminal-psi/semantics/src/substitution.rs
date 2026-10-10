@@ -280,11 +280,7 @@ fn substitute_scalar_term_places(
         substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
     ) {
         match term {
-            ScalarTerm::BooleanField { root, path }
-            | ScalarTerm::IntegerField { root, path, .. }
-            | ScalarTerm::IeeeFloatField { root, path, .. }
-            | ScalarTerm::ByteSequencePredicate { root, path, .. }
-            | ScalarTerm::ViewExtent { root, path, .. } => {
+            semantic_vocabulary::scalar_term_predicate_quint_pattern!(root,path, ..) => {
                 if let Some((replacement, prefix)) = substitutions.get(root) {
                     *root = *replacement;
                     if !prefix.is_empty() {
@@ -713,11 +709,7 @@ pub(super) fn substitute_scalar_term_values(
             .get(id)
             .cloned()
             .unwrap_or_else(|| term.clone()),
-        ScalarTerm::BooleanField { .. }
-        | ScalarTerm::IntegerField { .. }
-        | ScalarTerm::IeeeFloatField { .. }
-        | ScalarTerm::ByteSequencePredicate { .. }
-        | ScalarTerm::ViewExtent { .. }
+        semantic_vocabulary::scalar_term_predicate_quint_pattern!(..)
         | ScalarTerm::Boolean(_)
         | ScalarTerm::Integer { .. }
         | ScalarTerm::IeeeFloatLiteral(_) => term.clone(),

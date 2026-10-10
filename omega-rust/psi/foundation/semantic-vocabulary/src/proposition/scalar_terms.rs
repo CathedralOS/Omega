@@ -1081,3 +1081,14 @@ enum Step<'a> {
     Visit(&'a ScalarTerm),
     Finalize(&'a ScalarTerm),
 }
+
+#[macro_export]
+macro_rules! scalar_term_predicate_quint_pattern {
+    ($($fields:tt)*) => {
+        $crate::ScalarTerm::BooleanField { $($fields)* }
+            | $crate::ScalarTerm::ByteSequencePredicate { $($fields)* }
+            | $crate::ScalarTerm::IeeeFloatField { $($fields)* }
+            | $crate::ScalarTerm::IntegerField { $($fields)* }
+            | $crate::ScalarTerm::ViewExtent { $($fields)* }
+    };
+}
