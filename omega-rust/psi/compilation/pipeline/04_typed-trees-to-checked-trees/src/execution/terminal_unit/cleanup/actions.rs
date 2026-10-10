@@ -301,26 +301,26 @@ pub(super) fn disposition_actions(
     } else {
         let moved = moved
             .iter()
-            .map(|(path, identity)| (path.as_slice(), identity.as_str()))
+            .map(|(path, identity)| (path.as_slice(), *identity))
             .collect::<Vec<_>>();
         let boundaries = hooks
             .iter()
             .map(|hook| {
                 Some((
                     hook.path.strip_prefix(path.as_slice())?,
-                    hook.type_identity.as_str(),
+                    hook.type_identity,
                 ))
             })
             .collect::<Option<Vec<_>>>()?;
         let types = shapes
             .types
             .iter()
-            .map(|(identity, plan)| (identity.as_str(), plan))
+            .map(|(identity, plan)| (*identity, plan))
             .collect();
         validation::reconstruct_case_selected_regions(
             &types,
             &source,
-            &type_identity,
+            type_identity,
             &moved,
             &boundaries,
             usize::MAX,
@@ -391,7 +391,7 @@ fn checked_case_segments(
     statement_index: usize,
     root_type: typed_trees::types::TypeReferenceHandle,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
-    selected_case: &str,
+    selected_case: &checked_trees::CheckedMemberIdentity,
 ) -> Option<Vec<facts::PlaceSegment>> {
     use checked_trees::CheckedUnitStructuralPathSegment;
     use typed_trees::data::DataMember;
@@ -404,7 +404,7 @@ fn checked_case_segments(
     for segment in path
         .iter()
         .chain(std::iter::once(&CheckedUnitStructuralPathSegment::Case(
-            selected_case.to_owned(),
+            selected_case.clone(),
         )))
     {
         match segment {
@@ -421,7 +421,7 @@ fn checked_case_segments(
                     let fields: &[typed_trees::data::DataField] = fields;
                     fields
                         .iter()
-                        .find(|field| field.path_identity() == *identity)?
+                        .find(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity)?
                 } else {
                     let reference = validation::canonical_place_type_reference(
                         program,
@@ -436,7 +436,7 @@ fn checked_case_segments(
                         .data_members(owner)
                         .iter()
                         .find_map(|member| match member {
-                            DataMember::Field(field) if field.path_identity() == *identity => {
+                            DataMember::Field(field) if checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity => {
                                 Some(field)
                             }
                             _ => None,
@@ -466,7 +466,7 @@ fn checked_case_segments(
                     .data_members(owner)
                     .iter()
                     .find_map(|member| match member {
-                        DataMember::Variant(case) if case.path_identity() == *identity => {
+                        DataMember::Variant(case) if checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()) == *identity => {
                             Some(case)
                         }
                         _ => None,
@@ -491,12 +491,12 @@ fn selected_nominal(
     hook: symbols::SymbolHandle,
     source: CheckedUnitStructuralArgumentSourcePlan,
     path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-    type_identity: String,
+    type_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Option<CheckedUnitNominalAffineCleanupPlan> {
     let machine = program.machine_by_symbol(hook)?;
     let state = program.machine_states(machine).first()?;
     let target = super::callable_target(targets, hook)?;
-    if !super::nominal_cleanup_target_matches(program, machine, state, &target, &type_identity) {
+    if !super::nominal_cleanup_target_matches(program, machine, state, &target, type_identity) {
         return None;
     }
     Some(CheckedUnitNominalAffineCleanupPlan {

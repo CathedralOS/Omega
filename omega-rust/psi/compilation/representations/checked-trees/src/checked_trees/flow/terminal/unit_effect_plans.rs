@@ -18,6 +18,7 @@ use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary
 use source::SourceSpan;
 use symbols::{SymbolHandle, SymbolTable};
 use typed_trees::types::PrimitiveType;
+use typed_trees::type_identity::TypeIdentityId;
 
 /// Cleanup follows an evaluated call, retires an assignment's old value after
 /// its operands complete and before its store, or precedes an authored statement
@@ -100,14 +101,14 @@ impl CheckedUnitEffectPlans {
     pub fn adopt_structural_types(
         &mut self,
         types: impl IntoIterator<Item = CheckedUnitStructuralTypePlan>,
-    ) -> Result<(), String> {
+    ) -> Result<(), TypeIdentityId> {
         for shape in types {
-            if shape.identity.is_empty() {
+            if !shape.identity.is_valid() {
                 return Err(shape.identity);
             }
             match crate::checked_structural_type_by_identity(
                 &self.structural_types,
-                &shape.identity,
+                shape.identity,
             ) {
                 Some(existing) if *existing != shape => return Err(shape.identity),
                 Some(_) => {}
@@ -309,7 +310,7 @@ pub enum CheckedUnitEffectOperationPlan {
     EstablishPrimitiveLocal {
         statement_index: u32,
         symbol: SymbolHandle,
-        type_identity: String,
+        type_identity: TypeIdentityId,
         primitive_type: PrimitiveType,
         value: CheckedCallScalarArgument,
     },
@@ -323,7 +324,7 @@ pub enum CheckedUnitEffectOperationPlan {
     EstablishTrivialAffineLocal {
         statement_index: u32,
         declaration_ordinal: u32,
-        type_identity: String,
+        type_identity: TypeIdentityId,
     },
     /// Establish one declared structural local's home at its authored
     /// declaration, publishing the binding that member operations and
@@ -762,7 +763,7 @@ pub struct CheckedUnitParameterStoragePlan {
     /// The authored parameter position; one `scalar_parameters` row names it.
     pub source_position: u32,
     pub symbol: SymbolHandle,
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
     pub primitive_type: PrimitiveType,
 }
 
@@ -778,7 +779,7 @@ pub struct CheckedUnitEffectMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     /// Exact attached data carrier, or `None` for an ordinary free machine.
-    pub attachment_type_identity: Option<String>,
+    pub attachment_type_identity: Option<TypeIdentityId>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Primitive parameters in authored order after removing structural
     /// parameters into their independent custody namespace.
@@ -822,7 +823,7 @@ pub struct CheckedUnitCallableEntry<'plan> {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub returns_unit: bool,
-    pub attachment_type_identity: Option<&'plan str>,
+    pub attachment_type_identity: Option<TypeIdentityId>,
     pub structural_parameters: &'plan [CheckedUnitStructuralParameterPlan],
     pub scalar_parameters: &'plan [CheckedStructuralScalarParameterPlan],
     pub erased_scalar_parameters: &'plan [CheckedStructuralScalarParameterPlan],
@@ -840,7 +841,7 @@ impl CheckedUnitEffectMachinePlan {
             returns_unit: self.scalar_result.is_none()
                 && self.scalar_control.is_none()
                 && self.structural_result.is_none(),
-            attachment_type_identity: self.attachment_type_identity.as_deref(),
+            attachment_type_identity: self.attachment_type_identity,
             structural_parameters: &self.structural_parameters,
             scalar_parameters: &self.scalar_parameters,
             erased_scalar_parameters: &self.erased_scalar_parameters,
@@ -869,7 +870,7 @@ impl CheckedComposedUnitControlMachinePlan {
             machine: self.machine,
             state: state.state,
             returns_unit: matches!(self.result, super::CheckedControlResultPlan::Unit),
-            attachment_type_identity: self.attachment_type_identity.as_deref(),
+            attachment_type_identity: self.attachment_type_identity,
             structural_parameters: &state.structural_parameters,
             scalar_parameters: &state.scalar_parameters,
             erased_scalar_parameters: &state.erased_scalar_parameters,

@@ -121,7 +121,7 @@ pub struct OutcomeSpecificArmRowFact {
     /// Canonical caller-side proposition after call arguments and the concrete
     /// saved result occurrence have been substituted.
     pub instantiated_proposition: Option<crate::CheckedPropositionApplication>,
-    pub instantiated_identity: Option<String>,
+    pub instantiated_label: Option<String>,
     /// Structured checked validity input retained before normalized labels
     /// erase caller-place structure. The result occurrence always
     /// participates; `referenced_occurrences` are expressions in the
@@ -316,7 +316,7 @@ pub struct ProofOutputEvidenceArgumentFact {
     pub callee_input: Handle<CheckedEvidenceTerm>,
     pub source: Handle<CheckedEvidenceTerm>,
     pub instantiated_proposition: crate::CheckedPropositionApplication,
-    pub instantiated_identity: String,
+    pub instantiated_label: String,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -337,7 +337,7 @@ pub struct ProofOutputFact {
     /// arguments. It differs from `callee_output` whenever formal names and
     /// caller expressions differ, including when the output is not captured.
     pub instantiated_proposition: crate::CheckedPropositionApplication,
-    pub instantiated_identity: String,
+    pub instantiated_label: String,
     pub output: Option<Handle<CheckedEvidenceTerm>>,
 }
 

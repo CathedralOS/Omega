@@ -81,7 +81,7 @@ pub use self::terminal::{
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralReturnPlan,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
+    CheckedMemberIdentity, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
     checked_structural_type_by_identity, forwards_qualified_parameter, is_borrowed_view,
     is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
 };

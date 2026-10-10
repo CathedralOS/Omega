@@ -330,7 +330,7 @@ pub(crate) fn structural_parameter_field_path(
         ExpressionNode::Member(member) => {
             let parameter =
                 structural_parameter_field_path(program, parameters, member.receiver, fields)?;
-            let field_identity = |field: &typed_trees::data::DataField| field.path_identity();
+            let field_identity = |field: &typed_trees::data::DataField| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone());
             parameters.get(usize::try_from(parameter).ok()?)?;
             if let Some(case_name) = &member.case_variant {
                 let (case, field) = program
@@ -341,7 +341,7 @@ pub(crate) fn structural_parameter_field_path(
                             declared_data_member(program, data_index, member_index).as_variant()?;
                         program
                             .data_payload_field_by_symbol(variant, member.member_symbol)
-                            .map(|field| (variant.path_identity(), field_identity(field)))
+                            .map(|field| (checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()), field_identity(field)))
                     })?;
                 fields.push(CheckedStructuralPredicatePathSegment::Case(case));
                 fields.push(CheckedStructuralPredicatePathSegment::Field(field));
@@ -361,7 +361,7 @@ pub(crate) fn structural_parameter_field_path(
                     // authored segment in that case: path_type_reference
                     // resolves it against the exact receiver type below,
                     // so this does not perform global name-based selection.
-                    member.member.as_str().to_owned()
+                    checked_trees::CheckedMemberIdentity::of_member(None, member.member.clone())
                 };
                 fields.push(CheckedStructuralPredicatePathSegment::Field(identity));
             }
@@ -431,11 +431,7 @@ fn resolve_structural_path(
                 let definition = structural_data(program, receiver)?;
                 let variant = program.data_members(definition).iter().find_map(|member| {
                     let variant = member.as_variant()?;
-                    let actual = variant
-                        .identity
-                        .map(|number| format!("#{number}"))
-                        .unwrap_or_else(|| variant.name.as_str().to_owned());
-                    (actual == *identity).then_some(variant)
+                    (*identity == checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone())).then_some(variant)
                 })?;
                 if !variant.symbol.is_valid() {
                     return None;
@@ -447,11 +443,7 @@ fn resolve_structural_path(
             }
             CheckedStructuralPredicatePathSegment::Field(identity) => {
                 let matches = |field: &&typed_trees::data::DataField| {
-                    field
-                        .identity
-                        .map(|number| format!("#{number}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned())
-                        == *identity
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity
                 };
                 let field = if let Some(variant) = selected_case.take() {
                     program.data_payload_fields(variant).iter().find(matches)?
@@ -824,7 +816,7 @@ pub(crate) fn structural_storage_place(
                     .iter()
                     .copied()
                     .find_map(|position| declared_data_field(program, position))?;
-                CheckedStructuralPredicatePathSegment::Field(field.path_identity())
+                CheckedStructuralPredicatePathSegment::Field(checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()))
             }
             facts::PlaceSegment::Case { variant } => {
                 let case = program
@@ -835,7 +827,7 @@ pub(crate) fn structural_storage_place(
                             _ => None,
                         }
                     })?;
-                CheckedStructuralPredicatePathSegment::Case(case.path_identity())
+                CheckedStructuralPredicatePathSegment::Case(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()))
             }
             facts::PlaceSegment::FixedIndex { index } => {
                 CheckedStructuralPredicatePathSegment::FixedIndex(u64::try_from(*index).ok()?)

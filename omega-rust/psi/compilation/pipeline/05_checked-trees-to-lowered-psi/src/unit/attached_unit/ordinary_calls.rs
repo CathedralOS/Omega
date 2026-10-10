@@ -137,6 +137,7 @@ pub(super) fn prepare(
             )
             .and_then(|term| {
                 crate::scalar_lowering::contracts::lowered_proof_term(
+                    checked,
                     &term,
                     caller_scalar_values,
                     caller_erased_scalar_parameters,
@@ -184,6 +185,7 @@ pub(super) fn prepare(
         structural_types,
     )?;
     let terminal_arguments = lower_structural_arguments(
+        checked,
         structural_arguments,
         structural_types,
         parameters,
@@ -353,7 +355,7 @@ pub(super) fn emit_structural(
     operation: &CheckedUnitEffectOperationPlan,
     prepared: PreparedCall,
     callee: MachineId,
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[StructuralDomainBinding],
     claim_bindings: &mut crate::emission::claim_bindings::ClaimBindings<'_>,

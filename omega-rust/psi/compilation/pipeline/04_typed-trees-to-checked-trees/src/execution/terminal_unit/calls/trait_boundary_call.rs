@@ -329,7 +329,7 @@ pub(super) fn build(
                 &place,
                 result,
                 parameter,
-                &target_identity,
+                target_identity,
                 caller_operations,
             )?);
             continue;
@@ -392,7 +392,7 @@ pub(super) fn build(
             statement_index: call.statement_index,
             place: &place,
             target: formal,
-            target_identity: &target_identity,
+            target_identity,
             selectors: None,
         };
         phase("call operation: boundary argument projection");

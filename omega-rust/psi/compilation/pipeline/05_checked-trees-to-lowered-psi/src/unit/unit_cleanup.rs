@@ -52,6 +52,7 @@ impl CleanupRegion {
 }
 
 pub(crate) fn lower_cleanup_conditions(
+    checked: &CheckedTrees,
     control: &checked_trees::CheckedCleanupControlPlans,
     selected: arena::HandleSpan<checked_trees::CheckedCleanupCaseCondition>,
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -85,12 +86,16 @@ pub(crate) fn lower_cleanup_conditions(
                     ))?
             };
             let (place, path) = storage(path)?;
-            let structural_type =
-                terminal_psi::structural_type_by_identity(types, &condition.type_identity)
-                    .map(|declaration| declaration.id)
-                    .ok_or(LoweringError::Unsupported(
-                        "cleanup condition has no structural type",
-                    ))?;
+            let structural_type = terminal_psi::structural_type_by_identity(
+                types,
+                &checked
+                    .type_identity_text(condition.type_identity)
+                    .unwrap_or_default(),
+            )
+            .map(|declaration| declaration.id)
+            .ok_or(LoweringError::Unsupported(
+                "cleanup condition has no structural type",
+            ))?;
             let (_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
                 types,
                 structural_type,
@@ -141,10 +146,11 @@ pub(crate) fn continuation_cleanups<'a>(
 /// ordinary control emission. The storage resolver owns captured coordinates;
 /// neither action paths nor tag observations may evaluate a selector again.
 pub(crate) fn lower_checked_cleanup_regions<'action>(
+    checked: &CheckedTrees,
     actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
     control: &checked_trees::CheckedCleanupControlPlans,
     types: &[terminal_psi::StructuralTypeDeclaration],
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     mut storage: impl FnMut(
         &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
         &[checked_trees::CheckedUnitStructuralPathSegment],
@@ -164,7 +170,12 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
         .map(|action| {
             let (place, path) = storage(action.source(), action.path())?;
             let conditions =
-                lower_cleanup_conditions(control, action.case_conditions(), types, |path| {
+                lower_cleanup_conditions(
+                    checked,
+                    control,
+                    action.case_conditions(),
+                    types,
+                    |path| {
                     storage(action.source(), path)
                 })?;
             let lowered = match action {
@@ -181,7 +192,7 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
                         terminal_psi::StructuralAffineDiscard {
                             place,
                             path,
-                            structural_type: lookup_type_id(type_ids, action.type_identity())?,
+                            structural_type: lookup_type_id(type_ids, &action.type_identity())?,
                         },
                     )
                 }
@@ -189,7 +200,7 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
                     terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal(
                         cleanup,
                         place,
-                        lookup_type_id(type_ids, action.type_identity())?,
+                        lookup_type_id(type_ids, &action.type_identity())?,
                         path,
                     )?)
                 }
@@ -474,7 +485,7 @@ pub(crate) fn emit_prepared_cleanup_regions(
 pub(super) fn finalize_nominal_cleanup_actions(
     checked: &CheckedTrees,
     machines: &mut [TerminalMachine],
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
     receivers: &[(SymbolHandle, PlaceId)],
     requirement_counts: &[(SymbolHandle, usize)],
@@ -534,7 +545,7 @@ fn finalize_nominal_cleanup_machine(
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
     machine: &mut TerminalMachine,
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
     receivers: &[(SymbolHandle, PlaceId)],
     requirement_counts: &[(SymbolHandle, usize)],
@@ -543,8 +554,8 @@ fn finalize_nominal_cleanup_machine(
     let plan = &nominal.machine;
     contexts::validate_requirements(checked, nominal)?;
     custody::validate_checked_dispositions(checked, nominal)?;
-    if let Some(identity) = plan.attachment_type_identity.as_deref() {
-        lookup_type_id(type_ids, identity)?;
+    if let Some(identity) = plan.attachment_type_identity {
+        lookup_type_id(type_ids, &identity)?;
     }
     // Every Unit return of the dispatcher disposes of each parameter through
     // its selected hook; each edge's actions own their obligation identities.

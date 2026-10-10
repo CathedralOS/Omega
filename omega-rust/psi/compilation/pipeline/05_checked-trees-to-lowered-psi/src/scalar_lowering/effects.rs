@@ -13,6 +13,7 @@ use crate::emission::operation_emission::view_subslice;
 use crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect;
 
 pub(crate) fn emit(
+    checked: &checked_trees::CheckedTrees,
     effects: &[LoweredScalarEffect],
     values: &[ValueDeclaration],
     erased: &[ValueDeclaration],
@@ -198,7 +199,7 @@ pub(crate) fn emit(
                     .erased_proof_arguments
                     .iter()
                     .map(|term| {
-                        crate::scalar_lowering::contracts::lowered_proof_term(term, values, erased)
+                        crate::scalar_lowering::contracts::lowered_proof_term(checked, term, values, erased)
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
                 let claim_transfers =

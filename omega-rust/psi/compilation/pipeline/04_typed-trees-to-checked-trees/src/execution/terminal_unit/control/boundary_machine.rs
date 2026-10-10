@@ -224,7 +224,7 @@ pub(crate) fn build_dynamic_slot_plans(
             declaring_trait: slot.declaring_trait,
             requirement: slot.requirement,
             requirement_identity: program
-                .trait_requirement_callable_identity_text(definition, requirement),
+                .trait_requirement_callable_identity(definition, requirement),
             structural_parameters,
             entry_claim_paths,
             scalar_parameters,
@@ -504,7 +504,7 @@ fn boundary_parameters<'program>(
         }
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
-            primitive_referent: shapes.primitive_scalar(&type_identity),
+            primitive_referent: shapes.primitive_scalar(type_identity),
             type_identity,
             multiplicity: crate::checks::type_multiplicity(program, parameter_type),
             access: structural_access_for_type_reference(program, parameter_type)?,

@@ -166,6 +166,7 @@ pub(crate) fn lower_scalar_call(
     let target_routes = crate::unit::effective_crash_routes(checked, target_machine)?;
     let crash_continuations = target_routes.clone();
     let claim_transfers = crate::emission::claim_bindings::prepare_checked_claim_transfers(
+        checked,
         &claim_transfers,
         target.structural_parameters(),
         structural_types,

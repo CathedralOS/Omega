@@ -298,7 +298,7 @@ fn lower_structural_case_membership(
                 let variant = member.as_variant()?;
                 (variant.symbol == case_symbol
                     && (membership || program.data_payload_fields(variant).is_empty()))
-                .then(|| (data.symbol, variant.path_identity()))
+                .then(|| (data.symbol, checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone())))
             })
         })
     };

@@ -59,6 +59,12 @@ impl TypeIdentityTable {
     pub fn text(&self, identity: TypeIdentityId) -> Option<&str> {
         identity.slot().map(|slot| self.texts[slot].as_ref())
     }
+
+    /// The handle a previously interned key names: wire decoders and boundary
+    /// readers rehydrate their `String` payload through this reverse join.
+    pub fn by_text(&self, text: &str) -> TypeIdentityId {
+        self.slots.get(text).copied().unwrap_or_default()
+    }
 }
 
 /// The canonical conjunction of semantic domains selected on one binding.

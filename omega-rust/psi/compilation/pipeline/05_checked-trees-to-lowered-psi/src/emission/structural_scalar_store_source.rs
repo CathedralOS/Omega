@@ -58,7 +58,7 @@ pub(crate) fn computation_root(
     state: symbols::SymbolHandle,
     statement_index: u32,
     value: &checked_trees::CheckedScalarStoreValue,
-    field_identity: Option<&str>,
+    field_identity: Option<&checked_trees::CheckedMemberIdentity>,
 ) -> Result<
     Option<(
         checked_trees::CheckedScalarComputationHandle,

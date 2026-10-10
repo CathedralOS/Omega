@@ -59,7 +59,7 @@ pub(crate) fn build_dynamic_conformance_facts(
             implementation: selection.implementation,
             target_trait: selection.target_trait,
             interface_identity: program
-                .normalized_type_identity_text(selection.selector_type)
+                .normalized_type_identity(selection.selector_type)
                 .to_owned(),
             rows,
         });
@@ -73,7 +73,7 @@ pub(crate) fn build_dynamic_conformance_facts(
 pub(crate) fn normalized_dynamic_row_identities(
     program: &dyn ::validation::CheckingInput,
     row: &typed_trees::trait_definition::ConformanceRow,
-) -> Result<(String, String), diagnostics::Diagnostic> {
+) -> Result<(typed_trees::type_identity::CallableIdentityId, typed_trees::type_identity::CallableIdentityId), diagnostics::Diagnostic> {
     let mut declaring_traits = program
         .traits()
         .iter()
@@ -118,14 +118,8 @@ pub(crate) fn normalized_dynamic_row_identities(
             "dynamic conformance row has an ambiguous realization machine for normalized identity",
         ));
     }
-    let realization_identity = program
-        .machine_callable_identity_text(realization_machine)
-        .ok_or_else(|| {
-            diagnostics::Diagnostic::error(
-                "dynamic conformance row realization has no normalized callable identity",
-            )
-        })?;
+    let realization_identity = program.machine_callable_identity(realization_machine);
     let requirement_identity =
-        program.trait_requirement_callable_identity_text(declaring_trait, requirement);
+        program.trait_requirement_callable_identity(declaring_trait, requirement);
     Ok((requirement_identity, realization_identity))
 }

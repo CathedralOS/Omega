@@ -129,6 +129,7 @@ impl OperationFrame<'_, '_> {
         )?;
         self.values.push(value);
         self.evaluation.require_value_refinements(
+            self.checked,
             machine,
             predicates,
             self.values,
@@ -811,11 +812,11 @@ impl OperationFrame<'_, '_> {
         &mut self,
         statement_index: u32,
         symbol: symbols::SymbolHandle,
-        type_identity: &str,
+        type_identity: typed_trees::type_identity::TypeIdentityId,
         value: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<(), LoweringError> {
         let replacement = self.owned_structural_value(value)?;
-        if replacement.structural_type != lookup_type_id(self.type_ids, type_identity)? {
+        if replacement.structural_type != lookup_type_id(self.type_ids, &type_identity)? {
             return unsupported("owned rebind changes the local's declared type");
         }
         if !self
@@ -884,6 +885,7 @@ impl OperationFrame<'_, '_> {
         cleanup_actions: &[checked_trees::CheckedNormalCleanupAction],
     ) -> Result<(), LoweringError> {
         let actions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+            self.checked,
             cleanup_actions,
             &self
                 .checked
@@ -947,6 +949,7 @@ impl OperationFrame<'_, '_> {
             },
         )?;
         self.evaluation.continue_cleanup_regions(
+            self.checked,
             actions,
             self.values,
             self.next_value,

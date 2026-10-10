@@ -117,7 +117,9 @@ pub(crate) fn checked_evidence_requirement_identity(
     declaring_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
 ) -> Result<String, LoweringError> {
-    Ok(exact_trait_requirement(checked, declaring_trait, requirement)?.overload_identity)
+    Ok(checked
+        .typed
+        .callable_identity_text(exact_trait_requirement(checked, declaring_trait, requirement)?.overload_identity))
 }
 
 /// Every binder-argument evidence projection lowers the same three checked
@@ -254,7 +256,7 @@ struct ExactTraitRequirement<'a> {
     /// clause for the family roster.
     signature: &'a checked_trees::signature::StateSignature,
     /// Canonical normalized overload identity; never empty.
-    overload_identity: String,
+    overload_identity: typed_trees::type_identity::CallableIdentityId,
     /// Whether the signature declares requirement-local generic binders.
     declares_local_generic_binders: bool,
 }
@@ -285,8 +287,8 @@ fn exact_trait_requirement<'a>(
     }
     let overload_identity = checked
         .typed
-        .trait_requirement_callable_identity_text(definition, signature);
-    if overload_identity.is_empty() {
+        .trait_requirement_callable_identity(definition, signature);
+    if !overload_identity.is_valid() {
         return unsupported("evidence producer row has an empty requirement identity");
     }
     Ok(ExactTraitRequirement {
@@ -316,13 +318,7 @@ pub(crate) fn checked_evidence_machine_identity(
     }
     let mut identity = checked
         .typed
-        .machine_callable_identity_text(machine)
-        .ok_or(LoweringError::Unsupported(
-            "evidence producer realization has no callable identity",
-        ))?;
-    if identity.is_empty() {
-        return unsupported("evidence producer realization has an empty machine identity");
-    }
+        .callable_identity_text(checked.typed.machine_callable_identity(machine));
     let mut specializations = checked
         .typed
         .machine_specializations

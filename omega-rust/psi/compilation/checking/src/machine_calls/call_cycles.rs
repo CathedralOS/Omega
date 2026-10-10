@@ -92,7 +92,7 @@ pub struct ValidatedProofRecursiveEdge {
 pub struct ValidatedProofRecursiveComponent {
     pub members: Vec<ValidatedProofRecursiveMember>,
     pub ranking_relation: ValidatedProofRankingRelation,
-    pub rank_type_identity: String,
+    pub rank_type_identity: typed_trees::type_identity::TypeIdentityId,
     pub edges: Vec<ValidatedProofRecursiveEdge>,
 }
 
@@ -100,7 +100,7 @@ pub struct ValidatedProofRecursiveComponent {
 struct ProofEdgeDecreaseWitness {
     caller_rank_parameter: SymbolHandle,
     callee_rank_parameter: SymbolHandle,
-    rank_type_identity: String,
+    rank_type_identity: typed_trees::type_identity::TypeIdentityId,
     strict_member_path: Vec<SymbolHandle>,
 }
 
@@ -1060,7 +1060,7 @@ fn resolve_machine_index(
 fn proof_rank_parameter(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-) -> Option<(SymbolHandle, TypeReferenceHandle, String)> {
+) -> Option<(SymbolHandle, TypeReferenceHandle, typed_trees::type_identity::TypeIdentityId)> {
     let caller_witness = machine.termination_plan.implementation_witness.as_ref()?;
     let [caller_subject] = caller_witness.subjects.as_slice() else {
         return None;
@@ -1074,7 +1074,7 @@ fn proof_rank_parameter(
     Some((
         parameter.symbol,
         parameter.type_reference,
-        program.package_qualified_type_identity_text(parameter.type_reference),
+        program.package_qualified_type_identity(parameter.type_reference),
     ))
 }
 
@@ -1115,7 +1115,7 @@ fn proof_edge_decrease_witness(
         .enumerate()
         .find(|(_, parameter)| parameter.name.as_str() == callee_subject.as_str())?;
     let callee_rank_type_identity =
-        program.package_qualified_type_identity_text(callee_parameter.type_reference);
+        program.package_qualified_type_identity(callee_parameter.type_reference);
     if callee_rank_type_identity != caller_rank_type_identity {
         return None;
     }

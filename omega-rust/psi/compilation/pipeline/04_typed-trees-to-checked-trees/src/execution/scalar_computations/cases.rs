@@ -132,7 +132,7 @@ impl Builder<'_, '_> {
                 path,
                 type_identity: self
                     .program
-                    .normalized_type_identity_text(projected)
+                    .normalized_type_identity(projected)
                     .to_owned(),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,
             },

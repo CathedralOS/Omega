@@ -824,12 +824,12 @@ fn case_literal_field_store(
         let identity = declarations
             .iter()
             .find(|declaration| declaration.symbol == *field_symbol)
-            .map(|declaration| declaration.path_identity())
+            .map(|declaration| checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone()))
             .or_else(|| {
                 commons
                     .iter()
                     .find(|declaration| declaration.symbol == *field_symbol)
-                    .map(|declaration| declaration.path_identity())
+                    .map(|declaration| checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone()))
             })?;
         let field_ordinal = u32::try_from(ordinal).ok()?;
         let (binding, expression) = facts.values.scalar_expressions.bound_expression_at(
@@ -858,7 +858,7 @@ fn case_literal_field_store(
         statement_index,
         checked_trees::CheckedStoreValue::CaseLiteral(checked_trees::CheckedCaseLiteralValuePlan {
             literal: assignment.value,
-            case_identity: variant.path_identity(),
+            case_identity: checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
             type_identity: super::types::base_type_identity(program, field.type_reference, &[],
         &[])?,
             fields,

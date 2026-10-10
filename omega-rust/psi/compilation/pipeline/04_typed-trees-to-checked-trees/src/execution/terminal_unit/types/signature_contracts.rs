@@ -216,7 +216,7 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
     shapes: &mut ShapeCollector<'_>,
     mut type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
-) -> Option<Vec<(SemanticDomainId, String)>> {
+) -> Option<Vec<(SemanticDomainId, typed_trees::type_identity::TypeIdentityId)>> {
     // A borrowed byte view is its own storage: its identity looks through the
     // loan and qualification shells to `slice(u8)`, but only the whole view
     // registers that byte carrier. A qualification beneath the view therefore

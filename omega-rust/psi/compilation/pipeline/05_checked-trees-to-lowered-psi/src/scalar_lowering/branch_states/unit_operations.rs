@@ -253,6 +253,7 @@ pub(super) fn prepare(
                     "scalar Unit borrow is not primitive",
                 ))?;
         lowered_arguments.push(bindings.primitive_borrow(
+            checked,
             argument,
             terminal_scalar_type(primitive)?,
             structural_types,
@@ -274,6 +275,7 @@ pub(super) fn prepare(
         _ => Vec::new(),
     };
     let claim_transfers = crate::emission::claim_bindings::prepare_checked_claim_transfers(
+        checked,
         claim_transfers,
         target.structural_parameters,
         structural_types,

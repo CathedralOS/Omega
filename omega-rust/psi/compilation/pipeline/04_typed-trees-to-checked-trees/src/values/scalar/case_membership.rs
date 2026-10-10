@@ -84,7 +84,7 @@ pub(crate) fn lower_result(
                     program, *symbol,
                 )?;
                 Some(checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ))
             }
             _ => None,
@@ -106,7 +106,7 @@ fn case_identity(
     expression: ExpressionHandle,
     binary: &typed_trees::expression::TableBinaryExpression,
     subject: ExpressionHandle,
-) -> Option<String> {
+) -> Option<checked_trees::CheckedMemberIdentity> {
     if !matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::CaseMembership
@@ -178,7 +178,7 @@ fn case_identity(
 pub(crate) fn structural_case_name(
     program: &dyn ::validation::CheckingInput,
     selected: symbols::SymbolHandle,
-) -> Option<String> {
+) -> Option<checked_trees::CheckedMemberIdentity> {
     let case = program
         .data_definitions()
         .iter()
@@ -187,5 +187,5 @@ pub(crate) fn structural_case_name(
             typed_trees::data::DataMember::Variant(case) if case.symbol == selected => Some(case),
             _ => None,
         })?;
-    Some(case.path_identity())
+    Some(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()))
 }

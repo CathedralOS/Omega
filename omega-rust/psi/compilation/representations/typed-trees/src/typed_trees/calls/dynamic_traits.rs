@@ -49,7 +49,7 @@ pub struct DynamicSlotSignature {
     /// The slot a selector call targets.
     pub symbol: SymbolHandle,
     /// Normalized identity of the selector type (`dyn Shape<Item>`).
-    pub interface_identity: String,
+    pub interface_identity: crate::type_identity::TypeIdentityId,
     pub declaring_trait: SymbolHandle,
     /// The exact requirement this slot instantiates.
     pub requirement: SymbolHandle,
@@ -69,7 +69,7 @@ impl TypedTrees {
     /// whose normalized identity is `interface_identity`.
     pub fn dynamic_slot(
         &self,
-        interface_identity: &str,
+        interface_identity: crate::type_identity::TypeIdentityId,
         requirement: SymbolHandle,
     ) -> Option<&DynamicSlotSignature> {
         self.dynamic_slots.iter().find(|slot| {

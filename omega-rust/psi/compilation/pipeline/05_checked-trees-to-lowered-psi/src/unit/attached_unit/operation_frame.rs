@@ -127,7 +127,7 @@ pub(super) struct OperationFrame<'f, 'c> {
     pub(super) source_value_count: usize,
     pub(super) parameters: &'f [StructuralParameterDeclaration],
     pub(super) structural_types: StructuralTypeRoster<'f>,
-    pub(super) type_ids: &'f [(String, StructuralTypeId)],
+    pub(super) type_ids: &'f [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     pub(super) service_ids: &'f [(ServiceReachId, ServiceId)],
     /// Primitive referents the route has established so far; each route
     /// keeps its own roster of `establish_primitive_local` results.
@@ -338,6 +338,7 @@ impl OperationFrame<'_, '_> {
                 )?
                 .into_iter();
                 parameters::lower_reference_source(
+                    self.checked,
                     source,
                     self.structural_types.declarations(),
                     self.parameters,
@@ -511,6 +512,7 @@ impl OperationFrame<'_, '_> {
                 // Their captured loan boundary does not change their geometry
                 // into a stored reference or consume their borrowed backing.
                 self.evaluation.continue_cleanup_regions(
+                    self.checked,
                     vec![crate::unit::unit_cleanup::CleanupRegion {
                         conditions: Vec::new(),
                         action: if path.is_empty() {
@@ -557,6 +559,7 @@ impl OperationFrame<'_, '_> {
         let mut selector_values =
             parameters::call_index_selectors(arguments, evaluated_selectors)?.into_iter();
         parameters::lower_structural_arguments(
+            self.checked,
             arguments,
             self.structural_types.declarations(),
             self.parameters,
@@ -605,7 +608,7 @@ pub(super) fn structural_type_declaration<'d>(
 fn window_place(
     source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
-    type_identity: String,
+    type_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> CheckedUnitStructuralArgumentPlan {
     CheckedUnitStructuralArgumentPlan {
         source,

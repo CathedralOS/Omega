@@ -60,10 +60,10 @@ pub(in crate::execution) struct ViewRange {
     pub(in crate::execution) collection: Vec<CheckedUnitStructuralPathSegment>,
     /// Exact Terminal type identity of the collection's storage carrier,
     /// enrolled in the checked structural type table.
-    pub(in crate::execution) storage_type_identity: String,
+    pub(in crate::execution) storage_type_identity: typed_trees::type_identity::TypeIdentityId,
     pub(in crate::execution) kind: ViewKind,
     pub(in crate::execution) access: CheckedStructuralAccess,
-    pub(in crate::execution) type_identity: String,
+    pub(in crate::execution) type_identity: typed_trees::type_identity::TypeIdentityId,
 }
 
 /// One admitted range with its present endpoints, copied from the unique
@@ -719,7 +719,7 @@ pub(in crate::execution) fn view_identity(
     program: &dyn ::validation::CheckingInput,
     kind: ViewKind,
     reference: TypeReferenceHandle,
-) -> Option<String> {
+) -> Option<typed_trees::type_identity::TypeIdentityId> {
     match kind {
         ViewKind::Bytes => byte_sequence_type_identity(program, reference, &[], &[]),
         ViewKind::Elements => Some(validation::structural_type_identity(

@@ -624,7 +624,7 @@ pub(crate) fn lower_scalar_expression(
                 return Some((
                     CheckedScalarExpression::ImplementationSelection {
                         implementation: name.symbol,
-                        interface_identity: program.normalized_type_identity_text(cast.target_type),
+                        interface_identity: program.normalized_type_identity(cast.target_type),
                     },
                     ArithmeticDomain::Exact,
                 ));

@@ -7,6 +7,8 @@ use crate::checked_trees::flow::terminal::{
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees::type_identity::TypeIdentityId;
+use crate::checked_trees::CheckedMemberIdentity;
 
 /// Exact state-local coordinate receiving one primitive boundary result in a
 /// Unit-effect body. The local has no structural place or cleanup action; its
@@ -26,7 +28,7 @@ pub struct CheckedUnitScalarResultBindingPlan {
 pub struct CheckedUnitStructuralResultBindingPlan {
     pub statement_index: u32,
     pub binding_ordinal: u32,
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
     pub multiplicity: Multiplicity,
     /// The `let` this result initializes, recorded where planning pairs the
     /// result with its home. The zero value marks an anonymous result.
@@ -141,7 +143,7 @@ pub enum CheckedByteSequenceValue {
         /// observed at the store, not reconstructed from its initializer.
         root: crate::CheckedStoreRoot,
         carrier_path: Vec<CheckedUnitStructuralPathSegment>,
-        field_identity: String,
+        field_identity: CheckedMemberIdentity,
         capacity: u64,
     },
     Concatenation {

@@ -47,6 +47,7 @@ impl Evaluation {
         let entry = expansion.retained_root(root, bindings, &source_types, result_type, 0)?;
         let states = expansion.finish();
         self.single_completed_expansion(
+            checked,
             &states,
             entry,
             result_type,
@@ -313,6 +314,7 @@ impl Evaluation {
         };
         let states = expansion.finish();
         self.single_completed_expansion(
+            checked,
             &states,
             entry,
             result_type,

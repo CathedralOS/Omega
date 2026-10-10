@@ -39,7 +39,7 @@ pub(crate) fn structural_signature(
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-) -> Option<(Option<String>, Vec<CheckedUnitStructuralParameterPlan>)> {
+) -> Option<(Option<typed_trees::type_identity::TypeIdentityId>, Vec<CheckedUnitStructuralParameterPlan>)> {
     let (attachment, structural, scalar) =
         structural_signature_for_partial_affine(program, shapes, state, binders, false, false)?;
     scalar.is_empty().then_some((attachment, structural))
@@ -73,12 +73,12 @@ fn structural_signature_for_partial_affine(
     allow_partial_affine: bool,
     allow_scalar_parameters: bool,
 ) -> Option<(
-    Option<String>,
+    Option<typed_trees::type_identity::TypeIdentityId>,
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
     let parameters = program.state_parameters(state);
-    let attachment = None::<(String, Multiplicity)>;
+    let attachment = None::<(typed_trees::type_identity::TypeIdentityId, Multiplicity)>;
     let mut structural_parameters = Vec::new();
     let mut scalar_parameters = Vec::new();
     let mut fused_service_parameter_count = 0_usize;
@@ -174,7 +174,7 @@ fn structural_signature_for_partial_affine(
                 | CheckedStructuralAccess::WriteOnlyBorrow
                 | CheckedStructuralAccess::SharedBorrow
         );
-        let primitive_referent = shapes.primitive_scalar(&type_identity);
+        let primitive_referent = shapes.primitive_scalar(type_identity);
         if primitive_referent.is_some()
             && (multiplicity != Multiplicity::Unrestricted
                 || !qualifications.is_empty()
@@ -234,7 +234,7 @@ pub(crate) fn boundary_owner_scalar_signature(
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Option<(
-    String,
+    typed_trees::type_identity::TypeIdentityId,
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
@@ -263,7 +263,7 @@ pub(crate) fn structural_scalar_signature_traced(
     binders: &[(SymbolHandle, String)],
     trace: &LocalConstructionTrace,
 ) -> Option<(
-    Option<String>,
+    Option<typed_trees::type_identity::TypeIdentityId>,
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
@@ -288,7 +288,7 @@ fn structural_scalar_signature(
     storage: AttachmentStorage,
     trace: &LocalConstructionTrace,
 ) -> Option<(
-    Option<String>,
+    Option<typed_trees::type_identity::TypeIdentityId>,
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
@@ -472,7 +472,7 @@ pub(crate) fn parameter_signatures(
         };
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
-            primitive_referent: shapes.primitive_scalar(&type_identity),
+            primitive_referent: shapes.primitive_scalar(type_identity),
             type_identity,
             multiplicity,
             access,

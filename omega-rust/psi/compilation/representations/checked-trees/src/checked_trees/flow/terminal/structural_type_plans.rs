@@ -4,12 +4,18 @@
 use language_core::BindingRelevance;
 use language_semantics::{Multiplicity, SemanticDomainId};
 use symbols::SymbolHandle;
+use typed_trees::name::Identifier;
+use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::PrimitiveType;
+
+/// Checked-side name for the shared data-member identity; the handle
+/// lives in typed-trees so facts and producers share one vocabulary.
+pub use typed_trees::data::DataMemberIdentity as CheckedMemberIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedTrivialAffineStructuralLocalPlan {
     pub declaration_ordinal: u32,
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
     /// Present only for a statically established fixed-array construction
     /// element. The root stays semantic metadata and never becomes an input.
     pub construction: Option<CheckedAffineConstructionElementPlan>,
@@ -17,13 +23,13 @@ pub struct CheckedTrivialAffineStructuralLocalPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedAffineConstructionElementPlan {
-    pub root_type_identity: String,
+    pub root_type_identity: TypeIdentityId,
     pub index: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralResultPlan {
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
     pub multiplicity: Multiplicity,
     pub qualifications: Vec<SemanticDomainId>,
     pub projected_qualifications: Vec<CheckedStructuralPathQualification>,
@@ -38,11 +44,11 @@ pub struct CheckedStructuralPathQualification {
     pub domain: SemanticDomainId,
 }
 
-/// One concrete target-neutral structural shape. Identities are normalized
-/// semantic type identities rather than source-tree handles.
+/// One concrete target-neutral structural shape. Identities are interned
+/// semantic type identity handles rather than source-tree handles.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralTypePlan {
-    pub identity: String,
+    pub identity: TypeIdentityId,
     /// Exact source contents admit affine disposal without executing a hook,
     /// settling a linear claim, or disposing borrowed referent storage. This
     /// is a type capability, not proof that any particular place is live or
@@ -64,7 +70,7 @@ pub enum CheckedUnitStructuralTypeShape {
     BindingCarrier,
     /// An owned reference carrier, distinct from the borrowed referent shape.
     Reference {
-        referent_identity: String,
+        referent_identity: TypeIdentityId,
         access: CheckedStructuralAccess,
     },
     /// One whole primitive referent carried through structural custody. This
@@ -85,7 +91,7 @@ pub enum CheckedUnitStructuralTypeShape {
     /// than a stored value. A runtime extent belongs to `BorrowedSliceView`,
     /// which borrows this storage instead of owning it.
     FixedArray {
-        element_type_identity: String,
+        element_type_identity: TypeIdentityId,
         length: u64,
     },
     /// A borrowed `&[T]` view: the contiguous elements of storage some other
@@ -98,7 +104,7 @@ pub enum CheckedUnitStructuralTypeShape {
     /// that carries the view, exactly as it does for the borrowed
     /// `ByteSequence` carrier, and the pointer/length descriptor that realizes
     /// it stays a target-side implementation detail.
-    BorrowedSliceView { element_type_identity: String },
+    BorrowedSliceView { element_type_identity: TypeIdentityId },
     /// A closed pure sum. Each case owns its exact payload-field roster; an
     /// empty roster is the payload-less case form.
     Sum {
@@ -114,13 +120,13 @@ pub enum CheckedUnitStructuralTypeShape {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralCasePlan {
-    pub identity: String,
+    pub identity: CheckedMemberIdentity,
     pub fields: Vec<CheckedUnitStructuralFieldPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralFieldPlan {
-    pub identity: String,
+    pub identity: CheckedMemberIdentity,
     pub relevance: BindingRelevance,
     pub field_type: CheckedUnitStructuralFieldType,
     pub storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
@@ -129,17 +135,17 @@ pub struct CheckedUnitStructuralFieldPlan {
     /// qualified byte view such as `&[u8] in Utf8`). A value constructed into
     /// the field carries those memberships, so a catalog that keeps the
     /// owner keeps these carriers and their domain theories with it.
-    pub qualification_carriers: Vec<String>,
+    pub qualification_carriers: Vec<TypeIdentityId>,
 }
 
 impl CheckedUnitStructuralFieldPlan {
     /// Every structural type a catalog must keep alongside this field's
     /// owner: the field's own structural type and its qualification carriers.
-    pub fn retained_type_identities(&self) -> impl Iterator<Item = &String> {
+    pub fn retained_type_identities(&self) -> impl Iterator<Item = TypeIdentityId> + '_ {
         self.field_type
             .structural_type_identity()
             .into_iter()
-            .chain(&self.qualification_carriers)
+            .chain(self.qualification_carriers.iter().copied())
     }
 }
 
@@ -161,39 +167,39 @@ pub enum CheckedUnitStructuralFieldType {
         predicates: language_semantics::byte_predicates::ByteSequencePredicateSet,
     },
     Structural {
-        type_identity: String,
+        type_identity: TypeIdentityId,
     },
     /// An authored dynamic boundary-trait field whose runtime carrier is
     /// eliminated only by an exact provider-installation specialization.
     /// The enclosing machine plan must retain one requirement row for every
     /// boundary call routed through this field.
     ProviderBacked {
-        provider_type_identity: String,
+        provider_type_identity: TypeIdentityId,
     },
     /// An exact logical Binding carrier. The receipt identifies its declared
     /// requirement; it does not assert erasure or grant establishment.
     BindingBacked {
-        provider_type_identity: String,
+        provider_type_identity: TypeIdentityId,
         receipt: CheckedBindingFieldReceipt,
     },
     /// An erased semantic field does not require an executable structural
     /// carrier. Its exact normalized type identity remains independently
     /// checkable in terminal Psi.
     Erased {
-        type_identity: String,
+        type_identity: TypeIdentityId,
     },
 }
 
 impl CheckedUnitStructuralFieldType {
     /// The structural type identity behind a nested-record or binding
     /// field, the two carriers that keep a whole type inside a record.
-    pub fn structural_type_identity(&self) -> Option<&String> {
+    pub fn structural_type_identity(&self) -> Option<TypeIdentityId> {
         match self {
             Self::Structural { type_identity }
             | Self::BindingBacked {
                 provider_type_identity: type_identity,
                 ..
-            } => Some(type_identity),
+            } => Some(*type_identity),
             _ => None,
         }
     }
@@ -219,7 +225,7 @@ pub struct CheckedBindingFieldReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedBindingParameterReceipt {
     pub source_parameter: SymbolHandle,
-    pub carrier_type_identity: String,
+    pub carrier_type_identity: TypeIdentityId,
     pub requirement: SymbolHandle,
 }
 
@@ -304,8 +310,9 @@ impl CheckedByteSequenceCarrier {
 pub struct CheckedUnitStructuralDomainPlan {
     pub byte_predicate: Option<language_semantics::byte_predicates::ByteSequencePredicate>,
     pub domain: SemanticDomainId,
-    pub identity: String,
-    pub carrier_type_identity: String,
+    /// The domain's canonical name spelling; the `domain` id is the identity.
+    pub name: String,
+    pub carrier_type_identity: TypeIdentityId,
     /// Authored `established by` routes copied from the domain declaration in
     /// authored order. Lowering normalizes each to its source-free identity.
     pub establishment_routes: Vec<language_semantics::DomainEstablishmentRoute>,
@@ -358,7 +365,7 @@ pub struct CheckedUnitStructuralParameterPlan {
     /// Position in the authored state signature. Structural argument lists use
     /// their own dense order and therefore never reinterpret this coordinate.
     pub position: u32,
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
     pub multiplicity: Multiplicity,
     pub access: CheckedStructuralAccess,
     /// The primitive a borrowed formal lends when its referent is one
@@ -386,8 +393,8 @@ pub struct CheckedUnitStructuralParameterPlan {
 /// operation that carries the path.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CheckedUnitStructuralPathSegment {
-    Field(String),
-    Case(String),
+    Field(CheckedMemberIdentity),
+    Case(CheckedMemberIdentity),
     FixedIndex(u64),
     /// Terminal, call-scoped window over initialized fixed byte-array backing.
     FixedByteRange {
@@ -407,7 +414,7 @@ pub enum CheckedUnitStructuralPathSegment {
 impl Default for CheckedUnitStructuralPathSegment {
     fn default() -> Self {
         // Arena slot zero has no declaration identity and is never a path.
-        Self::Field(String::new())
+        Self::Field(CheckedMemberIdentity::default())
     }
 }
 
@@ -530,7 +537,7 @@ pub fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType)
 /// The type plan carrying `identity` on a plan roster.
 pub fn checked_structural_type_by_identity<'plans>(
     plans: &'plans [CheckedUnitStructuralTypePlan],
-    identity: &str,
+    identity: TypeIdentityId,
 ) -> Option<&'plans CheckedUnitStructuralTypePlan> {
     plans.iter().find(|plan| plan.identity == identity)
 }

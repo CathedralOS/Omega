@@ -73,7 +73,7 @@ pub(crate) fn lower_structural_path(
             )),
             CheckedUnitStructuralPathSegment::Referent => Ok(StructuralPathSegment::Referent),
             CheckedUnitStructuralPathSegment::Field(identity) => {
-                Ok(StructuralPathSegment::Field(identity.clone()))
+                Ok(StructuralPathSegment::Field(identity.spelling()))
             }
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 Ok(StructuralPathSegment::FixedIndex(*index))
@@ -123,22 +123,25 @@ enum PreparedArgumentTip<'a> {
 /// use the strict walker unchanged; it must never implicitly dereference a
 /// descriptor value or a nested reference field.
 pub(crate) fn prepare_structural_argument_path(
+    checked: &checked_trees::CheckedTrees,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     published_root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
-    prepare_structural_argument_projection(argument, &argument.path, published_root, types)
+    prepare_structural_argument_projection(checked, argument, &argument.path, published_root, types)
 }
 
 /// A final call addresses the completed value. Its range producer has already
 /// consumed the original collection path; ordinary storage joins above still
 /// require that path when they bind the original source.
 pub(crate) fn prepare_call_argument_path(
+    checked: &checked_trees::CheckedTrees,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     published_root: semantic_vocabulary::StructuralTypeId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedStructuralPathSegment>, LoweringError> {
     prepare_structural_argument_projection(
+        checked,
         argument,
         argument.call_projection(),
         published_root,
@@ -147,6 +150,7 @@ pub(crate) fn prepare_call_argument_path(
 }
 
 fn prepare_structural_argument_projection(
+    checked: &checked_trees::CheckedTrees,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     projection: &[CheckedUnitStructuralPathSegment],
     published_root: semantic_vocabulary::StructuralTypeId,
@@ -155,11 +159,13 @@ fn prepare_structural_argument_projection(
     let Some(identity) = argument.borrowed_root_type_identity() else {
         return prepare_argument_path(projection, published_root, types);
     };
-    let mut roots = types.iter().filter(|row| row.identity == identity);
+    let mut roots = types
+        .iter()
+        .filter(|row| row.identity == checked.type_identity_text(identity).unwrap_or_default());
     let logical_root = roots.next().ok_or(LoweringError::Unsupported(
         "borrowed argument lost its checked logical root",
     ))?;
-    if identity.is_empty() || roots.next().is_some() {
+    if roots.next().is_some() {
         return Err(LoweringError::Unsupported(
             "borrowed argument logical root is empty or ambiguous",
         ));
@@ -260,7 +266,7 @@ pub(crate) fn prepare_argument_path(
                         ));
                     }
                 };
-                let mut matches = cases.iter().filter(|case| case.identity == *identity);
+                let mut matches = cases.iter().filter(|case| case.identity == identity.spelling());
                 let case = matches.next().ok_or(LoweringError::Unsupported(
                     "argument case belongs to another source type",
                 ))?;
@@ -284,7 +290,7 @@ pub(crate) fn prepare_argument_path(
                         }
                     },
                 };
-                let mut matches = fields.iter().filter(|field| field.identity == *identity);
+                let mut matches = fields.iter().filter(|field| field.identity == identity.spelling());
                 let field = matches.next().ok_or(LoweringError::Unsupported(
                     "argument field belongs to another declaration",
                 ))?;
@@ -298,7 +304,7 @@ pub(crate) fn prepare_argument_path(
                     _ => Tip::Inline(&field.field_type),
                 };
                 PreparedStructuralPathSegment::Static(StructuralPathSegment::Field(
-                    identity.clone(),
+                    identity.spelling(),
                 ))
             }
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {

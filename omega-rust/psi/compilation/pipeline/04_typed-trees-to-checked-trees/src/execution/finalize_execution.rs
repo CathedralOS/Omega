@@ -79,7 +79,8 @@ pub(crate) fn finalize_execution(
         terminal_unit_effects.adopt_structural_types(partial_types.into_iter().chain(nominal_types))
     {
         cleanup_diagnostics.push(Diagnostic::error(format!(
-            "Unit cleanup plans register structural type `{identity}` with a shape the ordinary Unit roster does not carry"
+            "Unit cleanup plans register structural type `{}` with a shape the ordinary Unit roster does not carry",
+            program.type_identity_text(identity).unwrap_or_default()
         )));
     }
     // A scalar computation that constructs a record (`Pair { .. }.first`)
@@ -107,7 +108,8 @@ pub(crate) fn finalize_execution(
     }
     if let Err(identity) = terminal_unit_effects.adopt_structural_types(construction_shapes) {
         cleanup_diagnostics.push(Diagnostic::error(format!(
-            "scalar computations construct structural type `{identity}` with a shape the ordinary Unit roster does not carry"
+            "scalar computations construct structural type `{}` with a shape the ordinary Unit roster does not carry",
+            program.type_identity_text(identity).unwrap_or_default()
         )));
     }
     if !cleanup_diagnostics.is_empty() {
@@ -123,7 +125,8 @@ pub(crate) fn finalize_execution(
     crate::execution::terminal_unit::retain_structural_value_calls(program, &mut facts).map_err(
         |identity| {
             vec![Diagnostic::error(format!(
-                "structural value calls register structural type `{identity}` with a shape the ordinary Unit roster does not carry"
+                "structural value calls register structural type `{}` with a shape the ordinary Unit roster does not carry",
+                program.type_identity_text(identity).unwrap_or_default()
             ))]
         },
     )?;

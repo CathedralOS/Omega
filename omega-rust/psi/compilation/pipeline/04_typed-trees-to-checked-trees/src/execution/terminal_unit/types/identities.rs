@@ -6,8 +6,8 @@ use super::*;
 pub(in crate::execution::terminal_unit) fn terminal_field_identity(
     program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
-) -> Option<String> {
-    terminal_field_declaration(program, symbol).map(|field| field.path_identity())
+) -> Option<checked_trees::CheckedMemberIdentity> {
+    terminal_field_declaration(program, symbol).map(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()))
 }
 
 /// Common and payload fields use the same declaration identity. The path's
@@ -86,7 +86,7 @@ pub(crate) fn byte_sequence_type_identity(
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> Option<String> {
+) -> Option<typed_trees::type_identity::TypeIdentityId> {
     byte_sequence_carrier(program, type_reference, substitutions)?;
     Some(validation::structural_type_identity(
         program,
@@ -127,7 +127,7 @@ pub(in crate::execution::terminal_unit) fn base_type_identity(
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> Option<String> {
+) -> Option<typed_trees::type_identity::TypeIdentityId> {
     let storage = program
         .type_reference_table
         .peeled_type_reference(type_reference);
@@ -154,7 +154,7 @@ pub(in crate::execution::terminal_unit) fn lent_storage_identity(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> Option<String> {
+) -> Option<typed_trees::type_identity::TypeIdentityId> {
     let storage = validation::reference_shell(program, type_reference)
         .map_or(type_reference, |shell| shell.referee);
     base_type_identity(program, storage, &[], substitutions)
@@ -195,18 +195,19 @@ pub(in crate::execution::terminal_unit) fn closed_data_identity(
     program: &dyn ::validation::CheckingInput,
     data: &typed_trees::data::DataDefinition,
     binders: &[(SymbolHandle, String)],
-) -> String {
+) -> typed_trees::type_identity::TypeIdentityId {
     // A synthesized owner's spelling is diagnostic metadata. Its attachment
     // and every ordinary field/reference use must retain the same original
     // generic application identity, including the exact argument tuple.
     if let Some(application) = data.generic_instance {
-        return program.type_identity_request_text(TypeIdentityRequest {
+        return program.type_identity(TypeIdentityRequest {
             binders,
             ..TypeIdentityRequest::ordinary(application)
         });
     }
-    let path = program.symbols.display_path(data.symbol, "::");
-    format!("named({})", normalized_atom("name", &path))
+    program
+        .normalized_nominal_type_identity(data.symbol)
+        .unwrap_or_default()
 }
 
 pub(in crate::execution::terminal_unit) fn scalar_type(

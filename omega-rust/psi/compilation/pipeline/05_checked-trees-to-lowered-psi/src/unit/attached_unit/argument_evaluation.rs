@@ -667,6 +667,7 @@ impl Evaluation {
     /// affine owners on the completed call's normal continuation.
     pub(crate) fn continue_values(
         &mut self,
+        checked: &CheckedTrees,
         mut cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -688,6 +689,7 @@ impl Evaluation {
             *place = self.current_structural_place(*place);
         }
         cleanup_control::CleanupEmission {
+            checked,
             current: &mut self.current,
             parameters: &mut self.parameters,
             structural_parameters: &mut self.block_structural_parameters,
@@ -712,6 +714,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn require_value_refinements(
         &mut self,
+        checked: &CheckedTrees,
         machine: semantic_vocabulary::MachineId,
         predicates: Vec<checked_trees::CheckedBooleanExpression>,
         values: &mut Vec<ValueDeclaration>,
@@ -725,6 +728,7 @@ impl Evaluation {
             return Ok(());
         }
         let edge = self.continue_values(
+            checked,
             Vec::new(),
             values,
             next_value,
@@ -1081,6 +1085,7 @@ impl Evaluation {
         )?;
         let states = expansion.finish();
         self.complete_expansion(
+            checked,
             &states,
             entry_index,
             &argument_types,
@@ -1104,7 +1109,7 @@ impl Evaluation {
         statement_index: u32,
         value: &checked_trees::CheckedScalarStoreValue,
         primitive_type: typed_trees::types::PrimitiveType,
-        field_identity: Option<&str>,
+        field_identity: Option<&checked_trees::CheckedMemberIdentity>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -1176,6 +1181,7 @@ impl Evaluation {
             let entry = expansion.direct_value(&source_types, 0, expression)?;
             let states = expansion.finish();
             return self.single_completed_expansion(
+                checked,
                 &states,
                 entry,
                 scalar_type.into(),
@@ -1214,6 +1220,7 @@ impl Evaluation {
         )?;
         let states = expansion.finish();
         self.single_completed_expansion(
+            checked,
             &states,
             entry,
             result_type,
@@ -1232,6 +1239,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     fn single_completed_expansion(
         &mut self,
+        checked: &CheckedTrees,
         states: &[LoweredScalarBranchState],
         entry: usize,
         result_type: QualifiedScalarType,
@@ -1244,6 +1252,7 @@ impl Evaluation {
         message: &'static str,
     ) -> Result<ValueDeclaration, LoweringError> {
         let result = self.complete_expansion(
+            checked,
             states,
             entry,
             &[result_type],
@@ -1263,6 +1272,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     fn complete_expansion(
         &mut self,
+        checked: &CheckedTrees,
         states: &[LoweredScalarBranchState],
         entry_index: usize,
         result_types: &[QualifiedScalarType],
@@ -1274,6 +1284,7 @@ impl Evaluation {
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<Vec<ValueDeclaration>, LoweringError> {
         if let Some(completed) = self.complete_straight_line(
+            checked,
             states,
             entry_index,
             result_types,
@@ -1303,7 +1314,7 @@ impl Evaluation {
             id: self.current,
             parameters: std::mem::take(&mut self.parameters),
             erased_scalar_formals: Vec::new(),
-            erased_proof_formals: erased_proof_formal_declarations(&self.erased_proof_formals),
+            erased_proof_formals: erased_proof_formal_declarations(checked, &self.erased_proof_formals),
             operations: operations[self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
                 structural_arguments: Vec::new(),
@@ -1318,6 +1329,7 @@ impl Evaluation {
                     .iter()
                     .map(|term| {
                         crate::scalar_lowering::contracts::lowered_proof_term(
+                            checked,
                             term,
                             values,
                             &self.erased_scalar_formals,
@@ -1330,6 +1342,7 @@ impl Evaluation {
         for index in scalar_state_emission_order(states, entry_index)? {
             let state = &states[index];
             emit_state(
+                checked,
                 state,
                 targets[index + 1],
                 &parameters[index + 1],

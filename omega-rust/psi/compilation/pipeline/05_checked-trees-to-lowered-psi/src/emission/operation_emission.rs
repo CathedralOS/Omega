@@ -69,6 +69,7 @@ impl LoweredScalarBinding {
 }
 
 pub(crate) fn emit_scalar_binding(
+    checked: &checked_trees::CheckedTrees,
     binding: &LoweredScalarBinding,
     parameters: &[ValueDeclaration],
     caller_erased_formals: &[ValueDeclaration],
@@ -211,6 +212,7 @@ pub(crate) fn emit_scalar_binding(
             operations,
         )),
         LoweredScalarBinding::DirectCall(call) => calls::emit_scalar_call_binding(
+            checked,
             call,
             parameters,
             caller_erased_formals,

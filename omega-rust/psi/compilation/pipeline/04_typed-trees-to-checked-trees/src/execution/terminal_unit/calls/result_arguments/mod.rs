@@ -42,7 +42,7 @@ pub(super) fn argument(
     place: &validation::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
-    target_identity: &str,
+    target_identity: typed_trees::type_identity::TypeIdentityId,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let mut argument = argument_contract(
@@ -83,7 +83,7 @@ fn argument_contract(
     place: &validation::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
-    target_identity: &str,
+    target_identity: typed_trees::type_identity::TypeIdentityId,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let (source_machine, source_state) = validation::find_state(program, state)?;
@@ -320,7 +320,7 @@ fn argument_contract(
                     parameter.type_reference,
                 )
                 && result.type_identity
-                    == program.normalized_type_identity_text(parameter.type_reference)))
+                    == program.normalized_type_identity(parameter.type_reference)))
         && let Some(view_symbol) = place.root.as_symbol()
     {
         let Some(StatementNode::LocalData(local)) = program

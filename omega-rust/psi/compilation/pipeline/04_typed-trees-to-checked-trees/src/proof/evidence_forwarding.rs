@@ -204,8 +204,8 @@ pub(crate) fn bind_evidence_projection_facts(
         for (label, projection) in bound_projections {
             let mut matched = false;
             for checked_argument in &mut checked.binder_arguments {
-                if checked_argument.identity == label {
-                    checked_argument.identity.clear();
+                if checked_argument.diagnostic_label == label {
+                    checked_argument.diagnostic_label.clear();
                     checked_argument.evidence_projection = Some(projection.clone());
                     matched = true;
                 }

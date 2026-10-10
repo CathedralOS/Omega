@@ -53,7 +53,7 @@ pub(crate) fn carrier_path(
                             _ => None,
                         })?;
                 output.push(CheckedUnitStructuralPathSegment::Case(
-                    variant.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
                 ));
                 payload = Some(variant);
             }
@@ -74,7 +74,7 @@ pub(crate) fn carrier_path(
                         })?
                 };
                 output.push(CheckedUnitStructuralPathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 reference = field.type_reference;
             }

@@ -169,7 +169,7 @@ pub fn ranking_slice_length_observation(
             .iter()
             .chain([&coordinate.field])
             .map(|field| {
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(field.path_identity())
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()))
             })
             .collect();
         (coordinate.parameter, path)

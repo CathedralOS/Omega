@@ -6,6 +6,7 @@ use arena::{Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableMatchArm};
 use typed_trees::types::TypeReferenceHandle;
+use typed_trees::type_identity::TypeIdentityId;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralValuePlans {
@@ -150,7 +151,7 @@ pub enum CheckedStructuralValueKind {
     Projection {
         source: CheckedStructuralValueHandle,
         path: Vec<crate::CheckedUnitStructuralPathSegment>,
-        type_identity: String,
+        type_identity: TypeIdentityId,
     },
     Dispatch {
         subject: CheckedScalarComputationHandle,

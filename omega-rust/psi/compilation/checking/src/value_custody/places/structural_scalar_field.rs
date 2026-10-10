@@ -49,7 +49,7 @@ pub struct StructuralScalarField {
     /// the final scalar field.
     pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     pub field: SymbolHandle,
-    pub field_identity: String,
+    pub field_identity: checked_trees::CheckedMemberIdentity,
     pub primitive_type: PrimitiveType,
     /// Governs subsequent arithmetic; observing storage does not erase policy.
     pub domain: ArithmeticDomain,
@@ -144,7 +144,7 @@ pub fn structural_scalar_field_at_coordinate(
                 }
                 selected_case = case.symbol;
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
-                    case.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
                 ));
             }
             facts::PlaceSegment::Field { symbol } => {
@@ -190,7 +190,7 @@ pub fn structural_scalar_field_at_coordinate(
                         carrier_type_reference: carrier,
                         path,
                         field: field.symbol,
-                        field_identity: field.path_identity(),
+                        field_identity: checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                         primitive_type,
                         domain: program.arithmetic_domain_for_type_reference(
                             program
@@ -200,7 +200,7 @@ pub fn structural_scalar_field_at_coordinate(
                     });
                 }
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 carrier = field.type_reference;
                 selected_case = SymbolHandle::invalid();
@@ -331,7 +331,7 @@ pub fn structural_scalar_field(
         let record = program.closed_data_definition(declaration_carrier)?;
         let field = selected_member_field(program, declaration_carrier, record, member, &mut path)?;
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            field.path_identity(),
+            checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
         ));
         carrier = field.type_reference;
     }
@@ -365,7 +365,7 @@ pub fn structural_scalar_field(
         carrier_type_reference: carrier,
         path,
         field: field.symbol,
-        field_identity: field.path_identity(),
+        field_identity: checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
         primitive_type,
         domain: program.arithmetic_domain_for_type_reference(
             program
@@ -458,7 +458,7 @@ fn selected_member_field<'program>(
             return None;
         }
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
-            variant.path_identity(),
+            checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
         ));
         variant.symbol
     } else {

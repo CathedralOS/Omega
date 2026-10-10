@@ -8,6 +8,7 @@ use crate::{CheckedScalarExpression, CheckedStorageRoot};
 use language_semantics::CarryPolicy;
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
+use typed_trees::type_identity::TypeIdentityId;
 
 /// Physical interpretation retained by one source-checked reference capture.
 /// A view begins at the source's actual projected address. Aggregate views
@@ -81,7 +82,7 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// distinct from a physical stored-value path, not an initializer mode.
     StructuralLocalBorrow {
         symbol: SymbolHandle,
-        root_type_identity: String,
+        root_type_identity: TypeIdentityId,
     },
     /// An already evaluated structural expression. The enclosing operation
     /// sequence establishes its storage before a consumer observes it; this
@@ -121,7 +122,7 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
         /// declaration rooted even when nothing else in the body spells the
         /// backing type (a whole-extent binding produces no subslice
         /// computation operands to root it incidentally).
-        storage_type_identity: String,
+        storage_type_identity: TypeIdentityId,
     },
     /// Exclusive element range over one established immutable `&[T]` view,
     /// T != u8, rooted exactly as a byte range is. Endpoints share the same
@@ -138,7 +139,7 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
         end_inclusive: bool,
         site: crate::CheckedSubsliceSite,
         /// Exact Terminal type identity of the collection the range reads.
-        storage_type_identity: String,
+        storage_type_identity: TypeIdentityId,
     },
 }
 
@@ -150,7 +151,7 @@ pub struct CheckedUnitStructuralArgumentPlan {
     /// the callee whole through `call_projection`. Other arguments retain their
     /// exact field and fixed or captured-index path into the call.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
     /// Explicit access presented at this call site. This is independently
     /// checked against both the source carrier and target parameter.
     pub access: CheckedStructuralAccess,
@@ -163,7 +164,7 @@ impl Default for CheckedUnitStructuralArgumentPlan {
                 symbol: SymbolHandle::invalid(),
             },
             path: Vec::new(),
-            type_identity: String::new(),
+            type_identity: TypeIdentityId::default(),
             access: CheckedStructuralAccess::Owned,
         }
     }
@@ -206,7 +207,7 @@ impl CheckedUnitStructuralArgumentPlan {
     /// Complete-source structural-result argument: an empty projection path.
     pub fn structural_result(
         binding_ordinal: u32,
-        type_identity: String,
+        type_identity: TypeIdentityId,
         access: CheckedStructuralAccess,
     ) -> Self {
         Self {
@@ -321,7 +322,7 @@ impl CheckedUnitStructuralArgumentPlan {
 
     /// The exact Terminal type identity of the collection a subslice source
     /// reads; `None` for sources that carry no range.
-    pub fn subslice_storage_type_identity(&self) -> Option<&str> {
+    pub fn subslice_storage_type_identity(&self) -> Option<TypeIdentityId> {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                 storage_type_identity,
@@ -330,19 +331,19 @@ impl CheckedUnitStructuralArgumentPlan {
             | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
                 storage_type_identity,
                 ..
-            } => (!storage_type_identity.is_empty()).then_some(storage_type_identity.as_str()),
+            } => storage_type_identity.is_valid().then_some(*storage_type_identity),
             _ => None,
         }
     }
 
     /// The logical root before a borrowed local's projection, not its final
     /// argument type or the possibly reference-shaped published home.
-    pub fn borrowed_root_type_identity(&self) -> Option<&str> {
+    pub fn borrowed_root_type_identity(&self) -> Option<TypeIdentityId> {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                 root_type_identity,
                 ..
-            } => Some(root_type_identity),
+            } => Some(*root_type_identity),
             _ => None,
         }
     }

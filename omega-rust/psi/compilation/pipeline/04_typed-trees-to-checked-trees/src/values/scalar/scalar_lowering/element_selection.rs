@@ -220,7 +220,7 @@ pub(crate) fn indexed_scalar_read_with_selectors(
                     program.expression_table.member_node(occurrence)?,
                 )?;
                 element_path.push(checked_trees::CheckedScalarReadProjection::Static(
-                    CheckedStructuralPredicatePathSegment::Field(field.path_identity()),
+                    CheckedStructuralPredicatePathSegment::Field(checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())),
                 ));
                 element_type = field.type_reference;
             }

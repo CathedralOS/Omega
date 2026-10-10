@@ -19,7 +19,7 @@ impl OperationFrame<'_, '_> {
     pub(super) fn dynamic_call(
         &mut self,
         call: &CheckedUnitCallPlan,
-        interface_identity: &str,
+        interface_identity: &typed_trees::type_identity::TypeIdentityId,
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
         let Some((selector, data)) = inputs
@@ -79,6 +79,7 @@ impl OperationFrame<'_, '_> {
             inputs.evaluated_selectors,
         )?;
         let prepared_claims = crate::emission::claim_bindings::prepare_checked_claim_transfers(
+            self.checked,
             call.claim_transfers(),
             &slot_plan.structural_parameters,
             self.structural_types.declarations(),

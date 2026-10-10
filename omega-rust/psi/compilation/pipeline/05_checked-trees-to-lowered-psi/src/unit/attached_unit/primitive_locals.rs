@@ -179,7 +179,7 @@ pub(super) fn establish_parameter_storage(
     storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
     values: &[terminal_psi::ValueDeclaration],
-    type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, semantic_vocabulary::StructuralTypeId)],
     declarations: &[StructuralTypeDeclaration],
     next_place: &mut u64,
     next_obligation: &mut u64,

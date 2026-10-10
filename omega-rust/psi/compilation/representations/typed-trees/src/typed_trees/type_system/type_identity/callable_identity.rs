@@ -41,7 +41,7 @@ type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>
 /// One interned named-callable identity. Zero is the absence state: a machine
 /// whose declaration carries no entry state has no callable identity and no
 /// slot is minted for it, so no consumer wraps this handle in an `Option`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CallableIdentityId(u32);
 
 /// One interned declaration path, shared by every overload of a family.

@@ -22,15 +22,15 @@ use super::*;
 
 pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) program: &'program dyn ::validation::CheckingInput,
-    pub(in crate::execution::terminal_unit) types: BTreeMap<String, CheckedUnitStructuralTypePlan>,
+    pub(in crate::execution::terminal_unit) types: BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
     pub(in crate::execution::terminal_unit) domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub(in crate::execution::terminal_unit) cleanup_control:
         checked_trees::CheckedCleanupControlPlans,
-    in_progress: BTreeSet<String>,
+    in_progress: BTreeSet<typed_trees::type_identity::TypeIdentityId>,
     /// The element rows registered beside borrowed byte views. A byte
     /// carrier's plan keeps no element field, so `retain_transitive` follows
     /// this edge where it follows a `BorrowedSliceView`'s element identity.
-    byte_view_elements: BTreeSet<String>,
+    byte_view_elements: BTreeSet<typed_trees::type_identity::TypeIdentityId>,
 }
 
 impl<'program> ShapeCollector<'program> {
@@ -50,7 +50,7 @@ impl<'program> ShapeCollector<'program> {
         domain: SemanticDomainId,
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let mut reference = carrier;
         let mut has_domain_constraints = false;
         let mut selected_symbol = None;
@@ -107,7 +107,7 @@ impl<'program> ShapeCollector<'program> {
         selected_symbol: SymbolHandle,
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let definition = typed_trees::domain::domain_by_symbol(self.program, selected_symbol)?;
         if definition.semantic_id != domain {
             return None;
@@ -121,7 +121,7 @@ impl<'program> ShapeCollector<'program> {
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         definition: Option<&typed_trees::domain::DomainDefinition>,
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let carrier_type_identity = self.add_type(carrier, binders, &[])?;
         let identity = self.program.semantic_domains.name(domain)?.to_owned();
         let establishment_routes = definition
@@ -133,8 +133,8 @@ impl<'program> ShapeCollector<'program> {
         let plan = CheckedUnitStructuralDomainPlan {
             byte_predicate,
             domain,
-            identity,
-            carrier_type_identity: carrier_type_identity.clone(),
+            name: identity,
+            carrier_type_identity,
             establishment_routes,
         };
         if let Some(existing) = self.domains.iter().find(|existing| {
@@ -160,7 +160,7 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         machine: &typed_trees::machine::Machine,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let attached = self
             .program
             .data_definition_by_symbol(machine.attached_data_symbol)
@@ -189,7 +189,7 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         data: &typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         if let Some(identity) = self.add_placed_accessor_attachment(data, binders) {
             return Some(identity);
         }
@@ -214,7 +214,7 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         data: &typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         if data.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
             || !self
                 .program
@@ -229,7 +229,7 @@ impl<'program> ShapeCollector<'program> {
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             no_code_affine_cleanup: false,
-            identity: identity.clone(),
+            identity: identity,
             shape: CheckedUnitStructuralTypeShape::Record {
                 storage: None,
                 fields: Vec::new(),
@@ -242,7 +242,7 @@ impl<'program> ShapeCollector<'program> {
         {
             return None;
         }
-        self.types.insert(identity.clone(), plan);
+        self.types.insert(identity, plan);
         Some(identity)
     }
 
@@ -268,7 +268,7 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let shell = validation::reference_shell(self.program, reference)?;
         self.add_view_type(reference, binders, shell.access)
     }
@@ -286,7 +286,7 @@ impl<'program> ShapeCollector<'program> {
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         access: language_semantics::ReferenceAccess,
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let identity = self.add_view_type_for_substitutions(reference, binders, &[], access)?;
         // A root view lends actual backing storage. Its independently demanded
         // shape is distinct from the pointer carrier recorded above; stored
@@ -302,7 +302,7 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         access: language_semantics::ReferenceAccess,
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let shell = validation::reference_shell(self.program, reference)?;
         if shell.access != access {
             return None;
@@ -331,7 +331,7 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         if !borrowed_slice_view(self.program, reference) {
             return None;
         }
@@ -353,12 +353,12 @@ impl<'program> ShapeCollector<'program> {
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-        referent_identity: String,
+        referent_identity: typed_trees::type_identity::TypeIdentityId,
         access: CheckedStructuralAccess,
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let identity = self
             .program
-            .type_identity_request_text(TypeIdentityRequest {
+            .type_identity(TypeIdentityRequest {
                 binders,
                 substitutions,
                 ..TypeIdentityRequest::ordinary(reference)
@@ -366,7 +366,7 @@ impl<'program> ShapeCollector<'program> {
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             no_code_affine_cleanup: false,
-            identity: identity.clone(),
+            identity: identity,
             shape: CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
                 access,
@@ -379,7 +379,7 @@ impl<'program> ShapeCollector<'program> {
         {
             return None;
         }
-        self.types.insert(identity.clone(), plan);
+        self.types.insert(identity, plan);
         Some(identity)
     }
 
@@ -388,9 +388,9 @@ impl<'program> ShapeCollector<'program> {
     /// this is the primitive a `&u8` or `&mut i64` formal lends.
     pub(in crate::execution::terminal_unit) fn primitive_scalar(
         &self,
-        identity: &str,
+        identity: typed_trees::type_identity::TypeIdentityId,
     ) -> Option<PrimitiveType> {
-        match self.types.get(identity).map(|plan| &plan.shape) {
+        match self.types.get(&identity).map(|plan| &plan.shape) {
             Some(CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)) => Some(*primitive),
             _ => None,
         }
@@ -406,7 +406,7 @@ impl<'program> ShapeCollector<'program> {
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let reference = substituted_formal_type(self.program, reference, substitutions);
         if validation::stores_reference_shape(self.program, reference, substitutions) {
             structural_access_for_type_reference(self.program, reference)?;
@@ -435,7 +435,7 @@ impl<'program> ShapeCollector<'program> {
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         // One identity names one plan for the whole module, and lowering
         // rejoins this plan by recomputing the identity from source types, so
         // both use the one rule: a bounded byte owner keeps its qualification
@@ -501,7 +501,7 @@ impl<'program> ShapeCollector<'program> {
                         carrier,
                         checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
                     ),
-                identity: identity.clone(),
+                identity: identity,
                 // A view type's identity peels the reference shell, so
                 // `&mut [u8]` and `&write [u8]` register under one identity.
                 // The access binds on the field or parameter that uses the
@@ -516,13 +516,13 @@ impl<'program> ShapeCollector<'program> {
             {
                 return None;
             }
-            self.types.insert(identity.clone(), plan);
+            self.types.insert(identity, plan);
             return Some(identity);
         }
         if let Some(element) =
             borrowed_slice_view_element(self.program, type_reference, substitutions)
         {
-            if !self.in_progress.insert(identity.clone()) {
+            if !self.in_progress.insert(identity) {
                 return None;
             }
             let element_type_identity = self.add_type(element, binders, substitutions);
@@ -530,7 +530,7 @@ impl<'program> ShapeCollector<'program> {
             let plan = CheckedUnitStructuralTypePlan {
                 scalar_restriction: None,
                 no_code_affine_cleanup: false,
-                identity: identity.clone(),
+                identity: identity,
                 shape: CheckedUnitStructuralTypeShape::BorrowedSliceView {
                     element_type_identity: element_type_identity?,
                 },
@@ -542,7 +542,7 @@ impl<'program> ShapeCollector<'program> {
             {
                 return None;
             }
-            self.types.insert(identity.clone(), plan);
+            self.types.insert(identity, plan);
             return Some(identity);
         }
         // Every other carrier names the shared semantic identity beneath its
@@ -567,11 +567,11 @@ impl<'program> ShapeCollector<'program> {
                 _ => return None,
             };
             self.types.insert(
-                identity.clone(),
+                identity,
                 CheckedUnitStructuralTypePlan {
                     scalar_restriction,
                     no_code_affine_cleanup,
-                    identity: identity.clone(),
+                    identity: identity,
                     shape: CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
                 },
             );
@@ -607,7 +607,7 @@ impl<'program> ShapeCollector<'program> {
             // permission carrier. Their referents do not become inline data.
             // Recursion determines representability; construction, transfer,
             // and cleanup independently check each operation's custody.
-            if !self.in_progress.insert(identity.clone()) {
+            if !self.in_progress.insert(identity) {
                 return None;
             }
             let element = substituted_formal_type(self.program, *element_type, substitutions);
@@ -648,11 +648,11 @@ impl<'program> ShapeCollector<'program> {
             };
             let length = u64::try_from(length).ok()?;
             self.types.insert(
-                identity.clone(),
+                identity,
                 CheckedUnitStructuralTypePlan {
                     scalar_restriction: None,
                     no_code_affine_cleanup,
-                    identity: identity.clone(),
+                    identity: identity,
                     shape: CheckedUnitStructuralTypeShape::FixedArray {
                         element_type_identity,
                         length,
@@ -724,7 +724,7 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let identity = self.add_type(type_reference, binders, &[])?;
         // Shape collection also serves borrowed carriers. Check authored
         // ownership before a referent-oriented shape can erase that distinction.
@@ -739,22 +739,22 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         // Construction-prefix admission remains owned by its separate caller.
         self.add_type(type_reference, binders, &[])
     }
 
     pub(in crate::execution::terminal_unit) fn add_data_shape(
         &mut self,
-        identity: String,
+        identity: typed_trees::type_identity::TypeIdentityId,
         data: typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
         substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         if self.types.contains_key(&identity) {
             return Some(identity);
         }
-        if !self.in_progress.insert(identity.clone()) {
+        if !self.in_progress.insert(identity) {
             return None;
         }
         let no_code_affine_cleanup = validation::data_has_contents(
@@ -796,7 +796,7 @@ impl<'program> ShapeCollector<'program> {
                             field,
                             binders,
                             &substitutions,
-                            &identity,
+                            identity,
                             stated(field),
                         ) else {
                             self.in_progress.remove(&identity);
@@ -822,7 +822,7 @@ impl<'program> ShapeCollector<'program> {
                                 field,
                                 binders,
                                 &substitutions,
-                                &identity,
+                                identity,
                                 bounds,
                             ) else {
                                 self.in_progress.remove(&identity);
@@ -831,18 +831,18 @@ impl<'program> ShapeCollector<'program> {
                             payload_fields.push(field);
                         }
                         cases.push(checked_trees::CheckedUnitStructuralCasePlan {
-                            identity: variant.path_identity(),
+                            identity: checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
                             fields: payload_fields,
                         });
                     }
                 }
             }
             self.types.insert(
-                identity.clone(),
+                identity,
                 CheckedUnitStructuralTypePlan {
                     scalar_restriction: None,
                     no_code_affine_cleanup,
-                    identity: identity.clone(),
+                    identity: identity,
                     shape: if matches!(shape_kind, DataShapeKind::Mixed) {
                         CheckedUnitStructuralTypeShape::Mixed { fields, cases }
                     } else {
@@ -871,7 +871,7 @@ impl<'program> ShapeCollector<'program> {
             };
             let bounds = stated(field);
             let Some(mut field_plan) =
-                self.structural_field_plan(field, binders, &substitutions, &identity, bounds)
+                self.structural_field_plan(field, binders, &substitutions, identity, bounds)
             else {
                 self.in_progress.remove(&identity);
                 return None;
@@ -888,11 +888,11 @@ impl<'program> ShapeCollector<'program> {
             fields.push(field_plan);
         }
         self.types.insert(
-            identity.clone(),
+            identity,
             CheckedUnitStructuralTypePlan {
                 scalar_restriction: None,
                 no_code_affine_cleanup,
-                identity: identity.clone(),
+                identity: identity,
                 shape: CheckedUnitStructuralTypeShape::Record {
                     fields,
                     storage: record_storage,
@@ -908,7 +908,7 @@ impl<'program> ShapeCollector<'program> {
         field: &typed_trees::data::DataField,
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-        owner_identity: &str,
+        owner_identity: typed_trees::type_identity::TypeIdentityId,
         stated_bounds: Option<(Option<i64>, Option<i64>)>,
     ) -> Option<CheckedUnitStructuralFieldPlan> {
         // Classify the actual member before choosing its storage route. A
@@ -920,7 +920,7 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralFieldType::Erased {
                 type_identity: self
                     .program
-                    .type_identity_request_text(TypeIdentityRequest {
+                    .type_identity(TypeIdentityRequest {
                         binders,
                         substitutions,
                         ..TypeIdentityRequest::ordinary(field_type_reference)
@@ -931,7 +931,7 @@ impl<'program> ShapeCollector<'program> {
         {
             let provider_type_identity =
                 self.program
-                    .type_identity_request_text(TypeIdentityRequest {
+                    .type_identity(TypeIdentityRequest {
                         binders,
                         substitutions,
                         ..TypeIdentityRequest::ordinary(provider_node)
@@ -1027,7 +1027,7 @@ impl<'program> ShapeCollector<'program> {
             }
         }
         Some(CheckedUnitStructuralFieldPlan {
-            identity: field.path_identity(),
+            identity: checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
             relevance: field.relevance,
             field_type,
             storage: None,
@@ -1042,19 +1042,19 @@ impl<'program> ShapeCollector<'program> {
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         typed_trees::service::classify_exact_bound_service_carrier(self.program, type_reference)
             .ok()??;
         let identity = self
             .program
-            .type_identity_request_text(TypeIdentityRequest {
+            .type_identity(TypeIdentityRequest {
                 binders,
                 ..TypeIdentityRequest::ordinary(type_reference)
             });
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
             no_code_affine_cleanup: false,
-            identity: identity.clone(),
+            identity: identity,
             shape: CheckedUnitStructuralTypeShape::BindingCarrier,
         };
         if self
@@ -1064,7 +1064,7 @@ impl<'program> ShapeCollector<'program> {
         {
             return None;
         }
-        self.types.insert(identity.clone(), plan);
+        self.types.insert(identity, plan);
         Some(identity)
     }
 
@@ -1075,7 +1075,7 @@ impl<'program> ShapeCollector<'program> {
         type_reference: TypeReferenceHandle,
         source_parameter: SymbolHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<(String, checked_trees::CheckedBindingParameterReceipt)> {
+    ) -> Option<(typed_trees::type_identity::TypeIdentityId, checked_trees::CheckedBindingParameterReceipt)> {
         let parameter_carrier = typed_trees::service::classify_exact_service_parameter_carrier(
             self.program,
             type_reference,
@@ -1093,7 +1093,7 @@ impl<'program> ShapeCollector<'program> {
             type_identity,
             checked_trees::CheckedBindingParameterReceipt {
                 source_parameter,
-                carrier_type_identity: self.program.type_identity_request_text(
+                carrier_type_identity: self.program.type_identity(
                     TypeIdentityRequest {
                         binders,
                         ..TypeIdentityRequest::ordinary(type_reference)
@@ -1106,12 +1106,9 @@ impl<'program> ShapeCollector<'program> {
 
     pub(in crate::execution::terminal_unit) fn retain_transitive(
         &mut self,
-        roots: &BTreeSet<&str>,
+        roots: &BTreeSet<typed_trees::type_identity::TypeIdentityId>,
     ) {
-        let mut retained = roots
-            .iter()
-            .map(|root| (*root).to_owned())
-            .collect::<BTreeSet<_>>();
+        let mut retained = roots.iter().copied().collect::<BTreeSet<_>>();
         loop {
             let old_len = retained.len();
             for identity in retained.clone() {
@@ -1122,7 +1119,7 @@ impl<'program> ShapeCollector<'program> {
                     CheckedUnitStructuralTypeShape::Reference {
                         referent_identity, ..
                     } => {
-                        retained.insert(referent_identity.clone());
+                        retained.insert(*referent_identity);
                     }
                     // The element row `add_type` registered beside a
                     // borrowed byte view survives with it: an element-view
@@ -1137,8 +1134,7 @@ impl<'program> ShapeCollector<'program> {
                         retained.extend(
                             fields
                                 .iter()
-                                .flat_map(CheckedUnitStructuralFieldPlan::retained_type_identities)
-                                .cloned(),
+                                .flat_map(CheckedUnitStructuralFieldPlan::retained_type_identities),
                         );
                     }
                     CheckedUnitStructuralTypeShape::FixedArray {
@@ -1148,15 +1144,14 @@ impl<'program> ShapeCollector<'program> {
                     | CheckedUnitStructuralTypeShape::BorrowedSliceView {
                         element_type_identity,
                     } => {
-                        retained.insert(element_type_identity.clone());
+                        retained.insert(*element_type_identity);
                     }
                     CheckedUnitStructuralTypeShape::Sum { cases } => {
                         retained.extend(
                             cases
                                 .iter()
                                 .flat_map(|case| &case.fields)
-                                .flat_map(CheckedUnitStructuralFieldPlan::retained_type_identities)
-                                .cloned(),
+                                .flat_map(CheckedUnitStructuralFieldPlan::retained_type_identities),
                         );
                     }
                     CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
@@ -1164,8 +1159,7 @@ impl<'program> ShapeCollector<'program> {
                             fields
                                 .iter()
                                 .chain(cases.iter().flat_map(|case| &case.fields))
-                                .flat_map(CheckedUnitStructuralFieldPlan::retained_type_identities)
-                                .cloned(),
+                                .flat_map(CheckedUnitStructuralFieldPlan::retained_type_identities),
                         );
                     }
                 }

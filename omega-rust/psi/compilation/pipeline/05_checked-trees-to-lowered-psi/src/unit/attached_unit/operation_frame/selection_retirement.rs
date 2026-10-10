@@ -107,6 +107,7 @@ impl OperationFrame<'_, '_> {
         }
         if !regions.is_empty() {
             self.evaluation.continue_cleanup_regions(
+                self.checked,
                 regions,
                 self.values,
                 self.next_value,

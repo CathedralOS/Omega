@@ -134,7 +134,7 @@ impl Emission<'_, '_, '_> {
                 }
                 let moved = [(
                     projected.path.as_slice(),
-                    projected.leaf_type_identity.as_str(),
+                    projected.leaf_type_identity,
                 )];
                 super::residual_complement::complement(
                     &self
@@ -144,7 +144,7 @@ impl Emission<'_, '_, '_> {
                         .terminal_unit_effects
                         .structural_types,
                     &projected.root_source,
-                    &projected.root_type_identity,
+                    projected.root_type_identity,
                     &moved,
                 )?
                 .iter()

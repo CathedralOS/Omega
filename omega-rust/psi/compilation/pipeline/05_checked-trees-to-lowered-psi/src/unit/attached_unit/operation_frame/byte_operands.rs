@@ -46,7 +46,8 @@ impl OperationFrame<'_, '_> {
                     .iter()
                     .any(|declaration| {
                         declaration.id == produced.structural_type
-                            && declaration.identity == source.type_identity
+                            && declaration.identity
+                                == self.checked.type_identity_text(source.type_identity).unwrap_or_default()
                             && matches!(
                                 declaration.shape,
                                 terminal_psi::StructuralTypeShape::ByteSequence(

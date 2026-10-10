@@ -132,7 +132,7 @@ pub(super) fn store_operand_type_identities(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
-) -> Vec<String> {
+) -> Vec<typed_trees::type_identity::TypeIdentityId> {
     let Some(value) = operation.stored_bytes() else {
         return Vec::new();
     };

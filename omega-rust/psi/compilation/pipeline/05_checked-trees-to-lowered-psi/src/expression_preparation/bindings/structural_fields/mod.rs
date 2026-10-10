@@ -541,7 +541,7 @@ pub(crate) fn resolve_case_payload(
     else {
         return unsupported("case payload observation requires a sum root");
     };
-    let mut selected = cases.iter().filter(|case| case.identity == *case_identity);
+    let mut selected = cases.iter().filter(|case| case.identity == case_identity.spelling());
     let case = selected.next().ok_or(LoweringError::Unsupported(
         "case payload observation lost its declared case",
     ))?;
@@ -553,7 +553,7 @@ pub(crate) fn resolve_case_payload(
             let mut payload = case
                 .fields
                 .iter()
-                .filter(|field| field.identity == *field_identity);
+                .filter(|field| field.identity == field_identity.spelling());
             let field = payload.next().ok_or(LoweringError::Unsupported(
                 "case payload observation lost its declared payload field",
             ))?;
@@ -691,7 +691,7 @@ pub(crate) fn plan_case_payload_leaf(
         return None;
     }
     let cases = declaration.shape.sum_cases()?;
-    let mut selected = cases.iter().filter(|case| case.identity == *case_identity);
+    let mut selected = cases.iter().filter(|case| case.identity == case_identity.spelling());
     let case = selected.next()?;
     if selected.next().is_some() {
         return None;
@@ -699,7 +699,7 @@ pub(crate) fn plan_case_payload_leaf(
     let mut members = case
         .fields
         .iter()
-        .filter(|field| field.identity == *member_identity);
+        .filter(|field| field.identity == member_identity.spelling());
     let member = members.next()?;
     if members.next().is_some() || member.relevance.is_erased() {
         return None;

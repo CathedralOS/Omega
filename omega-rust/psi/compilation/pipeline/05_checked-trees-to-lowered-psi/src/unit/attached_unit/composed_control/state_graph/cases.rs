@@ -196,7 +196,7 @@ fn result_source<'a>(
     if !matches!(
         checked.type_multiplicity(reference),
         Multiplicity::Affine | Multiplicity::Unrestricted
-    ) || checked.normalized_type_identity_text(reference) != subject.type_identity
+    ) || checked.normalized_type_identity(reference) != subject.type_identity
         || !(crate::content_classes::plain_owned_with_numeric_constraints(checked,
             reference) || validation::has_contents(
         &checked.typed,
@@ -446,7 +446,7 @@ pub(super) fn validate(
         let variant = declared
             .iter()
             .find_map(|member| match member {
-                DataMember::Variant(variant) if variant.path_identity() == case.case_identity => {
+                DataMember::Variant(variant) if checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()) == case.case_identity => {
                     Some(variant)
                 }
                 _ => None,
@@ -476,7 +476,7 @@ pub(super) fn validate(
             if !checked
                 .data_payload_fields(variant)
                 .iter()
-                .any(|field| field.path_identity() == payload.field_identity)
+                .any(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == payload.field_identity)
             {
                 return unsupported("Unit case payload field missing");
             }

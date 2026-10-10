@@ -412,7 +412,7 @@ pub(crate) fn bind_proof_output_call_facts(
                 invalid = true;
                 continue;
             };
-            let Some((instantiated_proposition, instantiated_identity)) =
+            let Some((instantiated_proposition, instantiated_label)) =
                 instantiate_proof_output_proposition(
                     program,
                     proof,
@@ -443,7 +443,7 @@ pub(crate) fn bind_proof_output_call_facts(
                 callee_input,
                 source,
                 instantiated_proposition,
-                instantiated_identity,
+                instantiated_label,
             });
         }
         if invalid {
@@ -453,7 +453,7 @@ pub(crate) fn bind_proof_output_call_facts(
         let mut outputs = Vec::with_capacity(callee_outputs.len());
         for callee_output in callee_outputs {
             let declaration = proof.evidence_terms.get(callee_output).clone();
-            let Some((instantiated_proposition, instantiated_identity)) =
+            let Some((instantiated_proposition, instantiated_label)) =
                 instantiate_proof_output_proposition(
                     program,
                     proof,
@@ -492,7 +492,7 @@ pub(crate) fn bind_proof_output_call_facts(
                 output_position: declaration.lane_position,
                 callee_output,
                 instantiated_proposition,
-                instantiated_identity,
+                instantiated_label,
                 output,
             });
         }
@@ -942,7 +942,7 @@ pub(crate) fn intake_checked_proof_output_propositions(
                 invocation
                     .outputs
                     .iter()
-                    .map(|output| output.instantiated_identity.clone()),
+                    .map(|output| output.instantiated_label.clone()),
             );
         }
     }

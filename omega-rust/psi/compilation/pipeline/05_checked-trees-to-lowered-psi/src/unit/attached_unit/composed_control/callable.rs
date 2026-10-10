@@ -17,14 +17,14 @@ pub(in crate::unit::attached_unit) type CallableBody<'a> = state_graph::Admitted
 impl<'a> CallableBody<'a> {
     pub(in crate::unit::attached_unit) fn boundaries(
         &self,
-    ) -> &[(&'a CheckedBoundaryMachinePlan, String)] {
+    ) -> &[(&'a CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)] {
         &self.boundaries
     }
 }
 
 pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     pub structural_types: &'a [StructuralTypeDeclaration],
-    pub type_ids: &'a [(String, StructuralTypeId)],
+    pub type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     pub domain_ids: &'a [StructuralDomainBinding],
     pub service_ids: &'a [(ServiceReachId, ServiceId)],
     pub boundary_parameters: &'a [BoundaryParameters],

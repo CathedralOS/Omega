@@ -1,4 +1,5 @@
 use symbols::SymbolHandle;
+use typed_trees::type_identity::TypeIdentityId;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedPropositionVocabulary {
@@ -25,7 +26,7 @@ pub struct CheckedPropositionBinder {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedPropositionBinderKind {
     Type,
-    Const { type_identity: String },
+    Const { type_identity: TypeIdentityId },
     Machine,
 }
 
@@ -65,7 +66,7 @@ pub struct CheckedPropositionBinderArgument {
     /// Diagnostic rendering for ordinary static arguments. Projection
     /// identity is carried structurally below and never derives from this
     /// spelling.
-    pub identity: String,
+    pub diagnostic_label: String,
     pub evidence_projection: Option<CheckedEvidenceProjection>,
 }
 

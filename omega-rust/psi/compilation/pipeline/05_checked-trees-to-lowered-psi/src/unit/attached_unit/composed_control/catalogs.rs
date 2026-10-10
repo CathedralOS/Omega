@@ -17,7 +17,7 @@ use std::borrow::Cow;
 pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) cleanup_control: &'a checked_trees::CheckedCleanupControlPlans,
     pub(crate) structural_types: Cow<'a, [StructuralTypeDeclaration]>,
-    pub(crate) type_ids: Cow<'a, [(String, StructuralTypeId)]>,
+    pub(crate) type_ids: Cow<'a, [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)]>,
     pub(crate) domain_ids: Cow<'a, [StructuralDomainBinding]>,
     /// The boundaries a provider attachment names, by checked source.
     pub(crate) lowered_boundaries: Vec<LoweredComposedBoundary>,

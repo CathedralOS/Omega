@@ -212,7 +212,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             cleanup_machine,
             cleanup_state,
             &cleanup_target,
-            &checked_parameter.type_identity,
+            checked_parameter.type_identity,
         ) {
             return None;
         }
@@ -337,7 +337,7 @@ pub(crate) fn nominal_cleanup_target_matches(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     plan: &CheckedUnitCallableEntry<'_>,
-    type_identity: &str,
+    type_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> bool {
     let [receiver] = program.state_parameters(state) else {
         return false;
@@ -366,7 +366,6 @@ pub(crate) fn nominal_cleanup_target_matches(
         && plan.state == state.symbol
         && plan
             .attachment_type_identity
-            .as_deref()
             .is_none_or(|identity| identity == type_identity)
         && plan.scalar_parameters.is_empty()
         && plan.structural_parameters.len() <= 1

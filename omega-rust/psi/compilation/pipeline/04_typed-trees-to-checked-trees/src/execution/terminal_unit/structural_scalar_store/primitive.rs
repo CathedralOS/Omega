@@ -429,7 +429,7 @@ pub(in crate::execution::terminal_unit) fn checked_unit_path(
                     return None;
                 }
                 Some(CheckedUnitStructuralPathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ))
             }
             facts::PlaceSegment::Case { variant } => {
@@ -448,7 +448,7 @@ pub(in crate::execution::terminal_unit) fn checked_unit_path(
                 cases
                     .next()
                     .is_none()
-                    .then(|| CheckedUnitStructuralPathSegment::Case(case.path_identity()))
+                    .then(|| CheckedUnitStructuralPathSegment::Case(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone())))
             }
             _ => None,
         })

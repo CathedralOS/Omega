@@ -156,7 +156,7 @@ fn unique_terminal_selection(
 pub(crate) fn checked_unit_boundary_identity(
     checked: &CheckedTrees,
     symbol: symbols::SymbolHandle,
-) -> Result<String, LoweringError> {
+) -> Result<typed_trees::type_identity::CallableIdentityId, LoweringError> {
     let requirements = checked
         .typed
         .traits()
@@ -174,8 +174,8 @@ pub(crate) fn checked_unit_boundary_identity(
     if let [(definition, signature)] = requirements.as_slice() {
         let identity = checked
             .typed
-            .trait_requirement_callable_identity_text(definition, signature);
-        if !identity.is_empty() {
+            .trait_requirement_callable_identity(definition, signature);
+        if identity.is_valid() {
             return Ok(identity);
         }
     }
@@ -192,12 +192,11 @@ pub(crate) fn checked_unit_boundary_identity(
         if requirements.next().is_some() {
             return unsupported("top-level boundary requirement identity is ambiguous");
         }
-        return checked
-            .typed
-            .machine_callable_identity_text(requirement)
-            .ok_or(LoweringError::Unsupported(
-                "top-level boundary has no normalized machine overload identity",
-            ));
+        let identity = checked.typed.machine_callable_identity(requirement);
+        if identity.is_valid() {
+            return Ok(identity);
+        }
+        return unsupported("top-level boundary has no normalized machine overload identity");
     }
     if let Some(operator) = checked
         .typed
@@ -205,14 +204,15 @@ pub(crate) fn checked_unit_boundary_identity(
         .iter()
         .find(|operator| operator.is_boundary && operator.symbol == symbol)
     {
-        return Ok(
-            typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator),
-        );
+        return Ok(checked.typed.callable_identity_by_text(
+            &typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator),
+        ));
     }
     // An owner-qualified boundary machine keeps its qualified display name.
     // Qualification contributes no receiver, so its selection class is the
     // bodyless `Unsupported` one rather than `Attached`.
-    unique_terminal_selection(checked, symbol).map(|selection| selection.name.clone())
+    unique_terminal_selection(checked, symbol)
+        .map(|selection| checked.typed.callable_identity_by_text(&selection.name))
 }
 
 /// The machine an ordinary call enters inside the Unit roster: every ordinary

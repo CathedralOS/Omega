@@ -45,9 +45,9 @@ pub(crate) fn instantiate_dynamic_slots(program: &mut TypedTrees) -> Result<(), 
         return Ok(());
     };
     for demand in demands {
-        let interface_identity = program.normalized_type_identity_text(demand.selector_type);
+        let interface_identity = program.normalized_type_identity(demand.selector_type);
         if program
-            .dynamic_slot(&interface_identity, demand.requirement)
+            .dynamic_slot(interface_identity, demand.requirement)
             .is_none()
         {
             let slot = instantiate_slot(program, &demand, interface_identity)?;
@@ -61,7 +61,7 @@ pub(crate) fn instantiate_dynamic_slots(program: &mut TypedTrees) -> Result<(), 
 fn instantiate_slot(
     program: &mut TypedTrees,
     demand: &validation::DynamicSlotDemand,
-    interface_identity: String,
+    interface_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Result<DynamicSlotSignature, Vec<Diagnostic>> {
     let Some(definition) = program.trait_definition_by_symbol(demand.declaring_trait) else {
         return Err(vec![Diagnostic::error(
@@ -251,8 +251,8 @@ fn slot_for(
     demand: Option<validation::DynamicSlotDemand>,
 ) -> Option<(SymbolHandle, Identifier)> {
     let demand = demand?;
-    let identity = program.normalized_type_identity_text(demand.selector_type);
-    let slot = program.dynamic_slot(&identity, demand.requirement)?;
+    let identity = program.normalized_type_identity(demand.selector_type);
+    let slot = program.dynamic_slot(identity, demand.requirement)?;
     Some((
         slot.symbol,
         Identifier::generated(program.symbols.name(slot.symbol).to_owned()),

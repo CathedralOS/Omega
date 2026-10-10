@@ -55,8 +55,9 @@ pub(crate) fn terminal_byte_sequence_carrier(
 /// Preserve one field contract across records, case payloads and retained types.
 /// Atomic access authority belongs to the declaration, never to a caller shape.
 pub(crate) fn lower_field_type(
+    checked: &checked_trees::CheckedTrees,
     field_type: &CheckedUnitStructuralFieldType,
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
 ) -> Result<StructuralFieldType, LoweringError> {
     Ok(match field_type {
         CheckedUnitStructuralFieldType::BoundedInteger(integer) => {
@@ -90,28 +91,29 @@ pub(crate) fn lower_field_type(
             return unsupported("provider-backed fields require attached provider erasure");
         }
         CheckedUnitStructuralFieldType::Erased { type_identity } => StructuralFieldType::Erased {
-            type_identity: type_identity.clone(),
+            type_identity: checked.type_identity_text(*type_identity).unwrap_or_default(),
         },
     })
 }
 
 pub(crate) fn lower_mixed_fields(
+    checked: &checked_trees::CheckedTrees,
     fields: &[checked_trees::CheckedUnitStructuralFieldPlan],
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     next_field: &mut u64,
 ) -> Result<Vec<StructuralFieldDeclaration>, LoweringError> {
     let mut identities = BTreeSet::new();
     fields
         .iter()
         .map(|field| {
-            if field.identity.is_empty() || !identities.insert(field.identity.as_str()) {
+            if !field.identity.is_valid() || !identities.insert(field.identity.clone()) {
                 return unsupported("mixed structural type has duplicate field identities");
             }
-            let field_type = lower_field_type(&field.field_type, type_ids)?;
+            let field_type = lower_field_type(checked, &field.field_type, type_ids)?;
             Ok(StructuralFieldDeclaration {
                 storage: field.storage.clone(),
                 id: structural_field_id(allocate_dense(next_field)?),
-                identity: field.identity.clone(),
+                identity: field.identity.spelling(),
                 relevance: field.relevance,
                 field_type,
             })
@@ -120,8 +122,9 @@ pub(crate) fn lower_mixed_fields(
 }
 
 pub(crate) fn lower_mixed_cases(
+    checked: &checked_trees::CheckedTrees,
     cases: &[checked_trees::CheckedUnitStructuralCasePlan],
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     next_field: &mut u64,
     next_case: &mut u64,
 ) -> Result<Vec<StructuralCaseDeclaration>, LoweringError> {
@@ -129,14 +132,14 @@ pub(crate) fn lower_mixed_cases(
     cases
         .iter()
         .map(|case| {
-            if case.identity.is_empty() || !identities.insert(case.identity.as_str()) {
+            if !case.identity.is_valid() || !identities.insert(case.identity.clone()) {
                 return unsupported("mixed structural type has duplicate case identities");
             }
             Ok(StructuralCaseDeclaration {
                 id: StructuralCaseId::new(allocate_dense(next_case)?)
                     .expect("allocated structural case identity is nonzero"),
-                identity: case.identity.clone(),
-                fields: lower_mixed_fields(&case.fields, type_ids, next_field)?,
+                identity: case.identity.spelling(),
+                fields: lower_mixed_fields(checked, &case.fields, type_ids, next_field)?,
             })
         })
         .collect()

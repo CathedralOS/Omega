@@ -344,11 +344,11 @@ impl Query<'_> {
                     let mut relative = Vec::new();
                     let mut owner_path = Vec::new();
                     if let Some(case) = case {
-                        relative.push(CheckedUnitStructuralPathSegment::Case(case.path_identity()));
+                        relative.push(CheckedUnitStructuralPathSegment::Case(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone())));
                         owner_path.push(OwnerSegment::Case(case.symbol));
                     }
                     relative.push(CheckedUnitStructuralPathSegment::Field(
-                        declaration.path_identity(),
+                        checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone()),
                     ));
                     owner_path.push(OwnerSegment::Field(field.field));
                     let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) =

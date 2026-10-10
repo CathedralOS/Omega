@@ -276,7 +276,7 @@ impl RowEmitter<'_, '_> {
         self.definition_rows(prefix, definition);
         for field in owned_storage_fields(self.program, definition) {
             prefix.push(CheckedStructuralPredicatePathSegment::Field(
-                field.path_identity(),
+                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
             ));
             self.descend(prefix, field.type_reference, visited);
             prefix.pop();
@@ -328,7 +328,7 @@ impl RowEmitter<'_, '_> {
                 };
                 let mut path = prefix.to_vec();
                 path.push(CheckedStructuralPredicatePathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 match field_consequence.elements {
                     collection_predicates::ConsequenceShape::Array(intervals) => {
@@ -839,7 +839,7 @@ impl FactSpelling<'_> {
                         .unwrap_or_else(SymbolHandle::invalid);
                     let field = find_data_field(self.program, owner, symbol, member.as_str())?;
                     path.push(CheckedStructuralPredicatePathSegment::Field(
-                        field.path_identity(),
+                        checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                     ));
                     if index + 1 == members.len() {
                         leaf = Some(field.type_reference);
@@ -862,7 +862,7 @@ impl FactSpelling<'_> {
                     member.member.as_str(),
                 )?;
                 path.push(CheckedStructuralPredicatePathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 Some((path, field.type_reference))
             }

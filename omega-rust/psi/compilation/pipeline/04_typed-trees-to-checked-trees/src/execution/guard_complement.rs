@@ -56,7 +56,7 @@ fn declared_cases(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     subject: &CheckedStructuralParameterField,
-) -> Option<Vec<String>> {
+) -> Option<Vec<checked_trees::CheckedMemberIdentity>> {
     let (_, _, sum, _) = crate::values::resolve_structural_parameter_path(
         program,
         program.state_parameters(state),
@@ -68,7 +68,7 @@ fn declared_cases(
         .data_members(sum)
         .iter()
         .map(|member| match member {
-            typed_trees::data::DataMember::Variant(case) => Some(case.path_identity()),
+            typed_trees::data::DataMember::Variant(case) => Some(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone())),
             typed_trees::data::DataMember::Field(_) => None,
         })
         .collect()

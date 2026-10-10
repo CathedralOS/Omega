@@ -18,7 +18,7 @@ mod case_capture;
 pub(super) use case_capture::retire_captured_subjects;
 
 pub(super) fn destination(
-    _checked: &CheckedTrees,
+    checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     destination: &CheckedScalarBranchDestination,
 ) -> Result<FlowClaimJoinExit, LoweringError> {
@@ -38,6 +38,7 @@ pub(super) fn destination(
 /// Preparing action identities does not discharge their prerequisites; complete
 /// graph proof production observes the selected path and outgoing call effects.
 pub(super) fn scalar_returns(
+    checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     catalogs: &mut catalogs::ComposedCatalogs<'_>,
     parameters: &[StructuralParameterDeclaration],
@@ -60,6 +61,7 @@ pub(super) fn scalar_returns(
                 is_continuation: cleanup.exit.kind == FlowClaimJoinExitKind::TransitionContinuation,
             };
             let mut actions = for_exit_regions(
+            checked,
                 state,
                 cleanup.exit,
                 catalogs,
@@ -226,6 +228,7 @@ fn deferred_carrier_releases(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn for_exit_regions(
+    checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     exit: FlowClaimJoinExit,
     catalogs: &mut catalogs::ComposedCatalogs<'_>,
@@ -255,6 +258,7 @@ pub(super) fn for_exit_regions(
         })
         .collect::<Vec<_>>();
     let rows = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+        checked,
         crate::unit::unit_cleanup::outstanding_actions(
             &selected_exit.actions,
             &state.operations,

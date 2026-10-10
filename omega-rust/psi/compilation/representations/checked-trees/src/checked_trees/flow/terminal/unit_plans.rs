@@ -10,6 +10,7 @@
 //! is a composed plan; no separate structural control roster competes for it.
 
 use symbols::SymbolHandle;
+use typed_trees::type_identity::TypeIdentityId;
 
 use crate::checked_trees::flow::FlowFacts;
 use crate::checked_trees::flow::terminal::{
@@ -62,11 +63,11 @@ impl<'a> CheckedUnitPlan<'a> {
     }
 
     /// The exact attached data carrier, or `None` for a free machine.
-    pub fn attachment_type_identity(self) -> Option<&'a str> {
+    pub fn attachment_type_identity(self) -> Option<TypeIdentityId> {
         match self {
-            Self::NominalAffineCleanup(plan) => plan.machine.attachment_type_identity.as_deref(),
-            Self::PartialAffineCleanup(plan) => plan.machine.attachment_type_identity.as_deref(),
-            Self::ComposedControl(plan) => plan.attachment_type_identity.as_deref(),
+            Self::NominalAffineCleanup(plan) => plan.machine.attachment_type_identity,
+            Self::PartialAffineCleanup(plan) => plan.machine.attachment_type_identity,
+            Self::ComposedControl(plan) => plan.attachment_type_identity,
         }
     }
 

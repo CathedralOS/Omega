@@ -7,52 +7,56 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     operation: &CheckedUnitEffectOperationPlan,
-    roots: &mut Vec<String>,
+    roots: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
 ) -> Result<(), LoweringError> {
     for argument in operation.call_structural_arguments() {
-        roots.push(argument.type_identity.clone());
-        roots.extend(argument.borrowed_root_type_identity().map(str::to_owned));
+        roots.push(argument.type_identity);
+        roots.extend(argument.borrowed_root_type_identity());
         if let Some(storage) = argument.subslice_storage_type_identity()
-            && !storage.is_empty()
+            && storage.is_valid()
         {
-            roots.push(storage.to_owned());
+            roots.push(storage);
         }
     }
     if let Some((result, _)) = operation.discardable_structural_result() {
-        roots.push(result.type_identity.clone());
+        roots.push(result.type_identity);
     }
     match operation {
         CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { destination, .. } => {
-            roots.push(destination.type_identity.clone());
+            roots.push(destination.type_identity);
         }
         CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } => {
-            roots.push(result.type_identity.clone());
-            roots.push(source.type_identity.clone());
+            roots.push(result.type_identity);
+            roots.push(source.type_identity);
         }
         CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => {
-            roots.push(result.type_identity.clone());
+            roots.push(result.type_identity);
         }
         CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } => {
-            roots.push(result.type_identity.clone());
+            roots.push(result.type_identity);
             if let Some(storage) = source.subslice_storage_type_identity()
-                && !storage.is_empty()
+                && storage.is_valid()
             {
-                roots.push(storage.to_owned());
+                roots.push(storage);
             }
         }
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } => {
             collect_value_roots(checked, *value, roots)?;
-            if establishes_byte_element_view(checked, plans, &result.type_identity, *value)? {
-                roots.push(BYTE_VIEW_ELEMENT_TYPE_IDENTITY.to_owned());
+            if establishes_byte_element_view(checked, plans, result.type_identity, *value)? {
+                if let Some(identity) = crate::terminal_identities::byte_view_element_identity(
+                    plans.structural_types(),
+                ) {
+                    roots.push(identity);
+                }
             }
         }
         CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { type_identity, .. } => {
-            roots.push(type_identity.clone());
+            roots.push(*type_identity);
         }
         CheckedUnitEffectOperationPlan::MoveStructuralField { result, source, .. } => {
-            roots.push(result.type_identity.clone());
-            roots.push(source.type_identity.clone());
+            roots.push(result.type_identity);
+            roots.push(source.type_identity);
         }
         CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
             destination:
@@ -65,7 +69,7 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
             value: checked_trees::CheckedStoreValue::Place(value),
             ..
         }) => {
-            roots.push(type_identity.clone());
+            roots.push(*type_identity);
             roots.push(value.type_identity.clone());
         }
         CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
@@ -75,7 +79,7 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
             for (_, node) in value.nodes.iter() {
                 if let checked_trees::CheckedByteSequenceValue::Descriptor { source, .. } = node
                     && !matches!(source.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }) {
-                    roots.push(source.type_identity.clone());
+                    roots.push(source.type_identity);
                 }
             }
         }

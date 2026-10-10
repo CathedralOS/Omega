@@ -24,7 +24,7 @@ pub(super) fn emit(
     result: &CheckedUnitStructuralResultBindingPlan,
     source: StructuralArgument,
     storage: Option<terminal_psi::ReferenceStorageView>,
-    types: &[(String, StructuralTypeId)],
+    types: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {

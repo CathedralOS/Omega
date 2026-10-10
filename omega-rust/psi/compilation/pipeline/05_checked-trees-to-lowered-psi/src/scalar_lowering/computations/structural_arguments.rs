@@ -138,7 +138,7 @@ pub(super) fn lower(
                     crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
                 ).collect::<Vec<_>>();
                 path.extend(crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
-                    argument, root_type, structural_types,
+                    checked, argument, root_type, structural_types,
                 )?);
                 return Ok(PreparedStructuralArgument {
                     selector_positions: Vec::new(),
@@ -153,7 +153,7 @@ pub(super) fn lower(
                 });
             };
             bindings
-                .prepared_primitive_borrow(argument, terminal_scalar_type(primitive)?, structural_types)
+                .prepared_primitive_borrow(checked, argument, terminal_scalar_type(primitive)?, structural_types)
         })
         .collect()
 }

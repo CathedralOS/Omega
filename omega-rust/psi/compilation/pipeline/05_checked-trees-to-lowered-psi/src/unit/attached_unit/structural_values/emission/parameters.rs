@@ -122,7 +122,7 @@ impl Emission<'_, '_, '_> {
         &mut self,
         source: CheckedStructuralValueHandle,
         path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-        leaf_type_identity: String,
+        leaf_type_identity: typed_trees::type_identity::TypeIdentityId,
     ) -> Result<ProjectedMove, LoweringError> {
         let node = self.structural_value_node(source);
         let mut root_alias_path = Vec::new();

@@ -20,6 +20,8 @@ use crate::{
 };
 
 use super::CheckedUnitStructuralPathSegment;
+use typed_trees::type_identity::TypeIdentityId;
+use crate::checked_trees::CheckedMemberIdentity;
 
 /// One authored store: the exact place it replaces and the value it writes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,10 +105,12 @@ impl CheckedStorePlan {
 impl CheckedStoreDestination {
     /// The carrier path and identity of a leaf that is a record field: the
     /// path's final `Field` segment.
-    pub fn field(&self) -> Option<(&[CheckedUnitStructuralPathSegment], &str)> {
+    pub fn field(
+        &self,
+    ) -> Option<(&[CheckedUnitStructuralPathSegment], &CheckedMemberIdentity)> {
         match self.path.split_last()? {
             (CheckedUnitStructuralPathSegment::Field(identity), carrier) => {
-                Some((carrier, identity.as_str()))
+                Some((carrier, identity))
             }
             _ => None,
         }
@@ -184,7 +188,7 @@ pub enum CheckedStoreLeaf {
     /// whole owned binding of that type. The checked multiplicity gate
     /// proved the hole open; the repair closes the window's restoration debt.
     WindowRepair {
-        type_identity: String,
+        type_identity: TypeIdentityId,
         /// Result coordinate of the extraction that opened this hole. The
         /// source checker establishes storage equality; lowering must not
         /// infer it from selector evaluation coordinates. None denotes an
@@ -196,7 +200,7 @@ pub enum CheckedStoreLeaf {
     /// after its prior occurrence's disposal. Unlike a window repair, the
     /// local's value identity changes and no restoration debt opens at
     /// another owner's home.
-    LocalRebind { type_identity: String },
+    LocalRebind { type_identity: TypeIdentityId },
 }
 
 /// The value one store writes, in the shape its leaf receives.
@@ -260,10 +264,10 @@ pub struct CheckedCaseLiteralValuePlan {
     /// The authored case literal — the namespace subject every scalar operand
     /// bound against under `StructuralValueField`.
     pub literal: typed_trees::expression::ExpressionHandle,
-    pub case_identity: String,
+    pub case_identity: CheckedMemberIdentity,
     /// Exact type identity of the literal's normalized type, which admission
     /// proved equals the field's declared sum type.
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
     /// Scalar operands in authored order, covering payload and named common
     /// fields; each `field_identity` matches its terminal declaration.
     pub fields: Vec<CheckedScalarCaseFieldPlan>,

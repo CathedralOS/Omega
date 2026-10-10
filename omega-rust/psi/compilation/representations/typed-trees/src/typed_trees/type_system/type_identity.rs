@@ -487,6 +487,17 @@ impl TypedTrees {
             .unwrap_or_default()
     }
 
+    /// The handle a previously interned text names, or the invalid handle
+    /// when the text was never an identity of this program. Boundary readers
+    /// rehydrate their `String` payload through this reverse join.
+    pub fn type_identity_by_text(&self, text: &str) -> TypeIdentityId {
+        let revision = self.structural_fingerprint();
+        self.type_identities
+            .with(revision, TypeIdentityTable::default, |table| {
+                table.by_text(text)
+            })
+    }
+
     /// The ordinary named-type identity of an exact resolved nominal symbol,
     /// including owners that have no occurrence in the type-reference arena.
     /// Applied owners must normalize their complete type application instead.

@@ -397,7 +397,7 @@ fn captured_place_subject(
                 let Some(fields) = declaration.shape.record_fields() else {
                     return unsupported("record loan's captured path left its record namespace");
                 };
-                let mut matching = fields.iter().filter(|field| field.identity == *identity);
+                let mut matching = fields.iter().filter(|field| field.identity == identity.spelling());
                 let selected = matching.next().ok_or(LoweringError::Unsupported(
                     "record loan's captured field is absent",
                 ))?;
@@ -600,7 +600,7 @@ pub(crate) fn loaned_store(
     state: symbols::SymbolHandle,
     root: checked_trees::CheckedStoreRoot,
     carrier_path: &[checked_trees::CheckedUnitStructuralPathSegment],
-    field_identity: &str,
+    field_identity: &checked_trees::CheckedMemberIdentity,
     primitive_type: checked_trees::types::PrimitiveType,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Option<LoanedStore>, LoweringError> {
@@ -636,7 +636,7 @@ pub(crate) fn loaned_store(
         // here would discard the runtime selectors the store retained.
         let mut scalar_path = carrier_path.to_vec();
         scalar_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            field_identity.to_owned(),
+            field_identity.clone(),
         ));
         Some(overlay.scalar_path(checked, &scalar_path, terminal_scalar_type(primitive_type)?)?)
     } else {
@@ -717,7 +717,7 @@ fn checked_path_segment(
 ) -> Result<checked_trees::CheckedUnitStructuralPathSegment, LoweringError> {
     use checked_trees::CheckedUnitStructuralPathSegment as Checked;
     match segment {
-        terminal_psi::StructuralPathSegment::Field(field) => Ok(Checked::Field(field.clone())),
+        terminal_psi::StructuralPathSegment::Field(field) => Ok(Checked::Field(checked_trees::CheckedMemberIdentity::of_spelling(field))),
         terminal_psi::StructuralPathSegment::FixedIndex(index) => Ok(Checked::FixedIndex(*index)),
         _ => unsupported("record loan captured an unsupported structural segment"),
     }
@@ -799,7 +799,10 @@ pub(crate) fn prepare(
                     );
                     let mut declarations = types
                         .iter()
-                        .filter(|declaration| declaration.identity == root_identity);
+                        .filter(|declaration| {
+                            declaration.identity
+                                == checked.type_identity_text(root_identity).unwrap_or_default()
+                        });
                     let declaration = declarations.next().ok_or(LoweringError::Unsupported(
                         "record read has no structural namespace",
                     ))?;
@@ -821,7 +824,7 @@ pub(crate) fn prepare(
             };
             let (walk, identity, leaf_primitive) = match &typed_overlay {
                 Some(overlay) => record_view_source_walk(checked, overlay, subject, *field)?,
-                None => (subject.path.clone(), identity, node.primitive_type),
+                None => (subject.path.clone(), identity.spelling(), node.primitive_type),
             };
             let observation_root_type = declaration.id;
             let mut primitive_path = carrier_path.clone();
@@ -835,7 +838,7 @@ pub(crate) fn prepare(
                         else {
                             return unsupported("field observation case left its sum namespace");
                         };
-                        let mut cases = cases.iter().filter(|case| case.identity == *identity);
+                        let mut cases = cases.iter().filter(|case| case.identity == identity.spelling());
                         let case = cases.next().ok_or(LoweringError::Unsupported(
                             "field observation selected an absent case",
                         ))?;
@@ -897,7 +900,7 @@ pub(crate) fn prepare(
                             "record read carrier path left its record namespace",
                         ))?,
                 };
-                let mut matching = fields.iter().filter(|field| field.identity == *identity);
+                let mut matching = fields.iter().filter(|field| field.identity == identity.spelling());
                 let selected = matching.next().ok_or(LoweringError::Unsupported(
                     "record read carrier field is absent",
                 ))?;
@@ -1083,14 +1086,14 @@ fn record_view_source_walk(
     let validation::RecastLeafSegment::Field(last) = last else {
         return unsupported("record view source leaf is not a field");
     };
-    Ok((walk, field_path_identity(checked, *last)?, leaf.primitive))
+    Ok((walk, field_path_identity(checked, *last)?.spelling(), leaf.primitive))
 }
 
 /// The canonical path identity of one declared record field symbol.
 pub(crate) fn field_path_identity(
     checked: &CheckedTrees,
     field: symbols::SymbolHandle,
-) -> Result<String, LoweringError> {
+) -> Result<checked_trees::CheckedMemberIdentity, LoweringError> {
     let owner_symbol = checked.symbols.get(field).parent;
     checked
         .data_definitions()
@@ -1099,7 +1102,7 @@ pub(crate) fn field_path_identity(
         .flat_map(|owner| checked.data_members(owner))
         .find_map(|member| match member {
             DataMember::Field(candidate) if candidate.symbol == field => {
-                Some(candidate.path_identity())
+                Some(checked_trees::CheckedMemberIdentity::of_member(candidate.identity, candidate.name.clone()))
             }
             _ => None,
         })
@@ -1117,7 +1120,7 @@ pub(crate) fn field_path_identity(
 pub(crate) fn type_roots(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-) -> Result<Vec<String>, LoweringError> {
+) -> Result<Vec<typed_trees::type_identity::TypeIdentityId>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let mut types = Vec::new();
     // A loan used only by primitive or array reads has no field computation.

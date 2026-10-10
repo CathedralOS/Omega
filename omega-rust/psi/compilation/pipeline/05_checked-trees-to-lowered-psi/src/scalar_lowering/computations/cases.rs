@@ -148,8 +148,8 @@ pub(crate) fn reserve(
         let DataMember::Variant(variant) = member else {
             continue;
         };
-        let identity = variant.path_identity();
-        let case = terminal_psi::structural_case_by_identity(cases, &identity).ok_or(
+        let identity = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
+        let case = terminal_psi::structural_case_by_identity(cases, &identity.spelling()).ok_or(
             LoweringError::Unsupported("computed case declaration is absent"),
         )?;
         case_bindings.push((variant.symbol, case.id));
@@ -173,8 +173,8 @@ pub(crate) fn reserve(
             .ok_or(LoweringError::Unsupported(
                 "computed case field has a foreign owner",
             ))?;
-        let identity = authored.path_identity();
-        let declaration = terminal_psi::field_by_identity(&case.fields, &identity).ok_or(
+        let identity = checked_trees::CheckedMemberIdentity::of_member(authored.identity, authored.name.clone());
+        let declaration = terminal_psi::field_by_identity(&case.fields, &identity.spelling()).ok_or(
             LoweringError::Unsupported("computed case field declaration is absent"),
         )?;
         let primitive = checked
@@ -241,13 +241,13 @@ impl Slot {
 pub(crate) fn type_roots(
     checked: &CheckedTrees,
     machines: &[symbols::SymbolHandle],
-) -> Result<Vec<String>, LoweringError> {
+) -> Result<Vec<typed_trees::type_identity::TypeIdentityId>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let roots = plans.roots_in_machines(machines);
     let mut types = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
         for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
-            let identity = checked.normalized_type_identity_text(subject.type_reference);
+            let identity = checked.normalized_type_identity(subject.type_reference);
             if !types.contains(&identity) {
                 types.push(identity);
             }
@@ -320,7 +320,7 @@ impl Expansion<'_> {
                     let identity = structural_case_identity(self.checked, observed_case)?;
                     let expression = site
                         .bindings
-                        .element_case_observation(argument, &source, &identity)?;
+                        .element_case_observation(argument, &source, &identity.spelling())?;
                     return Ok(self.binding(
                         input_types,
                         input_types.len(),
@@ -555,14 +555,14 @@ pub(crate) fn declarations(
 fn structural_case_identity(
     checked: &CheckedTrees,
     observed_case: symbols::SymbolHandle,
-) -> Result<String, LoweringError> {
+) -> Result<checked_trees::CheckedMemberIdentity, LoweringError> {
     checked
         .data_definitions()
         .iter()
         .flat_map(|data| checked.data_members(data).iter())
         .filter_map(|member| match member {
             DataMember::Variant(variant) if variant.symbol == observed_case => {
-                Some(variant.path_identity())
+                Some(checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()))
             }
             _ => None,
         })

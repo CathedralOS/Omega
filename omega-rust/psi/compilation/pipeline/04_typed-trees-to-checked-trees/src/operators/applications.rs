@@ -17,25 +17,23 @@ use validation::{expression_type_reference_for_origin, indexed_operand_types};
 fn boundary_application_requirement_identity(
     program: &dyn ::validation::CheckingInput,
     operator: &typed_trees::operator::OperatorDefinition,
-) -> String {
+) -> typed_trees::type_identity::CallableIdentityId {
     let typed = program.typed_program();
     if let Some(requirement) = typed.machine(operator.symbol) {
-        return typed
-            .machine_callable_identity_text(requirement)
-            .unwrap_or_default();
+        return typed.machine_callable_identity(requirement);
     }
-    typed_trees::operator::boundary_operator_requirement_identity(typed, operator)
+    typed.callable_identity_by_text(&typed_trees::operator::boundary_operator_requirement_identity(typed, operator))
 }
 
 /// The requirement-slot identity for a direct requirement-machine use.
 fn requirement_machine_identity(
     program: &dyn ::validation::CheckingInput,
     requirement_symbol: symbols::SymbolHandle,
-) -> String {
+) -> typed_trees::type_identity::CallableIdentityId {
     program
         .typed_program()
         .machine_by_symbol(requirement_symbol)
-        .and_then(|requirement| program.typed_program().machine_callable_identity_text(requirement))
+        .map(|requirement| program.typed_program().machine_callable_identity(requirement))
         .unwrap_or_default()
 }
 

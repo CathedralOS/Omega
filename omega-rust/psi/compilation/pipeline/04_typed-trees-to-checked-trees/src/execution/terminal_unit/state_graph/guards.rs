@@ -51,7 +51,7 @@ pub(in crate::execution::terminal_unit) fn forwards_qualified_parameter(
         |identity| {
             shapes
                 .types
-                .get(identity)
+                .get(&identity)
                 .map(|declaration| &declaration.shape)
         },
         |qualification, identity| {

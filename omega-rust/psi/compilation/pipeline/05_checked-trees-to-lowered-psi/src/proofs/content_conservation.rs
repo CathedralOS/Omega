@@ -311,7 +311,7 @@ pub(crate) fn lower_whole_content_entry_claims(
                     CheckedUnitStructuralPathSegment::Field(identity),
                     StructuralTypeShape::Record { fields, .. },
                 ) => {
-                    let field = terminal_psi::field_by_identity(fields, identity).ok_or(
+                    let field = terminal_psi::field_by_identity(fields, &identity.spelling()).ok_or(
                         LoweringError::Unsupported(
                             "content claim field is absent from its carrier",
                         ),
@@ -322,7 +322,7 @@ pub(crate) fn lower_whole_content_entry_claims(
                     let Some(child) = field.field_type.as_structural() else {
                         return unsupported("content claim selects a nonstructural field");
                     };
-                    segments.push(ContentPlaceSegment::Field(identity.clone()));
+                    segments.push(ContentPlaceSegment::Field(identity.spelling()));
                     child
                 }
                 (

@@ -205,7 +205,7 @@ pub(crate) enum LoweredDirectExpression {
     /// table for the interface. The selector is an opaque `u64` word.
     ImplementationSelection {
         implementation: symbols::SymbolHandle,
-        interface_identity: String,
+        interface_identity: typed_trees::type_identity::TypeIdentityId,
         scalar_type: ScalarType,
     },
     IntegerBinary {

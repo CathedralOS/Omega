@@ -190,7 +190,7 @@ pub(crate) fn lower_unit_closure(
 
     // Admission: retain every checked body and every boundary the closure
     // calls, then the catalog roots its callees and providers name.
-    let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, String)>::new();
+    let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>::new();
     for symbol in call_catalog.boundaries {
         retain_unit_boundary(checked, plans, &mut boundaries, symbol)?;
     }
@@ -451,6 +451,7 @@ pub(crate) fn lower_unit_closure(
         &mut next_call_obligation,
     )?;
     let provider_candidates = providers::conformances(
+        checked,
         &provider_candidate_plans,
         &lowered_boundary_parameters,
         &boundary_machines,
@@ -554,7 +555,7 @@ impl ClosureOccurrences {
 struct CheckedUnitProviderCandidate {
     boundary: symbols::SymbolHandle,
     candidate: symbols::SymbolHandle,
-    requirement_identity: String,
+    requirement_identity: typed_trees::type_identity::CallableIdentityId,
     provider_identity: String,
-    candidate_identity: String,
+    candidate_identity: typed_trees::type_identity::CallableIdentityId,
 }

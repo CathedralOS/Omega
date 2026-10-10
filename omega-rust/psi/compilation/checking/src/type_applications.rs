@@ -80,21 +80,31 @@ impl DeclarationScopes {
         }
     }
 
+    pub(crate) fn type_identity(
+        &self,
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+        scope: usize,
+    ) -> typed_trees::type_identity::TypeIdentityId {
+        let environment = &self.scopes[scope];
+        program.scoped_type_identity(
+            TypeIdentityRequest {
+                substitutions: &environment.bindings,
+                ..TypeIdentityRequest::ordinary(reference)
+            },
+            &environment.starts,
+        )
+    }
+
     pub(crate) fn type_identity_text(
         &self,
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
         scope: usize,
     ) -> String {
-        let environment = &self.scopes[scope];
-        let identity = program.scoped_type_identity(
-            TypeIdentityRequest {
-                substitutions: &environment.bindings,
-                ..TypeIdentityRequest::ordinary(reference)
-            },
-            &environment.starts,
-        );
-        program.type_identity_text(identity).unwrap_or_default()
+        program
+            .type_identity_text(self.type_identity(program, reference, scope))
+            .unwrap_or_default()
     }
 
     pub(crate) fn definition<'program>(

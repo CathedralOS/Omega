@@ -222,6 +222,7 @@ pub(crate) fn emit_call_result_claims(
 }
 
 pub(crate) fn prepare_checked_claim_transfers(
+    checked: &checked_trees::CheckedTrees,
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -232,9 +233,12 @@ pub(crate) fn prepare_checked_claim_transfers(
             .ok_or(LoweringError::Unsupported(
                 "claim transfer has no checked structural parameter",
             ))?;
+        let identity = checked
+            .type_identity_text(parameter.type_identity)
+            .unwrap_or_default();
         let mut declarations = types
             .iter()
-            .filter(|declaration| declaration.identity == parameter.type_identity);
+            .filter(|declaration| declaration.identity == identity);
         let declaration = declarations.next().ok_or(LoweringError::Unsupported(
             "claim transfer has no lowered parameter type",
         ))?;

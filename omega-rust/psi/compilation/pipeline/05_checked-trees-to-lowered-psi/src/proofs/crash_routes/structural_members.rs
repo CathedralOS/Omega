@@ -69,7 +69,7 @@ pub(crate) fn lower_structural_member_path(
                     return unsupported("structural scalar contract case receiver is not a sum");
                 }
             };
-            let case = terminal_psi::structural_case_by_identity(cases, identity).ok_or(
+            let case = terminal_psi::structural_case_by_identity(cases, &identity.spelling()).ok_or(
                 LoweringError::Unsupported("structural scalar contract case is absent"),
             )?;
             terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
@@ -123,7 +123,7 @@ pub(crate) fn lower_structural_member_path(
                 }
             }
         };
-        let field = terminal_psi::field_by_identity(fields, identity)
+        let field = terminal_psi::field_by_identity(fields, &identity.spelling())
             .filter(|field| !field.relevance.is_erased())
             .ok_or(LoweringError::Unsupported(
                 "structural scalar contract path field is absent or erased",
@@ -320,7 +320,7 @@ fn lower_sum_path(
                 }
                 _ => return unsupported("structural sum predicate case receiver is not a sum"),
             };
-            let case = terminal_psi::structural_case_by_identity(cases, identity).ok_or(
+            let case = terminal_psi::structural_case_by_identity(cases, &identity.spelling()).ok_or(
                 LoweringError::Unsupported("structural sum predicate case is absent"),
             )?;
             terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
@@ -355,7 +355,7 @@ fn lower_sum_path(
                 }
             }
         };
-        let field = terminal_psi::field_by_identity(fields, identity)
+        let field = terminal_psi::field_by_identity(fields, &identity.spelling())
             .filter(|field| !field.relevance.is_erased())
             .ok_or(LoweringError::Unsupported(
                 "structural sum predicate path field is absent or erased",
@@ -388,7 +388,7 @@ fn lower_sum_path(
 /// entry parameter and cannot lend a coincidentally equal parameter ordinal.
 pub(crate) fn lower_structural_case_membership(
     subject: &checked_trees::CheckedStructuralCaseSubject,
-    case_identity: &str,
+    case_identity: &checked_trees::CheckedMemberIdentity,
     parameters: &[StructuralParameterDeclaration],
     result: Option<&terminal_psi::StructuralResultDeclaration>,
     structural_types: &[StructuralTypeDeclaration],
@@ -420,7 +420,9 @@ pub(crate) fn lower_structural_case_membership(
     else {
         return unsupported("case membership declaration is not a sum");
     };
-    let mut matching = cases.iter().filter(|case| case.identity == case_identity);
+    let mut matching = cases
+        .iter()
+        .filter(|case| case.identity == case_identity.spelling());
     let case = matching
         .next()
         .ok_or(LoweringError::Unsupported("case membership was redirected"))?;

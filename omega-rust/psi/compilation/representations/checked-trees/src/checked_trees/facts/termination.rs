@@ -5,6 +5,9 @@
 
 use language_semantics::MachineTerminationPlan;
 use symbols::SymbolHandle;
+use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::type_identity::CallableIdentityId;
+use language_semantics::SemanticDomainId;
 
 mod arrival_correspondence;
 pub use arrival_correspondence::{
@@ -83,7 +86,7 @@ pub struct CheckedProofRecursiveEdge {
 pub struct CheckedProofRecursiveComponent {
     pub members: Vec<CheckedProofRecursiveMember>,
     pub ranking_relation: CheckedProofRankingRelation,
-    pub rank_type_identity: String,
+    pub rank_type_identity: TypeIdentityId,
     pub edges: Vec<CheckedProofRecursiveEdge>,
 }
 
@@ -117,15 +120,15 @@ pub struct MachineBuildBoundProgressDemands {
 pub struct BuildBoundProgressDemand {
     /// Exact boundary service whose selected provider occurrence is the
     /// premise subject at composition.
-    pub provider_service_identity: String,
+    pub provider_service_identity: CallableIdentityId,
     /// Compiler-derived package owner of that exact boundary service.
     pub provider_service_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     /// Normalized exact trait-requirement overload identity.
-    pub requirement_identity: String,
+    pub requirement_identity: CallableIdentityId,
     /// Compiler-derived package owner of the requirement overload.
     pub requirement_owner_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     /// Canonical progress-profile identity.
-    pub profile_identity: String,
+    pub profile_identity: SemanticDomainId,
     /// Exact field path below the provider receiver.
     pub subject_projections: Vec<String>,
     /// Original checked invocation that instantiated this demand.

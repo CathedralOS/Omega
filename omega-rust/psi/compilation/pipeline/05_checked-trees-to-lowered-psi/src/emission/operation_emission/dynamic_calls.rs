@@ -29,8 +29,8 @@ pub(crate) struct LoweredDynamicCallBinding {
     pub(crate) source_expression: typed_trees::expression::ExpressionHandle,
     /// The instantiated slot the call targets.
     pub(crate) slot: symbols::SymbolHandle,
-    pub(crate) interface_identity: String,
-    pub(crate) requirement_identity: String,
+    pub(crate) interface_identity: typed_trees::type_identity::TypeIdentityId,
+    pub(crate) requirement_identity: typed_trees::type_identity::CallableIdentityId,
     pub(crate) result_type: QualifiedScalarType,
     pub(crate) selector: LoweredDirectExpression,
     pub(crate) arguments: Vec<LoweredDirectExpression>,

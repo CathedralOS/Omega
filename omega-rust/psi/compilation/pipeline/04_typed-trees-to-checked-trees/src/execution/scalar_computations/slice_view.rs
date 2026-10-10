@@ -184,7 +184,7 @@ impl Builder<'_, '_> {
             } else {
                 (
                     source,
-                    self.program.normalized_type_identity_text(projected),
+                    self.program.normalized_type_identity(projected),
                 )
             };
         // Ordinary collection openers retain their exact element identity.

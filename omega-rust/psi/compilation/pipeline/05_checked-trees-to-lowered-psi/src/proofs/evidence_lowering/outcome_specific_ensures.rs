@@ -91,14 +91,14 @@ pub(crate) fn outcome_specific_ensure_rows(
                 let checked_trees::data::DataMember::Variant(variant) = member else {
                     return None;
                 };
-                (variant.symbol == guarantee.result_case).then(|| variant.path_identity())
+                (variant.symbol == guarantee.result_case).then(|| variant.member_identity())
             })
             .ok_or(LoweringError::Unsupported(
                 "guarded guarantee references an unknown result case",
             ))?;
         let result_case = cases
             .iter()
-            .find_map(|case| (case.identity == case_identity).then_some(case.id))
+            .find_map(|case| (case.identity == case_identity.spelling()).then_some(case.id))
             .ok_or(LoweringError::Unsupported(
                 "guarded guarantee case is absent from the terminal result sum",
             ))?;
@@ -148,7 +148,7 @@ pub(crate) fn outcome_specific_ensure_rows(
                             }
                         };
                                 kind != right.kind
-                                    || left.identity != right.identity
+                                    || left.identity != right.diagnostic_label
                                     || right.evidence_projection.is_some()
                             })
                     {

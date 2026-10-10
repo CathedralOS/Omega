@@ -23,7 +23,7 @@ pub(super) fn reject_attachment(
 pub(super) fn admit_calls<'a>(
     checked: &'a CheckedTrees,
     call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
-) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, String)>, LoweringError> {
+) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>, LoweringError> {
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut boundaries = Vec::new();
     for state in call_states.iter().copied() {

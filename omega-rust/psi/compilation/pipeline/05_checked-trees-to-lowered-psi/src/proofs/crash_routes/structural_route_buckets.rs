@@ -400,7 +400,7 @@ impl RouteTerms<'_> {
                 || cases
                     .iter()
                     .zip(declared_cases)
-                    .any(|(checked, declared)| checked != &declared.identity)
+                    .any(|(checked, declared)| checked.spelling() != declared.identity)
             {
                 return unsupported("payload-less sum equality case roster was redirected");
             }
@@ -538,13 +538,13 @@ fn uses_structural_storage(expression: &CheckedScalarExpression) -> bool {
 
 fn checked_member_path(
     expression: &checked_trees::CrashPredicateExpression,
-    path: &mut Vec<String>,
+    path: &mut Vec<checked_trees::CheckedMemberIdentity>,
 ) -> Option<u32> {
     match expression {
         checked_trees::CrashPredicateExpression::Parameter(position) => Some(*position),
         checked_trees::CrashPredicateExpression::Member { receiver, member } => {
             let parameter = checked_member_path(receiver, path)?;
-            path.push(member.clone());
+            path.push(checked_trees::CheckedMemberIdentity::of_spelling(member));
             Some(parameter)
         }
         _ => None,

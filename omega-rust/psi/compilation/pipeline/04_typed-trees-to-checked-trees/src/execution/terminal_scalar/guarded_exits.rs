@@ -65,7 +65,7 @@ enum TupleSubject {
 
 #[derive(Clone, PartialEq)]
 enum TupleValue {
-    Case(String),
+    Case(checked_trees::CheckedMemberIdentity),
     Boolean(bool),
 }
 
@@ -213,7 +213,7 @@ fn tuple_rows_cover(
                     .iter()
                     .filter_map(|member| match member {
                         typed_trees::data::DataMember::Variant(variant) => {
-                            Some(TupleValue::Case(variant.path_identity()))
+                            Some(TupleValue::Case(checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone())))
                         }
                         typed_trees::data::DataMember::Field(_) => None,
                     })

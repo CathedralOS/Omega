@@ -122,7 +122,10 @@ impl<'a> Expansion<'a> {
         roster: &[checked_trees::CheckedErasedProofParameterPlan],
     ) -> Self {
         self.erased_proof_formals =
-            crate::scalar_lowering::contracts::erased_proof_formal_declarations(roster);
+            crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                self.checked,
+                roster,
+            );
         self
     }
 

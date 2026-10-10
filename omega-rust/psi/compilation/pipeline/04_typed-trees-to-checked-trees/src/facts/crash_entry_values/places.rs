@@ -220,14 +220,14 @@ fn entry_parameter_place_at_write_boundary(
                 let (variant, field) = selected?;
                 if let Some(variant) = variant {
                     path.push(CheckedStructuralPredicatePathSegment::Case(
-                        variant.path_identity(),
+                        checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
                     ));
                     identities.push(facts::PlaceSegment::Case {
                         variant: variant.symbol,
                     });
                 }
                 path.push(CheckedStructuralPredicatePathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 identities.push(facts::PlaceSegment::Field {
                     symbol: field.symbol,

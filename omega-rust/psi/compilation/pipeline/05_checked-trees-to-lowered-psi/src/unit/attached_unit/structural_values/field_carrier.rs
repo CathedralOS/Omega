@@ -21,7 +21,7 @@ pub(crate) fn resolve(
         Some(ByteSequenceCarrier::BoundedOwned { .. }) => {
             let identity =
                 validation::structural_type_identity(&checked.typed, reference, &[], &[]);
-            terminal_psi::structural_type_by_identity(declarations, &identity)
+            terminal_psi::structural_type_by_identity(declarations, &checked.type_identity_text(identity).unwrap_or_default())
                 .map(|declaration| declaration.id)
                 .ok_or(LoweringError::Unsupported(
                     "byte member has no retained carrier",

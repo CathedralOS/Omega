@@ -67,7 +67,7 @@ pub(super) fn promote_shared_handoffs(
     let block_loan_referent = |parameter: &CheckedUnitStructuralParameterPlan| {
         checked_trees::checked_structural_type_by_identity(
             &checked.facts.flow.terminal_unit_effects.structural_types,
-            &parameter.type_identity,
+            parameter.type_identity,
         )
         .is_some_and(|shape| {
             matches!(

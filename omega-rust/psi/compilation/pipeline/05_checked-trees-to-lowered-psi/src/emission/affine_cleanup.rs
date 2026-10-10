@@ -32,7 +32,10 @@ pub(crate) use projected_transfers::operands as structural_operands;
 /// disposal, and a final death row cannot describe a skipped earlier transfer.
 pub(crate) fn no_code_type_ids(
     checked: &checked_trees::CheckedTrees,
-    type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
+    type_ids: &[(
+        typed_trees::type_identity::TypeIdentityId,
+        semantic_vocabulary::StructuralTypeId,
+    )],
 ) -> Vec<semantic_vocabulary::StructuralTypeId> {
     type_ids
         .iter()

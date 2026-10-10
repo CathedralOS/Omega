@@ -78,7 +78,7 @@ fn elaborate_declaration(
             Ok(CheckedMathematicalParameter {
                 name: parameter.name.to_string(),
                 relevance: parameter.relevance,
-                type_identity: mathematical_type_identity(program, definition, parameter.ty)?,
+                type_spelling: mathematical_type_identity(program, definition, parameter.ty)?,
             })
         })
         .collect::<Result<_, Vec<diagnostics::Diagnostic>>>()?;
@@ -86,7 +86,7 @@ fn elaborate_declaration(
     let body = match definition.body {
         MathematicalBody::Assumption => CheckedMathematicalBody::Assumption,
         MathematicalBody::Definition(term) => CheckedMathematicalBody::Definition {
-            term_identity: program.render_proof_expression(term, ProofSubstitutions::None),
+            term_spelling: program.render_proof_expression(term, ProofSubstitutions::None),
         },
     };
     Ok(CheckedMathematicalDeclaration {
@@ -194,7 +194,7 @@ fn classify_subject_carrier(
                     .type_reference_handles(*arguments);
                 match arguments {
                     [universe] => Ok(CheckedMathematicalBinderKind::Type {
-                        universe: Some(ordinary_type_identity(program, definition, *universe)?),
+                        universe: Some(program.normalized_type_identity_text(*universe)),
                     }),
                     _ => Err(refuse(
                         program,
@@ -236,7 +236,7 @@ fn mathematical_type_identity(
 ) -> Result<String, Vec<diagnostics::Diagnostic>> {
     match program.mathematical_type(handle) {
         MathematicalType::Ordinary(reference) => {
-            ordinary_type_identity(program, definition, *reference)
+            Ok(program.normalized_type_identity_text(*reference))
         }
         MathematicalType::Arrow {
             binder,
@@ -287,7 +287,7 @@ fn ordinary_type_identity(
     program: &dyn ::validation::CheckingInput,
     definition: &MathematicalDefinition,
     reference: TypeReferenceHandle,
-) -> Result<String, Vec<diagnostics::Diagnostic>> {
+) -> Result<typed_trees::type_identity::TypeIdentityId, Vec<diagnostics::Diagnostic>> {
     if !program
         .type_reference_table
         .contains_type_reference(reference)
@@ -313,7 +313,7 @@ fn ordinary_type_identity(
                 program.display_type_reference(reference)
             ),
         )),
-        _ => Ok(program.display_type_reference(reference)),
+        _ => Ok(program.normalized_type_identity(reference)),
     }
 }
 

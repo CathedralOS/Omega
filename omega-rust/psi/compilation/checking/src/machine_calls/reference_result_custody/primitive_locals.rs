@@ -109,7 +109,7 @@ pub fn primitive_local_source(
     Some(CheckedUnitStructuralArgumentPlan {
         source,
         path: Vec::new(),
-        type_identity: program.normalized_type_identity_text(storage),
+        type_identity: program.normalized_type_identity(storage),
         access,
     })
 }

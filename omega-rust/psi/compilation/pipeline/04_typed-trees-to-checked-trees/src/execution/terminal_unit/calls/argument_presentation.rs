@@ -36,7 +36,7 @@ pub(crate) fn classify(
     program: &dyn ::validation::CheckingInput,
     projected_type: typed_trees::types::TypeReferenceHandle,
     parameter_type: typed_trees::types::TypeReferenceHandle,
-    target_identity: &str,
+    target_identity: typed_trees::type_identity::TypeIdentityId,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
 ) -> Option<ArgumentPresentation> {
     if base_type_identity(program, projected_type, &[],

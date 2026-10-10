@@ -6,6 +6,7 @@
 
 use crate::IntegerRange as CheckedIntegerRange;
 use symbols::SymbolHandle;
+use typed_trees::type_identity::TypeIdentityId;
 
 mod bindings;
 pub use bindings::{BooleanPredicate, BooleanPredicateBinding, BooleanPredicateRole};
@@ -140,7 +141,7 @@ pub enum CheckedScalarExpression {
     /// no data.
     ImplementationSelection {
         implementation: symbols::SymbolHandle,
-        interface_identity: String,
+        interface_identity: TypeIdentityId,
     },
     IntegerBinary {
         kind: CheckedIntegerBinaryKind,
@@ -424,13 +425,13 @@ pub enum CheckedBooleanExpression {
     PayloadlessSumEqual {
         left: CheckedStructuralParameterField,
         right: CheckedStructuralParameterField,
-        cases: Vec<String>,
+        cases: Vec<typed_trees::data::DataMemberIdentity>,
     },
     /// Exact active-case test over a structural sum subject. The path reaches
     /// the sum itself; payload paths use an explicit following Case segment.
     StructuralCaseMembership {
         subject: CheckedStructuralCaseSubject,
-        case: String,
+        case: typed_trees::data::DataMemberIdentity,
     },
     And {
         left: Box<CheckedBooleanExpression>,
@@ -521,8 +522,8 @@ impl CheckedStructuralCaseSubject {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CheckedStructuralPredicatePathSegment {
-    Field(String),
-    Case(String),
+    Field(typed_trees::data::DataMemberIdentity),
+    Case(typed_trees::data::DataMemberIdentity),
     FixedIndex(u64),
     /// One runtime element selection inside a member's element path —
     /// `cells[i].data[j]` names `data`'s element through the `Field` step's
@@ -535,7 +536,7 @@ pub enum CheckedStructuralPredicatePathSegment {
 impl Default for CheckedStructuralPredicatePathSegment {
     fn default() -> Self {
         // Arena zero is absence; an empty identity cannot resolve a source field.
-        Self::Field(String::new())
+        Self::Field(typed_trees::data::DataMemberIdentity::default())
     }
 }
 

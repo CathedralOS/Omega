@@ -61,7 +61,18 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
                 StructuralAffineDiscard {
                     place: entry.structural_parameters[parameter_index as usize].place,
                     path: lower_structural_path(&residual.path)?,
-                    structural_type: lookup_type_id(&terminal_type_ids, &residual.type_identity)?,
+                    structural_type: terminal_type_ids
+                    .iter()
+                    .find(|(identity, _)| {
+                        identity
+                            == &checked
+                                .type_identity_text(residual.type_identity)
+                                .unwrap_or_default()
+                    })
+                    .map(|(_, id)| *id)
+                    .ok_or(LoweringError::Unsupported(
+                        "partial affine residual lost its structural type",
+                    ))?,
                 },
             ))
         })

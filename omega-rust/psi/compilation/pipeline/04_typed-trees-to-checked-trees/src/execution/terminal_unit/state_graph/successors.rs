@@ -106,9 +106,9 @@ impl SuccessorEdge {
 /// storage whose declared shape has no `Reference` anywhere inside it.
 fn declared_contains_reference(
     shapes: &crate::execution::terminal_unit::types::ShapeCollector<'_>,
-    identity: &str,
+    identity: typed_trees::type_identity::TypeIdentityId,
 ) -> bool {
-    let mut pending = vec![identity.to_owned()];
+    let mut pending = vec![identity];
     let mut visited = std::collections::BTreeSet::new();
     while let Some(current) = pending.pop() {
         if !visited.insert(current.clone()) {
@@ -122,7 +122,7 @@ fn declared_contains_reference(
                 if let checked_trees::CheckedUnitStructuralFieldType::Structural { type_identity } =
                     &field.field_type
                 {
-                    pending.push(type_identity.clone());
+                    pending.push(*type_identity);
                 }
             }
         };
@@ -140,7 +140,7 @@ fn declared_contains_reference(
             }
             | checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
                 element_type_identity,
-            } => pending.push(element_type_identity.clone()),
+            } => pending.push(*element_type_identity),
             checked_trees::CheckedUnitStructuralTypeShape::Sum { cases } => {
                 for case in cases {
                     fields(&case.fields);
@@ -503,7 +503,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 target_parameters.get(target.position as usize)?,
             ) {
                 let multiplicity = if target.access == CheckedStructuralAccess::Owned {
-                    if program.normalized_type_identity_text(root.type_reference)
+                    if program.normalized_type_identity(root.type_reference)
                         != target.type_identity
                     {
                         return None;
@@ -756,7 +756,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                     CheckedStructuralAccess::SharedBorrow
                                     | CheckedStructuralAccess::MutableBorrow
                                     | CheckedStructuralAccess::WriteOnlyBorrow => {
-                                        Some(source_parameter.type_identity.clone())
+                                        Some(source_parameter.type_identity)
                                     }
                                     _ => None,
                                 },
@@ -784,7 +784,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 local,
                                 result,
                                 target_parameters.get(target.position as usize)?,
-                                &target.type_identity,
+                                target.type_identity,
                             )?;
                             if subject.access != expected_access
                                 || !subject.path.iter().all(|segment| {
@@ -1139,7 +1139,7 @@ fn projected_loan_transfer(
     ordinal: u32,
     place: &validation::CanonicalPlace,
     subject_source: CheckedUnitStructuralArgumentSourcePlan,
-    borrowed_identity: Option<String>,
+    borrowed_identity: Option<typed_trees::type_identity::TypeIdentityId>,
     expected_access: CheckedStructuralAccess,
     target: &CheckedUnitStructuralParameterPlan,
     target_parameters: &[typed_trees::signature::StateParameter],
@@ -1161,7 +1161,7 @@ fn projected_loan_transfer(
         program,
         projected_type,
         target_type_reference,
-        &target.type_identity,
+        target.type_identity,
         &[],
     )
     .is_some_and(|presentation| {
@@ -1173,7 +1173,7 @@ fn projected_loan_transfer(
     }
     let identity = borrowed_identity
         .or_else(|| super::super::types::base_type_identity(program, projected_type, &[], &[]));
-    if identity.is_some_and(|identity| declared_contains_reference(shapes, &identity)) {
+    if identity.is_some_and(|identity| declared_contains_reference(shapes, identity)) {
         return None;
     }
     // Successor operands carry the root and path directly under their declared
@@ -1390,8 +1390,8 @@ fn case_payload_transfer(
                 type_identity: subject_identity,
                 access: CheckedStructuralAccess::SharedBorrow,
             },
-            case_identity: variant.path_identity(),
-            field_identity: field.path_identity(),
+            case_identity: checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()),
+            field_identity: checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
             path: Vec::new(),
         },
     )

@@ -8,7 +8,7 @@ pub(in crate::execution::terminal_unit) fn finish(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
-    attachment_type_identity: Option<String>,
+    attachment_type_identity: Option<typed_trees::type_identity::TypeIdentityId>,
     provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
     states: Vec<CheckedComposedUnitControlStatePlan>,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {

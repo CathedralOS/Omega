@@ -257,7 +257,7 @@ pub(super) fn emit_return(
         operations,
     )?;
     complete_structural_return(
-        state, exit, operation, catalogs, parameters, evaluation, values, next_value, next_block,
+        checked, state, exit, operation, catalogs, parameters, evaluation, values, next_value, next_block,
         next_edge, operations,
     )
 }
@@ -266,6 +266,7 @@ pub(super) fn emit_return(
 /// cleanup order and the current places established by operand preparation.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn complete_structural_return(
+    checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     exit: checked_trees::FlowClaimJoinExit,
     operation: &CheckedUnitEffectOperationPlan,
@@ -297,6 +298,7 @@ pub(super) fn complete_structural_return(
     // by path.
     returned_claims.sort_by_key(|binding| binding.claim);
     let mut regions = super::cleanup::for_exit_regions(
+        checked,
         state, exit, catalogs, parameters, evaluation, operations,
     )?;
     super::cleanup::selection(state, evaluation, operations, &mut regions)?;
@@ -311,6 +313,7 @@ pub(super) fn complete_structural_return(
     // contract and its residual ownership. Use the ordinary return transport,
     // independent of whether a conditional or ordered guard selected the exit.
     let (completion, arrival) = super::returns::projected::materialize(
+        checked,
         &binding, source, completion, regions, catalogs, evaluation, values, next_value,
         next_block, next_edge, operations,
     )?;

@@ -30,12 +30,12 @@ use terminal_psi::{
 #[derive(Debug, Clone, Default)]
 pub(crate) struct DynamicDispatchIndex {
     /// Sorted, unique interface identities; position is the interface id.
-    interfaces: Vec<String>,
+    interfaces: Vec<typed_trees::type_identity::TypeIdentityId>,
     /// Sorted, unique (interface identity, implementation); position is the
     /// table id.
-    tables: Vec<(String, SymbolHandle)>,
+    tables: Vec<(typed_trees::type_identity::TypeIdentityId, SymbolHandle)>,
     /// Per interface id: the canonical requirement identities, by slot.
-    slots: Vec<Vec<String>>,
+    slots: Vec<Vec<typed_trees::type_identity::CallableIdentityId>>,
 }
 
 impl DynamicDispatchIndex {
@@ -99,20 +99,23 @@ impl DynamicDispatchIndex {
         }
     }
 
-    pub(crate) fn interface(&self, identity: &str) -> Option<u32> {
-        let position = self
-            .interfaces
-            .binary_search_by(|candidate| candidate.as_str().cmp(identity))
-            .ok()?;
+    pub(crate) fn interface(
+        &self,
+        identity: &typed_trees::type_identity::TypeIdentityId,
+    ) -> Option<u32> {
+        let position = self.interfaces.binary_search(identity).ok()?;
         u32::try_from(position).ok()
     }
 
-    pub(crate) fn table(&self, interface: &str, implementation: SymbolHandle) -> Option<u32> {
+    pub(crate) fn table(
+        &self,
+        interface: &typed_trees::type_identity::TypeIdentityId,
+        implementation: SymbolHandle,
+    ) -> Option<u32> {
         let position = self
             .tables
             .binary_search_by(|(candidate, symbol)| {
                 candidate
-                    .as_str()
                     .cmp(interface)
                     .then(symbol.arena_index().cmp(&implementation.arena_index()))
             })
@@ -121,7 +124,11 @@ impl DynamicDispatchIndex {
     }
 
     /// The slot a requirement occupies in an interface.
-    pub(crate) fn slot(&self, interface: u32, requirement_identity: &str) -> Option<u32> {
+    pub(crate) fn slot(
+        &self,
+        interface: u32,
+        requirement_identity: &typed_trees::type_identity::CallableIdentityId,
+    ) -> Option<u32> {
         let slots = self.slots.get(usize::try_from(interface).ok()?)?;
         let position = slots
             .iter()
@@ -153,7 +160,12 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
     let type_ids = module
         .structural_types
         .iter()
-        .map(|declaration| (declaration.identity.clone(), declaration.id))
+        .map(|declaration| {
+            (
+                checked.type_identity_by_text(&declaration.identity),
+                declaration.id,
+            )
+        })
         .collect::<Vec<_>>();
     let slot_plans = &checked.facts.flow.terminal_unit_effects.dynamic_slots;
     let mut catalog = TerminalDynamicDispatchCatalog::default();
@@ -179,7 +191,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         }
         catalog.interfaces.push(TerminalDynamicInterface {
             id: interface_id,
-            identity: interface_identity.clone(),
+            identity: checked.type_identity_text(*interface_identity).unwrap_or_default(),
             slots,
         });
     }
@@ -215,7 +227,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         }
         let mut rows = Vec::with_capacity(slots.len());
         for (row, slot) in selection.rows.iter().zip(slots) {
-            if row.requirement_identity != slot.requirement_identity {
+            if checked.typed.callable_identity_text(row.requirement_identity) != slot.requirement_identity {
                 return unsupported("implementation row is out of its interface's slot order");
             }
             if !selected_here {
@@ -252,7 +264,7 @@ fn lower_slot(
     checked: &CheckedTrees,
     plan: &CheckedDynamicSlotPlan,
     slot: u32,
-    type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, semantic_vocabulary::StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<TerminalDynamicSlot, LoweringError> {
     let Some((selector, scalars)) = plan.scalar_parameters.split_first() else {
@@ -316,7 +328,9 @@ fn lower_slot(
     Ok(TerminalDynamicSlot {
         slot,
         declaring_trait_identity: checked.symbols.display_path(plan.declaring_trait, "::"),
-        requirement_identity: plan.requirement_identity.clone(),
+        requirement_identity: checked
+            .typed
+            .callable_identity_text(plan.requirement_identity),
         family_tuple: Vec::new(),
         scalar_parameters,
         structural_parameters,

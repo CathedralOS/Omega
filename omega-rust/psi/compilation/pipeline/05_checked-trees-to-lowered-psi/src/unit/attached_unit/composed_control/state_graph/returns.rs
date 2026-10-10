@@ -51,6 +51,7 @@ pub(super) fn result(
     });
     let structural_type = lookup_type_id(&catalogs.type_ids, &result.type_identity)?;
     let reference_sources = crate::unit::attached_unit::parameters::lower_reference_result_sources(
+        checked,
         reference_sources,
         structural_type,
         &catalogs.structural_types,

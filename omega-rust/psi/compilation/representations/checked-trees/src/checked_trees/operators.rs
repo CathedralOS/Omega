@@ -21,6 +21,7 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::SignatureContract;
 use typed_trees::statement::StatementHandle;
 use typed_trees::types::TypeReferenceHandle;
+use typed_trees::type_identity::CallableIdentityId;
 
 pub use numerics::arithmetic::ArithmeticPolicyAdapter as CheckedArithmeticPolicyAdapter;
 
@@ -226,7 +227,7 @@ pub struct CheckedBoundaryOperatorApplicationDemand {
     /// Downstream consumers read this row instead of rederiving the identity
     /// from the typed declaration; the empty string marks a demand whose
     /// requirement declared no resolvable overload identity.
-    pub requirement_identity: String,
+    pub requirement_identity: CallableIdentityId,
     pub arguments: Vec<CheckedBoundaryOperatorApplicationArgument>,
     /// Bodies checked for this exact application. Equal applications share a
     /// span in `CheckedOperatorFacts::boundary_body_candidates`.
@@ -238,7 +239,7 @@ pub struct CheckedBoundaryOperatorApplicationDemand {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedBoundaryBodyCandidate {
     pub selection: SymbolHandle,
-    pub selection_identity: String,
+    pub selection_identity: CallableIdentityId,
     pub target: Option<String>,
     pub machine: SymbolHandle,
     pub entry: SymbolHandle,

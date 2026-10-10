@@ -63,14 +63,21 @@ pub fn lower_machine(
 pub(crate) fn nominal_cleanup_subject(
     checked: &CheckedTrees,
     source: symbols::SymbolHandle,
-    type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, semantic_vocabulary::StructuralTypeId)],
 ) -> Result<Option<semantic_vocabulary::StructuralTypeId>, LoweringError> {
+    let rendered = type_ids
+        .iter()
+        .map(|(identity, id)| {
+            (
+                checked.type_identity_text(*identity).unwrap_or_default(),
+                *id,
+            )
+        })
+        .collect::<Vec<_>>();
     nominal_cleanup_subject_from_types(
         checked,
         source,
-        type_ids
-            .iter()
-            .map(|(identity, id)| (identity.as_str(), *id)),
+        rendered.iter().map(|(identity, id)| (identity.as_str(), *id)),
     )
 }
 

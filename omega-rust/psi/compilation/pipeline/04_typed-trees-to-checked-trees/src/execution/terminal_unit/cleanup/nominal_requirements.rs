@@ -149,7 +149,7 @@ pub(crate) fn nominal_cleanup_missing_requirement_diagnostic(
     Diagnostic::error(format!(
         "cannot prove {edge}: missing {}.{} == {} required by {}",
         source_parameter.name.as_str(),
-        missing.field_identity,
+        missing.field_identity.spelling(),
         missing.expected,
         crate::labels::machine_name(program, cleanup_machine.symbol),
     ))

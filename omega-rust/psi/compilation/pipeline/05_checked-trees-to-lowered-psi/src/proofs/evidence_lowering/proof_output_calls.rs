@@ -467,7 +467,7 @@ pub(crate) fn terminal_proposition_application_id(
                 .transpose()?;
             Ok(PropositionBinderArgumentIdentity {
                 kind: super::binder_argument_kind(argument.kind),
-                identity: argument.identity.clone(),
+                identity: argument.diagnostic_label.clone(),
                 evidence_projection,
             })
         })

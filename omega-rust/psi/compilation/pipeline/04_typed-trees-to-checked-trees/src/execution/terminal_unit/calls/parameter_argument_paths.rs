@@ -147,7 +147,7 @@ pub(crate) struct ParameterArgument<'argument> {
     pub(crate) statement_index: usize,
     pub(crate) place: &'argument validation::CanonicalPlace,
     pub(crate) target: TypeReferenceHandle,
-    pub(crate) target_identity: &'argument str,
+    pub(crate) target_identity: typed_trees::type_identity::TypeIdentityId,
     pub(crate) selectors: Option<
         &'argument dyn Fn(
             typed_trees::expression::ExpressionHandle,

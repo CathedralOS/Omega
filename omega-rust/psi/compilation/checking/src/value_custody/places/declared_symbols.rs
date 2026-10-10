@@ -115,21 +115,21 @@ pub fn nearest_scoped_local(
 pub fn structural_member_identity(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
-) -> Option<String> {
+) -> Option<checked_trees::CheckedMemberIdentity> {
     program.data_definitions().iter().find_map(|data| {
         program
             .data_members(data)
             .iter()
             .find_map(|member| match member {
                 typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    Some(field.path_identity())
+                    Some(field.member_identity())
                 }
                 typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
-                    Some(variant.path_identity())
+                    Some(variant.member_identity())
                 }
                 typed_trees::data::DataMember::Variant(variant) => program
                     .data_payload_field_by_symbol(variant, symbol)
-                    .map(|field| field.path_identity()),
+                    .map(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())),
                 typed_trees::data::DataMember::Field(_) => None,
             })
     })

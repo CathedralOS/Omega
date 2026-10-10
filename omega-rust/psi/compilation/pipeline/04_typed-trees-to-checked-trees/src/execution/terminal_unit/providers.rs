@@ -17,12 +17,12 @@ pub(super) fn checked_provider_attachment_requirements(
     shapes: &ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    attachment_type_identity: &str,
+    attachment_type_identity: typed_trees::type_identity::TypeIdentityId,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     calls: &[checked_trees::FlowCallFact],
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<Vec<CheckedProviderAttachmentRequirementPlan>> {
-    let attachment = shapes.types.get(attachment_type_identity)?;
+    let attachment = shapes.types.get(&attachment_type_identity)?;
     let CheckedUnitStructuralTypeShape::Record { fields, .. } = &attachment.shape else {
         return Some(Vec::new());
     };
@@ -63,7 +63,7 @@ pub(super) fn checked_provider_attachment_requirements(
     // An unrelated provider-bearing carrier is not another attachment surface.
     if provider_fields
         .iter()
-        .any(|(field, _)| field.identity.starts_with('#'))
+        .any(|(field, _)| field.identity.spelling().starts_with('#'))
         || structural_parameters.iter().any(|parameter| {
             parameter_is_provider_carrier(shapes, parameter, attachment_type_identity)
         })
@@ -82,7 +82,7 @@ pub(super) fn checked_provider_attachment_requirements(
     for (field, provider_type_identity) in &provider_fields {
         let provider_symbol = program.data_members(attached).iter().find_map(|member| {
             let source_field = member.as_field()?;
-            if source_field.name.as_str() != field.identity {
+            if source_field.name.as_str() != field.identity.spelling() {
                 return None;
             }
             typed_trees::service::exact_bound_service_requirement(
@@ -183,7 +183,7 @@ pub(super) fn checked_provider_attachment_requirements(
         let mut claimed = false;
         for (field, provider_type_identity, provider, _) in candidates {
             let attached_receiver = receiver_field.as_ref().map(|name| name.as_str())
-                == Some(field.identity.as_str())
+                == Some(field.identity.spelling().as_str())
                 && provider_attachment_receiver_matches(
                     program,
                     machine,
@@ -199,7 +199,7 @@ pub(super) fn checked_provider_attachment_requirements(
                 let Some(reference) = validation::unwrapped_type_reference(program, source.type_reference) else {
                     return false;
                 };
-                if program.normalized_type_identity_text(reference) != attachment_type_identity
+                if program.normalized_type_identity(reference) != attachment_type_identity
                     || program.closed_data_definition(reference).is_none_or(|owner| owner.symbol != attached.symbol)
                 {
                     return false;
@@ -219,7 +219,7 @@ pub(super) fn checked_provider_attachment_requirements(
                 };
                 program.data_members(attached).iter().any(|member| matches!(member,
                     DataMember::Field(source_field) if source_field.symbol == *symbol
-                        && source_field.name.as_str() == field.identity && !source_field.relevance.is_erased()))
+                        && source_field.name.as_str() == field.identity.spelling() && !source_field.relevance.is_erased()))
             });
             if !attached_receiver && !parameter_receiver {
                 continue;
@@ -232,7 +232,7 @@ pub(super) fn checked_provider_attachment_requirements(
             }
             requirements.push(CheckedProviderAttachmentRequirementPlan {
                 field_identity: field.identity.clone(),
-                provider_type_identity: provider_type_identity.to_string(),
+                provider_type_identity: **provider_type_identity,
                 boundary: call.target_symbol,
             });
             claimed = true;
@@ -264,9 +264,9 @@ pub(super) fn checked_provider_attachment_requirements(
 /// sort by the same canonical key as per-state rosters.
 fn attachment_record_fields<'a>(
     shapes: &'a ShapeCollector<'_>,
-    attachment_type_identity: &str,
+    attachment_type_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> &'a [CheckedUnitStructuralFieldPlan] {
-    let Some(plan) = shapes.types.get(attachment_type_identity) else {
+    let Some(plan) = shapes.types.get(&attachment_type_identity) else {
         return &[];
     };
     match &plan.shape {
@@ -282,12 +282,12 @@ fn attachment_record_fields<'a>(
 fn parameter_is_provider_carrier(
     shapes: &ShapeCollector<'_>,
     parameter: &CheckedUnitStructuralParameterPlan,
-    attachment_type_identity: &str,
+    attachment_type_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> bool {
     parameter.binding_carrier.is_some()
         || type_carries_unsupported_provider(
             shapes,
-            parameter.type_identity.as_str(),
+            parameter.type_identity,
             parameter.type_identity == attachment_type_identity,
             &mut BTreeSet::new(),
         )
@@ -299,14 +299,14 @@ fn parameter_is_provider_carrier(
 /// so their types are not followed.
 fn type_carries_unsupported_provider<'a>(
     shapes: &'a ShapeCollector<'_>,
-    type_identity: &'a str,
+    type_identity: typed_trees::type_identity::TypeIdentityId,
     allow_fused: bool,
-    visited: &mut BTreeSet<&'a str>,
+    visited: &mut BTreeSet<typed_trees::type_identity::TypeIdentityId>,
 ) -> bool {
     if !visited.insert(type_identity) {
         return false;
     }
-    let Some(plan) = shapes.types.get(type_identity) else {
+    let Some(plan) = shapes.types.get(&type_identity) else {
         return false;
     };
     if let CheckedUnitStructuralTypeShape::FixedArray {
@@ -316,7 +316,7 @@ fn type_carries_unsupported_provider<'a>(
     {
         return type_carries_unsupported_provider(
             shapes,
-            element_type_identity,
+            *element_type_identity,
             allow_fused,
             visited,
         );
@@ -325,7 +325,7 @@ fn type_carries_unsupported_provider<'a>(
         CheckedUnitStructuralFieldType::ProviderBacked { .. } => true,
         CheckedUnitStructuralFieldType::BindingBacked { .. } => !allow_fused,
         CheckedUnitStructuralFieldType::Structural { type_identity } => {
-            type_carries_unsupported_provider(shapes, type_identity, allow_fused, visited)
+            type_carries_unsupported_provider(shapes, *type_identity, allow_fused, visited)
         }
         _ => false,
     })
@@ -358,7 +358,7 @@ fn shape_fields(
 pub(super) fn checked_composed_provider_attachment_requirements(
     program: &dyn ::validation::CheckingInput,
     shapes: &ShapeCollector<'_>,
-    attachment_type_identity: &str,
+    attachment_type_identity: typed_trees::type_identity::TypeIdentityId,
     leaves: &[(
         &typed_trees::machine::Machine,
         &typed_trees::state::State,

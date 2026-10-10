@@ -182,11 +182,11 @@ pub(crate) fn derive_fused_program_entry_establishments(
         let parameter = matching.next()?;
         if matching.next().is_some()
             || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
-            || parameter.type_identity != checked.normalized_type_identity_text(*referee)
+            || parameter.type_identity != checked.normalized_type_identity(*referee)
         {
             return None;
         }
-        Some(parameter.type_identity.clone())
+        Some(parameter.type_identity)
     };
     let attachment_identities = checked
         .facts
@@ -246,7 +246,10 @@ pub(crate) fn derive_fused_program_entry_establishments(
         .collect::<Vec<_>>();
     let [structural_type] = structural_types.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
-            "selected ProgramEntry receiver `{receiver_identity}` with attachment `{attachment_type_identity}` rejoins {} Terminal structural types; expected one (available: {})",
+            "selected ProgramEntry receiver `{receiver_identity}` with attachment `{}` rejoins {} Terminal structural types; expected one (available: {})",
+            checked
+                .type_identity_text(*attachment_type_identity)
+                .unwrap_or_default(),
             structural_types.len(),
             checked
                 .facts
@@ -254,7 +257,9 @@ pub(crate) fn derive_fused_program_entry_establishments(
                 .terminal_unit_effects
                 .structural_types
                 .iter()
-                .map(|plan| plan.identity.as_str())
+                .map(|plan| {
+                    checked.type_identity_text(plan.identity).unwrap_or_default()
+                })
                 .collect::<Vec<_>>()
                 .join(", "),
         ))]);
@@ -297,7 +302,10 @@ pub(crate) fn derive_fused_program_entry_establishments(
         };
         let carrier_type_identity = checked
             .normalized_type_identity_text(field.type_reference);
-        if provider_type_identity != &carrier_type_identity
+        if checked
+            .type_identity_text(*provider_type_identity)
+            .unwrap_or_default()
+            != carrier_type_identity
             || receipt.requirement != carrier.requirement
         {
             diagnostics.push(Diagnostic::error(format!(
@@ -354,7 +362,9 @@ pub(crate) fn derive_fused_program_entry_establishments(
             source.identity(),
             source.target_slot(),
             receiver_identity.to_owned(),
-            attachment_type_identity.clone(),
+            checked
+                .type_identity_text(*attachment_type_identity)
+                .unwrap_or_default(),
             field_identity,
             field_path,
             carrier_type_identity,
@@ -470,7 +480,7 @@ fn checked_field_for_path<'a>(
     for (index, segment) in field_path.iter().enumerate() {
         let matching = current_fields
             .iter()
-            .filter(|candidate| candidate.identity == *segment)
+            .filter(|candidate| candidate.identity.spelling() == *segment)
             .collect::<Vec<_>>();
         let [field] = matching.as_slice() else {
             return Err(format!(

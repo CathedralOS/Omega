@@ -185,7 +185,7 @@ impl Decomposition<'_> {
             let Some(variant) = member.as_variant() else {
                 continue;
             };
-            let case = variant.path_identity();
+            let case = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
             let mut arm = vec![
                 CheckedBooleanExpression::StructuralCaseMembership {
                     subject: self.left_place(left_path).into(),
@@ -213,7 +213,7 @@ impl Decomposition<'_> {
     fn append_field(
         &mut self,
         field: &DataField,
-        case: Option<&str>,
+        case: Option<&checked_trees::CheckedMemberIdentity>,
         left_path: &[CheckedStructuralPredicatePathSegment],
         right_path: &[CheckedStructuralPredicatePathSegment],
         comparisons: &mut Vec<CheckedBooleanExpression>,
@@ -221,10 +221,10 @@ impl Decomposition<'_> {
         let extend = |path: &[CheckedStructuralPredicatePathSegment]| {
             let mut path = path.to_vec();
             if let Some(case) = case {
-                path.push(CheckedStructuralPredicatePathSegment::Case(case.to_owned()));
+                path.push(CheckedStructuralPredicatePathSegment::Case(case.clone()));
             }
             path.push(CheckedStructuralPredicatePathSegment::Field(
-                field.path_identity(),
+                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
             ));
             path
         };

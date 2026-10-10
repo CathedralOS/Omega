@@ -38,7 +38,7 @@ pub(super) fn admit<'a>(
     checked: &'a CheckedTrees,
     plans: UnitPlans<'a>,
     closure: &[SymbolHandle],
-    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>,
 ) -> Result<Vec<AdmittedBody<'a>>, LoweringError> {
     // Every body's computation roots use the same exact boundary roster; the
     // body's return shape must not decide whether a nested application can
@@ -72,7 +72,7 @@ pub(super) fn retain_call_boundaries<'a, 'o>(
     checked: &CheckedTrees,
     plans: UnitPlans<'a>,
     operations: impl IntoIterator<Item = &'o CheckedUnitEffectOperationPlan>,
-    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>,
 ) -> Result<(), LoweringError> {
     for operation in operations {
         for call in operation
@@ -95,7 +95,7 @@ fn retain_nested_boundary_applications<'a>(
     checked: &'a CheckedTrees,
     plans: UnitPlans<'a>,
     machine: SymbolHandle,
-    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>,
 ) -> Result<(), LoweringError> {
     let computations = &checked.facts.values.scalar_computations;
     let roots = computations

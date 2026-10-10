@@ -190,7 +190,7 @@ pub(super) fn append_contract_semantic_facts(
             } = source.payload
             {
                 *instantiated =
-                    facts.append_instantiated_expression(output.instantiated_identity.clone());
+                    facts.append_instantiated_expression(output.instantiated_label.clone());
             }
             let Some(evidence) = crate::facts::qualification_evidence::call_contract_evidence(
                 program,
@@ -244,7 +244,7 @@ pub(super) fn append_contract_semantic_facts(
                 inherited_scope: None,
             };
             let mut payload = semantic_contract_payload(program, &contract);
-            if let Some(identity) = &row.instantiated_identity {
+            if let Some(identity) = &row.instantiated_label {
                 let instantiated = facts.append_instantiated_expression(identity.clone());
                 match &mut payload {
                     FactPayload::ContractBooleanExpression {

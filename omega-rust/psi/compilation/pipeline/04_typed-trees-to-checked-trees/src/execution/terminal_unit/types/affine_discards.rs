@@ -15,11 +15,11 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     source_parameters: &[StateParameter],
     operations: &[CheckedUnitEffectOperationPlan],
     admitted_local_symbols: &[SymbolHandle],
-    structural_types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+    structural_types: &BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
 ) -> Option<(Vec<u32>, Vec<CheckedUnitPartialAffineDiscardPlan>, bool)> {
     let mut transferred_parameters = BTreeSet::new();
     let mut moved_parameter_paths =
-        BTreeMap::<u32, Vec<(Vec<CheckedUnitStructuralPathSegment>, String)>>::new();
+        BTreeMap::<u32, Vec<(Vec<CheckedUnitStructuralPathSegment>, typed_trees::type_identity::TypeIdentityId)>>::new();
     for operation in operations
         .iter()
         .flat_map(|operation| operation.with_value_calls())
@@ -36,7 +36,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
                         moved_parameter_paths
                             .entry(parameter_index)
                             .or_default()
-                            .push((argument.path.clone(), argument.type_identity.clone()));
+                            .push((argument.path.clone(), argument.type_identity));
                     }
                 }
             }
@@ -70,7 +70,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
             &CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: *parameter_index,
             },
-            &parameter.type_identity,
+            parameter.type_identity,
             moved_paths,
         )?;
         // Projections covering the whole root leave no complement.

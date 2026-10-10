@@ -34,7 +34,7 @@ pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
     /// loan every arrival forwards (`exclusive_handoffs`).
     pub(super) exclusive_handoffs: Vec<std::collections::BTreeSet<u32>>,
     pub(in crate::unit::attached_unit::composed_control) boundaries:
-        Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+        Vec<(&'a CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>,
 }
 
 pub(in crate::unit::attached_unit) fn admit<'a>(
@@ -342,7 +342,7 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
                             "Unit graph boundary has no normalized nominal owner",
                         ))?
                 };
-                if checked.type_identity_text(identity).unwrap_or_default() != *retained {
+                if identity != *retained {
                     return unsupported(
                         "Unit graph boundary attachment disagrees with its authored nominal identity",
                     );

@@ -775,7 +775,7 @@ pub(super) fn build_traced(
                 ))
             })
             .collect::<Option<Vec<_>>>()?;
-        checked_composed_provider_attachment_requirements(program, shapes, identity, &flows)?
+        checked_composed_provider_attachment_requirements(program, shapes, *identity, &flows)?
     } else {
         Vec::new()
     };

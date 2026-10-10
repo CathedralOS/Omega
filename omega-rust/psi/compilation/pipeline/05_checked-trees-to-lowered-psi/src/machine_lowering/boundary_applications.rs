@@ -123,7 +123,9 @@ pub(super) fn retain(
             NominalDeclarationIdentity::new(
                 checked.type_identity_text(declaration).unwrap_or_default(),
             )?,
-            application.requirement_identity.clone(),
+            checked
+                .typed
+                .callable_identity_text(application.requirement_identity),
             checked
                 .symbols
                 .symbol_package_identity(application.requirement_symbol),

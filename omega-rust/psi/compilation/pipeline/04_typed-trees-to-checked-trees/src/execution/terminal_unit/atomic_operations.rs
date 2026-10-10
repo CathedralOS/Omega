@@ -273,7 +273,7 @@ fn operand_row(
 struct AtomicPlace {
     parameter_index: u32,
     carrier_path: Vec<CheckedUnitStructuralPathSegment>,
-    field_identity: String,
+    field_identity: checked_trees::CheckedMemberIdentity,
     primitive_type: PrimitiveType,
 }
 

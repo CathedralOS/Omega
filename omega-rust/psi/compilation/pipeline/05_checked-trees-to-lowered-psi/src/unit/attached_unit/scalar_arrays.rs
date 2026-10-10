@@ -13,7 +13,7 @@ use checked_trees::CheckedUnitStructuralResultBindingPlan;
 pub(super) fn emit(
     result: &CheckedUnitStructuralResultBindingPlan,
     elements: &[ValueDeclaration],
-    types: &[(String, StructuralTypeId)],
+    types: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {

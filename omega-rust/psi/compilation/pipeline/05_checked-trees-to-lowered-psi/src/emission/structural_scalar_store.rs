@@ -139,7 +139,7 @@ pub(crate) fn source_range_decided(
 pub(crate) fn lower_structural_scalar_store_place(
     primitive_type: checked_trees::types::PrimitiveType,
     carrier_path: &[CheckedUnitStructuralPathSegment],
-    field_identity: &str,
+    field_identity: &checked_trees::CheckedMemberIdentity,
     parameter: &StructuralParameterDeclaration,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
@@ -160,7 +160,7 @@ pub(crate) fn lower_structural_scalar_store_place(
 pub(crate) fn lower_structural_scalar_store_local(
     primitive_type: checked_trees::types::PrimitiveType,
     carrier_path: &[CheckedUnitStructuralPathSegment],
-    field_identity: &str,
+    field_identity: &checked_trees::CheckedMemberIdentity,
     root_type: StructuralTypeId,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
@@ -175,7 +175,7 @@ pub(crate) fn lower_structural_scalar_store_local(
 /// carrier names no runtime element.
 pub(crate) fn lower_structural_field_place<'a>(
     carrier_path: &[CheckedUnitStructuralPathSegment],
-    field_identity: &str,
+    field_identity: &checked_trees::CheckedMemberIdentity,
     parameter: &StructuralParameterDeclaration,
     structural_types: &'a [StructuralTypeDeclaration],
 ) -> Result<
@@ -201,7 +201,7 @@ pub(crate) fn lower_structural_field_place<'a>(
 /// borrowed parameter independently of payload type.
 pub(crate) fn lower_structural_field_place_steps<'a>(
     carrier_path: &[CheckedUnitStructuralPathSegment],
-    field_identity: &str,
+    field_identity: &checked_trees::CheckedMemberIdentity,
     parameter: &StructuralParameterDeclaration,
     structural_types: &'a [StructuralTypeDeclaration],
 ) -> Result<
@@ -249,7 +249,7 @@ pub(crate) fn validate_root_access(
 pub(crate) fn lower_structural_field_path<'a>(
     root_type: StructuralTypeId,
     carrier_path: &[CheckedUnitStructuralPathSegment],
-    field_identity: &str,
+    field_identity: &checked_trees::CheckedMemberIdentity,
     structural_types: &'a [StructuralTypeDeclaration],
 ) -> Result<
     (
@@ -299,7 +299,7 @@ fn structural_field_root(
 pub(crate) fn lower_structural_field_steps<'a>(
     root_type: StructuralTypeId,
     carrier_path: &[CheckedUnitStructuralPathSegment],
-    field_identity: &str,
+    field_identity: &checked_trees::CheckedMemberIdentity,
     structural_types: &'a [StructuralTypeDeclaration],
 ) -> Result<
     (
@@ -320,7 +320,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
             else {
                 return unsupported("field path case owner is not a sum");
             };
-            let mut matching = cases.iter().filter(|case| case.identity == *identity);
+            let mut matching = cases.iter().filter(|case| case.identity == identity.spelling());
             let selected = matching
                 .next()
                 .ok_or(LoweringError::Unsupported("field path case is absent"))?;
@@ -339,7 +339,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
             return unsupported("field path case must select a payload field");
         }
         let nested = match segment {
-            CheckedUnitStructuralPathSegment::Field(identity) if !identity.is_empty() => {
+            CheckedUnitStructuralPathSegment::Field(identity) if identity.is_valid() => {
                 let fields = match payload_fields.take() {
                     Some(fields) => fields,
                     None => field_owner
@@ -352,7 +352,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
                 let carriers = fields
                     .iter()
                     .filter(|field| {
-                        field.identity == *identity
+                        field.identity == identity.spelling()
                             && !field.relevance.is_erased()
                             && matches!(field.field_type, StructuralFieldType::Structural(_))
                     })
@@ -364,7 +364,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
                     unreachable!("carrier shape was checked above")
                 };
                 steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
-                    identity.clone(),
+                    identity.spelling(),
                 )));
                 nested
             }
@@ -393,7 +393,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
     };
     let matching = fields
         .iter()
-        .filter(|field| field.identity == field_identity && !field.relevance.is_erased())
+        .filter(|field| field.identity == field_identity.spelling() && !field.relevance.is_erased())
         .collect::<Vec<_>>();
     let [field] = matching.as_slice() else {
         return unsupported("structural scalar store field is absent or ambiguous");
@@ -464,7 +464,7 @@ pub(crate) fn lower_window_path<'a>(
     while let Some((segment, rest)) = cursor.split_first() {
         cursor = rest;
         match segment {
-            CheckedUnitStructuralPathSegment::Field(identity) if !identity.is_empty() => {
+            CheckedUnitStructuralPathSegment::Field(identity) if identity.is_valid() => {
                 let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &field_owner.shape
                 else {
                     return unsupported("structural window carrier is not a record");
@@ -473,7 +473,7 @@ pub(crate) fn lower_window_path<'a>(
                     // The leaf resolves by identity alone: a scalar leaf is a
                     // window the caller rejects on the leaf's declared type.
                     let mut leafs = fields.iter().filter(|field| {
-                        field.identity == *identity && !field.relevance.is_erased()
+                        field.identity == identity.spelling() && !field.relevance.is_erased()
                     });
                     let leaf = leafs.next();
                     if leaf.is_none() || leafs.next().is_some() {
@@ -482,7 +482,7 @@ pub(crate) fn lower_window_path<'a>(
                     return Ok((steps, WindowLeaf::Field(leaf.expect("leaf checked above"))));
                 }
                 let mut carriers = fields.iter().filter(|field| {
-                    field.identity == *identity
+                    field.identity == identity.spelling()
                         && !field.relevance.is_erased()
                         && matches!(field.field_type, StructuralFieldType::Structural(_))
                 });
@@ -492,7 +492,7 @@ pub(crate) fn lower_window_path<'a>(
                 }
                 let carrier = carrier.expect("carrier presence was checked above");
                 steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
-                    identity.clone(),
+                    identity.spelling(),
                 )));
                 let Some(nested) = carrier.field_type.as_structural() else {
                     unreachable!("carrier shape was checked above")

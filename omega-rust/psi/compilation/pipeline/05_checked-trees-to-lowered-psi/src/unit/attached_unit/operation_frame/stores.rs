@@ -132,7 +132,7 @@ impl OperationFrame<'_, '_> {
                         }
                     }
                 };
-                let place = window_place(source, &store.destination.path, type_identity.clone());
+                let place = window_place(source, &store.destination.path, *type_identity);
                 self.store_structural_field(store.statement_index, &place, *opening_binding, value)
             }
             CheckedStoreLeaf::LocalRebind { type_identity } => {
@@ -144,7 +144,7 @@ impl OperationFrame<'_, '_> {
                 if !store.destination.path.is_empty() {
                     return unsupported("owned rebind destination is not its whole local");
                 }
-                self.rebind_structural_local(store.statement_index, symbol, type_identity, value)
+                self.rebind_structural_local(store.statement_index, symbol, *type_identity, value)
             }
         }
     }
@@ -891,7 +891,7 @@ impl OperationFrame<'_, '_> {
         statement_index: u32,
         value: &CheckedScalarStoreValue,
         primitive_type: checked_trees::types::PrimitiveType,
-        field_identity: &str,
+        field_identity: &checked_trees::CheckedMemberIdentity,
     ) -> Result<ValueDeclaration, LoweringError> {
         self.evaluation.field_assignment_value(
             self.checked,
@@ -992,7 +992,7 @@ impl OperationFrame<'_, '_> {
                 return unsupported("sum field store holds no sum value");
             }
         };
-        let hole = window_place(source, &store.destination.path, type_identity.clone());
+        let hole = window_place(source, &store.destination.path, type_identity);
         require_parameter_window_root(self.parameters, &hole, self.evaluation)?;
         let moved = self.emit_window_move(
             store.statement_index,
@@ -1101,7 +1101,7 @@ impl OperationFrame<'_, '_> {
             ),
             _ => return unsupported("case literal field store has a non-sum shape"),
         };
-        let case = terminal_psi::structural_case_by_identity(&cases, &literal.case_identity)
+        let case = terminal_psi::structural_case_by_identity(&cases, &literal.case_identity.spelling())
             .ok_or(LoweringError::Unsupported(
                 "case literal field store case declaration missing",
             ))?;
@@ -1125,7 +1125,7 @@ impl OperationFrame<'_, '_> {
             let (position, target) = shape_fields
                 .iter()
                 .enumerate()
-                .find(|(_, candidate)| candidate.identity == field_plan.field_identity)
+                .find(|(_, candidate)| candidate.identity == field_plan.field_identity.spelling())
                 .ok_or(LoweringError::Unsupported(
                     "case literal field store field identity missing",
                 ))?;

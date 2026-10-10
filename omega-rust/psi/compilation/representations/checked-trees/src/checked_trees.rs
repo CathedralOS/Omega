@@ -151,7 +151,7 @@ pub use flow::{
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
-    CheckedUnitStructuralReturnPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
+    CheckedMemberIdentity, CheckedUnitStructuralReturnPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
     FlowBorrowActivationFact, FlowBorrowLifetimeFacts, FlowBorrowWeakeningFact,
     FlowBorrowWeakeningReason, FlowBoundaryEdgeFact, FlowBoundaryFacts, FlowCallDispatchRole,
     FlowCallFact, FlowCallResult, FlowCallSite, FlowCaseAccessFact, FlowClaimJoinAlternative,

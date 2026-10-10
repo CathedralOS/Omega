@@ -47,9 +47,10 @@ impl Emission<'_, '_, '_> {
                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
                     ) =>
             {
-                bindings.primitive_borrow(source, scalar_type, self.structural_types)?
+                bindings.primitive_borrow(self.checked, source, scalar_type, self.structural_types)?
             }
             _ => bindings.borrowed_structural_argument(
+                self.checked,
                 source,
                 machine,
                 self.checked.state_parameters(state),

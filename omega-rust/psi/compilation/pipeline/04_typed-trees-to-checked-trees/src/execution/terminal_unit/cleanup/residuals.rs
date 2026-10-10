@@ -15,15 +15,15 @@ use super::{
 };
 
 pub(super) fn reconstruct(
-    types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+    types: &BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
-    root_type: &str,
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    root_type: typed_trees::type_identity::TypeIdentityId,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], typed_trees::type_identity::TypeIdentityId)],
     max_residuals: usize,
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
     let borrowed = types
         .iter()
-        .map(|(identity, plan)| (identity.as_str(), plan))
+        .map(|(identity, plan)| (*identity, plan))
         .collect();
     validation::reconstruct(
         &borrowed,

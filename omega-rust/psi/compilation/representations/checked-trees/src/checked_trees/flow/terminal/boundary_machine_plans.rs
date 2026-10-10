@@ -8,6 +8,8 @@ use crate::checked_trees::flow::terminal::{
 use language_semantics::{Multiplicity, SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
+use typed_trees::type_identity::TypeIdentityId;
+use crate::checked_trees::CheckedMemberIdentity;
 
 /// Exact result role of one bodyless boundary declaration. Unit, primitive,
 /// and structural results are distinct identities; an absent result is never
@@ -17,7 +19,7 @@ pub enum CheckedBoundaryMachineResultPlan {
     Unit,
     Scalar(PrimitiveType),
     Structural {
-        type_identity: String,
+        type_identity: TypeIdentityId,
         multiplicity: Multiplicity,
         qualifications: Vec<SemanticDomainId>,
     },
@@ -35,9 +37,9 @@ impl CheckedBoundaryMachineResultPlan {
         matches!(self, Self::Unit)
     }
 
-    pub fn structural_identity(&self) -> Option<&str> {
+    pub fn structural_identity(&self) -> Option<TypeIdentityId> {
         match self {
-            Self::Structural { type_identity, .. } => Some(type_identity),
+            Self::Structural { type_identity, .. } => Some(*type_identity),
             Self::Unit | Self::Scalar(_) => None,
         }
     }
@@ -45,8 +47,8 @@ impl CheckedBoundaryMachineResultPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedProviderAttachmentRequirementPlan {
-    pub field_identity: String,
-    pub provider_type_identity: String,
+    pub field_identity: CheckedMemberIdentity,
+    pub provider_type_identity: TypeIdentityId,
     pub boundary: SymbolHandle,
 }
 
@@ -73,7 +75,7 @@ pub struct CheckedBoundaryMachinePlan {
     pub contract_owner: SymbolHandle,
     /// Present for a bodyless attached boundary declaration; absent for a
     /// static boundary-trait requirement, which has no runtime provider value.
-    pub attachment_type_identity: Option<String>,
+    pub attachment_type_identity: Option<TypeIdentityId>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Primitive parameters in authored order after removing structural
     /// parameters into their independent custody namespace.

@@ -12,17 +12,19 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitStructuralParameterPlan,
 };
 use symbols::SymbolHandle;
+use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::type_identity::CallableIdentityId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedDynamicSlotPlan {
     /// The slot symbol selector calls target.
     pub slot: SymbolHandle,
     /// Normalized identity of the selector type (`dyn Shape<Item>`).
-    pub interface_identity: String,
+    pub interface_identity: TypeIdentityId,
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
     /// Normalized requirement identity, the key of the slot's table row.
-    pub requirement_identity: String,
+    pub requirement_identity: CallableIdentityId,
     /// Structural formals after the selector, positioned in the call's
     /// operand order (the selector is operand 0).
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,

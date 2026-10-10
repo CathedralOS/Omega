@@ -928,6 +928,7 @@ impl Evaluation {
         });
         let states = expansion.finish();
         self.single_completed_expansion(
+            checked,
             &states,
             entry,
             result_type,

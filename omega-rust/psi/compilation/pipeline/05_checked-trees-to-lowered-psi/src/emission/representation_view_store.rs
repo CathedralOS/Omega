@@ -111,7 +111,7 @@ pub(crate) fn emit(
             };
             let mut matching = fields
                 .iter()
-                .filter(|field| field.identity == *identity && !field.relevance.is_erased());
+                .filter(|field| field.identity == identity.spelling() && !field.relevance.is_erased());
             let field = matching.next().ok_or(LoweringError::Unsupported(
                 "representation view store leaf is absent",
             ))?;
@@ -584,7 +584,7 @@ fn walk_carrier_prefix<'a>(
                 };
                 let mut matching = fields
                     .iter()
-                    .filter(|field| field.identity == *identity && !field.relevance.is_erased());
+                    .filter(|field| field.identity == identity.spelling() && !field.relevance.is_erased());
                 let field = matching.next().ok_or(LoweringError::Unsupported(
                     "representation view store carrier field is absent",
                 ))?;
@@ -592,7 +592,7 @@ fn walk_carrier_prefix<'a>(
                     return unsupported("representation view store carrier field is ambiguous");
                 }
                 steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
-                    identity.clone(),
+                    identity.spelling(),
                 )));
                 walked = match &field.field_type {
                     StructuralFieldType::Structural(nested) => Walked::Type(*nested),

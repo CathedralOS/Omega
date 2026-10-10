@@ -7,6 +7,8 @@ use crate::checked_trees::flow::terminal::{
 };
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
+use typed_trees::type_identity::TypeIdentityId;
+use crate::checked_trees::CheckedMemberIdentity;
 
 /// Conditions and their paths share the ordinary Unit plan's storage namespace.
 /// They are control dependencies, not permission to dispose a payload. A nested
@@ -20,8 +22,8 @@ pub struct CheckedCleanupControlPlans {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedCleanupCaseCondition {
     pub path: arena::HandleSpan<CheckedUnitStructuralPathSegment>,
-    pub type_identity: String,
-    pub case_identity: String,
+    pub type_identity: TypeIdentityId,
+    pub case_identity: CheckedMemberIdentity,
 }
 
 /// One claim-free affine structural place disposed on the normal edge selected
@@ -33,7 +35,7 @@ pub struct CheckedCleanupCaseCondition {
 pub struct CheckedUnitPartialAffineDiscardPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub path: Vec<CheckedUnitStructuralPathSegment>,
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
     /// Conditions in `CheckedUnitEffectPlans::cleanup_control`. A guarded
     /// whole-region discard disposes only the selected alternative; it must
     /// not intrinsically retire the home needed by other cleanup branches.
@@ -47,7 +49,7 @@ impl Default for CheckedUnitPartialAffineDiscardPlan {
                 expression: arena::Handle::invalid(),
             },
             path: Vec::new(),
-            type_identity: String::new(),
+            type_identity: TypeIdentityId::default(),
             case_conditions: Default::default(),
         }
     }
@@ -123,7 +125,7 @@ pub struct CheckedNominalAffineUnitCleanupMachinePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitNominalAffineCallerRequirementPlan {
     pub source_parameter_index: u32,
-    pub field_identity: String,
+    pub field_identity: CheckedMemberIdentity,
     pub expected: bool,
 }
 
@@ -134,7 +136,7 @@ pub struct CheckedUnitNominalAffineCallerRequirementPlan {
 pub struct CheckedUnitNominalAffineCleanupPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub path: Vec<CheckedUnitStructuralPathSegment>,
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
     pub cleanup_machine: SymbolHandle,
     pub cleanup_state: SymbolHandle,
     pub cleanup_contract_report_fingerprint: u64,
@@ -150,7 +152,7 @@ pub struct CheckedUnitNominalAffineCleanupPlan {
 pub struct CheckedUnitNominalAffineCleanupRequirementPlan {
     /// Normalized declaration identity, using the same `#identity`/name
     /// convention as [`CheckedUnitStructuralFieldPlan::identity`].
-    pub field_identity: String,
+    pub field_identity: CheckedMemberIdentity,
     pub expected: bool,
 }
 
@@ -214,7 +216,7 @@ pub enum CheckedNormalCleanupAction {
     /// a replacement ends the old field value while retaining its parent.
     RetireHome {
         source: CheckedUnitStructuralArgumentSourcePlan,
-        type_identity: String,
+        type_identity: TypeIdentityId,
     },
 }
 
@@ -247,11 +249,11 @@ impl CheckedNormalCleanupAction {
         }
     }
 
-    pub fn type_identity(&self) -> &str {
+    pub fn type_identity(&self) -> TypeIdentityId {
         match self {
-            Self::Discard(discard) => &discard.type_identity,
-            Self::InvokeNominal(cleanup) => &cleanup.type_identity,
-            Self::RetireHome { type_identity, .. } => type_identity,
+            Self::Discard(discard) => discard.type_identity,
+            Self::InvokeNominal(cleanup) => cleanup.type_identity,
+            Self::RetireHome { type_identity, .. } => *type_identity,
         }
     }
     pub fn source(&self) -> &CheckedUnitStructuralArgumentSourcePlan {

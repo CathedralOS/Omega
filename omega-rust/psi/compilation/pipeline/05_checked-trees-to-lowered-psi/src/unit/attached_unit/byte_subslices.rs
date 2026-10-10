@@ -64,7 +64,7 @@ fn locate<'a>(
 pub(super) struct StagingContext<'a> {
     pub(super) state: symbols::SymbolHandle,
     pub(super) structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
-    pub(super) type_ids: &'a [(String, StructuralTypeId)],
+    pub(super) type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     /// The scalar namespace the call's authored operands read.
     pub(super) bindings: &'a ScalarBindings,
 }

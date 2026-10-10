@@ -68,9 +68,9 @@ impl emission::Emission<'_, '_, '_> {
             let checked_trees::data::DataMember::Variant(variant) = member else {
                 continue;
             };
-            let identity = variant.path_identity();
+            let identity = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
             if variant.symbol == case_symbol {
-                let case = terminal_psi::structural_case_by_identity(&cases, &identity)
+                let case = terminal_psi::structural_case_by_identity(&cases, &identity.spelling())
                     .ok_or(LoweringError::Unsupported("case declaration is absent"))?;
                 selected = Some((variant, case.clone()));
             }
@@ -109,10 +109,10 @@ impl emission::Emission<'_, '_, '_> {
                     0..common.len(),
                 ),
             };
-            let identity = declaration.path_identity();
+            let identity = checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone());
             let position = shape_fields[roster.clone()]
                 .iter()
-                .position(|candidate| candidate.identity == identity)
+                .position(|candidate| candidate.identity == identity.spelling())
                 .map(|offset| roster.start + offset)
                 .ok_or(LoweringError::Unsupported("case field identity missing"))?;
             let target = &shape_fields[position];

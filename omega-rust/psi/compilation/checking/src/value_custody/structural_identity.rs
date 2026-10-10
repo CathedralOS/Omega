@@ -93,6 +93,25 @@ pub fn structural_type_identity(
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+ ) -> typed_trees::type_identity::TypeIdentityId {
+    program.type_identity(TypeIdentityRequest {
+        binders,
+        substitutions,
+        ..TypeIdentityRequest::ordinary(structural_identity_type(
+            program,
+            type_reference,
+            substitutions,
+        ))
+    })
+}
+
+/// The canonical spelling of the same structural identity, for diagnostics
+/// and boundary payloads that still carry text.
+pub fn structural_type_identity_text(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> String {
     program.type_identity_request_text(TypeIdentityRequest {
         binders,
@@ -128,9 +147,9 @@ pub fn stored_structural_type_identity(
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> String {
+) -> typed_trees::type_identity::TypeIdentityId {
     if stores_reference_shape(program, type_reference, substitutions) {
-        return program.type_identity_request_text(TypeIdentityRequest {
+        return program.type_identity(TypeIdentityRequest {
             binders,
             substitutions,
             ..TypeIdentityRequest::ordinary(type_reference)

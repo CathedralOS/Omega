@@ -82,7 +82,7 @@ pub(super) fn lower(
     checked: &CheckedTrees,
     bodies: &[AdmittedBody<'_>],
     qualifications: &PreparedScalarQualifications,
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,

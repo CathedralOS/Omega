@@ -29,7 +29,7 @@ impl Emission<'_, '_, '_> {
                     | CheckedUnitStructuralPathSegment::FixedIndex(_)
             )
         }) {
-            return bindings.shared_structural_argument(source, authored.0, parameters);
+            return bindings.shared_structural_argument(self.checked, source, authored.0, parameters);
         }
         let home = bindings.borrowed_structural_home(source, authored.0, parameters)?;
         let root = bindings
@@ -39,6 +39,7 @@ impl Emission<'_, '_, '_> {
             ))?;
         let mut prepared =
             crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+                self.checked,
                 source,
                 root,
                 bindings.structural_declarations(),

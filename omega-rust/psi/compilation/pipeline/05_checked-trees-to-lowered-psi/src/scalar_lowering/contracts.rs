@@ -153,13 +153,16 @@ pub(crate) fn erased_formal_declarations(
 /// authored order. Proof formals carry their semantic type identity rather
 /// than a scalar type or value id — they never name a runtime operand.
 pub(crate) fn erased_proof_formal_declarations(
+    checked: &CheckedTrees,
     erased: &[CheckedErasedProofParameterPlan],
 ) -> Vec<ErasedProofFormal> {
     erased
         .iter()
         .map(|parameter| ErasedProofFormal {
             source_position: parameter.source_position,
-            type_identity: parameter.type_identity.clone(),
+            type_identity: checked
+                .type_identity_text(parameter.type_identity)
+                .unwrap_or_default(),
         })
         .collect()
 }
@@ -172,7 +175,7 @@ pub(crate) fn erased_proof_formal_declarations(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredProofTerm {
     Construction {
-        type_identity: String,
+        type_identity: typed_trees::type_identity::TypeIdentityId,
         case_identity: Option<String>,
         fields: Vec<LoweredProofTermField>,
     },
@@ -208,7 +211,7 @@ pub(crate) fn checked_proof_term(
             case_symbol,
             fields,
         } => Ok(LoweredProofTerm::Construction {
-            type_identity: type_identity.clone(),
+            type_identity: *type_identity,
             case_identity: case_symbol.map(|symbol| checked.symbols.display_path(symbol, "::")),
             fields: fields
                 .iter()
@@ -254,6 +257,7 @@ pub(crate) fn checked_proof_term(
 /// declarations — the namespaces `ErasedParameter`/`Parameter`/`Local`
 /// positions inside scalar leaves index.
 pub(crate) fn lowered_proof_term(
+    checked: &CheckedTrees,
     term: &LoweredProofTerm,
     values: &[ValueDeclaration],
     erased: &[ValueDeclaration],
@@ -264,14 +268,14 @@ pub(crate) fn lowered_proof_term(
             case_identity,
             fields,
         } => Ok(ProofTerm::Construction {
-            type_identity: type_identity.clone(),
+            type_identity: checked.type_identity_text(*type_identity).unwrap_or_default(),
             case_identity: case_identity.clone(),
             fields: fields
                 .iter()
                 .map(|field| {
                     Ok(ProofTermField {
                         field_identity: field.field_identity.clone(),
-                        term: lowered_proof_term(&field.term, values, erased)?,
+                        term: lowered_proof_term(checked, &field.term, values, erased)?,
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?,

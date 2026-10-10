@@ -126,13 +126,13 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
             PackageReviewBooleanExpression::PayloadlessSumEqual {
                 left: project_structural_field(left),
                 right: project_structural_field(right),
-                cases: cases.clone(),
+                cases: cases.iter().map(|case| case.spelling()).collect(),
             }
         }
         CheckedBooleanExpression::StructuralCaseMembership { subject, case } => {
             PackageReviewBooleanExpression::StructuralCaseMembership {
                 subject: project_structural_field(&subject.parameter_field()?),
-                case: case.clone(),
+                case: case.spelling(),
             }
         }
         CheckedBooleanExpression::And { left, right } => PackageReviewBooleanExpression::And {
@@ -345,10 +345,10 @@ fn project_structural_path(
     path.iter()
         .map(|segment| match segment {
             checked_trees::CheckedStructuralPredicatePathSegment::Field(field) => {
-                PackageReviewStructuralPredicatePathSegment::Field(field.clone())
+                PackageReviewStructuralPredicatePathSegment::Field(field.spelling())
             }
             checked_trees::CheckedStructuralPredicatePathSegment::Case(case) => {
-                PackageReviewStructuralPredicatePathSegment::Case(case.clone())
+                PackageReviewStructuralPredicatePathSegment::Case(case.spelling())
             }
             checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) => {
                 PackageReviewStructuralPredicatePathSegment::FixedIndex(*element_index)

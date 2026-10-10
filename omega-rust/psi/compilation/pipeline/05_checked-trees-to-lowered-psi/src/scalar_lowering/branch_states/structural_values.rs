@@ -254,7 +254,14 @@ fn carrier_declaration<'types>(
     types: &'types [StructuralTypeDeclaration],
     reference: checked_trees::types::TypeReferenceHandle,
 ) -> Result<&'types StructuralTypeDeclaration, LoweringError> {
-    let identity = validation::stored_structural_type_identity(&checked.typed, reference, &[], &[]);
+    let identity = checked
+        .type_identity_text(validation::stored_structural_type_identity(
+            &checked.typed,
+            reference,
+            &[],
+            &[],
+        ))
+        .unwrap_or_default();
     let mut declarations = types
         .iter()
         .filter(|declaration| declaration.identity == identity);
@@ -597,7 +604,14 @@ impl Preparation<'_> {
                         "aggregate selected a foreign case",
                     ))?;
                 let selected =
-                    terminal_psi::structural_case_by_identity(cases, &variant.path_identity())
+                    terminal_psi::structural_case_by_identity(
+                        cases,
+                        &checked_trees::CheckedMemberIdentity::of_member(
+                            variant.identity,
+                            variant.name.clone(),
+                        )
+                        .spelling(),
+                    )
                         .ok_or(LoweringError::Unsupported(
                             "aggregate case declaration is absent",
                         ))?;
@@ -623,7 +637,7 @@ impl Preparation<'_> {
                 .iter()
                 .find_map(|member| match member {
                     checked_trees::data::DataMember::Field(field)
-                        if field.path_identity() == target.identity =>
+                        if checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()).spelling() == target.identity =>
                     {
                         Some(field)
                     }
@@ -644,7 +658,7 @@ impl Preparation<'_> {
                     .checked
                     .data_payload_fields(variant)
                     .iter()
-                    .find(|field| field.path_identity() == target.identity)
+                    .find(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()).spelling() == target.identity)
                     .ok_or(LoweringError::Unsupported(
                         "aggregate payload field declaration is absent",
                     ))?;

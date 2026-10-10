@@ -85,12 +85,12 @@ pub(super) fn is_empty(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let moved = moved
         .iter()
-        .map(|(path, identity)| (path.as_slice(), identity.as_str()))
+        .map(|(path, identity)| (path.as_slice(), *identity))
         .collect::<Vec<_>>();
     Ok(complement(
         &checked.facts.flow.terminal_unit_effects.structural_types,
         &CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
-        &root_identity,
+        root_identity,
         &moved,
     )?
     .is_empty())
@@ -100,12 +100,12 @@ pub(super) fn is_empty(
 pub(super) fn complement(
     types: &[CheckedUnitStructuralTypePlan],
     source: &CheckedUnitStructuralArgumentSourcePlan,
-    root_type: &str,
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    root_type: typed_trees::type_identity::TypeIdentityId,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], typed_trees::type_identity::TypeIdentityId)],
 ) -> Result<Vec<CheckedUnitPartialAffineDiscardPlan>, LoweringError> {
     let borrowed = types
         .iter()
-        .map(|declaration| (declaration.identity.as_str(), declaration))
+        .map(|declaration| (declaration.identity, declaration))
         .collect();
     validation::reconstruct(
         &borrowed,

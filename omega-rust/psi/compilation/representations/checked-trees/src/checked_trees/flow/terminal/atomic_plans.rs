@@ -20,6 +20,7 @@ use crate::checked_trees::flow::terminal::{
 };
 use language_core::atomic::MemoryOrdering;
 use typed_trees::types::PrimitiveType;
+use crate::checked_trees::CheckedMemberIdentity;
 
 /// The fetch-family arithmetic a read-modify-write applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -103,7 +104,7 @@ pub struct CheckedAtomicAccessPlan {
     /// record holding the atomic field.
     pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
     /// The atomic field's Terminal identity within that record.
-    pub field_identity: String,
+    pub field_identity: CheckedMemberIdentity,
     /// The field's carrier, which every operand and the result share.
     pub primitive_type: PrimitiveType,
     pub event: CheckedAtomicEvent,

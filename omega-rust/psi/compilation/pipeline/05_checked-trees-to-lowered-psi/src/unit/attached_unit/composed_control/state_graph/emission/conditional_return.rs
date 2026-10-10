@@ -146,6 +146,7 @@ impl StateGraphEmission<'_, '_> {
                     match result {
                         checked_trees::CheckedUnitCallResult::Structural { .. } => {
                             super::super::guarded::complete_structural_return(
+                                self.checked,
                                 state,
                                 super::super::cleanup::coordinate(
                                     state,
@@ -253,6 +254,7 @@ impl StateGraphEmission<'_, '_> {
                     ))?;
             let exit = super::super::cleanup::coordinate(state, statement_ordinal as usize, false)?;
             let mut regions = super::super::cleanup::for_exit_regions(
+            checked,
                 state,
                 exit,
                 self.catalogs,
@@ -268,6 +270,7 @@ impl StateGraphEmission<'_, '_> {
                 )).collect::<Vec<_>>();
             regions.splice(0..0, temporary_discards);
             let selected_cleanup = arm_evaluation.emit_cleanup_regions(
+                self.checked,
                 regions, &mut arm_values, next_value, next_block, next_edge, operations,
             )?;
             match &mut terminator {

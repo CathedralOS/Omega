@@ -54,14 +54,14 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
 }
 
 pub(crate) fn partial_affine_residuals(
-    types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+    types: &BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
-    root_type: &str,
-    moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, String)],
+    root_type: typed_trees::type_identity::TypeIdentityId,
+    moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, typed_trees::type_identity::TypeIdentityId)],
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
     let borrowed = moved_paths
         .iter()
-        .map(|(path, moved_type)| (path.as_slice(), moved_type.as_str()))
+        .map(|(path, moved_type)| (path.as_slice(), *moved_type))
         .collect::<Vec<_>>();
     residuals::reconstruct(types, source, root_type, &borrowed, usize::MAX)
 }

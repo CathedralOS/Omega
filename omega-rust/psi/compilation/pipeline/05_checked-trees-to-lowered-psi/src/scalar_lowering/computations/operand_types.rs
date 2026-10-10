@@ -10,7 +10,7 @@ use checked_trees::{
 pub(crate) fn type_roots(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-) -> Result<Vec<String>, LoweringError> {
+) -> Result<Vec<typed_trees::type_identity::TypeIdentityId>, LoweringError> {
     let mut types = super::cases::type_roots(checked, &[machine])?;
     types.extend(super::fields::type_roots(checked, machine)?);
     let plans = &checked.facts.values.scalar_computations;
@@ -28,8 +28,8 @@ pub(crate) fn type_roots(
                     ))?
                 {
                     if let Argument::Place(subject) = argument {
-                        types.push(subject.type_identity.clone());
-                        types.extend(subject.borrowed_root_type_identity().map(str::to_owned));
+                        types.push(subject.type_identity);
+                        types.extend(subject.borrowed_root_type_identity());
                     }
                 }
             }
@@ -39,7 +39,7 @@ pub(crate) fn type_roots(
                 subject: Argument::Place(subject),
                 ..
             } => {
-                types.push(subject.type_identity.clone());
+                types.push(subject.type_identity);
             }
             _ => {}
         }

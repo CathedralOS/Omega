@@ -103,7 +103,7 @@ pub(crate) fn build_checked_proposition_vocabulary(
                         typed_trees::proposition::PropositionBinderKind::Const {
                             type_reference,
                         } => checked_trees::CheckedPropositionBinderKind::Const {
-                            type_identity: program.display_type_reference(type_reference),
+                            type_identity: program.normalized_type_identity(type_reference),
                         },
                         typed_trees::proposition::PropositionBinderKind::Machine => {
                             checked_trees::CheckedPropositionBinderKind::Machine
@@ -166,7 +166,7 @@ pub(crate) fn lower_checked_proposition_application(
                         checked_trees::CheckedPropositionBinderArgumentKind::Machine
                     }
                 },
-                identity: argument.identity,
+                diagnostic_label: argument.identity,
                 evidence_projection: None,
             })
             .collect(),

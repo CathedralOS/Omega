@@ -120,7 +120,7 @@ fn select(
                             .iter()
                             .find_map(|member| match member {
                                 DataMember::Variant(variant)
-                                    if variant.path_identity() == *case =>
+                                    if checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()) == *case =>
                                 {
                                     Some(variant)
                                 }
@@ -132,7 +132,7 @@ fn select(
                     program
                         .data_payload_fields(variant)
                         .iter()
-                        .find(|declaration| declaration.path_identity() == *field)?;
+                        .find(|declaration| checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone()) == *field)?;
                     let actual =
                         program
                             .data_members(data)
@@ -158,13 +158,13 @@ fn select(
                 program
                     .data_payload_fields(variant)
                     .iter()
-                    .find(|field| field.path_identity() == *field_identity)?
+                    .find(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *field_identity)?
             } else {
                 program
                     .data_members(data)
                     .iter()
                     .find_map(|member| match member {
-                        DataMember::Field(field) if field.path_identity() == *field_identity => {
+                        DataMember::Field(field) if checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *field_identity => {
                             Some(field)
                         }
                         _ => None,

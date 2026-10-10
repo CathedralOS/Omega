@@ -473,6 +473,7 @@ impl Expansion<'_> {
                     structural_arguments,
                     claim_transfers:
                         crate::emission::claim_bindings::prepare_checked_claim_transfers(
+                            self.checked,
                             &claim_transfers,
                             parameters,
                             self.structural_types,
@@ -493,7 +494,7 @@ impl Expansion<'_> {
                 arguments: scalar_actuals,
                 structural_arguments,
                 completion_receipts: crate::emission::claim_bindings::prepare_checked_claim_transfers(
-                    &claim_transfers, parameters, self.structural_types,
+                    self.checked, &claim_transfers, parameters, self.structural_types,
                 )?,
             })
         } else {
@@ -708,6 +709,7 @@ impl Expansion<'_> {
                     None, &mut std::iter::empty(), None,
                 )?;
                 let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
+                    self.checked,
                     &self
                         .checked
                         .facts
@@ -726,7 +728,10 @@ impl Expansion<'_> {
                 )?;
                 let structural_type = terminal_psi::structural_type_by_identity(
                     self.structural_types,
-                    action.type_identity(),
+                    &self
+                        .checked
+                        .type_identity_text(action.type_identity())
+                        .unwrap_or_default(),
                 )
                 .map(|declaration| declaration.id)
                 .ok_or(LoweringError::Unsupported(

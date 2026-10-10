@@ -139,8 +139,8 @@ pub(crate) fn fixed_array_slice_view_is_admitted(
     else {
         return false;
     };
-    program.normalized_type_identity_text(*element_type)
-        == program.normalized_type_identity_text(*target_element)
+    program.normalized_type_identity(*element_type)
+        == program.normalized_type_identity(*target_element)
         && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
 }
 

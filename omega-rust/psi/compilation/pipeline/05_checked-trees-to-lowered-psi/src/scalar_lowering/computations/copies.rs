@@ -79,7 +79,12 @@ pub(crate) fn prepare(
                 continue;
             }
             let declaration =
-                terminal_psi::structural_type_by_identity(types, &argument.type_identity).ok_or(
+                terminal_psi::structural_type_by_identity(
+                    types,
+                    &checked
+                        .type_identity_text(argument.type_identity)
+                        .unwrap_or_default(),
+                ).ok_or(
                     LoweringError::Unsupported("computed copy has no structural type namespace"),
                 )?;
             if let Some(existing) = slots.iter().find(|slot| {

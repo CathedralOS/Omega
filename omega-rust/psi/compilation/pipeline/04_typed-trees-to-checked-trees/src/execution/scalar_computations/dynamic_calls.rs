@@ -55,7 +55,7 @@ impl Builder<'_, '_> {
                     selector,
                     slot: slot.symbol,
                     requirement: slot.requirement,
-                    interface_identity: slot.interface_identity.clone(),
+                    interface_identity: slot.interface_identity,
                 },
                 call_ordinal,
                 arguments,

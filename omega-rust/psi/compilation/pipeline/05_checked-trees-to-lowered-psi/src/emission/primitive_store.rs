@@ -192,7 +192,7 @@ pub(crate) fn lower_path(
         // carrier walk (including its bounds), then query read-only leaf typing.
         let (steps, _) = walk_path(structural_type, carrier, types)?;
         let mut path = super::runtime_elements::static_segments(steps)?;
-        path.push(terminal_psi::StructuralPathSegment::Field(identity.clone()));
+        path.push(terminal_psi::StructuralPathSegment::Field(identity.spelling()));
         let scalar_type = terminal_semantics::primitive_read_projection_type(
             types.iter(),
             structural_type,
@@ -237,7 +237,7 @@ pub(crate) fn indexed_element_scalar_type(
             .ok_or(LoweringError::Unsupported(
                 "indexed field carrier has no directly addressed fields",
             ))?;
-        let mut matching = fields.iter().filter(|field| field.identity == *identity);
+        let mut matching = fields.iter().filter(|field| field.identity == identity.spelling());
         let (Some(field), None) = (matching.next(), matching.next()) else {
             return unsupported("indexed field is absent or ambiguous");
         };
@@ -327,7 +327,7 @@ fn walk_path(
                 CheckedUnitStructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields, .. },
             ) => {
-                let Some(field) = live_field(fields, identity) else {
+                let Some(field) = live_field(fields, &identity.spelling()) else {
                     return unsupported("primitive projection field is erased or ambiguous");
                 };
                 result.push(ProjectionStep::Static(Segment::Field(

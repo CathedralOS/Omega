@@ -61,6 +61,7 @@ impl StateGraphEmission<'_, '_> {
             )?;
             let exit = super::super::cleanup::coordinate(state, statement_index, false)?;
             let mut regions = super::super::cleanup::for_exit_regions(
+            self.checked,
                 state,
                 exit,
                 self.catalogs,
@@ -79,6 +80,7 @@ impl StateGraphEmission<'_, '_> {
                         .into_owned();
                 let source = evaluation.current_structural_place(binding.place());
                 let (completion, arrival) = super::super::returns::projected::materialize(
+                    self.checked,
                     &binding,
                     source,
                     terminator,
@@ -100,6 +102,7 @@ impl StateGraphEmission<'_, '_> {
                 }
             } else {
                 let actions = evaluation.emit_cleanup_regions(
+                    self.checked,
                     regions,
                     &mut values,
                     &mut next_value,
@@ -201,6 +204,7 @@ impl StateGraphEmission<'_, '_> {
             root.erased_scalar_formals = self.state_erased[position].clone();
             root.erased_proof_formals =
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    self.checked,
                     &self.state_erased_proof[position],
                 );
         }

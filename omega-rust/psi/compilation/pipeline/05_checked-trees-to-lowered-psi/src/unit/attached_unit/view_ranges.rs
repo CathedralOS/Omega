@@ -136,7 +136,7 @@ impl RangeStorage {
             },
             path: self.collection.clone(),
             access: self.access,
-            type_identity: String::new(),
+            type_identity: Default::default(),
         };
         let source = bindings.borrowed_structural_home(
             &argument,
@@ -283,7 +283,7 @@ pub(crate) fn storage(
     else {
         return unsupported("range storage has no range operation");
     };
-    let identity = storage_type_identity.as_str();
+    let identity = checked.type_identity_text(*storage_type_identity).unwrap_or_default();
     let symbol = match range.root {
         checked_trees::CheckedStorageRoot::Parameter { index } => checked
             .state_parameters(authored)
@@ -302,10 +302,10 @@ pub(crate) fn storage(
         checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
         | checked_trees::CheckedStorageRoot::ViewLocal { symbol } => symbol,
     };
-    let collection = terminal_psi::structural_type_by_identity(declarations, identity).ok_or(
+    let collection = terminal_psi::structural_type_by_identity(declarations, &identity).ok_or(
         LoweringError::Unsupported("range collection has no exact Terminal type"),
     )?;
-    let view = terminal_psi::structural_type_by_identity(declarations, &argument.type_identity)
+    let view = terminal_psi::structural_type_by_identity(declarations, &checked.type_identity_text(argument.type_identity).unwrap_or_default())
         .ok_or(LoweringError::Unsupported(
             "range result has no exact Terminal type",
         ))?;

@@ -108,7 +108,7 @@ fn walk_fields(
                 CheckedUnitStructuralPathSegment::Field(identity),
                 terminal_psi::record_or_mixed_shape_pattern!(fields),
             ) => {
-                let mut matching = fields.iter().filter(|field| field.identity == *identity);
+                let mut matching = fields.iter().filter(|field| field.identity == identity.spelling());
                 let field = matching.next().ok_or(LoweringError::Unsupported(
                     "Unit graph case-payload field is absent",
                 ))?;

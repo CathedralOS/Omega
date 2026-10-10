@@ -106,7 +106,7 @@ pub(crate) fn checked_call_erased_proof_arguments(
                     .values
                     .proof_terms
                     .term_at(caller_state, coordinate.statement_index, role)?;
-            proof_term_type_matches(program, caller_state, term, &parameter.type_identity)
+            proof_term_type_matches(program, caller_state, term, parameter.type_identity)
                 .then(|| term.clone())
         })
         .collect()
@@ -118,19 +118,19 @@ fn proof_term_type_matches(
     program: &dyn ::validation::CheckingInput,
     caller_state: SymbolHandle,
     term: &checked_trees::CheckedProofTerm,
-    type_identity: &str,
+    type_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> bool {
     match term {
         checked_trees::CheckedProofTerm::Construction {
             type_identity: actual,
             ..
-        } => actual == type_identity,
+        } => *actual == type_identity,
         checked_trees::CheckedProofTerm::Formal { parameter_symbol } => {
             program.state_by_symbol(caller_state).is_some_and(|state| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.symbol == *parameter_symbol
                         && base_type_identity(program, parameter.type_reference, &[],
-        &[]).as_deref()
+        &[])
                             == Some(type_identity)
                 })
             })
@@ -528,8 +528,8 @@ pub(crate) fn projected_argument_path(
                 if cases.next().is_some() || fields.next().is_some() {
                     return None;
                 }
-                path.push(CheckedUnitStructuralPathSegment::Case(case.path_identity()));
-                payload_field = Some((*symbol, field.path_identity()));
+                path.push(CheckedUnitStructuralPathSegment::Case(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone())));
+                payload_field = Some((*symbol, checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())));
             }
         }
     }
@@ -763,7 +763,7 @@ pub(crate) fn projected_argument_path_for_identity(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &validation::CanonicalPlace,
-    target_identity: &str,
+    target_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
     let (projected, path) = projected_argument_path(
             program,

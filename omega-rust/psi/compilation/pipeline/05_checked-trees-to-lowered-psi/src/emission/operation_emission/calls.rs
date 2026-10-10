@@ -145,6 +145,7 @@ impl CallEmissionContext<'_> {
 }
 
 pub(super) fn emit_scalar_call_binding(
+    checked: &checked_trees::CheckedTrees,
     call: &LoweredDirectCallBinding,
     parameters: &[ValueDeclaration],
     caller_erased_formals: &[ValueDeclaration],
@@ -169,6 +170,7 @@ pub(super) fn emit_scalar_call_binding(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     emit_direct_call_operation(
+        checked,
         call,
         // Terminal calls retain the callee's published routes substituted onto
         // evaluated argument values. Source-refined surviving buckets can fold
@@ -186,6 +188,7 @@ pub(super) fn emit_scalar_call_binding(
 }
 
 fn emit_direct_call_operation(
+    checked: &checked_trees::CheckedTrees,
     call: &LoweredDirectCallBinding,
     crash_routes: &[checked_trees::CrashRouteBucket],
     crash_values: &[ValueDeclaration],
@@ -241,6 +244,7 @@ fn emit_direct_call_operation(
         .iter()
         .map(|term| {
             crate::scalar_lowering::contracts::lowered_proof_term(
+                checked,
                 term,
                 source_values_before_call,
                 caller_erased_formals,

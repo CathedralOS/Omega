@@ -160,11 +160,17 @@ impl Emission<'_, '_, '_> {
                 // the carrier keeps no element field, so the view op's stride
                 // resolves through the primitive row directly.
                 StructuralTypeShape::ByteSequence(_) if declaration.id == self.structural_type => {
-                    crate::terminal_identities::lookup_type_id(
-                        self.type_ids,
-                        crate::terminal_identities::BYTE_VIEW_ELEMENT_TYPE_IDENTITY,
+                    crate::terminal_identities::byte_view_element_identity(
+                        self.checked
+                            .facts
+                            .flow
+                            .terminal_unit_effects
+                            .structural_types
+                            .iter(),
                     )
-                    .ok()
+                    .and_then(|identity| {
+                        crate::terminal_identities::lookup_type_id(self.type_ids, &identity).ok()
+                    })
                 }
                 _ => None,
             })
@@ -177,10 +183,10 @@ impl Emission<'_, '_, '_> {
         let parameters = self.checked.state_parameters(authored);
         let argument = match loan {
             LoanAccess::Shared => {
-                bindings.shared_structural_argument(source, machine, parameters)?
+                bindings.shared_structural_argument(self.checked, source, machine, parameters)?
             }
             LoanAccess::Mutable => {
-                bindings.borrowed_structural_argument(source, machine, parameters)?
+                bindings.borrowed_structural_argument(self.checked, source, machine, parameters)?
             }
         };
         // The descriptor captures the byte endpoints now. Later field writes

@@ -59,7 +59,9 @@ pub(crate) fn lower_proposition_vocabulary(
                         CheckedPropositionBinderKind::Type => PropositionBinderKind::Type,
                         CheckedPropositionBinderKind::Const { type_identity } => {
                             PropositionBinderKind::Const {
-                                type_identity: type_identity.clone(),
+                                type_identity: checked
+                                    .type_identity_text(*type_identity)
+                                    .unwrap_or_default(),
                             }
                         }
                         CheckedPropositionBinderKind::Machine => PropositionBinderKind::Machine,
@@ -138,7 +140,7 @@ pub(crate) fn lower_proposition_vocabulary(
             };
             binder_arguments.push(PropositionBinderArgumentIdentity {
                 kind: super::binder_argument_kind(argument.kind),
-                identity: argument.identity.clone(),
+                identity: argument.diagnostic_label.clone(),
                 evidence_projection,
             });
         }
@@ -378,7 +380,7 @@ pub(crate) fn lower_evidence_terms(
                     .transpose()?;
                 Ok(PropositionBinderArgumentIdentity {
                     kind: super::binder_argument_kind(argument.kind),
-                    identity: argument.identity.clone(),
+                    identity: argument.diagnostic_label.clone(),
                     evidence_projection,
                 })
             })

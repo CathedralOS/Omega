@@ -246,7 +246,7 @@ pub fn initializer_source(
                 parameter_index: u32::try_from(position).ok()?,
             },
             path: Vec::new(),
-            type_identity: program.normalized_type_identity_text(referent),
+            type_identity: program.normalized_type_identity(referent),
             access,
         });
     }
@@ -437,7 +437,7 @@ pub fn borrowed_initializer_source(
                     return None;
                 }
                 segments.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 owner_type = field.type_reference;
             }
@@ -474,7 +474,7 @@ pub fn borrowed_initializer_source(
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
         source,
         path: segments,
-        type_identity: program.normalized_type_identity_text(referent),
+        type_identity: program.normalized_type_identity(referent),
         access,
     })
 }
@@ -791,9 +791,9 @@ fn aggregate_projection(
                         .iter()
                         .filter_map(|member| member.as_variant())
                         .find(|case| case.symbol == variant)?;
-                    path.push(Segment::Case(case.path_identity()));
+                    path.push(Segment::Case(checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone())));
                 }
-                path.push(Segment::Field(field.path_identity()));
+                path.push(Segment::Field(checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())));
                 selected = field.type_reference;
             }
             ExpressionNode::Indexed(indexed) => {
@@ -942,7 +942,7 @@ fn call_sources(
             // projected declaration and its final referent type. Substitution
             // requires the actual to supply that exact formal referent; its
             // existing backing path then precedes the callee's projection.
-            let identity = program.normalized_type_identity_text(referent);
+            let identity = program.normalized_type_identity(referent);
             if actual_sources.iter().any(|actual| {
                 !actual.path.is_empty()
                     || actual.source.type_identity != identity
@@ -1086,7 +1086,7 @@ fn whole_reference_sources(
                                 _ => None,
                             })?;
                     path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                        field.path_identity(),
+                        checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                     ));
                     selected = field.type_reference;
                 }
@@ -1128,7 +1128,7 @@ fn whole_reference_sources(
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
             path,
-            type_identity: program.normalized_type_identity_text(referent),
+            type_identity: program.normalized_type_identity(referent),
             access,
         };
         sources.push(checked_trees::CheckedReferenceResultSourcePlan {
@@ -1241,7 +1241,7 @@ pub fn terminal_call_reference_sources(
     if call.authored_expression.is_valid()
         || call.statement_index != result.statement_index as usize
         || stored_loan_parts(program, state.return_type).is_none()
-        || result.type_identity != program.normalized_type_identity_text(state.return_type)
+        || result.type_identity != program.normalized_type_identity(state.return_type)
     {
         return None;
     }
@@ -1320,7 +1320,7 @@ pub fn record_carrier_sources(
                 source: checked_trees::CheckedUnitStructuralArgumentPlan {
                     source: carrier.clone(),
                     path: path.clone(),
-                    type_identity: scopes.type_identity_text(program, reference, scope),
+                    type_identity: scopes.type_identity(program, reference, scope),
                     access: CheckedStructuralAccess::SharedBorrow,
                 },
             });
@@ -1334,7 +1334,7 @@ pub fn record_carrier_sources(
                 source: checked_trees::CheckedUnitStructuralArgumentPlan {
                     source: carrier.clone(),
                     path: source_path,
-                    type_identity: scopes.type_identity_text(program, referent, scope),
+                    type_identity: scopes.type_identity(program, referent, scope),
                     access,
                 },
             });
@@ -1376,7 +1376,7 @@ pub fn record_carrier_sources(
                 typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
                 typed_trees::data::DataMember::Variant(case) => {
                     path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
-                        case.path_identity(),
+                        checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
                     ));
                     program.data_payload_fields(case)
                 }
@@ -1386,7 +1386,7 @@ pub fn record_carrier_sources(
                     continue;
                 }
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 visit(program, field.type_reference, carrier, path, output, scopes, scope)?;
                 path.pop();
@@ -1543,7 +1543,7 @@ fn aggregate_construction_sources(
                 (
                     field,
                     vec![checked_trees::CheckedUnitStructuralPathSegment::Case(
-                        case.path_identity(),
+                        checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
                     )],
                 )
             } else {
@@ -1559,7 +1559,7 @@ fn aggregate_construction_sources(
                 (field, Vec::new())
             };
             path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                field.path_identity(),
+                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
             ));
             children.push((path, expression, reference));
         }
@@ -1588,7 +1588,7 @@ fn aggregate_construction_sources(
             }
             children.push((
                 vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 )],
                 initializer.value,
                 field.type_reference,
@@ -1817,7 +1817,7 @@ pub fn loan_place_segments(
                     .iter()
                     .find_map(|member| match member {
                         typed_trees::data::DataMember::Variant(case)
-                            if case.path_identity() == *identity =>
+                            if checked_trees::CheckedMemberIdentity::of_member(case.identity, case.name.clone()) == *identity =>
                         {
                             Some(case)
                         }
@@ -1833,7 +1833,7 @@ pub fn loan_place_segments(
                     program
                         .data_payload_fields(case)
                         .iter()
-                        .find(|field| field.path_identity() == *identity)?
+                        .find(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity)?
                 } else {
                     let (data, nested_scope) = scopes.definition(program, selected, scope)?;
                     scope = nested_scope;
@@ -1842,7 +1842,7 @@ pub fn loan_place_segments(
                         .iter()
                         .find_map(|member| match member {
                             typed_trees::data::DataMember::Field(field)
-                                if field.path_identity() == *identity =>
+                                if checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()) == *identity =>
                             {
                                 Some(field)
                             }
@@ -2284,7 +2284,7 @@ pub fn record_argument(
         .as_local_data()?;
     if result.type_identity
         != program
-            .normalized_type_identity_text(local.type_reference)
+            .normalized_type_identity(local.type_reference)
         // Source reference uses are reusable, but each materialized descriptor
         // owns affine lifetime custody, including descriptors in fixed arrays.
         || result.multiplicity != result_multiplicity(program, local.type_reference)
@@ -2314,7 +2314,7 @@ pub fn record_argument(
         result.statement_index,
     )?;
     let (source, _) = loans.iter().find(|(source, _)| source.path == path)?;
-    if source.source.type_identity != program.normalized_type_identity_text(referent) {
+    if source.source.type_identity != program.normalized_type_identity(referent) {
         return None;
     }
     path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);

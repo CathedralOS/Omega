@@ -112,7 +112,7 @@ pub(crate) fn plan(
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                 symbol: root,
-                root_type_identity: program.normalized_type_identity_text(shell.referee),
+                root_type_identity: program.normalized_type_identity(shell.referee),
             }
         } else {
             // Owned contents lend their admitted access independently of
@@ -161,7 +161,7 @@ pub(crate) fn plan(
     Some(CheckedUnitStructuralArgumentPlan {
         source,
         path,
-        type_identity: program.normalized_type_identity_text(referent),
+        type_identity: program.normalized_type_identity(referent),
         access,
     })
 }

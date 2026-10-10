@@ -227,7 +227,7 @@ fn ordinary_context_terminal_position(
     let (position, parameter) = matching.next()?;
     if matching.next().is_some()
         || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
-        || parameter.type_identity != checked.normalized_type_identity_text(referent)
+        || parameter.type_identity != checked.normalized_type_identity(referent)
     {
         return None;
     }
@@ -340,7 +340,7 @@ fn collect_fused_service_fields(
         let DataMember::Field(field) = member else {
             continue;
         };
-        let field_identity = field.path_identity();
+        let field_identity = checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone());
         match checked
             .bound_service_parameter_carrier(field.type_reference)
             .ok()?
@@ -348,23 +348,23 @@ fn collect_fused_service_fields(
             Some(carrier) => {
                 let mut terminal_fields = fields
                     .iter()
-                    .filter(|candidate| candidate.identity == field_identity);
+                    .filter(|candidate| candidate.identity == field_identity.spelling());
                 let terminal_field = terminal_fields.next()?;
                 if terminal_fields.next().is_some()
                     || !terminal_semantics::fused_service_field_matches(
                         declarations,
                         terminal_field,
-                        &carrier.carrier_type_identity,
+                        &checked.type_identity_text(carrier.carrier_type_identity).unwrap_or_default(),
                     )
                 {
                     return None;
                 }
-                field_path.push(field_identity.clone());
+                field_path.push(field_identity.spelling());
                 if !admit_fused_service_field(
                     roster,
                     CheckedProgramEntryFusedServiceField::new(
-                        field_identity,
-                        carrier.carrier_type_identity,
+                        field_identity.spelling(),
+                        checked.type_identity_text(carrier.carrier_type_identity).unwrap_or_default(),
                         field_path.clone(),
                     ),
                 ) {
@@ -378,7 +378,7 @@ fn collect_fused_service_fields(
                 };
                 let mut terminal_fields = fields
                     .iter()
-                    .filter(|candidate| candidate.identity == field_identity);
+                    .filter(|candidate| candidate.identity == field_identity.spelling());
                 let structural_child = match (terminal_fields.next(), terminal_fields.next()) {
                     (Some(terminal_field), None) => match &terminal_field.field_type {
                         StructuralFieldType::Structural(child) => Some(*child),
@@ -407,7 +407,7 @@ fn collect_fused_service_fields(
                     terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
                     _ => continue,
                 };
-                field_path.push(field_identity);
+                field_path.push(field_identity.spelling());
                 collect_fused_service_fields(
                     checked,
                     declarations,
@@ -645,7 +645,7 @@ fn zero_valid_fields(
                 && terminal_semantics::fused_service_field_matches(
                     declarations,
                     field,
-                    &carrier.carrier_type_identity,
+                    &checked.type_identity_text(carrier.carrier_type_identity).unwrap_or_default(),
                 );
         }
         // Determined evidence joins its own roster row on the same record-field
@@ -734,7 +734,7 @@ fn zero_valid_first_case(
             let DataMember::Variant(variant) = member else {
                 return None;
             };
-            (case.identity == variant.path_identity()).then_some(variant)
+            (case.identity == checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()).spelling()).then_some(variant)
         })
     });
     // A case carrying its own `where` facts must construct through its
@@ -820,7 +820,7 @@ fn source_payload_field_type(
         .data_payload_fields(variant)
         .iter()
         .find_map(|candidate| {
-            (field.identity == candidate.path_identity()).then_some(candidate.type_reference)
+            (field.identity == checked_trees::CheckedMemberIdentity::of_member(candidate.identity, candidate.name.clone()).spelling()).then_some(candidate.type_reference)
         })
         .unwrap_or_default()
 }
@@ -840,7 +840,7 @@ fn source_field_type(
             let DataMember::Field(candidate) = member else {
                 return None;
             };
-            (field.identity == candidate.path_identity()).then_some(candidate.type_reference)
+            (field.identity == checked_trees::CheckedMemberIdentity::of_member(candidate.identity, candidate.name.clone()).spelling()).then_some(candidate.type_reference)
         })
         .unwrap_or_default()
 }

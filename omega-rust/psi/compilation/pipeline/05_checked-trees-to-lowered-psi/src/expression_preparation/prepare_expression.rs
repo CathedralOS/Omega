@@ -311,7 +311,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             interface_identity,
         } => Ok(LoweredDirectExpression::ImplementationSelection {
             implementation: *implementation,
-            interface_identity: interface_identity.clone(),
+            interface_identity: *interface_identity,
             scalar_type: crate::emission::scalar_types::selector_scalar_type(),
         }),
         CheckedScalarExpression::IntegerBinary {
@@ -672,7 +672,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     }
                     checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
                         Ok(LoweredElementPathSegment::Static(
-                            terminal_psi::StructuralPathSegment::Field(identity),
+                            terminal_psi::StructuralPathSegment::Field(identity.spelling()),
                         ))
                     }
                     checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
@@ -881,7 +881,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 .iter()
                 .map(|segment| match segment {
                     checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                        Ok(identity.clone())
+                        Ok(identity.spelling())
                     }
                     checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
                     | checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
@@ -1309,7 +1309,7 @@ fn sequence_field_observation(
                 return unsupported("sequence observation lost its exact field endpoint");
             };
             path.push(LoweredElementPathSegment::Static(
-                terminal_psi::StructuralPathSegment::Field(identity.clone()),
+                terminal_psi::StructuralPathSegment::Field(identity.spelling()),
             ));
             LoweredDirectExpression::ElementViewLength {
                 source,

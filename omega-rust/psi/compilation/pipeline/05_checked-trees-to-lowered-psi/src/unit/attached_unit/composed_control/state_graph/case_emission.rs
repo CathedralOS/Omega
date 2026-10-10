@@ -97,7 +97,7 @@ pub(super) fn prepare<'a>(
         .map(|declared| {
             let mut matching = cases
                 .iter()
-                .filter(|case| case.case_identity == declared.identity);
+                .filter(|case| case.case_identity.spelling() == declared.identity);
             let case = matching.next().ok_or(LoweringError::Unsupported(
                 "Unit graph declared case lost its successor",
             ))?;
@@ -108,7 +108,7 @@ pub(super) fn prepare<'a>(
             let mut values = Vec::new();
             for payload in &case.payloads {
                 let field =
-                    terminal_psi::field_by_identity(&declared.fields, &payload.field_identity)
+                    terminal_psi::field_by_identity(&declared.fields, &payload.field_identity.spelling())
                         .ok_or(LoweringError::Unsupported(
                             "Unit graph payload field is missing",
                         ))?;

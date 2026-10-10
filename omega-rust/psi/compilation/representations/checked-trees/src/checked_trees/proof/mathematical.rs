@@ -1,5 +1,7 @@
 use proof_admission::{Declaration, TermArena};
 use symbols::SymbolHandle;
+use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::type_identity::CallableIdentityId;
 
 /// A checked top-level mathematical declaration: the checked proof surface a
 /// parsed `let`/`boundary let` elaborates into under PROOF-CONTRACT-MIGRATION
@@ -69,12 +71,12 @@ pub enum CheckedMathematicalBinderKind {
     /// records `None` for the elaborator to classify or refuse.
     Type { universe: Option<String> },
     /// `const N: usize` — a compile-time value binder.
-    Const { type_identity: String },
+    Const { type_identity: TypeIdentityId },
     /// `name: Carrier` — a mathematical subject binder in the generic
     /// telescope whose carrier is neither `core::Level` nor `core::Type`
     /// (for example `<pred: A -> core::Strict<0>>`-shaped binders once the
     /// grammar admits them).
-    Value { type_identity: String },
+    Value { type_identity: TypeIdentityId },
 }
 
 /// One ordinary parameter of a checked mathematical declaration's telescope.
@@ -84,8 +86,10 @@ pub struct CheckedMathematicalParameter {
     /// The binding occurrence's `[erased]` relevance: an erased proof
     /// reference demands no executable value while retaining trust.
     pub relevance: language_core::BindingRelevance,
-    /// The declared type identity; an arrow type spells its nested Π.
-    pub type_identity: String,
+    /// The declared type identity spelling; an arrow type spells its nested Π.
+    /// Mathematical type identities live in the proof grammar, not the
+    /// structural identity table, so this stays canonical text.
+    pub type_spelling: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,7 +97,7 @@ pub enum CheckedMathematicalBody {
     /// `= term;` — a transparent checked term definition. The term identity
     /// substitutes for every use under conversion; nothing executable is
     /// implied by it.
-    Definition { term_identity: String },
+    Definition { term_spelling: String },
     /// `boundary let ...;` — a named assumption with no body. Its term and
     /// transitive dependencies require the receiver's admission, keyed on the
     /// declaration's exact identity.

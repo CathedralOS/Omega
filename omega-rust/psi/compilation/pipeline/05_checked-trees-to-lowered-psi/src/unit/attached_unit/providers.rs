@@ -196,19 +196,18 @@ pub(super) fn checked_unit_provider_candidates(
                 signature,
             } => checked
                 .typed
-                .trait_requirement_callable_identity_text(definition, signature),
+                .trait_requirement_callable_identity(definition, signature),
             CatalogRequirement::TopLevel(requirement) => checked
                 .typed
-                .machine_callable_identity_text(requirement)
-                .unwrap_or_default(),
-            CatalogRequirement::Operator(operator) => {
-                typed_trees::operator::boundary_operator_requirement_identity(
+                .machine_callable_identity(requirement),
+            CatalogRequirement::Operator(operator) => checked
+                .typed
+                .callable_identity_by_text(&typed_trees::operator::boundary_operator_requirement_identity(
                     &checked.typed,
                     operator,
-                )
-            }
+                )),
         };
-        if requirement_identity.is_empty() {
+        if !requirement_identity.is_valid() {
             return unsupported("Unit boundary requirement has an empty overload identity");
         }
         for machine in checked.typed.machines().iter().filter(|machine| {
@@ -293,18 +292,13 @@ pub(super) fn checked_unit_provider_candidates(
                 output.push(CheckedUnitProviderCandidate {
                     boundary: boundary_symbol,
                     candidate: machine.symbol,
-                    requirement_identity: requirement_identity.clone(),
+                    requirement_identity,
                     // The selected declaration owns provider identity; the body
                     // may be an independently owned named-map realization.
                     provider_identity,
                     // Provider selection compares semantic overload identities;
                     // diagnostic display paths cannot distinguish those overloads.
-                    candidate_identity: checked
-                        .typed
-                        .machine_callable_identity_text(machine)
-                        .ok_or(LoweringError::Unsupported(
-                            "provider candidate has no normalized callable identity",
-                        ))?,
+                    candidate_identity: checked.typed.machine_callable_identity(machine),
                 });
             }
         }
@@ -340,6 +334,7 @@ pub(super) fn checked_unit_provider_candidates(
 /// structural parameters refine the boundary's positionally. Rows are in
 /// canonical (boundary, provider, candidate) order.
 pub(super) fn conformances(
+    checked: &checked_trees::CheckedTrees,
     candidates: &[CheckedUnitProviderCandidate],
     boundary_parameters: &[BoundaryParameters],
     boundary_machines: &[BoundaryMachineDeclaration],
@@ -377,9 +372,13 @@ pub(super) fn conformances(
             }
             Ok(ProviderCandidateConformance {
                 boundary: *boundary,
-                requirement_identity: candidate.requirement_identity.clone(),
+                requirement_identity: checked
+                    .typed
+                    .callable_identity_text(candidate.requirement_identity),
                 provider_identity: candidate.provider_identity.clone(),
-                candidate_identity: candidate.candidate_identity.clone(),
+                candidate_identity: checked
+                    .typed
+                    .callable_identity_text(candidate.candidate_identity),
                 candidate: terminal_candidate,
                 signature: ProviderSignature {
                     parameters: parameters

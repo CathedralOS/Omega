@@ -63,15 +63,46 @@ id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);
 id_constructor!(proposition_id, PropositionId);
 
-/// The checked type identity of the `u8` scalar a borrowed `&[u8]` view
-/// establishes through the element-view op family. The byte carrier keeps no
-/// element field, so the catalog roots this row at that establishment and the
-/// emitter resolves the op's element through it.
-pub(crate) const BYTE_VIEW_ELEMENT_TYPE_IDENTITY: &str = "named(name(u8))";
+/// Find the `u8` scalar a borrowed `&[u8]` view establishes through the
+/// element-view op family. The byte carrier keeps no element field, so the
+/// catalog roots this row at that establishment and the emitter resolves the
+/// op's element through it.
+pub(crate) fn primitive_scalar_identity<'a>(
+    mut plans: impl Iterator<Item = &'a checked_trees::CheckedUnitStructuralTypePlan>,
+    primitive: typed_trees::types::PrimitiveType,
+) -> Option<typed_trees::type_identity::TypeIdentityId> {
+    plans
+        .find(|plan| {
+            matches!(
+                plan.shape,
+                checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(candidate)
+                    if candidate == primitive
+            )
+        })
+        .map(|plan| plan.identity)
+}
 
-pub(crate) fn lookup_type_id(
+pub(crate) fn byte_view_element_identity<'a>(
+    plans: impl Iterator<Item = &'a checked_trees::CheckedUnitStructuralTypePlan>,
+) -> Option<typed_trees::type_identity::TypeIdentityId> {
+    primitive_scalar_identity(plans, typed_trees::types::PrimitiveType::U8)
+}
+
+pub(crate) fn lookup_type_id_by_text(
     ids: &[(String, StructuralTypeId)],
     identity: &str,
+) -> Result<StructuralTypeId, LoweringError> {
+    ids.iter()
+        .find(|(candidate, _)| candidate == identity)
+        .map(|(_, id)| *id)
+        .ok_or(LoweringError::Unsupported(
+            "structural type lost its identity mapping",
+        ))
+}
+
+pub(crate) fn lookup_type_id(
+    ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+    identity: &typed_trees::type_identity::TypeIdentityId,
 ) -> Result<StructuralTypeId, LoweringError> {
     ids.iter()
         .find_map(|(candidate, id)| (candidate == identity).then_some(*id))

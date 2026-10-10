@@ -171,7 +171,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                 );
                 let mut arm_rows = Vec::with_capacity(matching_rows.len());
                 for (guarantee, row) in matching_rows {
-                    let (instantiated_proposition, instantiated_identity) =
+                    let (instantiated_proposition, instantiated_label) =
                         instantiate_outcome_arm_fact(program, row.fact, &substitutions);
                     let referenced_occurrences =
                         crate::facts::contract_occurrences::fact_referenced_occurrences(
@@ -211,7 +211,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     arm_rows.push(checked_trees::OutcomeSpecificArmRowFact {
                         guarantee,
                         instantiated_proposition,
-                        instantiated_identity,
+                        instantiated_label,
                         validity,
                         selected_term,
                     });

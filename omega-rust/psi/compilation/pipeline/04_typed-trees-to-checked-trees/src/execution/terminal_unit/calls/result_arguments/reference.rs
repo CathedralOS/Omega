@@ -35,7 +35,7 @@ pub(crate) fn argument(
     local: &TableLocalData,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
-    target_identity: &str,
+    target_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let (referent, carrier_access) =
         reference_result_custody::stored_loan_parts(program, local.type_reference)?;
@@ -44,7 +44,7 @@ pub(crate) fn argument(
         || (carrier_access != CheckedStructuralAccess::MutableBorrow && carrier_access != access)
         || place.root != facts::PlaceRoot::Symbol(local.symbol)
         || result.multiplicity != Multiplicity::Affine
-        || result.type_identity != program.normalized_type_identity_text(local.type_reference)
+        || result.type_identity != program.normalized_type_identity(local.type_reference)
     {
         return None;
     }

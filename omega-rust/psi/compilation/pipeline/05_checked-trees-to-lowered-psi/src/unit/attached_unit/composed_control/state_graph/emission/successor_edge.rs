@@ -335,7 +335,7 @@ impl StateGraphEmission<'_, '_> {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
                             self.structural_places.push(case_leaf_copy::emit(
                                 &self.catalogs.structural_types, source, root_type, &subject.path,
-                                case_identity, field_identity, path,
+                                &case_identity.spelling(), &field_identity.spelling(), path,
                                 target_parameter, destination, operations,
                             )?);
                             destination
@@ -720,6 +720,7 @@ impl StateGraphEmission<'_, '_> {
         let exit =
             super::super::cleanup::coordinate(state, edge.statement_ordinal as usize, false)?;
         let mut cleanup_regions = super::super::cleanup::for_exit_regions(
+            self.checked,
             state,
             exit,
             self.catalogs,
@@ -795,6 +796,7 @@ impl StateGraphEmission<'_, '_> {
                 )
                 .and_then(|term| {
                     crate::scalar_lowering::contracts::lowered_proof_term(
+                        checked,
                         &term,
                         &edge_values,
                         &self.state_erased[position],
@@ -910,6 +912,7 @@ impl StateGraphEmission<'_, '_> {
             .any(|region| !region.conditions.is_empty())
         {
             edge_evaluation.capture_cleanup_arguments(
+                self.checked,
                 &mut structural_arguments,
                 &capture_parameters,
                 &mut edge_values,
@@ -922,6 +925,7 @@ impl StateGraphEmission<'_, '_> {
             )?;
         }
         let cleanup_actions = edge_evaluation.emit_cleanup_regions(
+            self.checked,
             cleanup_regions,
             &mut edge_values,
             next_value,
@@ -976,6 +980,7 @@ impl StateGraphEmission<'_, '_> {
                 erased_scalar_formals: self.state_erased[position].clone(),
                 erased_proof_formals:
                     crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                        self.checked,
                         &self.state_erased_proof[position],
                     ),
                 structural_parameters: edge_evaluation.block_structural_parameters,

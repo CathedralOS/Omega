@@ -760,7 +760,7 @@ impl<'program> Reader<'program> {
         receiver
             .path
             .push(CheckedStructuralPredicatePathSegment::Field(
-                field.path_identity(),
+                checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
             ));
         receiver.type_reference = field.type_reference;
         Some(receiver)

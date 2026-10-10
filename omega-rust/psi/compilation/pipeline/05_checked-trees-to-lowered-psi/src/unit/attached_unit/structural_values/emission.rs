@@ -59,7 +59,7 @@ pub(crate) fn emit(
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
     structural_types: &[StructuralTypeDeclaration],
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
     next_place: &mut u64,
     temporary_places: &mut Vec<StructuralPlaceDeclaration>,
@@ -789,7 +789,7 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     pub(super) structural_type: StructuralTypeId,
     pub(super) multiplicity: StructuralMultiplicity,
     pub(super) structural_types: &'a [StructuralTypeDeclaration],
-    pub(super) type_ids: &'a [(String, StructuralTypeId)],
+    pub(super) type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     pub(super) domain_ids: &'a [crate::terminal_identities::StructuralDomainBinding],
     type_reference: checked_trees::types::TypeReferenceHandle,
     pub(super) next_place: &'b mut u64,
@@ -842,8 +842,8 @@ pub(super) struct ProjectedMove {
     /// projected owned alias, which holds no storage of its own.
     pub(super) root_path: Vec<terminal_psi::StructuralPathSegment>,
     pub(super) path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-    pub(super) leaf_type_identity: String,
-    pub(super) root_type_identity: String,
+    pub(super) leaf_type_identity: typed_trees::type_identity::TypeIdentityId,
+    pub(super) root_type_identity: typed_trees::type_identity::TypeIdentityId,
     pub(super) root_source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
 }
 
@@ -851,7 +851,7 @@ impl ProjectedMove {
     /// The complete walk from `root`'s storage to the projected leaf.
     fn lowered_path(
         &self,
-        type_ids: &[(String, StructuralTypeId)],
+        type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
         types: &[StructuralTypeDeclaration],
     ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
         let mut path = self.root_path.clone();
@@ -1835,7 +1835,7 @@ impl Emission<'_, '_, '_> {
                 || element_path.as_slice()
                     != [checked_trees::CheckedScalarReadProjection::Static(
                         checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                            field.identity.clone(),
+                            checked_trees::CheckedMemberIdentity::of_spelling(&field.identity),
                         ),
                     )]
             {

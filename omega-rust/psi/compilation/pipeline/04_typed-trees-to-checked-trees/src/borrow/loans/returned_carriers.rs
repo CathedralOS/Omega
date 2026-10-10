@@ -196,10 +196,10 @@ fn structural_owner_path(
     path.iter()
         .map(|segment| match segment {
             BorrowOwnerSegment::Field(symbol) => Some(StructuralSegment::Field(
-                program.any_field_owner(*symbol)?.1.path_identity(),
+                program.any_field_owner(*symbol)?.1.member_identity(),
             )),
             BorrowOwnerSegment::Case(symbol) => Some(StructuralSegment::Case(
-                program.variant_owner(*symbol)?.1.path_identity(),
+                program.variant_owner(*symbol)?.1.member_identity(),
             )),
             BorrowOwnerSegment::FixedIndex(index) => {
                 Some(StructuralSegment::FixedIndex(u64::try_from(*index).ok()?))

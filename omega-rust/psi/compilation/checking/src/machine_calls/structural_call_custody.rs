@@ -633,7 +633,7 @@ pub fn structural_qualification_contract(
                         continue;
                     }
                     path.push(CheckedUnitStructuralPathSegment::Field(
-                        field.path_identity(),
+                        checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                     ));
                     collect(
                         program,
@@ -882,7 +882,7 @@ pub fn structural_owned_path(
                     return Err("structural claim traverses an erased field");
                 }
                 path.push(CheckedUnitStructuralPathSegment::Field(
-                    field.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 reference = field.type_reference;
             }
@@ -900,7 +900,7 @@ pub fn structural_owned_path(
                     .find(|candidate| candidate.symbol == *variant)
                     .ok_or("structural claim case differs from its typed owner")?;
                 path.push(CheckedUnitStructuralPathSegment::Case(
-                    selected.path_identity(),
+                    checked_trees::CheckedMemberIdentity::of_member(selected.identity, selected.name.clone()),
                 ));
                 payload_fields = Some(program.data_payload_fields(selected));
             }

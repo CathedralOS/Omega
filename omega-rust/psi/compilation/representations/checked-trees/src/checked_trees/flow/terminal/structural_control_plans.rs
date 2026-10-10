@@ -6,6 +6,7 @@ use crate::checked_trees::flow::terminal::{
 use crate::checked_trees::values::CheckedProofTerm;
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
+use crate::checked_trees::CheckedMemberIdentity;
 
 /// Source-handle-free no-code cleanup evidence for ordinary structural
 /// control edges. This is intentionally narrower than the language's complete
@@ -229,8 +230,8 @@ pub enum CheckedStructuralControlTransferSourcePlan {
     /// the borrowed subject's custody intact.
     CasePayload {
         subject: CheckedUnitStructuralArgumentPlan,
-        case_identity: String,
-        field_identity: String,
+        case_identity: CheckedMemberIdentity,
+        field_identity: CheckedMemberIdentity,
         path: Vec<CheckedUnitStructuralPathSegment>,
     },
     /// A byte or element view range narrowed on the selected edge: the same

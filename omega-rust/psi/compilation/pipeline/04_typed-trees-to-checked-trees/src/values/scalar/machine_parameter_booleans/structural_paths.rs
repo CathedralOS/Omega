@@ -10,15 +10,13 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 fn field_type(
     program: &dyn ::validation::CheckingInput,
     receiver: TypeReferenceHandle,
-    identity: &str,
+    identity: &checked_trees::CheckedMemberIdentity,
 ) -> Option<TypeReferenceHandle> {
     let declaration = structural_data(program, receiver)?;
     program.data_members(declaration).iter().find_map(|member| {
         let field = member.as_field()?;
-        let matches_identity = match field.identity {
-            Some(field_identity) => identity == format!("#{field_identity}"),
-            None => field.name.as_str() == identity,
-        };
+        let matches_identity =
+            *identity == checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone());
         matches_identity.then_some(field.type_reference)
     })
 }
@@ -56,7 +54,7 @@ pub(crate) fn path_type_reference(
                 let data = structural_data(program, receiver)?;
                 let variant = program.data_members(data).iter().find_map(|member| {
                     let variant = member.as_variant()?;
-                    let identity = variant.path_identity();
+                    let identity = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
                     (identity == *case).then_some(variant)
                 })?;
                 selected_case = Some(variant);
@@ -67,7 +65,7 @@ pub(crate) fn path_type_reference(
                         .data_payload_fields(variant)
                         .iter()
                         .find_map(|candidate| {
-                            let identity = candidate.path_identity();
+                            let identity = checked_trees::CheckedMemberIdentity::of_member(candidate.identity, candidate.name.clone());
                             (identity == *field).then_some(candidate.type_reference)
                         })?
                 } else {
@@ -112,7 +110,7 @@ pub(crate) fn structural_record_fields(
 pub(crate) fn payloadless_sum_cases(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
-) -> Option<Vec<String>> {
+) -> Option<Vec<checked_trees::CheckedMemberIdentity>> {
     let data = structural_data(program, type_reference)?;
     let members = program.data_members(data);
     if !matches!(
@@ -128,7 +126,7 @@ pub(crate) fn payloadless_sum_cases(
             program
                 .data_payload_fields(variant)
                 .is_empty()
-                .then(|| variant.path_identity())
+                .then(|| checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone()))
         })
         .collect()
 }

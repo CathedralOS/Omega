@@ -85,7 +85,7 @@ pub(super) fn explicit_path<'a>(
                 Source::Case(identity),
                 StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
             ) if selected_case_fields.is_none() => {
-                let mut matching = cases.iter().filter(|case| case.identity == *identity);
+                let mut matching = cases.iter().filter(|case| case.identity == identity.spelling());
                 let (Some(case), None) = (matching.next(), matching.next()) else {
                     return unsupported("field observation requires one declared case");
                 };
@@ -103,7 +103,7 @@ pub(super) fn explicit_path<'a>(
                     .ok_or(LoweringError::Unsupported(
                         "field observation requires a field carrier",
                     ))?;
-                let mut matching = fields.iter().filter(|field| field.identity == *identity);
+                let mut matching = fields.iter().filter(|field| field.identity == identity.spelling());
                 let (Some(field), None) = (matching.next(), matching.next()) else {
                     return unsupported("field observation requires one declared field");
                 };

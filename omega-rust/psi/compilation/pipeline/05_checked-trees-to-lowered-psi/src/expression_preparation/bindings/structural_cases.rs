@@ -47,7 +47,7 @@ pub(crate) fn resolve_at(
     declarations: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
     steps: &[checked_trees::CheckedUnitStructuralPathSegment],
-    identity: &str,
+    identity: &checked_trees::CheckedMemberIdentity,
 ) -> Result<
     (
         Vec<terminal_psi::StructuralPathSegment>,
@@ -99,7 +99,7 @@ pub(crate) fn resolve_at(
 pub(crate) fn resolve(
     bindings: &[StructuralCaseBinding],
     subject: &checked_trees::CheckedStructuralParameterField,
-    identity: &str,
+    identity: &checked_trees::CheckedMemberIdentity,
 ) -> Result<
     (
         PlaceId,
@@ -145,7 +145,7 @@ pub(crate) fn resolve_runtime_element(
     source: PlaceId,
     prefix: &[checked_trees::CheckedStructuralPredicatePathSegment],
     element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-    identity: &str,
+    identity: &checked_trees::CheckedMemberIdentity,
 ) -> Result<
     (
         PlaceId,
@@ -206,7 +206,7 @@ fn walk(
                 let fields = case_fields.take().or_else(|| shape.direct_fields()).ok_or(
                     LoweringError::Unsupported("case observation field left its record namespace"),
                 )?;
-                let mut selected = fields.iter().filter(|field| field.identity == *identity);
+                let mut selected = fields.iter().filter(|field| field.identity == identity.spelling());
                 let field = selected.next().ok_or(LoweringError::Unsupported(
                     "case observation lost its carrier field",
                 ))?;
@@ -219,7 +219,7 @@ fn walk(
                     return unsupported("case observation requires a structural carrier field");
                 };
                 structural_type = child;
-                path.push(terminal_psi::StructuralPathSegment::Field(identity.clone()));
+                path.push(terminal_psi::StructuralPathSegment::Field(identity.spelling()));
             }
             checked_trees::CheckedStructuralPredicatePathSegment::Case(identity)
                 if case_fields.is_none() =>
@@ -229,7 +229,7 @@ fn walk(
                 else {
                     return unsupported("case observation case step left its sum namespace");
                 };
-                let mut selected = cases.iter().filter(|case| case.identity == *identity);
+                let mut selected = cases.iter().filter(|case| case.identity == identity.spelling());
                 let (Some(case), None) = (selected.next(), selected.next()) else {
                     return unsupported("case observation case step names no single case");
                 };
@@ -266,7 +266,7 @@ fn walk(
 fn selected_case(
     declarations: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
-    identity: &str,
+    identity: &checked_trees::CheckedMemberIdentity,
 ) -> Result<semantic_vocabulary::StructuralCaseId, LoweringError> {
     let cases = match &unique_declaration(
         declarations,
@@ -279,7 +279,7 @@ fn selected_case(
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
         _ => return unsupported("case observation requires an exact selected sum"),
     };
-    let mut selected = cases.iter().filter(|case| case.identity == identity);
+    let mut selected = cases.iter().filter(|case| case.identity == identity.spelling());
     let case = selected.next().ok_or(LoweringError::Unsupported(
         "case observation lost its exact selected case",
     ))?;

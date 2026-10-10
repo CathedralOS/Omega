@@ -140,7 +140,7 @@ pub(crate) fn borrowed_view_referent(
 pub(crate) fn borrowed_view_result_identity(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
-) -> Option<String> {
+) -> Option<typed_trees::type_identity::TypeIdentityId> {
     (borrowed_view_referent(
         program,
         type_reference,

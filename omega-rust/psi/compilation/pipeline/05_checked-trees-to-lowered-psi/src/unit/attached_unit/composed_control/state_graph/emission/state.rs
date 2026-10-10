@@ -503,6 +503,7 @@ impl StateGraphEmission<'_, '_> {
                 // its counter snapshot. Proofs are produced from the completed
                 // graph, where the selected arm and result effects are known.
                 let cleanups = super::super::cleanup::scalar_returns(
+                    self.checked,
                     state,
                     self.catalogs,
                     &state_parameters,
@@ -863,6 +864,7 @@ impl StateGraphEmission<'_, '_> {
                     return unsupported("ordinary return has no unique source cleanup coordinate");
                 };
                 let mut regions = super::super::cleanup::for_exit_regions(
+                self.checked,
                     state,
                     cleanup.exit,
                     self.catalogs,
@@ -883,6 +885,7 @@ impl StateGraphEmission<'_, '_> {
                         })
                 });
                 let actions = evaluation.emit_cleanup_regions(
+                    self.checked,
                     regions,
                     &mut values,
                     &mut next_value,
@@ -1084,6 +1087,7 @@ impl StateGraphEmission<'_, '_> {
                 };
                 if let Some((planned, guard_values)) = &planned_guard {
                     emit_short_circuit_decision(
+                        self.checked,
                         planned,
                         guard_values,
                         [when_true, when_false],
@@ -1195,6 +1199,7 @@ impl StateGraphEmission<'_, '_> {
                             when_false,
                         },
                         ChainGuard::Decision((planned, namespace)) => emit_short_circuit_decision(
+                            self.checked,
                             &planned,
                             &namespace,
                             [when_true, when_false],
@@ -1223,6 +1228,7 @@ impl StateGraphEmission<'_, '_> {
                         erased_scalar_formals: self.state_erased[position].clone(),
                         erased_proof_formals:
                             crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                                self.checked,
                                 &self.state_erased_proof[position],
                             ),
                         structural_parameters,
@@ -1239,6 +1245,7 @@ impl StateGraphEmission<'_, '_> {
                 )?;
                 match &planned_guard {
                     Some((planned, namespace)) => emit_short_circuit_decision(
+                        self.checked,
                         planned,
                         namespace,
                         [first, first_false],
@@ -1459,6 +1466,7 @@ struct ShortCircuitFrame<'a> {
 /// ordered guard chain share this one lowering.
 #[allow(clippy::too_many_arguments)]
 fn emit_short_circuit_decision(
+    checked: &checked_trees::CheckedTrees,
     planned: &crate::emission::case_payload_dispatch::PlannedGuard,
     guard_values: &[ValueDeclaration],
     [when_true, when_false]: [SuccessorEdge; 2],
@@ -1498,6 +1506,7 @@ fn emit_short_circuit_decision(
             erased_scalar_formals: frame.erased_scalar_formals.to_vec(),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    checked,
                     frame.erased_proof_formals,
                 ),
             structural_parameters: Vec::new(),

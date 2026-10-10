@@ -315,7 +315,7 @@ pub(super) fn build(
                     .iter()
                     .copied()
                     .filter(|variant| {
-                        let identity = variant.path_identity();
+                        let identity = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
                         !cases
                             .iter()
                             .any(|case: &CheckedClosedSumCasePlan| case.case_identity == identity)
@@ -335,7 +335,7 @@ pub(super) fn build(
             return None;
         }
         for variant in selected_variants {
-            let identity = variant.path_identity();
+            let identity = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
             if cases
                 .iter()
                 .any(|case: &CheckedClosedSumCasePlan| case.case_identity == identity)
@@ -499,7 +499,7 @@ pub(super) fn build(
                             return None;
                         }
                         payloads.push(CheckedClosedSumPayloadTransferPlan {
-                            field_identity: field.path_identity(),
+                            field_identity: checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                             primitive_type: parameter.primitive_type,
                             target_scalar_parameter_index: u32::try_from(parameter_index).ok()?,
                         });

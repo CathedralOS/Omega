@@ -21,6 +21,7 @@ use terminal_psi::{
 /// The first block retains its incoming declarations; private continuations
 /// carry scalar values and forward erased proof formals without reevaluation.
 pub(crate) struct CleanupEmission<'a> {
+    pub(crate) checked: &'a checked_trees::CheckedTrees,
     pub(crate) current: &'a mut BlockId,
     pub(crate) parameters: &'a mut Vec<ValueDeclaration>,
     pub(crate) structural_parameters: &'a mut Vec<terminal_psi::StructuralParameterDeclaration>,
@@ -106,6 +107,7 @@ impl Evaluation {
     /// homes. The later edge forwards these whole captures, not their old paths.
     pub(crate) fn capture_cleanup_arguments(
         &mut self,
+        checked: &checked_trees::CheckedTrees,
         arguments: &mut Vec<terminal_psi::StructuralArgument>,
         declarations: &[terminal_psi::StructuralParameterDeclaration],
         values: &mut Vec<ValueDeclaration>,
@@ -117,6 +119,7 @@ impl Evaluation {
         operations: &OperationBuffer,
     ) -> Result<(), LoweringError> {
         CleanupEmission {
+            checked,
             current: &mut self.current,
             parameters: &mut self.parameters,
             structural_parameters: &mut self.block_structural_parameters,
@@ -142,6 +145,7 @@ impl Evaluation {
     /// the same private control blocks as statement and call continuations.
     pub(crate) fn emit_cleanup_regions(
         &mut self,
+        checked: &checked_trees::CheckedTrees,
         regions: Vec<CleanupRegion>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -153,6 +157,7 @@ impl Evaluation {
             return Ok(regions.into_iter().map(|region| region.action).collect());
         }
         self.continue_cleanup_regions(
+            checked,
             regions, values, next_value, next_block, next_edge, operations,
         )?;
         Ok(Vec::new())
@@ -160,6 +165,7 @@ impl Evaluation {
 
     pub(crate) fn continue_cleanup_regions(
         &mut self,
+        checked: &checked_trees::CheckedTrees,
         mut regions: Vec<CleanupRegion>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -180,6 +186,7 @@ impl Evaluation {
             }
         }
         CleanupEmission {
+            checked,
             current: &mut self.current,
             parameters: &mut self.parameters,
             structural_parameters: &mut self.block_structural_parameters,
@@ -455,6 +462,7 @@ impl CleanupEmission<'_> {
                 erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
                 erased_proof_formals:
                     crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                        self.checked,
                         self.erased_proof_formals,
                     ),
                 operations: operations[*self.operation_start..].to_vec(),
@@ -513,6 +521,7 @@ impl CleanupEmission<'_> {
             erased_scalar_formals: std::mem::take(self.block_erased_scalar_formals),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    self.checked,
                     self.erased_proof_formals,
                 ),
             operations: operations[*self.operation_start..].to_vec(),

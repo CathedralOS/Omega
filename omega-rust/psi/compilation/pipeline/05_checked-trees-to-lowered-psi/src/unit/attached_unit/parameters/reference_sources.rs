@@ -29,6 +29,7 @@ pub(crate) struct ReferenceSourceEvaluation<'scope, 'calls> {
 /// argument owner, then retain the reference-source leaf marker. Formation,
 /// access and escape permission remain with reference custody validation.
 pub(crate) fn lower_reference_source(
+    checked: &checked_trees::CheckedTrees,
     source: &CheckedUnitStructuralArgumentPlan,
     structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
@@ -65,6 +66,7 @@ pub(crate) fn lower_reference_source(
         ),
     };
     let arguments = lower_structural_arguments(
+        checked,
         std::slice::from_ref(&prefix),
         structural_types,
         parameters,
@@ -130,7 +132,7 @@ pub(crate) fn lower_reference_source(
             // The ordinary argument join already crossed the retained carrier
             // to the checked referent. Keeping another marker would instead
             // declare storage beneath that descriptor and lose parent lineage.
-            if endpoint.identity != source.type_identity {
+            if endpoint.identity != checked.type_identity_text(source.type_identity).unwrap_or_default() {
                 return unsupported("reference source changes its checked endpoint type");
             }
             false
@@ -150,6 +152,7 @@ pub(crate) fn lower_reference_source(
 /// Multiple completion alternatives share one output path without losing their
 /// distinct source places, projections, or access permissions.
 pub(crate) fn lower_reference_result_sources(
+    checked: &checked_trees::CheckedTrees,
     references: &[checked_trees::CheckedReferenceResultSourcePlan],
     result_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[StructuralTypeDeclaration],
@@ -159,6 +162,7 @@ pub(crate) fn lower_reference_result_sources(
         .iter()
         .map(|reference| {
             let source = lower_reference_source(
+                checked,
                 &reference.source,
                 structural_types,
                 parameters,

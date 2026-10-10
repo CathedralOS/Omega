@@ -447,6 +447,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             erased_scalar_formals: Vec::new(),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    checked,
                     &plan.states[0].erased_proof_parameters,
                 ),
             structural_parameters: Vec::new(),
@@ -706,6 +707,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             .collect::<Vec<_>>();
         structural_places.extend(
             crate::unit::attached_unit::provider_attachments::lower_provider_attachment_places(
+                checked,
                 attachment,
                 declaration,
                 &catalogs.structural_types,
@@ -754,6 +756,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             erased_scalar_formals: entry_erased_formals,
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    checked,
                     &plan.states[0].erased_proof_parameters,
                 ),
             outcome_specific_ensures: Vec::new(),

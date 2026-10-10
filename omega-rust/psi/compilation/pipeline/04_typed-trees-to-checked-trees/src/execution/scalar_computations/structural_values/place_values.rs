@@ -76,7 +76,7 @@ impl Builder<'_, '_> {
                     index: Box::new(selection.index.clone()),
                     element_path: vec![checked_trees::CheckedScalarReadProjection::Static(
                         checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                            field.path_identity(),
+                            checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                         ),
                     )],
                     primitive_type,

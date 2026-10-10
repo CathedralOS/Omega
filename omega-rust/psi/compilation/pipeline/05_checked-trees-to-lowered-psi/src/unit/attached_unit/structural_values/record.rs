@@ -89,10 +89,10 @@ impl emission::Emission<'_, '_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "record field declaration missing",
                 ))?;
-            let identity = declaration.path_identity();
+            let identity = checked_trees::CheckedMemberIdentity::of_member(declaration.identity, declaration.name.clone());
             let position = shape_fields
                 .iter()
-                .position(|candidate| candidate.identity == identity)
+                .position(|candidate| candidate.identity == identity.spelling())
                 .ok_or(LoweringError::Unsupported("record field identity missing"))?;
             let target = &shape_fields[position];
             // Source custody replays every semantic initializer. Erased fields

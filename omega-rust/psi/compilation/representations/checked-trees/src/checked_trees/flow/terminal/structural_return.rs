@@ -4,12 +4,13 @@
 
 use super::{CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan};
 use language_semantics::Multiplicity;
+use typed_trees::type_identity::TypeIdentityId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralReturnPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub completion: CheckedStructuralReturnCompletion,
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
     pub multiplicity: Multiplicity,
     pub reference_sources: Vec<CheckedReferenceResultSourcePlan>,
 }

@@ -27,6 +27,7 @@ use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_state(
+    checked: &checked_trees::CheckedTrees,
     state: &LoweredScalarBranchState,
     mut block: BlockId,
     parameters: &[ValueDeclaration],
@@ -110,6 +111,7 @@ pub(super) fn emit_state(
                     .collect::<Vec<_>>(),
             )?;
             let id = emit_scalar_binding(
+                checked,
                 binding,
                 &values,
                 caller_erased_formals,
@@ -125,6 +127,7 @@ pub(super) fn emit_state(
         }
     }
     crate::scalar_lowering::effects::emit(
+        checked,
         &state.structural_effects,
         &values,
         caller_erased_formals,
@@ -204,6 +207,7 @@ pub(super) fn emit_state(
                 .iter()
                 .map(|argument| {
                     crate::scalar_lowering::contracts::lowered_proof_term(
+                        checked,
                         argument,
                         &values,
                         &erased_formals,
@@ -238,6 +242,7 @@ pub(super) fn emit_state(
                 .iter()
                 .map(|term| {
                     crate::scalar_lowering::contracts::lowered_proof_term(
+                        checked,
                         term,
                         &values,
                         &erased_formals,
@@ -250,6 +255,7 @@ pub(super) fn emit_state(
             )?;
             let cleanup_actions = if regions.iter().any(|region| !region.conditions.is_empty()) {
                 super::cleanup_control::CleanupEmission {
+                    checked,
                     current: &mut block,
                     parameters: &mut block_parameters,
                     structural_parameters: &mut Vec::new(),
@@ -303,6 +309,7 @@ pub(super) fn emit_state(
                     .iter()
                     .map(|term| {
                         crate::scalar_lowering::contracts::lowered_proof_term(
+                            checked,
                             term,
                             &values,
                             &erased_formals,
@@ -369,7 +376,7 @@ pub(super) fn emit_state(
                 let mut root = root;
                 root.erased_scalar_formals = erased_formals;
                 root.erased_proof_formals =
-                    erased_proof_formal_declarations(source_erased_proof_formals);
+                    erased_proof_formal_declarations(checked, source_erased_proof_formals);
                 root.operations.splice(
                     0..0,
                     operations[operation_start..terminator_operation_start]
@@ -473,6 +480,7 @@ pub(super) fn emit_state(
                 .iter()
                 .map(|term| {
                     crate::scalar_lowering::contracts::lowered_proof_term(
+                        checked,
                         term,
                         &dispatch_namespace,
                         &erased_formals,
@@ -495,6 +503,7 @@ pub(super) fn emit_state(
                         .iter()
                         .map(|term| {
                             crate::scalar_lowering::contracts::lowered_proof_term(
+                                checked,
                                 term,
                                 &values,
                                 &erased_formals,
@@ -611,6 +620,7 @@ pub(super) fn emit_state(
                         .iter()
                         .map(|term| {
                             crate::scalar_lowering::contracts::lowered_proof_term(
+                                checked,
                                 term,
                                 &dispatch_namespace,
                                 &erased_formals,
@@ -662,6 +672,7 @@ pub(super) fn emit_state(
                             .iter()
                             .map(|term| {
                                 crate::scalar_lowering::contracts::lowered_proof_term(
+                                    checked,
                                     term,
                                     &values,
                                     &erased_formals,
@@ -708,7 +719,7 @@ pub(super) fn emit_state(
         id: block,
         parameters: block_parameters,
         erased_scalar_formals: block_erased_formals,
-        erased_proof_formals: erased_proof_formal_declarations(source_erased_proof_formals),
+        erased_proof_formals: erased_proof_formal_declarations(checked, source_erased_proof_formals),
         operations: operations[operation_start..].to_vec(),
         terminator,
     });

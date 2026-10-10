@@ -272,7 +272,7 @@ fn initializer_transfer(
                     || argument.access != CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
                     || argument.type_identity
-                        != program.normalized_type_identity_text(source.type_reference)
+                        != program.normalized_type_identity(source.type_reference)
                 {
                     return None;
                 }

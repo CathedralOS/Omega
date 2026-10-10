@@ -193,7 +193,7 @@ pub(crate) fn lower_unit_scalar_parameter_types(
 }
 pub(crate) fn lower_unit_parameters(
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
     domain_ids: &[StructuralDomainBinding],
     next_place: &mut u64,
@@ -474,6 +474,7 @@ pub(crate) fn mint_runtime_index_selectors(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_structural_arguments(
+    checked: &checked_trees::CheckedTrees,
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
@@ -498,6 +499,7 @@ pub(crate) fn lower_structural_arguments(
                           prefix: &[terminal_psi::StructuralPathSegment]| {
         let suffix =
             crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(
+                checked,
                 argument,
                 root,
                 structural_types,
@@ -636,7 +638,7 @@ pub(crate) fn lower_structural_arguments(
                     .ok_or(LoweringError::Unsupported(
                         "borrowed scalar formal has no scalar namespace",
                     ))?
-                    .scalar_parameter_borrow(argument, structural_types);
+                    .scalar_parameter_borrow(checked, argument, structural_types);
             }
             let source_parameter_index =
                 argument

@@ -460,6 +460,7 @@ impl ScalarBindings {
     /// live local or an authored parameter directly by symbol.
     pub(crate) fn shared_structural_argument(
         &self,
+        checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
@@ -467,12 +468,13 @@ impl ScalarBindings {
         if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
             return unsupported("computed shared argument changes its access");
         }
-        self.borrowed_structural_argument(argument, machine, parameters)
+        self.borrowed_structural_argument(checked, argument, machine, parameters)
     }
 
     /// Bind an exact shared or mutable loan to its existing structural home.
     pub(crate) fn borrowed_structural_argument(
         &self,
+        checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
@@ -492,6 +494,7 @@ impl ScalarBindings {
                 "borrowed argument lost its published selected type",
             ))?;
         let prepared = structural_paths::prepare_structural_argument_path(
+            checked,
             argument,
             root,
             self.structural_declarations(),
@@ -562,7 +565,7 @@ impl ScalarBindings {
                 source.place,
                 &static_path(&argument.path[..selector_position])?,
                 &static_path(&argument.path[selector_position + 1..])?,
-                case,
+                &checked_trees::CheckedMemberIdentity::of_spelling(&case),
             )?;
         let index = match selector {
             checked_trees::CheckedRuntimeIndex::Parameter { position } => {
@@ -904,11 +907,12 @@ impl ScalarBindings {
     /// crossing so owning a record cannot widen a shared reference inside it.
     pub(crate) fn primitive_borrow(
         &self,
+        checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         scalar_type: ScalarType,
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<StructuralArgument, LoweringError> {
-        let source = self.prepared_primitive_borrow(argument, scalar_type, structural_types)?;
+        let source = self.prepared_primitive_borrow(checked, argument, scalar_type, structural_types)?;
         Ok(StructuralArgument {
             place: source.place,
             access: source.access,
@@ -926,6 +930,7 @@ impl ScalarBindings {
     /// computed call operand takes.
     pub(crate) fn scalar_parameter_borrow(
         &self,
+        checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<StructuralArgument, LoweringError> {
@@ -940,11 +945,12 @@ impl ScalarBindings {
                 .ok_or(LoweringError::Unsupported(
                     "borrowed scalar formal has no published home",
                 ))?;
-        self.primitive_borrow(argument, *scalar_type, structural_types)
+        self.primitive_borrow(checked, argument, *scalar_type, structural_types)
     }
 
     pub(crate) fn prepared_primitive_borrow(
         &self,
+        checked: &checked_trees::CheckedTrees,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         scalar_type: ScalarType,
         structural_types: &[StructuralTypeDeclaration],
@@ -1076,6 +1082,7 @@ impl ScalarBindings {
                     .into_iter()
                     .map(structural_paths::PreparedStructuralPathSegment::Static)
                     .chain(structural_paths::prepare_structural_argument_path(
+                        checked,
                         argument,
                         root_type,
                         structural_types,

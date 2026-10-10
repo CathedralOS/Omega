@@ -26,7 +26,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     // A receiver-free caller, qualified or not, retains no attachment
     // storage. A retained owner must be an empty record: the dispatcher
     // carries no attachment state across its cleanup edges.
-    if let Some(attachment) = plan.attachment_type_identity.as_deref() {
+    if let Some(attachment) = plan.attachment_type_identity {
         let attachment_shape =
             published
                 .structural_type(attachment)
@@ -39,7 +39,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         }
     }
     for parameter in &plan.structural_parameters {
-        let shape = published.structural_type(&parameter.type_identity).ok_or(
+        let shape = published.structural_type(parameter.type_identity).ok_or(
             LoweringError::Unsupported("ordered nominal cleanup parameter shape is absent"),
         )?;
         if !is_bounded_nominal_cleanup_record(&shape.shape) {

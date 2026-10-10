@@ -5,6 +5,8 @@ use super::{
 };
 use crate::CheckedUnitStructuralArgumentPlan;
 use typed_trees::types::PrimitiveType;
+use typed_trees::type_identity::TypeIdentityId;
+use crate::checked_trees::CheckedMemberIdentity;
 
 pub type CheckedScalarComputationHandle = Handle<CheckedScalarComputation>;
 
@@ -235,7 +237,7 @@ pub enum CheckedScalarComputationKind {
         receiver_value: super::structural_values::CheckedStructuralValueHandle,
         field: SymbolHandle,
         /// Exact final field identity, appended to the checked subject path.
-        field_identity: String,
+        field_identity: CheckedMemberIdentity,
     },
     /// Observe an established structural operand without consuming its owner.
     CaseMembership {
@@ -355,7 +357,7 @@ pub enum CheckedScalarCallee {
         /// The exact requirement the slot instantiates.
         requirement: SymbolHandle,
         /// Normalized identity of the selector's `dyn Trait<Args>` type.
-        interface_identity: String,
+        interface_identity: TypeIdentityId,
     },
 }
 

@@ -94,11 +94,19 @@ fn build_component_progress_manifest(
             .build_bound_for_machine(machine_symbol)
         {
             demands.push(effects::CheckedComponentProgressDemand {
-                provider_service_identity: demand.provider_service_identity.clone(),
+                provider_service_identity: program
+                    .typed
+                    .callable_identity_text(demand.provider_service_identity),
                 provider_service_package_identity: demand.provider_service_package_identity,
-                requirement_identity: demand.requirement_identity.clone(),
+                requirement_identity: program
+                    .typed
+                    .callable_identity_text(demand.requirement_identity),
                 requirement_owner_package_identity: demand.requirement_owner_package_identity,
-                profile_identity: demand.profile_identity.clone(),
+                profile_identity: program
+                    .semantic_domains
+                    .name(demand.profile_identity)
+                    .unwrap_or_default()
+                    .to_owned(),
                 subject_projections: demand.subject_projections.clone(),
                 origin_callable_identity: machine_callable_identity(program, demand.origin.machine)
                     .ok_or_else(|| {

@@ -28,8 +28,8 @@ use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 /// `next_place`.
 pub(crate) fn lower_declarations(
     checked: &CheckedTrees,
-    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
-    type_ids: &[(String, StructuralTypeId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[StructuralDomainBinding],
     service_ids: &[(ServiceReachId, ServiceId)],
@@ -92,7 +92,7 @@ pub(crate) fn lower_declarations(
                 &plan.structural_parameters,
             )?,
             id,
-            identity: identity.clone(),
+            identity: checked.typed.callable_identity_text(*identity),
             attachment: plan
                 .attachment_type_identity
                 .as_ref()
@@ -106,7 +106,7 @@ pub(crate) fn lower_declarations(
             program_local_root_introductions: lower_program_local_root_introductions(
                 checked,
                 plan,
-                identity,
+                *identity,
                 &parameters,
                 domain_ids,
             )?,
@@ -329,7 +329,7 @@ fn lower_requirements(
 
 pub(super) fn lower_boundary_result(
     result: &CheckedBoundaryMachineResultPlan,
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
 ) -> Result<BoundaryMachineResult, LoweringError> {
     Ok(match result {
@@ -363,7 +363,7 @@ pub(super) fn lower_boundary_result(
 pub(crate) fn retain_unit_boundary<'plans>(
     checked: &CheckedTrees,
     plans: UnitPlans<'plans>,
-    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, String)>,
+    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>,
     machine: symbols::SymbolHandle,
 ) -> Result<(), LoweringError> {
     let target = unique_unit_boundary(plans, machine)?;

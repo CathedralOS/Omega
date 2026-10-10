@@ -54,6 +54,7 @@ use crate::checked_trees::flow::terminal::{
 };
 use crate::checked_trees::values::CheckedProofTerm;
 use crate::{MachineContractCommitment, NominalMachineUseSite};
+use typed_trees::type_identity::TypeIdentityId;
 
 /// The exact machine state a call enters and the service reach of the edge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,7 +90,7 @@ pub enum CheckedUnitCallRoute {
     Dynamic {
         selector: CheckedCallScalarArgument,
         /// Normalized identity of the selector's `dyn Trait<Args>` type.
-        interface_identity: String,
+        interface_identity: TypeIdentityId,
         /// The exact requirement the slot instantiates.
         requirement: SymbolHandle,
     },

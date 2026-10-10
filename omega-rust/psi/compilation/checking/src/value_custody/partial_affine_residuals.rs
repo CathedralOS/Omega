@@ -20,6 +20,7 @@ use checked_trees::{
     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, is_partial_affine_field_type,
 };
 use std::collections::BTreeMap;
+use typed_trees::type_identity::TypeIdentityId;
 
 /// Source checking decides whether a case is impossible, established, or must
 /// be selected at execution. Geometry never turns a possible case into a fact.
@@ -36,8 +37,8 @@ pub enum CleanupCaseReachability {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CleanupCaseCondition {
     pub path: Vec<CheckedUnitStructuralPathSegment>,
-    pub type_identity: String,
-    pub case_identity: String,
+    pub type_identity: TypeIdentityId,
+    pub case_identity: checked_trees::CheckedMemberIdentity,
 }
 
 /// Invocation-owned geometry scratch, not another durable checked IR. The
@@ -52,12 +53,12 @@ pub struct CaseSelectedCleanupRegion {
 struct ResidualTraversal<'selection> {
     select_case: &'selection dyn Fn(
         &[CheckedUnitStructuralPathSegment],
-        &str,
-        &str,
+        TypeIdentityId,
+        &checked_trees::CheckedMemberIdentity,
     ) -> Option<CleanupCaseReachability>,
     conditions: Vec<CleanupCaseCondition>,
     regions: Vec<CaseSelectedCleanupRegion>,
-    active_types: Vec<String>,
+    active_types: Vec<TypeIdentityId>,
 }
 
 impl ResidualTraversal<'_> {
@@ -65,13 +66,13 @@ impl ResidualTraversal<'_> {
         &mut self,
         source: &CheckedUnitStructuralArgumentSourcePlan,
         path: &[CheckedUnitStructuralPathSegment],
-        type_identity: &str,
+        type_identity: TypeIdentityId,
     ) {
         self.regions.push(CaseSelectedCleanupRegion {
             disposition: CheckedUnitPartialAffineDiscardPlan {
                 source: source.clone(),
                 path: path.to_vec(),
-                type_identity: type_identity.to_owned(),
+                type_identity,
                 case_conditions: Default::default(),
             },
             conditions: self.conditions.clone(),
@@ -80,23 +81,23 @@ impl ResidualTraversal<'_> {
 }
 
 fn validate_type(
-    types: &BTreeMap<&str, &CheckedUnitStructuralTypePlan>,
-    current_type: &str,
-    active: &mut Vec<String>,
-    complete: &mut Vec<String>,
+    types: &BTreeMap<TypeIdentityId, &CheckedUnitStructuralTypePlan>,
+    current_type: TypeIdentityId,
+    active: &mut Vec<TypeIdentityId>,
+    complete: &mut Vec<TypeIdentityId>,
 ) -> Option<()> {
-    if complete.iter().any(|identity| identity == current_type) {
+    if complete.iter().any(|identity| *identity == current_type) {
         return Some(());
     }
-    if active.iter().any(|identity| identity == current_type) {
+    if active.iter().any(|identity| *identity == current_type) {
         return None;
     }
-    let declaration = *types.get(current_type)?;
-    active.push(current_type.to_owned());
+    let declaration = *types.get(&current_type)?;
+    active.push(current_type);
     match &declaration.shape {
         CheckedUnitStructuralTypeShape::Record { fields, .. } => {
             for (index, field) in fields.iter().enumerate() {
-                if field.identity.is_empty()
+                if !field.identity.is_valid()
                     || field.relevance.is_erased()
                     || !is_partial_affine_field_type(&field.field_type)
                     || fields[..index]
@@ -108,7 +109,7 @@ fn validate_type(
                 if let CheckedUnitStructuralFieldType::Structural { type_identity } =
                     &field.field_type
                 {
-                    validate_type(types, type_identity, active, complete)?;
+                    validate_type(types, *type_identity, active, complete)?;
                 }
             }
         }
@@ -120,7 +121,7 @@ fn validate_type(
             // constrain this complement. They retain their own exact shape,
             // just as an empty record does, without visiting an absent element.
             if *length > 0 {
-                validate_type(types, element_type_identity, active, complete)?;
+                validate_type(types, *element_type_identity, active, complete)?;
             }
         }
         // A residual loan ends its stored descriptor, never its referent.
@@ -131,7 +132,7 @@ fn validate_type(
             referent_identity,
             access,
         } if *access != checked_trees::CheckedStructuralAccess::Owned
-            && !referent_identity.is_empty() => {}
+            && referent_identity.is_valid() => {}
         CheckedUnitStructuralTypeShape::Sum { cases } => {
             validate_inline_alternatives(&[], cases)?;
         }
@@ -141,7 +142,7 @@ fn validate_type(
         _ => return None,
     }
     active.pop();
-    complete.push(current_type.to_owned());
+    complete.push(current_type);
     Some(())
 }
 
@@ -154,7 +155,7 @@ fn validate_inline_alternatives(
 ) -> Option<()> {
     let fields_are_inline = |fields: &[checked_trees::CheckedUnitStructuralFieldPlan]| {
         fields.iter().enumerate().all(|(position, field)| {
-            !field.identity.is_empty()
+            field.identity.is_valid()
                 && !field.relevance.is_erased()
                 && is_partial_affine_field_type(&field.field_type)
                 && !matches!(
@@ -169,7 +170,7 @@ fn validate_inline_alternatives(
     (!cases.is_empty()
         && fields_are_inline(common)
         && cases.iter().enumerate().all(|(position, case)| {
-            !case.identity.is_empty()
+            case.identity.is_valid()
                 && !cases[..position]
                     .iter()
                     .any(|earlier| earlier.identity == case.identity)
@@ -181,11 +182,11 @@ fn validate_inline_alternatives(
 /// Count first, traversing only touched array children. Thus a huge dimension
 /// cannot trigger enumeration before host-size and output-allocation checks.
 fn visit(
-    types: &BTreeMap<&str, &CheckedUnitStructuralTypePlan>,
+    types: &BTreeMap<TypeIdentityId, &CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
-    current_type: &str,
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    current_type: TypeIdentityId,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
+    boundaries: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
     prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
     traversal: &mut ResidualTraversal<'_>,
     emit: bool,
@@ -196,11 +197,11 @@ fn visit(
     if traversal
         .active_types
         .iter()
-        .any(|identity| identity == current_type)
+        .any(|identity| *identity == current_type)
     {
         return None;
     }
-    traversal.active_types.push(current_type.to_owned());
+    traversal.active_types.push(current_type);
     let result = visit_region(
         types,
         source,
@@ -216,11 +217,11 @@ fn visit(
 }
 
 fn visit_region(
-    types: &BTreeMap<&str, &CheckedUnitStructuralTypePlan>,
+    types: &BTreeMap<TypeIdentityId, &CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
-    current_type: &str,
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    current_type: TypeIdentityId,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
+    boundaries: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
     prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
     traversal: &mut ResidualTraversal<'_>,
     emit: bool,
@@ -244,7 +245,7 @@ fn visit_region(
         && (!moved_paths.is_empty()
             || boundaries
                 .iter()
-                .any(|(path, identity)| path.is_empty() && *identity != current_type))
+                .any(|(path, identity)| path.is_empty() && identity != &current_type))
     {
         return None;
     }
@@ -256,7 +257,7 @@ fn visit_region(
     if nominal_boundary && emit {
         traversal.emit(source, prefix, current_type);
     }
-    let declaration = *types.get(current_type)?;
+    let declaration = *types.get(&current_type)?;
     let mut count = usize::from(nominal_boundary);
     match &declaration.shape {
         CheckedUnitStructuralTypeShape::Record { fields, .. } => {
@@ -309,7 +310,7 @@ fn visit_region(
                 // a larger conditional roster after reserving the output.
                 validate_type(
                     types,
-                    element_type_identity,
+                    *element_type_identity,
                     &mut Vec::new(),
                     &mut Vec::new(),
                 )?;
@@ -335,7 +336,7 @@ fn visit_region(
                 count = count.checked_add(visit(
                     types,
                     source,
-                    element_type_identity,
+                    *element_type_identity,
                     &matching,
                     &child_boundaries,
                     prefix,
@@ -353,7 +354,7 @@ fn visit_region(
             };
             if cases.is_empty()
                 || cases.iter().enumerate().any(|(case_index, case)| {
-                    case.identity.is_empty()
+                    !case.identity.is_valid()
                         || cases[..case_index]
                             .iter()
                             .any(|earlier| earlier.identity == case.identity)
@@ -410,7 +411,7 @@ fn visit_region(
                 if reachability == CleanupCaseReachability::Runtime {
                     traversal.conditions.push(CleanupCaseCondition {
                         path: prefix.clone(),
-                        type_identity: current_type.to_owned(),
+                        type_identity: current_type,
                         case_identity: case.identity.clone(),
                     });
                 }
@@ -484,17 +485,17 @@ fn visit_region(
 /// Walk one declaration-ordered namespace. Every move and hook must resolve
 /// to its exact structural child; scalar width never substitutes for custody.
 fn visit_fields(
-    types: &BTreeMap<&str, &CheckedUnitStructuralTypePlan>,
+    types: &BTreeMap<TypeIdentityId, &CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
     fields: &[checked_trees::CheckedUnitStructuralFieldPlan],
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
+    boundaries: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
     prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
     traversal: &mut ResidualTraversal<'_>,
     emit: bool,
 ) -> Option<usize> {
     if fields.iter().enumerate().any(|(position, field)| {
-        field.identity.is_empty()
+        !field.identity.is_valid()
             || field.relevance.is_erased()
             || !is_partial_affine_field_type(&field.field_type)
             || fields[..position]
@@ -531,7 +532,7 @@ fn visit_fields(
         count = count.checked_add(visit(
             types,
             source,
-            type_identity,
+            *type_identity,
             &matching,
             &child_boundaries,
             prefix,
@@ -545,14 +546,14 @@ fn visit_fields(
 
 /// The same count-before-enumeration walk serves ordinary no-code residuals.
 pub fn reconstruct(
-    types: &BTreeMap<&str, &CheckedUnitStructuralTypePlan>,
+    types: &BTreeMap<TypeIdentityId, &CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
-    root_type: &str,
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    root_type: TypeIdentityId,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
+    boundaries: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
     max_residuals: usize,
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
-    let select_case = |prefix: &[CheckedUnitStructuralPathSegment], _: &str, case: &str| {
+    let select_case = |prefix: &[CheckedUnitStructuralPathSegment], _: TypeIdentityId, case: &checked_trees::CheckedMemberIdentity| {
         let mut selected = None;
         for (path, _) in moved_paths.iter().chain(boundaries) {
             let Some([CheckedUnitStructuralPathSegment::Case(identity), ..]) =
@@ -560,10 +561,10 @@ pub fn reconstruct(
             else {
                 continue;
             };
-            if selected.is_some_and(|earlier| earlier != identity.as_str()) {
+            if selected.is_some_and(|earlier: &checked_trees::CheckedMemberIdentity| earlier != identity) {
                 return None;
             }
-            selected = Some(identity.as_str());
+            selected = Some(identity);
         }
         Some(if selected? == case {
             CleanupCaseReachability::Selected
@@ -591,16 +592,16 @@ pub fn reconstruct(
 /// recursive payload conditions retain their enclosing selection. Count before
 /// enumeration still bounds arrays and the complete published region roster.
 pub fn reconstruct_case_selected_regions(
-    types: &BTreeMap<&str, &CheckedUnitStructuralTypePlan>,
+    types: &BTreeMap<TypeIdentityId, &CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
-    root_type: &str,
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    root_type: TypeIdentityId,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
+    boundaries: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
     max_residuals: usize,
     select_case: &dyn Fn(
         &[CheckedUnitStructuralPathSegment],
-        &str,
-        &str,
+        TypeIdentityId,
+        &checked_trees::CheckedMemberIdentity,
     ) -> Option<CleanupCaseReachability>,
 ) -> Option<Vec<CaseSelectedCleanupRegion>> {
     if boundaries.iter().enumerate().any(|(position, (path, _))| {

@@ -255,7 +255,7 @@ pub(crate) fn structural_call_arguments(
                 &place,
                 result,
                 target,
-                &target_identity,
+                target_identity,
                 caller_operations,
             )?);
             continue;
@@ -389,7 +389,7 @@ pub(crate) fn structural_call_arguments(
             statement_index,
             place: &place,
             target: target.type_reference,
-            target_identity: &target_identity,
+            target_identity,
             selectors: Some(&selector),
         };
         // Bodyless nominal requirements use the same boundary presentation
@@ -742,7 +742,7 @@ pub(crate) fn exact_structural_argument_access(
             let result = CheckedUnitStructuralResultBindingPlan {
                 statement_index: u32::try_from(call.statement_index).ok()?,
                 binding_ordinal: 0,
-                type_identity: program.normalized_type_identity_text(local.type_reference),
+                type_identity: program.normalized_type_identity(local.type_reference),
                 multiplicity: Multiplicity::Affine,
                 local: Default::default(),
             };

@@ -15,6 +15,8 @@ use crate::{CheckedScalarExpression, ClosedScalarContractValue};
 use language_semantics::{Multiplicity, SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
+use typed_trees::type_identity::TypeIdentityId;
+use crate::checked_trees::CheckedMemberIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedComposedUnitControlMachinePlan {
@@ -33,7 +35,7 @@ pub struct CheckedComposedUnitControlMachinePlan {
     /// state strictly decreases the rank.
     pub preserving_rank_edges: Vec<CheckedRankEdgeCoordinate>,
     /// Free helpers have no attachment; attached bodies retain their authored owner.
-    pub attachment_type_identity: Option<String>,
+    pub attachment_type_identity: Option<TypeIdentityId>,
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
     pub body_qualifications: Vec<SemanticDomainId>,
     pub contract_report_fingerprint: u64,
@@ -70,9 +72,9 @@ pub enum CheckedControlResultPlan {
 }
 
 impl CheckedControlResultPlan {
-    pub fn structural_identity(&self) -> Option<&str> {
+    pub fn structural_identity(&self) -> Option<TypeIdentityId> {
         match self {
-            Self::Structural(result) => Some(&result.type_identity),
+            Self::Structural(result) => Some(result.type_identity),
             Self::Unit | Self::Scalar { .. } => None,
         }
     }
@@ -82,7 +84,7 @@ impl CheckedControlResultPlan {
 pub struct CheckedScalarCaseFieldPlan {
     /// Authored evaluation order, independent of declaration field order.
     pub field_ordinal: u32,
-    pub field_identity: String,
+    pub field_identity: CheckedMemberIdentity,
     pub primitive_type: PrimitiveType,
     pub expression: CheckedScalarExpression,
 }
@@ -727,7 +729,7 @@ pub enum CheckedClosedSumSubjectKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedClosedSumCasePlan {
-    pub case_identity: String,
+    pub case_identity: CheckedMemberIdentity,
     /// One case edge's checked outcome: an ordinary transfer to the case's
     /// named successor state, or the authored `(expression)` arm's returned
     /// value, produced on this case's edge block only.
@@ -758,7 +760,7 @@ impl CheckedClosedSumCasePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedClosedSumPayloadTransferPlan {
-    pub field_identity: String,
+    pub field_identity: CheckedMemberIdentity,
     pub primitive_type: PrimitiveType,
     pub target_scalar_parameter_index: u32,
 }
@@ -783,8 +785,8 @@ pub fn forwards_qualified_parameter<'shapes>(
     live: &[bool],
     target_index: usize,
     parameter_index: usize,
-    structural_type_shape: impl Fn(&str) -> Option<&'shapes CheckedUnitStructuralTypeShape>,
-    domain_without_establishment_routes: impl Fn(SemanticDomainId, &str) -> bool,
+    structural_type_shape: impl Fn(TypeIdentityId) -> Option<&'shapes CheckedUnitStructuralTypeShape>,
+    domain_without_establishment_routes: impl Fn(SemanticDomainId, TypeIdentityId) -> bool,
 ) -> bool {
     let Some(target) = states.get(target_index) else {
         return false;
@@ -798,13 +800,13 @@ pub fn forwards_qualified_parameter<'shapes>(
             CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::Owned
         ) && parameter.projected_qualifications.is_empty()
             && matches!(
-                structural_type_shape(&parameter.type_identity),
+                structural_type_shape(parameter.type_identity),
                 Some(CheckedUnitStructuralTypeShape::ByteSequence(
                     CheckedByteSequenceCarrier::BoundedOwned { .. }
                 ))
             )
             && parameter.qualifications.iter().all(|qualification| {
-                domain_without_establishment_routes(*qualification, &parameter.type_identity)
+                domain_without_establishment_routes(*qualification, parameter.type_identity)
             })))
         || parameter.multiplicity != Multiplicity::Unrestricted
     {
@@ -814,13 +816,13 @@ pub fn forwards_qualified_parameter<'shapes>(
         == CheckedStructuralAccess::SharedBorrow
         && parameter.projected_qualifications.is_empty()
         && matches!(
-            structural_type_shape(&parameter.type_identity),
+            structural_type_shape(parameter.type_identity),
             Some(CheckedUnitStructuralTypeShape::ByteSequence(
                 CheckedByteSequenceCarrier::BorrowedView { .. }
             ))
         )
         && parameter.qualifications.iter().all(|qualification| {
-            domain_without_establishment_routes(*qualification, &parameter.type_identity)
+            domain_without_establishment_routes(*qualification, parameter.type_identity)
         });
     states
         .iter()

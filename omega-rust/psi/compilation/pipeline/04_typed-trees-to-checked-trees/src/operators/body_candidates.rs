@@ -109,9 +109,7 @@ fn candidates_for_application(
             .transpose()?;
         candidates.push(CheckedBoundaryBodyCandidate {
             selection: selection.symbol,
-            selection_identity: typed
-                .machine_callable_identity_text(selection)
-                .ok_or("boundary candidate has no callable identity")?,
+            selection_identity: typed.machine_callable_identity(selection),
             target: machine
                 .target
                 .as_ref()

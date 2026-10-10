@@ -45,7 +45,9 @@ pub(super) fn retain(
         output.push(BoundaryApplicationCandidate {
             requirement: requirement.clone(),
             application: application.clone(),
-            selection_identity: candidate.selection_identity.clone(),
+            selection_identity: checked
+                .typed
+                .callable_identity_text(candidate.selection_identity),
             selection_package: checked.symbols.symbol_package_identity(candidate.selection),
             target: candidate.target.clone(),
             body: CheckedMachineDeclaration {

@@ -5,6 +5,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
 use super::CheckedScalarExpression;
+use typed_trees::type_identity::TypeIdentityId;
 
 /// One erased formal whose carrier rides the contract term lane: a
 /// proof-only type (`Nat` and friends), or a closed checked-shape
@@ -18,7 +19,7 @@ pub struct CheckedErasedProofParameterPlan {
     /// occurrences into this roster's dense proof-lane position.
     pub parameter_symbol: SymbolHandle,
     /// Canonical semantic identity of the carrier (`Nat`, `Proof`).
-    pub type_identity: String,
+    pub type_identity: TypeIdentityId,
 }
 
 /// Where one checked proof term belongs. Mirroring the scalar-expression
@@ -62,7 +63,7 @@ pub enum CheckedProofTerm {
         /// The data type's canonical semantic identity — the same normalized
         /// spelling erased proof formals declare, so contract comparisons
         /// never depend on symbol-table lookups downstream.
-        type_identity: String,
+        type_identity: TypeIdentityId,
         /// The selected case's symbol, when the type has cases.
         case_symbol: Option<SymbolHandle>,
         /// Payload fields in authored order.

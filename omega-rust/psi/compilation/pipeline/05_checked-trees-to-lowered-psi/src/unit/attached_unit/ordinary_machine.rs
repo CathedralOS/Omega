@@ -63,7 +63,7 @@ use lowered_psi::{
 /// type roster travels separately because a body may extend it.
 #[derive(Clone, Copy)]
 pub(super) struct ClosureCatalog<'a> {
-    pub(super) type_ids: &'a [(String, StructuralTypeId)],
+    pub(super) type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     pub(super) domain_ids: &'a [StructuralDomainBinding],
     pub(super) service_ids: &'a [(ServiceReachId, ServiceId)],
     pub(super) boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
@@ -96,7 +96,7 @@ pub(super) struct MachineEmission<'a> {
     parameters: &'a Vec<StructuralParameterDeclaration>,
     scalar_parameter_count: usize,
     structural_types: &'a mut Vec<StructuralTypeDeclaration>,
-    type_ids: &'a [(String, StructuralTypeId)],
+    type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     domain_ids: &'a [StructuralDomainBinding],
     service_ids: &'a [(ServiceReachId, ServiceId)],
     lowered_boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
@@ -207,14 +207,14 @@ pub(super) fn emit(
         .collect::<Vec<_>>();
     let attachment = plan
         .attachment_type_identity
-        .as_deref()
-        .map(|identity| lookup_type_id(type_ids, identity))
+        .map(|identity| lookup_type_id(type_ids, &identity))
         .transpose()?;
     let provider_places = if let Some(attachment) = attachment {
         let attachment_declaration =
             terminal_psi::find_structural_type(structural_types, attachment)
                 .expect("lowered attachment declaration exists");
         lower_provider_attachment_places(
+            checked,
             attachment,
             attachment_declaration,
             structural_types,
@@ -612,6 +612,7 @@ pub(super) fn emit(
         // replaces their independently recorded production cleanup.
         let results = StructuralResults::Dense(&mut structural_result_places);
         let normal_regions = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+            checked,
             crate::unit::unit_cleanup::outstanding_actions(
                 normal_cleanup_actions,
                 &plan.operations,
@@ -860,6 +861,7 @@ pub(super) fn emit(
                 })
                 .transpose()?;
             evaluation.continue_cleanup_regions(
+                checked,
                 cleanup_regions,
                 &mut scalar_result_values,
                 &mut next_value,
@@ -1073,6 +1075,7 @@ pub(super) fn emit(
             erased_scalar_formals: signature.erased_scalar_parameters.clone(),
             erased_proof_formals:
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
+                    checked,
                     &signature.erased_proof_parameters,
                 ),
             requires: signature.requires.clone(),
@@ -1106,7 +1109,7 @@ fn lower_structural_result_declaration(
     result: &checked_trees::CheckedUnitStructuralReturnPlan,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
     next_place: &mut u64,
 ) -> Result<terminal_psi::StructuralResultDeclaration, LoweringError> {
@@ -1155,6 +1158,7 @@ fn lower_structural_result_declaration(
             structural_types,
         )?,
         reference_sources: parameters::lower_reference_result_sources(
+            checked,
             &result.reference_sources,
             structural_type,
             structural_types,
@@ -1174,7 +1178,7 @@ fn establish_call_literals(
     plan: &CheckedUnitEffectMachinePlan,
     plans: UnitPlans<'_>,
     lowered_boundary_parameters: &[super::operation_frame::BoundaryParameters],
-    type_ids: &[(String, StructuralTypeId)],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     next_place: &mut u64,

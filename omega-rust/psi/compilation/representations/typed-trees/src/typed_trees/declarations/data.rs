@@ -307,10 +307,93 @@ fn member_path_identity(identity: Option<u64>, name: &Identifier) -> String {
         .unwrap_or_else(|| name.as_str().to_owned())
 }
 
+/// One data member's structural path segment identity: its schema ordinal
+/// `#n` when one was assigned, else its authored name. Equality follows the
+/// `member_path_identity` spelling — two members match when both carry
+/// ordinals and the ordinals are equal, or when neither does and the names
+/// match — while the field itself holds no rendered text. Shared by checked
+/// structural paths, predicate paths, and their producers.
+#[derive(Debug, Clone, Default, Eq)]
+pub struct DataMemberIdentity {
+    pub ordinal: Option<u64>,
+    pub name: Identifier,
+}
+
+impl DataMemberIdentity {
+    pub fn of_member(ordinal: Option<u64>, name: Identifier) -> Self {
+        Self { ordinal, name }
+    }
+
+    /// Reconstructs the handle from a canonical path spelling (`#n` or the
+    /// authored name) for producers that only ever held the rendered text.
+    pub fn of_spelling(spelling: &str) -> Self {
+        if let Some(ordinal) = spelling
+            .strip_prefix('#')
+            .and_then(|digits| digits.parse::<u64>().ok())
+        {
+            return Self {
+                ordinal: Some(ordinal),
+                name: Identifier::default(),
+            };
+        }
+        Self {
+            ordinal: None,
+            name: Identifier::generated(spelling),
+        }
+    }
+
+    /// Zero-member absence: no schema ordinal and no authored name.
+    pub fn is_valid(&self) -> bool {
+        self.ordinal.is_some() || !self.name.as_str().is_empty()
+    }
+
+    /// The member's canonical path spelling (`#n` or the authored name),
+    /// rendered where a boundary or diagnostic still wants text.
+    pub fn spelling(&self) -> String {
+        member_path_identity(self.ordinal, &self.name)
+    }
+}
+
+impl PartialEq for DataMemberIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        match (self.ordinal, other.ordinal) {
+            (Some(own), Some(theirs)) => own == theirs,
+            (None, None) => self.name == other.name,
+            _ => false,
+        }
+    }
+}
+
+// Ordering follows the canonical spelling so sorted rosters stay stable
+// across the handle migration; paths are few-member and not allocation hot.
+impl Ord for DataMemberIdentity {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.spelling().cmp(&other.spelling())
+    }
+}
+
+impl PartialOrd for DataMemberIdentity {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// Hashing the spelling keeps segment-keyed sets consistent with Ord.
+impl std::hash::Hash for DataMemberIdentity {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.spelling().hash(state);
+    }
+}
+
 impl DataField {
     /// This field's structural path segment spelling.
     pub fn path_identity(&self) -> String {
         member_path_identity(self.identity, &self.name)
+    }
+
+    /// This field's structural path segment identity handle.
+    pub fn member_identity(&self) -> DataMemberIdentity {
+        DataMemberIdentity::of_member(self.identity, self.name.clone())
     }
 }
 
@@ -318,6 +401,11 @@ impl DataVariant {
     /// This case's structural path segment spelling.
     pub fn path_identity(&self) -> String {
         member_path_identity(self.identity, &self.name)
+    }
+
+    /// This case's structural path segment identity handle.
+    pub fn member_identity(&self) -> DataMemberIdentity {
+        DataMemberIdentity::of_member(self.identity, self.name.clone())
     }
 }
 

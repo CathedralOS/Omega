@@ -181,8 +181,8 @@ pub(crate) fn projected_temporary_residuals(
     let residuals = partial_affine_residuals(
         &shapes.types,
         &argument.source,
-        &identity,
-        &[(argument.path.clone(), argument.type_identity.clone())],
+        identity,
+        &[(argument.path.clone(), argument.type_identity)],
     )?;
     validate_permissions_at(
         program,
@@ -271,8 +271,8 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
             let residuals = partial_affine_residuals(
                 &shapes.types,
                 &source,
-                &result.type_identity,
-                &[(argument.path.clone(), argument.type_identity.clone())],
+                result.type_identity,
+                &[(argument.path.clone(), argument.type_identity)],
             )?;
             validate_permissions_at(
                 program,

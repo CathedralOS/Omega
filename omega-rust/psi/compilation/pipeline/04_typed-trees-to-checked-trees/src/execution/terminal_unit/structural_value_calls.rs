@@ -15,7 +15,7 @@ use checked_trees::{CheckedStructuralValueRoot, CheckedUnitEffectOperationPlan};
 pub(crate) fn retain(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
-) -> Result<(), String> {
+) -> Result<(), typed_trees::type_identity::TypeIdentityId> {
     let mut shapes = ShapeCollector::new(program);
     let mut schedules = Vec::new();
     for (_, root) in facts.values.structural_values.roots.iter() {

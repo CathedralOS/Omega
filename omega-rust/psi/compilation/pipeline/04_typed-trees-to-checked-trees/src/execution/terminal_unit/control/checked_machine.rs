@@ -150,7 +150,7 @@ pub(crate) fn build_checked_machine_residual_parts(
     trace.phase("signature: parameter storage");
     let parameter_storage =
         parameter_storage_plans(program, shapes, state, &binders, &scalar_parameters)?;
-    let attachment_type_identity = None;
+    let attachment_type_identity = None::<typed_trees::type_identity::TypeIdentityId>;
     trace.phase("state contracts");
     if !checked_state_contracts_have_plan(
         program,
@@ -363,13 +363,13 @@ pub(crate) fn build_checked_machine_residual_parts(
         super::super::types::body_structural_qualifications(program, facts, machine.symbol);
 
     trace.phase("provider attachment requirements");
-    let provider_attachment_requirements = match attachment_type_identity.as_deref() {
+    let provider_attachment_requirements = match attachment_type_identity.as_ref() {
         Some(attachment) => checked_provider_attachment_requirements(
             program,
             shapes,
             machine,
             state,
-            attachment,
+            *attachment,
             &structural_parameters,
             source_calls,
             &operations,

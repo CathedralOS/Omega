@@ -35,7 +35,7 @@ pub(super) fn loan(
     place: &validation::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
-    target_identity: &str,
+    target_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let symbol = place.root.as_symbol()?;
     if !place.segments.is_empty() {
