@@ -330,9 +330,7 @@ impl ConstraintBuffer {
     }
 
     pub(crate) fn extend(&mut self, constraints: ConstraintBuffer) {
-        for constraint in constraints {
-            self.push(constraint);
-        }
+        self.extend_iter(constraints);
     }
 
     pub(crate) fn extend_iter(&mut self, constraints: impl IntoIterator<Item = ProofConstraint>) {
