@@ -30,7 +30,7 @@ machine main() crashes Trap {
     rows[2].cells[2].value = 42;
     rows[2].cells[2].active = true;
     rows[2].numbers[1] = 70;
-    let view: &[Row] = rows.as_slice();
+    let view: &[Row] = &rows[..];
     let window: &[Row] = view[1..3];
     let cell: i32 in Wrapping = read_cell(window, 1, 2);
     let number: i32 in Wrapping = read_number(window, 1, 1);

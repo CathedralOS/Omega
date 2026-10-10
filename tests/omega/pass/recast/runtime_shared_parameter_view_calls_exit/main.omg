@@ -29,7 +29,7 @@ machine main() crashes Trap {
     let source: SignedRecord = SignedRecord { value: -17 };
     let viewed: &UnsignedRecord = &source as &UnsignedRecord;
     let envelopes: [Envelope; 1] = [Envelope { item: viewed }];
-    let window: &[Envelope] = envelopes.as_slice();
+    let window: &[Envelope] = &envelopes[..];
     let stored: u32 = inspect_stored(window);
     transition bits == 4294967279 && other == 0 && stored == 4294967279 {
         true -> done()

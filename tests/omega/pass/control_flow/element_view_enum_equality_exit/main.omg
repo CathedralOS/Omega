@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.slots[0].tag = Tag::First;
     main.slots[1].prefix = 29;
     main.slots[1].tag = Tag::Second;
-    let view: &[Slot] = main.slots.as_slice();
+    let view: &[Slot] = &main.slots[..];
     let first: bool = matches(view, 0, Tag::First);
     let different: bool = matches(view, 1, Tag::First);
     let tail: &[Slot] = view[1..];

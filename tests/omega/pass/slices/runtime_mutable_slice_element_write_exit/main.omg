@@ -11,7 +11,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let entry_slice: &mut [Entry] = main.entries.as_mut_slice();
+    let entry_slice: &mut [Entry] = &mut main.entries[..];
     entry_slice[0].value = 7;
 
     transition main.entries[0].value == 7 {

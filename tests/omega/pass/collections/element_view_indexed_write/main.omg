@@ -2,7 +2,7 @@
 // `&mut [i32]` slice carrier and `slots[index] = value` lowers to the
 // element-view write op: the view's length witness feeds the bounds proof,
 // the index selects one element, and the stored scalar matches the view's
-// element leaf. `as_mut_slice` establishment of locals is pinned separately
+// element leaf. `&mut collection[..]` establishment of locals is pinned separately
 // (pending/collections/view_write_probe).
 use omega_language_std::console;
 use omega::language::core::binding;

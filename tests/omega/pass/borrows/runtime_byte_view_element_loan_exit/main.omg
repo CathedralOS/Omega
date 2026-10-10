@@ -68,10 +68,10 @@ machine Main::main(main: &mut Main) reaches Console {
     main.bytes[3] = 108;
     main.bytes[4] = 111;
     main.bytes[5] = 0;
-    let view: &[u8] = main.bytes.as_slice();
+    let view: &[u8] = &main.bytes[..];
     let found: bool = third_is_l(view);
     let first: bool = first_is_h(view);
-    let writable: &mut [u8] = main.bytes.as_mut_slice();
+    let writable: &mut [u8] = &mut main.bytes[..];
     let stored: bool = set_at(writable, 1);
     let arrayed: bool = set_in_array(&mut main.bytes, 4);
     transition found && first && stored && arrayed

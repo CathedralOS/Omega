@@ -23,7 +23,7 @@ machine store(slots: &mut [Slot], cursor: &mut Cursor) {
 machine main() crashes Trap {
     let mut grid: Grid;
     let mut cursor: Cursor = Cursor { index: 1 };
-    let slots: &mut [Slot] = grid.slots.as_mut_slice();
+    let slots: &mut [Slot] = &mut grid.slots[..];
     store(slots, &mut cursor);
     transition grid.slots[1].scores[1] == 23 && grid.slots[1].scores[0] == 0
         && grid.slots[0].scores[1] == 0 && grid.slots[1].tag == 0

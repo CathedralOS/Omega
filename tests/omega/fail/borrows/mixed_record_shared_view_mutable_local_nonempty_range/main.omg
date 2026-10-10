@@ -18,7 +18,7 @@ requires current.shared.len > 0;
 machine main() crashes Trap {
     let shared_values: [u32; 1] = [7];
     let mut exclusive_values: [u32; 1];
-    let shared: &[u32] = shared_values.as_slice();
+    let shared: &[u32] = &shared_values[..];
     let current: Mixed = Mixed {
         shared: shared,
         exclusive: &mut exclusive_values[0..1]

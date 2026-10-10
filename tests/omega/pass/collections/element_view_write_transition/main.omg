@@ -29,7 +29,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 machine release(bag: &mut Bag) {
-    let cells: &mut [i32] = bag.cells.as_mut_slice();
+    let cells: &mut [i32] = &mut bag.cells[..];
     cells[2] = 7;
     transition {
         _ -> done()

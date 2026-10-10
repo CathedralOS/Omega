@@ -7,7 +7,7 @@ data Bag { holders: [Holder; 3]; }
 data Main { console: Binding<Console>; bag: Bag; }
 
 machine Bag::pick(bag: &mut Bag, choice: Choice) -> &mut Holder {
-    let slots: &mut [Holder] = bag.holders.as_mut_slice();
+    let slots: &mut [Holder] = &mut bag.holders[..];
     transition choice {
         Choice::First -> &mut slots[0]
         Choice::Second -> &mut slots[1]
@@ -16,7 +16,7 @@ machine Bag::pick(bag: &mut Bag, choice: Choice) -> &mut Holder {
 }
 
 machine pick_free(bag: &mut Bag, choice: Choice) -> &mut Holder {
-    let slots: &mut [Holder] = bag.holders.as_mut_slice();
+    let slots: &mut [Holder] = &mut bag.holders[..];
     transition {
         choice == Choice::First -> &mut slots[0]
         choice == Choice::Second -> &mut slots[1]

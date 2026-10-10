@@ -23,7 +23,7 @@ data Main {
 }
 
 machine pick_either(a: &mut Bag, b: &mut Bag) -> &mut Cell {
-    let cells: &mut [Cell] = a.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut a.cells[..];
     transition {
         _ -> &mut cells[2]
     }

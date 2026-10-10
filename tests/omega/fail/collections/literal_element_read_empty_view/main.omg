@@ -6,6 +6,6 @@ requires values.len == 0;
 }
 machine main() {
     let empty: [u32; 0] = [];
-    let values: &[u32] = empty.as_slice();
+    let values: &[u32] = &empty[..];
     let observed: u32 = read(values);
 }

@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.bytes[4] = 5;
     main.more[2] = 9;
     let reversed: bool = reverse(&mut main.bytes, 0);
-    let view: &mut [u8] = main.more.as_mut_slice();
+    let view: &mut [u8] = &mut main.more[..];
     let seen: u8 = peek(view, 2);
     transition main.bytes[0] == 5 && main.bytes[1] == 4 && main.bytes[2] == 3
         && main.bytes[3] == 2 && main.bytes[4] == 1 && seen == 9 {

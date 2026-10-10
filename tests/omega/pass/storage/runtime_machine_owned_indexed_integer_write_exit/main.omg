@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let index: u64 = 1;
     main.rooms[index].exit_count = 7;
 
-    let room_slice: &[Room] = main.rooms.as_slice();
+    let room_slice: &[Room] = &main.rooms[..];
     transition room_slice[index].exit_count == 7 {
         true -> good(main)
         false -> bad(main)

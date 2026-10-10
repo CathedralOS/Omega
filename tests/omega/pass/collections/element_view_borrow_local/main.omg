@@ -38,7 +38,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 machine Main::fill_literal(bag: &mut Bag) {
-    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut bag.cells[..];
     let cell: &mut Cell = &mut cells[2];
     cell.value = 7;
     transition {
@@ -50,7 +50,7 @@ machine Main::fill_literal(bag: &mut Bag) {
 }
 
 machine Main::fill_local(bag: &mut Bag) {
-    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut bag.cells[..];
     let pick: i32 = 1;
     let other: &mut Cell = &mut cells[pick];
     other.value = 5;
@@ -63,7 +63,7 @@ machine Main::fill_local(bag: &mut Bag) {
 }
 
 machine Main::fill_param(bag: &mut Bag, at: u64) requires at < 4 {
-    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut bag.cells[..];
     let target: &mut Cell = &mut cells[at];
     target.value = 9;
     transition {

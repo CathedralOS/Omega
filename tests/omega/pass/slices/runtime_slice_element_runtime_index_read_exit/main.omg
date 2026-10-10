@@ -10,7 +10,7 @@ data Main {
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.arr[1] = 11;
-    let s: &[i32] = main.arr.as_slice();
+    let s: &[i32] = &main.arr[..];
     transition s.len == 4 {
         true -> pick(main, s, 1)
         false -> no(main)

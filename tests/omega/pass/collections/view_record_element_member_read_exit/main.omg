@@ -37,7 +37,7 @@ machine Main::main(context: &mut Main) reaches Console {
     entries[4].value = 15;
     entries[5].value = 10;
     entries[6].value = 10;
-    let se: &[Entry] = entries.as_slice();
+    let se: &[Entry] = &entries[..];
     let total: i32 = sum_entries(se, 0);
     transition total == 70 {
         true -> good(context)

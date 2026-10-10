@@ -19,7 +19,7 @@ data Bag {
 }
 
 machine Bag::pick(bag: &mut Bag) -> &mut Cell {
-    let slots: &mut [Cell] = bag.cells.as_mut_slice();
+    let slots: &mut [Cell] = &mut bag.cells[..];
     transition {
         _ -> &mut slots[2]
     }

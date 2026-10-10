@@ -31,7 +31,7 @@ requires index < bytes.len
 
 machine Main::main(main: &mut Main) reaches Console {
     let filled: u64 = fill(&mut main.bytes, 0);
-    let view: &mut [u8] = main.more.as_mut_slice();
+    let view: &mut [u8] = &mut main.more[..];
     let sliced: u64 = fill_slice(view, 0);
     transition filled == 8 && main.bytes[0] == 7 && main.bytes[7] == 7 {
         true -> slices(main, sliced)

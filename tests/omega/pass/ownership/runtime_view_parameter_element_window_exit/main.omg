@@ -85,12 +85,12 @@ requires tokens.len >= 3
 
 machine main() crashes Trap {
     let mut exits: [Exit; 4];
-    let exit_view: &mut [Exit] = exits.as_mut_slice();
+    let exit_view: &mut [Exit] = &mut exits[0..4];
     fill_exits(exit_view, 1);
     let exit_tail: &mut [Exit] = exit_view[2..4];
     reopen(exit_tail);
     let mut tokens: [Token; 3] = [Token { byte: 65 }, Token { byte: 66 }, Token { byte: 67 }];
-    let view: &mut [Token] = tokens.as_mut_slice();
+    let view: &mut [Token] = &mut tokens[0..3];
     rotate(view, 1);
     swap(view);
     forward(view);
@@ -98,7 +98,7 @@ machine main() crashes Trap {
         Room { token: Token { byte: 65 }, cell: 1 },
         Room { token: Token { byte: 66 }, cell: 2 }
     ];
-    let room_view: &mut [Room] = rooms.as_mut_slice();
+    let room_view: &mut [Room] = &mut rooms[0..2];
     refit(room_view, 1);
     transition exits[0].code == 11 && !exits[0].open
         && exits[1].code == 41 && exits[1].open

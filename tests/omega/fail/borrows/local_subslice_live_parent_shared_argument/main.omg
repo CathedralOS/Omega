@@ -1,7 +1,7 @@
 // An exclusive child suspends its parent's branch for observation as well as
 // mutation. `middle` captures `view[2..4]` and is written after the call, so
 // lending `view` shared would let `peek` observe bytes `middle` still owns.
-// The parent view comes from an explicit borrow here and from `as_mut_slice`
+// The parent view comes from an explicit borrow here and from `&mut items[..]`
 // in `local_subslice_live_parent_mutable_argument`; both lend the same
 // captured storage.
 machine zero(view: &mut [u8])

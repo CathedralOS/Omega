@@ -29,8 +29,8 @@ requires index < bytes.len && index < words.len
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let bytes: &mut [u8] = main.bytes.as_mut_slice();
-    let words: &mut [u32] = main.words.as_mut_slice();
+    let bytes: &mut [u8] = &mut main.bytes[..];
+    let words: &mut [u32] = &mut main.words[..];
     let filled: bool = fill(bytes, words, 2);
     transition main.bytes[2] == 55 && main.words[2] == 43 && main.bytes[1] == 0 {
         true -> reached(main)

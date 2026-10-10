@@ -43,10 +43,10 @@ machine mark_words(words: &mut [u32]) {
 
 machine Main::main(main: &mut Main) reaches Console {
     main.seen = false;
-    let view: &mut [u8] = main.bytes.as_mut_slice();
+    let view: &mut [u8] = &mut main.bytes[..];
     mark(view);
     check(view, &mut main.seen);
-    let words: &mut [u32] = main.words.as_mut_slice();
+    let words: &mut [u32] = &mut main.words[..];
     mark_words(words);
     transition main.bytes[1] == 9 && main.seen && main.words[2] == 77 {
         true -> good(main)

@@ -18,7 +18,7 @@ terminates by elements -> Slice::Length;
 
 machine main() crashes Trap {
     let values: [u32; 3] = [1, 2, 3];
-    let elements: &[u32] = values.as_slice();
+    let elements: &[u32] = &values[..];
     let byte_result: u64 = bytes_walk(7, "abc");
     let element_result: u64 = elements_walk(9, elements);
     transition byte_result == 7 && element_result == 9 {

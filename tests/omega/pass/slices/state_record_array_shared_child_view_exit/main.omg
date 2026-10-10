@@ -10,7 +10,7 @@ machine main() reaches Console {
     transition { _ -> check(&mut packet) }
     state check(packet: &mut Packet) {
         stamp(&mut packet.items);
-        let view: &[u8] = packet.items.as_slice();
+        let view: &[u8] = &packet.items[..];
         transition view.len == 4 {
             true -> done() _ -> failed()
         }

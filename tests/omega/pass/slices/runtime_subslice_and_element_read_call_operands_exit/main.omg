@@ -22,7 +22,7 @@ data Main {
 machine Main::run(context: &mut Main) reaches Console {
     context.entries[1].value = 9;
     context.entries[2].value = 42;
-    let view: &[Entry] = context.entries.as_slice();
+    let view: &[Entry] = &context.entries[..];
     let result: i32 = Main::probe(view);
     context.console.exit_process(result);
 }

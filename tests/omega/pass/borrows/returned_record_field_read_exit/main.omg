@@ -9,7 +9,7 @@ data Bag { holders: [Holder; 2]; }
 data Main { console: Binding<Console>; bag: Bag; }
 
 machine pick(bag: &mut Bag, second: bool) -> &mut Holder {
-    let holders: &mut [Holder] = bag.holders.as_mut_slice();
+    let holders: &mut [Holder] = &mut bag.holders[..];
     transition second {
         true -> &mut holders[1]
         false -> &mut holders[0]

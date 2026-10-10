@@ -28,7 +28,7 @@ machine Main::run(context: &mut Main) reaches Console {
 machine Main::main(main: &mut Main) -> i32 {
     main.entries[1].value = 9;
 
-    let view: &[Entry] = main.entries.as_slice();
+    let view: &[Entry] = &main.entries[..];
     let index: u64 = 1;
     let selected: i32 = Main::inspect(view, index);
     (selected)

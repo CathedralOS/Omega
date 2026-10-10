@@ -104,7 +104,7 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
     state inspecting(main: &mut Main) {
-        let view: &[Entry] = main.entries.as_slice();
+        let view: &[Entry] = &main.entries[..];
         let first: i32 = Main::inspect(view, 0);
         let past: i32 = Main::inspect(view, 7);
         transition first == 9 && past == 0 {

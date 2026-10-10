@@ -4,7 +4,7 @@ machine as_mut_slice(values: &[u32]) -> &[u32] { values }
 
 machine main() {
     let items: [u32; 2] = [7, 9];
-    let shared: &[u32] = items.as_slice();
+    let shared: &[u32] = &items[..];
     let requested: &mut [u32] = as_mut_slice(shared);
     let observed: u64 = requested.len;
 }

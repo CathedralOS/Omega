@@ -30,13 +30,13 @@ requires tokens.len >= 2, initial < 2
 
 machine main() crashes Trap {
     let mut left: [Token; 2] = [Token { byte: 11 }, Token { byte: 7 }];
-    let left_view: &mut [Token] = left.as_mut_slice();
+    let left_view: &mut [Token] = &mut left[..];
     rotate(left_view, 0);
     let mut right: [Token; 2] = [Token { byte: 11 }, Token { byte: 7 }];
-    let right_view: &mut [Token] = right.as_mut_slice();
+    let right_view: &mut [Token] = &mut right[..];
     rotate(right_view, 1);
     let mut saved: [Token; 2] = [Token { byte: 5 }, Token { byte: 13 }];
-    let saved_view: &mut [Token] = saved.as_mut_slice();
+    let saved_view: &mut [Token] = &mut saved[..];
     saved_rotate(saved_view, 1);
     transition left[0].byte == 19 && left[1].byte == 11
         && right[0].byte == 11 && right[1].byte == 7

@@ -411,6 +411,15 @@ helper that passes does not close an item.
     partitioning and cleanup. Entry provisioning now joins explicit source
     positions; remove remaining attachment-driven discovery without changing
     provider or storage authority.
+  - View receivers: 20 corpus fixtures and `samples/cli/games/dungeon_crawler_cli`
+    still call `X.as_slice()`/`X.as_mut_slice()`; the rest spell `&X[..]`. In
+    the Rust reference the range view drops facts the receiver call carries:
+    the whole collection's length, element default-domain facts (`in Utf8`),
+    cleanup `requires` through the view, and the reborrow lifecycle replay of
+    two borrow fixtures. Carry them through `[..]`, respell the rest, then
+    retire the receiver recognizer (`collection_view_call` in
+    `checking/src/value_custody/places/collection_operations.rs`) and its
+    consumers.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.
   Acceptance: static customers execute with their authored exit/output; the

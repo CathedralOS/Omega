@@ -17,7 +17,7 @@ requires cells.len >= 2
 
 machine main() crashes Trap {
     let mut grid: Grid;
-    let cells: &mut [Cell] = grid.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut grid.cells[..];
     store(cells);
     transition grid.cells[1].value == 7 && grid.cells[1].floor == 100
         && grid.cells[1].ceiling == 9 && grid.cells[0].value == 0

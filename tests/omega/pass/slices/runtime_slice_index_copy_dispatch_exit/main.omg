@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state copy_alias(main: &mut Main) {
         main.entries[0].value = 7;
 
-        let entry_view: &[Entry] = main.entries.as_slice();
+        let entry_view: &[Entry] = &main.entries[..];
         let index: u64 = 0;
         let chosen: Entry = entry_view[index];
 

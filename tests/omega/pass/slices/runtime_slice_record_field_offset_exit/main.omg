@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.entries[1].prefix = 123;
     main.entries[1].value = 29;
     main.entries[1].suffix = 456;
-    let entry_view: &[Entry] = main.entries.as_slice();
+    let entry_view: &[Entry] = &main.entries[..];
     let index: u64 = 1;
     transition entry_view[index].value == 29 {
         true -> good(main)

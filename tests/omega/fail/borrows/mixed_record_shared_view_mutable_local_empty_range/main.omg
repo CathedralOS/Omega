@@ -13,7 +13,7 @@ machine main() {
     let shared_values: [u32; 1] = [7];
     let mut exclusive_values: [u32; 1];
     let current: Mixed = Mixed {
-        shared: shared_values.as_slice(),
+        shared: &shared_values[..],
         exclusive: &mut exclusive_values[0..1]
     };
     violate(current);

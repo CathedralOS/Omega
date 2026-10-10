@@ -19,7 +19,7 @@ terminates by s -> Slice::Length;
 
 machine main() reaches Console {
     let values: [i32 in Wrapping; 7] = [8, 12, 10, 5, 15, 10, 10];
-    let view: &[i32 in Wrapping] = values.as_slice();
+    let view: &[i32 in Wrapping] = &values[..];
     let total: i32 = sum_window(view, 0);
     transition total == 70 {
         true -> done()

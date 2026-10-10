@@ -70,7 +70,7 @@ machine Main::main(main: &mut Main) reaches Console + CText + Measure {
     main.words.bytes[3] = 108;
     main.words.bytes[4] = 111;
     main.words.bytes[5] = 0;
-    let view: &[u8] = main.words.bytes.as_slice();
+    let view: &[u8] = &main.words.bytes[..];
     main.result = main.measure.measure(view);
     transition main.result == 70 {
         true -> good(main)

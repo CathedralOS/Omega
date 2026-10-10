@@ -1,5 +1,5 @@
 // A static machine lends its own local fixed arrays through element views.
-// `values.as_slice()` establishes a shared `&[i32]` descriptor over the local
+// `&values[..]` establishes a shared `&[i32]` descriptor over the local
 // array's home, `&values` presents the same backing directly as a call
 // argument, and a zero-initialized `[i32; 3]` lends both `&mut [i32]` and
 // `&[i32]` views of its storage. Exits 70 only when every view observed the
@@ -24,7 +24,7 @@ machine measure(slots: &mut [i32]) -> u64 {
 
 machine main() reaches Console {
     let values: [i32; 4] = [3, 11, 2, 7];
-    let view: &[i32] = values.as_slice();
+    let view: &[i32] = &values[..];
     let from_view: i32 = largest(view, 0);
     let direct: i32 = largest(&values, 0);
     let extent: u64 = count(&values);

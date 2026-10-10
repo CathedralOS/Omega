@@ -58,7 +58,7 @@ machine Main::confirm_after(chosen: i32, tail: &[Entry]) -> i32 {
 machine Main::main(main: &mut Main) reaches Console {
     main.entries[1].value = 9;
     main.entries[2].value = 42;
-    let view: &[Entry] = main.entries.as_slice();
+    let view: &[Entry] = &main.entries[..];
 
     transition {
         _ -> picked(main, view)

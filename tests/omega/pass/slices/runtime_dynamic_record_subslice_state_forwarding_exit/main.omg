@@ -16,7 +16,7 @@ machine main() crashes Trap {
     let mut items: [Cell; 3];
     items[0].value = 11;
     items[2].value = 13;
-    let view: &mut [Cell] = items.as_mut_slice();
+    let view: &mut [Cell] = &mut items[..];
     write(view, 1, 2);
     transition items[0].value == 11 && !items[0].flag
         && items[1].value == 23 && items[1].flag

@@ -11,7 +11,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let entry_view: &[Entry] = main.entries.as_slice();
+    let entry_view: &[Entry] = &main.entries[..];
 
     transition entry_view.len > 0 {
         true -> sum_entries(main, entry_view, 0, 0)

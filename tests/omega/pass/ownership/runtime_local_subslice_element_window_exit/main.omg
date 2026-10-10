@@ -33,19 +33,19 @@ requires tokens.len >= 4, at < 2
 
 machine main() crashes Trap {
     let mut exits: [Exit; 4];
-    let exit_view: &mut [Exit] = exits.as_mut_slice();
+    let exit_view: &mut [Exit] = &mut exits[..];
     fill(exit_view);
     let mut tokens: [Token; 4] = [
         Token { byte: 65 }, Token { byte: 66 },
         Token { byte: 67 }, Token { byte: 68 }
     ];
-    let token_view: &mut [Token] = tokens.as_mut_slice();
+    let token_view: &mut [Token] = &mut tokens[..];
     rotate(token_view, 0);
     let mut other_tokens: [Token; 4] = [
         Token { byte: 65 }, Token { byte: 66 },
         Token { byte: 67 }, Token { byte: 68 }
     ];
-    let other_view: &mut [Token] = other_tokens.as_mut_slice();
+    let other_view: &mut [Token] = &mut other_tokens[..];
     rotate(other_view, 1);
     transition exits[0].code == 0 && !exits[0].open
         && exits[1].code == 11 && !exits[1].open

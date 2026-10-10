@@ -28,7 +28,7 @@ machine store(cells: &mut [Cell], cursor: &mut Cursor) {
 machine main() crashes Trap {
     let mut grid: Grid;
     let mut cursor: Cursor = Cursor { index: 1 };
-    let cells: &mut [Cell] = grid.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut grid.cells[..];
     store(cells, &mut cursor);
     transition grid.cells[1].value == 7 && grid.cells[0].value == 0
         && grid.cells[1].tag == 0 && cursor.index == 0 {

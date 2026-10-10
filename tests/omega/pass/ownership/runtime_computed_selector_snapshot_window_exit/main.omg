@@ -15,7 +15,7 @@ requires tokens.len >= 2
 
 machine main() crashes Trap {
     let mut tokens: [Token; 2] = [Token { byte: 11 }, Token { byte: 23 }];
-    let view: &mut [Token] = tokens.as_mut_slice();
+    let view: &mut [Token] = &mut tokens[..];
     restore(view);
     transition tokens[0].byte == 11 && tokens[1].byte == 31 {
         true -> done()

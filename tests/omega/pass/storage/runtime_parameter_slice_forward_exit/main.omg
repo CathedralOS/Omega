@@ -6,7 +6,7 @@ data Counter { n: i32 in Wrapping; tag: i32; }
 data Room { exits: [Counter; 2]; }
 
 machine mutate(room: &mut Room) {
-    let exits: &mut [Counter] = room.exits.as_mut_slice();
+    let exits: &mut [Counter] = &mut room.exits[..];
     transition { _ -> first(exits) }
     state first(exits: &mut [Counter]) {
         let position: u64 = 0;

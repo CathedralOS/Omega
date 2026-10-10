@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.entries[0].value = 11;
     main.entries[1].value = 29;
 
-    let view: &[Entry] = main.entries.as_slice();
+    let view: &[Entry] = &main.entries[..];
     let tail: &[Entry] = view[1..];
     let chosen: Entry = tail[0];
 

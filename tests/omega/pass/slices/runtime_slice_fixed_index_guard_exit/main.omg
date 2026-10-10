@@ -13,7 +13,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     main.entries[0].value = 7;
 
-    let entry_view: &[Entry] = main.entries.as_slice();
+    let entry_view: &[Entry] = &main.entries[..];
 
     transition {
         _ -> check_first(main, entry_view)

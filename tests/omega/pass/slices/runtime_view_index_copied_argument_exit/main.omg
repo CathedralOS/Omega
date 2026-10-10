@@ -10,7 +10,7 @@ requires index < entries.len;
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.entries[0].value[0] = 70;
-    let entries: &[Entry] = main.entries.as_slice();
+    let entries: &[Entry] = &main.entries[..];
     let value: u64 = read_entry(entries, 0u64);
     transition value == 70 { true -> good(main) false -> bad(main) }
     state good(main: &mut Main) { main.console.exit_process(70); }

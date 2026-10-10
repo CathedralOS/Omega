@@ -41,7 +41,7 @@ machine main() {
     items[2] = 15;
     items[3] = 20;
 
-    let s: &[i32 in Wrapping] = items.as_slice();
+    let s: &[i32 in Wrapping] = &items[..];
     let n: i32 = Walker::walk(s);
 
     transition n == 0 {

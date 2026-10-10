@@ -11,7 +11,7 @@ requires column < 1
 machine main() crashes Trap {
     let mut rows: [Row; 3];
     rows[2].cells[1].value = 70;
-    let view: &[Row] = rows.as_slice();
+    let view: &[Row] = &rows[..];
     let observed: i32 in Wrapping = read(view, 2, 0);
     transition observed == 70 {
         true -> done()

@@ -21,7 +21,7 @@ machine select(items: &[Item], index: u64, output: &mut Output)
 machine Main::main(main: &mut Main) reaches Console {
     main.items[0] = Item { kind: Kind::First, value: 11 };
     main.items[1] = Item { kind: Kind::Second, value: 22 };
-    let entries: &[Item] = main.items.as_slice();
+    let entries: &[Item] = &main.items[..];
     select(entries, 1, &mut main.output);
     // An unselected edge must not evaluate its out-of-bounds copy.
     select(entries, 99, &mut main.output);

@@ -85,7 +85,7 @@ machine main() crashes Trap {
     let old_array: u8 = through_array(&mut items);
     let mut bytes: [u8; 8] = [21, 22, 23, 24, 25, 26, 27, 28];
     let mut tally: Tally = Tally { old: 0, pair: Pair { left: 0, right: 0 } };
-    let view: &mut [u8] = bytes.as_mut_slice();
+    let view: &mut [u8] = &mut bytes[..];
     let tail: &mut [u8] = view[6..8];
     let middle: &mut [u8] = view[2..4];
     fill(tail, 13);

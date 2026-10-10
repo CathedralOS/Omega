@@ -34,5 +34,5 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 machine Probe::scan(probe: &Probe, bag: &mut Bag) {
-    let slots: &[Node] = bag.nodes.as_slice();
+    let slots: &[Node] = &bag.nodes[..];
 }

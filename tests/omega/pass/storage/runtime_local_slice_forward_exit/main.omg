@@ -10,7 +10,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let room: Room = Room {
         exits: [ Counter { n: 10 }, Counter { n: 20 } ]
     };
-    let exits: &mut [Counter] = room.exits.as_mut_slice();
+    let exits: &mut [Counter] = &mut room.exits[..];
     transition { _ -> bump_first(main, exits) }
 
     state bump_first(main: &mut Main, exits: &mut [Counter]) {

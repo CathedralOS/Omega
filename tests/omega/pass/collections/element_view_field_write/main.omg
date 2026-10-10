@@ -45,7 +45,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 machine fill(bag: &mut Bag) {
-    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut bag.cells[..];
     cells[2].value = 7;
     cells[2].tag = 9;
     transition {

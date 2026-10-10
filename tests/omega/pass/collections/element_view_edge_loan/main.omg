@@ -47,28 +47,28 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 machine Main::fill_literal(main: &mut Main) {
-    let cells: &mut [Cell] = main.bag.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut main.bag.cells[..];
     Main::set_at(&mut cells[2], 40);
 }
 
 machine Main::fill_field(main: &mut Main) {
-    let cells: &mut [Cell] = main.bag.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut main.bag.cells[..];
     Main::set_at(&mut cells[main.at], 20);
 }
 
 machine Main::fill_local(main: &mut Main) {
     let i: u64 = 1;
-    let cells: &mut [Cell] = main.bag.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut main.bag.cells[..];
     Main::set_at(&mut cells[i], 9);
 }
 
 machine Main::fill_param(main: &mut Main, k: u64) requires k < 4 {
-    let cells: &mut [Cell] = main.bag.cells.as_mut_slice();
+    let cells: &mut [Cell] = &mut main.bag.cells[..];
     Main::set_at(&mut cells[k], 9);
 }
 
 machine Main::read_shared(main: &mut Main, k: u64) requires k < 4 {
-    let cells: &[Cell] = main.bag.cells.as_slice();
+    let cells: &[Cell] = &main.bag.cells[..];
     Main::inspect(&cells[k]);
 }
 

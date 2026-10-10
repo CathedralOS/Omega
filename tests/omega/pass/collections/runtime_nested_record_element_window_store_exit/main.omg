@@ -36,14 +36,14 @@ requires slots.len >= 2
 
 machine main() crashes Trap {
     let mut grid: Grid;
-    let slots: &mut [Slot] = grid.slots.as_mut_slice();
+    let slots: &mut [Slot] = &mut grid.slots[..];
     let window: &mut [Slot] = slots[1..3];
     let observed: i32 = replace(window);
-    let backing: &[Slot] = grid.slots.as_slice();
+    let backing: &[Slot] = &grid.slots[..];
     let first: &[Slot] = backing[0..2];
     let second: &[Slot] = backing[1..3];
     let envelopes: [Envelope; 2] = [Envelope { items: first }, Envelope { items: second }];
-    let descriptors: &[Envelope] = envelopes.as_slice();
+    let descriptors: &[Envelope] = &envelopes[..];
     let nested: i32 = inspect(descriptors);
     let empty: &[Envelope] = descriptors[0..0];
     let skipped: i32 = inspect(empty);

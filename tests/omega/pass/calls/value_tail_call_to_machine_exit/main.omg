@@ -69,7 +69,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let forwarded_argument: i32 = main.last;
     let staged: i32 = Main::staged(main, 20);
     let staged_argument: i32 = main.last;
-    let view: &[Entry] = main.entries.as_slice();
+    let view: &[Entry] = &main.entries[..];
     let picked: i32 = Main::pick(view, 2);
     transition forwarded == 65 && forwarded_argument == 60 {
         true -> check_staged(main, staged, staged_argument, picked)

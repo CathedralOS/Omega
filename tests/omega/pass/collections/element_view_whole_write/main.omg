@@ -41,7 +41,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 machine Main::fill_literal(bag: &mut Bag, fresh: Node) {
-    let nodes: &mut [Node] = bag.nodes.as_mut_slice();
+    let nodes: &mut [Node] = &mut bag.nodes[..];
     let pick: i32 = 2;
     nodes[pick] = fresh;
     transition {
@@ -55,7 +55,7 @@ machine Main::fill_literal(bag: &mut Bag, fresh: Node) {
 machine Main::fill_param(bag: &mut Bag, fresh: Node, at: u64)
     requires at < 4
 {
-    let nodes: &mut [Node] = bag.nodes.as_mut_slice();
+    let nodes: &mut [Node] = &mut bag.nodes[..];
     nodes[at] = fresh;
     transition {
         _ -> done()

@@ -1,5 +1,5 @@
 // Reading a `&[T]` slice element by a RUNTIME index: `s[main.i]` where `s` is a
-// borrowed slice (`main.nums.as_slice()`) and `main.i` is a runtime field. Like
+// borrowed slice (`&main.nums[..]`) and `main.i` is a runtime field. Like
 // the inline-array read, this was a silent miscompile (the read emitted nothing
 // and the target kept its zero value); the machine-indexed read encoder now
 // covers it. Reads two runtime indices and self-checks. (Constant indices on a
@@ -27,7 +27,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state compute(main: &mut Main) {
-        let s: &[i32] = main.nums.as_slice();
+        let s: &[i32] = &main.nums[..];
         main.i = 1;
         main.a = s[main.i]; // 20
         main.i = 3;

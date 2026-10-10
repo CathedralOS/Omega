@@ -16,7 +16,7 @@ machine main() reaches Console {
     transition { _ -> check(packet) }
 
     state check(packet: Packet) {
-        let view: &[i32] = packet.samples.items.as_slice();
+        let view: &[i32] = &packet.samples.items[..];
         let observed: i32 = read(view);
         transition observed == 70 && packet.samples.items[0] == 70
             && packet.samples.items[3] == 5 && packet.samples.items[1] == 2 && packet.marker == 9 {

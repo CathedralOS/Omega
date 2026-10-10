@@ -36,7 +36,7 @@ machine main() crashes Trap {
     items[2] = 15;
     items[3] = 20;
 
-    let view: &[i32 in Wrapping] = items.as_slice();
+    let view: &[i32 in Wrapping] = &items[..];
     let from_view: i32 = walk(view);
     let from_array: i32 = walk(&items);
 

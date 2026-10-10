@@ -4,7 +4,7 @@ data Holder { bytes: [u8; 2]; calls: u64; }
 machine observe(bytes: &[u8]) -> u64 { bytes.len }
 
 machine select(bytes: &[u8; 2], choice: Choice) -> u64 {
-    let view: &[u8] = bytes.as_slice();
+    let view: &[u8] = &bytes[..];
     let observed: u64 = observe(view);
     transition choice {
         Choice::Forward -> forwarded(view)

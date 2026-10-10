@@ -7,7 +7,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) -> u64 {
-    let items: &mut [i32] = main.entries.as_mut_slice();
+    let items: &mut [i32] = &mut main.entries[..];
     let a: &mut [i32] = items[0..2];
     let b: &mut [i32] = items[1..3];
     a.len + b.len

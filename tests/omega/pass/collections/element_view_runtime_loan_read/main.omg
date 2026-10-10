@@ -23,7 +23,7 @@ data Main {
 machine pick(bag: &mut Bag)
 requires bag.at < 4
 {
-    let cells: &[Cell] = bag.cells.as_slice();
+    let cells: &[Cell] = &bag.cells[..];
     let cell: &Cell = &cells[bag.at];
     let observed: i32 = cell.value;
     bag.cells[0].value = observed;
