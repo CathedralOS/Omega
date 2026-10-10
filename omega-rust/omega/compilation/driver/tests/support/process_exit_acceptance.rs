@@ -22,7 +22,7 @@ pub fn candidate_process_exit_binding(
         .iter()
         .zip(checked.execution().selected_provider_provenance.as_slice())
         .filter(|(plan, provenance)| {
-            plan.schema.trait_name == "ProcessExit"
+            plan.schema.identity_text(plan.schema.trait_name) == "ProcessExit"
                 && plan.rows.iter().any(|row| row.method == "exit_process")
                 && provenance.provider.provider_type.is_some_and(|provider| {
                     checked.symbols.symbol_package_identity(provider) == Some(owner)
@@ -59,7 +59,7 @@ pub fn candidate_process_exit_binding(
         .map(|method| {
             effects::ServiceTerminalAuthorityPermission::new(
                 plan.schema.identity_digest(),
-                method.requirement_identity.clone(),
+                plan.schema.identity_text(method.requirement_identity).to_owned(),
                 effects::TerminalAuthorityDisposition::from_classes(vec![
                     effects::TerminalAuthorityClass::ProcessTermination,
                 ]),

@@ -183,7 +183,13 @@ pub fn schema_binds_exact_boundary_requirement(
         && program.symbols.symbol_package_identity(requirement.symbol)
             == schema.trait_package_identity
         && from_typed_boundary_requirement(context, requirement)
-            .is_some_and(|candidate| candidate.trait_name == schema.trait_name)
+            .is_some_and(|candidate| {
+                // Ids only carry meaning inside the table that minted them;
+                // the candidate interns in its own table, so compare the
+                // resolved text, never the raw ids.
+                candidate.identity_text(candidate.trait_name)
+                    == schema.identity_text(schema.trait_name)
+            })
 }
 
 /// Reify one exact explicit top-level boundary requirement as a

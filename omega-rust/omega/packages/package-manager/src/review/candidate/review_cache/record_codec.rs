@@ -801,3 +801,65 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
         policy_canonical_bytes,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    //! Codec round-trip proofs for interned provider identities: decoding a
+    //! record interns the same canonical texts encoding projected, so a
+    //! recovered record is semantically equal and re-encodes byte-identical.
+
+    use super::*;
+
+    #[test]
+    fn service_schema_codec_roundtrips_interned_identities() {
+        let mut identities = ProviderIdentityTable::default();
+        let trait_name = identities.intern("omega.test.Trait");
+        let requirement_identity = identities.intern("omega.test.Trait.method");
+        let alpha = identities.intern("omega.test.Trait.alpha");
+        let beta = identities.intern("omega.test.Trait.beta");
+        let schema = ServiceSchema {
+            trait_name,
+            identities,
+            trait_package_identity: None,
+            methods: vec![ServiceMethod {
+                name: "method".to_owned(),
+                requirement_owner: "omega.test.Trait".to_owned(),
+                requirement_identity,
+                parameter_count: 1,
+                parameter_type_identities: vec!["omega.core.u32".to_owned()],
+                has_result: true,
+                result_type_identity: Some("omega.core.u32".to_owned()),
+                terminates_guarantee: true,
+                termination_premises: vec![ServiceProgressPremise {
+                    profile: "terminates".to_owned(),
+                    subject: ServiceProgressSubject::ProviderReceiver,
+                    subject_projections: Vec::new(),
+                    establishment_routes: vec![
+                        ServiceProgressEstablishmentRoute {
+                            kind: ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+                            requirement_identity: alpha,
+                        },
+                        ServiceProgressEstablishmentRoute {
+                            kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                            requirement_identity: beta,
+                        },
+                    ],
+                }],
+                ..Default::default()
+            }],
+        };
+
+        let mut encoded = Vec::new();
+        encode_service_schema(&schema, &mut encoded);
+        let recovered = recover_service_schema(&mut ObservationCursor::new(&encoded))
+            .expect("service schema decodes");
+        assert_eq!(schema, recovered);
+
+        let mut reencoded = Vec::new();
+        encode_service_schema(&recovered, &mut reencoded);
+        assert_eq!(
+            encoded, reencoded,
+            "a decoded record must re-encode to identical bytes"
+        );
+    }
+}
