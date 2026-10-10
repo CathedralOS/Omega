@@ -1,0 +1,5 @@
+{
+  "host_cpu_busy_percent_over_one_second": 79.96,
+  "cgroup_cpu_stat": "usage_usec 1040525804\nuser_usec 1016587165\nsystem_usec 23938638\nnice_usec 0\nnr_periods 2857\nnr_throttled 1664\nthrottled_usec 4252108\nnr_bursts 0\nburst_usec 0\n",
+  "cgroup_memory_current_bytes": 4645908480
+}

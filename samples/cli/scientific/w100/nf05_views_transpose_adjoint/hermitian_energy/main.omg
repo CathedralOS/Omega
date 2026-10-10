@@ -30,9 +30,9 @@ machine main() reaches Console {
         true -> pass()
         false -> fail()
     }
-    state pass() reaches Console {
+    state pass() {
         Console::write_line("NF05 Hermitian energy oracle: PASS");
         Console::exit_process(0);
     }
-    state fail() reaches Console { Console::exit_process(1); }
+    state fail() { Console::exit_process(1); }
 }

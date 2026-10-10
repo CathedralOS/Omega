@@ -16,10 +16,10 @@
   "independent_oracle_result": "19 frozen oracle comparisons passed",
   "frozen_source_hashes": {
     "hermitian_energy/build.omg": "69508f1da2034435d87fde96732b6203e2c1d9badc96ed0453c2d94759a32492",
-    "hermitian_energy/main.omg": "4ff1fb0cb2b9347cbe4479fa1c288e0824db10a1d849457ff4c32294c1b60e32",
+    "hermitian_energy/main.omg": "0f53172736012a8e84c5d33ad7344ab6ae4ed5f2042716c2c02433ad48958783",
     "invalid_readonly_write/build.omg": "4c1db5d11e48ffaabf8ef2cd7141c0487d49472a6653f7b4c210e3745e32d4a0",
     "invalid_readonly_write/main.omg": "220b584f3f232236aa75fae51af5e5dab340888bc753e9b8d59a635faae49419",
     "sensor_patch/build.omg": "3fcb100f392cececf063a74b17d3bfcb8c0f4608cb1a22bf4b71531312de09dd",
-    "sensor_patch/main.omg": "f889226ea4e56adb60bbe2fd18343288675f812cc6a5fc53006174ae8178524e"
+    "sensor_patch/main.omg": "1eea608a355f2003ef9f62c78e94fd7a2113f28786b2a1187594bc6a3484f333"
   }
 }
