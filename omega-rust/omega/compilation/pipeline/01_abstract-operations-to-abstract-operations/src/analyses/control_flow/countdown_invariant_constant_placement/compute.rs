@@ -270,7 +270,7 @@ fn validate_roots(
     Ok(())
 }
 
-fn unsupported(
+pub(super) fn unsupported(
     machine: MachineId,
     operation: OperationId,
 ) -> CountdownInvariantConstantPlacementAnalysisError {

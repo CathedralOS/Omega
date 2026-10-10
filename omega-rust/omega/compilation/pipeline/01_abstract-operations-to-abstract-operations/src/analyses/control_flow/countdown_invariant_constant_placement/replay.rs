@@ -4,7 +4,7 @@ use super::{
     CountdownInvariantConstantConsumer, CountdownInvariantConstantDestination,
     CountdownInvariantConstantPlacement, CountdownInvariantConstantPlacementAnalysisError,
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
-    CountdownInvariantIntegerConstant, MachineId, NodeLocation, O, OperationId,
+    CountdownInvariantIntegerConstant, NodeLocation, O,
     OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiProvenance, ScalarType, UnsignedCountdownInvariantConstantPlacements,
     UnsignedCountdownLoopSummary, ValidatedCountdownInvariantConstantAnalysis,
@@ -447,12 +447,7 @@ fn validate_roots(
     Ok(())
 }
 
-fn unsupported(
-    machine: MachineId,
-    operation: OperationId,
-) -> CountdownInvariantConstantPlacementAnalysisError {
-    CountdownInvariantConstantPlacementAnalysisError::UnsupportedPlacement { machine, operation }
-}
+use super::compute::unsupported;
 
 /// The unique node carrying `operation`'s provenance, or `unsupported` when
 /// none or several carry it.
