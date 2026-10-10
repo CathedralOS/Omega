@@ -3,17 +3,27 @@
 //! A projection can know its element or member without knowing its complete
 //! value type. Ownership needs the latter: an array's authored extent and a
 //! constructor's applied declaration determine each child's claim path. Derive
-//! them from completed children after final call binding, never from a
+//! compound values from completed children after final call binding, never from a
 //! same-shaped declaration or the consumer's formal type. Child-before-parent
 //! preparation gives nested constructors the same ordinary result-type route.
 //! No ownership, membership or loan permission is established by this derivation.
+//! Reference formation also needs a value type before static call inference:
+//! its referent is a declared place, but its value retains authored access.
+//! Reborrowing lends the existing referent, not the reference carrier itself.
 
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
-pub(super) fn retain_constructed_result_types(program: &mut TypedTrees) {
+fn occurrences(
+    program: &TypedTrees,
+    selected: fn(&ExpressionNode) -> bool,
+) -> Vec<(
+    symbols::SymbolHandle,
+    symbols::SymbolHandle,
+    ExpressionHandle,
+)> {
     let mut occurrences = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -34,10 +44,7 @@ pub(super) fn retain_constructed_result_types(program: &mut TypedTrees) {
                     expression,
                     &mut visited,
                     |expression, node| {
-                        if matches!(
-                            node,
-                            ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_)
-                        ) {
+                        if selected(node) {
                             occurrences.push((machine.symbol, state.symbol, expression));
                         }
                     },
@@ -45,7 +52,71 @@ pub(super) fn retain_constructed_result_types(program: &mut TypedTrees) {
             }
         }
     }
-    for (machine_symbol, state_symbol, expression) in occurrences {
+    occurrences
+}
+
+/// Static inference needs the argument value, not the place stripped of its
+/// borrow. Derive each formation in its own owner after substitution; this
+/// records type vocabulary only. Loan admission still checks storage, access,
+/// lifetime correspondence and parent lineage independently.
+pub(crate) fn retain_borrow_result_types(program: &mut TypedTrees) {
+    for (machine_symbol, state_symbol, expression) in
+        occurrences(program, |node| matches!(node, ExpressionNode::Borrow(_)))
+    {
+        let derived = (|| {
+            let machine = program.machine_by_symbol(machine_symbol)?;
+            let state = program.state_by_symbol(state_symbol)?;
+            let borrow = program.expression_table.borrow_expression(expression)?;
+            let target =
+                validation::declared_place_type_raw(program, machine, Some(state), borrow.target)?;
+            let carrier = program
+                .type_reference_table
+                .unconstrained_type_reference(target);
+            let (referee, lifetime) = match program.type_reference_table.type_reference(carrier) {
+                TypeReferenceNode::Reference {
+                    referee, lifetime, ..
+                } => (*referee, lifetime.clone()),
+                _ => (target, None),
+            };
+            Some(TypeReferenceNode::Reference {
+                referee,
+                access: borrow.access,
+                lifetime,
+            })
+        })();
+        let reference = derived
+            .map(|node| {
+                // Preparation repeats as calls specialize. Reuse exact vocabulary
+                // rather than adding another shell on every fixed-point round.
+                let retained = program
+                    .expression_table
+                    .constructed_value_type_reference(expression);
+                let existing = if retained.is_valid()
+                    && program.type_reference_table.type_reference(retained) == &node
+                {
+                    Some(retained)
+                } else {
+                    program.type_reference_table.type_reference_rows().find_map(
+                        |(reference, candidate)| (candidate == &node).then_some(reference),
+                    )
+                };
+                existing.unwrap_or_else(|| program.type_reference_table.insert(node))
+            })
+            .unwrap_or_else(TypeReferenceHandle::invalid);
+        program
+            .expression_table
+            .set_constructed_value_type_reference(expression, reference);
+    }
+}
+
+pub(crate) fn retain_constructed_result_types(program: &mut TypedTrees) {
+    retain_borrow_result_types(program);
+    for (machine_symbol, state_symbol, expression) in occurrences(program, |node| {
+        matches!(
+            node,
+            ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_)
+        )
+    }) {
         let reference = if program
             .expression_table
             .struct_literal_node(expression)

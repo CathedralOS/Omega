@@ -471,10 +471,15 @@ fn result_type(
             }
         })(),
         ExpressionNode::ZeroValue(reference) => Some(*reference),
-        // Place lookup strips a Borrow to its target. A value-type query must
-        // not turn that view into a by-value operand and hide reference-typed
-        // operator candidates, including through a nested Match result.
-        ExpressionNode::Borrow(_) => None,
+        // Formation retains a reference value, not its underlying place type.
+        // Unprepared occurrences stay unresolved rather than masquerading as
+        // by-value operands in inference or operator selection.
+        ExpressionNode::Borrow(_) => {
+            let reference = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            reference.is_valid().then_some(reference)
+        }
         ExpressionNode::Integer(literal) => {
             let reference = crate::declarations::operators::landed_integer_literal_type_reference(
                 program, expression,

@@ -658,10 +658,13 @@ defines the complete product bar.
     through retained borrowed fields; qualify its remaining bound hosts.
     Keep `runtime_generic_linear_case_restore_exit` and
     `runtime_linear_constructor_instances_exit` (0) for fresh and forwarded
-    conserved claims, applied-owner cleanup and scalar-leaf observation.
+    conserved claims, applied-owner cleanup and scalar-leaf observation;
+    `runtime_borrowed_value_inference_exit` (0) constrains direct borrowed
+    arguments through generic carriers without a result-type inference hint.
     Keep `fail/ownership/linear_case_result_second_transfer` and
     `generic_linear_constructor_{second_transfer,keeps_backing_loan}` for
-    exact-once returned custody and retained backing loans.
+    exact-once returned custody and retained backing loans, including
+    `generic_borrowed_value_retains_backing_loan` through a type-only binder.
     The result programs still need Windows x86-64 and
     matching-host Linux x86-64 execution; inactive cases owe no fabricated
     claims. Suspension/resume/cancellation qualification depends on the

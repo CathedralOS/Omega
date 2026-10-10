@@ -100,27 +100,6 @@ pub(crate) fn infer_static_bindings(
             type_proposals,
             const_proposals,
         ),
-        // Borrow syntax is carried by the CALL edge, not as a wrapper on the
-        // place expression itself. Thus `f<T>(&T)` called as `f(&place)` sees
-        // the declared type of `place` here. Peel the requirement-side borrow
-        // and infer from that place type; ordinary call validation separately
-        // checks that the authored borrow mode is legal.
-        (
-            TypeReferenceNode::Reference {
-                referee: required, ..
-            },
-            _,
-        ) => infer_static_bindings(
-            program,
-            *required,
-            actual,
-            type_parameters,
-            const_parameters,
-            fixed_range_parameters,
-            candidate_index,
-            type_proposals,
-            const_proposals,
-        ),
         (
             TypeReferenceNode::Constrained {
                 base_type: required_base,

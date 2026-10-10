@@ -189,6 +189,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         // discovers no further ordinary specialization.
         changed_owners.extend(result_locals::refresh(program));
         materialize_static_argument_types(program);
+        crate::constructed_results::retain_borrow_result_types(program);
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {

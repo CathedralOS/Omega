@@ -1,0 +1,34 @@
+use omega::language::core::drop;
+
+data Token<Payload> [linear] { payload: Payload; }
+machine Token::drop(token: &mut Token<Payload>) {}
+
+machine make<Payload>(payload: Payload) -> Token<Payload> {
+    Token { payload: payload }
+}
+
+machine accept<Payload>(payload: &Payload) -> bool { true }
+
+machine identity<'storage, Payload>(payload: &'storage Payload) -> &'storage Payload {
+    payload
+}
+
+machine reborrow<'storage>(payload: &'storage i32) -> i32 {
+    let reference: &'storage i32 = identity(&payload);
+    reference
+}
+
+machine main() crashes Trap {
+    let backing: i32 = 73;
+    let token: Token<&i32> = make(&backing);
+    let accepted: bool = accept(&backing);
+    let observed: i32 = token.payload;
+    let forwarded: i32 = reborrow(&backing);
+    drop(token);
+    transition observed == 73 && forwarded == 73 && accepted {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
