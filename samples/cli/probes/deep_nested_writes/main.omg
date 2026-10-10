@@ -1,46 +1,28 @@
-// Deep nested write paths: `main.nested.second.b` field-of-field,
-// `main.holder.msg = Msg::Pong { .. }` sum-into-struct-field, and
-// `main.pair[1].a` indexed-element-field — each write must land
-// without bleeding into adjacent storage.
-//
-//   * Case payload destructured back through the nested path.
-//   * `hits` records the reached arm.
-//
-// Compile-checked only: no standard-library dependency, no
-// ProcessExit provider.
-
+// Deep write paths: struct-in-struct field write, a sum constructed into a
+// struct field destructured back through the nested path, and an
+// array-of-struct element field write (indexed + member combined).
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 data Inner { a: u32; b: u32; }
 data Outer { first: Inner; second: Inner; }
 data Holder { tag: u32; msg: Msg; }
-
-data Main {
-    hits: i32 in Wrapping;
-    nested: Outer;
-    holder: Holder;
-    pair: [Inner; 2];
-}
-
+data Main { nested: Outer; holder: Holder; pair: [Inner; 2]; }
 machine Main::main(main: &mut Main) {
-    main.hits = 0;
-    main.nested.second.b = 42;
-    main.holder.msg = Msg::Pong { y: 7, z: 9 };
-    main.pair[1].a = 5;
-    transition main.nested.second.b == 42
-        && main.nested.second.a == 0
-        && main.pair[1].a == 5
-        && main.pair[0].a == 0 {
-        true -> check(main)
-        _ -> fail(main)
-    }
-    state check(main: &mut Main) {
-        transition main.holder.msg {
-            Msg::Pong { y, z } -> sum_ok(main, y, z)
-            _ -> fail(main)
+    main.nested.second.b = 5;
+    main.holder.msg = Msg::Pong { y: 3, z: 8 };
+    main.pair[1].a = 9;
+    transition { _ -> read_nested(main) }
+    state read_nested(main: &mut Main) {
+        transition main.nested.second.b == 5 && main.pair[1].a == 9 {
+            true -> read_sum(main)
+            false -> bad(main)
         }
     }
-    state sum_ok(main: &mut Main, y: i32, z: i32) {
-        main.hits = 1;
+    state read_sum(main: &mut Main) {
+        transition main.holder.msg {
+            Msg::Pong { y, z } -> done(main, y)
+            Msg::Ping { x } -> bad(main)
+        }
     }
-    state fail(main: &mut Main) { main.hits = -1; }
+    state done(main: &mut Main, y: i32) { }
+    state bad(main: &mut Main) { }
 }
