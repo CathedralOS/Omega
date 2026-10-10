@@ -4827,3 +4827,15 @@ fail/slices/predicate_scalar_result_invalid_membership rejected 21182ms expected
 fail/slices/predicate_scalar_store_invalid_membership rejected 21611ms expected @846ed632561f+wt
 	cannot prove the value assigned to `items[1]` in main is in domain `i32::Selected`; a place declared `in i32::Selected` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 pass/slices/runtime_predicate_qualified_scalar_copy_exit checked 45756ms check-target:macos_arm64 @846ed632561f+wt
+fail/domains/case_child_membership_requires_issuance rejected 358ms expected @c4c1679a5391
+	cannot prove default-domain field requirement for call observe from forged_common::entry: parameter event.common requires Ticket::Issued
+	construction of `Event` field `common` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	cannot prove default-domain field requirement for call observe from forged_payload::entry: parameter event::Packed.payload requires Ticket::Issued
+	construction of `Event` field `payload` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	cannot prove default-domain field requirement for call observe from stale_common::entry: parameter event.common requires Ticket::Issued
+	construction of `Event` field `common` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	cannot prove default-domain field requirement for call observe from wrong_payload_issuer::entry: parameter event::Packed.payload requires Ticket::Issued
+	construction of `Event` field `payload` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+	cannot prove default-domain field requirement for call observe from inactive_payload_forged_common::entry: parameter event.common requires Ticket::Issued
+	construction of `Event` field `common` is not proven in domain `Ticket::Issued`; a field declared `in Ticket::Issued` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+pass/domains/runtime_case_constructor_child_memberships_exit checked 2261ms check-target:macos_arm64 @c4c1679a5391
