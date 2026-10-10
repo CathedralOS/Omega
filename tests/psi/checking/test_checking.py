@@ -2024,6 +2024,38 @@ def main() -> None:
         b"main.inner.value",
     )
 
+    # Remainders and policy results of constants (evaluation.omg, arithmetic.omg).
+    accepted(
+        program,
+        "signed-remainder-of-constants-folds",
+        b"machine f() -> i32\nensures result == -1\n{ -3i32 % 2 }",
+    )
+    accepted(
+        program,
+        "signed-dividend-remainder-stays-below-its-divisor",
+        b"machine f(x: i32) -> i32\nensures result < 8 && result > -8\n{ x % 8 }",
+    )
+    accepted(
+        program,
+        "nonpositive-dividend-remainder-is-nonpositive",
+        b"machine f(x: i32) -> i32\nrequires x <= 0\nensures result <= 0\n{ x % 5 }",
+    )
+    accepted(
+        program,
+        "policy-results-of-constants-fold",
+        b"machine wrapped_sum() -> u8\nensures result == 1\n{ ((255u8 as u8 in Wrapping) + 2) as u8 }\n"
+        b"machine saturated_sum() -> u8\nensures result == 255\n{ ((255u8 as u8 in Saturating) + 2) as u8 }\n"
+        b"machine wrapped_operand() -> u8\nensures result == 127\n{ (((0u8 as u8 in Wrapping) - 2) >> 1) as u8 }\n"
+        b"machine wrapped_signed() -> i8\nensures result == -128\n{ ((127i8 as i8 in Wrapping) + 1) as i8 }",
+    )
+    rejected(
+        program,
+        "wrapped-constant-keeps-its-value",
+        b"machine f() -> u8\nensures result == 2\n{ ((255u8 as u8 in Wrapping) + 2) as u8 }",
+        "GuaranteeUnproven",
+        b"((255u8 as u8 in Wrapping) + 2) as u8",
+    )
+
     # The product's own psi package, each module under source/psi as
     # `<directory>::<file>` of package `psi`: how far checking reaches today.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

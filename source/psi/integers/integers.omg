@@ -217,3 +217,83 @@ pub machine ExactInteger::fits(builtin: BuiltinType, value: ExactInteger) -> boo
     let below: bool = ExactInteger::at_most(value, greatest);
     carrier && above && below
 }
+
+// `value` reduced modulo its carrier's width into the carrier's range, as a
+// Wrapping operation's result (wiki/spec/language/numeric_values.md#overflow-policies).
+// The mask is the width's ones: the carrier's greatest magnitude plus its
+// least one.
+pub machine ExactInteger::wrap(builtin: BuiltinType, value: ExactInteger) -> ExactInteger {
+    let least: ExactInteger = ExactInteger::minimum(builtin);
+    let greatest: ExactInteger = ExactInteger::maximum(builtin);
+    let mask: u64 in Wrapping = greatest.magnitude + least.magnitude;
+    let complement: u64 in Wrapping = 0 - value.magnitude;
+    transition value.negative {
+        true -> residue(least, greatest, mask, complement & mask)
+        _ -> residue(least, greatest, mask, value.magnitude & mask)
+    }
+
+    // A signed residue above the greatest value stands for the residue less
+    // 2^width.
+    state residue(least: ExactInteger, greatest: ExactInteger, mask: u64 in Wrapping, residue: u64 in Wrapping) -> ExactInteger {
+        let wraps: bool = least.negative && residue > greatest.magnitude;
+        let magnitude: u64 in Wrapping = (mask - residue) + 1;
+        transition wraps {
+            true -> negative(magnitude)
+            _ -> positive(residue)
+        }
+    }
+
+    state negative(magnitude: u64 in Wrapping) -> ExactInteger {
+        ExactInteger { negative: true, magnitude: magnitude }
+    }
+
+    state positive(magnitude: u64 in Wrapping) -> ExactInteger {
+        ExactInteger { negative: false, magnitude: magnitude }
+    }
+}
+
+// `value` clamped to its carrier's range, as a Saturating operation's
+// result.
+pub machine ExactInteger::saturate(builtin: BuiltinType, value: ExactInteger) -> ExactInteger {
+    let least: ExactInteger = ExactInteger::minimum(builtin);
+    let greatest: ExactInteger = ExactInteger::maximum(builtin);
+    let above_least: bool = ExactInteger::at_most(least, value);
+    let below_greatest: bool = ExactInteger::at_most(value, greatest);
+    transition above_least {
+        true -> upper(greatest, value, below_greatest)
+        _ -> answer(least)
+    }
+
+    state upper(greatest: ExactInteger, value: ExactInteger, below_greatest: bool) -> ExactInteger {
+        transition below_greatest {
+            true -> answer(value)
+            _ -> answer(greatest)
+        }
+    }
+
+    state answer(value: ExactInteger) -> ExactInteger {
+        value
+    }
+}
+
+// The remainder of a division truncating toward zero: its magnitude the
+// magnitudes' remainder and its sign the dividend's
+// (wiki/spec/language/numeric_values.md#integer-quotient-and-remainder).
+// Invalid for a zero divisor.
+pub machine ExactInteger::remainder(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    transition right.magnitude > 0 {
+        true -> divided(left, right.magnitude)
+        _ -> undefined(left)
+    }
+
+    state divided(left: ExactInteger, divisor: u64 in Wrapping) -> ExactResult
+    requires divisor > 0
+    {
+        let magnitude: u64 in Wrapping = left.magnitude % divisor;
+        ExactResult { valid: true, value: ExactInteger { negative: left.negative && magnitude > 0, magnitude: magnitude } }
+    }
+
+    state undefined(left: ExactInteger) -> ExactResult {
+        ExactResult { valid: false, value: left }
+    }
+}

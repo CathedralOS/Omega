@@ -439,7 +439,9 @@ policy (`as` never changes the denoted value), a divisor is nonzero and a
 shift count
 below the width ([`checking/arithmetic.omg`](checking/arithmetic.omg)); a
 Trapping operation that may leave its carrier, and a crash statement, is a
-crash site instead. A call's or jump's target `requires` facts must follow
+crash site instead. Constants fold exactly: a remainder truncates toward
+zero with the dividend's sign, a Wrapping result reduces modulo its carrier
+and a Saturating one clamps to it. A call's or jump's target `requires` facts must follow
 with its parameters standing for the arguments (an operator typing selected
 a machine for is a call of it, its operands the arguments)
 ([`checking/contracts.omg`](checking/contracts.omg)), every normal return (a

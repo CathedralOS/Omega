@@ -313,24 +313,74 @@ machine Value::divided_floor(least: u64 in Wrapping, ceiling: Bound) -> Bound {
     }
 }
 
-// A remainder of a nonnegative interval by a positive one lies below the
-// divisor and at most the dividend.
+// A remainder of constants is exact. By a divisor of one known sign its
+// magnitude lies below the divisor's greatest magnitude and its sign is the
+// dividend's, so a nonnegative dividend's is at most the dividend
+// (wiki/spec/language/numeric_values.md#integer-quotient-and-remainder).
 pub machine Value::remainder(left: Value, right: Value) -> Value {
-    let left_nonnegative: bool = Value::nonnegative(left);
-    let divisor: Bound = Value::least(right);
-    let positive: bool = divisor.finite && !divisor.value.negative && divisor.value.magnitude > 0;
-    transition left_nonnegative && positive && right.ceiling.finite {
-        true -> bounded(left, right.ceiling.value.magnitude - 1)
-        _ -> unbounded()
+    let constants: bool = Value::is_constant(left) && Value::is_constant(right);
+    transition constants {
+        true -> folded(left, right)
+        _ -> interval(left, right)
+    }
+
+    state folded(left: Value, right: Value) -> Value {
+        let result: ExactResult = ExactInteger::remainder(left.offset, right.offset);
+        transition result.valid {
+            true -> constant(result.value)
+            _ -> interval(left, right)
+        }
+    }
+
+    state constant(value: ExactInteger) -> Value {
+        let folded: Value = Value::constant(value);
+        folded
+    }
+
+    // A floor is stored negated: `least` is the divisor's lower bound.
+    state interval(left: Value, right: Value) -> Value {
+        let least: Bound = Value::least(right);
+        let finite: bool = least.finite && right.ceiling.finite;
+        let positive: bool = finite && !least.value.negative && least.value.magnitude > 0;
+        let negative: bool = finite && right.ceiling.value.negative;
+        transition positive {
+            true -> bounded(left, right.ceiling.value.magnitude - 1)
+            _ -> negative_divisor(left, least, negative)
+        }
+    }
+
+    state negative_divisor(left: Value, least: Bound, negative: bool) -> Value {
+        transition negative {
+            true -> bounded(left, least.value.magnitude - 1)
+            _ -> unbounded()
+        }
     }
 
     state bounded(left: Value, below_divisor: u64 in Wrapping) -> Value {
+        let nonnegative: bool = Value::nonnegative(left);
+        let nonpositive: bool = left.ceiling.finite && (left.ceiling.value.negative || left.ceiling.value.magnitude == 0);
+        transition nonnegative {
+            true -> natural(left, below_divisor)
+            _ -> signed(below_divisor, nonpositive)
+        }
+    }
+
+    state natural(left: Value, below_divisor: u64 in Wrapping) -> Value {
         let unknown: Value = Value::unknown();
         let divisor_bound: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: below_divisor } };
         let tighter: bool = Bound::at_most(left.ceiling, divisor_bound);
         let ceiling: Bound = Value::pick(tighter, left.ceiling, divisor_bound);
         let floor: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
         Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: floor }
+    }
+
+    // At least the divisor's negated bound, stored negated as the floor.
+    state signed(below_divisor: u64 in Wrapping, nonpositive: bool) -> Value {
+        let unknown: Value = Value::unknown();
+        let zero: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: 0 } };
+        let magnitude: Bound = Bound { finite: true, value: ExactInteger { negative: false, magnitude: below_divisor } };
+        let ceiling: Bound = Value::pick(nonpositive, zero, magnitude);
+        Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: ceiling, floor: magnitude }
     }
 
     state unbounded() -> Value {
@@ -362,12 +412,28 @@ pub machine Value::conjunction(left: Value, right: Value) -> Value {
     }
 }
 
-// A right shift of a nonnegative value is at most the value.
-pub machine Value::shifted_right(left: Value) -> Value {
+// A right shift of a nonnegative value is at most the value; of constants,
+// exact.
+pub machine Value::shifted_right(left: Value, right: Value) -> Value {
     let nonnegative: bool = Value::nonnegative(left);
-    transition nonnegative {
-        true -> bounded(left)
-        _ -> unbounded()
+    let constants: bool = Value::is_constant(left) && Value::is_constant(right)
+        && !right.offset.negative && right.offset.magnitude < 64;
+    transition nonnegative && constants {
+        true -> folded(left.offset.magnitude, right.offset.magnitude)
+        _ -> narrowed(left, nonnegative)
+    }
+
+    state folded(magnitude: u64 in Wrapping, count: u64 in Wrapping) -> Value {
+        let shifted: u64 in Wrapping = magnitude >> count;
+        let value: Value = Value::constant(ExactInteger { negative: false, magnitude: shifted });
+        value
+    }
+
+    state narrowed(left: Value, nonnegative: bool) -> Value {
+        transition nonnegative {
+            true -> bounded(left)
+            _ -> unbounded()
+        }
     }
 
     state bounded(left: Value) -> Value {

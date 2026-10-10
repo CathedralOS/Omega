@@ -88,14 +88,14 @@ crashes Trap
     state shift(checker: &mut Checker, expression: Expression, row: TypeRow, left: Value, right: Value, rightward: bool, checking: bool) -> Value {
         Checker::require_shift_count(checker, expression, row, right, checking);
         transition rightward {
-            true -> shifted_right(checker, expression, row, left, checking)
+            true -> shifted_right(checker, expression, row, left, right, checking)
             _ -> shifted_left(checker, expression, row, checking)
         }
     }
 
     // A right shift stays below its operand.
-    state shifted_right(checker: &mut Checker, expression: Expression, row: TypeRow, left: Value, checking: bool) -> Value {
-        let narrowed: Value = Value::shifted_right(left);
+    state shifted_right(checker: &mut Checker, expression: Expression, row: TypeRow, left: Value, right: Value, checking: bool) -> Value {
+        let narrowed: Value = Value::shifted_right(left, right);
         let result: Value = Checker::policy_result(checker, expression, row, narrowed, CheckDiagnosticCode::ArithmeticOverflow, checking);
         result
     }
@@ -212,7 +212,7 @@ crashes Trap
     state overflow(checker: &mut Checker, expression: Expression, row: TypeRow, result: Value, code: CheckDiagnosticCode, checking: bool) -> Value {
         transition row.domain {
             DomainBinding::Trapping -> trapping(checker, row, result)
-            DomainBinding::Wrapping -> wrapped(row)
+            DomainBinding::Wrapping -> wrapped(row, result)
             DomainBinding::Saturating -> saturated(row, result)
             _ -> unproven(checker, expression, row, code, checking)
         }
@@ -224,12 +224,42 @@ crashes Trap
         clamped
     }
 
-    state wrapped(row: TypeRow) -> Value {
+    // A constant wraps or saturates exactly; any other wrapped value may be
+    // anywhere in its carrier.
+    state wrapped(row: TypeRow, result: Value) -> Value {
+        let constant: bool = Value::is_constant(result);
+        transition constant {
+            true -> wrapped_constant(row, result)
+            _ -> carrier(row)
+        }
+    }
+
+    state wrapped_constant(row: TypeRow, result: Value) -> Value {
+        let wrapped: ExactInteger = ExactInteger::wrap(row.builtin, result.offset);
+        let value: Value = Value::constant(wrapped);
+        value
+    }
+
+    state carrier(row: TypeRow) -> Value {
         let range: Value = Value::carrier(row.builtin);
         range
     }
 
     state saturated(row: TypeRow, result: Value) -> Value {
+        let constant: bool = Value::is_constant(result);
+        transition constant {
+            true -> saturated_constant(row, result)
+            _ -> saturated_range(row, result)
+        }
+    }
+
+    state saturated_constant(row: TypeRow, result: Value) -> Value {
+        let saturated: ExactInteger = ExactInteger::saturate(row.builtin, result.offset);
+        let value: Value = Value::constant(saturated);
+        value
+    }
+
+    state saturated_range(row: TypeRow, result: Value) -> Value {
         let clamped: Value = Value::clamped(result, row.builtin);
         let unknown: Value = Value::unknown();
         Value { place: 0, known: false, subject: 0, offset: unknown.offset, ceiling: clamped.ceiling, floor: clamped.floor }
@@ -238,7 +268,7 @@ crashes Trap
     state unproven(checker: &mut Checker, expression: Expression, row: TypeRow, code: CheckDiagnosticCode, checking: bool) -> Value {
         transition checking {
             true -> rejected(checker, expression, row, code)
-            _ -> wrapped(row)
+            _ -> carrier(row)
         }
     }
 
