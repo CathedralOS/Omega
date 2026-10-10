@@ -1,20 +1,8 @@
-# wire retired field
+# wire_retired_field
 
-Compile-scope probe. No standard-library dependency.
+Data-level `retired #3;` seals a published field identity — distinct
+from `retired #N` inside a numbered sum-case payload — so a later schema
+edit cannot silently reuse `#3`.
 
-- wire_retired_field: `retired #3;` withdraws a published wire
-  field number inside the data body.
-- qualified_match_arg: domain'd match arms
-  (`i64 in Coordinate<7>`) inside a call argument position.
-- compound_index_guard: `b * 20 + a` two-variable index
-  expression guarded once, stored unguarded.
-- local_record_shadow: local `value` + `Counter{value: value}`
-  field binding + `counter.value` readback; `crashes Trap`
-  entry + state `crash Trap;`.
-
-Compile-checked only (no ProcessExit provider):
-
-```sh
-mbx run -p omega -- --check samples/cli/probes/wire_retired_field/main.omg
-mbx run -p omega -- update --project samples/cli/probes/wire_retired_field
-```
+Compile-checked only: no standard-library dependency and
+no `Main::exit` — run a check target, not native.
