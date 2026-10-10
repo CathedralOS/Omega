@@ -1,17 +1,17 @@
 //! Proof-certified total-scalar translation across join parameters.
 
-use std::collections::{BTreeMap, BTreeSet};
+
 
 use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
 use optimization_unit::{
-    NodeLocation, PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, PsiOptimizationUnit,
+    NodeLocation, PhiTranslatedScalarGvnRewrite, PsiOptimizationUnit,
     PsiRewriteCandidate,
 };
 
 use super::expression_keys::proof_certified_scalar_expression;
-use crate::analyses::block_dominates;
+
 use crate::rules::accepted_obligations::accepted_obligation_fact;
-use crate::rules::global_value_numbering::phi_translated_accounting::phi_translated_cse_accounting;
+use crate::rules::global_value_numbering::phi_translated_accounting::collect_phi_translated_incoming;
 use crate::rules::global_value_numbering::{exact_pure_scalar_effect, phi_translated_contract};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
@@ -86,6 +86,13 @@ impl PsiOptimizationRule for PhiTranslatedProofCertifiedScalarGvnRule {
                 }
             }
 
+            let leaders = expressions
+                .iter()
+                .map(|(key, location, operation, result, scalar_type, _)| {
+                    (*key, *location, *operation, *result, *scalar_type)
+                })
+                .collect::<Vec<_>>();
+
             for (
                 key,
                 redundant,
@@ -95,116 +102,23 @@ impl PsiOptimizationRule for PhiTranslatedProofCertifiedScalarGvnRule {
                 obligation_fact,
             ) in &expressions
             {
-                let Some(block) = function.block(redundant.block) else {
-                    continue;
-                };
-                let parameter_values = block
-                    .parameters
-                    .iter()
-                    .map(|parameter| parameter.value)
-                    .collect::<BTreeSet<_>>();
-                if parameter_values.is_empty()
-                    || !key.references_any(&parameter_values)
-                    || !use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine && use_site.value == *redundant_result
-                    })
-                {
-                    continue;
-                }
-                let redundant_index = usize::try_from(redundant.node).expect("u32 fits usize");
-                let Some(redundant_node) = block.nodes.get(redundant_index) else {
-                    continue;
-                };
-                let Some(receiver) = block.nodes.get(redundant_index + 1) else {
-                    continue;
-                };
-                if receiver
-                    .provenance
-                    .iter()
-                    .any(|source| redundant_node.provenance.contains(source))
-                {
-                    continue;
-                }
-
-                let mut incoming = Vec::new();
-                let mut complete = true;
-                for source in &function.blocks {
-                    for (owner_index, owner) in source.nodes.iter().enumerate() {
-                        let owner_index =
-                            u32::try_from(owner_index).expect("optimization node index fits u32");
-                        for edge in owner
-                            .successors
-                            .iter()
-                            .filter(|edge| edge.target == block.id)
-                        {
-                            if edge.bindings.len() != block.parameters.len() {
-                                complete = false;
-                                continue;
-                            }
-                            let mut translation = BTreeMap::new();
-                            for (parameter, binding) in block.parameters.iter().zip(&edge.bindings)
-                            {
-                                if binding.parameter != parameter.value
-                                    || binding.scalar_type != parameter.scalar_type
-                                    || value_types.get(&binding.argument)
-                                        != Some(&binding.scalar_type)
-                                {
-                                    complete = false;
-                                    break;
-                                }
-                                translation.insert(parameter.value, binding.argument);
-                            }
-                            if !complete {
-                                continue;
-                            }
-                            let translated_key = key.translate(&translation);
-                            let leader = expressions
-                                .iter()
-                                .filter(|(candidate_key, location, _, _, candidate_type, _)| {
-                                    candidate_key == &translated_key
-                                        && candidate_type == scalar_type
-                                        && ((location.block == source.id
-                                            && location.node < owner_index)
-                                            || (location.block != source.id
-                                                && block_dominates(
-                                                    machine_dominators,
-                                                    location.block,
-                                                    source.id,
-                                                )))
-                                })
-                                .min_by_key(|(_, location, _, _, _, _)| {
-                                    let depth = machine_dominators
-                                        .iter()
-                                        .find(|(candidate, _)| *candidate == location.block)
-                                        .map_or(usize::MAX, |(_, rows)| rows.len());
-                                    (depth, *location)
-                                });
-                            let Some((_, leader, leader_operation, leader_result, _, _)) = leader
-                            else {
-                                complete = false;
-                                continue;
-                            };
-                            incoming.push(PhiTranslatedScalarIncoming {
-                                source: source.id,
-                                edge: edge.psi_edge,
-                                leader: *leader,
-                                leader_operation: *leader_operation,
-                                leader_result: *leader_result,
-                            });
-                        }
-                    }
-                }
-                if !complete || incoming.len() < 2 {
-                    continue;
-                }
-                incoming.sort_by_key(|row| (row.edge, row.source));
-                let Some((affected_blocks, provenance)) =
-                    phi_translated_cse_accounting(function, *redundant, &incoming)
+                let Some((incoming, affected_blocks, provenance, parameter_position)) =
+                    collect_phi_translated_incoming(
+                        function,
+                        *redundant,
+                        *redundant_result,
+                        *scalar_type,
+                        use_definitions,
+                        &value_types,
+                        machine_dominators,
+                        &leaders,
+                        |parameters| key.references_any(parameters),
+                        |translation| Some(key.translate(translation)),
+                        false,
+                    )
                 else {
                     continue;
                 };
-                let parameter_position = u32::try_from(block.parameters.len())
-                    .expect("optimization block parameter count fits u32");
                 candidates.push(
                     PsiRewriteCandidate::new_proof_certified_phi_translated_scalar_common_subexpression(
                         unit.identity,
