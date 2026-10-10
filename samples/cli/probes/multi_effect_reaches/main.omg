@@ -1,0 +1,47 @@
+// Multi-service reaches: one boundary machine declares TWO service
+// identities — trait surface `reaches Net Allocator`, caller
+// `reaches Net + Allocator`. The declared set is the ceiling for
+// that surface.
+//
+//   * `boundary trait Allocator {}` — effect with no machines.
+//   * `reaches Net + Allocator` sum spelling on an ordinary
+//     machine.
+//
+// Compile-checked only: declaration surface, no standard-library
+// dependency.
+
+use omega::language::core::binding;
+
+pub domain [u8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+
+boundary trait Allocator {
+}
+
+pub boundary trait Net {
+    machine write_line(text: &[u8] in Utf8)
+    reaches
+        Net
+        Allocator;
+}
+
+data Client {
+    marker: u32;
+}
+
+machine Client::run(client: &mut Client) reaches Net + Allocator {
+    client.marker = 1;
+}
+
+data Main {
+    hits: i32 in Wrapping;
+    client: Client;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    Client::run(&mut main.client);
+    transition { _ -> done(main) }
+    state done(main: &mut Main) { main.hits = 1; }
+}
