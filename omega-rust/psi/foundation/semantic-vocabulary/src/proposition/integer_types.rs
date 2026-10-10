@@ -525,20 +525,7 @@ impl IntegerType {
     /// Compute a truncating remainder and reduce the sole signed quotient
     /// overflow to the saturating-policy result of zero.
     pub fn saturating_rem(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        self.admits_both(left, right)?;
-        self.dispatch_sign(
-            left,
-            right,
-            |left, right| Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
-            |left, right| {
-                self.signed_truncating_or(
-                    left,
-                    right,
-                    |left, right| left.checked_rem(right),
-                    IntegerValue::Signed(0),
-                )
-            },
-        )
+        self.wrapping_rem(left, right)
     }
 
     wrapping_arith! {
