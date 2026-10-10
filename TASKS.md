@@ -2793,11 +2793,12 @@ crash and native exit behavior.
     rows while retaining the portable head contract. Console byte input, bounded
     line LF/full/partial-EOF cases, descriptor I/O, and clock execution agree
     across both runtimes; an opaque family without a provider still rejects.
-    Universal target layouts and physical boundary identities also restore
-    checking for 34 of 36 previously rejected layout/recast/target/termination
-    fixtures. The two mutable-equivalent domain/range recast rows still expose
-    `MissingUnitStructuralType`; their source checking is unchanged. Other
-    deployment targets still need their own native execution measurements.
+    Universal target layouts, physical boundary identities, and complete local
+    loan referee retention restore all 36 previously rejected valid fixtures in
+    the affected layout/recast/target/termination subset. Mutable-equivalent
+    domain/range recasts now both execute with native/interpreter exit 70;
+    invalid bit-set equivalence and invariant-erasing stores still reject.
+    Other deployment targets need their own native execution measurements.
   - `pass/proofs/case_call_premises` still cannot prove `preserve_empty`'s
     `value in Tree::Empty` from `make_empty`'s guarantee at b7418d4022. Its
     callees are `terminates` proof machines, judged as applications rather
