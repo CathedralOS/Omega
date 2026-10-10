@@ -4,7 +4,7 @@
 //! declare.
 
 use super::{
-    has_structural_type, is_plain_affine_operation_result, require_known_services,
+    has_structural_type, is_owned_cleanup_operation_result, require_known_services,
     structural_place_type, validate_operation_foundation, validate_provider_attachment_foundation,
     validate_structural_parameters, validate_structural_path,
 };
@@ -280,7 +280,9 @@ fn validate_operation_result_places(machine: &TerminalMachine) -> Result<(), Cod
 /// order, retaining each exact whole owner and its consumed claim roster.
 /// The verifier separately authenticates owner designation and live custody.
 /// The residual affine discards of a selected edge or partial return name
-/// distinct claim-free affine paths whose leaf type matches the path.
+/// exact owned regions whose leaf type matches the path. Historical ingress
+/// claims do not describe the current selected region: mandatory ownership
+/// replay independently proves its live claims, hooks, loans and retirement.
 fn validate_partial_affine_discards(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -322,25 +324,28 @@ fn validate_partial_affine_discards(
             };
             let supported_root = parameter.map_or_else(
                 || {
-                    is_plain_affine_operation_result(machine, discard.place)
+                    is_owned_cleanup_operation_result(machine, discard.place)
                         || block_parameter().is_some_and(|parameter| {
-                            parameter.multiplicity == StructuralMultiplicity::Affine
-                                && parameter.access == terminal_psi::StructuralAccess::Owned
+                            matches!(
+                                parameter.multiplicity,
+                                StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
+                            ) && parameter.access == terminal_psi::StructuralAccess::Owned
                                 && parameter.qualifications.is_empty()
                                 && parameter.projected_qualifications.is_empty()
                         })
                 },
-                |parameter| parameter.multiplicity == StructuralMultiplicity::Affine,
+                |parameter| {
+                    matches!(
+                        parameter.multiplicity,
+                        StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
+                    ) && parameter.access == terminal_psi::StructuralAccess::Owned
+                },
             );
             if !supported_root
                 || actions.iter().any(|action| matches!(action, terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) if *place == discard.place))
-                || machine
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == discard.place)
             {
                 return malformed(
-                    "affine region cleanup is not a distinct claim-free affine path",
+                    "affine region cleanup does not name a distinct owned region",
                 );
             }
             let Some(root_type) = structural_place_type(machine, discard.place) else {

@@ -255,6 +255,23 @@ pub(super) fn validate_current_ownership_cfg(
         );
 
         let block = blocks[&block_id];
+        let block_position = function
+            .blocks
+            .iter()
+            .position(|candidate| candidate.id == block_id)
+            .expect("reachable block belongs to the function");
+        let membership_at = |node, source, path: &[StructuralPathSegment], case, expected| {
+            crate::unit_validation::function_structure::membership_on_every_path(
+                function,
+                structural_types,
+                predecessors,
+                (block_position, node),
+                source,
+                path,
+                case,
+                expected,
+            )
+        };
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index =
                 u32::try_from(node_index).expect("optimization-unit node position fits u32");
@@ -1000,6 +1017,9 @@ pub(super) fn validate_current_ownership_cfg(
                 }
             }
 
+            let membership = |source, path: &[StructuralPathSegment], case, expected| {
+                membership_at(node_index as usize, source, path, case, expected)
+            };
             match &node.operation {
                 O::Return {
                     cleanup_actions, ..
@@ -1011,6 +1031,7 @@ pub(super) fn validate_current_ownership_cfg(
                         block_id,
                         &frontier,
                         cleanup_actions,
+                        &membership,
                     )?;
                     reject_live_linear_claim(function, block_id, &frontier)?;
                 }
@@ -1024,6 +1045,7 @@ pub(super) fn validate_current_ownership_cfg(
                         block_id,
                         &frontier,
                         cleanup_actions,
+                        &membership,
                     )?;
                 }
                 O::ReturnStructural {
@@ -1093,6 +1115,7 @@ pub(super) fn validate_current_ownership_cfg(
                         block_id,
                         &frontier,
                         cleanup_actions,
+                        &membership,
                     )?;
                     if let Some(claim) = frontier.claims.keys().next().copied() {
                         return Err(
@@ -1187,6 +1210,23 @@ pub(super) fn validate_current_ownership_cfg(
                     }
                 });
             }
+            let membership = |source, path: &[StructuralPathSegment], case, expected| {
+                let terminator = &block.nodes[block.nodes.len() - 1].operation;
+                if let O::StructuralCase {
+                    source: observed,
+                    path: observed_path,
+                    cases,
+                } = terminator
+                    && *observed == source
+                    && observed_path == path
+                    && let Some(selected) = cases
+                        .iter()
+                        .find(|selected| selected.psi_edge == edge.psi_edge)
+                {
+                    return (selected.case == case) == expected;
+                }
+                membership_at(block.nodes.len() - 1, source, path, case, expected)
+            };
             let transfer = consume_edge_sources(
                 function,
                 structural_types,
@@ -1194,39 +1234,7 @@ pub(super) fn validate_current_ownership_cfg(
                 &mut outgoing,
                 &edge.structural_bindings,
                 blocks[&edge.target],
-                |source, path, case| {
-                    let terminator = &block.nodes[block.nodes.len() - 1].operation;
-                    if let O::StructuralCase {
-                        source: observed,
-                        path: observed_path,
-                        cases,
-                    } = terminator
-                        && *observed == source
-                        && observed_path == path
-                        && cases.iter().any(|selected| {
-                            selected.psi_edge == edge.psi_edge && selected.case != case
-                        })
-                    {
-                        return true;
-                    }
-                    let Some(block_position) = function
-                        .blocks
-                        .iter()
-                        .position(|candidate| candidate.id == block_id)
-                    else {
-                        return false;
-                    };
-                    crate::unit_validation::function_structure::membership_on_every_path(
-                        function,
-                        structural_types,
-                        predecessors,
-                        (block_position, block.nodes.len() - 1),
-                        source,
-                        path,
-                        case,
-                        false,
-                    )
-                },
+                |source, path, case| membership(source, path, case, false),
             )?;
             super::continuation::apply_edge_cleanup_actions(
                 function,
@@ -1235,6 +1243,7 @@ pub(super) fn validate_current_ownership_cfg(
                 block_id,
                 &mut outgoing,
                 &edge.cleanup_actions,
+                &membership,
             )?;
             establish_edge_parameters(
                 function,

@@ -1,16 +1,21 @@
 //! Ordered cleanup consumes exact live subjects, independent of root origin or action kind.
 use crate::OptimizationUnitValidationError;
-use crate::current_ownership::residuals::partial_affine_residuals;
+use crate::current_ownership::residuals::selected_affine_residuals;
 use crate::current_ownership::structural::place_structural_type;
 use crate::current_ownership::{CurrentOwnership, parameter_establishment_order};
 use abstract_operations::AbstractFunctionResult;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralTypeId};
+use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralCaseId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalAffineCleanupAction,
 };
+
+/// A positive result is independently established discriminator membership.
+/// The cleanup roster and the absence of a claim never establish a tag.
+pub(super) type CaseMembership<'a> =
+    dyn Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId, bool) -> bool + 'a;
 
 pub(super) fn validate_unit_cleanup_actions(
     function: &PsiOptimizationFunction,
@@ -19,6 +24,7 @@ pub(super) fn validate_unit_cleanup_actions(
     block: BlockId,
     frontier: &CurrentOwnership,
     actions: &[TerminalAffineCleanupAction],
+    membership: &CaseMembership<'_>,
 ) -> Result<(), OptimizationUnitValidationError> {
     validate_scalar_cleanup_actions(
         function,
@@ -27,6 +33,7 @@ pub(super) fn validate_unit_cleanup_actions(
         block,
         frontier,
         actions,
+        membership,
     )?;
     Ok(())
 }
@@ -38,6 +45,7 @@ pub(super) fn validate_scalar_cleanup_actions(
     block: BlockId,
     frontier: &CurrentOwnership,
     actions: &[TerminalAffineCleanupAction],
+    membership: &CaseMembership<'_>,
 ) -> Result<CurrentOwnership, OptimizationUnitValidationError> {
     let mut remaining = frontier.clone();
     super::continuation::apply_edge_cleanup_actions(
@@ -47,6 +55,7 @@ pub(super) fn validate_scalar_cleanup_actions(
         block,
         &mut remaining,
         actions,
+        membership,
     )?;
     if !remaining.owned_places.is_empty()
         || !remaining.partial_custody_paths.is_empty()
@@ -118,12 +127,15 @@ struct CleanupSubject {
     nominal: bool,
 }
 
-/// Expand only containers that own executable child cleanup. Untouched
-/// no-code subtrees remain maximal; the bound is the supplied action count.
+/// Reconstruct nominal boundaries and case-selected structural regions.
+/// Untouched unconditional no-code subtrees remain maximal; the bound is the
+/// supplied action count. Structural cases retain their selected occurrence.
 fn cleanup_subjects(
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: StructuralTypeId,
+    place: PlaceId,
+    membership: &CaseMembership<'_>,
     moved: Option<&BTreeSet<Vec<StructuralPathSegment>>>,
     limit: usize,
 ) -> Option<Vec<CleanupSubject>> {
@@ -145,8 +157,44 @@ fn cleanup_subjects(
             }
         }
     }
+    let selected = |path: &[StructuralPathSegment], case| membership(place, path, case, true);
+    // An intact owner with no live hook retains its complete no-code region.
+    // Partial custody needs the selected structural complement instead. The
+    // action roster cannot establish either condition.
+    if moved.is_none()
+        && !selected_contains_nominal_cleanup(
+            types,
+            &nominal,
+            &mut BTreeMap::new(),
+            &selected,
+            root,
+            &[],
+            limit,
+        )?
+    {
+        return (limit != 0).then_some(vec![CleanupSubject {
+            path: Vec::new(),
+            structural_type: root,
+            nominal: false,
+        }]);
+    }
+    let mut boundaries = nominal.clone();
+    boundaries.extend(types.iter().filter_map(|(identity, declaration)| {
+        let cases = match &declaration.shape {
+            StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
+            _ => return None,
+        };
+        declaration
+            .shape
+            .direct_fields()
+            .into_iter()
+            .flatten()
+            .chain(cases.iter().flat_map(|case| &case.fields))
+            .any(|field| !field.relevance.is_erased() && field.field_type.as_structural().is_some())
+            .then_some(*identity)
+    }));
     let roots = match moved {
-        Some(moved) => partial_affine_residuals(types, root, moved, limit)?,
+        Some(moved) => selected_affine_residuals(types, root, moved, limit, &selected)?,
         None => vec![(Vec::new(), root)],
     };
     let mut subjects = Vec::new();
@@ -155,7 +203,9 @@ fn cleanup_subjects(
         append_cleanup_subjects(
             types,
             &nominal,
+            &boundaries,
             &mut contains,
+            &selected,
             structural_type,
             path,
             limit,
@@ -165,14 +215,14 @@ fn cleanup_subjects(
     Some(subjects)
 }
 
-fn contains_nominal_cleanup(
+fn contains_cleanup_boundary(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    nominal: &BTreeSet<StructuralTypeId>,
+    boundaries: &BTreeSet<StructuralTypeId>,
     cache: &mut BTreeMap<StructuralTypeId, bool>,
     active: &mut BTreeSet<StructuralTypeId>,
     structural_type: StructuralTypeId,
 ) -> Option<bool> {
-    if nominal.contains(&structural_type) {
+    if boundaries.contains(&structural_type) {
         return Some(true);
     }
     if let Some(result) = cache.get(&structural_type) {
@@ -186,12 +236,12 @@ fn contains_nominal_cleanup(
         StructuralTypeShape::Record { fields, .. } => {
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                 if let Some(child) = field.field_type.as_structural() {
-                    result |= contains_nominal_cleanup(types, nominal, cache, active, child)?;
+                    result |= contains_cleanup_boundary(types, boundaries, cache, active, child)?;
                 }
             }
         }
         StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
-            result = contains_nominal_cleanup(types, nominal, cache, active, *element)?
+            result = contains_cleanup_boundary(types, boundaries, cache, active, *element)?
         }
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
             let common = match &types.get(&structural_type)?.shape {
@@ -205,7 +255,7 @@ fn contains_nominal_cleanup(
                 if !field.relevance.is_erased()
                     && let Some(child) = field.field_type.as_structural()
                 {
-                    result |= contains_nominal_cleanup(types, nominal, cache, active, child)?;
+                    result |= contains_cleanup_boundary(types, boundaries, cache, active, child)?;
                 }
             }
         }
@@ -216,18 +266,124 @@ fn contains_nominal_cleanup(
     Some(result)
 }
 
-fn append_cleanup_subjects(
+fn selected_contains_nominal_cleanup(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     nominal: &BTreeSet<StructuralTypeId>,
     cache: &mut BTreeMap<StructuralTypeId, bool>,
+    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    limit: usize,
+) -> Option<bool> {
+    if nominal.contains(&structural_type) {
+        return Some(true);
+    }
+    // Universal absence needs no discriminator. A possible hook instead
+    // requires the selected occurrence; missing claims do not select it.
+    if !contains_cleanup_boundary(types, nominal, cache, &mut BTreeSet::new(), structural_type)? {
+        return Some(false);
+    }
+    for (child_path, child) in selected_children(types, structural_type, path, limit, selected)? {
+        if selected_contains_nominal_cleanup(
+            types,
+            nominal,
+            cache,
+            selected,
+            child,
+            &child_path,
+            limit,
+        )? {
+            return Some(true);
+        }
+    }
+    Some(false)
+}
+
+/// Expand the selected payload before common fields, in reverse field order.
+/// Selection is tied to this root-relative occurrence, never cached by type.
+fn selected_children(
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    limit: usize,
+    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
+) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
+    let mut children = Vec::new();
+    let mut fields = |fields: &[terminal_psi::StructuralFieldDeclaration],
+                      prefix: &[StructuralPathSegment]| {
+        for field in fields
+            .iter()
+            .rev()
+            .filter(|field| !field.relevance.is_erased())
+        {
+            if let Some(child) = field.field_type.as_structural() {
+                let mut child_path = prefix.to_vec();
+                child_path.push(StructuralPathSegment::Field(field.identity.clone()));
+                children.push((child_path, child));
+            }
+        }
+    };
+    match &types.get(&structural_type)?.shape {
+        StructuralTypeShape::Record { fields: common, .. } => fields(common, path),
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+            let mut matches = cases.iter().filter(|case| selected(path, case.id));
+            let case = matches.next()?;
+            if matches.next().is_some() {
+                return None;
+            }
+            let mut payload_path = path.to_vec();
+            payload_path.push(StructuralPathSegment::Case(case.id));
+            fields(&case.fields, &payload_path);
+            if let StructuralTypeShape::Mixed { fields: common, .. } =
+                &types.get(&structural_type)?.shape
+            {
+                fields(common, path);
+            }
+        }
+        StructuralTypeShape::FixedArray { element, length } => {
+            // Every untouched child contributes a subject; do not enumerate a
+            // forged dimension beyond the supplied partition's work bound.
+            if u128::from(*length) > limit as u128 {
+                return None;
+            }
+            for index in (0..*length).rev() {
+                let mut child_path = path.to_vec();
+                child_path.push(StructuralPathSegment::FixedIndex(index));
+                children.push((child_path, *element));
+            }
+        }
+        _ => return None,
+    }
+    Some(children)
+}
+
+fn append_cleanup_subjects(
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    nominal: &BTreeSet<StructuralTypeId>,
+    boundaries: &BTreeSet<StructuralTypeId>,
+    cache: &mut BTreeMap<StructuralTypeId, bool>,
+    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     structural_type: StructuralTypeId,
     path: Vec<StructuralPathSegment>,
     limit: usize,
     subjects: &mut Vec<CleanupSubject>,
 ) -> Option<()> {
-    if nominal.contains(&structural_type)
-        || !contains_nominal_cleanup(types, nominal, cache, &mut BTreeSet::new(), structural_type)?
-    {
+    let whole = nominal.contains(&structural_type)
+        || !contains_cleanup_boundary(
+            types,
+            boundaries,
+            cache,
+            &mut BTreeSet::new(),
+            structural_type,
+        )?;
+    let children = if whole {
+        Vec::new()
+    } else {
+        selected_children(types, structural_type, &path, limit, selected)?
+    };
+    // An inline selected alternative still owns the sum occurrence. A bare
+    // Case path is not a structural value and cannot serve as its disposal.
+    if whole || children.is_empty() {
         if subjects.len() >= limit {
             return None;
         }
@@ -238,35 +394,10 @@ fn append_cleanup_subjects(
         });
         return Some(());
     }
-    match &types.get(&structural_type)?.shape {
-        StructuralTypeShape::Record { fields, .. } => {
-            for field in fields
-                .iter()
-                .rev()
-                .filter(|field| !field.relevance.is_erased())
-            {
-                if let Some(child) = field.field_type.as_structural() {
-                    let mut child_path = path.clone();
-                    child_path.push(StructuralPathSegment::Field(field.identity.clone()));
-                    append_cleanup_subjects(
-                        types, nominal, cache, child, child_path, limit, subjects,
-                    )?;
-                }
-            }
-        }
-        StructuralTypeShape::FixedArray { element, length } => {
-            if u128::from(*length) > limit.checked_sub(subjects.len())? as u128 {
-                return None;
-            }
-            for index in (0..*length).rev() {
-                let mut child_path = path.clone();
-                child_path.push(StructuralPathSegment::FixedIndex(index));
-                append_cleanup_subjects(
-                    types, nominal, cache, *element, child_path, limit, subjects,
-                )?;
-            }
-        }
-        _ => return None,
+    for (child_path, child) in children {
+        append_cleanup_subjects(
+            types, nominal, boundaries, cache, selected, child, child_path, limit, subjects,
+        )?;
     }
     Some(())
 }
@@ -281,6 +412,7 @@ pub(super) fn consume_owner_cleanup(
     frontier: &mut CurrentOwnership,
     place: PlaceId,
     actions: &[TerminalAffineCleanupAction],
+    membership: &CaseMembership<'_>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
         machine: function.machine,
@@ -328,6 +460,8 @@ pub(super) fn consume_owner_cleanup(
         functions,
         types,
         root,
+        place,
+        membership,
         frontier.partial_custody_paths.get(&place),
         actions.len(),
     )
@@ -366,15 +500,28 @@ pub(super) fn consume_owner_cleanup(
             }
             TerminalAffineCleanupAction::DiscardResidual(discard)
                 if !subject.nominal
-                    && !subject.path.is_empty()
                     && discard.path == subject.path
                     && discard.structural_type == subject.structural_type
-                    && multiplicity == StructuralMultiplicity::Affine
-                    && !frontier
-                        .claims
-                        .values()
-                        .any(|claim| claim.input == Some(place)) =>
+                    && !frontier.claims.values().any(|claim| {
+                        claim.input == Some(place)
+                            && terminal_semantics::structural_paths_may_overlap(
+                                &claim.path,
+                                &subject.path,
+                            )
+                    }) =>
             {
+                let ordinal = function
+                    .block(block)
+                    .and_then(|block| u32::try_from(block.nodes.len().saturating_sub(1)).ok())
+                    .ok_or_else(mismatch)?;
+                super::references::check_region_access(
+                    function,
+                    block,
+                    ordinal,
+                    &frontier.live_references,
+                    place,
+                    &subject.path,
+                )?;
                 super::references::discard_subtree(
                     function,
                     types,

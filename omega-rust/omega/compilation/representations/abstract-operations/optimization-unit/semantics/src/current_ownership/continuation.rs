@@ -16,6 +16,7 @@ pub(super) fn apply_edge_cleanup_actions(
     block: BlockId,
     frontier: &mut CurrentOwnership,
     actions: &[terminal_psi::TerminalAffineCleanupAction],
+    membership: &super::cleanup::CaseMembership<'_>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
         machine: function.machine,
@@ -36,6 +37,7 @@ pub(super) fn apply_edge_cleanup_actions(
             frontier,
             place,
             group,
+            membership,
         )?;
     }
     Ok(())

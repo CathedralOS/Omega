@@ -1,7 +1,7 @@
 //! Independently reconstruct the maximal live structural path complement.
 //! A case step selects active payload debt; inactive alternatives are never
 //! residuals. The caller still authenticates membership and cleanup authority.
-use semantic_vocabulary::StructuralTypeId;
+use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
@@ -13,6 +13,22 @@ pub(super) fn partial_affine_residuals(
     root_type: StructuralTypeId,
     moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
     max_residuals: usize,
+) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
+    selected_affine_residuals(
+        structural_types,
+        root_type,
+        moved_paths,
+        max_residuals,
+        &|_, _| false,
+    )
+}
+
+pub(super) fn selected_affine_residuals(
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    root_type: StructuralTypeId,
+    moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
+    max_residuals: usize,
+    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
 ) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
     if moved_paths.is_empty()
         || moved_paths.iter().any(|path| {
@@ -41,6 +57,7 @@ pub(super) fn partial_affine_residuals(
         &moved_paths,
         &mut Vec::new(),
         max_residuals,
+        selected,
         &mut residuals,
     )?;
     Some(residuals)
@@ -52,6 +69,7 @@ fn collect_partial_affine_residuals(
     moved_paths: &[&[StructuralPathSegment]],
     prefix: &mut Vec<StructuralPathSegment>,
     max_residuals: usize,
+    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
 ) -> Option<()> {
     match &structural_types.get(&structural_type)?.shape {
@@ -65,6 +83,7 @@ fn collect_partial_affine_residuals(
                 moved_paths,
                 prefix,
                 max_residuals,
+                selected,
                 residuals,
             )?;
         }
@@ -84,16 +103,24 @@ fn collect_partial_affine_residuals(
                     moved_paths,
                     prefix,
                     max_residuals,
+                    selected,
                     residuals,
                 )?;
             }
         }
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-            let selected_case = moved_paths.iter().find_map(|path| match path.first() {
-                Some(StructuralPathSegment::Case(case)) => Some(*case),
-                _ => None,
-            })?;
-            let selected = find_structural_case(cases, selected_case)?;
+            let selected_case = moved_paths
+                .iter()
+                .find_map(|path| match path.first() {
+                    Some(StructuralPathSegment::Case(case)) => Some(*case),
+                    _ => None,
+                })
+                .or_else(|| {
+                    let mut matches = cases.iter().filter(|case| selected(prefix, case.id));
+                    let case = matches.next()?;
+                    matches.next().is_none().then_some(case.id)
+                })?;
+            let selected_case_declaration = find_structural_case(cases, selected_case)?;
             let common = structural_types
                 .get(&structural_type)?
                 .shape
@@ -115,10 +142,11 @@ fn collect_partial_affine_residuals(
             prefix.push(StructuralPathSegment::Case(selected_case));
             collect_field_residuals(
                 structural_types,
-                &selected.fields,
+                &selected_case_declaration.fields,
                 &payload_moves,
                 prefix,
                 max_residuals,
+                selected,
                 residuals,
             )?;
             prefix.pop();
@@ -134,6 +162,7 @@ fn collect_partial_affine_residuals(
                     &common_moves,
                     prefix,
                     max_residuals,
+                    selected,
                     residuals,
                 )?;
             }
@@ -149,6 +178,7 @@ fn collect_field_residuals(
     moved_paths: &[&[StructuralPathSegment]],
     prefix: &mut Vec<StructuralPathSegment>,
     max_residuals: usize,
+    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
 ) -> Option<()> {
     if fields.iter().any(|field| {
@@ -177,6 +207,7 @@ fn collect_field_residuals(
                 moved_paths,
                 prefix,
                 max_residuals,
+                selected,
                 residuals,
             )?;
         }
@@ -191,6 +222,7 @@ fn collect_child_residuals(
     moved_paths: &[&[StructuralPathSegment]],
     prefix: &mut Vec<StructuralPathSegment>,
     max_residuals: usize,
+    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
 ) -> Option<()> {
     let descendants = moved_paths
@@ -213,6 +245,7 @@ fn collect_child_residuals(
             &descendants,
             prefix,
             max_residuals,
+            selected,
             residuals,
         )?;
     } else if descendants.len() != 1 {

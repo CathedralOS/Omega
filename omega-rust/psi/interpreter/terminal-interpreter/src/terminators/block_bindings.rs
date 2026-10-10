@@ -201,16 +201,13 @@ impl BlockBindings {
                     )?;
                 }
                 TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                    crate::custody::consume_affine_projection(
+                    crate::custody::consume_affine_discard(
                         &execution.program.structural_types(),
                         &values,
                         &execution.structural_cases,
                         &mut frontier,
-                        &StructuralArgument {
-                            place,
-                            path: discard.path.clone(),
-                            access: StructuralAccess::Owned,
-                        },
+                        &claims,
+                        discard,
                     )?;
                 }
                 TerminalAffineCleanupAction::RetireHome(_) => {

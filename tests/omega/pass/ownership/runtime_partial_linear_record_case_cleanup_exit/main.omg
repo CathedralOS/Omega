@@ -66,6 +66,12 @@ machine consume_mixed(value: Mixed) -> u64 {
     }
 }
 
+// A partial owner also cleans selected structural payloads with no hooks.
+data Item { value: u32; }
+data AffineSlot { case Empty; case Held(item: Item); }
+data AffineMixed { required: Token; slot: AffineSlot; }
+machine forget_affine(value: AffineMixed) { drop(value.required); }
+
 machine main() crashes Trap {
     let first: u32 = consume(anonymous());
     let second: u32 = consume(named());
@@ -76,6 +82,13 @@ machine main() crashes Trap {
         required: Token { value: 11 },
         slot: Slot::Held { token: Token { value: 70 } }
     }));
+    forget_affine(AffineMixed {
+        required: Token { value: 11 }, slot: AffineSlot::Empty
+    });
+    forget_affine(AffineMixed {
+        required: Token { value: 11 },
+        slot: AffineSlot::Held { item: Item { value: 70 } }
+    });
     transition first == 0 && second == 0 && third == 0 && live == 70
         && mixed_empty == 11 && mixed_live == 81 {
         true -> done()

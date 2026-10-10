@@ -1236,7 +1236,7 @@ fn block_parameter(
 
 /// Cleanup custody comes from the exact operation result declaration, not the
 /// operation's construction mechanism. A matching type alone is insufficient.
-fn is_plain_affine_operation_result(
+fn is_owned_cleanup_operation_result(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
 ) -> bool {
@@ -1269,10 +1269,12 @@ fn is_plain_affine_operation_result(
     operation.result.as_structural().is_some_and(|result| {
         result.place == place
             && result.structural_type == structural_type
-            && result.multiplicity == StructuralMultiplicity::Affine
+            && matches!(
+                result.multiplicity,
+                StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
+            )
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
-            && result.claims.is_empty()
     })
 }
 

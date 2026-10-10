@@ -104,21 +104,13 @@ pub(crate) fn commit_cleanup_action(
             // Region disposal leaves its home binding available for the checked
             // retirement action, including when the region is the whole value.
             // DiscardRoot is the separate intrinsically retiring operation.
-            if resolve_structural_path_type(structural_types, root.structural_type, &discard.path)?
-                != discard.structural_type
-            {
-                return Err(TerminalInterpretError::AffineFrontierMismatch);
-            }
-            consume_affine_projection(
+            consume_affine_discard(
                 structural_types,
                 structural_values,
                 structural_cases,
                 frontier,
-                &StructuralArgument {
-                    place: discard.place,
-                    path: discard.path.clone(),
-                    access: StructuralAccess::Owned,
-                },
+                live_claims,
+                discard,
             )?;
             // A projected transfer may already retain descendants of this root.
             // Retire only this disposed subtree, never the transferred sibling.
@@ -799,6 +791,43 @@ pub(crate) fn consume_projected_ownership(
         claims.remove(&identity);
     }
     Ok(())
+}
+
+/// Disposal carries no claim transfer: both preflight and commit require the
+/// exact region's live claims to have been discharged by preceding actions.
+/// Runtime membership and frontier splitting retain selected case custody.
+pub(crate) fn consume_affine_discard(
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    structural_cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    claims: &BTreeMap<ClaimId, LiveClaim>,
+    discard: &StructuralAffineDiscard,
+) -> Result<(), TerminalInterpretError> {
+    let root = verified_structural_place(values, discard.place)?;
+    if resolve_structural_path_type(structural_types, root.structural_type, &discard.path)?
+        != discard.structural_type
+        || claims.values().any(|claim| {
+            claim.place == Some(discard.place)
+                && terminal_semantics::structural_paths_may_overlap(&claim.path, &discard.path)
+        })
+    {
+        return Err(TerminalInterpretError::AffineFrontierMismatch);
+    }
+    consume_affine_projection(
+        structural_types,
+        values,
+        structural_cases,
+        frontier,
+        &StructuralArgument {
+            place: discard.place,
+            path: discard.path.clone(),
+            access: StructuralAccess::Owned,
+        },
+    )
 }
 
 pub(crate) fn consume_affine_projection(
