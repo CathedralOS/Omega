@@ -379,7 +379,7 @@ impl ValuePlacement {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CallingPolicy {
     MicrosoftX64,
     SystemVAMD64,
@@ -556,14 +556,14 @@ impl MachineRegime {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EntryStack {
     Interrupted,
     Dedicated { class: u16 },
     ProviderSelected,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Preemption {
     NotApplicable,
     Masked,
