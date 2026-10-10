@@ -93,3 +93,4 @@ pass/generics/runtime_qualified_closed_equation_exit built 4980ms exit:0 interpr
 pass/modules/selected_constant_array_alias_named_extent_exit built 57137ms exit:7 interpreter-exit:7 interpreter:agrees @b5964efaecb8
 pass/arithmetic/runtime_signed_minimum_remainder_postcondition_exit built 81297ms exit:0 interpreter-exit:0 interpreter:agrees @141e5d32a85a
 pass/generics/runtime_equation_constructor_selected_const_exit built 4828ms exit:0 interpreter-exit:0 interpreter:agrees @e86d47de16ba+wt
+pass/arithmetic/runtime_full_width_unsigned_quotient_exit built 72196ms exit:0 interpreter-exit:0 interpreter:agrees @0f6e9a51d1ff

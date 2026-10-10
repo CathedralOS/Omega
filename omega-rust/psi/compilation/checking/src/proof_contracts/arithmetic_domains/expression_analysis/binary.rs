@@ -649,6 +649,16 @@ impl Operation<'_, '_> {
                 self.left.interval.multiply(self.right.interval),
             ),
             BinaryOperator::Modulo => self.left.interval.modulo(self.right.interval),
+            BinaryOperator::Divide
+                if self.left.primitive.or(self.right.primitive) == Some(PrimitiveType::U64) =>
+            {
+                unsigned_representability::divide_interval(
+                    self.left.interval,
+                    self.right.interval,
+                    self.known_unsigned(PrimitiveType::U64, left),
+                    self.known_unsigned(PrimitiveType::U64, right),
+                )
+            }
             BinaryOperator::Divide => self.left.interval.divide(self.right.interval),
             BinaryOperator::ShiftLeft => self.left.interval.shift_left(self.right.interval),
             BinaryOperator::ShiftRight => self.left.primitive.map_or_else(

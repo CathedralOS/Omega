@@ -1,6 +1,39 @@
-//! Exact u64 representability beyond the i64 interval endpoint window.
+//! Full-width u64 bounds and Exact representability beyond the i64 window.
 
 use super::{BinaryOperator, Interval};
+
+/// Quotient bounds for already-landed u64 operands. Open compatibility ends
+/// use the real carrier extent, and exact unsigned snapshots retain wide
+/// constants instead of turning them into a weaker signed-window floor.
+///
+/// With a positive divisor, unsigned truncated division increases with the
+/// dividend and decreases with the divisor. Opposite endpoint pairs therefore
+/// give both extrema. A possible zero divisor supplies no result bound; neither
+/// a tighter quotient nor carrier completion discharges operand formation.
+pub(super) fn divide_interval(
+    left: Interval,
+    right: Interval,
+    left_known: Option<u64>,
+    right_known: Option<u64>,
+) -> Interval {
+    let (Some((left_low, left_high)), Some((right_low, right_high))) = (
+        value_bounds(left, left_known),
+        value_bounds(right, right_known),
+    ) else {
+        return Interval::UNBOUNDED;
+    };
+    if right_low == 0 {
+        return Interval::UNBOUNDED;
+    }
+    let low = left_low / right_high;
+    let high = left_high / right_low;
+    Interval {
+        // A wide floor still proves this weaker finite floor. Its ceiling
+        // remains open when the exact u64 value cannot fit the i64 window.
+        low: Some(i64::try_from(low).unwrap_or(i64::MAX)),
+        high: i64::try_from(high).ok(),
+    }
+}
 
 /// Check the mathematical result against the real u64 carrier ceiling.
 ///

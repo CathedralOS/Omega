@@ -578,6 +578,14 @@ fn bounds(
                 BinaryOperator::Add => left.interval.add(right.interval),
                 BinaryOperator::Subtract => left.interval.subtract(right.interval),
                 BinaryOperator::Multiply => left.interval.multiply(right.interval),
+                BinaryOperator::Divide if primitive == PrimitiveType::U64 => {
+                    super::unsigned_representability::divide_interval(
+                        left.interval,
+                        right.interval,
+                        left.constant_value.as_ref().and_then(BigInt::to_u64),
+                        right.constant_value.as_ref().and_then(BigInt::to_u64),
+                    )
+                }
                 BinaryOperator::Divide => left.interval.divide(right.interval),
                 BinaryOperator::Modulo
                     if left.interval.low == left.interval.high

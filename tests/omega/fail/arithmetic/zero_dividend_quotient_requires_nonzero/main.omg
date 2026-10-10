@@ -1,0 +1,2 @@
+machine invalid(divisor: u64) -> u64 [0..=0] { 0u64 / divisor }
+machine main() {}

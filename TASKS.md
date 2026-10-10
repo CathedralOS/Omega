@@ -2958,6 +2958,10 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   constrain the same bounds at immutable postcondition consumers.
   `arithmetic/{runtime_bounded_dividend_remainder_exit,remainder_dividend_range_excludes_zero_rejected,zero_dividend_remainder_requires_nonzero}`
   constrain dividend precision without assuming a positive remainder floor.
+  Preserve full-width unsigned quotient endpoints from their source carrier,
+  retaining exact unsigned snapshots; `arithmetic/runtime_full_width_unsigned_quotient_exit`
+  and `arithmetic/{unsigned_quotient_underbound_rejected,unsigned_quotient_operand_overflow_rejected,unsigned_quotient_operand_landing_rejected,zero_dividend_quotient_requires_nonzero}`
+  constrain result bounds independently of operand formation.
   Preserve zero-product bounds for unbounded integer operands without erasing
   operand formation obligations; `arithmetic/runtime_unbounded_zero_product_exit`
   and `arithmetic/zero_product_operand_{overflow,division}_rejected` constrain

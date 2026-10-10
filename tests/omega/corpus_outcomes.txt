@@ -4686,3 +4686,13 @@ fail/generics/equation_constructor_selected_const_conflict rejected 11ms expecte
 fail/generics/equation_constructor_selected_const_unresolved rejected 10ms expected @e86d47de16ba+wt
 	generic data `Verified` where type equation requires an unambiguous selected constructor constant
 pass/generics/runtime_equation_constructor_selected_const_exit checked 4934ms check-target:linux_x86_64 @e86d47de16ba+wt
+fail/arithmetic/unsigned_quotient_operand_landing_rejected rejected 6230ms expected @0f6e9a51d1ff
+	anonymous operand `18446744073709551616` cannot land exactly in `u64` in machine `invalid` state `entry` terminal expression; type an operand before division if integer division was intended
+fail/arithmetic/unsigned_quotient_operand_overflow_rejected rejected 11119ms expected @0f6e9a51d1ff
+	exact arithmetic in machine `invalid` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/unsigned_quotient_underbound_rejected rejected 10853ms expected @0f6e9a51d1ff
+	machine `invalid` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
+fail/arithmetic/zero_dividend_quotient_requires_nonzero rejected 7835ms expected @0f6e9a51d1ff
+	partial exact division in machine `invalid` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	machine `invalid` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
+pass/arithmetic/runtime_full_width_unsigned_quotient_exit checked 86464ms check-target:macos_arm64 @0f6e9a51d1ff
