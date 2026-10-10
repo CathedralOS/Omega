@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "composite_state_args");
+    builder.freestanding = true;
+}
