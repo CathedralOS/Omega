@@ -1,0 +1,229 @@
+use psi::checking::checker;
+use psi::checking::evaluation;
+use psi::checking::flow;
+use psi::checking::places;
+use psi::checks::checks;
+use psi::resolution::resolution;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// Proof provenance of borrowed storage, separate from ownership's access
+// authorization (state_contracts.md#mutation-and-subject-identity). A local
+// reference captures its initializer's already normalized storage origin;
+// it never copies that storage's facts into a disjoint local. Capturing the
+// origin, rather than the other binding, also keeps transitive aliases from
+// being redirected when a binding changes.
+//
+// Only sequential local initialization or binding replacement establishes an
+// origin. Assignment through an exclusive reference writes its referent;
+// replacing a mutable shared-reference local captures a new origin without
+// redirecting previous aliases. Conditional reference values whose origins disagree,
+// returned references and stored reference fields have no known origin yet.
+// Losing an origin is conservative and need not be undone by a zone restore;
+// a state opens a fresh table. Thus branch traversal never selects one arm's
+// origin as the other arm's. A write whose origin cannot be recovered is
+// refused as UnsupportedCheck rather than assigned independent storage.
+
+pub machine Checker::clear_reference_origins(checker: &mut Checker)
+crashes Trap
+{
+    transition { _ -> next(checker, 0) }
+
+    state next(checker: &mut Checker, index: u64 in Trapping) {
+        transition index < 256 {
+            true -> clear(checker, index)
+            _ -> done()
+        }
+    }
+
+    state clear(checker: &mut Checker, index: u64 in Trapping)
+    requires index < 256
+    {
+        checker.reference_origins[index] = 0;
+        transition { _ -> next(checker, index + 1) }
+    }
+
+    state done() {}
+}
+
+// The containing storage of an untracked element or range is still known
+// when its collection is. Stop at an unknown reference: its containing
+// record is not its referent. This recovers footprints, never borrow rights.
+pub machine Checker::storage_origin(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> node(checker, syntax, typing, handle, 0) }
+
+    state node(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let value: Value = Checker::value_at(checker, handle);
+        transition value.place > 0 {
+            true -> found(value.place)
+            _ -> unplaced(checker, syntax, typing, handle, depth)
+        }
+    }
+
+    state unplaced(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
+        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+        let borrow: bool = expression.kind == ExpressionKind::Unary
+            && (expression.operator == OperatorKind::Borrow || expression.operator == OperatorKind::BorrowMutable);
+        let projection: bool = row.kind != TypeKind::Reference
+            && (expression.kind == ExpressionKind::Index || expression.kind == ExpressionKind::Field);
+        transition depth < 256 && (borrow || projection) {
+            true -> node(checker, syntax, typing, expression.left, depth + 1)
+            _ -> unknown()
+        }
+    }
+
+    state found(place: u64 in Trapping) -> u64 in Trapping {
+        place
+    }
+
+    state unknown() -> u64 in Trapping {
+        0
+    }
+}
+
+// Initialization writes binding storage; later assignments through a
+// reference use the referent returned by reference_value instead.
+pub machine Checker::initialize_place(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value)
+crashes Trap
+{
+    transition place > 0 && place <= 256 {
+        true -> typed(checker, typing, place, value)
+        _ -> done()
+    }
+
+    state typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
+        let entry: Place = Checker::place_at(checker, place - 1);
+        let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+        transition row.kind == TypeKind::Reference {
+            true -> capture(checker, place - 1, value.place)
+            _ -> owned(checker, typing, place, value)
+        }
+    }
+
+    state capture(checker: &mut Checker, index: u64 in Trapping, origin: u64 in Trapping)
+    requires index < 256
+    {
+        checker.reference_origins[index] = origin as u64;
+    }
+
+    state owned(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
+        Checker::bind_place(checker, typing, place, value);
+    }
+
+    state done() {}
+}
+
+// Shared-reference local assignment replaces the binding (exclusive names
+// instead denote their referent). Other reference binding storage is not
+// represented by the local-origin table and remains an explicit refusal.
+pub machine Checker::replace_reference(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value) -> bool
+crashes Trap
+{
+    let expression: Expression = SyntaxTrees::expression(syntax, statement.target);
+    let type_handle: u64 in Trapping = Typing::expression_type(typing, statement.target);
+    let row: TypeRow = TypeTable::row(&typing.types, type_handle);
+    transition expression.kind == ExpressionKind::Name && row.kind == TypeKind::Reference && row.access == ReferenceAccess::Shared {
+        true -> binding(checker, resolution, typing, statement, value, type_handle)
+        _ -> other()
+    }
+
+    state binding(checker: &mut Checker, resolution: &NameResolution, typing: &Typing, statement: Statement, value: Value, type_handle: u64 in Trapping) -> bool {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, statement.target);
+        transition binding {
+            ValueBinding::Local { statement as declaration } -> local(checker, typing, declaration, value, type_handle)
+            _ -> unknown(checker, statement)
+        }
+    }
+
+    state local(checker: &mut Checker, typing: &Typing, declaration: u64 in Trapping, value: Value, type_handle: u64 in Trapping) -> bool {
+        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Local, declaration, 0, type_handle);
+        Checker::initialize_place(checker, typing, place, value);
+        true
+    }
+
+    state unknown(checker: &mut Checker, statement: Statement) -> bool {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, statement.source_span);
+        true
+    }
+
+    state other() -> bool {
+        false
+    }
+}
+
+// A reference expression's value denotes its live referent. Parameter roots
+// are incoming storage; a local has only its captured origin. Neither the
+// type nor a call's postcondition proves where a returned reference points.
+pub machine Checker::reference_value(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value
+crashes Trap
+{
+    transition place > 0 {
+        true -> typed(checker, typing, place)
+        _ -> unknown()
+    }
+
+    state typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value {
+        let entry: Place = Checker::place_at(checker, place - 1);
+        let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+        transition row.kind == TypeKind::Reference {
+            true -> reference(checker, typing, place, entry)
+            _ -> owned(checker, place)
+        }
+    }
+
+    state reference(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
+        transition entry.kind {
+            PlaceKind::Local -> local(checker, place - 1)
+            PlaceKind::Parameter -> parameter(checker, typing, place, entry.type_handle)
+            _ -> unknown()
+        }
+    }
+
+    state local(checker: &Checker, index: u64 in Trapping) -> Value {
+        transition index < 256 {
+            true -> captured(checker, index)
+            _ -> unknown()
+        }
+    }
+
+    state captured(checker: &Checker, index: u64 in Trapping) -> Value
+    requires index < 256
+    {
+        let origin: u64 in Trapping = checker.reference_origins[index] as u64 in Trapping;
+        let value: Value = Checker::place_value(checker, origin);
+        value
+    }
+
+    // Scalar reference parameters need an ordinary subject for their
+    // contents. Enter it lazily, after the state's by-value parameter
+    // subjects, whose numbering the arrival projection owns.
+    state parameter(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+        let read: u64 in Trapping = Checker::read_type(typing, type_handle);
+        let carrier: BuiltinType = Checker::carrier(typing, read);
+        let scalar: bool = Checker::has_subject(carrier);
+        transition scalar {
+            true -> scalar_referent(checker, typing, place, read)
+            _ -> owned(checker, place)
+        }
+    }
+
+    state scalar_referent(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
+        let referent: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Referent, 0, place, type_handle);
+        let value: Value = Checker::place_value(checker, referent);
+        value
+    }
+
+    state owned(checker: &Checker, place: u64 in Trapping) -> Value {
+        let value: Value = Checker::place_value(checker, place);
+        value
+    }
+
+    state unknown() -> Value {
+        let value: Value = Value::unknown();
+        value
+    }
+}

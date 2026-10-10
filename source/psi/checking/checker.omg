@@ -12,6 +12,7 @@ use psi::checking::obligations;
 use psi::checking::ownership;
 use psi::checking::places;
 use psi::checking::qualification;
+use psi::checking::references;
 use psi::checking::snapshots;
 use psi::checking::supply;
 use psi::checking::termination;
@@ -44,6 +45,8 @@ pub data Checker {
     // The body being walked: its places, its integer subjects and its zone.
     places: [Place; 256];
     place_count: u64;
+    // Captured local-reference storage origins; zero means unknown.
+    reference_origins: [u64; 256];
     // Each place's default domain (domains.omg), and the place whose fields a
     // `where` fact's field names stand for while it is installed.
     domains: [DomainMark; 256];
@@ -1071,10 +1074,33 @@ crashes Trap
         let value: Value = Checker::value_at(checker, handle);
         let exclusive: bool = Checker::exclusive_value(typing, handle);
         let whole: bool = Checker::writes_whole(checker, first_parameter + offset);
-        transition exclusive && value.place > 0 {
-            true -> lent(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, value.place, unknown || whole || offset >= parameter_count)
+        transition exclusive {
+            true -> origin(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, unknown || whole || offset >= parameter_count)
             _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1)
         }
+    }
+
+    state origin(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, handle: u64 in Trapping, whole: bool) {
+        let place: u64 in Trapping = Checker::storage_origin(checker, syntax, typing, handle);
+        transition place > 0 {
+            true -> lent(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, place, whole)
+            _ -> unknown_origin(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, whole)
+        }
+    }
+
+    // A complete empty frame cannot mutate even an unknown referent. Any
+    // nonempty frame needs an origin; a returned reference is not evidence
+    // of a disjoint new place.
+    state unknown_origin(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, whole: bool) {
+        let changes: bool = Checker::frame_changes(checker, syntax, callee, whole);
+        transition changes {
+            true -> unrepresented(checker, expression)
+            _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1)
+        }
+    }
+
+    state unrepresented(checker: &mut Checker, expression: Expression) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
     }
 
     // The operands evaluated before the call keep what they read there.

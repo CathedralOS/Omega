@@ -9,6 +9,7 @@ use psi::checking::matches;
 use psi::checking::obligations;
 use psi::checking::places;
 use psi::checking::qualification;
+use psi::checking::references;
 use psi::checking::snapshots;
 use psi::checking::termination;
 use psi::checking::zone;
@@ -841,9 +842,9 @@ crashes Trap
         Checker::evaluate_tree(checker, syntax, resolution, typing, statement.value, checking);
         let value: Value = Checker::value_at(checker, statement.value);
         let replayable: bool = Checker::alias_replayable(checker, syntax, resolution, typing, statement.value, place, epoch);
-        Checker::bind_place(checker, typing, place, value);
+        Checker::initialize_place(checker, typing, place, value);
         Checker::record_alias(checker, syntax, typing, place, statement.value, value, replayable);
-        let bound: Value = Checker::place_value(checker, place);
+        let bound: Value = Checker::reference_value(checker, typing, place);
         Checker::assume_qualification(checker, syntax, resolution, typing, type_handle, bound);
         transition checking {
             true -> qualified_local(checker, syntax, resolution, typing, statement, type_handle, value)
@@ -873,7 +874,7 @@ crashes Trap
         let destination: u64 in Trapping = Typing::expression_type(typing, statement.target);
         Checker::require_stored_qualification(checker, syntax, resolution, typing, destination, statement.value, value, statement.source_span, checking);
         let replayable: bool = Checker::alias_replayable(checker, syntax, resolution, typing, statement.value, target.place, epoch);
-        Checker::bind_place(checker, typing, target.place, value);
+        Checker::store_value(checker, syntax, resolution, typing, statement, target, value);
         Checker::record_alias(checker, syntax, typing, target.place, statement.value, value, replayable);
         transition owner > 0 {
             true -> window(checker, syntax, resolution, typing, statement, owner, checking)
@@ -1032,6 +1033,48 @@ crashes Trap
     state answer(reads: bool) -> bool {
         reads
     }
+}
+
+// An untracked array element still writes its collection. A reference with
+// no captured origin may alias any live place; refuse that write until its
+// footprint can be represented instead of leaving unrelated-looking facts.
+machine Checker::store_value(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, statement: Statement, target: Value, value: Value)
+crashes Trap
+{
+    let replaced: bool = Checker::replace_reference(checker, syntax, resolution, typing, statement, value);
+    transition replaced {
+        true -> done()
+        _ -> destination(checker, syntax, typing, statement, target, value)
+    }
+
+    state destination(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, target: Value, value: Value) {
+        transition target.place > 0 {
+            true -> located(checker, typing, target.place, value)
+            _ -> containing(checker, syntax, typing, statement)
+        }
+    }
+
+    state located(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
+        Checker::bind_place(checker, typing, place, value);
+    }
+
+    state containing(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement) {
+        let origin: u64 in Trapping = Checker::storage_origin(checker, syntax, typing, statement.target);
+        transition origin > 0 {
+            true -> forgotten(checker, typing, origin)
+            _ -> unknown(checker, statement)
+        }
+    }
+
+    state forgotten(checker: &mut Checker, typing: &Typing, origin: u64 in Trapping) {
+        Checker::forget_place(checker, typing, origin);
+    }
+
+    state unknown(checker: &mut Checker, statement: Statement) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, statement.source_span);
+    }
+
+    state done() {}
 }
 
 // A place takes a new value: its old facts and those of everything inside

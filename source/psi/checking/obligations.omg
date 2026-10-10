@@ -6,6 +6,7 @@ use psi::checking::domains;
 use psi::checking::evaluation;
 use psi::checking::matches;
 use psi::checking::places;
+use psi::checking::references;
 use psi::checking::qualification;
 use psi::checking::termination;
 use psi::checks::checks;
@@ -303,21 +304,21 @@ crashes Trap
     // times; a replayed call keeps the result its evaluation gave.
     state call(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, row: TypeRow, checking: bool) {
         transition checker.replay {
-            true -> replayed(checker, handle, row)
+            true -> replayed(checker, typing, handle, row)
             _ -> entered(checker, syntax, resolution, typing, handle, expression, row, checking)
         }
     }
 
-    state replayed(checker: &mut Checker, handle: u64 in Trapping, row: TypeRow) {
+    state replayed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, row: TypeRow) {
         let place: u64 in Trapping = Checker::find_place(checker, PlaceKind::Call, handle, 0);
         transition place > 0 {
-            true -> placed(checker, handle, place)
+            true -> placed(checker, typing, handle, place)
             _ -> typed(checker, handle, row)
         }
     }
 
-    state placed(checker: &mut Checker, handle: u64 in Trapping, place: u64 in Trapping) {
-        let value: Value = Checker::place_value(checker, place);
+    state placed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, place: u64 in Trapping) {
+        let value: Value = Checker::reference_value(checker, typing, place);
         Checker::set_value(checker, handle, value);
     }
 
@@ -372,7 +373,7 @@ crashes Trap
     state guaranteed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, item: MachineItem) {
         let type_handle: u64 in Trapping = Typing::expression_type(typing, node);
         let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Call, node, 0, type_handle);
-        let value: Value = Checker::place_value(checker, place);
+        let value: Value = Checker::reference_value(checker, typing, place);
         Checker::set_value(checker, node, value);
         Checker::assume_guarantees(checker, syntax, resolution, typing, item, expression, value);
     }
