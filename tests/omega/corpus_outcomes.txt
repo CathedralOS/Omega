@@ -4199,6 +4199,7 @@ pass/ownership/runtime_linear_case_payload_forward_exit checked 1710ms check-tar
 pass/ownership/runtime_nested_projected_claim_return_exit checked 1603ms check-target:macos_arm64 @cd27c16e2c35
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 1325ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_partial_linear_record_case_cleanup_exit checked 5476ms check-target:macos_arm64 @fc4fea5e1228+wt
+pass/ownership/runtime_projected_constructor_operands_exit checked 2477ms check-target:macos_arm64 @892d056faf31+wt
 pass/ownership/runtime_repeated_linear_result_forwarding_exit checked 1453ms check-target:macos_arm64 @6605065c28a7
 pass/ownership/runtime_retained_alias_referent_transform_exit checked 1771ms check-target:macos_arm64 @76bbeef8b4d2
 pass/ownership/runtime_selected_reference_local_exit checked 3348ms check-target:macos_arm64 @4a00cf9908d9+wt

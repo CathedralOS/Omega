@@ -534,6 +534,7 @@ pass/ownership/runtime_mutable_selector_window_exit built 7746ms exit:0 interpre
 pass/ownership/runtime_nested_projected_claim_return_exit built 1641ms exit:0 interpreter-exit:0 interpreter:agrees @cd27c16e2c35
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit built 1361ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
 pass/ownership/runtime_partial_linear_record_case_cleanup_exit built 5449ms exit:0 interpreter-exit:0 interpreter:agrees @fc4fea5e1228+wt
+pass/ownership/runtime_projected_constructor_operands_exit built 2697ms exit:0 interpreter-exit:0 interpreter:agrees @892d056faf31+wt
 pass/ownership/runtime_referent_replacement_fact_transport_exit built 3479ms exit:0 interpreter-exit:0 interpreter:agrees @b4e03c503cb3+wt
 pass/ownership/runtime_repeated_linear_result_forwarding_exit built 1875ms exit:0 interpreter-exit:0 interpreter:agrees @6605065c28a7
 pass/ownership/runtime_retained_alias_referent_transform_exit built 1856ms exit:42 interpreter-exit:42 interpreter:agrees @76bbeef8b4d2

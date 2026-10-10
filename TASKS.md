@@ -455,6 +455,8 @@ defines the complete product bar.
     not another whole-body plan. Preserve once-only
     field/operand order, selective short-circuit effects, computed-result float
     format and selected affine cleanup:
+    `pass/ownership/runtime_projected_constructor_operands_exit` preserves
+    projected record/case/array operands and their unconsumed siblings;
     `pass/float/computed_comparison_literal_landing_exit`,
     `pass/calls/runtime_constructed_payload_arguments_exit`,
     `pass/calls/runtime_constructed_copy_payload_arguments_exit` and

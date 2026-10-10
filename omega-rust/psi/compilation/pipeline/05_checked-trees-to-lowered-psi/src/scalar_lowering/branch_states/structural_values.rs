@@ -150,7 +150,7 @@ enum AggregateContents {
         declarations: Vec<terminal_psi::StructuralFieldDeclaration>,
         common_fields: usize,
     },
-    Elements(Vec<PlaceId>),
+    Elements(Vec<StructuralArgument>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -166,7 +166,7 @@ enum Field {
         scalar_type: ScalarType,
         bounded: bool,
     },
-    Structural(PlaceId),
+    Structural(StructuralArgument),
     Zero {
         scalar_type: ScalarType,
         bounded: bool,
@@ -216,25 +216,23 @@ pub(crate) fn prepare_value(
         consumed: Vec::new(),
         claims,
     };
-    let mut place = preparation.value(value, reference, &[])?;
+    let argument = preparation.operand(value, reference, &[])?;
+    let mut place = argument.place;
     if preparation.consumed_calls.len() != calls.len() {
         return unsupported("structural value contains unconsumed call producers");
     }
-    if checked.type_multiplicity(reference) == Multiplicity::Affine
-        && matches!(
-            checked.facts.values.structural_values.nodes.get(value).kind,
-            CheckedStructuralValueKind::Place(_)
-        )
+    if !argument.path.is_empty()
+        || (checked.type_multiplicity(reference) == Multiplicity::Affine
+            && matches!(
+                checked.facts.values.structural_values.nodes.get(value).kind,
+                CheckedStructuralValueKind::Place(_)
+            ))
     {
         place = preparation.bind_place(
             value,
-            StructuralArgument {
-                place,
-                path: Vec::new(),
-                access: StructuralAccess::Owned,
-            },
+            argument,
             structural_type,
-            StructuralMultiplicity::Affine,
+            terminal_multiplicity(checked.type_multiplicity(reference)),
         )?;
     }
     Ok(PreparedValue {
@@ -244,6 +242,14 @@ pub(crate) fn prepare_value(
         steps: preparation.steps,
         consumed: preparation.consumed,
     })
+}
+
+fn whole_argument(place: PlaceId) -> StructuralArgument {
+    StructuralArgument {
+        place,
+        path: Vec::new(),
+        access: StructuralAccess::Owned,
+    }
 }
 
 /// Layout lookup uses the carrier; the caller keeps the declared type for
@@ -290,6 +296,89 @@ struct Preparation<'a> {
 }
 
 impl Preparation<'_> {
+    /// Complete the selected operand before recording its transfer. Resolving
+    /// a projection must not first consume the whole root that carries it.
+    fn operand(
+        &mut self,
+        value: checked_trees::CheckedStructuralValueHandle,
+        reference: checked_trees::types::TypeReferenceHandle,
+        claim_path: &[terminal_psi::StructuralPathSegment],
+    ) -> Result<StructuralArgument, LoweringError> {
+        let source = self.source(value, reference, claim_path)?;
+        let node = self.checked.facts.values.structural_values.nodes.get(value);
+        if matches!(
+            node.kind,
+            CheckedStructuralValueKind::Place(_) | CheckedStructuralValueKind::Projection { .. }
+        ) {
+            if self.checked.type_multiplicity(reference) == Multiplicity::Unrestricted {
+                let structural_type = carrier_declaration(self.checked, self.types, reference)?.id;
+                let place = self.bind_place(
+                    value,
+                    source,
+                    structural_type,
+                    StructuralMultiplicity::Unrestricted,
+                )?;
+                return Ok(whole_argument(place));
+            }
+            if source.path.is_empty() {
+                if self.consumed.contains(&source.place) {
+                    return unsupported("record value transfers its source more than once");
+                }
+                self.consumed.push(source.place);
+            }
+        }
+        Ok(source)
+    }
+
+    /// Resolve the exact owned value without committing its containing root.
+    /// Fresh producers execute once through the same construction schedule;
+    /// established aliases retain their original root and accumulated path.
+    fn source(
+        &mut self,
+        value: checked_trees::CheckedStructuralValueHandle,
+        reference: checked_trees::types::TypeReferenceHandle,
+        claim_path: &[terminal_psi::StructuralPathSegment],
+    ) -> Result<StructuralArgument, LoweringError> {
+        let node = self.checked.facts.values.structural_values.nodes.get(value);
+        match &node.kind {
+            CheckedStructuralValueKind::Place(argument) => self.bindings.owned_argument(argument),
+            CheckedStructuralValueKind::Projection { source, path, .. } => {
+                let source_node = self
+                    .checked
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get(*source);
+                let source_reference = self
+                    .checked
+                    .facts
+                    .resolved_types
+                    .result(source_node.expression);
+                let source_type =
+                    carrier_declaration(self.checked, self.types, source_reference)?.id;
+                let selected_path = crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                    path, source_type, self.types,
+                )?;
+                let selected = terminal_semantics::runtime_structural_path_tip(
+                    self.types.iter(),
+                    source_type,
+                    &selected_path,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "constructor projection lost its structural carrier",
+                ))?;
+                if selected.id != carrier_declaration(self.checked, self.types, reference)?.id {
+                    return unsupported("constructor projection changes its selected carrier");
+                }
+                let mut argument = self.source(*source, source_reference, claim_path)?;
+                argument.path.extend(selected_path);
+                Ok(argument)
+            }
+            _ => self.value(value, reference, claim_path).map(whole_argument),
+        }
+    }
+
     fn value(
         &mut self,
         value: checked_trees::CheckedStructuralValueHandle,
@@ -344,29 +433,6 @@ impl Preparation<'_> {
                 prefix: self.prefix.clone(),
             });
             return Ok(completed);
-        }
-        if let CheckedStructuralValueKind::Place(argument) = &node.kind {
-            let source = self.bindings.owned_argument(argument)?;
-            if self.checked.type_multiplicity(reference) == Multiplicity::Unrestricted {
-                return self.bind_place(
-                    value,
-                    source,
-                    declaration.id,
-                    StructuralMultiplicity::Unrestricted,
-                );
-            }
-            // An affine or linear member moves its whole source home, a named
-            // local or a parameter, directly into EstablishRecord; the claims
-            // it holds continue beneath the member's field. Checking already
-            // retired the source's own disposal at this move.
-            if !source.path.is_empty() {
-                return unsupported("record member moves only a whole owned source");
-            }
-            if self.consumed.contains(&source.place) {
-                return unsupported("record value transfers its source more than once");
-            }
-            self.consumed.push(source.place);
-            return Ok(source.place);
         }
         if let CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } = &node.kind {
             let (machine, state) =
@@ -552,7 +618,7 @@ impl Preparation<'_> {
                     u64::try_from(element_index)
                         .map_err(|_| LoweringError::Unsupported("array claim index exceeds u64"))?,
                 ));
-                completed.push(self.value(*child, element_reference, &child_path)?);
+                completed.push(self.operand(*child, element_reference, &child_path)?);
             }
             let place = self.reserved.place(value)?;
             let multiplicity = terminal_multiplicity(self.checked.type_multiplicity(reference));
@@ -562,7 +628,8 @@ impl Preparation<'_> {
                     structural_type: declaration.id,
                     multiplicity,
                     claims: claims_below_path(&self.claims, claim_path),
-                    source_parameters: self.member_parameters(completed.iter().copied()),
+                    source_parameters: self
+                        .member_parameters(completed.iter().map(|argument| argument.place)),
                     contents: AggregateContents::Elements(completed),
                 },
                 prefix: self.prefix.clone(),
@@ -603,18 +670,17 @@ impl Preparation<'_> {
                     .ok_or(LoweringError::Unsupported(
                         "aggregate selected a foreign case",
                     ))?;
-                let selected =
-                    terminal_psi::structural_case_by_identity(
-                        cases,
-                        &checked_trees::CheckedMemberIdentity::of_member(
-                            variant.identity,
-                            variant.name.clone(),
-                        )
-                        .spelling(),
+                let selected = terminal_psi::structural_case_by_identity(
+                    cases,
+                    &checked_trees::CheckedMemberIdentity::of_member(
+                        variant.identity,
+                        variant.name.clone(),
                     )
-                        .ok_or(LoweringError::Unsupported(
-                            "aggregate case declaration is absent",
-                        ))?;
+                    .spelling(),
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "aggregate case declaration is absent",
+                ))?;
                 (
                     AggregateKind::Case(selected.id),
                     common,
@@ -637,7 +703,12 @@ impl Preparation<'_> {
                 .iter()
                 .find_map(|member| match member {
                     checked_trees::data::DataMember::Field(field)
-                        if checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()).spelling() == target.identity =>
+                        if checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        )
+                        .spelling()
+                            == target.identity =>
                     {
                         Some(field)
                     }
@@ -658,7 +729,14 @@ impl Preparation<'_> {
                     .checked
                     .data_payload_fields(variant)
                     .iter()
-                    .find(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()).spelling() == target.identity)
+                    .find(|field| {
+                        checked_trees::CheckedMemberIdentity::of_member(
+                            field.identity,
+                            field.name.clone(),
+                        )
+                        .spelling()
+                            == target.identity
+                    })
                     .ok_or(LoweringError::Unsupported(
                         "aggregate payload field declaration is absent",
                     ))?;
@@ -755,7 +833,7 @@ impl Preparation<'_> {
                         child_path.push(terminal_psi::StructuralPathSegment::Field(
                             target.identity.clone(),
                         ));
-                        Field::Structural(self.value(child, field.type_reference, &child_path)?)
+                        Field::Structural(self.operand(child, field.type_reference, &child_path)?)
                     }
                 }
             };
@@ -783,7 +861,7 @@ impl Preparation<'_> {
                 claims: claims_below_path(&self.claims, claim_path),
                 source_parameters: self.member_parameters(initialized.iter().filter_map(
                     |(_, (_, field))| match field {
-                        Field::Structural(place) => Some(*place),
+                        Field::Structural(argument) => Some(argument.place),
                         _ => None,
                     },
                 )),
@@ -835,8 +913,9 @@ impl Preparation<'_> {
         multiplicity: StructuralMultiplicity,
     ) -> Result<PlaceId, LoweringError> {
         let place = self.reserved.place(value)?;
-        // An unrestricted copy arrival retains the selected source's evidence;
-        // the new ingress or its eventual containing field grants none.
+        // An arrival retains the selected source's evidence. Owned projections
+        // transfer their subtree; unrestricted sources may copy. Neither the
+        // new ingress nor its eventual containing field grants evidence.
         let (qualifications, projected_qualifications) = self
             .bindings
             .structural_parameter_by_place(source.place)
@@ -1024,14 +1103,7 @@ pub(crate) fn emit(
                 construction.place,
                 construction.structural_type,
                 construction.multiplicity,
-                elements
-                    .iter()
-                    .map(|place| StructuralArgument {
-                        place: *place,
-                        path: Vec::new(),
-                        access: StructuralAccess::Owned,
-                    })
-                    .collect(),
+                elements.clone(),
                 construction.source_parameters.iter(),
                 operations,
             )?;
@@ -1057,12 +1129,8 @@ pub(crate) fn emit(
                     },
                 }
             }
-            Field::Structural(place) => {
-                terminal_psi::RecordFieldValue::Structural(StructuralArgument {
-                    place: *place,
-                    path: Vec::new(),
-                    access: StructuralAccess::Owned,
-                })
+            Field::Structural(argument) => {
+                terminal_psi::RecordFieldValue::Structural(argument.clone())
             }
             Field::Zero {
                 scalar_type,
