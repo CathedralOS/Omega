@@ -532,7 +532,7 @@ const fn public_target(target: ElfDynamicAddressTarget) -> ElfDynamicAddressAppl
     target
 }
 
-const fn target_section_index(target: ElfDynamicAddressApplicationTarget) -> u32 {
+pub(crate) const fn target_section_index(target: ElfDynamicAddressApplicationTarget) -> u32 {
     match target {
         ElfDynamicAddressApplicationTarget::ProcedureGot => 9,
         ElfDynamicAddressApplicationTarget::SystemVHash => 4,
