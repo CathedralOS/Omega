@@ -1,0 +1,43 @@
+// Case `where` equality bounds: `Interval::Point { lo, hi }` with
+// `where lo == hi` contributes the equality into the destructured
+// arm — `hi - lo` cannot underflow there, so the subtraction
+// discharges without a guard or Wrapping domain.
+//
+//   * `case Point(lo: u64, hi: u64) where lo == hi` — payload
+//     equality gate.
+//   * `main.width = hi - lo` — exact subtraction proven by the
+//     arm's contributed equality.
+//   * `hits` records the reached arm.
+//
+// Compile-checked only: no standard-library dependency, no ProcessExit
+// provider.
+
+data Interval {
+    case Empty;
+    case Point(lo: u64, hi: u64) where lo == hi;
+}
+
+data Main {
+    interval: Interval;
+    width: u64;
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    main.width = 999;
+    main.interval = Interval::Point { lo: 4, hi: 4 };
+    transition main.interval {
+        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Empty -> fail(main)
+    }
+    state take(lo: u64, hi: u64, main: &mut Main) {
+        main.width = hi - lo;
+        transition main.width == 0 {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
