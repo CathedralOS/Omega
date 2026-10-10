@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 5.22, "load1_start": 3.85, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "1", "load1_end": 1.92, "load1_start": 1.92, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 2645ms exit:112 interpreter-exit:112 interpreter:agrees @1152c1496b39
 pass/arithmetic/full_width_integer_literals_compose_exit built 3129ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
@@ -693,3 +693,4 @@ pass/termination/runtime_selected_boundary_requirement_identity_exit built 3576m
 pass/termination/runtime_selected_requirement_reference_identity_exit built 3417ms exit:0 interpreter-exit:0 interpreter:agrees @83ed80e91feb
 pass/concurrency/runtime_returned_carrier_suspension_exit built 3545ms exit:0 interpreter-exit:0 interpreter:agrees @32f04773833e
 pass/termination/runtime_rankless_boundary_suffix_exit built 2515ms exit:0 interpreter-exit:0 interpreter:agrees @cd9cf1f708cc
+pass/termination/runtime_public_result_field_rank_arrivals_exit built 3538ms exit:0 interpreter-exit:0 interpreter:agrees @09715a326eee

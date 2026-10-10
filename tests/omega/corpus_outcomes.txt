@@ -9,6 +9,7 @@
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "2", "load1_end": 1.7, "load1_start": 1.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 # context: {"cpus": 5, "jobs": "1", "load1_end": 2.56, "load1_start": 2.71, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "1", "load1_end": 2.39, "load1_start": 2.17, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -4900,3 +4901,9 @@ fail/termination/rankless_family_member_reentry rejected 362ms expected @cbdea66
 pass/termination/rankless_boundary_operator_suffix checked 411ms @cbdea668881e+wt
 pass/termination/rankless_boundary_slice_suffix checked 411ms @cbdea668881e+wt
 pass/termination/runtime_rankless_boundary_suffix_exit checked 2297ms check-target:macos_arm64 @cbdea668881e+wt
+fail/termination/rank_arrival_public_result_wrong_subject rejected 488ms expected @09715a326eee
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival
+fail/termination/rank_arrival_missing_public_result_field_equation rejected 489ms expected @09715a326eee
+	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
+pass/termination/rank_arrival_unobserved_array_extent_compile checked 580ms @09715a326eee
+pass/termination/runtime_public_result_field_rank_arrivals_exit checked 3424ms check-target:macos_arm64 @09715a326eee
