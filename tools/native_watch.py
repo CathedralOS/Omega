@@ -36,9 +36,11 @@ snapshot:
 The watch never edits boards or goldens; the report names the commit range
 and first bad commit so the coordinator can file the item.
 
-The gate stops before writing its records when an authored native exit
-fails (exit 3). The watch records those fixtures as oracle failures, drops
-their oracle files in the scratch checkout, and runs again for the rest.
+The gate stops before writing moves when an authored oracle fails (exit 3),
+but its `--json` verdict document carries every observation and names each
+oracle failure on every outcome. The watch reads that document from a single
+run, so an oracle failure, or a fixture that times out under load, is one
+red row rather than a second full run that can trip on a different fixture.
 
     python3 tools/native_watch.py                # snapshot origin/main, diff, bisect
     python3 tools/native_watch.py --no-bisect    # report only
@@ -78,11 +80,6 @@ def gate(checkout, arguments):
                cwd=checkout, check=False)
 
 
-def oracle_failures(output):
-    return sorted({line.split("corpus_gate: ", 1)[1].split(":")[0]
-                   for line in output.splitlines() if ": expected native" in line})
-
-
 def forget_checkout(checkout):
     """Drop a scratch checkout and the build output mbx keeps for it (4-26 GB each)."""
     if shutil.which("mbx"):
@@ -106,25 +103,23 @@ def snapshot(checkout, revision):
     """Return ({fixture: status}, {fixture: first diagnostic}) for one checkout.
 
     status is 'built', 'oracle-fail', or the gate's own status ('rejected', ...)."""
-    moves = checkout / "build" / "native_watch_moves.json"
-    result = gate(checkout, ["--write-moves", str(moves)])
-    output = result.stdout + result.stderr
-    failed = oracle_failures(output)
-    if result.returncode == 3 and failed:
-        for fixture in failed:
-            (checkout / "tests" / "omega" / fixture / "expected_native_exit.txt").unlink(missing_ok=True)
-        result = gate(checkout, ["--write-moves", str(moves)])
-        output += result.stdout + result.stderr
-    if result.returncode >= 4 or not moves.exists():
+    verdict = checkout / "build" / "native_watch_verdict.json"
+    result = gate(checkout, ["--json", str(verdict)])
+    document = json.loads(verdict.read_text()) if verdict.exists() else {}
+    if result.returncode >= 4 or not document or document.get("infrastructure_error"):
+        output = result.stdout + result.stderr
         raise RuntimeError(f"native gate failed at {revision} (exit {result.returncode}):\n"
                            + "\n".join(output.splitlines()[-20:]))
-    records = json.loads(moves.read_text())
-    status = {move["fixture"]: move["after"]["status"] for move in records}
-    diagnostic = {move["fixture"]: (move["after"].get("diagnostics") or [""])[0] for move in records}
-    for fixture in failed:
+    records = document["observations"]
+    status = {record["fixture"]: record["status"] for record in records}
+    diagnostic = {record["fixture"]: (record.get("diagnostics") or [""])[0] for record in records}
+    # A refusal's own diagnostic says why the oracle went unmet; the oracle
+    # text ("expected native 70, observed rejected") stands in only when the
+    # program built and ran but produced the wrong result.
+    for detail in document["oracle_failures"]:
+        fixture, _, reason = detail.partition(": ")
         status[fixture] = "oracle-fail"
-        diagnostic[fixture] = next(line.split(": ", 1)[1] for line in output.splitlines()
-                                   if line.startswith(f"corpus_gate: {fixture}: expected native"))
+        diagnostic[fixture] = diagnostic.get(fixture) or reason
     return status, diagnostic
 
 
