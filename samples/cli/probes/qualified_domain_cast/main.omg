@@ -1,0 +1,28 @@
+// A cast that lands in a domain: `value as u32 in Marked`
+// — `as` with a `T in D` target grants the domain at the
+// cast site (explicit grant, not implicit weakening).
+//
+//   * `domain u32::Marked;` — requires-free domain: the
+//     cast itself is the establishment route.
+//   * `let marked: u32 in Marked = value as u32 in
+//     Marked;` — the domained local compares equal to the
+//     source value (cast preserves the scalar).
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+domain u32::Marked;
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let value: u32 = 42u32;
+    let marked: u32 in Marked = value as u32 in Marked;
+    transition marked == 42u32 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
