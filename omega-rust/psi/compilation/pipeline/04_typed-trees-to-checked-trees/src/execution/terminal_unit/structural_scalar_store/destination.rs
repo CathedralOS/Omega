@@ -664,7 +664,7 @@ fn plain_checked_shape(
         // machine without rows relies on none. Zero validity alone proves
         // nothing per store.
         && validation::declaration_facts_carried(program, operators, data)
-        && !data.zero_gated
+        && (!data.zero_gated || validation::data_predicates_admit_zero(program, data))
 }
 
 fn retained_record_owner_application(
@@ -674,35 +674,13 @@ fn retained_record_owner_application(
     let Some(application) = data.generic_instance else {
         return true;
     };
-    let TypeReferenceNode::Generic {
-        base_symbol,
-        lifetime_arguments,
-        arguments,
-        ..
-    } = program.type_reference_table.type_reference(application)
-    else {
-        return false;
-    };
-    let Some(template) = program.data_definition_by_symbol(*base_symbol) else {
-        return false;
-    };
-    let parameters = program.data_type_parameters(template);
-    // Generated-instance arguments are checked in an empty type-parameter
-    // scope before flow planning. Retain that exact closed owner application,
-    // rather than excluding its substituted fields merely for being generated.
-    // Field shape, access, arithmetic policy, and mutation custody are still
-    // checked independently by the store.
-    base_symbol.is_valid()
-        && *base_symbol != data.symbol
-        && template.generic_instance.is_none()
-        && template.lifetime_parameters.is_empty()
-        && lifetime_arguments.is_empty()
-        && !parameters.is_empty()
-        && parameters.len()
-            == program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-                .len()
+    // A prepared application may retain its template's symbol. The producer's
+    // exact closed view, not a synthetic nominal symbol or lifetime spelling,
+    // owns the substituted field telescope. Source checking already judged
+    // the application; stores still retain their own leaf and custody checks.
+    program
+        .closed_data_definition(application)
+        .is_some_and(|retained| retained == data)
 }
 
 /// Whether a declared field type names storage behind a reference.

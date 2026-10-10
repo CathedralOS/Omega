@@ -427,10 +427,11 @@ pub fn data_requires_establishment(
     program: &dyn crate::CheckingInput,
     definition: &typed_trees::data::DataDefinition,
 ) -> bool {
-    // Build/entry selection asks on typed trees before checked-tree zero
-    // refinement. Replay the same target-neutral predicate judgment instead
-    // of mistaking the syntax-stage conservative flag for a failed proof.
-    // The recursive walk below still owns contained fields and case payloads.
+    // Build descriptions may query before preparation; final entry admission
+    // consumes the prepared, checked program. Both use the semantic predicate
+    // judgment, not the syntax-stage conservative flag as a failed proof.
+    // Applied predicates read their retained static arguments; the recursive
+    // walk below still owns contained fields and case payloads.
     if definition.zero_gated && !crate::data_predicates_admit_zero(program, definition) {
         return true;
     }

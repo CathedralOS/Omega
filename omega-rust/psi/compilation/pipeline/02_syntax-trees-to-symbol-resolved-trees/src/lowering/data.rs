@@ -9,7 +9,6 @@ use crate::lowering::type_reference::{lower_child_type_references, lower_type_re
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::CollectionMeasure;
 use std::collections::HashSet;
 use symbol_resolved_trees::data::{
     DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties, DataVariant,
@@ -227,27 +226,10 @@ fn lower_data_definition_with_argument_origins(
         data_definition.where_facts,
         &type_equations,
     )?;
-    let mut zero_gated = false;
-    for fact in lowerer.symbol_resolved_trees.proof_facts(where_facts) {
-        match fact {
-            symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
-                match zero_fold(
-                    &lowerer.symbol_resolved_trees.tables.bodies.expressions,
-                    *expression,
-                ) {
-                    Some(value) if value != 0 => {}
-                    Some(_) | None => zero_gated = true,
-                }
-            }
-            // Membership symbols and domain facts are assigned after every
-            // top-level declaration exists. Start conservative; the symbol
-            // pass below clears the gate only when it can prove that the
-            // referenced domain admits the carrier's zero value.
-            symbol_resolved_trees::domain::ProofFact::Membership(_) => {
-                zero_gated = true;
-            }
-        }
-    }
+    // Names are not bound yet: treating every identifier as a zero-valued
+    // field would also zero static arguments. Resolved fact admission refines
+    // this conservative gate once subjects and domains have exact identities.
+    let zero_gated = !where_facts.is_empty();
 
     Ok(DataDefinition {
         symbol: SymbolHandle::invalid(),
@@ -287,43 +269,6 @@ fn lower_data_definition_with_argument_origins(
 /// R2 rung 2 slice 1: fold one default-domain fact AT THE ZERO VALUE --
 /// every field name reads 0, literals read themselves, `+ - *` fold,
 /// comparisons and `&&`/`||` yield 1/0. `None` = outside the fragment.
-pub(crate) fn zero_fold(
-    expressions: &symbol_resolved_trees::expression::ExpressionTable,
-    expression: symbol_resolved_trees::expression::ExpressionHandle,
-) -> Option<i128> {
-    use symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
-    match expressions.expression(expression) {
-        ExpressionNode::Name(_) => Some(0),
-        ExpressionNode::Member(member)
-            if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
-        {
-            // The ZII value of every builtin sequence carrier is empty; both
-            // standing measures are therefore exactly zero.
-            Some(0)
-        }
-        ExpressionNode::Integer(literal) => literal.text().parse::<i128>().ok(),
-        ExpressionNode::Binary(binary) => {
-            let left = zero_fold(expressions, binary.left)?;
-            let right = zero_fold(expressions, binary.right)?;
-            match binary.operator {
-                BinaryOperator::Add => left.checked_add(right),
-                BinaryOperator::Subtract => left.checked_sub(right),
-                BinaryOperator::Multiply => left.checked_mul(right),
-                BinaryOperator::LessOrEqual => Some(i128::from(left <= right)),
-                BinaryOperator::Less => Some(i128::from(left < right)),
-                BinaryOperator::GreaterOrEqual => Some(i128::from(left >= right)),
-                BinaryOperator::Greater => Some(i128::from(left > right)),
-                BinaryOperator::Equal => Some(i128::from(left == right)),
-                BinaryOperator::NotEqual => Some(i128::from(left != right)),
-                BinaryOperator::And => Some(i128::from(left != 0 && right != 0)),
-                BinaryOperator::Or => Some(i128::from(left != 0 || right != 0)),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
 pub(crate) fn lower_type_parameters(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,

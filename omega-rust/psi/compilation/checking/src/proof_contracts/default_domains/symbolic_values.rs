@@ -139,6 +139,15 @@ pub(super) fn fold(
 ) -> Option<i128> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
+            // Application views retain authored predicate symbols. A static
+            // binder reads its exact application argument, never a field's
+            // born-zero valuation (and never a same-spelled method binder).
+            if path.symbol.is_valid()
+                && program.symbols.get(path.symbol).kind == symbols::SymbolKind::TypeParameter
+            {
+                return applied_const_integer(program, definition, path.symbol)
+                    .map(|(_, value)| value);
+            }
             let last = program
                 .expression_table
                 .name_path_members(path.members)
@@ -248,6 +257,63 @@ pub(super) fn fold(
         }
         _ => None,
     }
+}
+
+/// Read a scalar static argument through the producer's retained application.
+/// Missing or symbolic arguments remain unknown; this query creates no types,
+/// expressions or evidence and cannot certify an open declaration at zero.
+pub(crate) fn applied_const_integer(
+    program: &dyn crate::CheckingInput,
+    definition: &typed_trees::data::DataDefinition,
+    binder: symbols::SymbolHandle,
+) -> Option<(typed_trees::types::PrimitiveType, i128)> {
+    let typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(definition.generic_instance?)
+    else {
+        return None;
+    };
+    let template = program.unique_data_definition_by_symbol(*base_symbol)?;
+    let parameters = program.data_type_parameters(template);
+    let position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == binder && parameter.kind.is_const_or_value())?;
+    let (typed_trees::data::TypeParameterKind::Const { type_reference }
+    | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameters[position].kind
+    else {
+        return None;
+    };
+    let primitive = program.primitive_type_reference(type_reference)?;
+    if !primitive.is_fixed_integer() {
+        return None;
+    }
+    let actual = *program
+        .type_reference_table
+        .type_reference_handles(*arguments)
+        .get(position)?;
+    let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(actual)
+    else {
+        return None;
+    };
+    if symbol.is_valid() {
+        return None;
+    }
+    if let Some(value) =
+        language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+    {
+        return match value.decode_encoding()? {
+            language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                value, ..
+            } => Some((primitive, value)),
+            _ => None,
+        };
+    }
+    name.as_str().parse().ok().map(|value| (primitive, value))
 }
 
 pub(super) fn expression_symbolic_value(

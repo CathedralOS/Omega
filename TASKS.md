@@ -3153,12 +3153,13 @@ of a check the same flow already performed, not the check itself.
   Attribute remaining moves before claiming qualification; do not repin
   refusals. Include the std-dependent setter and const-container gates under
   **PIPELINE-ARCHITECTURE-ENFORCEMENT** in that qualification.
-  The const-container gate's independently named receiver variation remains:
-  rename `FixedBuffer::first`'s const binder to `Extent` and add a whole window
-  `&buffer.items[..Extent]`. Entry-context qualification currently rejects
-  `Main`'s zero image while inspecting the raw `FixedBuffer` declaration's
-  `N >= 1`, before final product field preparation. Keep that source variation
-  in the remaining lexical-owner qualification, not a rewritten entrypoint.
+  Keep the const-container gate's independently named receiver and whole-window
+  variation in lexical-owner qualification. The remaining predicate frontier is
+  a generic setter over `Counter<Bound>` whose `count <= Limit` declaration
+  must follow the actual binder: `requires value <= Bound` does not currently
+  close the invariant window after `counter.count = value`. The non-generic
+  `count <= 4` / `value <= 4` equivalent checks; qualify the applied predicate
+  context in default-domain flow without relaxing restoration at state exit.
   Tuple bounds use the actual binding declaration, not an authored trait
   requirement. Only live private-graph roots own admission work. Universal
   template commitments use the retained authored graph, never a concrete

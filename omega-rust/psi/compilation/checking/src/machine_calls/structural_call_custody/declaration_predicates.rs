@@ -36,9 +36,12 @@
 //! the complete default domain. Machines publish this roster independently of
 //! their body topology. Failure to establish a row at a state arrival, call,
 //! or normal return rejects the proof instead of weakening the contract.
-//! A zero-gated definition stays out entirely: its zero image violates its
-//! facts, so its construction owns them. Descent continues beneath it, and
-//! through literal-length fixed arrays once per element at its exact index.
+//! A zero-excluding definition stays out: its construction owns its facts.
+//! A conservative declaration flag alone cannot exclude a prepared application:
+//! its static subjects read the exact retained argument tuple, not zeroed
+//! storage. Zero qualification and Terminal spelling share that readonly join;
+//! the authored template is never rewritten for a caller. Descent continues
+//! beneath definitions, and through literal-length arrays at each exact index.
 
 use super::super::super::proof_contracts::collection_predicates;
 use checked_trees::{
@@ -178,7 +181,7 @@ pub fn declaration_facts_carried(
     {
         return true;
     }
-    if definition.zero_gated {
+    if definition.zero_gated && !crate::data_predicates_admit_zero(program, definition) {
         return false;
     }
     program
@@ -443,7 +446,7 @@ fn carrier_bounds(primitive: PrimitiveType) -> Option<(i128, i128)> {
 /// neither interval-only (carried by its fields' carriers) nor zero-gated
 /// (owned by its construction).
 fn definition_emits_rows(program: &dyn crate::CheckingInput, definition: &DataDefinition) -> bool {
-    !(definition.zero_gated
+    !((definition.zero_gated && !crate::data_predicates_admit_zero(program, definition))
         || definition.where_facts.is_empty()
         || crate::data_where_field_intervals(program, definition).is_some())
 }
@@ -755,6 +758,34 @@ impl FactSpelling<'_> {
             return None;
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && self.program.symbols.get(path.symbol).kind
+                        == symbols::SymbolKind::TypeParameter =>
+            {
+                // Static declaration subjects have no storage path. Rejoin
+                // their exact applied value with its declared carrier, just
+                // as zero qualification does, without rewriting the template.
+                let (primitive, value) =
+                    crate::proof_contracts::default_domains::applied_const_integer(
+                        self.program,
+                        self.definition,
+                        path.symbol,
+                    )?;
+                let literal = numerics::literals::IntegerLiteral::from_parts(
+                    value < 0,
+                    numerics::literals::IntegerRadix::Decimal,
+                    &value.unsigned_abs().to_string(),
+                )
+                .ok()?;
+                let landed = crate::land_integer_value(&BigInt::from_i128(value), primitive)?;
+                Some((
+                    CheckedScalarExpression::IntegerLiteral {
+                        literal: literal.with_landing(landed.landing()?),
+                    },
+                    Some(primitive),
+                ))
+            }
             ExpressionNode::Integer(literal) => {
                 let primitive = literal.landing().and_then(|landing| {
                     use numerics::literals::LandedIntegerType;

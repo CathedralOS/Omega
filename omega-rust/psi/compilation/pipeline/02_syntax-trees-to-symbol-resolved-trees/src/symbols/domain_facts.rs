@@ -222,7 +222,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
         }
     }
 
-    update_data_membership_zero_gates(program);
+    update_data_zero_gates(program);
 }
 
 /// Domain predicates and data DEFAULT-DOMAIN facts use declaration scope,
@@ -349,13 +349,10 @@ fn assign_data_fact_local_symbols(
     }
 }
 
-/// Membership facts begin conservatively zero-gated during declaration
-/// lowering because their domain symbols do not exist yet. Once all symbols
-/// are assigned, clear that conservative contribution exactly when every
-/// membership names a recognized byte-predicate fact that accepts the empty byte
-/// sequence. Expression facts have already contributed their independent
-/// zero result, so this pass only ever preserves or clears membership gating.
-fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
+/// Resolve the conservative declaration gate after lexical subjects and domains
+/// are bound. Only stored fields are born zero; static binders remain unknown
+/// until typed application preparation retains their actual arguments.
+fn update_data_zero_gates(program: &mut SymbolResolvedTrees) {
     let membership_results = program
         .data_definitions
         .iter()
@@ -385,8 +382,7 @@ fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
                     symbol_resolved_trees::domain::ProofFact::Membership(_) => None,
                 })
                 .any(|expression| {
-                    crate::lowering::data::zero_fold(&program.tables.bodies.expressions, expression)
-                        .is_none_or(|value| value == 0)
+                    zero_fold(program, definition, expression).is_none_or(|value| value == 0)
                 });
             // CASE-CONSTRAINTS first-case zero gating: the zero tag is the
             // FIRST variant. When one of its `where` facts is a literal false
@@ -443,6 +439,57 @@ fn update_data_membership_zero_gates(program: &mut SymbolResolvedTrees) {
             || first_variant_gates_zero
             || (saw_membership && !memberships_admit_zero);
     });
+}
+
+fn zero_fold(
+    program: &SymbolResolvedTrees,
+    definition: &symbol_resolved_trees::data::DataDefinition,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
+) -> Option<i128> {
+    use symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
+    match program.tables.bodies.expressions.expression(expression) {
+        ExpressionNode::Name(path) => program
+            .tables
+            .declarations
+            .data_members
+            .span_or_empty(definition.members)
+            .iter()
+            .any(|member| {
+                matches!(member, symbol_resolved_trees::data::DataMember::Field(field)
+                    if path.symbol.is_valid() && field.symbol == path.symbol)
+            })
+            .then_some(0),
+        ExpressionNode::Member(member)
+            if language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
+                member.member.as_str(),
+            )
+            .is_some() =>
+        {
+            // A stored zero sequence is empty. A call or static subject is
+            // not a field valuation merely because its member is named len.
+            (zero_fold(program, definition, member.receiver)? == 0).then_some(0)
+        }
+        ExpressionNode::Integer(literal) => literal.text().parse::<i128>().ok(),
+        ExpressionNode::Binary(binary) => {
+            let left = zero_fold(program, definition, binary.left)?;
+            let right = zero_fold(program, definition, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => left.checked_add(right),
+                BinaryOperator::Subtract => left.checked_sub(right),
+                BinaryOperator::Multiply => left.checked_mul(right),
+                BinaryOperator::LessOrEqual => Some(i128::from(left <= right)),
+                BinaryOperator::Less => Some(i128::from(left < right)),
+                BinaryOperator::GreaterOrEqual => Some(i128::from(left >= right)),
+                BinaryOperator::Greater => Some(i128::from(left > right)),
+                BinaryOperator::Equal => Some(i128::from(left == right)),
+                BinaryOperator::NotEqual => Some(i128::from(left != right)),
+                BinaryOperator::And => Some(i128::from(left != 0 && right != 0)),
+                BinaryOperator::Or => Some(i128::from(left != 0 || right != 0)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 /// A proof-fact expression that is a literal FALSE constant: the `0` witness

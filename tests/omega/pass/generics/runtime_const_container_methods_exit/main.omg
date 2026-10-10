@@ -15,9 +15,10 @@ requires N >= 1;
     buffer.items[0] = value;
 }
 
-machine FixedBuffer::first<const N: u64>(buffer: &FixedBuffer<N>) -> i32 in Wrapping
-requires N >= 1;
+machine FixedBuffer::first<const Extent: u64>(buffer: &FixedBuffer<Extent>) -> i32 in Wrapping
+requires Extent >= 1;
 {
+    let window: &[i32 in Wrapping] = &buffer.items[..Extent];
     transition { _ -> (buffer.items[0]) }
 }
 

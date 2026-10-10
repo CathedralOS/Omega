@@ -53,13 +53,6 @@ pub(crate) fn check_selected_execution(
         .x86_deployment_claim
         .admit_for(selected_target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let selected_program_entry = provider_planning::program_entry::select_compiler_program_entry(
-        &typed,
-        &build_config.root_bindings,
-        selected_target_profile,
-        &boundary_calling_plan_realizations,
-        package_inputs,
-    )?;
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
         provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
         &admission.provider_defaults,
@@ -170,6 +163,18 @@ pub(crate) fn check_selected_execution(
         retained: settled_check,
         ..
     } = program;
+    // Entry provisioning consumes the completed source, including exact data
+    // applications and landed default-domain facts. Running it on the raw
+    // frontend graph makes an unrelated method binder decide whether an entry
+    // context has a valid zero image. Provider selection and constant execution
+    // do not depend on the selected entry; they must finish before preparation.
+    let selected_program_entry = provider_planning::program_entry::select_compiler_program_entry(
+        &program.typed,
+        &build_config.root_bindings,
+        selected_target_profile,
+        provider_request.boundary_calling_plan_realizations,
+        package_inputs,
+    )?;
     // Check the common source before asking which declarations this product
     // realizes. In particular, a missing portable family contract is not a
     // missing target body, and must not be disguised as one by reach analysis.
