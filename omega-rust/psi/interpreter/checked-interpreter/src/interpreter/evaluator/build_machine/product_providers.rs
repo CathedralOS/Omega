@@ -59,22 +59,12 @@ impl<'program> Evaluator<'program> {
         &self,
         value: &Value,
     ) -> EvalResult<usize> {
-        let Value::Struct {
-            type_name, fields, ..
-        } = value
-        else {
-            return Err(Halt::Trap(
-                "product-provider inspection is not a compiler-issued product provider description"
-                    .to_owned(),
-            ));
-        };
-        if **type_name != *PRODUCT_PROVIDER_DESCRIPTION_TYPE {
-            return Err(Halt::Trap(
-                "product-provider inspection is not a compiler-issued product provider description"
-                    .to_owned(),
-            ));
-        }
-        let index = super::required_index(fields, "description", "product provider description")?;
+        let index = super::described_product_index(
+            value,
+            PRODUCT_PROVIDER_DESCRIPTION_TYPE,
+            "product-provider inspection is not a compiler-issued product provider description",
+            "product provider description",
+        )?;
         if index >= self.product_provider_descriptions.len() {
             return Err(Halt::Trap(
                 "product provider description names an unknown description".to_owned(),

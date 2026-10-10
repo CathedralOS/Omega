@@ -84,3 +84,24 @@ fn required_index(
         .and_then(|index| usize::try_from(index).ok())
         .ok_or_else(|| Halt::Trap(format!("{label} carries no valid {key} index")))
 }
+
+/// Rejoin a `Product*Ref` marker to the description index the compiler issued
+/// for it: marker struct shape, expected marker name, then the `description`
+/// field's index.
+fn described_product_index(
+    value: &Value,
+    expected_type: &str,
+    guard_message: &'static str,
+    index_label: &'static str,
+) -> EvalResult<usize> {
+    let Value::Struct {
+        type_name, fields, ..
+    } = value
+    else {
+        return Err(Halt::Trap(guard_message.to_owned()));
+    };
+    if &**type_name != expected_type {
+        return Err(Halt::Trap(guard_message.to_owned()));
+    }
+    required_index(fields, "description", index_label)
+}

@@ -74,22 +74,12 @@ impl<'program> Evaluator<'program> {
         &self,
         value: &Value,
     ) -> EvalResult<crate::DescribedProductEntry> {
-        let Value::Struct {
-            type_name, fields, ..
-        } = value
-        else {
-            return Err(Halt::Trap(
-                "root binding operand is not a compiler-issued product entry description"
-                    .to_owned(),
-            ));
-        };
-        if **type_name != *PRODUCT_ENTRY_DESCRIPTION_TYPE {
-            return Err(Halt::Trap(
-                "root binding operand is not a compiler-issued product entry description"
-                    .to_owned(),
-            ));
-        }
-        let index = super::required_index(fields, "description", "product entry description")?;
+        let index = super::described_product_index(
+            value,
+            PRODUCT_ENTRY_DESCRIPTION_TYPE,
+            "root binding operand is not a compiler-issued product entry description",
+            "product entry description",
+        )?;
         self.product_entry_descriptions
             .get(index)
             .cloned()
