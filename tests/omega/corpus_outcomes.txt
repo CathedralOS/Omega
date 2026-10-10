@@ -1193,8 +1193,7 @@ fail/dependent/collection_predicate_uncited_sum_rejected rejected 84ms expected 
 	exact arithmetic in machine `Main::sum` state `sum` assignment may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/dependent/collection_predicate_zero_violating_read_rejected rejected 2109ms expected @f20b8ea3bb8d
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
-fail/dependent/data_where_call_frame_invalidates_written_valuation_rejected rejected 66ms expected @5181ccde6df7+wt
-	write to `main.pair.left` cannot PROVE data `Pair`'s default domain: a `where`-mentioned field's value is not a literal known here (a runtime value, or a co-field last written in another state) -- restructure with literal stores in one state for now (the entailment integration and cross-state valuation transport relax this)
+fail/dependent/data_where_call_frame_invalidates_written_valuation_rejected rejected 209ms expected @de32ba70a8b2+wt
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `main.pair` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/data_where_invariant_window_unclosed_rejected rejected 80ms expected @5181ccde6df7+wt
 	data `Main`'s default domain is still FALSE at a call: the invariant window opened on `main` must close first -- restore the `where` facts before this consumption point (ch11)
@@ -1203,13 +1202,11 @@ fail/dependent/data_where_literal_violates rejected 460ms expected @2d8ed253669f
 	data `Player` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/dependent/data_where_live_borrow_pins_witness_rejected rejected 131ms expected @3a2d2f7aa797+wt
 	statement 3 mutates `main.map.end` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/dependent/data_where_param_write_unproven rejected 404ms expected @2d8ed253669f
-	write to `target.count` cannot PROVE data `Tally`'s default domain: a `where`-mentioned field's value is not a literal known here (a runtime value, or a co-field last written in another state) -- restructure with literal stores in one state for now (the entailment integration and cross-state valuation transport relax this)
+fail/dependent/data_where_param_write_unproven rejected 722ms expected @de32ba70a8b2+wt
 	data `Tally`'s default domain is still FALSE at state exit: the invariant window opened on `target` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/data_where_read_before_establish rejected 2109ms expected @f20b8ea3bb8d
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
-fail/dependent/data_where_two_data_parameters_have_no_data_binding rejected 62ms expected @5181ccde6df7+wt
-	write to `first.high` cannot PROVE data `Main`'s default domain: a `where`-mentioned field's value is not a literal known here (a runtime value, or a co-field last written in another state) -- restructure with literal stores in one state for now (the entailment integration and cross-state valuation transport relax this)
+fail/dependent/data_where_two_data_parameters_have_no_data_binding rejected 204ms expected @de32ba70a8b2+wt
 	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `first` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/data_where_whole_read_during_window_rejected rejected 64ms expected @5181ccde6df7+wt
 	the next whole-value read of `map` occurs inside an OPEN invariant window: a prior write left data `Map`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
@@ -1225,18 +1222,19 @@ fail/dependent/mutable_referent_alias_corruption_return_rejected rejected 594ms 
 	cannot prove default-domain field requirement for return from corrupt at statement 2: level.rooms[1].label requires [u8; N]::Utf8
 fail/dependent/nested_gated_field_omitted_rejected rejected 350ms expected @2d8ed253669f
 	construction of `Team` omits gated field `captain`: its zero-filled representation is not an established value -- initialize it explicitly
-fail/dependent/qualified_nested_zero_storage_not_established rejected 808ms expected @34440012a21b
-	reading `envelope.guarded` crosses an open default-domain invariant window before data `Envelope` is established: the zeroed representation is not yet a `Envelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	reading `after_call.guarded` crosses an open default-domain invariant window before data `Envelope` is established: the zeroed representation is not yet a `Envelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	reading `generic.guarded` crosses an open default-domain invariant window before data `GenericEnvelope<Guarded in Guarded::Positive>` is established: the zeroed representation is not yet a `GenericEnvelope<Guarded in Guarded::Positive>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	reading `mixed.guarded.guarded` crosses an open default-domain invariant window before data `GenericEnvelope<Guarded in Guarded::Positive>` is established: the zeroed representation is not yet a `GenericEnvelope<Guarded in Guarded::Positive>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	reading `mixed.guarded` crosses an open default-domain invariant window before data `MixedApplications` is established: the zeroed representation is not yet a `MixedApplications` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	reading `reversed.guarded.guarded` crosses an open default-domain invariant window before data `GenericEnvelope<Guarded in Guarded::Positive>` is established: the zeroed representation is not yet a `GenericEnvelope<Guarded in Guarded::Positive>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	reading `reversed.guarded` crosses an open default-domain invariant window before data `ReversedApplications` is established: the zeroed representation is not yet a `ReversedApplications` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/dependent/qualified_nested_zero_storage_not_established rejected 841ms expected @de32ba70a8b2+wt
+	reading `direct` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Guarded::Positive]`
+	reading `envelope.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Guarded::Positive]`
+	reading `after_call.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Guarded::Positive]`
+	reading `generic.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Guarded::Positive]`
+	reading `mixed.guarded.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Guarded::Positive]`
+	reading `reversed.guarded.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Guarded::Positive]`
 	reading `via_helper.<whole value>` crosses an open default-domain invariant window before data `Envelope` is established: the zeroed representation is not yet a `Envelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `floating.value` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `f64[0.25..=0.5]`
 	reading `floating.value` crosses an open default-domain invariant window before data `FloatingEnvelope` is established: the zeroed representation is not yet a `FloatingEnvelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	reading `alias.guarded` crosses an open default-domain invariant window before data `GenericEnvelope<Guarded in Guarded::PositiveAlias>` is established: the zeroed representation is not yet a `GenericEnvelope<Guarded in Guarded::PositiveAlias>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	reading `routed.guarded` crosses an open default-domain invariant window before data `RoutedEnvelope` is established: the zeroed representation is not yet a `RoutedEnvelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `alias.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Positive]`
+	reading `routed.guarded` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `Guarded[in Issued]`
+	reading `exclusive.value` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `f32[-0.5..0]`
 	reading `exclusive.value` crosses an open default-domain invariant window before data `ExclusiveFloatingEnvelope` is established: the zeroed representation is not yet a `ExclusiveFloatingEnvelope` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/dependent/relational_loop_invariant_reassigned_index_rejected rejected 282ms expected @c08960bee2b1+wt
 	cannot prove index `main.i` is within length 1 in Main::main::loop_
@@ -5007,3 +5005,14 @@ fail/drops/named_linear_container_unmet_prerequisite rejected 412ms expected @9f
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: envelope.receipt does not establish Receipt::drop clause `receipt.code == 7`
 fail/drops/zero_case_container_keeps_cleanup_prerequisite rejected 404ms expected @9f5aa3241b14+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing owner.ready == true required by OptionalReceipt::drop clause `owner.ready`
+pass/dependent/runtime_reserved_container_domain_establishment_exit checked 2625ms check-target:macos_arm64 @de32ba70a8b2+wt
+fail/dependent/reserved_child_keeps_parent_invariant rejected 213ms expected @de32ba70a8b2+wt
+	reading `holder.<whole value>` crosses an open default-domain invariant window before data `Coupled<Token>` is established: the zeroed representation is not yet a `Coupled<Token>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	the next whole-value read of `established` occurs inside an OPEN invariant window: a prior write left data `Coupled<Token>`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	reading `established.<whole value>` inside an OPEN invariant window: a prior write left data `Coupled<Token>`'s default domain FALSE -- restore the facts before this consumption point (ch11)
+	the next whole-value read of `established` occurs inside an OPEN invariant window: a prior write left data `Coupled<Token>`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	data `Coupled<Token>`'s default domain is still FALSE at a call: the invariant window opened on `established` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/dependent/reserved_generic_container_missing_sibling rejected 210ms expected @de32ba70a8b2+wt
+	reading `pair.<whole value>` crosses an open default-domain invariant window before data `Pair<Token>` is established: the zeroed representation is not yet a `Pair<Token>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/drops/reserved_call_result_cleanup_mutated rejected 409ms expected @de32ba70a8b2+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: holder.value does not establish Token::drop clause `token.value == 42`

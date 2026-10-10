@@ -1,4 +1,5 @@
 the zeroed representation is not yet
+reading `direct`
 reading `after_call.guarded`
 reading `generic.guarded`
 reading `via_helper

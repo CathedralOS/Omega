@@ -1,0 +1,1 @@
+A result guarantee follows its value into reserved nested storage, but a later field write invalidates it. The obsolete `result.value == 42` guarantee cannot discharge the child's cleanup prerequisite after writing 43.

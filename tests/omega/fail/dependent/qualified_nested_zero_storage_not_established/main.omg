@@ -25,8 +25,11 @@ data ExclusiveFloatingEnvelope { value: f32[-0.5..0.0]; }
 
 machine untouched() {}
 machine observe(envelope: &Envelope) -> i32 { envelope.guarded.code }
+machine observe_qualified(value: Guarded in Guarded::Positive) -> i32 { value.code }
 
 machine main() {
+    let direct: Guarded in Guarded::Positive;
+    let observed_direct: i32 = direct.code;
     let envelope: Envelope;
     let observed: i32 = envelope.guarded.code;
     let after_call: Envelope;

@@ -72,7 +72,6 @@ pub(crate) fn scan_statement_reads(
             {
                 validate_data_read(
                     program,
-                    machine,
                     state,
                     definition,
                     receiver[0].as_str(),
@@ -168,6 +167,17 @@ fn scan_expression_use(
     if !expression.is_valid() {
         return;
     }
+    validate_qualified_place_read(
+        program,
+        machine,
+        state,
+        expression,
+        tracked,
+        entry_established,
+        call_established,
+        inherited_windows,
+        diagnostics,
+    );
     if consumes_value && let Some(spelling) = write_place_spelling(program, expression) {
         // Dynamic selectors overlap every possible element. A nominal value
         // also consumes a covering window; a raw scalar projection does not.
@@ -184,7 +194,6 @@ fn scan_expression_use(
             // same establishment gate a projected observation must satisfy.
             validate_data_read(
                 program,
-                machine,
                 state,
                 definition,
                 &spelling,
@@ -224,7 +233,7 @@ fn scan_expression_use(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
-            if members.len() > 1 {
+            if consumes_value && members.len() > 1 {
                 let receiver_spelling = members[..members.len() - 1].joined_path_with(".");
                 if let Some(place) = tracked
                     .iter()
@@ -232,7 +241,6 @@ fn scan_expression_use(
                 {
                     validate_data_read(
                         program,
-                        machine,
                         state,
                         place.definition,
                         &receiver_spelling,
@@ -250,7 +258,8 @@ fn scan_expression_use(
             // `self.console` as the call receiver Name path. It still consumes
             // the attached `self` value, so it must not bypass establishment
             // merely because no standalone Member node was built.
-            if members.len() > 1
+            if consumes_value
+                && members.len() > 1
                 && members[0].is_self_receiver()
                 && let Some(definition) = machine
                     .attached_data
@@ -259,7 +268,6 @@ fn scan_expression_use(
             {
                 validate_data_read(
                     program,
-                    machine,
                     state,
                     definition,
                     "self",
@@ -275,18 +283,32 @@ fn scan_expression_use(
         }
         ExpressionNode::Member(member) => {
             if let Some(receiver_spelling) = self_place_spelling(program, member.receiver) {
-                let tracked_receiver = tracked
-                    .iter()
-                    .find(|place| place_spelling_covers(&place.spelling, &receiver_spelling));
-                let definition = tracked_receiver.map(|place| place.definition).or_else(|| {
+                // A covering ancestor carries its own schema, not the
+                // projected receiver's instantiated child schema.
+                let definition =
                     data_definition_for_expression(program, machine, Some(state), member.receiver)
-                });
-                if let Some(definition) = definition
+                        .or_else(|| {
+                            tracked
+                                .iter()
+                                .find(|place| place.spelling == receiver_spelling)
+                                .map(|place| place.definition)
+                        });
+                let established_child =
+                    self_place_spelling(program, expression).is_some_and(|child| {
+                        direct_place_established(
+                            &child,
+                            tracked,
+                            entry_established,
+                            call_established,
+                        )
+                    });
+                if consumes_value
+                    && !established_child
+                    && let Some(definition) = definition
                     && crate::value_custody::data::data_requires_establishment(program, definition)
                 {
                     validate_data_read(
                         program,
-                        machine,
                         state,
                         definition,
                         &receiver_spelling,
@@ -300,28 +322,23 @@ fn scan_expression_use(
                     );
                 }
             }
-            // A field projection does not also consume its whole root. The
-            // current raw scalar contents remain usable during a repair
-            // window; domain-relying reads are checked above. Computed
-            // receivers still need their ordinary expression walk.
-            if !matches!(
-                program.expression_table.expression(member.receiver),
-                ExpressionNode::Name(_)
-            ) {
-                scan_expression_use(
-                    program,
-                    machine,
-                    state,
-                    member.receiver,
-                    tracked,
-                    entry_established,
-                    call_established,
-                    inherited_windows,
-                    false,
-                    diagnostics,
-                );
-            }
+            // Traverse every receiver, including a Name, to retain its exact
+            // qualification gate. This address step does not consume the
+            // incomplete containing value or replay its whole-domain check.
+            scan_expression_use(
+                program,
+                machine,
+                state,
+                member.receiver,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                false,
+                diagnostics,
+            );
         }
+
         ExpressionNode::Indexed(indexed) => {
             scan_expression_use(
                 program,
@@ -401,7 +418,6 @@ fn scan_expression_use(
             {
                 validate_data_read(
                     program,
-                    machine,
                     state,
                     place.definition,
                     &receiver_spelling,
@@ -586,9 +602,85 @@ fn scan_expression_use(
     }
 }
 
-fn validate_data_read(
+/// Address traversal need not consume an incomplete containing record, but
+/// it still crosses the exact declared qualification of each selected child.
+/// Structural field composition cannot manufacture predicate or routed-domain
+/// membership after that qualification was peeled for field lookup.
+fn validate_qualified_place_read(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
+    call_established: &[String],
+    inherited_windows: &[InvariantWindow],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(reference) = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        expression,
+    ) else {
+        return;
+    };
+    if !matches!(
+        program.type_reference_table.type_reference(reference),
+        typed_trees::types::TypeReferenceNode::Constrained { .. }
+    ) || !crate::value_custody::data::type_requires_establishment(program, reference)
+    {
+        return;
+    }
+    let Some(spelling) = self_place_spelling(program, expression) else {
+        return;
+    };
+    // The nearest current observation wins over an older established ancestor.
+    // An accepted direct field store also proves its own qualification while
+    // unrelated siblings or the parent's coupling may still be unfinished.
+    let covering = tracked
+        .iter()
+        .filter(|place| place_spelling_covers(&place.spelling, &spelling))
+        .max_by_key(|place| place.spelling.len());
+    let established = if let Some(place) = covering {
+        !place.any_window_open()
+            && (place.established
+                || program
+                    .data_members(place.definition)
+                    .iter()
+                    .filter_map(|member| member.as_field())
+                    .any(|field| {
+                        place.established_fields.contains(&field.symbol)
+                            && place_label(&place.spelling, field.name.as_str()) == spelling
+                    }))
+    } else {
+        entry_established
+            .iter()
+            .chain(call_established)
+            .any(|place| place_spelling_covers(place, &spelling))
+            || declared_root_established(
+                program,
+                state,
+                expression_root_symbol(program, expression),
+            )
+    };
+    let open = tracked.iter().any(|place| {
+        place.any_window_open()
+            && (place_spelling_covers(&place.spelling, &spelling)
+                || place_spelling_covers(&spelling, &place.spelling))
+    }) || inherited_windows.iter().any(|(place, _, _)| {
+        place_spelling_covers(place, &spelling) || place_spelling_covers(&spelling, place)
+    });
+    if !established || open {
+        diagnostics.push(Diagnostic::error(format!(
+            "reading `{spelling}` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `{}`",
+            program.display_type_reference_with_constraints(reference),
+        )));
+    }
+}
+
+fn validate_data_read(
+    program: &dyn crate::CheckingInput,
     state: &State,
     definition: &DataDefinition,
     receiver_spelling: &str,
@@ -600,9 +692,6 @@ fn validate_data_read(
     inherited_windows: &[InvariantWindow],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let data_binding = program
-        .state_data_binding(machine, state)
-        .map(|name| name.as_str());
     let place = tracked
         .iter()
         .find(|place| place_spelling_covers(&place.spelling, receiver_spelling));
@@ -621,15 +710,15 @@ fn validate_data_read(
             || declared_root_established(program, state, receiver_root)
     });
     let established = established
-        || (data_binding == Some(receiver_spelling)
-            && attached_value_established(
-                program,
-                machine,
-                state,
-                tracked,
-                entry_established,
-                call_established,
-            ));
+        || composed_value_established(
+            program,
+            definition,
+            receiver_spelling,
+            tracked,
+            entry_established,
+            call_established,
+            &mut Vec::new(),
+        );
     if !established {
         diagnostics.push(Diagnostic::error(format!(
             "reading `{receiver_spelling}.{member_name}` crosses an open default-domain \
@@ -696,50 +785,142 @@ pub(crate) fn attached_value_established(
     let Some(definition) = program.data_definition_by_name(attached) else {
         return false;
     };
-    // An authored default domain that rejects zero must be established by its
-    // own proof net; child establishment cannot manufacture that evidence.
-    if definition.zero_gated {
+    composed_value_established(
+        program,
+        definition,
+        data_binding,
+        tracked,
+        entry_established,
+        call_established,
+        &mut Vec::new(),
+    )
+}
+
+/// Recompose the instantiated default domain from exact established children
+/// and the parent's separately proved predicates. Neither a valid child nor
+/// an address-spine traversal establishes an unrelated sibling or coupling.
+fn composed_value_established(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    spelling: &str,
+    tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
+    call_established: &[String],
+    active: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    if tracked.iter().any(|place| {
+        place.any_window_open()
+            && (place_spelling_covers(&place.spelling, spelling)
+                || place_spelling_covers(spelling, &place.spelling))
+    }) {
         return false;
     }
-    let root = tracked.iter().find(|place| place.spelling == data_binding);
-    for member in program.data_members(definition) {
-        let Some(field) = member.as_field() else {
-            continue;
-        };
-        if !crate::value_custody::data::type_requires_establishment(program, field.type_reference) {
+    if direct_place_established(spelling, tracked, entry_established, call_established) {
+        return true;
+    }
+    if active.contains(&definition.symbol) {
+        return false;
+    }
+    let root = tracked.iter().find(|place| place.spelling == spelling);
+    let fields = root.map(|place| place.fields.as_slice()).unwrap_or(&[]);
+    let valuation = fields
+        .iter()
+        .map(|(name, value)| (name.as_str(), *value))
+        .collect::<Vec<_>>();
+    for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+        if !super::place_queries::fact_mentions_any_field(program, definition, fact) {
             continue;
         }
-        if let Some(interval) =
-            crate::proof_contracts::arithmetic_domains::range_constraint_interval(
+        let Some(expression) = fact.as_expression() else {
+            return false;
+        };
+        if !super::symbolic_values::fold(
+            program,
+            definition,
+            &valuation,
+            root.map(|place| place.symbols.as_slice()).unwrap_or(&[]),
+            root.map(|place| place.measures.as_slice()).unwrap_or(&[]),
+            root.is_some_and(|place| place.born_zero),
+            *expression,
+        )
+        .is_some_and(|value| value != 0)
+        {
+            return false;
+        }
+    }
+    // A case-bearing whole value additionally requires its selected payload
+    // and case constraints. Its existing direct establishment owns that
+    // selection; common children alone cannot manufacture a case witness.
+    if program
+        .data_members(definition)
+        .iter()
+        .any(|member| member.as_variant().is_some())
+    {
+        return false;
+    }
+    active.push(definition.symbol);
+    let established = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+        .all(|field| {
+            if !crate::value_custody::data::type_requires_establishment(
                 program,
                 field.type_reference,
-            )
-        {
-            let Some(value) = root
-                .and_then(|place| {
-                    place
-                        .fields
-                        .iter()
-                        .find(|(name, _)| name == field.name.as_str())
-                })
+            ) {
+                return true;
+            }
+            if root.is_some_and(|place| place.established_fields.contains(&field.symbol)) {
+                return true;
+            }
+            let child = place_label(spelling, field.name.as_str());
+            if direct_place_established(&child, tracked, entry_established, call_established) {
+                return true;
+            }
+            if let Some(definition) =
+                super::place_queries::data_definition_for_type(program, field.type_reference)
+            {
+                // A type shell's extra qualification remains its own gate;
+                // only a whole accepted store can establish that refinement.
+                if matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(field.type_reference),
+                    typed_trees::types::TypeReferenceNode::Constrained { .. }
+                ) {
+                    return false;
+                }
+                return composed_value_established(
+                    program,
+                    definition,
+                    &child,
+                    tracked,
+                    entry_established,
+                    call_established,
+                    active,
+                );
+            }
+            let Some(interval) =
+                crate::proof_contracts::arithmetic_domains::range_constraint_interval(
+                    program,
+                    field.type_reference,
+                )
+            else {
+                return false;
+            };
+            let Some(value) = fields
+                .iter()
+                .find(|(name, _)| name == field.name.as_str())
                 .and_then(|(_, value)| *value)
                 .and_then(super::symbolic_values::LiteralValue::integer)
             else {
                 return false;
             };
-            if interval.low().is_some_and(|low| value < i128::from(low))
-                || interval.high().is_some_and(|high| value > i128::from(high))
-            {
-                return false;
-            }
-        } else {
-            let child = place_label(data_binding, field.name.as_str());
-            if !direct_place_established(&child, tracked, entry_established, call_established) {
-                return false;
-            }
-        }
-    }
-    true
+            interval.low().is_none_or(|low| value >= i128::from(low))
+                && interval.high().is_none_or(|high| value <= i128::from(high))
+        });
+    active.pop();
+    established
 }
 
 fn direct_place_established(
@@ -748,10 +929,10 @@ fn direct_place_established(
     entry_established: &[String],
     call_established: &[String],
 ) -> bool {
-    tracked
-        .iter()
-        .any(|place| place.spelling == spelling && place.established)
-        || entry_established.iter().any(|place| place == spelling)
+    if let Some(place) = tracked.iter().find(|place| place.spelling == spelling) {
+        return place.established && !place.any_window_open();
+    }
+    entry_established.iter().any(|place| place == spelling)
         || call_established.iter().any(|place| place == spelling)
 }
 
@@ -769,6 +950,9 @@ pub(crate) fn range_gates_hold(
             continue;
         };
         if !crate::value_custody::data::type_requires_establishment(program, field.type_reference) {
+            continue;
+        }
+        if place.established_fields.contains(&field.symbol) {
             continue;
         }
         let Some(interval) = crate::proof_contracts::arithmetic_domains::range_constraint_interval(

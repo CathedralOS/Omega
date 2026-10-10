@@ -250,14 +250,6 @@ pub(super) fn fold(
     }
 }
 
-pub(super) fn expression_symbol(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<symbols::SymbolHandle> {
-    let path = program.expression_table.name_path_node(expression)?;
-    path.symbol.is_valid().then_some(path.symbol)
-}
-
 pub(super) fn expression_symbolic_value(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,

@@ -225,19 +225,6 @@ pub(super) fn transition_evaluated_expressions(
     evaluated
 }
 
-pub(super) fn domain_definition_by_name<'program>(
-    program: &'program dyn crate::CheckingInput,
-    name: &str,
-) -> Option<&'program DataDefinition> {
-    program
-        .data_definition_by_name_str(name)
-        .filter(|definition| {
-            !definition.where_facts.is_empty()
-                || data_has_case_where_facts(program, definition)
-                || crate::value_custody::data::data_requires_establishment(program, definition)
-        })
-}
-
 /// CASE-CONSTRAINTS (ch12): does any case of `definition` carry `where`
 /// facts? A constrained case's facts extend the default domain while that
 /// case is active, so its writes join the same invariant-window net as a
@@ -295,7 +282,7 @@ pub(super) fn data_definition_for_expression<'program>(
     data_definition_for_type(program, receiver_type)
 }
 
-fn data_definition_for_type(
+pub(super) fn data_definition_for_type(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {

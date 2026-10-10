@@ -91,6 +91,53 @@ pub(in crate::checks) fn proves_current(
     })
 }
 
+/// Apply the shared completed-value matcher to a selected single receiver.
+/// The receiver is current storage at this use; surviving assignment provenance
+/// independently joins any nested field to the exact call result occurrence.
+/// No result initializer or callee body is replayed to recover its guarantee.
+pub(crate) fn proves_current_receiver(
+    program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    caller: &FlowStateFact,
+    statement: usize,
+    contexts: &[facts::FactContextHandle],
+    frames: &validation::CallFrameResolver<'_>,
+    target: SymbolHandle,
+    expression: ExpressionHandle,
+    receiver: &CanonicalPlace,
+) -> bool {
+    let Some(callable) = Callable::resolve(program, target) else {
+        return false;
+    };
+    let parameters = callable.parameters(program);
+    if parameters.len() != 1 {
+        return false;
+    }
+    proves_current(
+        program,
+        facts,
+        caller,
+        statement,
+        contexts,
+        frames,
+        callable,
+        expression,
+        &|expression| {
+            let (position, path, _) =
+                crate::values::structural_parameter_place(program, parameters, expression)?;
+            let (root, segments, _, _) = crate::values::resolve_structural_parameter_path(
+                program, parameters, position, &path,
+            )?;
+            if root != parameters[0].symbol {
+                return None;
+            }
+            let mut place = receiver.clone();
+            place.segments.extend(segments);
+            Some(place)
+        },
+    )
+}
+
 /// Read surviving normal guarantees as formulas over the caller's current
 /// storage. Availability owns declaration identity, actual capture and write
 /// preservation; this join only changes the formula's observation namespace.

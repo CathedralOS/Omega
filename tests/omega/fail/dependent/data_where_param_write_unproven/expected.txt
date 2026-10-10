@@ -1,1 +1,1 @@
-write to `target.count` cannot PROVE
+data `Tally`'s default domain is still FALSE at state exit

@@ -12,6 +12,12 @@
 //! literals reseed fields; resolved calls invalidate valuations overlapping
 //! their may-write paths, while opaque calls retain the whole-state fence.
 //!
+//! Reserved local storage also starts with zero bits, without acquiring a
+//! semantic value. Accepted stores establish exact children; a containing value
+//! additionally owes every sibling's domain and its own coupled predicates.
+//! Reads traverse storage without consuming intermediate parents, while each
+//! selected declared qualification remains an independent observation gate.
+//!
 //! This file owns the write analysis and the state walk.
 //! `assignment_windows.rs` handles assignments and open windows and
 //! `data_reads.rs` validates data reads.
@@ -447,6 +453,9 @@ struct TrackedPlace<'program> {
     spelling: String,
     definition: &'program DataDefinition,
     fields: Vec<(String, Option<symbolic_values::LiteralValue>)>,
+    /// Exact declared fields whose current whole values passed assignment
+    /// checking. This proves their type gates, never a containing predicate.
+    established_fields: Vec<symbols::SymbolHandle>,
     symbols: Vec<(String, SymbolicValue)>,
     measures: Vec<(String, Option<i128>, Option<i128>)>,
     /// R2 rung 3 slice 2: the ACCESS GATE. A `zero_gated` place starts
@@ -596,7 +605,6 @@ fn walk_state(
                     poisoned_all,
                     &poisoned_paths,
                     born_zero,
-                    diagnostics,
                 );
                 // A write that re-proved the facts (tracked window CLOSED)
                 // closes the inherited window on the same place.

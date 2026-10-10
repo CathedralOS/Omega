@@ -1,1 +1,1 @@
-cannot PROVE data `Main`'s default domain
+data `Main`'s default domain is still FALSE at state exit

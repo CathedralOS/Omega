@@ -814,28 +814,12 @@ pub fn structural_source(
                 let (ordinal, source_type) = match (parameter, local) {
                     (Some(parameter), None) => (0, parameter.type_reference),
                     (None, Some((ordinal, local))) => {
-                        // Zero-filled storage supplies a value only when its
-                        // complete type admits zero. Peeling for field geometry
-                        // cannot waive predicates or authorized provenance, but
-                        // a vacuous qualification adds no establishment gate.
-                        let declared_zeroed = !local.initial_value.is_valid()
-                            && !crate::value_custody::data::type_requires_establishment(
-                                program,
-                                local.type_reference,
-                            )
-                            && program
-                                .closed_data_definition(crate::peel_declared_constraints(
-                                    program,
-                                    local.type_reference,
-                                ))
-                                .is_some()
-                            && crate::zeroed_structural_parts(program, local.type_reference);
-                        if ordinal >= statement_ordinal as usize
-                            || !(program
-                                .expression_table
-                                .expression_is_valid(local.initial_value)
-                                || declared_zeroed)
-                        {
+                        // This query identifies storage, not the value established
+                        // in it. A reserved home can acquire valid fields through
+                        // later writes; observation checking owns their current
+                        // validity and custody at this use. Requiring a declaration
+                        // initializer or a zero-valid whole type loses that home.
+                        if ordinal >= statement_ordinal as usize {
                             return None;
                         }
                         (ordinal, local.type_reference)

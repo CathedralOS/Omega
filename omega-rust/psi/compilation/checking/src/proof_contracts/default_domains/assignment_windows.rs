@@ -10,14 +10,13 @@
 use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, data_has_case_where_facts, declared_root_established,
-    domain_definition_by_name, expression_root_symbol, fact_mentions_any_field,
-    fact_span_mentions_field, field_is_where_mentioned, is_data_rooted, is_subplace,
-    membership_field_name, place_spelling_covers, write_place_spelling,
+    expression_root_symbol, fact_mentions_any_field, fact_span_mentions_field,
+    field_is_where_mentioned, is_data_rooted, is_subplace, membership_field_name,
+    place_spelling_covers, write_place_spelling,
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
-    LiteralValue, expression_sequence_measures, expression_symbol, expression_symbolic_value, fold,
-    literal_value, mentions_float,
+    LiteralValue, expression_sequence_measures, expression_symbolic_value, fold, literal_value,
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
@@ -85,7 +84,6 @@ pub(crate) fn handle_assignment<'program>(
     poisoned_all: bool,
     poisoned_paths: &[String],
     born_zero: bool,
-    diagnostics: &mut Vec<Diagnostic>,
 ) {
     // The binding naming the record this state's places are rooted at; see
     // `place_queries::is_data_rooted`.
@@ -93,20 +91,30 @@ pub(crate) fn handle_assignment<'program>(
         .state_data_binding(machine, state)
         .map(|name| name.as_str().to_owned());
     let data_binding = data_binding.as_deref();
-    // A whole-place store of a struct literal reseeds the valuation (the
-    // literal itself was proven at construction, rung 2b). A wildcard
-    // position (`self.maps[i] = ...`) is different: the literal proves only
-    // the one element the runtime index hits, so the wildcard place cannot
-    // be marked established -- its window opens as ch11's conservative
-    // ceiling on unrepresentable origins.
-    if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value)
-        && let Some(spelling) = write_place_spelling(program, target)
-        && let Some(definition) = domain_definition_by_name(program, literal.type_name.as_str())
+    // Every accepted whole data-value store establishes its exact destination
+    // type, whether supplied by construction, a local, or a normal call result.
+    // Literal syntax contributes optional snapshots only. The containing
+    // receiver below still owes its independent coupled predicates.
+    if let Some(spelling) = write_place_spelling(program, target)
+        && crate::value_custody::places::declared_place_type_raw(
+            program,
+            machine,
+            Some(state),
+            target,
+        )
+        .is_none_or(|reference| crate::reference_shell(program, reference).is_none())
+        && let Some(definition) =
+            data_definition_for_expression(program, machine, Some(state), target)
     {
+        let literal = match program.expression_table.expression(value) {
+            ExpressionNode::StructLiteral(literal) => Some(literal),
+            _ => None,
+        };
+        let literal_fields = literal
+            .map(|literal| program.expression_table.struct_fields(literal.fields))
+            .unwrap_or(&[]);
         let wildcard = spelling.contains("[*]");
-        let fields = program
-            .expression_table
-            .struct_fields(literal.fields)
+        let fields = literal_fields
             .iter()
             .map(|field| {
                 (
@@ -115,18 +123,14 @@ pub(crate) fn handle_assignment<'program>(
                 )
             })
             .collect();
-        let symbols = program
-            .expression_table
-            .struct_fields(literal.fields)
+        let symbols = literal_fields
             .iter()
             .filter_map(|field| {
                 expression_symbolic_value(program, field.value)
                     .map(|symbol| (field.name.as_str().to_string(), symbol))
             })
             .collect();
-        let measures = program
-            .expression_table
-            .struct_fields(literal.fields)
+        let measures = literal_fields
             .iter()
             .filter_map(|field| {
                 expression_sequence_measures(program, field.value)
@@ -140,10 +144,11 @@ pub(crate) fn handle_assignment<'program>(
             spelling,
             definition,
             fields: if wildcard { Vec::new() } else { fields },
+            established_fields: Vec::new(),
             symbols: if wildcard { Vec::new() } else { symbols },
             measures: if wildcard { Vec::new() } else { measures },
-            // Rung 2b proved this literal against the domain -- for the one
-            // representable position a literal spelling names.
+            // Assignment checking proved the destination type for this one
+            // exact place, not every element a wildcard might identify.
             established: !wildcard,
             born_zero: place_born_zero,
             window_open: wildcard,
@@ -153,9 +158,12 @@ pub(crate) fn handle_assignment<'program>(
             // the previous case's facts lapse with its payload, and the new
             // case's facts were already proven at construction. A wildcard
             // position cannot claim a case for the whole covered region.
-            active_case: if wildcard { None } else { literal.case_symbol },
+            active_case: if wildcard {
+                None
+            } else {
+                literal.and_then(|literal| literal.case_symbol)
+            },
         });
-        return;
     }
 
     // An ELEMENT store: `<place>.field[index] = value`. Facts reading the
@@ -213,6 +221,16 @@ pub(crate) fn handle_assignment<'program>(
     if receiver_spelling.contains("[*]") {
         for sibling in tracked.iter_mut() {
             if place_spelling_covers(&receiver_spelling, &sibling.spelling) {
+                sibling.established_fields.retain(|symbol| {
+                    !program
+                        .data_members(sibling.definition)
+                        .iter()
+                        .any(|member| {
+                            member.as_field().is_some_and(|field| {
+                                field.symbol == *symbol && field.name.as_str() == field_name
+                            })
+                        })
+                });
                 sibling.fields.retain(|(name, _)| *name != field_name);
                 // Missing born-zero fields are known zero; an overlapping
                 // unknown write is instead an explicit unknown snapshot.
@@ -274,6 +292,16 @@ pub(crate) fn handle_assignment<'program>(
                 }
                 _ => None,
             });
+    if let Some(field) = program
+        .data_members(place.definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+        .find(|field| field.name.as_str() == field_name)
+        && !place.spelling.contains("[*]")
+        && !place.established_fields.contains(&field.symbol)
+    {
+        place.established_fields.push(field.symbol);
+    }
     // CASE-CONSTRAINTS (ch12): the facts a field write must re-prove include
     // the ACTIVE case's `where` facts. A known active case contributes its
     // own fact set only when the write touches a fact-mentioned name; an
@@ -387,24 +415,9 @@ pub(crate) fn handle_assignment<'program>(
                         // correlated fields inside one invariant window. Its
                         // stable symbol lets a later write prove equality; do
                         // not reject before that closing write arrives.
-                        // A float computation need not be folded to permit
-                        // a temporary write: it poisons the exact field until
-                        // a later store proves the predicate again. Reads and
-                        // all other consumption points still demand closure.
-                        if expression_symbol(program, value).is_none()
-                            && !mentions_float(program, place.definition, *expression)
-                        {
-                            diagnostics.push(Diagnostic::error(format!(
-                                "write to `{}.{field_name}` cannot PROVE data `{}`'s default domain: \
-                                 a `where`-mentioned field's value is not a literal known here (a \
-                                 runtime value, or a co-field last written in another state) -- \
-                                 restructure with literal stores in one state for now (the \
-                                 entailment integration and cross-state valuation transport relax \
-                                 this)",
-                                place.spelling,
-                                place.definition.name.as_str()
-                            )));
-                        }
+                        // An unknown intermediate value remains unproved;
+                        // the next consumption must establish the complete
+                        // domain. Later stores may close the same window.
                     }
                 }
             }
@@ -442,7 +455,10 @@ pub(crate) fn handle_assignment<'program>(
         place.established = true;
         place.window_open = false;
     } else {
-        place.window_open = true;
+        // Failed initial establishment leaves reserved storage. Only a
+        // previously established value owns restoration debt; reads of an
+        // unfinished whole value still fail the establishment gate.
+        place.window_open = place.established || place.window_open;
     }
 }
 
@@ -492,6 +508,7 @@ pub(super) fn tracked_receiver<'program>(
         spelling: receiver_spelling,
         definition,
         fields: seeded_fields,
+        established_fields: Vec::new(),
         symbols: Vec::new(),
         measures: Vec::new(),
         // Zero-satisfying data is born established; gated data must
@@ -500,7 +517,15 @@ pub(super) fn tracked_receiver<'program>(
         // (the caller's net enforced its domain), so it counts as
         // established for the access gate; its VALUATION stays unknown.
         established,
-        born_zero: born_zero && data_rooted && !poisoned,
+        // Deferred local storage has zero bits even while its domain is
+        // unestablished. An already established ancestor or a possible write
+        // removes that initial valuation; incoming parameters never acquire it.
+        born_zero: !poisoned
+            && ((born_zero && data_rooted)
+                || (!established
+                    && program
+                        .state_local_declaration(state, receiver_root)
+                        .is_some_and(|(_, local)| !local.initial_value.is_valid()))),
         window_open: false,
         elements: Vec::new(),
         element_windows: Vec::new(),
