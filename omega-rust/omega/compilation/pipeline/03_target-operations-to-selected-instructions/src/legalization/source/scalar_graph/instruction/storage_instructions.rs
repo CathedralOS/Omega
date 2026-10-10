@@ -229,6 +229,7 @@ pub(super) fn project_write_only_primitive_store(
         destination,
         path,
         value,
+        ..
     } = &node.operation
     else {
         unreachable!("dispatched project_write_only_primitive_store")

@@ -520,6 +520,22 @@ pub fn structural_qualification_contract(
                     if !domain.semantic_id.is_valid() {
                         return Err("projected qualification has no exact identity");
                     }
+                    // A complete interval domain on a primitive is represented
+                    // by its exact storage declaration, like a refined record
+                    // scalar field. Carrying it again as a nominal membership
+                    // row would discard that distinction at array loan seams.
+                    // Routed and window-scoped memberships retain their rows.
+                    if program
+                        .primitive_type_reference(reference)
+                        .is_some_and(|primitive| {
+                            crate::exact_declared_domain_carrier_interval(
+                                program, primitive, domain,
+                            )
+                            .is_some()
+                        })
+                    {
+                        continue;
+                    }
                     if !carriers.contains(&(domain.semantic_id, reference)) {
                         carriers.push((domain.semantic_id, reference));
                     }

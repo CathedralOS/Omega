@@ -26,8 +26,15 @@ pub(crate) fn encode_structural_type(
             super::structural_signature_wire::encode_structural_access(writer, *access);
         }
         StructuralTypeShape::PrimitiveScalar(scalar_type) => {
-            writer.u8(6);
+            writer.u8(if declaration.scalar_restriction.is_some() {
+                12
+            } else {
+                6
+            });
             encode_scalar_type(writer, *scalar_type);
+            if let Some(restriction) = &declaration.scalar_restriction {
+                super::structural_field_wire::encode_structural_field_type(writer, restriction)?;
+            }
         }
         StructuralTypeShape::ByteSequence(carrier) => {
             writer.u8(4);
@@ -95,6 +102,7 @@ pub(crate) fn decode_structural_type(
 ) -> Result<StructuralTypeDeclaration, CodecError> {
     let id = reader.id("StructuralTypeId")?;
     let identity = reader.string("structural type identity")?;
+    let mut scalar_restriction = None;
     let shape = match reader.u8()? {
         11 => StructuralTypeShape::BindingCarrier,
         7 => StructuralTypeShape::Reference {
@@ -102,6 +110,13 @@ pub(crate) fn decode_structural_type(
             access: super::structural_signature_wire::decode_structural_access(reader)?,
         },
         6 => StructuralTypeShape::PrimitiveScalar(decode_scalar_type(reader)?),
+        12 => {
+            let carrier = decode_scalar_type(reader)?;
+            scalar_restriction = Some(super::structural_field_wire::decode_structural_field_type(
+                reader,
+            )?);
+            StructuralTypeShape::PrimitiveScalar(carrier)
+        }
         1 => StructuralTypeShape::Record {
             storage: None,
             fields: decode_counted(reader, decode_structural_field)?,
@@ -152,6 +167,7 @@ pub(crate) fn decode_structural_type(
         tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
     };
     Ok(StructuralTypeDeclaration {
+        scalar_restriction,
         id,
         identity,
         shape,
@@ -262,6 +278,7 @@ mod tests {
         let stored =
             ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("signed byte"));
         let declaration = StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: StructuralTypeId::new(1).expect("record identity"),
             identity: "encoded record".into(),
             shape: StructuralTypeShape::Record {

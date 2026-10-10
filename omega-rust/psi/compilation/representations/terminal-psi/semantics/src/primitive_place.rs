@@ -135,11 +135,48 @@ pub fn primitive_projection_declaration<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
+    if let Some(declaration) = runtime_structural_path_tip(declarations.clone(), root, path)
+        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+    {
+        return Some(declaration.id);
+    }
     let scalar = primitive_projection_type(declarations.clone(), root, path)?;
-    let mut matching = declarations
-        .filter(|declaration| declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar));
+    let mut matching = declarations.filter(|declaration| {
+        declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar)
+            && declaration.scalar_restriction.is_none()
+    });
     let declaration = matching.next()?;
     matching.next().is_none().then_some(declaration.id)
+}
+
+/// The exact declared scalar restriction at a primitive projection endpoint.
+/// Bounds and access remain separate; a matching physical carrier elsewhere
+/// in the module cannot supply this declaration's predicate.
+pub fn primitive_projection_restriction<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<&'a StructuralFieldType> {
+    runtime_structural_path_tip(declarations, root, path)?
+        .scalar_restriction
+        .as_ref()
+}
+
+/// The declared receiving predicate transported to this fresh read value.
+/// Runtime selection and reference crossings change storage geometry, never
+/// the selected declaration's predicate. Equality with current storage remains
+/// a separate observation and cannot invalidate this completed snapshot.
+pub fn primitive_read_requirement<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    result: semantic_vocabulary::ValueId,
+) -> Option<semantic_vocabulary::Proposition> {
+    let restriction =
+        primitive_projection_restriction(declarations.clone(), root, path).or_else(|| {
+            primitive_read_field(declarations, root, path).map(|field| &field.field_type)
+        })?;
+    crate::scalar_field_requirement(restriction, result)
 }
 
 /// The unique primitive carrier observed through a shared loan of original
@@ -152,6 +189,11 @@ pub fn shared_primitive_projection_declaration<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
+    if let Some(declaration) = runtime_structural_path_tip(declarations.clone(), root, path)
+        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+    {
+        return Some(declaration.id);
+    }
     let scalar = walk_primitive_projection(
         declarations.clone(),
         root,
@@ -163,8 +205,10 @@ pub fn shared_primitive_projection_declaration<'a>(
         |_| {},
     )?
     .primitive_scalar()?;
-    let mut matching = declarations
-        .filter(|declaration| declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar));
+    let mut matching = declarations.filter(|declaration| {
+        declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar)
+            && declaration.scalar_restriction.is_none()
+    });
     let declaration = matching.next()?;
     matching.next().is_none().then_some(declaration.id)
 }

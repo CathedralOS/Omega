@@ -327,6 +327,8 @@ pub enum OperationKind {
         destination: PlaceId,
         path: Vec<StructuralPathSegment>,
         value: ValueId,
+        /// Receiving predicate for this exact declared primitive endpoint.
+        range_obligation: Option<ObligationId>,
     },
     /// Replace the complete live value through a borrowed bounded owner.
     /// The referent retains its capacity, length word, and original backing.

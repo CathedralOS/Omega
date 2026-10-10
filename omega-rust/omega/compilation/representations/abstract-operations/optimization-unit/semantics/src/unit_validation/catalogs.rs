@@ -655,6 +655,56 @@ fn validate_structural_field_range_authority(
                     return Err(invalid);
                 }
             }
+            O::WriteOnlyPrimitiveStore {
+                psi_operation,
+                destination,
+                path,
+                value,
+                range_obligation,
+            } => {
+                let restriction = terminal_semantics::primitive_projection_restriction(
+                    types.values().copied(),
+                    destination.structural_type(),
+                    path,
+                );
+                if restriction.is_some() != range_obligation.is_some() {
+                    return Err(
+                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                    );
+                }
+                if let Some(restriction) = restriction {
+                    let receiving = optimization_unit::SourceCheckedScalarReceiving {
+                        value: value.value,
+                        restriction: restriction.clone(),
+                    };
+                    if unit
+                        .accepted_obligation_facts
+                        .iter()
+                        .filter(|fact| {
+                            fact.machine == function.machine
+                                && fact.operation == *psi_operation
+                                && Some(fact.obligation) == *range_obligation
+                                && fact.psi == unit.psi
+                                && fact.has_canonical_identity()
+                                && fact.scalar_receiving.as_ref() == Some(&receiving)
+                        })
+                        .count()
+                        != 1
+                    {
+                        return Err(
+                            OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
+                        );
+                    }
+                    validate_scalar_range_authority(
+                        unit,
+                        function.machine,
+                        *psi_operation,
+                        restriction,
+                        value.value,
+                        *range_obligation,
+                    )?;
+                }
+            }
             O::StructuralScalarFieldStore {
                 psi_operation,
                 destination,
@@ -796,9 +846,25 @@ fn validate_field_range_authority(
     value: ValueId,
     obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let Some(requirement) =
-        terminal_semantics::scalar_field_requirement(&declaration.field_type, value)
-    else {
+    validate_scalar_range_authority(
+        unit,
+        machine,
+        operation,
+        &declaration.field_type,
+        value,
+        obligation,
+    )
+}
+
+fn validate_scalar_range_authority(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+    restriction: &terminal_psi::StructuralFieldType,
+    value: ValueId,
+    obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let Some(requirement) = terminal_semantics::scalar_field_requirement(restriction, value) else {
         return Ok(());
     };
     terminal_codec::canonical_proposition_order_key(&requirement)

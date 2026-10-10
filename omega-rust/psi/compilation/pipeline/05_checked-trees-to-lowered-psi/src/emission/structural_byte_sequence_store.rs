@@ -117,6 +117,7 @@ pub(crate) fn prepare_types(
                         "owned byte type identity overflow",
                     ))?;
                 types.push(StructuralTypeDeclaration {
+                    scalar_restriction: None,
                     id: structural_type_id(ordinal),
                     identity,
                     shape,
@@ -155,6 +156,7 @@ pub(crate) fn literal_view_type(
         ))?;
     let id = structural_type_id(identity);
     types.push(StructuralTypeDeclaration {
+        scalar_restriction: None,
         id,
         identity: LITERAL_VIEW_IDENTITY.into(),
         shape,
@@ -196,6 +198,7 @@ pub(crate) fn descriptor_value_type(
             ))?,
     );
     types.push(StructuralTypeDeclaration {
+        scalar_restriction: None,
         id,
         identity: IDENTITY.into(),
         shape,

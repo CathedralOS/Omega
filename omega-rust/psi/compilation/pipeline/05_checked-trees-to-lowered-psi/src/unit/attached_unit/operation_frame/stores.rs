@@ -248,6 +248,7 @@ impl OperationFrame<'_, '_> {
                     crate::emission::primitive_store::Destination {
                         place: local.declaration.id,
                         path: Vec::new(),
+                        scalar_restriction: None,
                     }
                 } else {
                     // A projected store writes through an established
@@ -267,6 +268,12 @@ impl OperationFrame<'_, '_> {
                     }
                     // The established home's own declared carrier supplies
                     // the walk below it.
+                    let scalar_restriction =
+                        crate::emission::primitive_store::destination_restriction(
+                            declared,
+                            path,
+                            self.structural_types.declarations(),
+                        )?;
                     let (steps, _) = crate::emission::primitive_store::lower_destination_path(
                         declared,
                         path,
@@ -286,6 +293,7 @@ impl OperationFrame<'_, '_> {
                     crate::emission::primitive_store::Destination {
                         place: source.place,
                         path: composed,
+                        scalar_restriction,
                     }
                 }
             }
@@ -296,6 +304,10 @@ impl OperationFrame<'_, '_> {
             self.state,
             statement_index,
             destination,
+            match &store.destination.leaf {
+                CheckedStoreLeaf::Primitive { receiving_range } => receiving_range.as_ref(),
+                _ => unreachable!("primitive store dispatch"),
+            },
             role,
             value,
             self.evaluation,

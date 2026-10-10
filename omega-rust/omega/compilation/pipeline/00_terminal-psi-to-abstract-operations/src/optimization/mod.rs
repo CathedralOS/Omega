@@ -42,14 +42,45 @@ fn source_checked_operation_facts(
                 continue;
             };
             if coordinates.insert((function.machine, *support, *obligation)) {
-                facts.push(optimization_unit::AcceptedObligationFact::new(
+                let fact = optimization_unit::AcceptedObligationFact::new(
                     unit.psi,
                     [0; 32],
                     function.machine,
                     *support,
                     *obligation,
                     Vec::new(),
-                ));
+                );
+                // This original source-cut correspondence is immutable. A
+                // later rewrite cannot reuse the obligation for a different
+                // RHS or a changed receiving predicate. No proof replay occurs.
+                let receiving = function.block_nodes().find_map(|node| {
+                    let abstract_operations::AbstractOperation::WriteOnlyPrimitiveStore {
+                        psi_operation,
+                        destination,
+                        path,
+                        value,
+                        range_obligation,
+                    } = &node.operation
+                    else {
+                        return None;
+                    };
+                    if *psi_operation != *support || *range_obligation != Some(*obligation) {
+                        return None;
+                    }
+                    let restriction = terminal_semantics::primitive_projection_restriction(
+                        unit.structural_types.iter(),
+                        destination.structural_type(),
+                        path,
+                    )?;
+                    Some(optimization_unit::SourceCheckedScalarReceiving {
+                        value: value.value,
+                        restriction: restriction.clone(),
+                    })
+                });
+                facts.push(match receiving {
+                    Some(receiving) => fact.with_scalar_receiving(receiving),
+                    None => fact,
+                });
             }
         }
     }

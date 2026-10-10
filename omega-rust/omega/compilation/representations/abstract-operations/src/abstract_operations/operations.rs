@@ -247,6 +247,7 @@ pub enum AbstractOperation {
         destination: super::StructuralScalarStoreDestination,
         path: Vec<StructuralPathSegment>,
         value: AbstractResult,
+        range_obligation: Option<semantic_vocabulary::ObligationId>,
     },
     /// One verifier-approved scalar replacement at an exact field beneath a
     /// borrowed parameter, owned result or owned block parameter root. The

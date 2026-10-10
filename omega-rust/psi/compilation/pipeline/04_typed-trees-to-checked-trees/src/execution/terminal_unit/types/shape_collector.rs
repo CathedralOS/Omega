@@ -227,6 +227,7 @@ impl<'program> ShapeCollector<'program> {
         }
         let identity = closed_data_identity(self.program, data, binders);
         let plan = CheckedUnitStructuralTypePlan {
+            scalar_restriction: None,
             no_code_affine_cleanup: false,
             identity: identity.clone(),
             shape: CheckedUnitStructuralTypeShape::Record {
@@ -259,56 +260,6 @@ impl<'program> ShapeCollector<'program> {
             .ok(),
             _ => None,
         }
-    }
-
-    pub(super) fn is_unrestricted_nonatomic_primitive(
-        &self,
-        type_reference: TypeReferenceHandle,
-    ) -> bool {
-        let types = &self.program.type_reference_table;
-        if !types.contains_type_reference(type_reference) {
-            return false;
-        }
-        // Arithmetic policy changes operations, not stored bits. Only this
-        // exact shell may project to an array's primitive element shape; ranges
-        // and other qualifications still need their own retained obligations.
-        // The complete array identity and checked computations retain policy.
-        let reference = match types.type_reference(type_reference) {
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                if !types.contains_type_reference(*base_type)
-                    || !matches!(
-                        types.constraint_span(*constraints),
-                        Some([typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)])
-                    )
-                {
-                    return false;
-                }
-                let TypeReferenceNode::Named { symbol, name } = types.type_reference(*base_type)
-                else {
-                    return false;
-                };
-                let Some(atom) = self.program.symbols.builtin_type_atom(*symbol) else {
-                    return false;
-                };
-                if name.as_str() != atom.symbol_name() || !atom.is_fixed_integer() {
-                    return false;
-                }
-                *base_type
-            }
-            _ => type_reference,
-        };
-        // A selector is one unrestricted, non-atomic opaque word.
-        matches!(
-            types.type_reference(reference),
-            TypeReferenceNode::DynamicTrait { .. }
-        ) || matches!(types.type_reference(reference), TypeReferenceNode::Named { name, .. }
-                if !name.as_str().starts_with("Atomic")
-                    && self.program.primitive_type_reference(reference).is_some()
-                    && crate::checks::type_multiplicity(self.program, type_reference)
-                        == Multiplicity::Unrestricted)
     }
 
     /// Register an admitted reference carrier with its declared access.
@@ -414,6 +365,7 @@ impl<'program> ShapeCollector<'program> {
             })
             .into_string();
         let plan = CheckedUnitStructuralTypePlan {
+            scalar_restriction: None,
             no_code_affine_cleanup: false,
             identity: identity.clone(),
             shape: CheckedUnitStructuralTypeShape::Reference {
@@ -544,6 +496,7 @@ impl<'program> ShapeCollector<'program> {
                 }
             }
             let plan = CheckedUnitStructuralTypePlan {
+                scalar_restriction: None,
                 no_code_affine_cleanup: no_code_affine_cleanup
                     && matches!(
                         carrier,
@@ -576,6 +529,7 @@ impl<'program> ShapeCollector<'program> {
             let element_type_identity = self.add_type(element, binders, substitutions);
             self.in_progress.remove(&identity);
             let plan = CheckedUnitStructuralTypePlan {
+                scalar_restriction: None,
                 no_code_affine_cleanup: false,
                 identity: identity.clone(),
                 shape: CheckedUnitStructuralTypeShape::BorrowedSliceView {
@@ -592,17 +546,31 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(identity.clone(), plan);
             return Some(identity);
         }
-        // Every other carrier is the storage beneath its loan and
-        // qualification shells: the node the identity above names.
+        // Every other carrier names the shared semantic identity beneath its
+        // loan. Scalar receiving restrictions retain their own identity and
+        // declaration; membership-only qualifications remain separate.
         let type_reference =
             validation::structural_identity_type(self.program, type_reference, substitutions);
         if self.types.contains_key(&identity) {
             return Some(identity);
         }
         if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
+            let scalar_restriction = match scalar_fields::retain_scalar_field(
+                self.program,
+                type_reference,
+                substitutions,
+                primitive,
+                None,
+            )? {
+                CheckedUnitStructuralFieldType::Scalar(_) => None,
+                restriction @ (CheckedUnitStructuralFieldType::BoundedInteger(_)
+                | CheckedUnitStructuralFieldType::RefinedScalar { .. }) => Some(restriction),
+                _ => return None,
+            };
             self.types.insert(
                 identity.clone(),
                 CheckedUnitStructuralTypePlan {
+                    scalar_restriction,
                     no_code_affine_cleanup,
                     identity: identity.clone(),
                     shape: CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
@@ -644,25 +612,32 @@ impl<'program> ShapeCollector<'program> {
                 return None;
             }
             let element = substituted_formal_type(self.program, *element_type, substitutions);
-            // Array elements have no field-declaration predicate slot.
-            // Arithmetic policy retains its ordinary scalar carrier; linear
-            // domains retain per-place claims. Other declared element
-            // predicates must not disappear during referent shape collection.
-            let primitive = scalar_type(self.program, element, substitutions).is_some();
-            let unrepresented_qualification =
-                (byte_sequence_carrier(self.program, element, substitutions).is_some()
+            // Each scalar element now retains its own declaration predicate.
+            // Recursive collection rejects an unrepresentable scalar contract;
+            // byte predicates still need their separate element vocabulary.
+            let missing_membership =
+                self.program
+                    .primitive_type_reference(element)
+                    .is_some_and(|primitive| {
+                        matches!(
+                            scalar_fields::retain_scalar_field(
+                                self.program,
+                                element,
+                                substitutions,
+                                primitive,
+                                None
+                            ),
+                            Some(CheckedUnitStructuralFieldType::Scalar(_))
+                        ) && validation::unrestricted_builtin_primitive(self.program, element)
+                            != Some(primitive)
+                    });
+            let element_type_identity = if missing_membership
+                || byte_sequence_carrier(self.program, element, substitutions).is_some()
                     && !typed_trees::byte_predicates::type_reference_domain_predicates(
                         self.program,
                         element,
                     )
-                    .is_empty())
-                    || (matches!(
-                        self.program.type_reference_table.type_reference(element),
-                        TypeReferenceNode::Constrained { .. }
-                    ) && !self.is_unrestricted_nonatomic_primitive(element)
-                        && self.program.type_multiplicity(element) != Multiplicity::Linear);
-            let element_type_identity = if unrepresented_qualification
-                || (primitive && !self.is_unrestricted_nonatomic_primitive(element))
+                    .is_empty()
             {
                 None
             } else {
@@ -676,6 +651,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity.clone(),
                 CheckedUnitStructuralTypePlan {
+                    scalar_restriction: None,
                     no_code_affine_cleanup,
                     identity: identity.clone(),
                     shape: CheckedUnitStructuralTypeShape::FixedArray {
@@ -865,6 +841,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity.clone(),
                 CheckedUnitStructuralTypePlan {
+                    scalar_restriction: None,
                     no_code_affine_cleanup,
                     identity: identity.clone(),
                     shape: if matches!(shape_kind, DataShapeKind::Mixed) {
@@ -914,6 +891,7 @@ impl<'program> ShapeCollector<'program> {
         self.types.insert(
             identity.clone(),
             CheckedUnitStructuralTypePlan {
+                scalar_restriction: None,
                 no_code_affine_cleanup,
                 identity: identity.clone(),
                 shape: CheckedUnitStructuralTypeShape::Record {
@@ -1078,6 +1056,7 @@ impl<'program> ShapeCollector<'program> {
             })
             .into_string();
         let plan = CheckedUnitStructuralTypePlan {
+            scalar_restriction: None,
             no_code_affine_cleanup: false,
             identity: identity.clone(),
             shape: CheckedUnitStructuralTypeShape::BindingCarrier,

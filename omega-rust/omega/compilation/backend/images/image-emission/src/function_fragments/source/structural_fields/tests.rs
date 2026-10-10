@@ -54,6 +54,7 @@ fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
     target.graph.blocks[0].block = block;
     target.graph.blocks[0].structural_parameters = vec![parameter];
     target.graph.structural_types = vec![StructuralTypeDeclaration {
+        scalar_restriction: None,
         id: identity,
         identity: "test::BoundedBytes".into(),
         shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
@@ -125,11 +126,13 @@ fn projected_primitive_publication_retains_path_and_requires_native_replay() {
     let element = StructuralTypeId::new(2).unwrap();
     target.graph.structural_types = vec![
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: parameter.structural_type,
             identity: "test::Bytes".into(),
             shape: StructuralTypeShape::FixedArray { element, length: 2 },
         },
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: element,
             identity: "test::Byte".into(),
             shape: StructuralTypeShape::PrimitiveScalar(scalar),
@@ -278,6 +281,7 @@ fn runtime_element_field_publication_rebuilds_the_declared_field() {
     };
     target.graph.structural_types = vec![
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: parameter.structural_type,
             identity: "test::Cells".into(),
             shape: StructuralTypeShape::FixedArray {
@@ -286,6 +290,7 @@ fn runtime_element_field_publication_rebuilds_the_declared_field() {
             },
         },
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: cell,
             identity: "test::Cell".into(),
             shape: StructuralTypeShape::Record {
@@ -702,11 +707,13 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
     let element = StructuralTypeId::new(2).unwrap();
     target.graph.structural_types = vec![
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: owner.structural_type,
             identity: "test::Bytes".into(),
             shape: StructuralTypeShape::FixedArray { element, length: 2 },
         },
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: element,
             identity: "test::Byte".into(),
             shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
@@ -935,6 +942,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
         let mut stored_function = function.clone();
         let mut stored_target = target.clone();
         stored_target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: owner.structural_type,
             identity: "test::OwnedBuffer".into(),
             shape: terminal_psi::StructuralTypeShape::Record {
@@ -1080,6 +1088,7 @@ fn whole_byte_replacement_rejoins_qualified_entry_and_arrival_storage() {
         parameter.qualifications = vec![StructuralDomainId::new(1).unwrap()];
         target.graph.parameters[0].access = parameter.access;
         target.graph.structural_types = vec![StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: parameter.structural_type,
             identity: "test::OwnedBytes".into(),
             shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
@@ -1352,6 +1361,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
     target.graph.parameters[0].structural_type = root_type;
     target.graph.structural_types = vec![
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: root_type,
             identity: "test::Root".into(),
             shape: StructuralTypeShape::Record {
@@ -1366,6 +1376,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             },
         },
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: reference_type,
             identity: "test::HolderReference".into(),
             shape: StructuralTypeShape::Reference {
@@ -1374,6 +1385,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
             },
         },
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: holder_type,
             identity: "test::Holder".into(),
             shape: StructuralTypeShape::Record {
@@ -1787,6 +1799,7 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
         },
     ];
     let structural_types = vec![StructuralTypeDeclaration {
+        scalar_restriction: None,
         id: structural_type,
         identity: "test::ReturnedBytes".into(),
         shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
@@ -2033,6 +2046,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             _ => unreachable!(),
         }
         target.graph.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: function.structural_parameters[0].structural_type,
             identity: "Root".into(),
             shape: terminal_psi::StructuralTypeShape::Record {
@@ -2052,6 +2066,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             .structural_types
             .make_mut()
             .push(terminal_psi::StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: child,
                 identity: "Child".into(),
                 shape: terminal_psi::StructuralTypeShape::Record {
@@ -2102,6 +2117,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
         };
         target.graph.structural_types = vec![
             terminal_psi::StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: function.structural_parameters[0].structural_type,
                 identity: "Root".into(),
                 shape: terminal_psi::StructuralTypeShape::Record {
@@ -2116,11 +2132,13 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
                 },
             },
             terminal_psi::StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: array,
                 identity: "Maps".into(),
                 shape: terminal_psi::StructuralTypeShape::FixedArray { element, length: 2 },
             },
             terminal_psi::StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: element,
                 identity: "Map".into(),
                 shape: terminal_psi::StructuralTypeShape::Record {

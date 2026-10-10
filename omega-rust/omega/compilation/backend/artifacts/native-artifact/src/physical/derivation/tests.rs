@@ -207,6 +207,7 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
             claims: Vec::new(),
         },
         declaration: StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: structural_type,
             identity: "InputResult".into(),
             shape: StructuralTypeShape::Sum {
@@ -348,6 +349,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         argument: argument.clone(),
         literal_operation: OperationId::new(47).unwrap(),
         structural_type: StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: StructuralTypeId::new(73).unwrap(),
             identity: "Bytes".into(),
             shape: StructuralTypeShape::Sum {

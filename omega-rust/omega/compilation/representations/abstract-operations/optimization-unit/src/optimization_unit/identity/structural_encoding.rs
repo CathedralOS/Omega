@@ -393,8 +393,15 @@ pub(super) fn encode_structural_type(
             encode_access(bytes, *access);
         }
         StructuralTypeShape::PrimitiveScalar(scalar_type) => {
-            bytes.u8(6);
+            bytes.u8(if declaration.scalar_restriction.is_some() {
+                12
+            } else {
+                6
+            });
             encode_scalar_type(bytes, *scalar_type);
+            if let Some(restriction) = &declaration.scalar_restriction {
+                encode_scalar_restriction(bytes, restriction);
+            }
         }
         StructuralTypeShape::ByteSequence(carrier) => {
             bytes.u8(1);
@@ -520,51 +527,7 @@ pub(super) fn encode_structural_field(
         BindingRelevance::Relevant => 1,
         BindingRelevance::Erased => 2,
     });
-    match &field.field_type {
-        StructuralFieldType::RefinedScalar(refinement) => {
-            bytes.u8(9);
-            encode_scalar_type(bytes, refinement.carrier());
-            encode_proposition(bytes, refinement.predicate());
-        }
-        StructuralFieldType::Atomic(value) => {
-            bytes.u8(8);
-            encode_scalar_type(bytes, *value);
-        }
-        StructuralFieldType::BoundedInteger(bounds) => {
-            bytes.u8(6);
-            encode_integer_type(bytes, bounds.integer_type());
-            encode_integer_value(bytes, bounds.minimum());
-            encode_integer_value(bytes, bounds.maximum());
-        }
-        StructuralFieldType::Scalar(value) => {
-            bytes.u8(1);
-            encode_scalar_type(bytes, *value);
-        }
-        StructuralFieldType::IeeeFloat(value) => {
-            bytes.u8(2);
-            encode_float_format(bytes, *value);
-        }
-        StructuralFieldType::PredicateByteSequence {
-            carrier,
-            predicates,
-        } => {
-            bytes.u8(7);
-            encode_byte_carrier(bytes, *carrier);
-            bytes.u8(predicates.bits());
-        }
-        StructuralFieldType::ByteSequence(value) => {
-            bytes.u8(3);
-            encode_byte_carrier(bytes, *value);
-        }
-        StructuralFieldType::Structural(value) => {
-            bytes.u8(4);
-            bytes.id(*value);
-        }
-        StructuralFieldType::Erased { type_identity } => {
-            bytes.u8(5);
-            bytes.string(type_identity);
-        }
-    }
+    encode_scalar_restriction(bytes, &field.field_type);
 }
 
 pub(super) fn encode_byte_carrier(bytes: &mut CanonicalBytes, carrier: ByteSequenceCarrier) {
@@ -764,6 +727,57 @@ mod tests {
                 assert_ne!(encoded, previous);
             }
             previous_encoding = Some(encoded);
+        }
+    }
+}
+
+pub(super) fn encode_scalar_restriction(
+    bytes: &mut CanonicalBytes,
+    field_type: &StructuralFieldType,
+) {
+    match field_type {
+        StructuralFieldType::RefinedScalar(refinement) => {
+            bytes.u8(9);
+            encode_scalar_type(bytes, refinement.carrier());
+            encode_proposition(bytes, refinement.predicate());
+        }
+        StructuralFieldType::Atomic(value) => {
+            bytes.u8(8);
+            encode_scalar_type(bytes, *value);
+        }
+        StructuralFieldType::BoundedInteger(bounds) => {
+            bytes.u8(6);
+            encode_integer_type(bytes, bounds.integer_type());
+            encode_integer_value(bytes, bounds.minimum());
+            encode_integer_value(bytes, bounds.maximum());
+        }
+        StructuralFieldType::Scalar(value) => {
+            bytes.u8(1);
+            encode_scalar_type(bytes, *value);
+        }
+        StructuralFieldType::IeeeFloat(value) => {
+            bytes.u8(2);
+            encode_float_format(bytes, *value);
+        }
+        StructuralFieldType::PredicateByteSequence {
+            carrier,
+            predicates,
+        } => {
+            bytes.u8(7);
+            encode_byte_carrier(bytes, *carrier);
+            bytes.u8(predicates.bits());
+        }
+        StructuralFieldType::ByteSequence(value) => {
+            bytes.u8(3);
+            encode_byte_carrier(bytes, *value);
+        }
+        StructuralFieldType::Structural(value) => {
+            bytes.u8(4);
+            bytes.id(*value);
+        }
+        StructuralFieldType::Erased { type_identity } => {
+            bytes.u8(5);
+            bytes.string(type_identity);
         }
     }
 }

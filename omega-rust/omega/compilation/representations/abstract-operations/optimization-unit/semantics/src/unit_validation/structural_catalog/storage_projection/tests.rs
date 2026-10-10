@@ -39,6 +39,7 @@ fn field(
 
 fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
+        scalar_restriction: None,
         id: type_id(raw),
         identity: format!("type{raw}"),
         shape,

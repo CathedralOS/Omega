@@ -28,6 +28,7 @@ fn field(identity: &str) -> StructuralPathSegment {
 
 fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
+        scalar_restriction: None,
         id: type_id(value),
         identity: format!("Type{value}"),
         shape,

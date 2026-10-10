@@ -13,8 +13,12 @@
 //!   the caller's frame and the descriptor itself is the carrier, so it keeps
 //!   its shell and never names the plain array it borrows.
 //! - A qualification restricts values without changing their storage and is
-//!   looked through, with one exception: a domain over a fixed byte array
-//!   turns plain array storage into a bounded byte owner with a live extent.
+//!   looked through unless its declaration owns a storage restriction. A
+//!   primitive interval or scalar predicate keeps its qualification so its
+//!   receiving stores and fresh reads can name the exact restriction. Value
+//!   domain membership such as Finite remains in the separate custody channel.
+//!   A domain over a fixed byte array also turns plain array storage into a
+//!   bounded byte owner with a live extent.
 //!   That owner keeps its qualification, so a plain `[u8; N]` and a
 //!   `[u8; N] in D` never share an identity, and with it one plan, in a module
 //!   that holds both — whichever target's bodies happen to name them.
@@ -57,7 +61,15 @@ pub fn structural_identity_type(
     for _ in 0..=program.type_reference_table.type_reference_count() {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-            TypeReferenceNode::Constrained { .. } if keeps_qualification => return reference,
+            TypeReferenceNode::Constrained { constraints, .. }
+                if keeps_qualification
+                    || (program.primitive_type_reference(reference).is_some()
+                        && program.type_reference_table.constraints(*constraints).iter().any(|constraint|
+                            matches!(constraint, typed_trees::types::TypeConstraintNode::Range { .. }
+                                | typed_trees::types::TypeConstraintNode::Named(_))
+                            || matches!(constraint, typed_trees::types::TypeConstraintNode::Domain(domain)
+                                if domain.subject != typed_trees::types::DomainConstraintSubject::Value(
+                                    language_semantics::value_domain::ValueDomain::Finite)))) => return reference,
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {
                 match substitutions

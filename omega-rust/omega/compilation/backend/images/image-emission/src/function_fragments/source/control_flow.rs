@@ -132,7 +132,9 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
                     &candidate.operations,
                     &target.graph.structural_types,
                     match source {
-                        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..) => *psi_edge,
+                        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..) => {
+                            *psi_edge
+                        }
                         _ => unreachable!(),
                     },
                 )
@@ -152,7 +154,9 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
                     &candidate.operations,
                     &target.graph.structural_types,
                     match source {
-                        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..) => *psi_edge,
+                        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..) => {
+                            *psi_edge
+                        }
                         _ => unreachable!(),
                     },
                 )
@@ -339,6 +343,7 @@ mod cleanup_tests {
         let edge = EdgeId::new(1).unwrap();
         let structural_type = StructuralTypeId::new(1).unwrap();
         let structural_types = vec![StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: structural_type,
             identity: "Leaf".into(),
             shape: StructuralTypeShape::Record {

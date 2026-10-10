@@ -33,6 +33,7 @@ pub(super) fn validate(
         destination: expected_destination,
         path: expected_path,
         value,
+        ..
     } = abstracted
     else {
         return Err(LegalizationError::custody());

@@ -55,6 +55,7 @@ mod tests {
 
     fn declaration() -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: StructuralTypeId::new(1).unwrap(),
             identity: "ordinary five-case sum".into(),
             shape: StructuralTypeShape::Sum {

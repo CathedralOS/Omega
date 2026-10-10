@@ -4312,18 +4312,19 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `unit/attached_unit/view_ranges.rs` and
   `emission/operation_emission/view_subslice.rs` (shared `CheckedSubsliceSite`).
   Remaining:
-  - range-qualified scalar view copies under
-    [ownership](wiki/spec/language/ownership.md). The unchanged
-    `slices/runtime_range_qualified_scalar_copy_exit` and local-capture variation
-    pass source checking on Linux x86-64, but native production refuses the
-    qualified array declaration as `statement sequence: local data: structural
-    value: type shape`. Retain scalar element restrictions and exact
-    construction/read/replacement evidence in Terminal; a source assignment
-    receipt cannot erase the array guard. A dynamic selected store also loses
-    default-domain element facts at return. Erased-field `[copy]` record copies
-    execute at native and Terminal exit 0
-    (`slices/runtime_erased_field_record_copy_exit`); qualified nominal record
-    copies already work (`slices/runtime_qualified_record_copy_local_exit`, exit 70).
+  - nonempty restricted scalar array and primitive-local construction still
+    lack an initializer-obligation roster when zero does not satisfy the
+    declared predicate. Terminal refuses these constructors; empty arrays
+    instantiate no element. Arbitrary refined scalar element views also need
+    their predicate read requirement consumed beyond bounded intervals.
+    Preserve the bounded copy and replacement controls with
+    `omega run --both tests/omega/pass/slices/runtime_range_qualified_scalar_copy_exit/main.omg`,
+    its local and fixed-array snapshot variants, and
+    `slices/runtime_range_qualified_scalar_dynamic_store_exit` (Linux x86-64,
+    authored exit 0). These constrain retained scalar declarations, exact
+    receiving assignment receipts, independent snapshots, and live per-element
+    domains. Missing range/bounds, invalidated or partially initialized domains,
+    and shared-view writes must continue to reject.
   - mutable-view result and cyclic forwarding compositions on the Unit-graph
     route remain unverified. Acyclic named-state subslice forwarding retains
     caller backing for scalar and record writes (controls:

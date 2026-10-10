@@ -183,14 +183,24 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             destination,
             path,
             value,
+            range_obligation,
         } => {
-            bytes.u8(if path.is_empty() { 49 } else { 74 });
+            bytes.u8(if range_obligation.is_some() {
+                106
+            } else if path.is_empty() {
+                49
+            } else {
+                74
+            });
             bytes.id(*psi_operation);
             encode_store_destination(bytes, destination);
-            if !path.is_empty() {
+            if range_obligation.is_some() || !path.is_empty() {
                 bytes.slice(path, encode_structural_path_segment);
             }
             encode_abstract_result(bytes, *value);
+            if let Some(obligation) = range_obligation {
+                bytes.id(*obligation);
+            }
         }
         O::StructuralScalarFieldStore {
             psi_operation,

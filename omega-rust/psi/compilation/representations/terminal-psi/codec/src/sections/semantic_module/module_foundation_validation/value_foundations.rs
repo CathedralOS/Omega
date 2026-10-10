@@ -34,6 +34,17 @@ pub(super) fn validate_establish_scalar_array(
     {
         return malformed("scalar array establishment has an invalid result shape");
     }
+    // This constructor carries no per-leaf receiving obligations. Empty
+    // arrays instantiate no scalar; nonempty restricted arrays need a
+    // constructor that retains each initialized value's predicate authority.
+    if terminal_semantics::scalar_array_leaf_declaration(
+        module.structural_types.iter(),
+        result.structural_type,
+    )
+    .is_some_and(|(leaf, count)| count != 0 && leaf.scalar_restriction.is_some())
+    {
+        return malformed("scalar array initializer lacks receiving restriction obligations");
+    }
     Ok(())
 }
 
@@ -448,6 +459,7 @@ pub(super) fn validate_establish_primitive_local(
         })
         || !module.structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
+                && declaration.scalar_restriction.is_none()
                 && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
         })
     {

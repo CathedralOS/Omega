@@ -3,9 +3,9 @@
 //! destination path (`runtime_elements.rs`), as for every other store route.
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError,
-    OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
-    StructuralTypeId, StructuralTypeShape, ValueDeclaration, terminal_scalar_type, unsupported,
+    OperationKind, PlaceId, PrimitiveType, ScalarType, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, ValueDeclaration, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -19,6 +19,7 @@ use terminal_psi::live_field;
 pub(crate) struct Destination {
     pub(crate) place: PlaceId,
     pub(crate) path: Vec<ProjectionStep>,
+    pub(crate) scalar_restriction: Option<StructuralFieldType>,
 }
 
 pub(crate) fn parameter_destination(
@@ -35,10 +36,12 @@ pub(crate) fn parameter_destination(
     {
         return unsupported("primitive store parameter lost its exclusive custody");
     }
+    let scalar_restriction = destination_restriction(parameter.structural_type, path, types)?;
     let (path, _) = lower_destination_path(parameter.structural_type, path, types)?;
     Ok(Destination {
         place: parameter.place,
         path,
+        scalar_restriction,
     })
 }
 
@@ -49,6 +52,7 @@ pub(crate) fn emit_assignment(
     state: symbols::SymbolHandle,
     statement_index: u32,
     destination: Destination,
+    receiving_range: Option<&checked_trees::CheckedPrimitiveReceivingRange>,
     role: CheckedScalarExpressionRole,
     value: &checked_trees::CheckedCallScalarArgument,
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
@@ -91,7 +95,33 @@ pub(crate) fn emit_assignment(
         operations,
         calls,
     )?;
+    let range_obligation = if let Some(restriction) = &destination.scalar_restriction {
+        let StructuralFieldType::BoundedInteger(integer) = restriction else {
+            return unsupported("primitive store has no retained predicate judgment");
+        };
+        let Some(range) = receiving_range else {
+            return unsupported("primitive store lost its receiving-range judgment");
+        };
+        if !super::structural_scalar_store::source_range_decided(
+            checked,
+            range.primitive,
+            range.decision,
+            Some(*integer),
+        )? {
+            return unsupported("primitive store receiving range differs from its declaration");
+        }
+        let obligation =
+            super::obligation_id(super::allocate_dense(&mut calls.next_obligation_identity)?);
+        operations.source_checked_obligations.push(obligation);
+        Some(obligation)
+    } else {
+        if receiving_range.is_some() {
+            return unsupported("primitive store erased its receiving restriction");
+        }
+        None
+    };
     Ok(OperationKind::WriteOnlyPrimitiveStore {
+        range_obligation,
         destination: destination.place,
         path: super::runtime_elements::complete_path(destination.path, indexes, calls, operations)?,
         value: value.id,
@@ -127,6 +157,25 @@ pub(crate) fn lower_destination_path(
         Walked::ScalarField(scalar) => scalar,
     };
     Ok((steps, scalar_type))
+}
+
+pub(crate) fn destination_restriction(
+    structural_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    types: &[StructuralTypeDeclaration],
+) -> Result<Option<StructuralFieldType>, LoweringError> {
+    let (_, walked) = walk_path(structural_type, path, types)?;
+    match walked {
+        Walked::Declared(identity) => Ok(unique_declaration(
+            types,
+            identity,
+            "primitive endpoint is absent",
+            "primitive endpoint is ambiguous",
+        )?
+        .scalar_restriction
+        .clone()),
+        Walked::ByteElement | Walked::ScalarField(_) => Ok(None),
+    }
 }
 
 /// A static projection to a primitive leaf, for observations that name no

@@ -231,6 +231,14 @@ fn encode_accepted_fact(bytes: &mut CanonicalBytes, fact: &AcceptedObligationFac
     bytes.id(fact.obligation);
     bytes.len(fact.proposition.len());
     bytes.bytes(&fact.proposition);
+    if let Some(receiving) = &fact.scalar_receiving {
+        bytes.u8(1);
+        let canonical = super::scalar_receiving_identity_bytes(receiving);
+        bytes.len(canonical.len());
+        bytes.bytes(&canonical);
+    } else {
+        bytes.u8(0);
+    }
 }
 
 fn encode_proof_question(bytes: &mut CanonicalBytes, question: &ProofQuestion) {

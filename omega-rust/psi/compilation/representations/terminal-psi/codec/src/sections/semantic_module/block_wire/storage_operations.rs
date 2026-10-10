@@ -534,7 +534,16 @@ pub(super) fn encode_write_only_primitive_store(
     destination: PlaceId,
     value: ValueId,
     path: Vec<StructuralPathSegment>,
+    range_obligation: Option<ObligationId>,
 ) -> Result<(), CodecError> {
+    if let Some(obligation) = range_obligation {
+        writer.u8(operation_tags::RESTRICTED_WRITE_ONLY_PRIMITIVE_STORE);
+        writer.id(destination);
+        encode_structural_path(writer, "restricted primitive destination path", &path)?;
+        writer.id(value);
+        writer.id(obligation);
+        return Ok(());
+    }
     if path.is_empty() {
         writer.u8(operation_tags::WRITE_ONLY_PRIMITIVE_STORE);
         writer.id(destination);
@@ -561,6 +570,18 @@ pub(super) fn decode_projected_write_only_primitive_store(
         destination,
         path,
         value: reader.id("ValueId")?,
+        range_obligation: None,
+    })
+}
+
+pub(super) fn decode_restricted_write_only_primitive_store(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::WriteOnlyPrimitiveStore {
+        destination: reader.id("PlaceId")?,
+        path: decode_structural_path(reader)?,
+        value: reader.id("ValueId")?,
+        range_obligation: Some(reader.id("ObligationId")?),
     })
 }
 
@@ -571,6 +592,7 @@ pub(super) fn decode_write_only_primitive_store(
         path: Vec::new(),
         destination: reader.id("PlaceId")?,
         value: reader.id("ValueId")?,
+        range_obligation: None,
     })
 }
 

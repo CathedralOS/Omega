@@ -89,8 +89,9 @@ pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_ref
 pub use primitive_place::{
     Position, byte_carrier_field_declaration, canonical_primitive_path,
     canonical_primitive_read_path, canonical_static_projection, fixed_array_place_shape,
-    primitive_place_type, primitive_projection_declaration, primitive_projection_type,
-    primitive_read_field, primitive_read_projection_type, runtime_structural_path_tip,
+    primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
+    primitive_projection_type, primitive_read_field, primitive_read_projection_type,
+    primitive_read_requirement, runtime_structural_path_tip,
     shared_primitive_projection_declaration,
 };
 pub use proof_bearing_scalar::{
@@ -109,7 +110,7 @@ pub use reference_views::{
     reference_storage_source_compatible, reference_storage_view_is_compatible,
     scalar_reference_view_is_total, scalar_reference_view_value,
 };
-pub use scalar_array::scalar_array_leaf_shape;
+pub use scalar_array::{scalar_array_leaf_declaration, scalar_array_leaf_shape};
 pub use scalar_field_requirements::{
     scalar_field_accepts_literal, scalar_field_accepts_zero, scalar_field_requirement,
     scalar_field_requires_evidence,
@@ -154,7 +155,7 @@ pub use structural_window::{
     StructuralWindowProjection, structural_window_parameter_origins, structural_window_projection,
     structural_window_selects_child,
 };
-pub use zero_valid_storage::zero_valid_record_storage;
+pub use zero_valid_storage::{scalar_declaration_accepts_zero, zero_valid_record_storage};
 pub use zeroed_structural::{
     EstablishedErasedStructuralField, ZeroedStructuralLeaf, zeroed_structural_leaves,
     zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,

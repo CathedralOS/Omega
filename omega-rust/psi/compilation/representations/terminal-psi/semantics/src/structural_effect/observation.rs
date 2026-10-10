@@ -524,6 +524,7 @@ pub fn structural_effect_leaf_observation_in(
                 destination,
                 value,
                 path,
+                ..
             },
         ) => StructuralEffectObservation::PrimitiveStored {
             destination: *destination,

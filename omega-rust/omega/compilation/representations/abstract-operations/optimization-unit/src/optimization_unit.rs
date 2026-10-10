@@ -73,7 +73,7 @@ pub use ownership::{
     OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
     OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
 };
-pub use proof::{AcceptedObligationFact, ProofQuestionOwner};
+pub use proof::{AcceptedObligationFact, ProofQuestionOwner, SourceCheckedScalarReceiving};
 pub(crate) use proof::{ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionClass};
 pub use range::{
     ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,

@@ -114,7 +114,18 @@ pub fn element_view_leaf(
             .iter()
             .find(|row| row.id == identity)
             .and_then(|row| match row.shape {
-                StructuralTypeShape::PrimitiveScalar(scalar) => Some(plain(scalar)),
+                StructuralTypeShape::PrimitiveScalar(scalar) => match &row.scalar_restriction {
+                    None => Some(plain(scalar)),
+                    Some(terminal_psi::StructuralFieldType::BoundedInteger(bounds)) => {
+                        Some(ElementViewLeaf {
+                            scalar_type: scalar,
+                            bounds: Some(*bounds),
+                        })
+                    }
+                    // Arbitrary scalar predicates need the full leaf proposition,
+                    // never a carrier-only element read or write goal.
+                    _ => None,
+                },
                 _ => None,
             })
     };

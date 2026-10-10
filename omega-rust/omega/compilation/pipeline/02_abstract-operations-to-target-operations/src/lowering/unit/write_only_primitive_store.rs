@@ -45,6 +45,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
         destination,
         path,
         value,
+        ..
     } = operation
     else {
         unreachable!("whole-root store lowering receives only primitive stores")

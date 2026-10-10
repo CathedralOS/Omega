@@ -99,6 +99,7 @@ pub(crate) fn test_byte_read_declaration(
     id: semantic_vocabulary::StructuralTypeId,
 ) -> terminal_psi::StructuralTypeDeclaration {
     terminal_psi::StructuralTypeDeclaration {
+        scalar_restriction: None,
         id,
         identity: "ByteRead".into(),
         shape: terminal_psi::StructuralTypeShape::Sum {

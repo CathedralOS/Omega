@@ -38,8 +38,17 @@ pub fn zero_valid_record_storage(
         StructuralTypeShape::Record { fields, .. } => fields
             .iter()
             .all(|field| zero_valid_field(declarations, field, visiting)),
-        StructuralTypeShape::FixedArray { element, .. } => {
-            zero_valid_record_storage(declarations, *element, visiting, zero_valid_field)
+        StructuralTypeShape::FixedArray { element, length } => {
+            // An empty scalar array retains its schema without constructing a
+            // fictional zero-valued element. Unknown and cyclic schemas fail.
+            if *length == 0
+                && crate::scalar_array_leaf_declaration(declarations.iter(), structural_type)
+                    .is_some()
+            {
+                true
+            } else {
+                zero_valid_record_storage(declarations, *element, visiting, zero_valid_field)
+            }
         }
         StructuralTypeShape::Sum { cases } => cases.first().is_some_and(|case| {
             case.fields
@@ -58,10 +67,20 @@ pub fn zero_valid_record_storage(
         }
         StructuralTypeShape::PrimitiveScalar(
             ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
-        )
-        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
+        ) => scalar_declaration_accepts_zero(declaration),
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
         _ => false,
     };
     visiting.pop();
     valid
+}
+
+/// Zero is a value of this primitive declaration only when its exact retained
+/// storage predicate accepts it. Physical carrier width alone grants no value.
+pub fn scalar_declaration_accepts_zero(declaration: &StructuralTypeDeclaration) -> bool {
+    matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+        && declaration
+            .scalar_restriction
+            .as_ref()
+            .is_none_or(crate::scalar_field_accepts_zero)
 }

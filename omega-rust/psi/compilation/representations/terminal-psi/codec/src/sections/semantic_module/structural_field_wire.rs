@@ -229,7 +229,14 @@ pub(crate) fn encode_structural_field(
         BindingRelevance::Relevant => 1,
         BindingRelevance::Erased => 2,
     });
-    match &field.field_type {
+    encode_structural_field_type(writer, &field.field_type)
+}
+
+pub(crate) fn encode_structural_field_type(
+    writer: &mut Writer,
+    field_type: &StructuralFieldType,
+) -> Result<(), CodecError> {
+    match field_type {
         StructuralFieldType::Atomic(scalar_type) => {
             writer.u8(8);
             encode_scalar_type(writer, *scalar_type);
@@ -287,7 +294,20 @@ pub(crate) fn decode_structural_field(
         2 => BindingRelevance::Erased,
         tag => return Err(CodecError::InvalidTag("BindingRelevance", tag)),
     };
-    let field_type = match reader.u8()? {
+    let field_type = decode_structural_field_type(reader)?;
+    Ok(StructuralFieldDeclaration {
+        storage: None,
+        id,
+        identity,
+        relevance,
+        field_type,
+    })
+}
+
+pub(crate) fn decode_structural_field_type(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralFieldType, CodecError> {
+    Ok(match reader.u8()? {
         1 => StructuralFieldType::Scalar(decode_scalar_type(reader)?),
         8 => StructuralFieldType::Atomic(decode_scalar_type(reader)?),
         9 => StructuralFieldType::RefinedScalar(
@@ -327,12 +347,5 @@ pub(crate) fn decode_structural_field(
             }
         }
         tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
-    };
-    Ok(StructuralFieldDeclaration {
-        storage: None,
-        id,
-        identity,
-        relevance,
-        field_type,
     })
 }

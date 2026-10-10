@@ -19,6 +19,7 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
         ScalarTerm::boolean(true),
     );
     let declaration = StructuralTypeDeclaration {
+        scalar_restriction: None,
         id: StructuralTypeId::new(7).unwrap(),
         identity: "Refined".into(),
         shape: StructuralTypeShape::Record {
@@ -57,6 +58,7 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
 #[test]
 fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
     let declaration = StructuralTypeDeclaration {
+        scalar_restriction: None,
         id: StructuralTypeId::new(7).unwrap(),
         identity: "test::Binding".into(),
         shape: StructuralTypeShape::BindingCarrier,
@@ -110,6 +112,7 @@ fn fixed_byte_range_path_round_trip_retains_exact_endpoints_and_rejects_truncati
 #[test]
 fn reference_type_and_referent_path_round_trip_without_erasing_custody() {
     let declaration = StructuralTypeDeclaration {
+        scalar_restriction: None,
         id: StructuralTypeId::new(7).unwrap(),
         identity: "test::Reference".into(),
         shape: StructuralTypeShape::Reference {
@@ -191,6 +194,7 @@ fn byte_view_type_round_trip_retains_its_access() {
         Some(StructuralAccess::WriteOnlyBorrow),
     ] {
         let declaration = StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: StructuralTypeId::new(7).unwrap(),
             identity: "bytes".into(),
             shape: StructuralTypeShape::ByteSequence(

@@ -107,6 +107,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
             structural: Some(LegalizedStructuralContract {
                 result: None,
                 structural_types: vec![StructuralTypeDeclaration {
+                    scalar_restriction: None,
                     id: extent_type,
                     identity: "omega::core::Extent".into(),
                     shape: StructuralTypeShape::Record {

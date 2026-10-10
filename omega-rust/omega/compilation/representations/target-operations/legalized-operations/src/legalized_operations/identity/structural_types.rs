@@ -242,8 +242,15 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             encode_access(bytes, *access);
         }
         StructuralTypeShape::PrimitiveScalar(scalar_type) => {
-            bytes.push(6);
+            bytes.push(if declaration.scalar_restriction.is_some() {
+                12
+            } else {
+                6
+            });
             encode_scalar_type(bytes, *scalar_type);
+            if let Some(restriction) = &declaration.scalar_restriction {
+                encode_scalar_restriction(bytes, restriction);
+            }
         }
         StructuralTypeShape::ByteSequence(carrier) => {
             bytes.push(1);
@@ -351,55 +358,7 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
             BindingRelevance::Relevant => 1,
             BindingRelevance::Erased => 2,
         });
-        match &field.field_type {
-            StructuralFieldType::RefinedScalar(refinement) => {
-                bytes.push(9);
-                let identity = optimization_unit::scalar_refinement_identity_bytes(refinement);
-                encode_len(bytes, identity.len());
-                bytes.extend_from_slice(&identity);
-            }
-            StructuralFieldType::Atomic(scalar) => {
-                bytes.push(8);
-                encode_scalar_type(bytes, *scalar);
-            }
-            StructuralFieldType::BoundedInteger(bounds) => {
-                bytes.push(6);
-                super::scalar::encode_integer_type(bytes, bounds.integer_type());
-                super::scalar::encode_integer(bytes, bounds.minimum());
-                super::scalar::encode_integer(bytes, bounds.maximum());
-            }
-            StructuralFieldType::Scalar(scalar) => {
-                bytes.push(1);
-                encode_scalar_type(bytes, *scalar);
-            }
-            StructuralFieldType::IeeeFloat(format) => {
-                bytes.push(2);
-                bytes.push(match format {
-                    IeeeFloatFormat::Binary32 => 1,
-                    IeeeFloatFormat::Binary64 => 2,
-                });
-            }
-            StructuralFieldType::PredicateByteSequence {
-                carrier,
-                predicates,
-            } => {
-                bytes.push(7);
-                encode_byte_sequence_carrier(bytes, *carrier);
-                bytes.push(predicates.bits());
-            }
-            StructuralFieldType::ByteSequence(carrier) => {
-                bytes.push(3);
-                encode_byte_sequence_carrier(bytes, *carrier);
-            }
-            StructuralFieldType::Structural(structural_type) => {
-                bytes.push(4);
-                crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-            }
-            StructuralFieldType::Erased { type_identity } => {
-                bytes.push(5);
-                encode_string(bytes, type_identity);
-            }
-        }
+        encode_scalar_restriction(bytes, &field.field_type);
     }
 }
 
@@ -481,6 +440,58 @@ pub(super) fn encode_record_initializers(
                 bytes.push(1);
                 encode_structural_argument(bytes, argument);
             }
+        }
+    }
+}
+
+fn encode_scalar_restriction(bytes: &mut Vec<u8>, field_type: &StructuralFieldType) {
+    match field_type {
+        StructuralFieldType::RefinedScalar(refinement) => {
+            bytes.push(9);
+            let identity = optimization_unit::scalar_refinement_identity_bytes(refinement);
+            encode_len(bytes, identity.len());
+            bytes.extend_from_slice(&identity);
+        }
+        StructuralFieldType::Atomic(scalar) => {
+            bytes.push(8);
+            encode_scalar_type(bytes, *scalar);
+        }
+        StructuralFieldType::BoundedInteger(bounds) => {
+            bytes.push(6);
+            super::scalar::encode_integer_type(bytes, bounds.integer_type());
+            super::scalar::encode_integer(bytes, bounds.minimum());
+            super::scalar::encode_integer(bytes, bounds.maximum());
+        }
+        StructuralFieldType::Scalar(scalar) => {
+            bytes.push(1);
+            encode_scalar_type(bytes, *scalar);
+        }
+        StructuralFieldType::IeeeFloat(format) => {
+            bytes.push(2);
+            bytes.push(match format {
+                IeeeFloatFormat::Binary32 => 1,
+                IeeeFloatFormat::Binary64 => 2,
+            });
+        }
+        StructuralFieldType::PredicateByteSequence {
+            carrier,
+            predicates,
+        } => {
+            bytes.push(7);
+            encode_byte_sequence_carrier(bytes, *carrier);
+            bytes.push(predicates.bits());
+        }
+        StructuralFieldType::ByteSequence(carrier) => {
+            bytes.push(3);
+            encode_byte_sequence_carrier(bytes, *carrier);
+        }
+        StructuralFieldType::Structural(structural_type) => {
+            bytes.push(4);
+            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
+        }
+        StructuralFieldType::Erased { type_identity } => {
+            bytes.push(5);
+            encode_string(bytes, type_identity);
         }
     }
 }

@@ -260,6 +260,7 @@ mod tests {
     fn canonical_parent_keeps_authored_child_width_and_codec() {
         let types = [
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: identity(1),
                 identity: "signed byte".into(),
                 shape: StructuralTypeShape::Record {
@@ -278,6 +279,7 @@ mod tests {
                 },
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: identity(2),
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
@@ -307,6 +309,7 @@ mod tests {
     #[test]
     fn fragmented_fields_do_not_hide_the_record_extent_or_invent_a_scalar_address() {
         let types = [StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: identity(1),
             identity: "fragmented".into(),
             shape: StructuralTypeShape::Record {

@@ -92,6 +92,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
         structural: Some(legalized_operations::LegalizedStructuralContract {
             result: None,
             structural_types: vec![terminal_psi::StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: structural_type,
                 identity: "u64".into(),
                 shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
@@ -386,6 +387,7 @@ fn primitive_reference_publication_preserves_original_home_and_total_view() {
     .into_iter()
     .enumerate()
     .map(|(index, scalar)| StructuralTypeDeclaration {
+        scalar_restriction: None,
         id: StructuralTypeId::new(index as u64 + 1).unwrap(),
         identity: format!("carrier{index}"),
         shape: StructuralTypeShape::PrimitiveScalar(scalar),

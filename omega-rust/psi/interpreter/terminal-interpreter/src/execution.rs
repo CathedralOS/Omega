@@ -642,6 +642,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                                         destination,
                                         value,
                                         ref path,
+                                        ..
                                     } => {
                                         self.execute_primitive_store(operation, destination, value, path)?;
                                         OperationFlow::Advance

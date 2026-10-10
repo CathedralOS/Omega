@@ -29,6 +29,7 @@ fn field(raw: u64, identity: &str, field_type: StructuralFieldType) -> Structura
 /// `[u8; 32]` owner and `&[u8]` view carriers.
 fn catalog() -> Vec<StructuralTypeDeclaration> {
     let declaration = |raw, shape| StructuralTypeDeclaration {
+        scalar_restriction: None,
         id: type_id(raw),
         identity: format!("type{raw}"),
         shape,

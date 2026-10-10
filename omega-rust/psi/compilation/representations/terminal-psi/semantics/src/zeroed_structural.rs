@@ -166,6 +166,13 @@ fn zeroed_declaration_graph(
         if active[position] {
             return false;
         }
+        if declarations[position]
+            .scalar_restriction
+            .as_ref()
+            .is_some_and(|_| !crate::scalar_declaration_accepts_zero(declarations[position]))
+        {
+            return false;
+        }
         let shape = &declarations[position].shape;
         let (fields, cases) = match shape {
             StructuralTypeShape::PrimitiveScalar(_) => (&[][..], None),
@@ -300,8 +307,7 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                 return None;
             }
         }
-        if let terminal_psi::record_or_mixed_shape_pattern!(fields) = &declaration.shape
-        {
+        if let terminal_psi::record_or_mixed_shape_pattern!(fields) = &declaration.shape {
             for field in fields {
                 if let Some(carrier) = established_field_identity(&declarations, field) {
                     let mut field_path = path

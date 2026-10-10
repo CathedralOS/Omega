@@ -88,6 +88,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
     };
     let declarations = [
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: root,
             identity: "Main".into(),
             shape: StructuralTypeShape::Record {
@@ -96,6 +97,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
             },
         },
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: service,
             identity: "ConsoleCarrier".into(),
             shape: StructuralTypeShape::BindingCarrier,
@@ -173,6 +175,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
     ] {
         let declarations = [
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: root,
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
@@ -181,6 +184,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
                 },
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: child,
                 identity: "inner".into(),
                 shape: StructuralTypeShape::Record {
@@ -234,6 +238,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
     };
     let declarations = vec![
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: root,
             identity: "outer".into(),
             shape: StructuralTypeShape::Record {
@@ -242,6 +247,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
             },
         },
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: child,
             identity: "inner".into(),
             shape: StructuralTypeShape::Record {
@@ -346,6 +352,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
         fields,
     };
     let sum_declaration = |fields: Vec<StructuralFieldDeclaration>| StructuralTypeDeclaration {
+        scalar_restriction: None,
         id: sum,
         identity: "sum".into(),
         shape: StructuralTypeShape::Sum {
@@ -364,6 +371,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
     let declarations = |sum_shape: StructuralTypeDeclaration| {
         vec![
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: root,
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
@@ -488,6 +496,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     ] {
         let mut declarations = vec![
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: root,
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
@@ -496,11 +505,13 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
                 },
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: array,
                 identity: "array".into(),
                 shape: StructuralTypeShape::FixedArray { element, length },
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: element,
                 identity: "element".into(),
                 shape: element_shape.clone(),
@@ -514,6 +525,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             };
             declarations[2].id = nested_array;
             declarations.push(StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: leaf,
                 identity: "leaf".into(),
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
@@ -548,6 +560,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         );
         let declarations = vec![
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: root,
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
@@ -556,11 +569,13 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
                 },
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: array,
                 identity: "array".into(),
                 shape: StructuralTypeShape::FixedArray { element, length: 0 },
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: element,
                 identity: "element".into(),
                 shape: element_shape.clone(),
@@ -575,6 +590,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     // A cyclic element chain rejects even beneath an empty dimension.
     let cyclic = vec![
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: root,
             identity: "outer".into(),
             shape: StructuralTypeShape::Record {
@@ -583,6 +599,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
         },
         StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: array,
             identity: "array".into(),
             shape: StructuralTypeShape::FixedArray {
@@ -600,6 +617,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     // A mixed shape composes common fields with the zero-tag case payload.
     let mixed_declaration =
         |common: Vec<StructuralFieldDeclaration>, case_fields| StructuralTypeDeclaration {
+            scalar_restriction: None,
             id: mixed,
             identity: "mixed".into(),
             shape: StructuralTypeShape::Mixed {
@@ -623,6 +641,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     let root_mixed = |mixed_declaration: StructuralTypeDeclaration| {
         vec![
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: root,
                 identity: "outer".into(),
                 shape: StructuralTypeShape::Record {
@@ -716,7 +735,12 @@ fn hosted_receiver_accepts_only_canonical_borrowed_pointer_placement() {
             placement,
             MachineRegister::X86Rdi
         ));
-        assert_corrupted_receiver_rejected(shape, placement, MachineRegister::Aarch64X(0), MachineRegister::Aarch64X(1));
+        assert_corrupted_receiver_rejected(
+            shape,
+            placement,
+            MachineRegister::Aarch64X(0),
+            MachineRegister::Aarch64X(1),
+        );
         let changed_shape = ValueShape::borrowed_reference(shape.byte_size + 1, shape.alignment);
         assert!(!receiver_pointer_matches(
             changed_shape,
@@ -768,7 +792,12 @@ fn windows_receiver_accepts_only_canonical_borrowed_pointer_placement() {
             placement,
             MachineRegister::Aarch64X(0)
         ));
-        assert_corrupted_receiver_rejected(shape, placement, MachineRegister::X86Rcx, MachineRegister::X86Rdx);
+        assert_corrupted_receiver_rejected(
+            shape,
+            placement,
+            MachineRegister::X86Rcx,
+            MachineRegister::X86Rdx,
+        );
     }
 }
 
@@ -801,7 +830,12 @@ fn linux_receiver_accepts_only_canonical_borrowed_pointer_placement() {
             placement,
             MachineRegister::Aarch64X(0)
         ));
-        assert_corrupted_receiver_rejected(shape, placement, MachineRegister::X86Rdi, MachineRegister::X86Rsi);
+        assert_corrupted_receiver_rejected(
+            shape,
+            placement,
+            MachineRegister::X86Rdi,
+            MachineRegister::X86Rsi,
+        );
     }
 }
 

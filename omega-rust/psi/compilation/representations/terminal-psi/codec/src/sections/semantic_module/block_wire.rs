@@ -174,9 +174,14 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             destination,
             value,
             path,
-        } => {
-            storage_operations::encode_write_only_primitive_store(writer, destination, value, path)?
-        }
+            range_obligation,
+        } => storage_operations::encode_write_only_primitive_store(
+            writer,
+            destination,
+            value,
+            path,
+            range_obligation,
+        )?,
         OperationKind::ByteSequenceStore {
             destination,
             source,
@@ -784,6 +789,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::PROJECTED_PRIMITIVE_SCALAR_READ => {
             storage_operations::decode_projected_primitive_scalar_read(reader)?
+        }
+        operation_tags::RESTRICTED_WRITE_ONLY_PRIMITIVE_STORE => {
+            storage_operations::decode_restricted_write_only_primitive_store(reader)?
         }
         operation_tags::PROJECTED_WRITE_ONLY_PRIMITIVE_STORE => {
             storage_operations::decode_projected_write_only_primitive_store(reader)?

@@ -40,6 +40,16 @@ pub(super) fn validate_type_shape(
     declaration: &StructuralTypeDeclaration,
     attachment_storage: &BTreeSet<StructuralTypeId>,
 ) -> Result<(), CodecError> {
+    if let Some(restriction) = &declaration.scalar_restriction {
+        let StructuralTypeShape::PrimitiveScalar(carrier) = declaration.shape else {
+            return malformed("scalar restriction requires a primitive declaration");
+        };
+        if !terminal_semantics::scalar_field_requires_evidence(restriction)
+            || restriction.scalar_type() != Some(carrier)
+        {
+            return malformed("scalar restriction differs from its declared carrier");
+        }
+    }
     validate_field_storage_envelope(&declaration.shape)?;
     match &declaration.shape {
         StructuralTypeShape::Reference { referent, access } => {
@@ -631,6 +641,7 @@ mod authored_storage_envelope_tests {
         module
             .structural_types
             .push(terminal_psi::StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: scalar_type,
                 identity: "integer".into(),
                 shape: StructuralTypeShape::PrimitiveScalar(integer),
@@ -668,6 +679,7 @@ mod authored_storage_envelope_tests {
         module
             .structural_types
             .push(terminal_psi::StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: element,
                 identity: "element".into(),
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
@@ -681,6 +693,7 @@ mod authored_storage_envelope_tests {
         module
             .structural_types
             .push(terminal_psi::StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: array,
                 identity: "array".into(),
                 shape: StructuralTypeShape::FixedArray { element, length: 2 },

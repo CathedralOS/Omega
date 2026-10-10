@@ -41,6 +41,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
         ];
         let mut types = vec![
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: root,
                 identity: "Slots".into(),
                 shape: StructuralTypeShape::FixedArray {
@@ -49,6 +50,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
                 },
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: sum,
                 identity: "Choice".into(),
                 shape: if mixed {
@@ -61,6 +63,7 @@ fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {
                 },
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: leaf,
                 identity: "Item".into(),
                 shape: StructuralTypeShape::Record {

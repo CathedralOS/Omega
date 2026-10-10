@@ -440,6 +440,7 @@ pub(super) fn lower_unit_structural_types_including(
             let id = structural_type_id(dense_identity(identities.len())?);
             identities.push((identity.clone(), id));
             declarations.push(StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id,
                 identity,
                 shape: StructuralTypeShape::PrimitiveScalar(scalar),
@@ -768,6 +769,13 @@ pub(crate) fn lower_unit_structural_type_roots(
             },
         };
         declarations.push(StructuralTypeDeclaration {
+            scalar_restriction: plan
+                .scalar_restriction
+                .as_ref()
+                .map(|restriction| {
+                    crate::structural_types::lower_field_type(restriction, &type_ids)
+                })
+                .transpose()?,
             id: lookup_type_id(&type_ids, &identity)?,
             identity,
             shape,

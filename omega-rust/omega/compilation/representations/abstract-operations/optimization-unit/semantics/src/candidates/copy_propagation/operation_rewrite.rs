@@ -45,6 +45,10 @@ pub(crate) fn rewrite_block_parameter_operation(
         // that exact value, so a rewrite that would retire it leaves the use
         // behind and validation rejects the candidate, as for the bounded
         // byte-view operands.
+        // The receiving commitment names the completed source RHS. Until
+        // this rewrite transports that correspondence through its validated
+        // equality, retain the operand and let use validation keep its binding.
+        O::WriteOnlyPrimitiveStore { range_obligation: Some(_), .. } => {}
         abstract_operations::primitive_local_triple_pattern!(value, ..)
         | O::StructuralScalarFieldStore { value, .. } => replace(&mut value.value),
         O::CallStructural { callee, arguments, .. } => {

@@ -54,6 +54,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         destination,
         value,
         path,
+        range_obligation,
     } = &operation.kind
     else {
         unreachable!("dispatched validate_write_only_primitive_store")
@@ -152,6 +153,14 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     ) else {
         return malformed("write-only primitive store requires a primitive-scalar root");
     };
+    let restriction = terminal_semantics::primitive_projection_restriction(
+        module.structural_types.iter(),
+        destination_type,
+        path,
+    );
+    if restriction.is_some() != range_obligation.is_some() {
+        return malformed("primitive store receiving obligation does not match its declaration");
+    }
     let actual = declared_scalar_type(machine, *value);
     if actual != Some(expected) {
         return malformed("write-only primitive store value type does not match referent");

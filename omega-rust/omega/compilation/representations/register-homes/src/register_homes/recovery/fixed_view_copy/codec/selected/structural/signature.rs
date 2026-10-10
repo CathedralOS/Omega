@@ -172,6 +172,7 @@ mod tests {
             }),
             structural_types: abstract_operations::StructuralTypeCatalog::new(
                 vec![terminal_psi::StructuralTypeDeclaration {
+                    scalar_restriction: None,
                     id: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
                     identity: "reference(closed-target)".into(),
                     shape: terminal_psi::StructuralTypeShape::Reference {

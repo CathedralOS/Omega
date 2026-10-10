@@ -353,6 +353,7 @@ mod tests {
             structural: Some(legalized_operations::LegalizedStructuralContract {
                 result: None,
                 structural_types: vec![terminal_psi::StructuralTypeDeclaration {
+                    scalar_restriction: None,
                     id: structural_type,
                     identity: "ByteRead".into(),
                     shape: StructuralTypeShape::Sum {

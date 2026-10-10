@@ -66,7 +66,12 @@ pub(super) fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<Optimi
 fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, OperationId)> {
     use AbstractOperation as O;
     match operation {
-        O::StructuralScalarFieldStore {
+        O::WriteOnlyPrimitiveStore {
+            psi_operation,
+            range_obligation: Some(obligation),
+            ..
+        }
+        | O::StructuralScalarFieldStore {
             psi_operation,
             range_obligation: Some(obligation),
             ..

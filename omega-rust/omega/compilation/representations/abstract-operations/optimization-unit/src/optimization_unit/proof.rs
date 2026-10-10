@@ -19,6 +19,16 @@ pub struct AcceptedObligationFact {
     pub operation: OperationId,
     pub obligation: ObligationId,
     pub proposition: Vec<u8>,
+    /// Exact receiving correspondence retained from the immutable source cut.
+    /// This is a declaration/value commitment, not an independently replayed
+    /// proof certificate. Ordinary operation facts keep this absent.
+    pub scalar_receiving: Option<SourceCheckedScalarReceiving>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceCheckedScalarReceiving {
+    pub value: semantic_vocabulary::ValueId,
+    pub restriction: terminal_psi::StructuralFieldType,
 }
 
 /// Exact verifier owner of one retained proof question. Positional coordinates
@@ -112,6 +122,7 @@ impl AcceptedObligationFact {
             operation,
             obligation,
             &proposition,
+            None,
         );
         Self {
             identity,
@@ -121,7 +132,24 @@ impl AcceptedObligationFact {
             operation,
             obligation,
             proposition,
+            scalar_receiving: None,
         }
+    }
+
+    /// Preserve the original checked receiving value and declaration through
+    /// optimizer rewrites. Binding this payload never re-proves source math.
+    pub fn with_scalar_receiving(mut self, receiving: SourceCheckedScalarReceiving) -> Self {
+        self.scalar_receiving = Some(receiving);
+        self.identity = accepted_obligation_fact_identity(
+            self.psi,
+            self.proof_bundle_fingerprint,
+            self.machine,
+            self.operation,
+            self.obligation,
+            &self.proposition,
+            self.scalar_receiving.as_ref(),
+        );
+        self
     }
 
     pub fn has_canonical_identity(&self) -> bool {
@@ -133,6 +161,7 @@ impl AcceptedObligationFact {
                 self.operation,
                 self.obligation,
                 &self.proposition,
+                self.scalar_receiving.as_ref(),
             )
     }
 }
@@ -144,6 +173,7 @@ pub(crate) fn accepted_obligation_fact_identity(
     operation: OperationId,
     obligation: ObligationId,
     proposition: &[u8],
+    scalar_receiving: Option<&SourceCheckedScalarReceiving>,
 ) -> AcceptedObligationFactIdentity {
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-accepted-obligation-fact.v1\0");
@@ -159,6 +189,10 @@ pub(crate) fn accepted_obligation_fact_identity(
             .to_le_bytes(),
     );
     canonical.extend_from_slice(proposition);
+    if let Some(receiving) = scalar_receiving {
+        canonical.extend_from_slice(b"source-checked-scalar-receiving.v1\0");
+        canonical.extend_from_slice(&super::identity::scalar_receiving_identity_bytes(receiving));
+    }
     AcceptedObligationFactIdentity::from_canonical_bytes(&canonical)
 }
 

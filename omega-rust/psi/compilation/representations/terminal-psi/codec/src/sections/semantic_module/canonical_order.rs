@@ -271,6 +271,11 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         }
     }
     for declaration in &module.structural_types {
+        if let Some(terminal_psi::StructuralFieldType::RefinedScalar(refinement)) =
+            &declaration.scalar_restriction
+        {
+            validate_canonical_proposition(refinement.predicate(), 0)?;
+        }
         let (fields, cases) = match &declaration.shape {
             StructuralTypeShape::Record { fields, .. } => (fields.as_slice(), &[][..]),
             StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),

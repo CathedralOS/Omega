@@ -276,7 +276,8 @@ fn collect_determined_evidence_fields(
                 if nested.next().is_some() {
                     return None;
                 }
-                let (terminal_psi::record_or_mixed_shape_pattern!(nested_fields)) = &declaration.shape
+                let (terminal_psi::record_or_mixed_shape_pattern!(nested_fields)) =
+                    &declaration.shape
                 else {
                     continue;
                 };
@@ -565,7 +566,16 @@ fn zero_valid_shape(
             admit_erased_services,
             entry,
         ),
-        StructuralTypeShape::FixedArray { element, .. } => {
+        StructuralTypeShape::FixedArray { element, length } => {
+            if *length == 0
+                && terminal_semantics::scalar_array_leaf_declaration(
+                    declarations.iter(),
+                    declaration.id,
+                )
+                .is_some()
+            {
+                return true;
+            }
             // Array eligibility follows the complete element chain at any
             // length; a zero element count never excuses an invalid element.
             // Element storage is not a record-field route the fused-service
@@ -601,12 +611,9 @@ fn zero_valid_shape(
                 entry,
             ) && zero_valid_first_case(checked, declarations, source, cases, visiting, entry)
         }
-        StructuralTypeShape::PrimitiveScalar(scalar) => matches!(
-            scalar,
-            semantic_vocabulary::ScalarType::Boolean
-                | semantic_vocabulary::ScalarType::Integer(_)
-                | semantic_vocabulary::ScalarType::IeeeFloat(_)
-        ),
+        StructuralTypeShape::PrimitiveScalar(_) => {
+            terminal_semantics::scalar_declaration_accepts_zero(declaration)
+        }
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
             capacity,
         }) => zero_valid_byte_field(checked, source_reference.unwrap_or_default(), *capacity),

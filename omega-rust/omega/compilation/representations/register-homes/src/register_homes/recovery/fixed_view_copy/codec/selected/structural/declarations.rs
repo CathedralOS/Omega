@@ -62,8 +62,15 @@ pub(super) fn encode_type(
             encode_access(bytes, *access);
         }
         StructuralTypeShape::PrimitiveScalar(scalar) => {
-            bytes.push(6);
+            bytes.push(if declaration.scalar_restriction.is_some() {
+                12
+            } else {
+                6
+            });
             encode_scalar(bytes, *scalar);
+            if let Some(restriction) = &declaration.scalar_restriction {
+                encode_scalar_restriction(bytes, restriction)?;
+            }
         }
         StructuralTypeShape::ByteSequence(carrier) => {
             bytes.push(1);
@@ -109,6 +116,7 @@ pub(super) fn decode_type(
 ) -> Result<StructuralTypeDeclaration, FixedViewCopyDecodeError> {
     let id = decode_id(cursor, StructuralTypeId::new)?;
     let identity = decode_string(cursor)?;
+    let mut scalar_restriction = None;
     let shape = match cursor.byte()? {
         11 => StructuralTypeShape::BindingCarrier,
         7 => StructuralTypeShape::Reference {
@@ -146,9 +154,23 @@ pub(super) fn decode_type(
             cases: decode_cases(cursor)?,
         },
         6 => StructuralTypeShape::PrimitiveScalar(decode_scalar(cursor)?),
+        12 => {
+            let scalar = decode_scalar(cursor)?;
+            let restriction = decode_scalar_restriction(cursor)?;
+            if !matches!(
+                restriction,
+                StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_)
+            ) || restriction.scalar_type() != Some(scalar)
+            {
+                return Err(FixedViewCopyDecodeError::InvalidScalarRefinement);
+            }
+            scalar_restriction = Some(restriction);
+            StructuralTypeShape::PrimitiveScalar(scalar)
+        }
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(tag)),
     };
     Ok(StructuralTypeDeclaration {
+        scalar_restriction,
         id,
         identity,
         shape,
@@ -288,55 +310,7 @@ fn encode_fields(
             BindingRelevance::Relevant => 1,
             BindingRelevance::Erased => 2,
         });
-        match &field.field_type {
-            StructuralFieldType::RefinedScalar(refinement) => {
-                bytes.push(9);
-                encode_scalar(bytes, refinement.carrier());
-                let predicate =
-                    terminal_codec::canonical_proposition_order_key(refinement.predicate())?;
-                length(bytes, predicate.len());
-                bytes.extend_from_slice(&predicate);
-            }
-            StructuralFieldType::Atomic(scalar) => {
-                bytes.push(8);
-                encode_scalar(bytes, *scalar);
-            }
-            StructuralFieldType::BoundedInteger(bounds) => {
-                bytes.push(6);
-                bounded_integer::encode(bytes, *bounds);
-            }
-            StructuralFieldType::Scalar(scalar) => {
-                bytes.push(1);
-                encode_scalar(bytes, *scalar);
-            }
-            StructuralFieldType::IeeeFloat(format) => {
-                bytes.push(2);
-                bytes.push(match format {
-                    IeeeFloatFormat::Binary32 => 1,
-                    IeeeFloatFormat::Binary64 => 2,
-                });
-            }
-            StructuralFieldType::PredicateByteSequence {
-                carrier,
-                predicates,
-            } => {
-                bytes.push(7);
-                encode_byte_sequence_carrier(bytes, *carrier);
-                bytes.push(predicates.bits());
-            }
-            StructuralFieldType::ByteSequence(carrier) => {
-                bytes.push(3);
-                encode_byte_sequence_carrier(bytes, *carrier);
-            }
-            StructuralFieldType::Structural(structural_type) => {
-                bytes.push(4);
-                crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-            }
-            StructuralFieldType::Erased { type_identity } => {
-                bytes.push(5);
-                encode_string(bytes, type_identity);
-            }
-        }
+        encode_scalar_restriction(bytes, &field.field_type)?;
     }
     Ok(())
 }
@@ -354,49 +328,7 @@ fn decode_fields(
             2 => BindingRelevance::Erased,
             tag => return Err(FixedViewCopyDecodeError::UnknownBindingRelevance(tag)),
         };
-        let field_type = match cursor.byte()? {
-            9 => {
-                let carrier = decode_scalar(cursor)?;
-                let length = cursor.length()?;
-                let predicate = terminal_codec::decode_canonical_proposition(cursor.take(length)?)
-                    .map_err(|_| FixedViewCopyDecodeError::InvalidScalarRefinement)?;
-                StructuralFieldType::RefinedScalar(
-                    semantic_vocabulary::ScalarRefinement::new(carrier, predicate)
-                        .map_err(|_| FixedViewCopyDecodeError::InvalidScalarRefinement)?,
-                )
-            }
-            8 => {
-                let field = StructuralFieldType::Atomic(decode_scalar(cursor)?);
-                field
-                    .atomic_scalar_type()
-                    .ok_or(FixedViewCopyDecodeError::UnknownStructuralFieldType(8))?;
-                field
-            }
-            6 => StructuralFieldType::BoundedInteger(bounded_integer::decode(cursor)?),
-            1 => StructuralFieldType::Scalar(decode_scalar(cursor)?),
-            2 => StructuralFieldType::IeeeFloat(match cursor.byte()? {
-                1 => IeeeFloatFormat::Binary32,
-                2 => IeeeFloatFormat::Binary64,
-                tag => return Err(FixedViewCopyDecodeError::UnknownIeeeFloatFormat(tag)),
-            }),
-            3 => StructuralFieldType::ByteSequence(decode_byte_sequence_carrier(cursor)?),
-            7 => {
-                let carrier = decode_byte_sequence_carrier(cursor)?;
-                let bits = cursor.byte()?;
-                let predicates = terminal_psi::ByteSequencePredicateSet::from_bits(bits)
-                    .filter(|predicates| !predicates.is_empty())
-                    .ok_or(FixedViewCopyDecodeError::InvalidVocabulary(u16::from(bits)))?;
-                StructuralFieldType::PredicateByteSequence {
-                    carrier,
-                    predicates,
-                }
-            }
-            4 => StructuralFieldType::Structural(decode_id(cursor, StructuralTypeId::new)?),
-            5 => StructuralFieldType::Erased {
-                type_identity: decode_string(cursor)?,
-            },
-            tag => return Err(FixedViewCopyDecodeError::UnknownStructuralFieldType(tag)),
-        };
+        let field_type = decode_scalar_restriction(cursor)?;
         fields.push(StructuralFieldDeclaration {
             storage: None,
             id,
@@ -817,3 +749,107 @@ fn decode_option_u32(cursor: &mut Cursor<'_>) -> Result<Option<u32>, FixedViewCo
 
 #[cfg(test)]
 mod tests;
+
+fn encode_scalar_restriction(
+    bytes: &mut Vec<u8>,
+    field_type: &StructuralFieldType,
+) -> Result<(), terminal_codec::CodecError> {
+    match field_type {
+        StructuralFieldType::RefinedScalar(refinement) => {
+            bytes.push(9);
+            encode_scalar(bytes, refinement.carrier());
+            let predicate =
+                terminal_codec::canonical_proposition_order_key(refinement.predicate())?;
+            length(bytes, predicate.len());
+            bytes.extend_from_slice(&predicate);
+        }
+        StructuralFieldType::Atomic(scalar) => {
+            bytes.push(8);
+            encode_scalar(bytes, *scalar);
+        }
+        StructuralFieldType::BoundedInteger(bounds) => {
+            bytes.push(6);
+            bounded_integer::encode(bytes, *bounds);
+        }
+        StructuralFieldType::Scalar(scalar) => {
+            bytes.push(1);
+            encode_scalar(bytes, *scalar);
+        }
+        StructuralFieldType::IeeeFloat(format) => {
+            bytes.push(2);
+            bytes.push(match format {
+                IeeeFloatFormat::Binary32 => 1,
+                IeeeFloatFormat::Binary64 => 2,
+            });
+        }
+        StructuralFieldType::PredicateByteSequence {
+            carrier,
+            predicates,
+        } => {
+            bytes.push(7);
+            encode_byte_sequence_carrier(bytes, *carrier);
+            bytes.push(predicates.bits());
+        }
+        StructuralFieldType::ByteSequence(carrier) => {
+            bytes.push(3);
+            encode_byte_sequence_carrier(bytes, *carrier);
+        }
+        StructuralFieldType::Structural(structural_type) => {
+            bytes.push(4);
+            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
+        }
+        StructuralFieldType::Erased { type_identity } => {
+            bytes.push(5);
+            encode_string(bytes, type_identity);
+        }
+    }
+    Ok(())
+}
+
+fn decode_scalar_restriction(
+    cursor: &mut Cursor<'_>,
+) -> Result<StructuralFieldType, FixedViewCopyDecodeError> {
+    Ok(match cursor.byte()? {
+        9 => {
+            let carrier = decode_scalar(cursor)?;
+            let length = cursor.length()?;
+            let predicate = terminal_codec::decode_canonical_proposition(cursor.take(length)?)
+                .map_err(|_| FixedViewCopyDecodeError::InvalidScalarRefinement)?;
+            StructuralFieldType::RefinedScalar(
+                semantic_vocabulary::ScalarRefinement::new(carrier, predicate)
+                    .map_err(|_| FixedViewCopyDecodeError::InvalidScalarRefinement)?,
+            )
+        }
+        8 => {
+            let field = StructuralFieldType::Atomic(decode_scalar(cursor)?);
+            field
+                .atomic_scalar_type()
+                .ok_or(FixedViewCopyDecodeError::UnknownStructuralFieldType(8))?;
+            field
+        }
+        6 => StructuralFieldType::BoundedInteger(bounded_integer::decode(cursor)?),
+        1 => StructuralFieldType::Scalar(decode_scalar(cursor)?),
+        2 => StructuralFieldType::IeeeFloat(match cursor.byte()? {
+            1 => IeeeFloatFormat::Binary32,
+            2 => IeeeFloatFormat::Binary64,
+            tag => return Err(FixedViewCopyDecodeError::UnknownIeeeFloatFormat(tag)),
+        }),
+        3 => StructuralFieldType::ByteSequence(decode_byte_sequence_carrier(cursor)?),
+        7 => {
+            let carrier = decode_byte_sequence_carrier(cursor)?;
+            let bits = cursor.byte()?;
+            let predicates = terminal_psi::ByteSequencePredicateSet::from_bits(bits)
+                .filter(|predicates| !predicates.is_empty())
+                .ok_or(FixedViewCopyDecodeError::InvalidVocabulary(u16::from(bits)))?;
+            StructuralFieldType::PredicateByteSequence {
+                carrier,
+                predicates,
+            }
+        }
+        4 => StructuralFieldType::Structural(decode_id(cursor, StructuralTypeId::new)?),
+        5 => StructuralFieldType::Erased {
+            type_identity: decode_string(cursor)?,
+        },
+        tag => return Err(FixedViewCopyDecodeError::UnknownStructuralFieldType(tag)),
+    })
+}

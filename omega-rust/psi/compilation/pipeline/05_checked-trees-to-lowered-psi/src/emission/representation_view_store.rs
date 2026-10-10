@@ -106,8 +106,7 @@ pub(crate) fn emit(
                 "representation view store carrier type is absent",
                 "representation view store carrier type is ambiguous",
             )?;
-            let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
-            else {
+            let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape else {
                 return unsupported("representation view store leaf owner is not a record");
             };
             let mut matching = fields
@@ -415,6 +414,7 @@ impl ByteStoreDestination {
             let byte_expression = integer_bit_image(shifted, stored_integer, byte_scalar)?;
             let byte = emit_direct_expression(&byte_expression, &[encoded], next_value, operations);
             kinds.push(OperationKind::WriteOnlyPrimitiveStore {
+                range_obligation: None,
                 destination: self.destination,
                 path,
                 value: byte,

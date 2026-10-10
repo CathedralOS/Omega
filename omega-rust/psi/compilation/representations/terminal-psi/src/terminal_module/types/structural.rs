@@ -8,6 +8,12 @@ pub struct StructuralTypeDeclaration {
     pub id: StructuralTypeId,
     pub identity: String,
     pub shape: StructuralTypeShape,
+    /// Closed scalar declaration predicate, independent from physical carrier
+    /// geometry. Only BoundedInteger and RefinedScalar are admitted, and only
+    /// on PrimitiveScalar. Construction and replacement establish it on their
+    /// exact SSA operand; reads retain it on their fresh snapshot. The type
+    /// identity distinguishes restricted and unrestricted scalar declarations.
+    pub scalar_restriction: Option<StructuralFieldType>,
 }
 
 /// A closed referent identity with no demanded storage definition. This is not
@@ -648,6 +654,7 @@ mod tests {
         let array = StructuralTypeId::new(4).unwrap();
         let types = vec![
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: reference,
                 identity: "ref".to_owned(),
                 shape: StructuralTypeShape::Reference {
@@ -656,11 +663,13 @@ mod tests {
                 },
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: referent,
                 identity: "pointee".to_owned(),
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: element,
                 identity: "elem".to_owned(),
                 shape: StructuralTypeShape::Record {
@@ -675,6 +684,7 @@ mod tests {
                 },
             },
             StructuralTypeDeclaration {
+                scalar_restriction: None,
                 id: array,
                 identity: "empty".to_owned(),
                 shape: StructuralTypeShape::FixedArray { element, length: 0 },

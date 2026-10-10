@@ -51,6 +51,9 @@ pub struct CheckedUnitStructuralTypePlan {
     /// final-exit drop does not erase this capability.
     pub no_code_affine_cleanup: bool,
     pub shape: CheckedUnitStructuralTypeShape,
+    /// Declaration-owned scalar restriction; no membership or store evidence
+    /// is created merely by retaining this schema.
+    pub scalar_restriction: Option<CheckedUnitStructuralFieldType>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

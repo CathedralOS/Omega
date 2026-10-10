@@ -31,12 +31,23 @@ pub use declared_fields::{
 /// lookup route differs.
 pub fn assignment_target_type_reference(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
+    _machine: &Machine,
     state: &typed_trees::state::State,
     target: typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    attached_data_field_type(program, machine, target)
-        .or_else(|| direct_state_place_type_reference(program, state, target))
+    // The common place-type walk retains every field and collection hop,
+    // including runtime indices and closed generic substitutions. Assignment
+    // destinations are already resolved, so their declared symbol identity is
+    // stable throughout this state; no value fact is inferred by this query.
+    crate::expression_type_reference_in_state(
+        program,
+        state.symbol,
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len(),
+        target,
+    )
 }
 
 /// The predicate-domain refinements declared on an assignment destination.
@@ -92,88 +103,23 @@ pub fn assignment_target_domain_constraints<'program>(
         .collect()
 }
 
-/// Resolve a state parameter/local target, including nested data members, to
-/// its declared leaf type. This is the non-`self` sibling of
-/// [`attached_data_field_type`]: the root type comes from the parameter/local,
-/// then each member descends through the ordinary data declaration.
+/// Resolve a state place to its exact declared leaf type through the shared
+/// field, reference and collection projection. This query describes declared
+/// storage and supplies no value-membership evidence.
 pub fn direct_state_place_type_reference(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    let (symbol, members) = state_place_path(program, state, expression)?;
-    let mut type_reference =
-        if let Some(parameter) = program.state_parameter_by_symbol(state, symbol) {
-            parameter
-                .type_reference
-                .is_valid()
-                .then_some(parameter.type_reference)?
-        } else {
-            program
-                .state_local_declaration(state, symbol)
-                .map(|(_, local)| local.type_reference)
-                .filter(|type_reference| type_reference.is_valid())?
-        };
-
-    for member in members {
-        let data = data_definition_for_field_type(program, type_reference)?;
-        type_reference = data_field_type_by_name(program, data, &member)?;
-    }
-    Some(type_reference)
-}
-
-fn state_place_path(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<(SymbolHandle, Vec<String>)> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Borrow(inner) => state_place_path(program, state, inner.target),
-        ExpressionNode::Member(member) => {
-            let (symbol, mut members) = state_place_path(program, state, member.receiver)?;
-            members.push(member.member.as_str().to_owned());
-            Some((symbol, members))
-        }
-        ExpressionNode::Name(path) => {
-            let names = program.expression_table.name_path_members(path.members);
-            let symbol = path
-                .head_symbol
-                .is_valid()
-                .then_some(path.head_symbol)
-                .or_else(|| path.symbol.is_valid().then_some(path.symbol))
-                .or_else(|| {
-                    let root_name = names.first()?.as_str();
-                    program
-                        .state_parameters(state)
-                        .iter()
-                        .find(|parameter| parameter.name.as_str() == root_name)
-                        .map(|parameter| parameter.symbol)
-                        .or_else(|| {
-                            program
-                                .statement_table
-                                .statements(state.statement_nodes)
-                                .iter()
-                                .find_map(|statement| match statement {
-                                    typed_trees::statement::StatementNode::LocalData(local)
-                                        if local.name.as_str() == root_name =>
-                                    {
-                                        Some(local.symbol)
-                                    }
-                                    _ => None,
-                                })
-                        })
-                })?;
-            Some((
-                symbol,
-                names
-                    .iter()
-                    .skip(1)
-                    .map(|name| name.as_str().to_owned())
-                    .collect(),
-            ))
-        }
-        _ => None,
-    }
+    crate::expression_type_reference_in_state(
+        program,
+        state.symbol,
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len(),
+        expression,
+    )
 }
 
 /// Resolve a `self.field` target (`Member(Name(self), field)` or

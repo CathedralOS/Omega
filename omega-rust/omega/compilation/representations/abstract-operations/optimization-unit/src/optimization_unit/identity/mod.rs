@@ -59,4 +59,13 @@ pub fn scalar_refinement_identity_bytes(
     bytes.finish()
 }
 
+pub(super) fn scalar_receiving_identity_bytes(
+    receiving: &crate::SourceCheckedScalarReceiving,
+) -> Vec<u8> {
+    let mut bytes = CanonicalBytes::collect();
+    bytes.id(receiving.value);
+    structural_encoding::encode_scalar_restriction(&mut bytes, &receiving.restriction);
+    bytes.finish()
+}
+
 pub use unit_encoding::recompute_psi_optimization_unit_identity;
