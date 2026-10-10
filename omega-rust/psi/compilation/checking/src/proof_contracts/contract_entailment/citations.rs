@@ -497,6 +497,37 @@ pub(crate) fn citation_call_in_statement<'program>(
     }
 }
 
+/// `fact`'s identity-equality term pair when it is a binary `==` between
+/// terms `callee`'s entry parameters resolve; any other contract fact shape
+/// yields `None` so each citation walk applies its own exit.
+fn identity_equality_terms(
+    program: &dyn crate::CheckingInput,
+    callee: &Machine,
+    parameters: &[typed_trees::signature::StateParameter],
+    fact: ExpressionHandle,
+) -> Option<(StructuralTerm, StructuralTerm)> {
+    if super::structural_terms::is_case_observation(program, fact) {
+        return None;
+    }
+    let binary = program.expression_table.binary_node(fact)?;
+    if binary.operator != BinaryOperator::Equal
+        || !super::structural_terms::has_identity_equality_meaning(
+            program,
+            callee.symbol,
+            parameters,
+            fact,
+        )
+    {
+        return None;
+    }
+    super::structural_terms::structural_term_pair_for_parameters(
+        program,
+        callee.symbol,
+        parameters,
+        binary,
+    )
+}
+
 /// Run `arm` over every `kind` fact that is a binary equality between
 /// resolvable structural terms, already substituted through `map`. A fact
 /// outside that shape aborts a strict walk (false); the loose walk skips
@@ -516,30 +547,7 @@ fn for_each_substituted_contract_fact(
     let parameters = program.state_parameters(entry);
     for fact in facts(kind) {
         let resolved = (|| {
-            if super::structural_terms::is_case_observation(program, fact) {
-                return None;
-            }
-            let Some(binary) = program.expression_table.binary_node(fact) else {
-                return None;
-            };
-            if binary.operator != BinaryOperator::Equal
-                || !super::structural_terms::has_identity_equality_meaning(
-                    program,
-                    callee.symbol,
-                    parameters,
-                    fact,
-                )
-            {
-                return None;
-            }
-            let Some((left, right)) = super::structural_terms::structural_term_pair_for_parameters(
-                program,
-                callee.symbol,
-                parameters,
-                binary,
-            ) else {
-                return None;
-            };
+            let (left, right) = identity_equality_terms(program, callee, parameters, fact)?;
             Some((
                 StructuralJudge::substitute_term(&left, map),
                 StructuralJudge::substitute_term(&right, map),
@@ -670,28 +678,8 @@ pub(crate) fn intake_statement_citation_for_edge(
         contract_expressions(program, callee, kind)
     };
     for fact in collect(typed_trees::signature::SignatureContractKind::Requires) {
-        if super::structural_terms::is_case_observation(program, fact) {
-            return;
-        }
-        let Some(binary) = program.expression_table.binary_node(fact) else {
-            return;
-        };
-        if binary.operator != BinaryOperator::Equal
-            || !super::structural_terms::has_identity_equality_meaning(
-                program,
-                callee.symbol,
-                parameters,
-                fact,
-            )
-        {
-            return;
-        }
-        let Some((left, right)) = super::structural_terms::structural_term_pair_for_parameters(
-            program,
-            callee.symbol,
-            parameters,
-            binary,
-        ) else {
+        let Some((left, right)) = identity_equality_terms(program, callee, parameters, fact)
+        else {
             return;
         };
         let left = StructuralJudge::substitute_term(&left, &map);
@@ -704,28 +692,8 @@ pub(crate) fn intake_statement_citation_for_edge(
         }
     }
     for fact in collect(typed_trees::signature::SignatureContractKind::Ensures) {
-        if super::structural_terms::is_case_observation(program, fact) {
-            continue;
-        }
-        let Some(binary) = program.expression_table.binary_node(fact) else {
-            continue;
-        };
-        if binary.operator != BinaryOperator::Equal
-            || !super::structural_terms::has_identity_equality_meaning(
-                program,
-                callee.symbol,
-                parameters,
-                fact,
-            )
-        {
-            continue;
-        }
-        let Some((left, right)) = super::structural_terms::structural_term_pair_for_parameters(
-            program,
-            callee.symbol,
-            parameters,
-            binary,
-        ) else {
+        let Some((left, right)) = identity_equality_terms(program, callee, parameters, fact)
+        else {
             continue;
         };
         judge.intake_equation(
