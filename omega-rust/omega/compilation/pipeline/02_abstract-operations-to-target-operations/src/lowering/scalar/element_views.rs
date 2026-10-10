@@ -49,7 +49,7 @@ impl<'a> ElementViewBackings<'a> {
     /// Rejoin every completed descriptor to its exact unique operation result.
     /// A shared descriptor may keep SSA words without an allocated home; that
     /// changes storage realization, not its producer or declared carrier.
-    pub(super) fn view_result<'function>(
+    pub(in crate::lowering) fn view_result<'function>(
         self,
         function: &'function AbstractFunction,
         place: PlaceId,
