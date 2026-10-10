@@ -21,6 +21,9 @@
 //! those identities in actual statement loans. Formation reads current carrier
 //! contents; replacement retires that slot's old occurrence after its RHS,
 //! while the complete historical ledger still owns lifetime analysis.
+//! Normal result leaves are recorded separately at formation, using that same
+//! current roster. Escape and simultaneous-hold checks consume those rows;
+//! they never rebuild a return's contents from historical local activations.
 
 use validation::machine_state_count;
 
@@ -43,7 +46,6 @@ pub(crate) use loans::call_reference_sources;
 pub(crate) use loans::owner_path_from_place_segments;
 pub(crate) use loans::owner_segment_matches_place_segment;
 pub(crate) use loans::returned_body_source_mismatch;
-pub(crate) use loans::returned_value_loans;
 pub(crate) use loans::store_destination_places;
 pub(crate) use loans::types::reference_borrow_access_kind;
 pub(crate) use owner_geometry::carrier_path;
@@ -68,6 +70,7 @@ pub(crate) fn build_borrow_facts(
         arena::Arena::with_capacity(program.expression_table.expression_count());
     let mut calls = arena::Arena::with_capacity(program.statement_table.statement_count());
     let mut loans = arena::Arena::with_capacity(program.statement_table.statement_count());
+    let mut returned_loans = arena::Arena::new();
     let mut states = arena::Arena::with_capacity(machine_state_count(program));
     let mut state_loan_trackers = Vec::new();
 
@@ -80,6 +83,7 @@ pub(crate) fn build_borrow_facts(
             argument_accesses: &mut argument_accesses,
             calls: &mut calls,
             loans: &mut loans,
+            returned_loans: &mut returned_loans,
             states: &mut states,
         };
         for machine in program.machines() {
@@ -104,6 +108,7 @@ pub(crate) fn build_borrow_facts(
         argument_accesses,
         calls,
         loans,
+        returned_loans,
         states,
     )
 }

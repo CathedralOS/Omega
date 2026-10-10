@@ -71,6 +71,10 @@ data SharedSelection<'storage> [copy] {
     case Empty;
 }
 data SharedHolder<'storage> [copy] { target: &'storage Cell; }
+machine held_reference<'storage>(holder: SharedHolder<'storage>) -> &'storage Cell {
+    transition { _ -> finish(holder) }
+    state finish(holder: SharedHolder<'storage>) -> &'storage Cell { holder.target }
+}
 data SharedEnvelope<'storage> [copy] { selection: SharedSelection<'storage>; }
 machine select_shared<'storage>(
     choice: i32, left: &'storage Cell, right: &'storage Cell
@@ -117,6 +121,7 @@ machine exercise_selections<'storage>(source: &'storage Cell, other: &'storage C
     let holder: SharedHolder<'storage> = SharedHolder { target: source };
     let holders: [SharedHolder<'storage>; 2] = [holder, holder];
     let copied_holders: [SharedHolder<'storage>; 2] = holders;
+    let returned_reference: &'storage Cell = held_reference(holder);
     let shared: SharedSelection<'storage> = select_shared(0, source, other);
     let shared_copy: SharedSelection<'storage> = forward_shared(shared);
     let shared_right: SharedSelection<'storage> = forward_shared(select_shared(1, source, other));
@@ -135,6 +140,7 @@ machine exercise_selections<'storage>(source: &'storage Cell, other: &'storage C
         && copied_holders[0].target.value == 17
         && copied_holders[1].target.value == 17
         && holder.target.value == 17 && holders[0].target.value == 17
+        && returned_reference.value == 17
         && read_shared(&shared_array[0]) == 17 && read_shared(&shared_array[1]) == 19
         && read_shared(&shared) == 17 && shared.stamp == 3
         && read_shared(&shared_empty) == 0 && shared_empty.stamp == 7

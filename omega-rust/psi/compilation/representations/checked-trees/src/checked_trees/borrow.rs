@@ -81,6 +81,21 @@ pub struct StateBorrowFact {
     pub mutable_parameter_count: usize,
     pub calls: HandleSpan<BorrowCallFact>,
     pub loans: HandleSpan<BorrowLoanFact>,
+    pub returned_loans: HandleSpan<BorrowReturnedLoanFact>,
+}
+
+/// One reference leaf formed by a normal return. Its origin is captured while
+/// the statement's current carrier contents and incoming descriptors are known.
+/// These are result leaves, not local activations or lifecycle resource events.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BorrowReturnedLoanFact {
+    pub statement_index: usize,
+    pub formation_expression: ExpressionHandle,
+    pub incoming_reference: Handle<IncomingReferenceIdentity>,
+    pub root_symbol: SymbolHandle,
+    pub segments: HandleSpan<facts::PlaceSegment>,
+    pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
+    pub kind: BorrowAccessKind,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -517,6 +532,7 @@ pub struct BorrowFacts {
     pub argument_accesses: Arena<BorrowArgumentAccessFact>,
     pub calls: Arena<BorrowCallFact>,
     pub loans: Arena<BorrowLoanFact>,
+    pub returned_loans: Arena<BorrowReturnedLoanFact>,
     pub states: Arena<StateBorrowFact>,
     /// `(machine, state) -> state row` lookup owned by this ledger. The
     /// index carries the `states` arena's revision, so a mutation rebuilds
@@ -551,6 +567,7 @@ impl BorrowFacts {
         argument_accesses: Arena<BorrowArgumentAccessFact>,
         calls: Arena<BorrowCallFact>,
         loans: Arena<BorrowLoanFact>,
+        returned_loans: Arena<BorrowReturnedLoanFact>,
         states: Arena<StateBorrowFact>,
     ) -> Self {
         Self {
@@ -561,6 +578,7 @@ impl BorrowFacts {
             argument_accesses,
             calls,
             loans,
+            returned_loans,
             states,
             state_index: OwnedIndex::default(),
             direct_loan_resources: Arena::new(),

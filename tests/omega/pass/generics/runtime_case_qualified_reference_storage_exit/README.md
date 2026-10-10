@@ -27,3 +27,6 @@ named result remains readable after forwarding. The affine `Selection` and
 exclusive payload controls remain separate in the same program.
 Projecting the copyable case from an enclosing record forwards only that
 subtree and leaves the original record readable.
+
+Returning a shared reference stored in an owned holder retains the external
+referent's identity. It is not a borrow of the callee's private holder storage.

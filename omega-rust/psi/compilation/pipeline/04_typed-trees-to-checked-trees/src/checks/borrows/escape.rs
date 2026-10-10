@@ -1,226 +1,58 @@
-//! Lifetimes: body-level escape check for returned views.
-//!
-//! The elision check (stage 1/2) verifies which input a returned view borrows
-//! at the SIGNATURE level. This check is the BODY-level companion: it rejects a
-//! machine that returns a view of one of its own locals (a classic dangling
-//! borrow), e.g.
-//!
-//! ```text
-//! machine leak(seed: &Cell) -> &Cell {
-//!     let local: Cell = Cell { value: 9 };
-//!     transition { _ -> &local }   // `local` dies at the return — rejected
-//! }
-//! ```
-//!
-//! The rule is precise, not merely conservative: returning a borrow whose place
-//! ROOTS in a machine-body local that itself holds NO loan is always a dangling
-//! reference (the local's storage is gone at the return). A local that DOES hold
-//! a loan (`let cells: &mut [Cell] = a.cells.as_mut_slice()`) borrows further
-//! back — through a parameter or `self` — so returning `&mut cells[i]` is fine;
-//! the loan fact for that local is the signal. Parameters, `self`, and
-//! `self.field` never appear in the local set, so they are never rejected.
+//! Normal returned views must denote storage that outlives this invocation.
+//! The borrow builder captures their leaves against the current descriptor
+//! roster, shared with local and store formation. An incoming referent is not
+//! its owned carrier's storage; a declared lifetime alone is not an origin.
+//! Locals and by-value inputs are both invocation-owned. Returning their stored
+//! external references is valid; returning a fresh borrow of their storage is not.
 
+use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
-
-use crate::borrow::accesses::borrow_access_place;
-use crate::borrow::view_link::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
-use checked_trees::CheckFacts;
 
 pub(super) fn check_view_return_escape(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for machine in program.machines() {
-        let type_parameters = program
-            .machine_type_parameters(machine)
-            .iter()
-            .filter(|parameter| {
-                matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-            })
-            .map(|parameter| parameter.symbol)
-            .collect::<Vec<_>>();
-        for state in program.machine_states(machine) {
-            // A template operand is not an invented loan into a local carrier.
-            // Known reference leaves still owe escape checking even when a
-            // sibling is dependent; selected instances check their full type.
-            let has_borrows =
-                match declaration_lifetime_frontier(program, state.return_type, &type_parameters) {
-                    DeclarationLifetimeFrontier::Complete { has_borrows }
-                    | DeclarationLifetimeFrontier::TemplateDependent { has_borrows } => has_borrows,
-                    DeclarationLifetimeFrontier::Incomplete => true,
-                };
-            if !has_borrows {
+    for (_, borrow_state) in facts.borrow.states.iter() {
+        let Some((machine, state)) = validation::machine_state_by_symbols(
+            program,
+            borrow_state.machine_symbol,
+            borrow_state.state_symbol,
+        ) else {
+            continue;
+        };
+        let mut reported: Vec<SymbolHandle> = Vec::new();
+        for loan in facts
+            .borrow
+            .returned_loans
+            .span_or_empty(borrow_state.returned_loans)
+        {
+            if loan.incoming_reference.is_valid() || reported.contains(&loan.root_symbol) {
                 continue;
             }
-
-            let statements = program.statement_table.statements(state.statement_nodes);
-
-            // Locals declared in this state. A returned borrow rooted in a local
-            // is sound only if that local holds a loan reaching OUTSIDE the body
-            // (a parameter / `self` / a field thereof); a local with no loan, or
-            // a loan still rooted in another body-local, is a dangling borrow.
-            let locals: Vec<SymbolHandle> = statements
-                .iter()
-                .filter_map(|statement| match statement {
-                    StatementNode::LocalData(local_data) => Some(local_data.symbol),
-                    _ => None,
+            let root = loan.root_symbol;
+            let storage = if let Some((_, local)) = program.state_local_declaration(state, root) {
+                format!("the local `{}`", local.name)
+            } else if let Some(parameter) =
+                program.state_parameters(state).iter().find(|parameter| {
+                    parameter.symbol == root
+                        && !parameter.is_const
+                        && validation::reference_shell(program, parameter.type_reference).is_none()
                 })
-                .collect();
-            let loans = state_loans(facts, machine.symbol, state.symbol);
-
-            for (statement_index, statement) in statements.iter().enumerate() {
-                let Some(return_expression) = return_expression(program, statement) else {
-                    continue;
-                };
-
-                // The carried leaves of the returned value: the value itself,
-                // plus every field/element value and control alternative it
-                // is built from. A direct `&mut local` resolves to a single
-                // place at the top level; a carrier such as
-                // `View { body: &mut local }` resolves to no place there, so
-                // each carried field is checked on its own. Call expressions
-                // are not places, so arguments a call merely consumes are never
-                // visited here.
-                let mut leaves = vec![return_expression];
-                let mut leaf_index = 0;
-                while leaf_index < leaves.len() {
-                    match program.expression_table.expression(leaves[leaf_index]) {
-                        // Only arm values contribute to the returned carrier.
-                        // Inspecting the selector, patterns or call operands
-                        // would mistake temporary observations for escapes.
-                        ExpressionNode::Match(dispatch) => leaves.extend(
-                            program
-                                .expression_table
-                                .match_arms(dispatch.arms)
-                                .iter()
-                                .map(|arm| arm.value),
-                        ),
-                        ExpressionNode::StructLiteral(literal) => leaves.extend(
-                            program
-                                .expression_table
-                                .struct_fields(literal.fields)
-                                .iter()
-                                .map(|field| field.value),
-                        ),
-                        ExpressionNode::ArrayLiteral(elements) => leaves.extend(
-                            program
-                                .expression_table
-                                .expression_handles(*elements)
-                                .iter()
-                                .copied(),
-                        ),
-                        _ => {}
-                    }
-                    leaf_index += 1;
-                }
-
-                let mut reported: Vec<SymbolHandle> = Vec::new();
-                for leaf in leaves {
-                    let Some(place) = borrow_access_place(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        leaf,
-                        machine.symbol,
-                    ) else {
-                        continue;
-                    };
-
-                    let root = place.root_symbol;
-                    if !locals.contains(&root) || reported.contains(&root) {
-                        // Rooted in a parameter, `self`, or a field thereof —
-                        // outlives the call — or already diagnosed below.
-                        continue;
-                    }
-                    // A body-local: sound only if it holds at least one loan and
-                    // every carried loan reaches outside the body. Accepting when
-                    // merely one field reached an input would let a sibling field
-                    // retain a dangling local borrow.
-                    let owner_loans: Vec<SymbolHandle> = loans
-                        .iter()
-                        .filter_map(|(owner, loan_root)| (*owner == root).then_some(*loan_root))
-                        .collect();
-                    let escapes_through_loans = !owner_loans.is_empty()
-                        && owner_loans
-                            .iter()
-                            .all(|loan_root| !locals.contains(loan_root));
-                    if escapes_through_loans {
-                        continue;
-                    }
-
-                    reported.push(root);
-                    let local_name = local_name(program, state, root);
-                    diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` returns a view borrowing the local `{}`, which does not outlive \
-                         the call; return a borrow of an input parameter or `self` instead",
-                        state_subject(machine, state),
-                        local_name,
-                    )));
-                }
-            }
+            {
+                format!("the owned input `{}`", parameter.name)
+            } else {
+                continue;
+            };
+            reported.push(root);
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` returns a view borrowing {storage}, which does not outlive \
+                 the call; return a borrow of an input parameter or `self` instead",
+                state_subject(machine, state),
+            )));
         }
     }
-}
-
-/// The borrow expression a state returns at a given statement: a terminal
-/// `Expression` or a transition `Value` target. Other statements/targets do not
-/// return a value.
-pub(super) fn return_expression(
-    program: &dyn ::validation::CheckingInput,
-    statement: &StatementNode,
-) -> Option<typed_trees::expression::ExpressionHandle> {
-    match statement {
-        StatementNode::Expression(expression) => Some(*expression),
-        StatementNode::Transition(transition) => {
-            match program.statement_table.transition_target(transition.target) {
-                TransitionTargetNode::Value(expression) => Some(*expression),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-/// `(owner_symbol, ultimate root_symbol)` for every loan tracked in the state.
-/// The loan's `root_symbol` is already rebased to its ultimate source (a param
-/// for `let cells = a.cells.as_mut_slice()`, or a body-local for `&owned_local`).
-fn state_loans(
-    facts: &CheckFacts,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-) -> Vec<(SymbolHandle, SymbolHandle)> {
-    facts
-        .borrow
-        .states
-        .iter()
-        .find(|(_, state)| {
-            state.machine_symbol == machine_symbol && state.state_symbol == state_symbol
-        })
-        .map(|(_, state)| {
-            facts
-                .borrow
-                .loans
-                .span_or_empty(state.loans)
-                .iter()
-                .map(|loan| (loan.owner_symbol, loan.root_symbol))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn local_name(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    symbol: SymbolHandle,
-) -> String {
-    program.state_local_declaration(state, symbol).map_or_else(
-        || "<local>".to_owned(),
-        |(_, local_data)| local_data.name.as_str().to_owned(),
-    )
 }
 
 pub(super) fn state_subject<'a>(

@@ -30,10 +30,12 @@
 //! `owner_paths` matches owner field paths against place segments, and
 //! `types` answers whether a type is a reference and with which access.
 //! Other modules use `borrow_initializer_expressions` (persistent storage
-//! check), `returned_value_loans` (a returned aggregate's leaves for the
-//! formed-aggregate check), `helper_call_borrow_loan_place` and
+//! check), `helper_call_borrow_loan_place` and
 //! `call_declares_direct_view_source` (resource lineage replay), and
 //! `types::reference_borrow_access_kind` (borrow check details).
+//! The state builder also captures normal returned leaves through
+//! `returned_value_loans` while its current descriptor roster is available.
+//! Those leaves are facts, separate from local activation/lifecycle events.
 
 use crate::borrow::view_link::is_borrow_carrying_data;
 use arena::Handle;
@@ -115,85 +117,121 @@ pub(crate) fn borrow_initializer_expressions(
         .collect()
 }
 
-/// One reference leaf a returned value carries: its position in the value,
-/// the source expression that formed it, the place it borrows and its access.
-pub(crate) struct ReturnedLoan {
-    pub(crate) formation_expression: ExpressionHandle,
-    pub(crate) owner_path: Vec<BorrowOwnerSegment>,
-    pub(crate) place: accesses::BorrowAccessPlace,
-    pub(crate) kind: checked_trees::BorrowAccessKind,
-}
-
-/// The loans a borrow-carrying value returned at `statement_index` carries,
-/// resolved exactly as for a local initialized from the returned expression,
-/// against the loans its state formed before the return. A returned value has
-/// no local owner, so these loans are never recorded as facts; they exist to
-/// judge the value's leaves against each other. A bare reference result is a
-/// single leaf and yields nothing here.
-pub(crate) fn returned_value_loans(
+/// Form normal result leaves through the ordinary binding operation while the
+/// state's current incoming and established descriptors are available. The
+/// result owner is only a path namespace; it creates no local activation.
+pub(super) fn returned_value_loans(
     program: &dyn ::validation::CheckingInput,
-    machine_symbol: SymbolHandle,
     state: &typed_trees::state::State,
-    borrow: &checked_trees::BorrowFacts,
-    borrow_state: &checked_trees::StateBorrowFact,
     statement_index: usize,
-    expression: ExpressionHandle,
-) -> Vec<ReturnedLoan> {
-    if is_reference_type(program, state.return_type)
-        || !is_borrow_carrying_data(program, state.return_type)
+    machine_symbol: SymbolHandle,
+    statement: &StatementNode,
+    loan_trackers: &[StateLoanTracker],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Vec<StatementBorrowLoan> {
+    use checked_trees::statement::{TransitionExit, TransitionTargetNode};
+
+    if !is_reference_type(program, state.return_type)
+        && !is_borrow_carrying_data(program, state.return_type)
     {
         return Vec::new();
     }
-    // The fact builder resolved each statement against the loans recorded
-    // before it; the state's span keeps that order. Lineage is not read here,
-    // so a call-result root needs no separate marker.
-    let prior_loans: Vec<StateLoanTracker> = borrow
-        .loans
-        .span_or_empty(borrow_state.loans)
-        .iter()
-        .zip(0u32..)
-        .take_while(|(loan, _)| loan.statement_index < statement_index)
-        .map(|(loan, offset)| StateLoanTracker {
-            handle: borrow_state.loans.handle_at(offset),
-            owner_symbol: loan.owner_symbol,
-            owner_name: program.symbols.name(loan.owner_symbol).into(),
-            kind: loan.kind.clone(),
-            lineage: loan.lineage.clone(),
-            call_result: false,
-            owner_path: borrow.loan_owner_path(loan).to_vec(),
-            place: accesses::BorrowAccessPlace {
-                incoming_reference: loan.incoming_reference,
-                root_symbol: loan.root_symbol,
-                segments: borrow.loan_segments(loan).to_vec(),
-            },
-        })
-        .collect();
-    let returned_value = checked_trees::statement::TableLocalData {
+    let mut returned_value = checked_trees::statement::TableLocalData {
         role: language_core::LocalBindingRole::Value,
         symbol: state.symbol,
         name: state.name.clone(),
         type_reference: state.return_type,
-        initial_value: expression,
+        initial_value: ExpressionHandle::invalid(),
         is_mutable: false,
         type_is_inferred: false,
         relevance: language_core::BindingRelevance::Relevant,
     };
-    borrow_carrying_data_loans(
+    let expression = match statement {
+        StatementNode::Expression(expression)
+            if statement_index + 1
+                == program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len() =>
+        {
+            *expression
+        }
+        StatementNode::Transition(transition)
+            if transition.exit == TransitionExit::Ordinary
+                && !transition.continuation.is_valid() =>
+        {
+            match program.statement_table.transition_target(transition.target) {
+                TransitionTargetNode::Value(expression) => *expression,
+                TransitionTargetNode::Named {
+                    path, arguments, ..
+                } => {
+                    use crate::borrow::view_link::{
+                        ViewReturnFieldSource, ViewReturnSource, resolve_view_return_source,
+                    };
+
+                    let Some((_, target)) = validation::find_state(program, path.symbol)
+                        .or_else(|| validation::find_machine_head(program, path.symbol))
+                    else {
+                        return Vec::new();
+                    };
+                    // Preparation has selected this state's declaration. Its
+                    // declared lifetime frontier remains conservative across
+                    // the edge; ordinary source formation authenticates the
+                    // actuals against the caller's current descriptor roster.
+                    let fields = match resolve_view_return_source(program, target) {
+                        ViewReturnSource::Fields { fields } => fields,
+                        ViewReturnSource::Parameter { parameter_index } => {
+                            let Some(kind) =
+                                reference_borrow_access_kind(program, target.return_type)
+                            else {
+                                return Vec::new();
+                            };
+                            let Some(parameter) =
+                                program.state_parameters(target).get(parameter_index)
+                            else {
+                                return Vec::new();
+                            };
+                            vec![ViewReturnFieldSource {
+                                owner_path: Vec::new(),
+                                source_path: Vec::new(),
+                                source_type: parameter.type_reference,
+                                parameter_index,
+                                kind,
+                            }]
+                        }
+                        ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => {
+                            return Vec::new();
+                        }
+                    };
+                    return aggregate_loans::result_source_loans(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        machine_symbol,
+                        &returned_value,
+                        target.symbol,
+                        program.statement_table.expression_handles(*arguments),
+                        fields,
+                        &[],
+                        &[],
+                        loan_trackers,
+                    );
+                }
+                TransitionTargetNode::Terminal => return Vec::new(),
+            }
+        }
+        _ => return Vec::new(),
+    };
+    returned_value.initial_value = expression;
+    statement_borrow_loans(
         program,
         state,
         statement_index,
         machine_symbol,
-        &returned_value,
-        &prior_loans,
+        &StatementNode::LocalData(returned_value),
+        loan_trackers,
+        call_frames,
     )
-    .into_iter()
-    .map(|loan| ReturnedLoan {
-        formation_expression: loan.formation_expression,
-        owner_path: loan.owner_path,
-        place: loan.place,
-        kind: loan.kind,
-    })
-    .collect()
 }
 
 pub(super) fn statement_borrow_loans(

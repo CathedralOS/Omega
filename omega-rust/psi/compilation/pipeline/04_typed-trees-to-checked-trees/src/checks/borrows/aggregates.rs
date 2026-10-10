@@ -3,8 +3,8 @@
 //! simultaneous-hold judgment (`simultaneous`). A `let` or a store forms its
 //! owner's leaves at one statement and records them as that statement's
 //! loans of that owner. A returning state forms its result at the return;
-//! `borrow::returned_value_loans` resolves those leaves with the same loan
-//! builder, since a returned value has no local owner to record them under.
+//! the borrow builder records those leaves separately from local activations,
+//! against the current descriptor roster at the actual return statement.
 //!
 //! Two loans are leaves of one formed value when they share a statement and
 //! an owner, sit at different positions of the owner, and come from different
@@ -119,34 +119,24 @@ pub(super) fn check_formed_aggregates<'p>(
     ) else {
         return;
     };
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
+    for loans in facts
+        .borrow
+        .returned_loans
+        .span_or_empty(borrow_state.returned_loans)
+        .chunk_by(|left, right| left.statement_index == right.statement_index)
     {
-        let Some(expression) = super::escape::return_expression(program, statement) else {
-            continue;
-        };
-        let loans = crate::borrow::returned_value_loans(
-            program,
-            machine.symbol,
-            state,
-            &facts.borrow,
-            borrow_state,
-            statement_index,
-            expression,
-        );
         if loans.len() < 2 {
             continue;
         }
         let leaves: Vec<FormedLeaf<'_>> = loans
             .iter()
             .map(|loan| FormedLeaf {
-                incoming_reference: loan.place.incoming_reference,
+                incoming_reference: loan.incoming_reference,
                 owner_symbol: state.symbol,
                 formation: loan.formation_expression,
-                position: &loan.owner_path,
-                root_symbol: loan.place.root_symbol,
-                segments: &loan.place.segments,
+                position: facts.borrow.owner_segments.span_or_empty(loan.owner_path),
+                root_symbol: loan.root_symbol,
+                segments: facts.borrow.access_segments.span_or_empty(loan.segments),
                 kind: &loan.kind,
             })
             .collect();
@@ -155,7 +145,7 @@ pub(super) fn check_formed_aggregates<'p>(
             program,
             facts,
             state_flow,
-            statement_index,
+            loans[0].statement_index,
             &leaves,
             |_| format!("machine `{subject}` returns"),
             stated_premises,

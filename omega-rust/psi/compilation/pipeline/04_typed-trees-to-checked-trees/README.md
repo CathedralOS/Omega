@@ -532,6 +532,15 @@ result frontier and resolves every returned view leaf to its input source.
 A view-free result is the empty frontier, not an exemption from that check.
 An unresolved or ambiguous frontier rejects even when the result is discarded.
 
+The borrow builder captures normal returned leaves against its current
+descriptor roster, including incoming referents and completed replacements.
+Escape and simultaneous-hold checks consume those rows, not a reconstruction
+from historical local loans. Callee-owned input storage has the same escape
+obligation as a local; a stored incoming reference denotes external backing,
+not the callee's carrier slot. Named normal completions transport their selected
+state's result-to-input relation through the same actual-source operation as
+expression calls.
+
 [Call return contracts](src/borrow/loans/call_views.rs) retain the signature and
 applied telescope together. Evidence-bound requirements use their declaring
 trait's applied type arguments, including inherited forwarding. Direct,

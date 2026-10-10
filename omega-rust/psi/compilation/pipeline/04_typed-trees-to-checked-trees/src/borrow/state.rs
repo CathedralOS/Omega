@@ -5,7 +5,7 @@ use checked_trees::{
 
 use super::calls::collect_statement_borrow_calls;
 use super::last_uses::update_state_loan_last_uses;
-use super::loans::{StatementBorrowLoan, statement_borrow_loans};
+use super::loans::{StatementBorrowLoan, returned_value_loans, statement_borrow_loans};
 use super::roots::{append_state_writable_roots, mutable_parameter_count};
 use super::tracker::StateLoanTracker;
 
@@ -18,6 +18,7 @@ pub(super) struct BorrowFactArenas<'arenas> {
     pub(super) argument_accesses: &'arenas mut arena::Arena<BorrowArgumentAccessFact>,
     pub(super) calls: &'arenas mut arena::Arena<BorrowCallFact>,
     pub(super) loans: &'arenas mut arena::Arena<BorrowLoanFact>,
+    pub(super) returned_loans: &'arenas mut arena::Arena<checked_trees::BorrowReturnedLoanFact>,
     pub(super) states: &'arenas mut arena::Arena<StateBorrowFact>,
 }
 
@@ -46,10 +47,38 @@ pub(super) fn append_state_borrow_facts(
 
     let mut calls_span = arena::HandleSpan::empty();
     let mut loans_span = arena::HandleSpan::empty();
+    let mut returned_loans_span = arena::HandleSpan::empty();
     for (statement_index, statement) in program
         .statement_table
         .indexed_statements(state.statement_nodes)
     {
+        // Capture result leaves against the same current roster as a local or
+        // store. Reconstructing them later from historical loans loses entry
+        // referents and revives overwritten carrier contents.
+        for returned in returned_value_loans(
+            program,
+            state,
+            statement_index,
+            machine.symbol,
+            statement,
+            &current_loans,
+            call_frames,
+        ) {
+            let segments = arenas.access_segments.insert_many(returned.place.segments);
+            let owner_path = arenas.owner_segments.insert_many(returned.owner_path);
+            arenas.returned_loans.append_to_span(
+                &mut returned_loans_span,
+                checked_trees::BorrowReturnedLoanFact {
+                    statement_index,
+                    formation_expression: returned.formation_expression,
+                    incoming_reference: returned.place.incoming_reference,
+                    root_symbol: returned.place.root_symbol,
+                    segments,
+                    owner_path,
+                    kind: returned.kind,
+                },
+            );
+        }
         let pending_loans = statement_borrow_loans(
             program,
             state,
@@ -138,6 +167,7 @@ pub(super) fn append_state_borrow_facts(
         mutable_parameter_count: mutable_parameter_count(program, state),
         calls: calls_span,
         loans: loans_span,
+        returned_loans: returned_loans_span,
     });
 }
 

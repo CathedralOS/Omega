@@ -3087,18 +3087,26 @@ of a check the same flow already performed, not the check itself.
   Include prepared lifetime-bearing field
   views, independent nested regions, repeated generic heads, authored callable
   templates, symbolic view-free arrays, inherited const arguments and complete
-  returned-loan frontiers. Body escape checking must distinguish borrowed inputs
-  from callee-owned parameter storage: returning `&owned` from a by-value
-  `[copy]` parameter alongside an unrelated lifetime-compatible borrowed input
-  checks on macOS arm64 at `64c2ee97421`, but `omega run --both` refuses the
-  reference-result plan (CLI 202). Repair the blanket parameter exemption in
-  `checks/borrows/escape.rs`; an input lifetime is not the returned body's origin.
+  returned-loan frontiers. Complete execution of replaced returned carriers:
+  after a local holder's reference is replaced with an external reference,
+  source checking must retain only the current loan, and `omega run --both`
+  must read the external backing. The source route now reaches the executable
+  call's `reference record result has no exact captured leaf loans` refusal
+  (CLI 202 on macOS arm64). `reference_result_custody/call_reception.rs` still
+  reconstructs typed initializers and cannot retain a mutable local's result.
+  Consume the checked normal-return/actual-capture relation; preserve inactive
+  cases, anonymous operands and the complete-versus-unavailable distinction.
   Keep
   `omega run tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg`
   and conflicting-mutation/distinct-region controls in that qualification;
   the bounded operator, algebra-law and returned-loan cohort does not replace it.
-  Renew full check qualification after the target-family and Console repairs;
-  the historical portable-Console refusal no longer identifies its frontier.
+  Restore lowering argument correspondence after Terminal identity interning:
+  incoming call-site edits permute machine/state owners, scalar prefixes and
+  value/block/edge allocators despite unchanged declaration order. The native
+  cohort now refuses on clean main, including `guard has no retained source
+  value` in the case-qualified storage program. Repair the shared invocation
+  inputs before renewing full check qualification; do not add source-shaped
+  exceptions or bypass the independent custody audit.
   Attribute remaining moves before claiming qualification; do not repin
   refusals. Include the std-dependent setter and const-container gates under
   **PIPELINE-ARCHITECTURE-ENFORCEMENT** in that qualification.

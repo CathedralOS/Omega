@@ -68,15 +68,27 @@ pub(super) fn reference_local_borrow_loans(
         .expression_table
         .expression(local_data.initial_value)
     {
-        return selected_arm_borrow_loans(
-            program,
-            state.symbol,
-            statement_index,
-            machine_symbol,
-            local_data,
-            dispatch,
-            loan_trackers,
-        );
+        // An arm can forward a name, project a descriptor, call a helper or
+        // form a new borrow. Syntax does not select another provenance rule.
+        return program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .flat_map(|arm| {
+                let selected_value = checked_trees::statement::TableLocalData {
+                    initial_value: arm.value,
+                    ..local_data.clone()
+                };
+                reference_local_borrow_loans(
+                    program,
+                    state,
+                    statement_index,
+                    machine_symbol,
+                    &selected_value,
+                    loan_trackers,
+                )
+            })
+            .collect();
     }
     let indexed_recast_place = literal_indexed_recast_borrow_place(
         program,
@@ -242,60 +254,6 @@ pub(super) fn reference_local_borrow_loans(
             ),
             kind: local_access.clone(),
             call_result: is_call_result,
-        })
-        .collect()
-}
-
-/// One loan per match arm that forms a borrow. Each arm's loan records the
-/// arm's own access kind against the arm's exact target place, rebased
-/// through any live local loans the same way a direct `let` initializer is.
-/// A match arm is not an explicit reborrow, so direct sources keep
-/// `DirectRoot` lineage and rebased sources stay deliberately unretained.
-pub(super) fn selected_arm_borrow_loans(
-    program: &dyn ::validation::CheckingInput,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    machine_symbol: SymbolHandle,
-    local_data: &checked_trees::statement::TableLocalData,
-    dispatch: &checked_trees::expression::TableMatchExpression,
-    loan_trackers: &[StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
-    program
-        .expression_table
-        .match_arms(dispatch.arms)
-        .iter()
-        .flat_map(|arm| {
-            let checked_trees::expression::ExpressionNode::Borrow(borrow) =
-                program.expression_table.expression(arm.value)
-            else {
-                return Vec::new();
-            };
-            let kind = super::borrow_access_kind(borrow.access);
-            let Some(place) = borrow_access_place(
-                program,
-                state_symbol,
-                statement_index,
-                borrow.target,
-                machine_symbol,
-            ) else {
-                return Vec::new();
-            };
-            let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
-            rebased
-                .iter()
-                .map(|source| StatementBorrowLoan {
-                    formation_expression: arm.value,
-                    owner_symbol: local_data.symbol,
-                    owner_name: local_data.name.clone(),
-                    owner_path: Vec::new(),
-                    place: source.place.clone(),
-                    source_owner_symbol: source.source_owner_symbol,
-                    supplying_loan: Default::default(),
-                    lineage: retained_reference_lineage(program, arm.value, source, &rebased),
-                    kind: kind.clone(),
-                    call_result: false,
-                })
-                .collect::<Vec<_>>()
         })
         .collect()
 }

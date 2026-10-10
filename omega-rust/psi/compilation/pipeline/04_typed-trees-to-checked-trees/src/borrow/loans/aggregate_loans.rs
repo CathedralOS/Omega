@@ -7,7 +7,9 @@ use super::aggregate::{BorrowedInitializer, BorrowedInitializerKind, borrowed_in
 use super::call_views::*;
 use super::owner_paths::{owner_path_matches, place_path_matches_owner_prefix};
 use super::types::is_reference_type;
-use crate::borrow::view_link::{ViewReturnSource, is_mutably_borrow_carrying_data};
+use crate::borrow::view_link::{
+    ViewReturnFieldSource, ViewReturnSource, is_mutably_borrow_carrying_data,
+};
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
@@ -259,11 +261,41 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
     let ViewReturnSource::Fields { fields } = contract.source(program) else {
         return Vec::new();
     };
-    let substitutions = contract.substitutions;
     let arguments = program.expression_table.expression_handles(call.arguments);
+    result_source_loans(
+        program,
+        state_symbol,
+        statement_index,
+        machine_symbol,
+        local_data,
+        call.target_symbol,
+        arguments,
+        fields,
+        &contract.substitutions,
+        owner_path_prefix,
+        loan_trackers,
+    )
+}
+
+/// Expression calls and named normal completions transport the same declared
+/// result-to-input relation. The caller supplies its applied contract; this
+/// operation composes actual captured leaves without inventing another call.
+pub(super) fn result_source_loans(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+    target: SymbolHandle,
+    arguments: &[ExpressionHandle],
+    fields: Vec<ViewReturnFieldSource>,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    owner_path_prefix: &[BorrowOwnerSegment],
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<StatementBorrowLoan> {
     let mut carried_arguments = Vec::new();
 
-    let sources = super::returned_carriers::completed_sources(program, call.target_symbol, fields);
+    let sources = super::returned_carriers::completed_sources(program, target, fields);
     sources
         .into_iter()
         .flat_map(|(field, projection)| {
@@ -283,7 +315,7 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
                     &field,
                     &owner_path,
                     loan_trackers,
-                    &substitutions,
+                    substitutions,
                     &mut carried_arguments,
                 );
             }
