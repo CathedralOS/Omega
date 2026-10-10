@@ -5102,3 +5102,7 @@ fail/generics/contextual_static_machine_fresh_result_access_escalation rejected 
 	machine `Callback` returns a view whose access cannot be supplied by matching input `item`
 fail/generics/contextual_static_machine_nested_fresh_result_access_escalation rejected 1198ms expected @e681aea9cbbb+wt
 	machine `Inner` returns a view whose access cannot be supplied by matching input `item`
+fail/slices/copied_record_window_insufficient_extent rejected 563ms @97bca654182d
+	cannot prove requires contract for call visit from Main::exercise: 1 < rooms.len (needs fact `index < rooms.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/borrows/runtime_copied_range_record_domains_exit checked 3858ms check-target:macos_arm64 @97bca654182d
+pass/borrows/runtime_nested_array_range_record_domains_exit checked 3858ms check-target:macos_arm64 @97bca654182d
