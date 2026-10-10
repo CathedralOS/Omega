@@ -145,6 +145,7 @@ pass/boundary/static_foreign_scalar_result_locals_exit built 69334ms exit:70 int
 pass/calls/borrowed_scalar_result_with_binding_exit built 14692ms exit:70 interpreter-exit:70 interpreter:agrees @9be6967d04c3+wt
 pass/calls/caller_result_binding_mutable_loan_exit built 6887ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/calls/case_scrutinee_self_dispatch_exit built 6706ms exit:0 interpreter-exit:0 interpreter:agrees @faab7e6c1b7d+wt
+pass/calls/completed_effectful_result_requirement_exit built 3461ms exit:0 interpreter-exit:0 interpreter:agrees @cac1400fd2e4
 pass/calls/cyclic_copy_arguments_exit built 3170ms exit:70 interpreter-exit:70 interpreter:agrees @dfece6e7f6a1+wt
 pass/calls/guarded_arm_view_range_tail_call_exit built 1362ms exit:70 interpreter-exit:70 interpreter:agrees @d1b852badb4c+wt
 pass/calls/inline_record_scalar_call_arguments_exit built 3169ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @dfece6e7f6a1+wt
@@ -245,6 +246,9 @@ pass/collections/runtime_nested_array_view_call_write_exit built 1796ms exit:0 i
 pass/collections/runtime_nested_record_element_window_store_exit built 1771ms exit:0 interpreter-exit:0 interpreter:agrees @65c3b89f46f4+wt
 pass/collections/runtime_nested_selected_element_extents_exit built 3440ms exit:0 interpreter-exit:0 interpreter:agrees @7c9a1dd8dd3b
 pass/collections/runtime_parameter_nested_literal_index_read_exit built 4356ms exit:70 interpreter-exit:70 interpreter:agrees @056c1343fac1+wt
+pass/collections/runtime_projected_range_call_nonempty_requirement_exit built 3401ms exit:0 interpreter-exit:0 interpreter:agrees @cac1400fd2e4
+pass/collections/runtime_projected_range_call_selector_order_exit built 3388ms exit:0 interpreter-exit:0 interpreter:agrees @cac1400fd2e4
+pass/collections/runtime_range_call_captured_endpoint_exit built 3408ms exit:0 interpreter-exit:0 interpreter:agrees @cac1400fd2e4
 pass/collections/runtime_record_element_window_write_read_exit built 1637ms exit:0 interpreter-exit:0 interpreter:agrees @4bc316e7b1ca+wt
 pass/collections/runtime_record_exclusive_element_extent_exit built 3401ms exit:0 interpreter-exit:0 interpreter:agrees @7c9a1dd8dd3b
 pass/collections/runtime_refined_element_view_call_write_exit built 1645ms exit:0 interpreter-exit:0 interpreter:agrees @4bc316e7b1ca+wt
@@ -609,6 +613,7 @@ pass/termination/runtime_projected_element_rank_arrivals_exit built 3401ms exit:
 pass/termination/runtime_ranked_sequence_arrival_coordinates_exit built 3361ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
 pass/termination/runtime_record_measure_constructed_arrivals_exit built 3479ms exit:0 interpreter-exit:0 interpreter:agrees @83a90e1b3f89+wt
 pass/termination/runtime_saved_rank_cycle_exit built 1885ms exit:0 interpreter-exit:0 interpreter:agrees @68fba6a896c8+wt
+pass/termination/runtime_selected_requirement_rank_composed_prefix_exit built 3472ms exit:0 interpreter-exit:0 interpreter:agrees @cac1400fd2e4
 pass/termination/runtime_selected_requirement_rank_prefix_exit built 3571ms exit:0 interpreter-exit:0 interpreter:agrees @05ef1dca14f6
 pass/text/declared_record_view_field_fill_exit built 2399ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
 pass/text/nested_mutable_receiver_byte_result_exit built 1409ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c

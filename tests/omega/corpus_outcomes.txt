@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 0.88, "load1_start": 0.78, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "1", "load1_end": 1.65, "load1_start": 1.81, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 222ms expected @d0e40a213f35
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in construction of `Address` field `value`
 	anonymous integer value `-1` does not fit destination `addr` in construction of `Address` field `value`
@@ -767,6 +767,8 @@ fail/calls/discarded_call_result rejected 339ms expected @2d8ed253669f
 	call to `roll` discards its non-unit `bool` result; consume the value or discard it explicitly with `_ = roll(...);`
 fail/calls/duplicate_named_machine_overload_rejected rejected 745ms expected @3eebfe9c3de
 	duplicate named machine overload `add` with parameter signature `parameter(mutable(no),const(no),named(name(u32))),parameter(mutable(no),const(no),named(name(u32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
+fail/calls/effectful_result_outside_captured_requirement rejected 426ms expected @cac1400fd2e4
+	cannot prove requires contract for call accept from main: produce(21, mut counter) <= 20 (needs fact `value <= 20` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/element_view_argument_type_rejected rejected 205ms expected @2d8ed253669f
 	argument `s` for state `Walker::walk::walk` expects element type `u8`, but the argument supplies `i32[in Wrapping]`
 fail/calls/empty_body_return_machine_rejected rejected 359ms expected @2d8ed253669f
@@ -884,6 +886,14 @@ fail/collections/non_integer_index_rejected rejected 292ms expected @ada91cf0bd1
 	machine `store` state `entry` indexes `values` with `position` of type `f32`, but an index or range endpoint must be an integer
 	machine `choose` state `entry` indexes `values` with `flag` of type `bool`, but an index or range endpoint must be an integer
 	machine `window` state `entry` indexes `values` with `start` of type `f64`, but an index or range endpoint must be an integer
+fail/collections/projected_range_call_selected_extent rejected 427ms expected @cac1400fd2e4
+	cannot prove subslice range end bound `0..4` is within slice length 3
+fail/collections/projected_range_call_selected_index rejected 422ms expected @cac1400fd2e4
+	cannot prove index `2` is within length 2
+fail/collections/projected_range_call_shared_storage rejected 211ms expected @cac1400fd2e4
+	mutable argument `matrix` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/collections/range_call_later_endpoint_cannot_prove_nonempty rejected 427ms expected @cac1400fd2e4
+	cannot prove requires contract for call first from main: values[0..endpoint.end].len > 0 (needs fact `values.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/collections/vec_duplicate_cleanup rejected 842ms expected @41c7c3df5137+wt
 	cannot use `vec` in machine `Main::main` state `main` (statement 2) after `vec` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `vec` first
 fail/collections/vec_invalidated_loan_after_growth rejected 315ms expected @c08960bee2b1+wt
@@ -2538,6 +2548,9 @@ fail/termination/runtime_non_tail_joint_machine_cycle rejected 105ms expected @c
 	exact arithmetic in machine `Main::right` state `right` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `left(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/termination/saved_rank_authored_operator_rejected rejected 177ms expected @abaa2a1889d4+wt
 	machine call cycle: `Main::count`, `Main::step` -- a call argument has effects or non-builtin operator meaning; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/selected_requirement_rank_composed_prefix_write rejected 478ms expected @cac1400fd2e4
+	terminating machine nested_countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
+	terminating machine composed_countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
 fail/termination/selected_requirement_rank_prefix_write rejected 482ms expected @05ef1dca14f6
 	cannot prove requires contract for call scan from countdown: remaining - 1 <= 9 (needs fact `remaining <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
@@ -2975,6 +2988,7 @@ pass/calls/case_arm_payload_receiver_arg checked 1332ms check-target:macos_arm64
 pass/calls/case_payload_clone_observation_exit checked 2727ms check-target:macos_arm64 @e8505b71528
 pass/calls/case_scrutinee_param_clone_exit checked 916ms check-target:macos_arm64 @bb878591d2fc+wt
 pass/calls/case_scrutinee_self_dispatch_exit checked 4731ms check-target:macos_arm64 @c773c4ad3c3
+pass/calls/completed_effectful_result_requirement_exit checked 3178ms check-target:macos_arm64 @cac1400fd2e4
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms check-target:macos_arm64 @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted checked 1243ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/copy_projection_from_borrowed_receiver checked 1378ms check-target:macos_arm64 @2d8ed253669f
@@ -3280,6 +3294,9 @@ pass/collections/runtime_nested_record_element_window_store_exit checked 1751ms 
 pass/collections/runtime_nested_selected_element_extents_exit checked 3153ms check-target:macos_arm64 @7c9a1dd8dd3b
 pass/collections/runtime_parameter_nested_literal_index_read_exit checked 731ms check-target:macos_arm64 @5f978f80e84b+wt
 pass/collections/runtime_primitive_array_literal_call_elements_exit checked 1897ms check-target:macos_arm64 @d1a49981c6d2+wt
+pass/collections/runtime_projected_range_call_nonempty_requirement_exit checked 3190ms check-target:macos_arm64 @cac1400fd2e4
+pass/collections/runtime_projected_range_call_selector_order_exit checked 3238ms check-target:macos_arm64 @cac1400fd2e4
+pass/collections/runtime_range_call_captured_endpoint_exit checked 3184ms check-target:macos_arm64 @cac1400fd2e4
 pass/collections/runtime_record_element_window_write_read_exit checked 1613ms check-target:macos_arm64 @4bc316e7b1ca+wt
 pass/collections/runtime_record_exclusive_element_extent_exit checked 3110ms check-target:macos_arm64 @7c9a1dd8dd3b
 pass/collections/runtime_refined_element_view_call_write_exit checked 1622ms check-target:macos_arm64 @4bc316e7b1ca+wt
@@ -4478,6 +4495,7 @@ pass/termination/runtime_ranked_sequence_arrival_coordinates_exit checked 3212ms
 pass/termination/runtime_receiver_byte_slice_recursion_exit checked 738ms check-target:macos_arm64 @c9c108ecb4ac+wt
 pass/termination/runtime_record_measure_constructed_arrivals_exit checked 3574ms check-target:macos_arm64 @83a90e1b3f89+wt
 pass/termination/runtime_saved_rank_cycle_exit checked 1743ms check-target:macos_arm64 @68fba6a896c8+wt
+pass/termination/runtime_selected_requirement_rank_composed_prefix_exit checked 3319ms check-target:macos_arm64 @cac1400fd2e4
 pass/termination/runtime_selected_requirement_rank_prefix_exit checked 3388ms check-target:macos_arm64 @05ef1dca14f6
 pass/termination/runtime_shrinking_slice_recursion_exit checked 1796ms check-target:macos_arm64 @921839635ad
 pass/termination/runtime_stored_exclusive_endpoint_exit checked 1203ms check-target:macos_arm64 @82ec69a91ceb+wt

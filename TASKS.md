@@ -1330,8 +1330,14 @@ defines the complete product bar.
   loan and shared-to-exclusive receiving controls remain obligatory.
 
   Keep `pass/termination/runtime_selected_requirement_rank_prefix_exit` and
-  `fail/termination/selected_requirement_rank_prefix_write` for readonly
-  requirement results and exclusive writes in prefix `let` bindings.
+  `runtime_selected_requirement_rank_composed_prefix_exit`, with their write
+  negatives, for readonly requirement results in prefix `let` bindings.
+  Keep `pass/collections/runtime_projected_range_call_nonempty_requirement_exit`
+  and `runtime_range_call_captured_endpoint_exit` for completed descriptor
+  observations before later actual writes, and
+  `pass/calls/completed_effectful_result_requirement_exit` for a completed
+  scalar result's published bound. Invalid selected extents, shared-to-exclusive
+  access, late endpoint rereads and out-of-bound result guarantees reject.
 
   Remaining:
   - Replace unique-carrier discovery with explicit arrival correspondence,
