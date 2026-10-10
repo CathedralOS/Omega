@@ -36,6 +36,7 @@ impl Evaluation {
             .map(|value| value.value_type())
             .collect::<Vec<_>>();
         let result_type = crate::scalar_lowering::computations::computation_value_type(
+            identities,
             checked,
             &self.shared_qualifications,
             root.root,
@@ -274,6 +275,7 @@ impl Evaluation {
             CheckedCallScalarArgument::Computation(handle) => (
                 None,
                 crate::scalar_lowering::computations::computation_value_type(
+                    identities,
                     checked,
                     qualifications,
                     *handle,

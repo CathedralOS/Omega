@@ -603,7 +603,7 @@ pub(crate) fn loaned_store(
     let checked_trees::CheckedStoreRoot::Local { symbol } = root else {
         return Ok(None);
     };
-    let Some(identities, loan) = loan_subject(identities, checked, state, symbol, machine, types)? else {
+    let Some(loan) = loan_subject(identities, checked, state, symbol, machine, types)? else {
         return Ok(None);
     };
     if loan.access != checked_trees::CheckedStructuralAccess::MutableBorrow {
@@ -656,7 +656,7 @@ pub(crate) fn loaned_primitive_store(
     let checked_trees::CheckedStoreRoot::Local { symbol } = destination else {
         return Ok(None);
     };
-    let Some(identities, loan) = loan_subject(identities, checked, state, *symbol, machine, types)? else {
+    let Some(loan) = loan_subject(identities, checked, state, *symbol, machine, types)? else {
         return Ok(None);
     };
     let Some(overlay) = &loan.byte_overlay else {
@@ -666,7 +666,7 @@ pub(crate) fn loaned_primitive_store(
         return unsupported("record store requires a mutable captured loan");
     }
     let (_, scalar_type) =
-        crate::emission::primitive_store::lower_destination_path(loan.terminal, path, types)?;
+        crate::emission::primitive_store::lower_destination_path(identities, loan.terminal, path, types)?;
     Ok(Some(LoanedStore {
         symbol: *symbol,
         source: loan.source,
@@ -923,7 +923,7 @@ pub(crate) fn prepare(
                         "record read requires a record namespace",
                     ))?,
             };
-            let retained = terminal_psi::field_by_identity(&fields, &identity).ok_or(
+            let retained = terminal_psi::field_by_identity(&fields, identities.intern(&identity)).ok_or(
                 LoweringError::Unsupported("record read has no declared field identity"),
             )?;
             let scalar_type = terminal_scalar_type(node.primitive_type)?;

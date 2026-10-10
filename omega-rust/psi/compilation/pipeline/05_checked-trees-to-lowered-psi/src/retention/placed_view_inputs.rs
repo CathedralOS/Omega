@@ -79,13 +79,13 @@ pub(crate) fn lower_placed_view_input(
         position: input.position,
         source_machine_identity: identities.intern(&identity(
             input.machine,
-            "placed-view consumer has no hermetic declaration identity",        ))?,
+            "placed-view consumer has no hermetic declaration identity",        )?),
         source_state_identity: identities.intern(&identity(
             input.state,
-            "placed-view state has no hermetic declaration identity",        ))?,
+            "placed-view state has no hermetic declaration identity",        )?),
         source_parameter_identity: identities.intern(&identity(
             input.parameter,
-            "placed-view parameter has no hermetic declaration identity",        ))?,
+            "placed-view parameter has no hermetic declaration identity",        )?),
         access,
         binding_is_const: input.binding_is_const,
         binding_is_mutable: input.binding_is_mutable,
@@ -93,7 +93,7 @@ pub(crate) fn lower_placed_view_input(
         policy_identity: identities.intern(&policy_identity),
         policy_plan_machine_identity: identities.intern(&identity(
             input.policy_plan_machine,
-            "placed-view plan machine has no hermetic declaration identity",        ))?,
+            "placed-view plan machine has no hermetic declaration identity",        )?),
         schema_identity: identities.intern(&schema_identity),
         placement_report_fingerprint: input.placement.identity().compatibility_fingerprint(),
         placement_commitment: input.placement.content_interpretation().commitment(),

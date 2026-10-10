@@ -144,7 +144,7 @@ impl Emission<'_, '_, '_> {
     /// need no second copy. A membership judgment never authorizes affine copying.
     pub(super) fn retain_checked_memberships(
         &mut self,
-        place: PlaceId,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, place: PlaceId,
         decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
     ) -> Result<PlaceId, LoweringError> {
         let memberships = self
@@ -180,6 +180,7 @@ impl Emission<'_, '_, '_> {
             return unsupported("affine operand must retain its checked membership roster");
         }
         self.copied_leaf_place(
+            identities,
             &StructuralArgument {
                 place,
                 path: Vec::new(),

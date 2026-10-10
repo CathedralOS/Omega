@@ -65,9 +65,9 @@ pub(crate) fn prepare(
             let declaration =
                 terminal_psi::structural_type_by_identity(
                     types,
-                    &checked
+                    identities.intern(&checked
                         .type_identity_text(argument.type_identity)
-                        .unwrap_or_default(),
+                        .unwrap_or_default()),
                 ).ok_or(
                     LoweringError::Unsupported("computed literal has no structural type namespace"),
                 )?;

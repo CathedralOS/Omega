@@ -322,9 +322,9 @@ fn lower_slot(
     Ok(TerminalDynamicSlot {
         slot,
         declaring_trait_identity: identities.intern(&checked.symbols.display_path(plan.declaring_trait, "::")),
-        requirement_identity: identities.intern(&checked)
+        requirement_identity: identities.intern(&checked
             .typed
-            .callable_identity_text(plan.requirement_identity),
+            .callable_identity_text(plan.requirement_identity)),
         family_tuple: Vec::new(),
         scalar_parameters,
         structural_parameters,

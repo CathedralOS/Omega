@@ -73,7 +73,7 @@ impl StateGraphEmission<'_, '_> {
         operations.length_observations.field_bytes.clear();
         let mut terminator = match return_arm {
             checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
-                self.crash_completion(position, *statement_ordinal, next_edge)?
+                self.crash_completion(identities, position, *statement_ordinal, next_edge)?
             }
             checked_trees::CheckedConditionalReturnArm::Unit { .. } => Terminator::ReturnUnit {
                 edge: edge_id(allocate_dense(next_edge)?),
@@ -246,8 +246,14 @@ impl StateGraphEmission<'_, '_> {
                 )).collect::<Vec<_>>();
             regions.splice(0..0, temporary_discards);
             let selected_cleanup = arm_evaluation.emit_cleanup_regions(
+                identities,
                 self.checked,
-                regions, &mut arm_values, next_value, next_block, next_edge, operations,
+                regions,
+                &mut arm_values,
+                next_block,
+                next_edge,
+                next_value,
+                operations,
             )?;
             match &mut terminator {
                 terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {

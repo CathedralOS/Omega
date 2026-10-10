@@ -64,7 +64,7 @@ pub(crate) fn boundary(
         } => TerminalBorrowBoundarySource::Call {
             statement_index: ordinal(statement_index)?,
             call_ordinal: ordinal(call_ordinal)?,
-            target_identity: identities.intern(&identity(checked, target_symbol))?,
+            target_identity: identities.intern(&identity(checked, target_symbol)?),
         },
     })
 }
@@ -78,10 +78,10 @@ pub(crate) fn owner_path(
         .map(|segment| {
             Ok(match segment {
                 BorrowLoanOwnerSegment::Field(symbol) => {
-                    TerminalBorrowOwnerSegment::Field(identities.intern(&identity(checked, *symbol))?)
+                    TerminalBorrowOwnerSegment::Field(identities.intern(&identity(checked, *symbol)?))
                 }
                 BorrowLoanOwnerSegment::Case(symbol) => {
-                    TerminalBorrowOwnerSegment::Case(identities.intern(&identity(checked, *symbol))?)
+                    TerminalBorrowOwnerSegment::Case(identities.intern(&identity(checked, *symbol)?))
                 }
                 BorrowLoanOwnerSegment::FixedIndex(index) => {
                     TerminalBorrowOwnerSegment::FixedIndex(ordinal(*index)?)
@@ -102,10 +102,10 @@ pub(crate) fn place_segments(
         .map(|segment| {
             Ok(match segment {
                 facts::PlaceSegment::Field { symbol } => {
-                    TerminalBorrowPlaceSegment::Field(identities.intern(&identity(checked, *symbol))?)
+                    TerminalBorrowPlaceSegment::Field(identities.intern(&identity(checked, *symbol)?))
                 }
                 facts::PlaceSegment::Case { variant } => {
-                    TerminalBorrowPlaceSegment::Case(identities.intern(&identity(checked, *variant))?)
+                    TerminalBorrowPlaceSegment::Case(identities.intern(&identity(checked, *variant)?))
                 }
                 facts::PlaceSegment::FixedIndex { index } => {
                     TerminalBorrowPlaceSegment::FixedIndex(ordinal(*index)?)
@@ -131,7 +131,7 @@ pub(crate) fn place(
 ) -> Result<TerminalBorrowPlace, LoweringError> {
     Ok(TerminalBorrowPlace {
         root_identity: identities.intern(
-            &identity(checked, target_symbol))?,
+            &identity(checked, target_symbol)?),
         segments: place_segments(
             identities, checked, &place.segments)?,
     })
@@ -321,7 +321,7 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
 
             terminal_lineage.push(TerminalReborrowRootHandoffStep {
                 child_owner_identity: identities.intern(
-            &identity(checked, target_symbol))?,
+            &identity(checked, target_symbol)?),
                 child_owner_path: owner_path(identities, checked, &child.owner_path)?,
                 child_place: place(
             identities,  checked, &child.captured_place)?,
@@ -405,15 +405,15 @@ pub(crate) fn retain_selected_reborrow_root_handoffs(
             TerminalReborrowRootHandoff {
             machine: terminal_machine,
             source_machine_identity: identities.intern(
-            &identity(checked, target_symbol))?,
-            source_state_identity: identities.intern(&identity(checked, leaf.state_symbol))?,
-            direct_root_owner_identity: identities.intern(&identity(checked, parent.owner_symbol))?,
+            &identity(checked, target_symbol)?),
+            source_state_identity: identities.intern(&identity(checked, leaf.state_symbol)?),
+            direct_root_owner_identity: identities.intern(&identity(checked, parent.owner_symbol)?),
             direct_root_owner_path: owner_path(identities, checked, &parent.owner_path)?,
             direct_root_place: place(identities, checked, &parent.captured_place)?,
             direct_root_access: access(parent.access.clone()),
             direct_root_activation: boundary(identities, checked, parent.activation_source)?,
             direct_root_weakening: boundary(identities, checked, root_weakening.source)?,
-            direct_root_lifetime_identity: identities.intern(&identity(checked, parent.parent_lifetime.root_symbol))?,
+            direct_root_lifetime_identity: identities.intern(&identity(checked, parent.parent_lifetime.root_symbol)?),
             lineage: terminal_lineage,
         });
     }

@@ -112,10 +112,11 @@ pub(super) fn emit_state(
                     .collect::<Vec<_>>(),
             )?;
             let id = emit_scalar_binding(
+                identities,
                 checked,
                 binding,
-                &values,
                 caller_erased_formals,
+                &values,
                 next_value,
                 operations,
                 calls,
@@ -128,10 +129,11 @@ pub(super) fn emit_state(
         }
     }
     crate::scalar_lowering::effects::emit(
+        identities,
         checked,
         &state.structural_effects,
-        &values,
         caller_erased_formals,
+        &values,
         next_value,
         operations,
         calls,

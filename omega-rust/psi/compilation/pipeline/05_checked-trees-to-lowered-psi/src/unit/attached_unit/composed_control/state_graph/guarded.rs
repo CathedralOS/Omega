@@ -305,8 +305,7 @@ pub(super) fn complete_structural_return(
     // Returning an alias's containing root instead would change both the value
     // contract and its residual ownership. Use the ordinary return transport,
     // independent of whether a conditional or ordered guard selected the exit.
-    let (
-            identities,completion, arrival) = super::returns::projected::materialize(
+    let (completion, arrival) = super::returns::projected::materialize(
         identities,
         checked,
         &binding,

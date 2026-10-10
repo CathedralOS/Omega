@@ -480,8 +480,7 @@ pub(crate) fn terminal_proposition_application_id(
                             projection.term,
                             "proof-output proposition projects an unrelated evidence term",
                         )?, terminal_evidence_term_id(
-            identities,
-                            term_ids,
+            term_ids,
                             projection.term,
                             "proof-output proposition projects an unrelated evidence term",
                         )?)

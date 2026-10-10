@@ -140,6 +140,7 @@ pub(crate) fn emit(
             )?;
             let path = runtime_elements::complete_path(steps, indexes, calls, operations)?;
             let operand = crate::emission::structural_scalar_store_source::direct_value(
+                identities,
                 checked,
                 state,
                 store.statement_index,
@@ -190,6 +191,7 @@ pub(crate) fn emit(
                 structural_types,
             )?;
             let operand = crate::emission::structural_scalar_store_source::direct_value(
+                identities,
                 checked,
                 state,
                 store.statement_index,

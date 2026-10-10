@@ -76,7 +76,7 @@ impl OperationFrame<'_, '_> {
         let structural_type =
             byte_store::existing_descriptor_value_type(self.structural_types.declarations())?;
         if let Source::ByteSequenceSubslice { .. } = &source.source
-            && let Some(identities, range) = super::super::view_ranges::range(source)
+            && let Some(range) = super::super::view_ranges::range(source)
         {
             let storage = super::super::view_ranges::storage(
                 identities,

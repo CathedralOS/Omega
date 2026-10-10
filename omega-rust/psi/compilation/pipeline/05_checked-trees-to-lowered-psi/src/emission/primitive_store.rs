@@ -193,7 +193,7 @@ pub(crate) fn lower_path(
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
-    if let Some(identities, (CheckedUnitStructuralPathSegment::Field(identity), carrier)) = path.split_last() {
+    if let Some((CheckedUnitStructuralPathSegment::Field(identity), carrier)) = path.split_last() {
         // Reads may observe declaration-constrained scalar fields through a
         // pointer. Such a field is not raw primitive store storage. Reuse the
         // carrier walk (including its bounds), then query read-only leaf typing.
@@ -336,7 +336,7 @@ fn walk_path(
                 CheckedUnitStructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields, .. },
             ) => {
-                let Some(field) = live_field(fields, &identity.spelling()) else {
+                let Some(field) = live_field(fields, identities.intern(&identity.spelling())) else {
                     return unsupported("primitive projection field is erased or ambiguous");
                 };
                 result.push(ProjectionStep::Static(Segment::Field(

@@ -13,6 +13,7 @@ use crate::emission::operation_emission::view_subslice;
 use crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect;
 
 pub(crate) fn emit(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     effects: &[LoweredScalarEffect],
     values: &[ValueDeclaration],

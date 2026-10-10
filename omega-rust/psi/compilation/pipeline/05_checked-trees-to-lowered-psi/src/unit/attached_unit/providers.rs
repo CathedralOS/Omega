@@ -373,13 +373,13 @@ pub(super) fn conformances(
             }
             Ok(ProviderCandidateConformance {
                 boundary: *boundary,
-                requirement_identity: identities.intern(&checked)
+                requirement_identity: identities.intern(&checked
                     .typed
-                    .callable_identity_text(candidate.requirement_identity),
+                    .callable_identity_text(candidate.requirement_identity)),
                 provider_identity: identities.intern(&candidate.provider_identity.clone()),
-                candidate_identity: identities.intern(&checked)
+                candidate_identity: identities.intern(&checked
                     .typed
-                    .callable_identity_text(candidate.candidate_identity),
+                    .callable_identity_text(candidate.candidate_identity)),
                 candidate: terminal_candidate,
                 signature: ProviderSignature {
                     parameters: parameters

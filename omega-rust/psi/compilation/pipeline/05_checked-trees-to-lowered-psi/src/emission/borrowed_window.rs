@@ -716,7 +716,7 @@ fn resolve_window_place(
             projected_qualifications,
         });
     }
-    let (identities, steps, leaf) =
+    let (steps, leaf) =
         lower_window_path(identities, root_type, &plan.path, structural_types).map_err(|_| {
             let reason = if plan
                 .path

@@ -70,7 +70,7 @@ pub(crate) fn lower_structural_member_path(
                     return unsupported("structural scalar contract case receiver is not a sum");
                 }
             };
-            let case = terminal_psi::structural_case_by_identity(cases, &identity.spelling()).ok_or(
+            let case = terminal_psi::structural_case_by_identity(cases, identities.intern(&identity.spelling())).ok_or(
                 LoweringError::Unsupported("structural scalar contract case is absent"),
             )?;
             terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
@@ -124,7 +124,7 @@ pub(crate) fn lower_structural_member_path(
                 }
             }
         };
-        let field = terminal_psi::field_by_identity(fields, &identity.spelling())
+        let field = terminal_psi::field_by_identity(fields, identities.intern(&identity.spelling()))
             .filter(|field| !field.relevance.is_erased())
             .ok_or(LoweringError::Unsupported(
                 "structural scalar contract path field is absent or erased",
@@ -228,7 +228,7 @@ pub(crate) fn lower_structural_member_term(
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
-    let (identities, root, terminal_path, actual) =
+    let (root, terminal_path, actual) =
         lower_structural_member_path(identities, parameter_position, path, parameters, structural_types)?;
     if actual.scalar_type() != Some(expected) {
         return unsupported(
@@ -331,7 +331,7 @@ fn lower_sum_path(
                 }
                 _ => return unsupported("structural sum predicate case receiver is not a sum"),
             };
-            let case = terminal_psi::structural_case_by_identity(cases, &identity.spelling()).ok_or(
+            let case = terminal_psi::structural_case_by_identity(cases, identities.intern(&identity.spelling())).ok_or(
                 LoweringError::Unsupported("structural sum predicate case is absent"),
             )?;
             terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
@@ -366,7 +366,7 @@ fn lower_sum_path(
                 }
             }
         };
-        let field = terminal_psi::field_by_identity(fields, &identity.spelling())
+        let field = terminal_psi::field_by_identity(fields, identities.intern(&identity.spelling()))
             .filter(|field| !field.relevance.is_erased())
             .ok_or(LoweringError::Unsupported(
                 "structural sum predicate path field is absent or erased",
@@ -419,11 +419,11 @@ pub(crate) fn lower_structural_case_membership(
             let result = result.ok_or(LoweringError::Unsupported(
                 "case membership result is outside the contract namespace",
             ))?;
-            (identities, result.place, result.structural_type)
+            (result.place, result.structural_type)
         }
     };
     let (subject, structural_type) =
-        lower_sum_path(root, structural_type, &subject.path, structural_types)?;
+        lower_sum_path(identities, root, structural_type, &subject.path, structural_types)?;
     let declaration = terminal_psi::find_structural_type(structural_types, structural_type).ok_or(
         LoweringError::Unsupported("case membership declaration is absent"),
     )?;

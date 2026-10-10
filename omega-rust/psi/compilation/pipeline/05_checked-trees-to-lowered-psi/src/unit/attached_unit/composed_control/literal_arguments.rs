@@ -264,14 +264,15 @@ fn establish(
         .map(|domain| lookup_domain_id_for_carrier(&catalogs.domain_ids, *domain, structural_type))
         .collect::<Result<Vec<_>, _>>()?;
     let declaration = crate::emission::structural_byte_sequence_store::emit_call_literal(
+        identities,
         bytes,
         structural_type,
         qualifications,
         &catalogs.structural_types,
         &mut catalogs.temporary_places,
-        &mut catalogs.next_place,
         next_value,
         &mut catalogs.scalar_calls.next_call_obligation,
+        &mut catalogs.next_place,
         operations,
     )?;
     Ok(declaration.id)

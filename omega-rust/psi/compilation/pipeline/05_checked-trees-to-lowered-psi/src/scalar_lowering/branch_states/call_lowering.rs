@@ -87,6 +87,7 @@ pub(crate) fn lower_scalar_call(
     let erased_arguments = (0..target.erased_parameters().len())
         .map(|erased_ordinal| {
             scalar_bindings.expression_at(
+                identities,
                 checked,
                 caller_state,
                 statement_ordinal,

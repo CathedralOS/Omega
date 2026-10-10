@@ -328,7 +328,7 @@ fn scalar_domain_establishment_routes(
                         checked,
                         trait_definition,
                         requirement,
-                    ))?,
+                    )?),
             },
             DomainEstablishmentRoute::BoundaryRequirement {
                 boundary_trait,
@@ -339,14 +339,14 @@ fn scalar_domain_establishment_routes(
                         checked,
                         boundary_trait,
                         requirement,
-                    ))?,
+                    )?),
             },
             DomainEstablishmentRoute::ExactMachine { machine } => {
                 ScalarDomainEstablishmentRoute::ExactMachine {
                     machine_identity:
                         identities.intern(&crate::proofs::evidence_lowering::checked_evidence_machine_identity(
                             checked, machine,
-                        ))?,
+                        )?),
                 }
             }
         });

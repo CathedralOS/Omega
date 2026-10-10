@@ -964,7 +964,7 @@ pub(super) fn lower_unit_structural_domains(
                 )?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
-                identity: structural_domain_identity(&plan.identity, &plan.carrier_type_identity),
+                identity: identities.intern(&structural_domain_identity(&plan.identity, &plan.carrier_type_identity)),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
                 content_projection,
             })
@@ -1005,17 +1005,17 @@ fn lower_establishment_route(
             trait_definition,
             requirement,
         } => terminal_psi::StructuralEstablishmentRoute::Requirement {
-            requirement: establishment_requirement_identity(
+            requirement: identities.intern(&establishment_requirement_identity(
                 checked,
                 trait_definition,
                 requirement,
-            )?,
+            )?),
         },
         language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
             boundary_trait,
             requirement,
         } => terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
-            requirement: establishment_requirement_identity(checked, boundary_trait, requirement)?,
+            requirement: identities.intern(&establishment_requirement_identity(checked, boundary_trait, requirement)?),
         },
         language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
             let declaration = checked
@@ -1030,7 +1030,7 @@ fn lower_establishment_route(
                 .ok_or(LoweringError::Unsupported(
                     "domain establishment route machine has no normalized identity",
                 ))?;
-            terminal_psi::StructuralEstablishmentRoute::ExactMachine { machine }
+            terminal_psi::StructuralEstablishmentRoute::ExactMachine { identities.intern(&machine) }
         }
     })
 }
@@ -1285,7 +1285,7 @@ pub(super) fn lower_selected_unit_services(
             parents.dedup();
             Ok(ServiceDeclaration {
                 id: lookup_service_id(&service_ids, source)?,
-                identity: definition.name.clone(),
+                identity: identities.intern(&definition.name.clone()),
                 parents,
             })
         })
@@ -1375,7 +1375,7 @@ pub(crate) fn lower_root_service_reach(
             upper_bound.sort();
             upper_bound.dedup();
             Ok(InstallationReachDependency {
-                requirement_identity,
+                identities.intern(&requirement_identity),
                 upper_bound,
             })
         })

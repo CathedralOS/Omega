@@ -66,7 +66,7 @@ pub(crate) fn prepare(
                 validation::structural_type_identity(&checked.typed, root.type_reference, &[], &[]);
             let declaration = terminal_psi::structural_type_by_identity(
                     types,
-                    &checked.type_identity_text(identity).unwrap_or_default(),
+                    identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
                 ).ok_or(
                 LoweringError::Unsupported("computed producer has no structural type namespace"),
             )?;

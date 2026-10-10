@@ -27,11 +27,11 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
-        if self.argument_type(&Argument::Computation(condition), site, input_types)?
+        if self.argument_type(identities, &Argument::Computation(condition), site, input_types)?
             != ScalarType::Boolean.into()
-            || self.argument_type(&Argument::Computation(when_true), site, input_types)?
+            || self.argument_type(identities, &Argument::Computation(when_true), site, input_types)?
                 != result_type
-            || self.argument_type(&Argument::Computation(when_false), site, input_types)?
+            || self.argument_type(identities, &Argument::Computation(when_false), site, input_types)?
                 != result_type
         {
             return unsupported("scalar computation selection carriers disagree");
@@ -44,6 +44,7 @@ impl Expansion<'_> {
                 let mut next = prefixes.last().expect("selection input prefix").clone();
                 self.completed.push((*computation, next.len()));
                 next.push(self.argument_type(
+                    identities,
                     &Argument::Computation(*computation),
                     site,
                     input_types,

@@ -45,8 +45,14 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
             ));
         };
         *cleanup_actions = evaluation.emit_cleanup_regions(
+            identities,
             checked,
-            regions, values, next_value, next_block, next_edge, operations,
+            regions,
+            values,
+            next_block,
+            next_edge,
+            next_value,
+            operations,
         )?;
         return Ok((completion, None));
     }

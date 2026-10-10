@@ -562,7 +562,7 @@ impl ScalarBindings {
                 })
                 .collect::<Result<Vec<_>, _>>()
         };
-        let (identities, place, path, element_path, case, observes_element_view_length) =
+        let (place, path, element_path, case, observes_element_view_length) =
             structural_cases::resolve_runtime_element(
                 identities,
                 self.structural_fields.declarations(),
@@ -577,7 +577,7 @@ impl ScalarBindings {
                 self.runtime_index_parameter(*position)?
             }
             checked_trees::CheckedRuntimeIndex::StructuralField(
-            identities,field) => {
+            field) => {
                 structural_fields::resolve_typed(identities, field.parameter_position, &field.path, field.parameter_position)?
             }
             // Hoisted computations and addressed primitive locals share the
@@ -1439,12 +1439,12 @@ impl ScalarBindings {
 
     pub(crate) fn expression_at(
         &self,
-        checked: &CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         statement: u32,
         role: CheckedScalarExpressionRole,
     ) -> Result<LoweredDirectExpression, LoweringError> {
-        let (identities, _, expression) = checked
+        let (_, expression) = checked
             .facts
             .values
             .scalar_expressions

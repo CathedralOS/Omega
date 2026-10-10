@@ -437,9 +437,9 @@ pub(crate) fn prepare_unscoped_path(
                 Ok(PreparedStructuralPathSegment::RuntimeIndex(index.clone()))
             }
             CheckedUnitStructuralPathSegment::ComputedIndex(
-            identities,root) => {
+            root) => {
                 Ok( PreparedStructuralPathSegment::ComputedIndex(
-            identities,*root))
+            *root))
             }
             segment => Ok(PreparedStructuralPathSegment::Static(
                 lower_structural_path(identities, std::slice::from_ref(segment))?.remove(0),

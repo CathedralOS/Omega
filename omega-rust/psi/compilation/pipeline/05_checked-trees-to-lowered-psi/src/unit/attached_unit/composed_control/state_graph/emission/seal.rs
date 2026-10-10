@@ -82,8 +82,7 @@ impl StateGraphEmission<'_, '_> {
                     super::super::case_emission::result(state, binding_ordinal, &operations)?
                         .into_owned();
                 let source = evaluation.current_structural_place(binding.place());
-                let (
-            identities,completion, arrival) = super::super::returns::projected::materialize(
+                let (completion, arrival) = super::super::returns::projected::materialize(
                     identities,
                     self.checked,
                     &binding,
@@ -107,12 +106,13 @@ impl StateGraphEmission<'_, '_> {
                 }
             } else {
                 let actions = evaluation.emit_cleanup_regions(
+                    identities,
                     self.checked,
                     regions,
                     &mut values,
-                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
+                    &mut next_value,
                     &mut operations,
                 )?;
                 let Terminator::ReturnStructural {

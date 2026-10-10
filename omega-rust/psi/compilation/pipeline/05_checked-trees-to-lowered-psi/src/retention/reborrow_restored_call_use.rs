@@ -112,7 +112,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                     .weakenings
                     .get(member.parent_end_status.child_weakening);
                 shared_cohort.push(TerminalReborrowSharedCohortMember {
-                    child_owner_identity: identities.intern(&identity(checked, member.owner_symbol))?,
+                    child_owner_identity: identities.intern(&identity(checked, member.owner_symbol)?),
                     child_owner_path: owner_path(
             identities, checked, &member.owner_path)?,
                     child_place: place(
@@ -234,8 +234,8 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             },
             call_target_machine: callee_id,
             source_machine_identity: identities.intern(
-            &identity(checked, member.owner_symbol))?,
-            source_state_identity: identities.intern(&identity(checked, event.state_symbol))?,
+            &identity(checked, member.owner_symbol)?),
+            source_state_identity: identities.intern(&identity(checked, event.state_symbol)?),
             direct_root_owner_identity: identities.intern(
             identities)?,
             direct_root_owner_path: owner_path(identities, checked, &parent.owner_path)?,
@@ -243,7 +243,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             identities, checked, &parent.captured_place)?,
             direct_root_activation: boundary(identities, checked, parent.activation_source)?,
             direct_root_weakening: boundary(identities, checked, parent_weakening.source)?,
-            direct_root_lifetime_identity: identities.intern(&identity(checked, parent.parent_lifetime.root_symbol))?,
+            direct_root_lifetime_identity: identities.intern(&identity(checked, parent.parent_lifetime.root_symbol)?),
             child_owner_identity: identities.intern(&child_owner_identity),
             child_owner_path,
             child_place,

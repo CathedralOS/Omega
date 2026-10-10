@@ -329,8 +329,8 @@ pub(crate) fn retain_closed_reach_applications(
                     binder: binder as u32,
                     application: match &telescope[binder] {
                         ClosedReachParameter::Machine(
-            identities,binding) if binding.schema.is_some(
-            identities,) => {
+            binding) if binding.schema.is_some(
+            ) => {
                             let Some(application) = closed_call_application(
                                 identities,
                                 checked,

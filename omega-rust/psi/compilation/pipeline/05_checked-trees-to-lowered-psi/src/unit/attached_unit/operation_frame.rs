@@ -252,7 +252,7 @@ impl OperationFrame<'_, '_> {
                 result,
                 source,
                 expression,
-            } => self.move_structural_field(result, source, *expression),
+            } => self.move_structural_field(identities, result, source, *expression),
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary,
                 cleanup_actions,

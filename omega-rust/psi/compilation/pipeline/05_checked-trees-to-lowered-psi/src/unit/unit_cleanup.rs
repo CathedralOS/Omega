@@ -89,16 +89,15 @@ pub(crate) fn lower_cleanup_conditions(
             let (place, path) = storage(path)?;
             let structural_type = terminal_psi::structural_type_by_identity(
                 types,
-                &checked
+                identities.intern(&checked
                     .type_identity_text(condition.type_identity)
-                    .unwrap_or_default(),
+                    .unwrap_or_default()),
             )
             .map(|declaration| declaration.id)
             .ok_or(LoweringError::Unsupported(
                 "cleanup condition has no structural type",
             ))?;
-            let (
-            identities,_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
+            let (_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
                 identities,
                 types,
                 structural_type,
@@ -174,7 +173,7 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
     let mut regions = actions
         .into_iter()
         .map(|action| {
-            let (identities, place, path) = storage(action.source(), action.path())?;
+            let (place, path) = storage(action.source(), action.path())?;
             let conditions =
                 lower_cleanup_conditions(
                     identities,

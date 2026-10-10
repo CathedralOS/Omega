@@ -769,6 +769,7 @@ impl StateGraphEmission<'_, '_> {
             .iter()
             .map(|argument| {
                 let expression = bindings.expression_at(
+                    identities,
                     checked,
                     state.state,
                     edge.statement_ordinal,
@@ -930,12 +931,13 @@ impl StateGraphEmission<'_, '_> {
             )?;
         }
         let cleanup_actions = edge_evaluation.emit_cleanup_regions(
+            identities,
             self.checked,
             cleanup_regions,
             &mut edge_values,
-            next_value,
             next_block,
             next_edge,
+            next_value,
             operations,
         )?;
         // Payloads begin after selection. Actual edge work owns its block,

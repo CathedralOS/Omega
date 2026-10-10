@@ -64,9 +64,9 @@ pub(crate) fn prepare(
                     let declaration =
                         terminal_psi::structural_type_by_identity(
                     types,
-                    &checked
+                    identities.intern(&checked
                         .type_identity_text(argument.type_identity)
-                        .unwrap_or_default(),
+                        .unwrap_or_default()),
                 )
                             .ok_or(LoweringError::Unsupported(
                             "computed range has no structural type namespace",
@@ -106,9 +106,9 @@ fn reserve(
         range.family == crate::emission::operation_emission::view_subslice::ViewFamily::Bytes;
     let declaration = terminal_psi::structural_type_by_identity(
                     types,
-                    &checked
+                    identities.intern(&checked
                         .type_identity_text(argument.type_identity)
-                        .unwrap_or_default(),
+                        .unwrap_or_default()),
                 )
         .ok_or(LoweringError::Unsupported(
             "computed range has no structural type namespace",
@@ -171,7 +171,7 @@ impl super::Expansion<'_> {
             } = segment {
                 for value in std::iter::once(selector).chain(extent.iter_mut()) {
                     let operand = super::Argument::Value(value.clone());
-                    let value_type = self.argument_type(&operand, site, input_types)?;
+                    let value_type = self.argument_type(identities, &operand, site, input_types)?;
                     *value = super::parameter(endpoint_types.len(), value_type);
                     endpoints.push(operand);
                     endpoint_types.push(value_type);
@@ -180,7 +180,7 @@ impl super::Expansion<'_> {
         }
         let mut completed = [None, None];
         for (index, endpoint) in [start, end].into_iter().enumerate() {
-            let Some(identities, endpoint) = endpoint else {
+            let Some(endpoint) = endpoint else {
                 continue;
             };
             let argument = match endpoint {
@@ -192,7 +192,7 @@ impl super::Expansion<'_> {
                     super::Argument::Computation(handle)
                 }
             };
-            let value_type = self.argument_type(&argument, site, input_types)?;
+            let value_type = self.argument_type(identities, &argument, site, input_types)?;
             if value_type.scalar_type != scalar_type {
                 return unsupported("computed range endpoint lost its count type");
             }

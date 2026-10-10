@@ -137,7 +137,7 @@ impl OperationFrame<'_, '_> {
                     }
                 };
                 let place = window_place(source, &store.destination.path, *type_identity);
-                self.store_structural_field(store.statement_index, &place, *opening_binding, value)
+                self.store_structural_field(identities, store.statement_index, &place, *opening_binding, value)
             }
             CheckedStoreLeaf::LocalRebind { type_identity } => {
                 let (Some(value), checked_trees::CheckedStoreRoot::Local { symbol }) =
@@ -717,24 +717,25 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(
             ),
         )?;
-        if let Some(identities, projection) = &loan.byte_overlay {
+        if let Some(projection) = &loan.byte_overlay {
             let steps = projection
                 .indices
                 .iter()
                 .map(|index| crate::emission::runtime_elements::selector_step(&index.selector))
                 .collect::<Vec<_>>();
             let indexes = crate::emission::runtime_elements::evaluate_selectors(
+                identities,
                 &steps,
                 self.checked,
-                self.machine,
                 self.state,
+                self.machine,
                 statement_index,
                 self.evaluation,
                 self.source_value_count,
                 self.values,
-                self.next_value,
                 self.next_block,
                 self.next_edge,
+                self.next_value,
                 self.operations,
                 self.calls,
             )?;
@@ -844,8 +845,7 @@ impl OperationFrame<'_, '_> {
                 (identities, destination.place, destination.structural_type, lowered)
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
-                let (
-            identities, place, root_type) = self.local_home(symbol)?;
+                let (place, root_type) = self.local_home(symbol)?;
                 let lowered =
                     crate::emission::structural_scalar_store::lower_structural_scalar_store_local(identities, primitive_type, carrier_path, root_type, root_type, self.structural_types.declarations(
             ))?;
@@ -856,17 +856,18 @@ impl OperationFrame<'_, '_> {
         lowered.bind_range_decision(self.checked, primitive_type, range_decision)?;
         // The carrier's runtime elements are evaluated before the value.
         let indexes = crate::emission::runtime_elements::evaluate_selectors(
+            identities,
             &lowered.steps,
             self.checked,
-            self.machine,
             self.state,
+            self.machine,
             store.statement_index,
             self.evaluation,
             self.source_value_count,
             self.values,
-            self.next_value,
             self.next_block,
             self.next_edge,
+            self.next_value,
             self.operations,
             self.calls,
         )?;
@@ -992,8 +993,7 @@ impl OperationFrame<'_, '_> {
         // owned structural local roots it at the local's live home place.
         // The window pair below writes through either root identically.
         let (root_type, source) = self.window_destination(store.destination.root)?;
-        let (
-            identities,_, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
+        let (_, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
             identities,
             root_type,
             carrier_path,
@@ -1006,11 +1006,11 @@ impl OperationFrame<'_, '_> {
         let (
             identities,replacement, type_identity) = match &store.value {
             CheckedStoreValue::Place(
-            identities,value) => (
+            value) => (
                 self.copied_sum_value(
             identities,value, hole_type)?,
                 value.type_identity.clone(
-            identities,),
+            ),
             ),
             CheckedStoreValue::CaseLiteral(literal) => (
                 self.established_case_literal(identities, store.statement_index, literal, hole_type)?,
@@ -1023,6 +1023,7 @@ impl OperationFrame<'_, '_> {
         let hole = window_place(source, &store.destination.path, type_identity);
         require_parameter_window_root(self.parameters, &hole, self.evaluation)?;
         let moved = self.emit_window_move(
+            identities,
             store.statement_index,
             &hole,
             &checked_trees::CheckedUnitStructuralResultBindingPlan {
@@ -1042,6 +1043,7 @@ impl OperationFrame<'_, '_> {
         self.private_places
             .push(operation_result_declaration(moved, move_id, hole_type));
         self.emit_window_store(
+            identities,
             store.statement_index,
             &hole,
             Some(moved),
@@ -1133,7 +1135,7 @@ impl OperationFrame<'_, '_> {
             ),
             _ => return unsupported("case literal field store has a non-sum shape"),
         };
-        let case = terminal_psi::structural_case_by_identity(&cases, &literal.case_identity.spelling())
+        let case = terminal_psi::structural_case_by_identity(&cases, identities.intern(&literal.case_identity.spelling()))
             .ok_or(LoweringError::Unsupported(
                 "case literal field store case declaration missing",
             ))?;
@@ -1171,6 +1173,7 @@ impl OperationFrame<'_, '_> {
                 return unsupported("case literal operand requires a scalar carrier");
             }
             let expression = bindings.expression_at(
+                identities,
                 self.checked,
                 self.state,
                 statement_index,

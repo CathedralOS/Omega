@@ -310,10 +310,10 @@ impl Preparation<'_> {
         let declaration =
             terminal_psi::structural_type_by_identity(
                 self.types,
-                &self
+                identities.intern(&self
                     .checked
                     .type_identity_text(binding.type_identity)
-                    .unwrap_or_default(),
+                    .unwrap_or_default()),
             ).ok_or(
                 LoweringError::Unsupported("structural operand result lost its carrier"),
             )?;

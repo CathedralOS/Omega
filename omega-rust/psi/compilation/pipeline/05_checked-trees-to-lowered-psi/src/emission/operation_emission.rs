@@ -69,6 +69,7 @@ impl LoweredScalarBinding {
 }
 
 pub(crate) fn emit_scalar_binding(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &checked_trees::CheckedTrees,
     binding: &LoweredScalarBinding,
     parameters: &[ValueDeclaration],

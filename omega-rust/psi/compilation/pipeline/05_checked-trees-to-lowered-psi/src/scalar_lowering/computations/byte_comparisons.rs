@@ -240,7 +240,7 @@ impl Expansion<'_> {
                     _ => unsupported("byte predicate has no scalar observation path"),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            (identities, site.bindings, root, path)
+            (site.bindings, root, path)
         };
         let evaluation = CheckedBooleanExpression::ByteSequencePredicate {
             predicate,
@@ -248,6 +248,7 @@ impl Expansion<'_> {
             path,
         };
         let mut value = bindings.expression(
+            identities,
             &self.checked.facts.proven_scalar_indexes,
             &CheckedScalarExpression::Boolean(Box::new(evaluation)),
         )?;

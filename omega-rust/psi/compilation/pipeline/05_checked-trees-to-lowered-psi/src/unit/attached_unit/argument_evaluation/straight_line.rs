@@ -20,7 +20,7 @@ use crate::scalar_lowering::branch_states::prepared::{
 impl Evaluation {
     pub(super) fn complete_straight_line(
         &mut self,
-        checked: &checked_trees::CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &checked_trees::CheckedTrees,
         states: &[LoweredScalarBranchState],
         entry: usize,
         result_types: &[QualifiedScalarType],
@@ -112,10 +112,11 @@ impl Evaluation {
                         .collect::<Vec<_>>(),
                 )?;
                 let id = emit_scalar_binding(
+                    identities,
                     checked,
                     binding,
-                    &completed,
                     &self.erased_scalar_formals,
+                    &completed,
                     next_value,
                     operations,
                     calls,

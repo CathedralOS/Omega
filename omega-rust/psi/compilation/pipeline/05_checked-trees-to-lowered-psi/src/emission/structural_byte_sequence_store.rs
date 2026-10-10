@@ -186,7 +186,7 @@ pub(crate) fn descriptor_value_type(
         });
     if types
         .iter()
-        .any(|declaration| declaration.identity == IDENTITY)
+        .any(|declaration| declaration.identity == identities.intern(&IDENTITY))
     {
         return unsupported("descriptor carrier identity changed shape");
     }
@@ -385,8 +385,7 @@ pub(crate) fn emit_content_store(
             operations,
         },
     };
-    let (
-            identities,operand, capacity) = emitter.emit(identities, value.root, 0)?;
+    let (operand, capacity) = emitter.emit(identities, value.root, 0)?;
     let (source, length) = match operand {
         ByteSequenceOperand::Whole { source, length }
             if !matches!(
@@ -495,7 +494,7 @@ pub(crate) fn prepare_descriptor_store(
     };
     let (destination, structural_type, (steps, field)) = match root {
         StoreRoot::Parameter(
-            identities,parameter) => (
+            parameter) => (
             parameter.place,
             parameter.structural_type,
             crate::emission::structural_scalar_store::lower_structural_field_place_steps(identities, carrier_path, parameter, parameter, structural_types)?,
@@ -667,6 +666,7 @@ pub(crate) fn emit_owned_value(
 }
 
 pub(crate) fn emit_owned_literal(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     bytes: &[u8],
     structural_type: StructuralTypeId,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
@@ -713,6 +713,7 @@ pub(crate) fn emit_owned_literal(
 /// `places` retains every supporting declaration, including that place.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_call_literal(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     bytes: &[u8],
     structural_type: StructuralTypeId,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
@@ -732,14 +733,15 @@ pub(crate) fn emit_call_literal(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
         )) => {
             emit_owned_literal(
+                identities,
                 bytes,
                 structural_type,
                 qualifications,
                 structural_types,
                 places,
-                next_place,
                 next_value,
                 next_obligation,
+                next_place,
                 operations,
             )?
             .0
@@ -1115,10 +1117,10 @@ impl ValueEmitter<'_> {
                 field_identity,
                 capacity,
             } => {
-                let (
-            identities,source_place, source_type) = self.field_source(*root)?;
+                let (source_place, source_type) = self.field_source(*root)?;
                 let (path, field) =
                     crate::emission::structural_scalar_store::lower_structural_field_path(
+                        identities,
                         source_type,
                         carrier_path,
                         field_identity,
@@ -1147,8 +1149,6 @@ impl ValueEmitter<'_> {
                             field,
                         })?;
                 Ok((
-            identities,
-            identities,
                     ByteSequenceOperand::Field {
                         source,
                         field,
@@ -1169,8 +1169,7 @@ impl ValueEmitter<'_> {
                         "byte concatenation capacity differs from operand carriers",
                     );
                 }
-                let (
-            identities,source, length) = self.owned(
+                let (source, length) = self.owned(
             identities,left, right, *capacity)?;
                 Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
             }

@@ -155,7 +155,7 @@ fn collect_closed_conformance_applications(
                             identities.intern(&super::evidence_lowering::checked_evidence_machine_identity(
                                 checked,
                                 selected_row.realization_machine,
-                            ))?,
+                            )?),
                         machine,
                         result,
                     })
@@ -247,9 +247,9 @@ fn collect_closed_conformance_applications(
                         public_requirement_identity: identities.intern(&public_requirement_identity.clone()),
                         family_tuple: family_row.family_tuple,
                         requirement_identity: identities.intern(&requirement_identity.clone()),
-                        realization_identity: identities.intern(&checked)
+                        realization_identity: identities.intern(&checked
                             .symbols
-                            .display_path(family_row.realization_state, "::"),
+                            .display_path(family_row.realization_state, "::")),
                         realization_callable_identity,
                     });
                 }
@@ -341,9 +341,9 @@ fn collect_closed_conformance_applications(
                 owner: *owner,
                 declaration_identity: identities.intern(&checked.symbols.display_path(application.declaration, "::")),
                 telescope,
-                trait_identity: identities.intern(&checked)
+                trait_identity: identities.intern(&checked
                     .symbols
-                    .display_path(application.trait_definition, "::"),
+                    .display_path(application.trait_definition, "::")),
                 trait_lifetime_arguments: application.trait_lifetime_arguments.clone(),
                 trait_arguments: application.trait_arguments.clone(),
                 realization_callables,

@@ -303,8 +303,7 @@ pub(crate) fn resolve_typed(
             )
         })
     {
-        let (
-            identities,source, path) = resolve_case_primitive(identities, binding, projection, scalar_type)?;
+        let (source, path) = resolve_case_primitive(identities, binding, projection, scalar_type)?;
         return Ok(LoweredDirectExpression::PrimitiveRead {
             source,
             path,
@@ -760,20 +759,20 @@ pub(crate) fn resolve_sequence_projection(
             )
         .map(|segment| match segment {
             checked_trees::CheckedStructuralPredicatePathSegment::Field(
-            identities,identity) => {
+            identity) => {
                 Ok(CheckedUnitStructuralPathSegment::Field(
-            identities,identity.clone()))
+            identity.clone()))
             }
             checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(
-            identities,index) => {
+            index) => {
                 Ok(CheckedUnitStructuralPathSegment::FixedIndex(
-            identities,*index))
+            *index))
             }
             checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(
-            identities,index) => Ok(
+            index) => Ok(
                 CheckedUnitStructuralPathSegment::RuntimeIndex(
-            identities, index.clone(
-            identities,)),
+            index.clone(
+            )),
             ),
             _ => unsupported(
             "sequence field length has an unsupported case path"),

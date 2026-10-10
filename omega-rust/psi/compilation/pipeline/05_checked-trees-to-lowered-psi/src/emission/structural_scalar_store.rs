@@ -145,8 +145,7 @@ pub(crate) fn lower_structural_scalar_store_place(
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
     let scalar_type = terminal_scalar_type(primitive_type)?;
-    let (
-            identities,steps, field) = lower_structural_field_place_steps(
+    let (steps, field) = lower_structural_field_place_steps(
         identities,
         carrier_path,
         field_identity,
@@ -191,8 +190,7 @@ pub(crate) fn lower_structural_field_place<'a>(
     ),
     LoweringError,
 > {
-    let (
-            identities,steps, field) = lower_structural_field_place_steps(
+    let (steps, field) = lower_structural_field_place_steps(
         identities,
         carrier_path,
         field_identity,
@@ -270,8 +268,7 @@ pub(crate) fn lower_structural_field_path<'a>(
     ),
     LoweringError,
 > {
-    let (
-            identities, steps, field) =
+    let (steps, field) =
         lower_structural_field_steps(
             identities,root_type, carrier_path, field_identity, structural_types)?;
     Ok((

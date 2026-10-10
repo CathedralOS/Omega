@@ -110,7 +110,7 @@ pub(crate) fn lower_unit_plan_machine(
             },
         ),
         CheckedUnitPlan::PartialAffineCleanup(
-            identities,plan) => LoweredSelectedMachine::source_mapped(
+            plan) => LoweredSelectedMachine::source_mapped(
             lower_partial_affine_unit_cleanup_machine(
             identities, checked, plan)?,
             LoweringCompletion {

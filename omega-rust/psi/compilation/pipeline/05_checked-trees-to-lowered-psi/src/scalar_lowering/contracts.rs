@@ -161,9 +161,9 @@ pub(crate) fn erased_proof_formal_declarations(
         .iter()
         .map(|parameter| ErasedProofFormal {
             source_position: parameter.source_position,
-            type_identity: identities.intern(&checked)
+            type_identity: identities.intern(&checked
                 .type_identity_text(parameter.type_identity)
-                .unwrap_or_default(),
+                .unwrap_or_default()),
         })
         .collect()
 }
@@ -246,8 +246,9 @@ pub(crate) fn checked_proof_term(
             })
         }
         CheckedProofTerm::Scalar(
-            identities,expression) => Ok(LoweredProofTerm::Scalar(
+            expression) => Ok(LoweredProofTerm::Scalar(
             crate::expression_preparation::prepare_expression::lower_checked_scalar_expression(
+                identities,
                 expression,
                 &[],
             )?,

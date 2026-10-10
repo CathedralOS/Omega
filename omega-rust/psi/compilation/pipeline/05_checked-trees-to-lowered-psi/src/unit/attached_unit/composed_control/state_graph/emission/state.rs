@@ -28,7 +28,7 @@ impl StateGraphEmission<'_, '_> {
     /// No normal cleanup or result establishment is performed on this edge.
     pub(super) fn crash_completion(
         &self,
-        position: usize,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, position: usize,
         statement_ordinal: u32,
         next_edge: &mut u64,
     ) -> Result<Terminator, LoweringError> {
@@ -518,7 +518,7 @@ impl StateGraphEmission<'_, '_> {
         // private arm and join blocks stay inside this state.
         let mut scalar_return = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-                completion: checked_trees::CheckedScalarReturnPlan::Exits(identities, exits),
+                completion: checked_trees::CheckedScalarReturnPlan::Exits(exits),
             } => {
                 // Allocate each exit's obligations before the call context takes
                 // its counter snapshot. Proofs are produced from the completed
@@ -636,7 +636,7 @@ impl StateGraphEmission<'_, '_> {
                 };
                 let true_edge = self.conditional_return_arm(identities, position, &state_parameters, planned_guard
                         .as_ref()
-                        .map_or(identities,&[], |(guard, _)| guard.established.as_slice()), &[], &[], &[], when_true, &mut evaluation, &mut next_block, &mut next_edge, &mut next_value, &mut operations)?;
+                        .map_or(&[], |(guard, _)| guard.established.as_slice()), &[], &[], &[], when_true, &mut evaluation, &mut next_block, &mut next_edge, &mut next_value, &mut operations)?;
                 let false_edge = self.conditional_return_arm(
                     identities,
                     position,
@@ -783,10 +783,10 @@ impl StateGraphEmission<'_, '_> {
                             } else {
                                 let draft = &guarded_drafts[index - 1];
                                 match &draft.4 {
-                                    ChainGuard::Decision(identities, (guard, namespace)) => {
+                                    ChainGuard::Decision((guard, namespace)) => {
                                         (namespace.clone(), guard.established.as_slice())
                                     }
-                                    ChainGuard::Value(identities, _) => (draft.5.clone(), &[][..]),
+                                    ChainGuard::Value(_) => (draft.5.clone(), &[][..]),
                                 }
                             };
                             staged.push(Some(self.conditional_return_arm(identities, position, namespace, established, &[], &[], &[], &plan.return_arm, &mut evaluation, &mut next_block, &mut next_edge, &mut next_value, &mut operations)?));
@@ -803,11 +803,12 @@ impl StateGraphEmission<'_, '_> {
         // borrows this state's emission slots.
         let mut guarded_return_edge =
             if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
-                fallback: checked_trees::CheckedGuardedJumpFallbackPlan::Return(identities, return_arm),
+                fallback: checked_trees::CheckedGuardedJumpFallbackPlan::Return(return_arm),
                 ..
             } = &state.terminator
             {
                 Some(self.conditional_return_arm(
+                    identities,
                     position,
                     &state_parameters,
                     values.clone(),
@@ -816,9 +817,9 @@ impl StateGraphEmission<'_, '_> {
                     &[],
                     return_arm,
                     &mut evaluation,
-                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
+                    &mut next_value,
                     &mut operations,
                 )?)
             } else {
@@ -861,12 +862,13 @@ impl StateGraphEmission<'_, '_> {
                         })
                 });
                 let actions = evaluation.emit_cleanup_regions(
+                    identities,
                     self.checked,
                     regions,
                     &mut values,
-                    &mut next_value,
                     &mut next_block,
                     &mut next_edge,
+                    &mut next_value,
                     &mut operations,
                 )?;
                 if let Some(position) = return_position {
@@ -1001,7 +1003,7 @@ impl StateGraphEmission<'_, '_> {
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal } => {
-                self.crash_completion(position, *statement_ordinal, &mut next_edge)?
+                self.crash_completion(identities, position, *statement_ordinal, &mut next_edge)?
             }
             CheckedComposedUnitControlTerminatorPlan::Jump { successor: edge } => {
                 let edge = successor(edge, &[], false, &values, &[])?;
@@ -1171,13 +1173,13 @@ impl StateGraphEmission<'_, '_> {
                         "guarded jump chain lost an ordered successor",
                     ))?;
                     let terminator = match guard {
-                        ChainGuard::Value(identities, condition) => Terminator::Conditional {
+                        ChainGuard::Value(condition) => Terminator::Conditional {
                             condition,
                             when_true,
                             when_false,
                         },
                         ChainGuard::Decision(
-            identities,(planned, namespace)) => emit_short_circuit_decision(identities, &planned, &namespace, guard_values, [when_true, when_false], ShortCircuitFrame {
+            (planned, namespace)) => emit_short_circuit_decision(identities, &planned, &namespace, guard_values, [when_true, when_false], ShortCircuitFrame {
                                 erased_scalar_formals: &self.state_erased[position],
                                 erased_proof_formals: &self.state_erased_proof[position],
                                 current_rank,

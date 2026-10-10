@@ -15,6 +15,7 @@ use terminal_psi::ValueDeclaration;
 /// shared scalar evaluator instead.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn direct_value(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     statement_index: u32,
@@ -26,7 +27,7 @@ pub(crate) fn direct_value(
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match value {
         checked_trees::CheckedScalarStoreValue::Pure(_) => {
-            bindings.expression_at(checked, state, statement_index, role)
+            bindings.expression_at(identities, checked, state, statement_index, role)
         }
         checked_trees::CheckedScalarStoreValue::ScalarResult { position } => {
             let position = usize::try_from(*position).map_err(|_| {

@@ -259,7 +259,7 @@ pub(crate) fn emit(
             CheckedStructuralValueKind::Place(_)
         )
     {
-        let projected = emission.projected_root(source, path, type_identity)?;
+        let projected = emission.projected_root(identities, source, path, type_identity)?;
         let alias_path = projected.lowered_path(identities, emission.type_ids, emission.structural_types)?;
         // The leaf's claim is published where its root was established: the
         // alias names that exact place and path, so the consuming operation
@@ -335,7 +335,7 @@ pub(crate) fn emit(
             {
                 let mut stored_path = path.clone();
                 stored_path.push(terminal_psi::StructuralPathSegment::Field(
-                    identities.intern(&crate::structural_types::field_identity(emission.structural_types, *field))?,
+                    identities.intern(&crate::structural_types::field_identity(emission.structural_types, *field)?),
                 ));
                 let stored_claims =
                     completed_place_claims(emission.operations, value.place).collect::<Vec<_>>();
@@ -1129,7 +1129,7 @@ impl Emission<'_, '_, '_> {
                 CheckedStructuralValueKind::Place(_) | CheckedStructuralValueKind::Call { .. }
             )
         {
-            let projected = self.projected_root(source, path, type_identity)?;
+            let projected = self.projected_root(identities, source, path, type_identity)?;
             return self.capture_operand(
                 identities,
                 StructuralArgument {
@@ -1163,7 +1163,7 @@ impl Emission<'_, '_, '_> {
                 }
                 Ok(place)
             })
-            .and_then(|place| self.retain_checked_memberships(place, node.qualification_decisions));
+            .and_then(|place| self.retain_checked_memberships(identities, place, node.qualification_decisions));
         self.type_reference = parent_reference;
         self.sources = sources;
         self.owners = owners;
@@ -1313,6 +1313,7 @@ impl Emission<'_, '_, '_> {
                     argument.path.extend(lower_structural_path(
             identities,&path)?);
                     return self.copied_leaf_place(
+                        identities,
                         &argument,
                         node.qualification_decisions,
                         continuation,
@@ -1331,7 +1332,7 @@ impl Emission<'_, '_, '_> {
                     owned_continuation = self.root_value_continuation(self.values.clone())?;
                     &owned_continuation
                 };
-                let projected = self.projected_root(source, path, type_identity)?;
+                let projected = self.projected_root(identities, source, path, type_identity)?;
                 if matches!(
                     structural_values(self.checked).nodes.get(source).kind,
                     CheckedStructuralValueKind::Place(_)
@@ -1352,7 +1353,7 @@ impl Emission<'_, '_, '_> {
             }
             CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 let argument = self.copied_place_argument(identities, &source)?;
-                self.copied_leaf_place(&argument, node.qualification_decisions, continuation)
+                self.copied_leaf_place(identities, &argument, node.qualification_decisions, continuation)
             }
             CheckedStructuralValueKind::ZeroedScalarArray {
                 element,
@@ -1484,11 +1485,7 @@ impl Emission<'_, '_, '_> {
                             self.domain_ids, domain, self.structural_type,
                         )
                     ).collect::<Result<Vec<_>, _>>()?;
-                    let (declaration, _) = crate::emission::structural_byte_sequence_store::emit_owned_literal(
-                        bytes, self.structural_type, qualifications, self.structural_types,
-                        self.temporary_places, self.next_place, self.next_value,
-                        &mut self.calls.next_obligation_identity, self.operations,
-                    )?;
+                    let (declaration, _) = crate::emission::structural_byte_sequence_store::emit_owned_literal(identities, bytes, self.structural_type, qualifications, self.structural_types, self.temporary_places, self.next_value, &mut self.calls.next_obligation_identity, self.next_place, self.operations)?;
                     let place = declaration.id;
                     self.temporary_places.push(declaration);
                     if let Some(continuation) = continuation {
@@ -1498,6 +1495,7 @@ impl Emission<'_, '_, '_> {
                 }
                 if let Some(source) = self.copied_parameter(&argument)? {
                     return self.copied_leaf_place(
+                        identities,
                         &source,
                         node.qualification_decisions,
                         continuation,
@@ -1898,7 +1896,7 @@ impl Emission<'_, '_, '_> {
 
     fn copied_leaf_place(
         &mut self,
-        argument: &StructuralArgument,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, argument: &StructuralArgument,
         qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
@@ -1957,7 +1955,7 @@ impl Emission<'_, '_, '_> {
             operation,
             self.structural_type,
         ));
-        let Some(identities, continuation) = continuation else {
+        let Some(continuation) = continuation else {
             // At the value root the fresh place publishes directly — the copy
             // consumes nothing, so there is no custody edge to join.
             return Ok(place);

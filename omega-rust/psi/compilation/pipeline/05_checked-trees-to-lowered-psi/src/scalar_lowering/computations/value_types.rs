@@ -10,6 +10,7 @@ use super::{
     PreparedScalarQualifications, QualifiedScalarType, ScalarType, storage, unsupported,
 };
 pub(crate) fn computation_value_type(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
     root: Computation,

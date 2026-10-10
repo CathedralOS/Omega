@@ -36,6 +36,7 @@ impl LoweredUnitClaims {
 /// lookup continues custody and never manufactures a replacement claim.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_return_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -124,9 +125,10 @@ pub(super) fn lower_return_claims(
         return Ok(claims);
     }
     lower_owned_transfer_claims(
+        identities,
         checked,
-        machine,
         state,
+        machine,
         statement_index,
         expression,
         evaluation,
@@ -141,6 +143,7 @@ pub(super) fn lower_return_claims(
 /// field reseating can change that roster without changing the physical home.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_owned_transfer_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,

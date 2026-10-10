@@ -117,17 +117,16 @@ pub(crate) fn resolve(
             )
         .filter(|binding| binding.source_position == subject.parameter_position);
     let binding = matching.next(
-            identities,).ok_or(
+            ).ok_or(
             LoweringError::Unsupported(
         "case observation has no exact readable source and case binding",
     ))?;
     if matching.next(
-            identities, ).is_some() {
+            ).is_some() {
         return unsupported(
             "case observation has ambiguous source bindings");
     }
-    let (
-            identities, sum, path) = walk(identities, &binding.declarations, binding.structural_type, &subject.path)?;
+    let (sum, path) = walk(identities, &binding.declarations, binding.structural_type, &subject.path)?;
     Ok((
         binding.source,
         path,
@@ -163,8 +162,7 @@ pub(crate) fn resolve_runtime_element(
     ),
     LoweringError,
 > {
-    let (
-            identities,array, prefix) = walk(identities, declarations, structural_type, prefix)?;
+    let (array, prefix) = walk(identities, declarations, structural_type, prefix)?;
     let (element, observes_element_view_length) = match &unique_declaration(
         declarations,
         array,
@@ -176,7 +174,7 @@ pub(crate) fn resolve_runtime_element(
         StructuralTypeShape::FixedArray { element, .. } => (
             identities,*element, false),
         StructuralTypeShape::ElementView { element } if prefix.is_empty(
-            identities, ) => (
+            ) => (
             identities, *element, true),
         _ => {
             return unsupported("runtime case observation requires an array or whole element view");

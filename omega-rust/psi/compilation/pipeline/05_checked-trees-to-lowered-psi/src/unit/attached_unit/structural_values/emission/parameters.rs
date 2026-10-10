@@ -120,7 +120,7 @@ impl Emission<'_, '_, '_> {
     /// source for the residual complement.
     pub(super) fn projected_root(
         &mut self,
-        source: CheckedStructuralValueHandle,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, source: CheckedStructuralValueHandle,
         path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         leaf_type_identity: typed_trees::type_identity::TypeIdentityId,
     ) -> Result<ProjectedMove, LoweringError> {

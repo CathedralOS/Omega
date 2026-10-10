@@ -652,7 +652,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 .map(|step| match step {
                     checked_trees::CheckedScalarReadProjection::Static(segment) => segment.clone(),
                     checked_trees::CheckedScalarReadProjection::RuntimeIndex(
-            identities,selector) => {
+            selector) => {
                         let depth = selectors.len(
             ) as u32;
                         selectors.push(selector);
@@ -850,8 +850,7 @@ fn lower_checked_boolean_expression_with_parameters(
             observation),
                 });
             }
-            let (
-            identities,source, path) = crate::expression_preparation::bindings::primitive_storage_read(
+            let (source, path) = crate::expression_preparation::bindings::primitive_storage_read(
                 primitive_storage,
                 structural_locals,
                 structural_fields.declarations(),
@@ -860,7 +859,7 @@ fn lower_checked_boolean_expression_with_parameters(
             )?;
             LoweredBooleanReturnExpression::PrimitiveRead {
                 source: source.into(
-            identities,),
+            ),
                 path,
             }
         }
@@ -1015,7 +1014,7 @@ fn lower_checked_boolean_expression_with_parameters(
             }
         }
         CheckedBooleanExpression::Not(
-            identities,operand) => LoweredBooleanReturnExpression::Not {
+            operand) => LoweredBooleanReturnExpression::Not {
             operand: Box::new(
             lower(operand)?),
         },
@@ -1168,7 +1167,7 @@ fn captured_sequence_length(
     let field = parent
         .shape
         .direct_fields()
-        .and_then(|fields| terminal_psi::live_field(fields, identity))
+        .and_then(|fields| terminal_psi::live_field(fields, *identity))
         .ok_or(LoweringError::Unsupported(
             "captured sequence observation lost its descriptor field",
         ))?;
@@ -1296,7 +1295,7 @@ fn sequence_field_observation(
         .chain(steps.into_iter().enumerate().map(|(ordinal, step)| {
             let selector = match step {
                 ProjectionStep::Static(
-            identities,segment) => {
+            segment) => {
                     return Ok(LoweredElementPathSegment::Static(segment));
                 }
                 ProjectionStep::RuntimeIndexLiteral { index } => {

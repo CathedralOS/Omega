@@ -128,7 +128,7 @@ pub(crate) fn reserve(
     let identity = checked.normalized_type_identity(source.type_reference);
     let declaration = terminal_psi::structural_type_by_identity(
         types,
-        &checked.type_identity_text(identity).unwrap_or_default(),
+        identities.intern(&checked.type_identity_text(identity).unwrap_or_default()),
     )
     .ok_or(LoweringError::Unsupported(
         "computed case has no structural type namespace",
@@ -152,7 +152,7 @@ pub(crate) fn reserve(
             continue;
         };
         let identity = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
-        let case = terminal_psi::structural_case_by_identity(cases, &identity.spelling()).ok_or(
+        let case = terminal_psi::structural_case_by_identity(cases, identities.intern(&identity.spelling())).ok_or(
             LoweringError::Unsupported("computed case declaration is absent"),
         )?;
         case_bindings.push((variant.symbol, case.id));
@@ -177,7 +177,7 @@ pub(crate) fn reserve(
                 "computed case field has a foreign owner",
             ))?;
         let identity = checked_trees::CheckedMemberIdentity::of_member(authored.identity, authored.name.clone());
-        let declaration = terminal_psi::field_by_identity(&case.fields, &identity.spelling()).ok_or(
+        let declaration = terminal_psi::field_by_identity(&case.fields, identities.intern(&identity.spelling())).ok_or(
             LoweringError::Unsupported("computed case field declaration is absent"),
         )?;
         let primitive = checked
@@ -339,8 +339,7 @@ impl Expansion<'_> {
                     LoweringError::Unsupported("case observation lost its established carrier"),
                 )?;
                 let identity = structural_case_identity(self.checked, observed_case)?;
-                let (
-            identities,path, case) =
+                let (path, case) =
                     crate::expression_preparation::bindings::structural_cases::resolve_at(
                         identities,
                         self.structural_types,
@@ -403,7 +402,7 @@ impl Expansion<'_> {
         let mut completed_fields = Vec::new();
         for (field, reserved) in retained.iter().zip(&slot.fields) {
             let operand = Argument::Computation(field.value);
-            self.argument_type(&operand, site, input_types)?;
+            self.argument_type(identities, &operand, site, input_types)?;
             completed_fields.push(reserved.completed(parameter(
                 completed_types.len(),
                 reserved.scalar_type.into(),

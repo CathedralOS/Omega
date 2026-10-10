@@ -80,7 +80,7 @@ fn consume_pure_call_argument(
         if !present {
             continue;
         }
-        if bindings.expression_at(checked, state, statement, role)? != operand_expression {
+        if bindings.expression_at(identities, checked, state, statement, role)? != operand_expression {
             return unsupported("computed call operand disagrees with its retained pure argument");
         }
         retained = true;
@@ -403,12 +403,12 @@ impl Expansion<'_> {
                 .clone();
             match operand {
                 Operand::Scalar(argument) => {
-                    let value_type = self.argument_type(argument, site, input_types)?;
+                    let value_type = self.argument_type(identities, argument, site, input_types)?;
                     scalar_actuals.push(parameter(prefix.len(), value_type));
                     prefix.push(value_type);
                 }
                 Operand::DispatchSelector(argument) => {
-                    let value_type = self.argument_type(argument, site, input_types)?;
+                    let value_type = self.argument_type(identities, argument, site, input_types)?;
                     selector_actual = Some(parameter(prefix.len(), value_type));
                     prefix.push(value_type);
                 }
@@ -419,7 +419,7 @@ impl Expansion<'_> {
                     structural_arguments[*structural_ordinal]
                         .selector_positions
                         .push(prefix.len());
-                    prefix.push(self.argument_type(value, site, input_types)?);
+                    prefix.push(self.argument_type(identities, value, site, input_types)?);
                 }
                 _ => {}
             }
@@ -748,10 +748,10 @@ impl Expansion<'_> {
                 )?;
                 let structural_type = terminal_psi::structural_type_by_identity(
                     self.structural_types,
-                    &self
+                    identities.intern(&self
                         .checked
                         .type_identity_text(action.type_identity())
-                        .unwrap_or_default(),
+                        .unwrap_or_default()),
                 )
                 .map(|declaration| declaration.id)
                 .ok_or(LoweringError::Unsupported(

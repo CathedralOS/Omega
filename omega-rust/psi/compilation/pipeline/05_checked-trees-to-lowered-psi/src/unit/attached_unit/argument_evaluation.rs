@@ -1042,6 +1042,7 @@ impl Evaluation {
                         return unsupported("call argument computation has no live root");
                     }
                     crate::scalar_lowering::computations::computation_value_type(
+                        identities,
                         checked,
                         qualifications,
                         *root,
@@ -1156,6 +1157,7 @@ impl Evaluation {
         }
         if value.as_pure().is_some() {
             let expression = bindings.expression_at(
+                identities,
                 checked,
                 state,
                 statement_index,
@@ -1195,6 +1197,7 @@ impl Evaluation {
         // that storage representation must not erase qualifications from the
         // evaluation edge or demand a bare type from an authored qualified cast.
         let result_type = crate::scalar_lowering::computations::computation_value_type(
+            identities,
             checked,
             qualifications,
             root,
@@ -1282,6 +1285,7 @@ impl Evaluation {
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<Vec<ValueDeclaration>, LoweringError> {
         if let Some(completed) = self.complete_straight_line(
+            identities,
             checked,
             states,
             entry_index,

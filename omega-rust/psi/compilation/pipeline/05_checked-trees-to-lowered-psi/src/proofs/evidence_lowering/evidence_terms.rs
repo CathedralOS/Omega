@@ -60,9 +60,9 @@ pub(crate) fn lower_proposition_vocabulary(
                         CheckedPropositionBinderKind::Type => PropositionBinderKind::Type,
                         CheckedPropositionBinderKind::Const { type_identity } => {
                             PropositionBinderKind::Const {
-                                type_identity: identities.intern(&checked)
+                                type_identity: identities.intern(&checked
                                     .type_identity_text(*type_identity)
-                                    .unwrap_or_default(),
+                                    .unwrap_or_default()),
                             }
                         }
                         CheckedPropositionBinderKind::Machine => PropositionBinderKind::Machine,
@@ -371,8 +371,7 @@ pub(crate) fn lower_evidence_terms(
                     .evidence_projection
                     .as_ref(
             )
-                    .map(
-            identities, |projection| {
+                    .map(|projection| {
                         let projection_index = usize::try_from(projection.term.arena_index() - 1)
                             .expect("arena indices fit the host address space");
                         evidence_projection_identity(identities, projection, term_ids.get(projection_index).copied().flatten().ok_or(
@@ -382,7 +381,7 @@ pub(crate) fn lower_evidence_terms(
                             )?, projection)
                     })
                     .transpose(
-            identities,)?;
+            )?;
                 Ok(PropositionBinderArgumentIdentity {
                     kind: super::binder_argument_kind(
             argument.kind),
@@ -454,7 +453,7 @@ pub(crate) fn lower_evidence_interface(
                     checked,
                     requirement.declaring_trait,
                     requirement.requirement,
-                ))?,
+                )?),
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

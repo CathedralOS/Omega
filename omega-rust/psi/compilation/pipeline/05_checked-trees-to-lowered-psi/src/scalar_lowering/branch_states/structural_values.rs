@@ -459,6 +459,7 @@ impl Preparation<'_> {
             let mut completed = Vec::new();
             for (ordinal, (field, reserved)) in fields.iter().zip(&slot.fields).enumerate() {
                 let result_type = computations::computation_value_type(
+                    identities,
                     self.checked,
                     self.qualifications,
                     field.value,
@@ -502,6 +503,7 @@ impl Preparation<'_> {
             let mut completed = Vec::with_capacity(elements.len());
             for (ordinal, element) in elements.iter().enumerate() {
                 let result_type = computations::computation_value_type(
+                    identities,
                     self.checked,
                     self.qualifications,
                     *element,
@@ -616,11 +618,11 @@ impl Preparation<'_> {
                 let selected =
                     terminal_psi::structural_case_by_identity(
                         cases,
-                        &checked_trees::CheckedMemberIdentity::of_member(
+                        identities.intern(&checked_trees::CheckedMemberIdentity::of_member(
                             variant.identity,
                             variant.name.clone(),
                         )
-                        .spelling(),
+                        .spelling()),
                     )
                         .ok_or(LoweringError::Unsupported(
                             "aggregate case declaration is absent",
@@ -700,6 +702,7 @@ impl Preparation<'_> {
             let field_value = match field.value {
                 CheckedStructuralRecordFieldValue::Scalar(root) => {
                     let result_type = computations::computation_value_type(
+                        identities,
                         self.checked,
                         self.qualifications,
                         root,

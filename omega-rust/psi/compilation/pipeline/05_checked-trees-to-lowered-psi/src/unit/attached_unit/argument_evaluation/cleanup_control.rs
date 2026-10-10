@@ -146,7 +146,7 @@ impl Evaluation {
     /// the same private control blocks as statement and call continuations.
     pub(crate) fn emit_cleanup_regions(
         &mut self,
-        checked: &checked_trees::CheckedTrees,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, checked: &checked_trees::CheckedTrees,
         regions: Vec<CleanupRegion>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,

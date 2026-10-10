@@ -305,7 +305,7 @@ pub(crate) fn storage(
     let collection = terminal_psi::structural_type_by_identity(declarations, identities.intern(&identity)).ok_or(
         LoweringError::Unsupported("range collection has no exact Terminal type"),
     )?;
-    let view = terminal_psi::structural_type_by_identity(declarations, &checked.type_identity_text(argument.type_identity).unwrap_or_default())
+    let view = terminal_psi::structural_type_by_identity(declarations, identities.intern(&checked.type_identity_text(argument.type_identity).unwrap_or_default()))
         .ok_or(LoweringError::Unsupported(
             "range result has no exact Terminal type",
         ))?;

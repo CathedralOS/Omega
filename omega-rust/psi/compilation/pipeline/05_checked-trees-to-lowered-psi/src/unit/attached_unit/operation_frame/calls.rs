@@ -83,7 +83,7 @@ impl OperationFrame<'_, '_> {
             }
             (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(result)) => {
                 let value = self.scalar_call(identities, operation, call, result, &inputs)?;
-                self.bind_scalar_result(call.coordinate, value)
+                self.bind_scalar_result(identities, call.coordinate, value)
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
                 self.boundary_call(identities, call, &inputs)?;
@@ -91,7 +91,7 @@ impl OperationFrame<'_, '_> {
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(result)) => {
                 let value = self.boundary_scalar_call(identities, call, result, &inputs)?;
-                self.bind_scalar_result(call.coordinate, value)
+                self.bind_scalar_result(identities, call.coordinate, value)
             }
             (
                 CheckedUnitCallRoute::Boundary,
@@ -129,13 +129,13 @@ impl OperationFrame<'_, '_> {
     /// operation result without occupying a source position.
     pub(super) fn bind_scalar_result(
         &mut self,
-        coordinate: checked_trees::CheckedUnitCallCoordinate,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, coordinate: checked_trees::CheckedUnitCallCoordinate,
         value: ValueDeclaration,
     ) -> Result<(), LoweringError> {
         let names_local =
             crate::call_sites::initializes_immutable_local(self.checked, self.state, coordinate);
         let value = if names_local {
-            self.refine_scalar_local_value(coordinate.statement_index, value)?
+            self.refine_scalar_local_value(identities, coordinate.statement_index, value)?
         } else {
             value
         };

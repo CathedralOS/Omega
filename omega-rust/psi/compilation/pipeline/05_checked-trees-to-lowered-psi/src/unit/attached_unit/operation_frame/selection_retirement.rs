@@ -66,8 +66,7 @@ impl OperationFrame<'_, '_> {
                     let CheckedUnitStructuralPathSegment::Case(identity) = segment else {
                         continue;
                     };
-                    let (
-            identities,prefix, case) = structural_cases::resolve_at(
+                    let (prefix, case) = structural_cases::resolve_at(
                         identities,
                         types,
                         root_type,

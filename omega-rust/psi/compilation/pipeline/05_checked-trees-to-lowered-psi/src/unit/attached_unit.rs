@@ -226,8 +226,9 @@ pub(crate) fn lower_unit_closure(
             )? {
                 crate::emission::structural_byte_sequence_store::literal_view_type(identities, &mut structural_types)?;
             }
-            if let Some(identities, value) = operation.stored_bytes() {
+            if let Some(value) = operation.stored_bytes() {
                 crate::emission::structural_byte_sequence_store::prepare_types(
+                    identities,
                     value,
                     &mut structural_types,
                 )?;
@@ -249,8 +250,7 @@ pub(crate) fn lower_unit_closure(
             }
         }
     }
-    let (
-            identities,structural_domains, domain_ids) =
+    let (structural_domains, domain_ids) =
         catalog::lower_unit_structural_domains(
             identities, checked, plans, &closure, &boundaries, &type_ids)?;
     let (services, service_ids) = catalog::lower_unit_services(identities, checked, plans, &closure, &boundaries, &provider_candidate_plans)?;
@@ -260,8 +260,7 @@ pub(crate) fn lower_unit_closure(
     // Signatures: boundary declarations, then each admitted body's formals,
     // claims and requirements, then every machine's Terminal identity.
     let mut next_place = 1_u64;
-    let (
-            identities,boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(identities, checked, &boundaries, &type_ids, &domain_ids, &domain_ids, &service_ids, &mut next_place)?;
+    let (boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(identities, checked, &boundaries, &type_ids, &domain_ids, &domain_ids, &service_ids, &mut next_place)?;
     // One scalar qualification namespace for every machine the closure
     // emits; every body's signature declares against it.
     let qualifications =

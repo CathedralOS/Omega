@@ -223,7 +223,7 @@ impl<'a> Expansion<'a> {
         result_type: QualifiedScalarType,
         target: usize,
     ) -> Result<usize, LoweringError> {
-        let expression = bindings.expression_at(self.checked, state, statement, role)?;
+        let expression = bindings.expression_at(identities, self.checked, state, statement, role)?;
         if expression.value_type(source_types)? != result_type {
             return unsupported("retained scalar operand disagrees with its destination type");
         }
@@ -318,7 +318,7 @@ impl<'a> Expansion<'a> {
             )?;
         }
         let argument = Argument::Computation(root.root);
-        if self.argument_type(&argument, &site, source_types)? != result_type {
+        if self.argument_type(identities, &argument, &site, source_types)? != result_type {
             return unsupported("scalar computation result disagrees with its destination");
         }
         // Unlike a state transfer, the following statements retain every prior
@@ -335,13 +335,14 @@ impl<'a> Expansion<'a> {
 
     fn argument_type(
         &self,
-        argument: &Argument,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder, argument: &Argument,
         site: &Site<'_>,
         source_types: &[QualifiedScalarType],
     ) -> Result<QualifiedScalarType, LoweringError> {
         match argument {
             Argument::Value(value) => value.value_type(source_types),
             Argument::Computation(handle) => computation_value_type(
+                identities,
                 self.checked,
                 self.qualifications,
                 *handle,
@@ -362,7 +363,7 @@ impl<'a> Expansion<'a> {
         let mut prefixes = vec![input_types.to_vec()];
         for argument in arguments {
             let mut next = prefixes.last().expect("input prefix").clone();
-            next.push(self.argument_type(argument, site, input_types)?);
+            next.push(self.argument_type(identities, argument, site, input_types)?);
             prefixes.push(next);
         }
         let mut continuation = target;
@@ -435,7 +436,7 @@ impl<'a> Expansion<'a> {
         if active.contains(handle) {
             return unsupported("scalar computation contains a cycle");
         }
-        let result_type = self.argument_type(argument, site, input_types)?;
+        let result_type = self.argument_type(identities, argument, site, input_types)?;
         if let Some((_, position)) = self.completed.iter().find(|(node, _)| node == handle) {
             if input_types.get(*position) != Some(&result_type) {
                 return unsupported("completed computation disagrees with its carried value");
@@ -493,7 +494,7 @@ impl<'a> Expansion<'a> {
                 right,
             } => {
                 let operand_type =
-                    self.argument_type(&Argument::Computation(left), site, input_types)?;
+                    self.argument_type(identities, &Argument::Computation(left), site, input_types)?;
                 let mut tested_types = input_types.to_vec();
                 tested_types.extend([operand_type, operand_type]);
                 let binding = self.comparison_binding(
@@ -513,7 +514,7 @@ impl<'a> Expansion<'a> {
             }
             CheckedScalarComputationKind::Qualification { operand, .. } => {
                 let operand = Argument::Computation(operand);
-                let operand_type = self.argument_type(&operand, site, input_types)?;
+                let operand_type = self.argument_type(identities, &operand, site, input_types)?;
                 if operand_type == result_type {
                     self.argument(identities, &operand, input_types, target, site, active)?
                 } else {
@@ -548,7 +549,7 @@ impl<'a> Expansion<'a> {
                 // exact conversion applies once. Result qualifications remain
                 // on the receiving edge and cannot alter this payload.
                 let operand = Argument::Computation(operand);
-                let operand_type = self.argument_type(&operand, site, input_types)?;
+                let operand_type = self.argument_type(identities, &operand, site, input_types)?;
                 // Conversion bindings bind the operand's bare carrier: an
                 // operand that still carries domains erases them on a
                 // qualification edge before the conversion state.
@@ -661,7 +662,7 @@ impl<'a> Expansion<'a> {
                 // in the destination carrier; the authored cast keeps source
                 // custody while the branch shape reuses ordinary selection.
                 let operand = Argument::Computation(operand);
-                if self.argument_type(&operand, site, input_types)? != ScalarType::Boolean.into() {
+                if self.argument_type(identities, &operand, site, input_types)? != ScalarType::Boolean.into() {
                     return unsupported(
                         "Boolean-to-integer conversion operand is not a scalar Boolean",
                     );
@@ -753,7 +754,7 @@ impl<'a> Expansion<'a> {
                     .collect::<Vec<_>>();
                 let mut operand_types = input_types.to_vec();
                 for operand in &operands {
-                    operand_types.push(self.argument_type(operand, site, input_types)?);
+                    operand_types.push(self.argument_type(identities, operand, site, input_types)?);
                 }
                 let expression = site.bindings.clone().with_computation_operands(
                     input_types.len(),

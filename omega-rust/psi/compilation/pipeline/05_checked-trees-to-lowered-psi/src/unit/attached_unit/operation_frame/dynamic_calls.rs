@@ -124,7 +124,7 @@ impl OperationFrame<'_, '_> {
             },
         });
         match result {
-            Some(value) => self.bind_scalar_result(call.coordinate, value),
+            Some(value) => self.bind_scalar_result(identities, call.coordinate, value),
             None => Ok(()),
         }
     }

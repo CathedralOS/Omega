@@ -24,7 +24,7 @@ impl Expansion<'_> {
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
         let subject_type =
-            self.argument_type(&Argument::Computation(subject), site, input_types)?;
+            self.argument_type(identities, &Argument::Computation(subject), site, input_types)?;
         let plans = &self.checked.facts.values.scalar_computations;
         let arms = plans
             .dispatch_arms
@@ -37,7 +37,7 @@ impl Expansion<'_> {
         let mut covered = false;
         for arm in &arms {
             if covered
-                || self.argument_type(&Argument::Computation(arm.value), site, input_types)?
+                || self.argument_type(identities, &Argument::Computation(arm.value), site, input_types)?
                     != result_type
             {
                 return unsupported(
@@ -47,7 +47,7 @@ impl Expansion<'_> {
             match arm.pattern {
                 CheckedScalarDispatchPattern::Wildcard => covered = true,
                 CheckedScalarDispatchPattern::Value(pattern) => {
-                    if self.argument_type(&Argument::Computation(pattern), site, input_types)?
+                    if self.argument_type(identities, &Argument::Computation(pattern), site, input_types)?
                         != subject_type
                     {
                         return unsupported(

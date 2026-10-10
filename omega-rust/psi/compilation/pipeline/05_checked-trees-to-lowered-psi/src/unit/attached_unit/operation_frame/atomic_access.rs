@@ -49,8 +49,7 @@ impl OperationFrame<'_, '_> {
             return unsupported("atomic event parameter lost its access authority");
         }
         let place = parameter.place;
-        let (
-            identities,path, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
+        let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
             identities,
             parameter.structural_type,
             &access.carrier_path,

@@ -84,6 +84,7 @@ pub(crate) fn lower_boundary_crash_routes(
 /// normalize before lowering: `false` contributes nothing and `true` is the
 /// unconditional guard.
 pub(crate) fn lower_formal_crash_routes(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     buckets: &[checked_trees::CrashRouteBucket],
     scalar_types: &[ScalarType],
 ) -> Result<Vec<terminal_psi::CrashRouteBucket>, LoweringError> {

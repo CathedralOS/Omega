@@ -114,8 +114,7 @@ pub(in crate::unit::attached_unit) fn emit(
     let entry_erased_formals = signatures::find(shared.signatures, plan.machine)?
         .erased_scalar_parameters
         .clone();
-    let (
-            identities,mut machine, occurrences, scalar_block_invariants, qualification_coercions) =
+    let (mut machine, occurrences, scalar_block_invariants, qualification_coercions) =
         state_graph::emit(
             identities,
             checked,

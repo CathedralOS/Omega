@@ -110,7 +110,7 @@ pub(super) fn prepare<'a>(
             let mut values = Vec::new();
             for payload in &case.payloads {
                 let field =
-                    terminal_psi::field_by_identity(&declared.fields, &payload.field_identity.spelling())
+                    terminal_psi::field_by_identity(&declared.fields, identities.intern(&payload.field_identity.spelling()))
                         .ok_or(LoweringError::Unsupported(
                             "Unit graph payload field is missing",
                         ))?;

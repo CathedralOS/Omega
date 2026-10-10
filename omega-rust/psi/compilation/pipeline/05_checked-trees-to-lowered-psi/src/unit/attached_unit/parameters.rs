@@ -443,7 +443,7 @@ pub(crate) fn mint_runtime_index_selectors(
     for argument in arguments {
         for segment in &argument.path {
             let CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::StructuralField(identities, field),
+                checked_trees::CheckedRuntimeIndex::StructuralField(field),
             ) = segment
             else {
                 continue;

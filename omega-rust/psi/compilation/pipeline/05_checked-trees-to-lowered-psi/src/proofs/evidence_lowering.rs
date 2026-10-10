@@ -144,7 +144,7 @@ pub(super) fn evidence_projection_identity(
             checked,
             projection.declaring_trait,
             projection.requirement,
-        ))?,
+        )?),
     })
 }
 

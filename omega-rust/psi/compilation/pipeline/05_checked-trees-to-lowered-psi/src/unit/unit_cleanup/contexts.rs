@@ -110,7 +110,7 @@ pub(crate) fn field_clause(
     let field = find_structural_type(types, parameter.structural_type)
         .and_then(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields, .. } => {
-                terminal_psi::field_by_identity(fields, &identity.spelling())
+                terminal_psi::field_by_identity(fields, identities.intern(&identity.spelling()))
             }
             _ => None,
         })
@@ -198,7 +198,7 @@ pub(crate) fn prepare_signature(
         }
         let structural_type = terminal_psi::structural_type_by_identity(
             types,
-            &checked.type_identity_text(hook.type_identity).unwrap_or_default(),
+            identities.intern(&checked.type_identity_text(hook.type_identity).unwrap_or_default()),
         )
             .ok_or(LoweringError::Unsupported(
                 "nominal cleanup hook owner type is absent",

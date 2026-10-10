@@ -71,7 +71,7 @@ impl emission::Emission<'_, '_, '_> {
             };
             let identity = checked_trees::CheckedMemberIdentity::of_member(variant.identity, variant.name.clone());
             if variant.symbol == case_symbol {
-                let case = terminal_psi::structural_case_by_identity(&cases, &identity.spelling())
+                let case = terminal_psi::structural_case_by_identity(&cases, identities.intern(&identity.spelling()))
                     .ok_or(LoweringError::Unsupported("case declaration is absent"))?;
                 selected = Some((variant, case.clone()));
             }
