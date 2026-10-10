@@ -1,4 +1,4 @@
-//! A computed result keeps its declared scalar qualifications at evaluation.
+//! A completed result keeps its checked scalar guarantees at evaluation.
 //!
 //! Reuse validation's destination-independent result query: it joins all Match
 //! arms by normalized type identity and does not copy operand refinements onto
@@ -14,6 +14,10 @@
 //! The normalized instance travels with the declaration through every fact copy.
 //! Equality of exact instances is not a license to equate different open index
 //! expressions; those still require their selected normalization/equality proof.
+//! Normal-return integer bounds use the selected declaration's contract, not
+//! body evaluation or a later read of mutable actuals. Publishing them at the
+//! expression occurrence lets constructors and assignments consume one common
+//! snapshot; a later sibling write invalidates source storage, not this result.
 use crate::flow::append_constraint_ref;
 use crate::flow::expression::Execution;
 use crate::flow::reference_spans;
@@ -23,7 +27,7 @@ use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRe
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence};
 
 impl Execution<'_, '_, '_> {
-    pub(super) fn append_result_domains(
+    pub(super) fn append_result_facts(
         &mut self,
         expression: ExpressionHandle,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
@@ -64,7 +68,18 @@ impl Execution<'_, '_, '_> {
             reference,
             &mut predicates,
         );
-        if domains.is_empty() && predicates.is_empty() {
+        let integer_bounds = self
+            .program
+            .expression_table
+            .call_node(expression)
+            .and_then(|call| validation::normal_return_integer_bounds(self.program, call))
+            .and_then(|(minimum, maximum)| {
+                Some(facts::IntegerRange {
+                    minimum: numerics::bignum::BigInt::from_i64(minimum?),
+                    maximum: numerics::bignum::BigInt::from_i64(maximum?),
+                })
+            });
+        if domains.is_empty() && predicates.is_empty() && integer_bounds.is_none() {
             return;
         }
         let place = self.semantic.append_expression_place(expression);
@@ -74,6 +89,20 @@ impl Execution<'_, '_, '_> {
             statement_index: self.statement_index,
         };
         let mut refs = HandleSpan::empty();
+        if let Some(bounds) = integer_bounds {
+            let bounds = self.semantic.integer_ranges.append(bounds);
+            let fact = self.semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
+                point,
+                origin: FactOrigin::StatementTransfer,
+                evidence: QualificationEvidence::from_origin(
+                    language_semantics::QualificationEvidenceOrigin::Propagated,
+                    self.state.symbol,
+                ),
+                payload: FactPayload::AssignedIntegerBounds { bounds },
+            });
+            self.semantic.append_ref(&mut refs, fact);
+        }
         for (domain_symbol, semantic_domain) in domains {
             let fact = self.semantic.append_fact(Fact {
                 place: FactPlace::Place(place),

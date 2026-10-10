@@ -52,49 +52,83 @@ impl Execution<'_, '_, '_> {
             .collect::<Vec<_>>();
         let mut values = Vec::new();
         let primitive = self.program.primitive_type_reference(type_reference);
-        let scalar = evaluated.boolean.map(ScalarValue::Boolean).or_else(|| {
-            let primitive = primitive?;
-            let expression = evaluated.capture.expression;
-            if !validation::has_builtin_bound_expression_meaning(
+        // Completed expression facts and live storage facts use the same
+        // selected-place lookup. A call's result contract is a snapshot, not
+        // permission to replay its body or reread its mutated arguments.
+        let completed_value = primitive.and_then(|_| {
+            let source = self.context.canonical_place_at(
                 self.program,
-                self.machine,
-                Some(self.state),
-                expression,
-            ) {
+                self.state.symbol,
+                self.statement_index,
+                evaluated.capture.expression,
+            )?;
+            // A selected indexing operation need not read these storage
+            // coordinates. Its completed result needs its own expression
+            // facts; only builtin place geometry may reuse stored values.
+            if matches!(source.root, facts::PlaceRoot::Symbol(_))
+                && !validation::place_has_builtin_coordinates(
+                    self.program,
+                    self.machine,
+                    Some(self.state),
+                    evaluated.capture.expression,
+                )
+            {
                 return None;
             }
-            let expression = crate::values::lower_unit_scalar_argument(
+            crate::values::scalar_value_at_place(
                 self.program,
-                self.context.operators,
-                self.state,
-                self.statement_index,
-                expression,
-                primitive,
-            )?;
-            let symbols = crate::values::unit_scalar_binding_symbols(
-                self.program,
-                self.state,
-                self.statement_index,
-            )?;
-            crate::values::evaluate_checked_scalar(
-                &expression,
-                &mut crate::values::PlaceScalarValues {
-                    program: self.program,
-                    parameters: self.program.state_parameters(self.state),
-                    symbols: &symbols,
-                    value_at_place: |place: &validation::CanonicalPlace| {
-                        crate::values::scalar_value_at_place(
-                            self.program,
-                            self.semantic,
-                            captured_contexts
-                                .iter()
-                                .map(|context| self.semantic.contexts.get(*context)),
-                            place,
-                        )
-                    },
-                },
+                self.semantic,
+                captured_contexts
+                    .iter()
+                    .map(|context| self.semantic.contexts.get(*context)),
+                &source,
             )
         });
+        let scalar = completed_value
+            .or_else(|| evaluated.boolean.map(ScalarValue::Boolean))
+            .or_else(|| {
+                let primitive = primitive?;
+                let expression = evaluated.capture.expression;
+                if !validation::has_builtin_bound_expression_meaning(
+                    self.program,
+                    self.machine,
+                    Some(self.state),
+                    expression,
+                ) {
+                    return None;
+                }
+                let expression = crate::values::lower_unit_scalar_argument(
+                    self.program,
+                    self.context.operators,
+                    self.state,
+                    self.statement_index,
+                    expression,
+                    primitive,
+                )?;
+                let symbols = crate::values::unit_scalar_binding_symbols(
+                    self.program,
+                    self.state,
+                    self.statement_index,
+                )?;
+                crate::values::evaluate_checked_scalar(
+                    &expression,
+                    &mut crate::values::PlaceScalarValues {
+                        program: self.program,
+                        parameters: self.program.state_parameters(self.state),
+                        symbols: &symbols,
+                        value_at_place: |place: &validation::CanonicalPlace| {
+                            crate::values::scalar_value_at_place(
+                                self.program,
+                                self.semantic,
+                                captured_contexts
+                                    .iter()
+                                    .map(|context| self.semantic.contexts.get(*context)),
+                                place,
+                            )
+                        },
+                    },
+                )
+            });
         if let Some(value) = scalar {
             values.push((destination.to_vec(), value));
         }

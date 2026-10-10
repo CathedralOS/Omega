@@ -4794,3 +4794,8 @@ pass/modules/selected_constant_array_alias_computed_extent checked 9404ms @af9b9
 pass/modules/selected_constant_array_alias_computed_extent_exit checked 45136ms check-target:linux_x86_64 @af9b942fa09e+wt
 fail/modules/selected_constant_computed_extent_roster rejected 145ms expected @af9b942fa09e+wt
 	constant initializer: fixed-array const value requires 2 elements but has 1
+fail/contracts/replacement_call_child_false_snapshot rejected 479ms expected @3c27bc9c6110+wt
+	cannot prove ensures contract for exit from false_producer at statement 0: result == 9
+	cannot prove ensures contract for exit from overwrite at statement 2: pair.first.value == 9
+	cannot prove ensures contract for exit from install_interval at statement 1: pair.first.value == 9
+pass/ownership/runtime_replacement_call_child_snapshot_exit checked 3501ms check-target:macos_arm64 @3c27bc9c6110+wt

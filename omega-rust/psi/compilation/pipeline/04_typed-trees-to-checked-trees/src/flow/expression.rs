@@ -34,7 +34,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod constructed_values;
 mod dispatch;
-mod result_domains;
+mod result_facts;
 mod transitions;
 
 struct Invocation<'a> {
@@ -409,7 +409,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             constraints,
             &mut children,
         );
-        self.append_result_domains(expression, contexts, constraints);
+        self.append_result_facts(expression, contexts, constraints);
         (value, children)
     }
 
@@ -1037,7 +1037,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     // range node's own result tags after evaluating both
                     // bounds; keep that publication now that the bounds were
                     // evaluated separately above.
-                    self.append_result_domains(indexed.index, contexts, constraints);
+                    self.append_result_facts(indexed.index, contexts, constraints);
                     self.record_operator_invocation(
                         expression,
                         checked_trees::CheckedOperatorOccurrence::Expression,

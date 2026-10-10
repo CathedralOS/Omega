@@ -667,6 +667,10 @@ defines the complete product bar.
     replacement facts through a retained alias after the source changes, and
     `fail/contracts/referent_replacement_false_guarantee` for retiring old and
     overwritten referent facts; qualify the remaining native hosts. Keep
+    `runtime_replacement_call_child_snapshot_exit` (0) and
+    `fail/contracts/replacement_call_child_false_snapshot` for completed helper
+    results through nested replacement and array return, without stale facts
+    or false exact values from intervals; qualify remaining native hosts. Keep
     `pass/drops/runtime_narrowed_cleanup_receiver_exit` (0) for authored
     prerequisites at a captured local subslice receiver, exact replacement
     result guarantees and untouched siblings; keep

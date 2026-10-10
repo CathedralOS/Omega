@@ -151,16 +151,28 @@ pub(super) fn capture_bounds(
         active,
     ) {
         return captured.or_else(|| {
-            // The completed result keeps its declared normal-return bounds,
-            // even when reference arguments prevent scalar body evaluation.
-            // Apply the same admitted conversion as a captured body value.
+            // Expression completion published the selected normal-return
+            // contract at this occurrence. Constructors consume the same
+            // facts; assignment adds only its admitted conversion, not another
+            // declaration-only shortcut or a read of the mutated actuals.
             let selected = selected_call(program, context.exact_integer_casts, source)?;
-            let (minimum, maximum) =
-                validation::normal_return_integer_bounds(program, selected.call)?;
-            selected.convert(facts::IntegerRange {
-                minimum: numerics::bignum::BigInt::from_i64(minimum?),
-                maximum: numerics::bignum::BigInt::from_i64(maximum?),
-            })
+            let place = validation::canonical_place_from_expression_in_state(
+                program,
+                state,
+                statement_index,
+                selected.expression,
+            )?;
+            selected.convert(crate::values::integer_bounds_at_place(
+                program,
+                semantic,
+                context
+                    .contexts
+                    .semantic_context_refs
+                    .span_or_empty(active)
+                    .iter()
+                    .map(|reference| semantic.contexts.get(reference.context)),
+                &place,
+            )?)
         });
     }
     let builtin = builtin_bound_meaning_source(program, context, machine_symbol, state, source);
