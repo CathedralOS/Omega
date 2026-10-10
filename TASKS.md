@@ -2934,18 +2934,6 @@ code and preserve check/native behavior for the named customer slices.
   proposition/interface dependencies, evidence uses. Coordinate operator
   returns with **OPERATOR-BOUNDARY-CALLS**.
 
-- **LOCAL-BINDINGS-GENERALIZED.** (new-scope) Local data bindings are split
-  into `EstablishPrimitiveLocal`, `EstablishScalarLocal`,
-  `EstablishStructuralLocal` and `TrivialAffineLocal`, plus byte-sequence,
-  scalar-array and structural-value forms. Stage 05 handles them at about
-  eight sites (`operation_frame::establish_scalar_local` and
-  `establish_structural_local`, `primitive_locals`, `ordinary_machine/locals`,
-  `structural_values/locals`, `byte_locals`, `emission::emit_scalar_binding`).
-  Replace them with one local-binding operation keyed by the value's
-  representation. Acceptance: one binding
-  variant and one lowering remain; corpus `--filter expressions/,borrows/,calls/`
-  is unchanged.
-
 ## Checker simplification
 
 Owner ruling 2026-10-04: remove the checker's re-checking, duplicate analyses,
