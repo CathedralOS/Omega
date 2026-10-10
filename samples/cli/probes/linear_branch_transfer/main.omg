@@ -1,0 +1,37 @@
+// Branch reconciliation of a linear obligation: transition arms
+// are ALTERNATIVES — both paths transfer the same obligation into
+// a consuming state; the checker joins them as one live claim,
+// not two sequential copies.
+//
+//   * `true -> consume_first(receipt)` / `_ -> consume_second(receipt)`
+//     — same obligation, two destinations.
+//   * `boundary requirement Receipt::ack` consuming contract.
+//
+// Compile-checked only: declaration surface (requirement has no
+// provider here), no standard-library dependency.
+
+data Receipt [linear] { code: i32; }
+
+boundary requirement Receipt::ack(receipt: Receipt);
+
+data Main { hits: i32 in Wrapping; choose_first: bool; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    main.choose_first = true;
+    let receipt: Receipt = Receipt { code: 7 };
+    transition main.choose_first {
+        true -> consume_first(receipt)
+        _ -> consume_second(receipt)
+    }
+
+    state consume_first(receipt: Receipt) -> i32 {
+        Receipt::ack(receipt);
+        0
+    }
+
+    state consume_second(receipt: Receipt) -> i32 {
+        Receipt::ack(receipt);
+        0
+    }
+}

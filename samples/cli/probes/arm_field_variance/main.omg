@@ -1,0 +1,42 @@
+// Arm-variant record construction: `pack` places its inputs in
+// DIFFERENT fields on each transition arm — the claim map a
+// caller binds must not depend on which arm ran. Both arms'
+// members project and consume the same way.
+//
+//   * `boundary requirement Receipt::ack` consuming contract.
+//   * `-> left_first(f, s)` vs `-> right_first(f, s)` — field
+//     order differs per arm.
+//
+// Compile-checked only: declaration surface, no standard-library
+// dependency.
+
+data Receipt [linear] { code: i32; }
+
+boundary requirement Receipt::ack(receipt: Receipt);
+
+data Pair { left: Receipt; right: Receipt; }
+
+machine pack(first: i32, second: i32, swap: bool) -> Pair {
+    transition swap {
+        true -> left_first(first, second)
+        _ -> right_first(first, second)
+    }
+
+    state left_first(a: i32, b: i32) -> Pair {
+        Pair { left: Receipt { code: a }, right: Receipt { code: b } }
+    }
+
+    state right_first(a: i32, b: i32) -> Pair {
+        Pair { left: Receipt { code: b }, right: Receipt { code: a } }
+    }
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let pair: Pair = pack(1, 2, true);
+    Receipt::ack(pair.left);
+    Receipt::ack(pair.right);
+    main.hits = 1;
+}
