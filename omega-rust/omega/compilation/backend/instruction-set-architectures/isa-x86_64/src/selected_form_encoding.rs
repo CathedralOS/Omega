@@ -83,7 +83,6 @@ use selected_instructions::{
     MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
     MachineTrapBehavior, SelectedInstructionKind, is_float_bit_transfer,
 };
-use target::NativeTarget;
 
 use crate::selected_form_encoding::decoding::{decode_all, footprint, validate_decoded};
 pub use crate::selected_form_encoding::instruction_bytes::X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET;
