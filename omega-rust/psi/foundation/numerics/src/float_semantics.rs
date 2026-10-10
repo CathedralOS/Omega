@@ -175,6 +175,43 @@ pub enum FloatMeaning {
     NaN,
 }
 
+macro_rules! rounded_binary {
+    ($($name:ident => ($operation:ident, $direction:ident)),+ $(,)?) => {$(
+        pub fn $name(
+            format: FloatFormat,
+            left: &FloatMeaning,
+            right: &FloatMeaning,
+        ) -> FloatMeaning {
+            Self::round_binary_directed(
+                format,
+                left,
+                right,
+                ExactFloat::$operation,
+                RoundingDirection::$direction,
+            )
+        }
+    )+};
+}
+
+macro_rules! rounded_fused {
+    ($($name:ident => $direction:ident),+ $(,)?) => {$(
+        pub fn $name(
+            format: FloatFormat,
+            left: &FloatMeaning,
+            right: &FloatMeaning,
+            addend: &FloatMeaning,
+        ) -> FloatMeaning {
+            Self::fused_multiply_add_directed(
+                format,
+                left,
+                right,
+                addend,
+                RoundingDirection::$direction,
+            )
+        }
+    )+};
+}
+
 impl FloatMeaning {
     pub fn from_f32(value: f32) -> Self {
         Self::from_exact(ExactFloat::from_f32(value))
@@ -287,20 +324,20 @@ impl FloatSemantics {
     pub fn add(format: FloatFormat, left: &FloatMeaning, right: &FloatMeaning) -> FloatMeaning {
         Self::round_exact(format, left.to_exact().add(&right.to_exact()))
     }
-
-    pub fn add_toward_zero(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::add,
-            RoundingDirection::TowardZero,
-        )
-    }
+        rounded_binary! {
+            add_toward_zero => (add, TowardZero),
+            add_toward_positive => (add, TowardPositive),
+            add_toward_negative => (add, TowardNegative),
+            subtract_toward_zero => (sub, TowardZero),
+            subtract_toward_positive => (sub, TowardPositive),
+            subtract_toward_negative => (sub, TowardNegative),
+            multiply_toward_zero => (mul, TowardZero),
+            multiply_toward_positive => (mul, TowardPositive),
+            multiply_toward_negative => (mul, TowardNegative),
+            divide_toward_zero => (div, TowardZero),
+            divide_toward_positive => (div, TowardPositive),
+            divide_toward_negative => (div, TowardNegative),
+        }
 
     pub fn from_integer(format: FloatFormat, value: &BigInt) -> FloatMeaning {
         Self::round_exact(
@@ -340,82 +377,12 @@ impl FloatSemantics {
         truncated.clamp(minimum, maximum)
     }
 
-    pub fn add_toward_positive(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::add,
-            RoundingDirection::TowardPositive,
-        )
-    }
-
-    pub fn add_toward_negative(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::add,
-            RoundingDirection::TowardNegative,
-        )
-    }
-
     pub fn subtract(
         format: FloatFormat,
         left: &FloatMeaning,
         right: &FloatMeaning,
     ) -> FloatMeaning {
         Self::round_exact(format, left.to_exact().sub(&right.to_exact()))
-    }
-
-    pub fn subtract_toward_zero(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::sub,
-            RoundingDirection::TowardZero,
-        )
-    }
-
-    pub fn subtract_toward_positive(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::sub,
-            RoundingDirection::TowardPositive,
-        )
-    }
-
-    pub fn subtract_toward_negative(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::sub,
-            RoundingDirection::TowardNegative,
-        )
     }
 
     pub fn multiply(
@@ -426,92 +393,8 @@ impl FloatSemantics {
         Self::round_exact(format, left.to_exact().mul(&right.to_exact()))
     }
 
-    pub fn multiply_toward_zero(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::mul,
-            RoundingDirection::TowardZero,
-        )
-    }
-
-    pub fn multiply_toward_positive(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::mul,
-            RoundingDirection::TowardPositive,
-        )
-    }
-
-    pub fn multiply_toward_negative(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::mul,
-            RoundingDirection::TowardNegative,
-        )
-    }
-
     pub fn divide(format: FloatFormat, left: &FloatMeaning, right: &FloatMeaning) -> FloatMeaning {
         Self::round_exact(format, left.to_exact().div(&right.to_exact()))
-    }
-
-    pub fn divide_toward_zero(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::div,
-            RoundingDirection::TowardZero,
-        )
-    }
-
-    pub fn divide_toward_positive(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::div,
-            RoundingDirection::TowardPositive,
-        )
-    }
-
-    pub fn divide_toward_negative(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::round_binary_directed(
-            format,
-            left,
-            right,
-            ExactFloat::div,
-            RoundingDirection::TowardNegative,
-        )
     }
 
     pub fn negate(format: FloatFormat, value: &FloatMeaning) -> FloatMeaning {
@@ -553,51 +436,11 @@ impl FloatSemantics {
         let exact_product = left.to_exact().mul(&right.to_exact());
         Self::round_exact(format, exact_product.add(&addend.to_exact()))
     }
-
-    pub fn fused_multiply_add_toward_zero(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-        addend: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::fused_multiply_add_directed(
-            format,
-            left,
-            right,
-            addend,
-            RoundingDirection::TowardZero,
-        )
-    }
-
-    pub fn fused_multiply_add_toward_positive(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-        addend: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::fused_multiply_add_directed(
-            format,
-            left,
-            right,
-            addend,
-            RoundingDirection::TowardPositive,
-        )
-    }
-
-    pub fn fused_multiply_add_toward_negative(
-        format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
-        addend: &FloatMeaning,
-    ) -> FloatMeaning {
-        Self::fused_multiply_add_directed(
-            format,
-            left,
-            right,
-            addend,
-            RoundingDirection::TowardNegative,
-        )
-    }
+        rounded_fused! {
+            fused_multiply_add_toward_zero => TowardZero,
+            fused_multiply_add_toward_positive => TowardPositive,
+            fused_multiply_add_toward_negative => TowardNegative,
+        }
 
     pub fn classify(format: FloatFormat, value: &FloatMeaning) -> FloatClass {
         match value {
