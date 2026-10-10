@@ -1,14 +1,13 @@
 //! The exact saturating neutral-arithmetic rule, and the closed semantic partition
 //! (`classify`) it proposes over.
 
-use abstract_operations::{
-    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
-};
+use abstract_operations::{AbstractOperation as O, IntegerOverflowPolicy};
 use optimization_core::OptimizationRuleContract;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind};
 
 use crate::rules::global_value_numbering::total_scalar_identities::{
-    TotalScalarIdentityShape, exact_total_scalar_identity, propose_total_scalar_identities,
+    NeutralArithmeticKinds, TotalScalarIdentityShape, exact_total_scalar_identity,
+    neutral_arithmetic_shapes, propose_total_scalar_identities,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 

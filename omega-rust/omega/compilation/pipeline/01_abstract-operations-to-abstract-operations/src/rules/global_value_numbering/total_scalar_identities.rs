@@ -188,3 +188,63 @@ pub(super) fn multiply_zero_annihilation_shapes(
         },
     ]
 }
+
+/// The neutral-arithmetic law-kind table one overflow policy classifies
+/// under.
+pub(super) struct NeutralArithmeticKinds {
+    pub add_zero_left: TotalScalarIdentityKind,
+    pub add_zero_right: TotalScalarIdentityKind,
+    pub subtract_zero_right: TotalScalarIdentityKind,
+    pub multiply_one_left: TotalScalarIdentityKind,
+    pub multiply_one_right: TotalScalarIdentityKind,
+}
+
+/// Shapes for the neutral-arithmetic rules under one overflow policy:
+/// add-zero, subtract-zero-right and multiply-one laws in canonical
+/// left-literal/right-literal tie order.
+pub(super) fn neutral_arithmetic_shapes(
+    operation: &AbstractOperation,
+    policy: IntegerOverflowPolicy,
+    kinds: NeutralArithmeticKinds,
+) -> Vec<TotalScalarIdentityShape> {
+    let Some(operands) = operation.integer_arithmetic() else {
+        return Vec::new();
+    };
+    if operands.arithmetic.policy() != policy {
+        return Vec::new();
+    }
+    let zero = operands.scalar_type.zero();
+    let one = operands.scalar_type.one();
+    // (replacement, law operand, identity, expected law value)
+    let laws = match operands.arithmetic.operator() {
+        IntegerArithmeticOperator::Add => vec![
+            (operands.right, operands.left, kinds.add_zero_left, zero),
+            (operands.left, operands.right, kinds.add_zero_right, zero),
+        ],
+        IntegerArithmeticOperator::Subtract => vec![(
+            operands.left,
+            operands.right,
+            kinds.subtract_zero_right,
+            zero,
+        )],
+        IntegerArithmeticOperator::Multiply => vec![
+            (operands.right, operands.left, kinds.multiply_one_left, one),
+            (operands.left, operands.right, kinds.multiply_one_right, one),
+        ],
+        IntegerArithmeticOperator::Divide | IntegerArithmeticOperator::Remainder => Vec::new(),
+    };
+    laws.into_iter()
+        .map(
+            |(replacement, law_operand, identity, expected_law_value)| TotalScalarIdentityShape {
+                source_operation: operands.psi_operation,
+                result: operands.result,
+                replacement,
+                law_operand,
+                scalar_type: operands.scalar_type,
+                law_operand_type: operands.scalar_type,
+                identity,
+                expected_law_value,
+            },
+        )
+        .collect()
+}
