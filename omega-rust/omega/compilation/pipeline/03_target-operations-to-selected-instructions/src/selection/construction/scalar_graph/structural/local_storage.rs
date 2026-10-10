@@ -215,18 +215,6 @@ pub(super) fn address(
     if settles_fuel {
         provenance.fuel = row.fuel.clone();
     }
-    builder.emit(
-        SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset: offset,
-        },
-        builder
-            .constraints
-            .keys
-            .frame_address
-            .ok_or_else(|| invalid())?,
-        &[register],
-        provenance,
-    )?;
+    builder.emit_frame_address(FrameStorageSlotId::Local(slot), register, provenance)?;
     Ok(register)
 }

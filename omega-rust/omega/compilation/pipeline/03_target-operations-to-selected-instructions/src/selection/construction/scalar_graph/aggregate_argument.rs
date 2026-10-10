@@ -208,17 +208,9 @@ pub(super) fn transport(
             byte_size,
             SelectedMemoryAccessRole::AddressOutgoing { slot },
         )?;
-        builder.emit(
-            SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Outgoing(slot),
-                byte_offset: 0,
-            },
-            builder
-                .constraints
-                .keys
-                .frame_address
-                .ok_or_else(|| SelectedInstructionError::custody())?,
-            &[address],
+        builder.emit_frame_address(
+            FrameStorageSlotId::Outgoing(slot),
+            address,
             Default::default(),
         )?;
         Some((slot, address))

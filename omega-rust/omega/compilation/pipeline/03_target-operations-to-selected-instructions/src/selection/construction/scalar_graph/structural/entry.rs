@@ -67,20 +67,12 @@ pub(in crate::selection) fn entry(
                     return Err(invalid());
                 }
                 let address = transport_register(builder, place, 0)?;
-                builder.emit(
-                    SelectedInstructionKind::FrameAddress {
-                        slot: selected_instructions::FrameStorageSlotId::Incoming {
-                            parameter_index: native_parameter.try_into().map_err(|_| invalid())?,
-                            abi_stack_byte_offset: *base,
-                        },
-                        byte_offset: 0,
+                builder.emit_frame_address(
+                    selected_instructions::FrameStorageSlotId::Incoming {
+                        parameter_index: native_parameter.try_into().map_err(|_| invalid())?,
+                        abi_stack_byte_offset: *base,
                     },
-                    builder
-                        .constraints
-                        .keys
-                        .frame_address
-                        .ok_or_else(|| invalid())?,
-                    &[address],
+                    address,
                     Default::default(),
                 )?;
                 for location in &parameter.target.placement.locations {
@@ -165,20 +157,12 @@ pub(in crate::selection) fn entry(
                 .checked_add(parameter_index)
                 .ok_or_else(|| invalid())?;
             let address = transport_register(builder, place, 0)?;
-            builder.emit(
-                SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Incoming {
-                        parameter_index: native_parameter.try_into().map_err(|_| invalid())?,
-                        abi_stack_byte_offset,
-                    },
-                    byte_offset: 0,
+            builder.emit_frame_address(
+                selected_instructions::FrameStorageSlotId::Incoming {
+                    parameter_index: native_parameter.try_into().map_err(|_| invalid())?,
+                    abi_stack_byte_offset,
                 },
-                builder
-                    .constraints
-                    .keys
-                    .frame_address
-                    .ok_or_else(|| invalid())?,
-                &[address],
+                address,
                 SelectedInstructionProvenance::default(),
             )?;
             let pointer = transport_register(builder, place, 0)?;

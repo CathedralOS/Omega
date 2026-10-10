@@ -648,17 +648,18 @@ impl Builder<'_> {
         Ok(id)
     }
 
-    /// Every zero-offset `Local(slot)` frame-address emission shares the kind
-    /// and its constraint-key lookup.
-    fn emit_local_frame_address(
+    /// Every zero-offset frame-address emission shares the kind and its
+    /// constraint-key lookup; only the slot identity, result register, and
+    /// provenance differ.
+    fn emit_frame_address(
         &mut self,
-        slot: LocalStorageSlotId,
+        slot: FrameStorageSlotId,
         pointer: VirtualRegisterId,
         provenance: SelectedInstructionProvenance,
     ) -> Result<(), SelectedInstructionError> {
         self.emit(
             SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Local(slot),
+                slot,
                 byte_offset: 0,
             },
             self.constraints
@@ -668,6 +669,17 @@ impl Builder<'_> {
             &[pointer],
             provenance,
         )
+    }
+
+    /// Every zero-offset `Local(slot)` frame-address emission shares the kind
+    /// and its constraint-key lookup.
+    fn emit_local_frame_address(
+        &mut self,
+        slot: LocalStorageSlotId,
+        pointer: VirtualRegisterId,
+        provenance: SelectedInstructionProvenance,
+    ) -> Result<(), SelectedInstructionError> {
+        self.emit_frame_address(FrameStorageSlotId::Local(slot), pointer, provenance)
     }
 
     /// Every `AddressOffset` projection shares the kind and its

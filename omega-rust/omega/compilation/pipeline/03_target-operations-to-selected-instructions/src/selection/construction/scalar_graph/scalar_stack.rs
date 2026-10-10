@@ -77,22 +77,14 @@ pub(super) fn entry(
             ..Default::default()
         };
         let address = address_register(builder, parameter.value, parameter.definition_site)?;
-        builder.emit(
-            SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Incoming {
-                    parameter_index: parameter_index
-                        .try_into()
-                        .map_err(|_| SelectedInstructionError::custody())?,
-                    abi_stack_byte_offset,
-                },
-                byte_offset: 0,
+        builder.emit_frame_address(
+            FrameStorageSlotId::Incoming {
+                parameter_index: parameter_index
+                    .try_into()
+                    .map_err(|_| SelectedInstructionError::custody())?,
+                abi_stack_byte_offset,
             },
-            builder
-                .constraints
-                .keys
-                .frame_address
-                .ok_or_else(|| SelectedInstructionError::custody())?,
-            &[address],
+            address,
             provenance.clone(),
         )?;
         let value = builder.register(
@@ -211,17 +203,9 @@ pub(super) fn invocation_argument(
         ..Default::default()
     };
     let address = address_register(builder, value, site)?;
-    builder.emit(
-        SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Outgoing(slot),
-            byte_offset: 0,
-        },
-        builder
-            .constraints
-            .keys
-            .frame_address
-            .ok_or_else(|| SelectedInstructionError::custody())?,
-        &[address],
+    builder.emit_frame_address(
+        FrameStorageSlotId::Outgoing(slot),
+        address,
         provenance.clone(),
     )?;
     builder.emit_store(0, byte_size as u8, address, input, provenance.clone())?;
