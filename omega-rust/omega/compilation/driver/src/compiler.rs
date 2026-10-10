@@ -67,8 +67,21 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
             .filter(|admission| admission.is_ok())
             .count();
         let mut sources = std::iter::repeat_n(source, admitted_count);
+        // Psi already checks every target-scoped body in one compilation, so a
+        // settled typed program that survives provider settlement unchanged
+        // lets the next target take the same language judgment instead of
+        // repeating it. A target whose settlement diverges the input simply
+        // checks afresh and retains its own judgment for the next target. Only
+        // a target with admitted successors retains one: the clone it stores is
+        // the whole checked program, wasted when nothing follows.
+        let mut retained_checks = compilation_products::RetainedCompilationChecks::default();
+        let mut admitted_remaining = admitted_count;
         for (target, admission) in targets.into_iter().zip(admissions) {
             let profile = target.profile();
+            let retain_for_successors = admission.is_ok() && {
+                admitted_remaining -= 1;
+                admitted_remaining > 0
+            };
             let outcome = admission.and_then(|()| {
                 sources
                     .next()
@@ -78,7 +91,15 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                             "admitted target has no shared source preparation",
                         )]
                     })?
-                    .and_then(|source| compile_target(&shared, target, source))
+                    .and_then(|source| {
+                        compile_target(
+                            &shared,
+                            target,
+                            source,
+                            &mut retained_checks,
+                            retain_for_successors,
+                        )
+                    })
             });
             outcomes.push(CompileTargetOutcome::new(profile, outcome));
         }
@@ -87,10 +108,15 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
 }
 
 /// One target settles the complete shared source, then produces its product.
+/// `retained_checks` chains the previous target's settled judgments: an equal
+/// check input takes the retained judgment, and this target's own retained
+/// judgment replaces it for the next target only when settlement succeeds.
 fn compile_target(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
     source: PreparedProductSource,
+    retained_checks: &mut compilation_products::RetainedCompilationChecks,
+    retain_for_successors: bool,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let root_path = shared.root_path.clone();
     let checked = check_completed_source(
@@ -99,10 +125,14 @@ fn compile_target(
         target.package_inputs(),
         target.optimization_rollback(),
         false,
-        SettledCheckReuse::default(),
+        SettledCheckReuse {
+            prior: retained_checks.clone(),
+            retain: retain_for_successors,
+        },
     )
     .result
     .map_err(CompileFailure::into_diagnostics)?;
+    *retained_checks = checked.settled_checks().clone();
 
     let product = match shared.requested_product {
         RequestedCompileProduct::Check => CompilationProduct::Check,

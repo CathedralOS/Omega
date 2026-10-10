@@ -143,7 +143,9 @@ pub(crate) fn check_selected_execution(
                             settled_check_reuse.retain,
                         )
                     });
-            if !result.as_ref().is_ok_and(|outcome| outcome.took_prior) {
+            if result.as_ref().is_ok_and(|outcome| outcome.took_prior) {
+                artifacts::compile_timings::counters::record_settled_check_reuse();
+            } else {
                 artifacts::compile_timings::counters::record_settled_check(started.elapsed());
             }
             result
