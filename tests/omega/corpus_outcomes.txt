@@ -1702,6 +1702,8 @@ fail/modules/boundary_signature_selects_private_data rejected 249ms expected @2d
 	public interface selects private data `Payload`
 fail/modules/bundled_core_name_collision_rejected rejected 1ms expected @2d8ed253669f
 	import `omega::language::core::marker` in tests/omega/fail/modules/bundled_core_name_collision_rejected/main.omg collides with a requester-local source; `omega::language` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it
+fail/modules/constant_argument_wrong_nominal_carrier rejected 20ms expected @3e6184e85f21+wt
+	const argument for `Indexed::Choice` is invalid at this index site: const `SELECTED` declares type `Token`, but the parameter requires `Token`
 fail/modules/duplicate_data_keeps_guard_facts rejected 235ms expected @2d8ed253669f
 	duplicate data `Zed`
 fail/modules/duplicate_imported_machine_overload_rejected rejected 247ms expected @2d8ed253669f
@@ -1712,6 +1714,10 @@ fail/modules/generic_scoped_constant_wrong_constructor rejected 79ms expected @7
 	module-owned nominal constant `VALUE` is invalid: const constructor `Other` selects a different nominal carrier than `Holder<u32>`
 fail/modules/imported_file_cannot_use_callers_imports rejected 541ms expected @30eb6513ae80+wt
 	data `B` field `value` references unknown data type `A`
+fail/modules/nested_constant_projection_missing_field rejected 17ms expected @3e6184e85f21+wt
+	constant initializer: constant member read cannot select closed record field `missing` in its exact carrier
+fail/modules/nested_constant_projection_wrong_carrier rejected 13ms expected @3e6184e85f21+wt
+	constant constructor selects a different nominal carrier than its declared destination `Inner`
 fail/modules/nontransitive_file_constant_import rejected 518ms expected @30eb6513ae80+wt
 	machine `result` state `entry` uses `SEED`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/modules/nontransitive_file_imports rejected 507ms expected @30eb6513ae80+wt
@@ -3756,6 +3762,7 @@ pass/modules/comparison_machine_indices checked 347ms @2d8ed253669f
 pass/modules/compound_constant_indices checked 323ms @2d8ed253669f
 pass/modules/computed_constant_initializers checked 395ms @2d8ed253669f
 pass/modules/computed_nominal_constants checked 326ms @2d8ed253669f
+pass/modules/constant_argument_projected_record_dependency checked 933ms @3e6184e85f21+wt
 pass/modules/direct_file_import_process_exit checked 4827ms check-target:linux_x86_64 @3c3253465d1c
 pass/modules/direct_file_imports checked 968ms @30eb6513ae80+wt
 pass/modules/domain_constant_indices checked 315ms @2d8ed253669f
@@ -3768,6 +3775,9 @@ pass/modules/match_constant_indices checked 329ms @2d8ed253669f
 pass/modules/module_array_constant_indices checked 352ms @2d8ed253669f
 pass/modules/module_declaration checked 291ms @2d8ed253669f
 pass/modules/module_operator_home checked 287ms @2d8ed253669f
+pass/modules/nested_constant_projections_compile checked 1822ms @3e6184e85f21+wt
+pass/modules/nested_constant_projections_process_exit checked 7503ms check-target:linux_x86_64 @3e6184e85f21+wt
+pass/modules/nested_constant_projections_scoped_compile checked 1775ms @3e6184e85f21+wt
 pass/modules/nominal_constant_bodies checked 281ms @2d8ed253669f
 pass/modules/package_bare_cases checked 381ms @2d8ed253669f
 pass/modules/package_declaration checked 294ms @2d8ed253669f

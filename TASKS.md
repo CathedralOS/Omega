@@ -4863,7 +4863,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     `omega-rust/psi/compilation/compile-time/src/const_evaluation/const_initializers/`
     and `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/{facts,values}.rs`:
     specialized provider/target applications, exact authored NaN bits,
-    nested record/array/case and whole-aggregate subjects, open applications and
+    nested array/case and whole-aggregate subjects, open applications and
     abstract-carrier constraints over explicit named subjects. Keep alias-owned
     bounds/index tuples
     through `omega-rust/psi/compilation/checking/src/proof_contracts/domains.rs`.
@@ -4882,9 +4882,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   identity after relocation, rebuild and cache deletion; changed semantic inputs
   change identity; equal-content named lineages stay distinct; missing or
   mismatched provenance and real visible-name conflicts reject. Add fixtures for
-  the new constant forms preserving exact float bits/signed zero, field/index
-  projections and operator widths/policies, all-arm obligations without
-  evaluating skipped subjects, and the stale-operand, wrong-owner,
+  the new constant forms preserving exact float bits/signed zero, array/case
+  projections, non-Exact record fields and operator widths/policies, all-arm
+  obligations without evaluating skipped subjects, and the stale-operand, wrong-owner,
   false-premise, invalid-unused and unproved-index rejections. Runtime qualified
   `Holder<T>` reads and general array execution stay with
   **STATE-LOCAL-VALUE-FRONTIER** / **TR3-TR8**.

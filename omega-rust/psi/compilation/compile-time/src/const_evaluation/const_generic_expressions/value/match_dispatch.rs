@@ -126,8 +126,8 @@ pub(super) fn validate_graph(program: &TypedTrees, root: ExpressionHandle) -> Re
                 pending.push((binary.right, false));
                 pending.push((binary.left, false));
             }
-            ExpressionNode::Member(member) => {
-                pending.push((super::member_field_value(program, member)?, false));
+            ExpressionNode::Member(_) => {
+                pending.push((super::member_field_value(program, expression)?.0, false));
             }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Integer(_)

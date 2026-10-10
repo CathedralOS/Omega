@@ -191,12 +191,16 @@ pub(crate) fn finalize_const_argument_selections(
                 "normalized constant argument declaration or value custody drifted before resolution",
             ).with_source_span(origin.reference));
         }
-        let requires_nominal_slot =
-            carrier::has_nominal_carrier(program, &declaration.declared_type)
+        // Every origin still rejoins its exact declaration and value above.
+        // Only the whole selected argument owes that declaration's carrier
+        // to the receiving slot. A dependency's nominal record may instead
+        // contribute a field or an admitted invocation result to that value.
+        let requires_nominal_slot = selection.is_argument_value
+            && (carrier::has_nominal_carrier(program, &declaration.declared_type)
                 || origin
                     .evaluated_value
                     .encoding()
-                    .is_some_and(carrier::encoding_has_nominal_carrier);
+                    .is_some_and(carrier::encoding_has_nominal_carrier));
         let mut matched = false;
         for slot in slots
             .iter()
@@ -230,7 +234,9 @@ pub(crate) fn finalize_const_argument_selections(
                         .with_source_span(origin.reference),
                 );
             };
-            if requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference) {
+            if selection.is_argument_value
+                && (requires_nominal_slot || carrier::has_nominal_carrier(program, type_reference))
+            {
                 if !carrier::same_resolved_carrier(
                     program,
                     &declaration.declared_type,

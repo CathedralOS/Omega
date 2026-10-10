@@ -46,6 +46,10 @@ pub(crate) struct PendingConstSelection {
 pub(crate) struct PendingConstArgumentSelection {
     pub(crate) origin: syntax_trees::types::ConstArgumentOrigin,
     pub(crate) exposure: AuthoredDeclarationSelectionExposure,
+    /// The selected declaration supplies the complete argument at this
+    /// occurrence. Other retained origins are dependencies of its computation;
+    /// their declared carriers do not become the receiving parameter's type.
+    pub(crate) is_argument_value: bool,
 }
 
 /// A use-site constant occurrence and its actual retained generic argument slot.

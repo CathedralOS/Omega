@@ -76,6 +76,12 @@ pub(crate) fn lower_type_reference_handle(
                     crate::resolution::lowerer::PendingConstArgumentSelection {
                         origin: origin.clone(),
                         exposure,
+                        // Exact occurrence custody distinguishes selection of
+                        // the whole argument from leaves used to compute it.
+                        // An initializer's record dependency may produce a
+                        // scalar projection without supplying that record to
+                        // the scalar binder. Equal payloads establish no link.
+                        is_argument_value: origin.reference == normalization.reference,
                     },
                 );
             }

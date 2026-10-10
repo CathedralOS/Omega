@@ -59,9 +59,7 @@ use numerics::{
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use typed_trees::{
     TypedTrees,
-    expression::{
-        BinaryOperator, ExpressionHandle, ExpressionNode, TableMemberExpression, UnaryOperator,
-    },
+    expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
     machine::Machine,
     state::State,
     types::PrimitiveType,
@@ -320,26 +318,26 @@ fn evaluate_scalar_in(
     ))
 }
 
-/// A member read on a materialized record literal evaluates the selected
-/// field's own value expression; the literal itself never enters scalar
-/// custody, so only the field expression is offered to the evaluator.
+/// Reuse the checked closed-value projection join, including exact carrier,
+/// field identities and all sibling literal checks. A projected scalar is
+/// already landed at its declared field; offering its literal as anonymous
+/// syntax would lose that carrier when numeric validation revisits the root.
+/// This removes the separate adjacent-literal/name-based projection route.
+/// The shared join currently admits Exact arithmetic only; its policy fence
+/// remains authoritative here as it is for ordinary projection consumers.
 fn member_field_value(
     program: &TypedTrees,
-    member: &TableMemberExpression,
-) -> Result<ExpressionHandle, String> {
-    let Some(literal) = program
-        .expression_table
-        .struct_literal_node(member.receiver)
-    else {
-        return Err("constant member read needs a materialized record receiver".to_owned());
-    };
-    program
-        .expression_table
-        .struct_fields(literal.fields)
-        .iter()
-        .find(|field| field.field_symbol == member.member_symbol || field.name == member.member)
-        .map(|field| field.value)
-        .ok_or_else(|| "constant member read has no selected record field".to_owned())
+    expression: ExpressionHandle,
+) -> Result<(ExpressionHandle, PrimitiveType), String> {
+    validation::closed_record_scalar_projection(program, expression).ok_or_else(|| {
+        let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+            return "constant projection has no member selection".to_owned();
+        };
+        format!(
+            "constant member read cannot select closed record field `{}` in its exact carrier",
+            member.member
+        )
+    })
 }
 
 fn evaluate_expression(
@@ -362,6 +360,7 @@ fn evaluate_expression(
     enum Step {
         Enter(ExpressionHandle),
         Cast(ExpressionHandle, LandedIntegerType),
+        Projection(PrimitiveType),
         Unary(ExpressionHandle, UnaryOperator),
         Binary(ExpressionHandle, BinaryOperator),
         LogicalLeft(ExpressionHandle, BinaryOperator, ExpressionHandle),
@@ -478,11 +477,59 @@ fn evaluate_expression(
                         }
                         pending.push(Step::Enter(binary.left));
                     }
-                    ExpressionNode::Member(member) => {
-                        pending.push(Step::Enter(member_field_value(program, member)?));
+                    ExpressionNode::Member(_) => {
+                        let (field, primitive) = member_field_value(program, expression)?;
+                        pending.push(Step::Projection(primitive));
+                        pending.push(Step::Enter(field));
                     }
                     _ => return Err("unsupported node in exact integer constant expression".into()),
                 }
+            }
+            Step::Projection(primitive) => {
+                let value = values
+                    .pop()
+                    .ok_or("constant projection lost its scalar value")?;
+                let value = match value {
+                    Value::Anonymous(field)
+                        if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) =>
+                    {
+                        let format = match primitive {
+                            PrimitiveType::F32 => FloatFormat::F32,
+                            _ => FloatFormat::F64,
+                        };
+                        Value::Float(
+                            format,
+                            land_anonymous_float(program, context, field, format, &selected_arms)?,
+                        )
+                    }
+                    Value::Anonymous(field) => land_anonymous(
+                        program,
+                        context,
+                        field,
+                        primitive,
+                        &selected_arms,
+                        &mut warnings,
+                    )?,
+                    value => value,
+                };
+                let matches = match (value, scalar_shape(primitive)?) {
+                    (Value::Boolean(_), Shape::Boolean) => true,
+                    (
+                        Value::Float(actual, _) | Value::UndeterminedNaN(actual),
+                        Shape::Float(expected),
+                    ) => actual == expected,
+                    (
+                        Value::Landed(actual, _, policy),
+                        Shape::Integer(expected, _, expected_policy),
+                    ) => actual == expected && policy == expected_policy,
+                    _ => false,
+                };
+                if !matches {
+                    return Err(
+                        "constant projected value differs from its selected field carrier".into(),
+                    );
+                }
+                values.push(value);
             }
             Step::MatchSubject(expression) => {
                 let plan = matches
@@ -878,8 +925,9 @@ fn validate_shapes(
                     pending.push((binary.right, false));
                     pending.push((binary.left, false));
                 }
-                ExpressionNode::Member(member) => {
-                    pending.push((member_field_value(program, member)?, false));
+                ExpressionNode::Member(_) => {
+                    let (_, primitive) = member_field_value(program, expression)?;
+                    shapes.push(scalar_shape(primitive)?);
                 }
                 _ => return Err("unsupported node in exact scalar constant expression".into()),
             }

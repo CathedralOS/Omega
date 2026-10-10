@@ -1,0 +1,3 @@
+module foreign;
+pub data Token [copy] { value: u64; }
+pub const SELECTED: Token = Token { value: 7 };
