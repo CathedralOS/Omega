@@ -358,7 +358,7 @@ pub(super) fn next_result_ordinal(operations: &[CheckedUnitEffectOperationPlan])
         .unwrap_or(Some(0))
 }
 
-/// The `EstablishStructuralValue` producer for one authored `(expression)`
+/// The `StructuralValue` local-binding producer for one authored `(expression)`
 /// return target: its structural root must already be retained by the value
 /// fact for this exact statement, carry this machine's result type, and lower
 /// through the same call decomposition the guarded-return roster uses. The

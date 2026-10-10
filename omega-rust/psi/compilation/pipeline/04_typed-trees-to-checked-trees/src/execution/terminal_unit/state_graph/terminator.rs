@@ -722,7 +722,7 @@ fn internal_destination(
 /// fallback use this same join. Unit exits preserve ordinary return cleanup,
 /// without manufacturing a value. A scalar arm rejoins the
 /// `Return`-role value checking retained at its exact statement coordinate; a
-/// structural arm mints the `EstablishStructuralValue` producer (its operand
+/// structural arm mints the `StructuralValue` local-binding producer (its operand
 /// calls join the state's operations; the producer itself stays inside the
 /// arm so `operation_dependencies` reports it exactly once).
 #[allow(clippy::too_many_arguments)]

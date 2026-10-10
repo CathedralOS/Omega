@@ -170,7 +170,7 @@ pub(super) fn plan(
         return Some(LocalPlan::Planned);
     }
     // A mutable shared view local owns a descriptor home that its stores
-    // replace, as `EstablishPrimitiveLocal` homes a mutable primitive. The
+    // replace, as a `Primitive` local binding homes a mutable primitive. The
     // initializer is the first of those stores: initialization and every
     // later reassignment are the one descriptor store a record's view field
     // takes. A call initializer is the same store with the call's completed
