@@ -529,7 +529,7 @@ pub(crate) fn lower_static_machine_argument(
     })
 }
 
-fn expression_table(lowerer: &mut Lowerer) -> &mut ExpressionTable {
+pub(super) fn expression_table(lowerer: &mut Lowerer) -> &mut ExpressionTable {
     &mut lowerer.symbol_resolved_trees.tables.bodies.expressions
 }
 

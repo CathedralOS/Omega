@@ -15,7 +15,7 @@ use crate::resolution::lowerer::{Lowerer, PendingAuthoredExpression};
 use diagnostics::Diagnostic;
 use source::{SourceSpan, Span};
 use symbol_resolved_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableBinaryExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
     TableCallExpression,
 };
 use symbol_resolved_trees::name::DiagnosticName;
@@ -44,9 +44,7 @@ pub(crate) fn normalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     Ok(())
 }
 
-fn expressions(lowerer: &mut Lowerer) -> &mut ExpressionTable {
-    &mut lowerer.symbol_resolved_trees.tables.bodies.expressions
-}
+use super::expression::expression_table as expressions;
 
 fn normalize_call(
     lowerer: &mut Lowerer,
