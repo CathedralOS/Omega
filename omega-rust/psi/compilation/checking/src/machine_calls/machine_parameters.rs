@@ -365,6 +365,20 @@ fn validate_call_selection(
         target_symbol,
         target_name,
         arguments,
+        application: match site {
+            ValidatedNominalMachineUseSite::Expression(handle) => {
+                program.expression_table.call_node(handle).map_or(
+                    typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
+                    |call| call.authored_machine_application,
+                )
+            }
+            ValidatedNominalMachineUseSite::Statement(handle) => {
+                program.statement_table.statement(handle).as_call().map_or(
+                    typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
+                    |call| call.authored_machine_application,
+                )
+            }
+        },
     };
     let mut occurrence = FormedStaticMachineSelections::default();
     form_call_selection(program, index, call, &[], diagnostics, &mut occurrence);
@@ -390,6 +404,7 @@ struct CallSelection<'call> {
     target_symbol: SymbolHandle,
     target_name: &'call str,
     arguments: &'call [StaticMachineArgument],
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
 }
 
 fn form_call_selection(
@@ -405,6 +420,7 @@ fn form_call_selection(
         target_symbol,
         target_name,
         arguments,
+        application,
     } = call;
     /// Split a type-parameter signature into its `Machine`-kind contract
     /// requirements and its `Type`-kind generic slots, in declaration order.
@@ -504,7 +520,21 @@ fn form_call_selection(
         return;
     }
 
-    let machine_arguments = machine_selection_arguments(program, arguments).collect::<Vec<_>>();
+    // Contextual closure retains a separate occurrence roster. The authored
+    // type operands above still fix this invocation; each selected instance
+    // retains its own complete tuple for ordinary bound and contract admission.
+    let selected_machines = if application.is_valid() {
+        program
+            .expression_table
+            .static_machine_application_selected_machines(application)
+    } else {
+        &[]
+    };
+    let machine_arguments = if selected_machines.is_empty() {
+        machine_selection_arguments(program, arguments).collect::<Vec<_>>()
+    } else {
+        selected_machines.iter().collect::<Vec<_>>()
+    };
     if machine_arguments.len() != requirements.len() {
         diagnostics.push(Diagnostic::error(format!(
             "generic call `{target_name}` requires {} static machine argument(s), got {}",

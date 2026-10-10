@@ -390,6 +390,7 @@ impl ExpressionTable {
                 lexical_owner: SymbolHandle::invalid(),
                 target,
                 arguments,
+                selected_machine_arguments: HandleSpan::empty(),
                 bindings: HandleSpan::empty(),
                 lifetime_bindings: HandleSpan::empty(),
                 binding_declaration: SymbolHandle::invalid(),
@@ -457,6 +458,43 @@ impl ExpressionTable {
     ) -> &[StaticMachineArgument] {
         self.static_machine_arguments
             .span_or_empty(self.static_machine_application(application).arguments)
+    }
+
+    pub fn static_machine_application_selected_machines(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> &[StaticMachineArgument] {
+        self.static_machine_arguments.span_or_empty(
+            self.static_machine_application(application)
+                .selected_machine_arguments,
+        )
+    }
+
+    pub fn static_machine_application_selected_machines_mut(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+    ) -> &mut [StaticMachineArgument] {
+        let selected = self
+            .static_machine_applications
+            .get(application)
+            .selected_machine_arguments;
+        self.static_machine_arguments.span_mut_or_empty(selected)
+    }
+
+    pub fn set_static_machine_application_selected_machines(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        selected: &[StaticMachineArgument],
+    ) {
+        if self.static_machine_application_selected_machines(application) == selected {
+            return;
+        }
+        let selected = self
+            .static_machine_arguments
+            .insert_many(selected.iter().cloned());
+        self.static_machine_applications
+            .get_mut(application)
+            .selected_machine_arguments = selected;
     }
 
     pub fn static_machine_application_lifetimes(

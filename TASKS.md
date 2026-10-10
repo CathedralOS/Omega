@@ -2582,19 +2582,20 @@ crash and native exit behavior.
     custody, including claims reseated into owned fields; native custody joins
     the complete selected call graph rather than its pointer-only mirror.
     It supplies no provider grant or boundary issuance.
-    The remaining conformance frontier is complete callable specialization
-    tuples for generic callbacks selected through invocation-local type binders
-    and differing conformance bounds,
-    not ordinary named evidence arguments or named maps. On macOS ARM64,
-    `omega run --both tests/omega/pending/traits/applied_nominal_callback_local_types_exit/main.omg`
-    reaches Stage 03b but cannot derive the `item_visit`/`other_visit`
-    type/const/machine/conformance tuples through their applied visitor schemas.
-    In `03b_typed-trees-to-typed-trees/src/monomorphization/`, keep the
-    invocation's closed type arguments separate from the selected callback's
-    own telescope. Infer and retain the callback's complete contextual
-    application rather than treating its open binder as a conflicting caller
-    argument; ordinary callable admission must still check that application.
-    Do not change the program or accept an incomplete tuple. Preserve
+    The remaining conformance frontier is symbolic contextual applications in
+    open caller schemas, including const payloads and differing conformance
+    bounds. On macOS ARM64,
+    `omega run --both tests/omega/pending/generics/contextual_static_machine_open_const_exit/main.omg`
+    rejects the original `relay` call's selected `accepts<Kind>` against
+    `Callback(value: &[u8; Count])`: callable admission sees its open telescope,
+    not the determined symbolic application. In Stage 03b's
+    `monomorphization/contextual_calls/` and ordinary callable admission,
+    retain and admit that source application before executable closure; an open
+    array extent must not become a closed cache operand or lose caller scope.
+    Do not change the program, instantiate a universal contract at one favorable
+    type, or accept an incomplete tuple. Preserve
+    `traits/applied_nominal_callback_local_types_exit` and
+    `generics/contextual_static_machine_applications_exit`, plus
     `traits/applied_nominal_callback_closed_local_types_exit` and
     `generics/static_callable_local_type_argument_exit` through both engines;
     uncalled consumers with wrong values, wrong callback carriers or missing

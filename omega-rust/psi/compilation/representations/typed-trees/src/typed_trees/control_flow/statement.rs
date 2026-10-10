@@ -421,6 +421,13 @@ impl StatementTable {
                         ) {
                             binding.remap_symbols(symbols);
                         }
+                        for argument in expressions
+                            .static_machine_application_selected_machines_mut(
+                                call.authored_machine_application,
+                            )
+                        {
+                            argument.remap_symbols(symbols);
+                        }
                     }
                     for argument in self.expression_handles(call.arguments).to_vec() {
                         expressions.remap_symbols_in(argument, symbols);

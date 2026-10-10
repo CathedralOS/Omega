@@ -75,6 +75,9 @@ impl ExpressionTable {
         let bindings = origin
             .static_machine_application_bindings(application)
             .to_vec();
+        let selected = origin
+            .static_machine_application_selected_machines(application)
+            .to_vec();
         let lifetimes = origin
             .static_machine_application_lifetimes(application)
             .to_vec();
@@ -87,6 +90,7 @@ impl ExpressionTable {
         self.static_machine_application_mut(copy)
             .binding_declaration = declaration.binding_declaration;
         self.set_static_machine_application_bindings(copy, &bindings);
+        self.set_static_machine_application_selected_machines(copy, &selected);
         self.set_static_machine_application_lifetimes(copy, &lifetimes);
         copy
     }
@@ -191,6 +195,11 @@ impl ExpressionTable {
                         .static_machine_application_bindings_mut(call.authored_machine_application)
                     {
                         binding.remap_symbols(symbols);
+                    }
+                    for argument in self.static_machine_application_selected_machines_mut(
+                        call.authored_machine_application,
+                    ) {
+                        argument.remap_symbols(symbols);
                     }
                 }
                 let arguments = self.expression_handles(call.arguments).to_vec();

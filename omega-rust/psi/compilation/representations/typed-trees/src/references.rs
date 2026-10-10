@@ -464,8 +464,10 @@ pub fn visit_static_argument(
     }
 }
 
-/// Inferred operands have the same dependency law as authored operands. The
-/// original binder itself is a declaration description, not executable code.
+/// Selected entries and inferred operands have the same dependency law as
+/// authored operands. The original binder itself is a declaration description,
+/// not executable code. The sink's call classification still decides whether
+/// an occurrence describes a declaration or actually depends on its value.
 pub fn visit_static_machine_bindings(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
@@ -473,6 +475,12 @@ pub fn visit_static_machine_bindings(
 ) {
     if !application.is_valid() {
         return;
+    }
+    for selected in program
+        .expression_table
+        .static_machine_application_selected_machines(application)
+    {
+        visit_static_argument(program, retained, selected);
     }
     for binding in program
         .expression_table

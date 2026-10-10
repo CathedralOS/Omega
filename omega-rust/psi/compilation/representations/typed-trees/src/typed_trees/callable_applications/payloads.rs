@@ -263,6 +263,15 @@ impl CallableApplication {
                             .expression_table
                             .static_machine_application_arguments_mut(application)
                             .clone_from_slice(&arguments);
+                        let mut selected = program
+                            .expression_table
+                            .static_machine_application_selected_machines(application)
+                            .to_vec();
+                        self.static_arguments(program, &mut selected)?;
+                        program
+                            .expression_table
+                            .static_machine_application_selected_machines_mut(application)
+                            .clone_from_slice(&selected);
                         let mut bindings = program
                             .expression_table
                             .static_machine_application_bindings(application)

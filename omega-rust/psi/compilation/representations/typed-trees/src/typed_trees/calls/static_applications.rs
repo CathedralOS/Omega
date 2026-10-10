@@ -26,6 +26,11 @@ pub struct StaticMachineApplication {
     /// Diagnostic text only; the symbol above owns declaration identity.
     pub target: Identifier,
     pub arguments: HandleSpan<StaticMachineArgument>,
+    /// Occurrence-local machine operands after contextual specialization, in
+    /// machine-binder order. Authored operands remain above; closed entries
+    /// retain complete tuples through the ordinary specialization roster.
+    /// This is derived selection data, not callable admission.
+    pub selected_machine_arguments: HandleSpan<StaticMachineArgument>,
     /// Exact inferred operands, including calls with no spelled static list.
     /// These are derivation data; their source bounds still owe admission.
     pub bindings: HandleSpan<StaticMachineBinding>,

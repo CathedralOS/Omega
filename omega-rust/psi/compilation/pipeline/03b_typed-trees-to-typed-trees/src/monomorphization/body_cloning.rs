@@ -415,6 +415,12 @@ pub(super) fn clone_single_specialized_machine(
                     {
                         argument.remap_symbols(realized);
                     }
+                    for argument in program
+                        .expression_table
+                        .static_machine_application_selected_machines_mut(application)
+                    {
+                        argument.remap_symbols(realized);
+                    }
                 }
             }
             for statement in program
@@ -856,6 +862,15 @@ fn copy_application_binding_type_payloads(
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) {
+    let mut selected = program
+        .expression_table
+        .static_machine_application_selected_machines(application)
+        .to_vec();
+    copy_static_argument_type_payloads(source, program, &mut selected, symbols);
+    program
+        .expression_table
+        .static_machine_application_selected_machines_mut(application)
+        .clone_from_slice(&selected);
     let mut bindings = program
         .expression_table
         .static_machine_application_bindings(application)

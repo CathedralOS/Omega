@@ -4963,3 +4963,17 @@ pass/traits/applied_nominal_callback_closed_local_types_exit checked 2563ms chec
 fail/drops/selected_nominal_owner_keeps_cleanup_prerequisite rejected 396ms expected @63328daf043b+wt
 	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing retained.ready == true required by Token::drop clause `token.ready`
 pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 2848ms check-target:macos_arm64 @63328daf043b+wt
+fail/generics/contextual_static_machine_effect_ceiling rejected 227ms expected @2347e2eb005f+wt
+	machine argument `crashing$specialized$3ae7e7191e259313$0` for `apply` does not refine `Selected`: its `crashes Trap` routes are not contained by the required crash ceiling
+fail/generics/contextual_static_machine_type_bound rejected 220ms expected @2347e2eb005f+wt
+	generic machine `copy_probe` has a call tuple that does not satisfy its authored type bounds
+fail/generics/contextual_static_machine_universal_contract rejected 234ms expected @2347e2eb005f+wt
+	machine argument `fixed` for `invoke` does not refine `Routine`: its callable signature expects 1 generic parameter(s), got 0
+	machine argument `fixed` for `invoke` does not refine `Routine`: parameter 0 expects `Context`, got `u64`
+fail/generics/contextual_static_machine_unused_binder rejected 217ms expected @2347e2eb005f+wt
+	machine argument `accepts` for `Routine` does not refine `Callback`: its callable signature expects 0 generic parameter(s), got 2
+	machine argument `accepts` for `Routine` does not refine `Callback`: parameter 0 expects `Context`, got `Kind`
+fail/traits/contextual_static_machine_nominal_authority rejected 190ms expected @2347e2eb005f+wt
+	static machine argument `wrong` for nominal parameter `Selected` retains 0 authored satisfaction row(s) for exact requirement `Expected::test`; exactly one is required and structural coincidence establishes none
+pass/generics/contextual_static_machine_applications_exit checked 3070ms check-target:macos_arm64 @2347e2eb005f+wt
+pass/traits/applied_nominal_callback_local_types_exit checked 3083ms check-target:macos_arm64 @2347e2eb005f+wt

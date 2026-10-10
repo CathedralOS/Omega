@@ -150,6 +150,8 @@ pub(crate) fn collect_machine_proposals_for_callee(
         let Some(actual_state) = state_by_symbol(program, selected.symbol) else {
             continue;
         };
+        let first_type_proposal = type_proposals.len();
+        let first_const_proposal = const_proposals.len();
         for (required, actual) in program
             .state_signature_parameters(requirement)
             .iter()
@@ -184,6 +186,41 @@ pub(crate) fn collect_machine_proposals_for_callee(
             type_proposals,
             const_proposals,
         );
+        // Provider-local binders are not operands in the selecting caller's
+        // telescope. Contextual closure owns their application; an open
+        // provider cannot propose its arbitrary binder as a caller argument.
+        let provider = program.machines().iter().find(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == selected.symbol)
+        });
+        if let Some(provider) = provider {
+            let provider_binders: Vec<_> = program
+                .machine_type_parameters(provider)
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .collect();
+            let owns_binder = |binding| {
+                super::super::contextual_calls::names_any(
+                    program.typed_program(),
+                    binding,
+                    &provider_binders,
+                )
+            };
+            let mut ordinal = 0usize;
+            type_proposals.retain(|(_, _, binding)| {
+                let keep = ordinal < first_type_proposal || !owns_binder(*binding);
+                ordinal += 1;
+                keep
+            });
+            let mut ordinal = 0usize;
+            const_proposals.retain(|(_, _, binding)| {
+                let keep = ordinal < first_const_proposal || !owns_binder(*binding);
+                ordinal += 1;
+                keep
+            });
+        }
     }
     Ok(())
 }

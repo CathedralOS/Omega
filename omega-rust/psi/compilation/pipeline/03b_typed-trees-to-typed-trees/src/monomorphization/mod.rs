@@ -37,6 +37,7 @@ use validation::contract_identities::{accepted_template_commitment, normalized_m
 
 mod applications;
 mod candidate;
+mod contextual_calls;
 mod selection;
 pub(crate) use selection::infer_static_bindings;
 
@@ -189,6 +190,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         // discovers no further ordinary specialization.
         changed_owners.extend(result_locals::refresh(program));
         materialize_static_argument_types(program);
+        changed_owners.extend(contextual_calls::close(program)?);
         crate::constructed_results::retain_borrow_result_types(program);
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);

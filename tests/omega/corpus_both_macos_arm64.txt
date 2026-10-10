@@ -715,3 +715,5 @@ pass/traits/applied_nominal_callback_scopes_exit built 2563ms exit:0 interpreter
 pass/generics/static_callable_local_type_argument_exit built 2911ms exit:0 interpreter-exit:0 interpreter:agrees @f08249213499
 pass/traits/applied_nominal_callback_closed_local_types_exit built 3013ms exit:0 interpreter-exit:0 interpreter:agrees @f08249213499
 pass/drops/runtime_selected_nominal_owner_cleanup_exit built 2975ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @63328daf043b+wt
+pass/generics/contextual_static_machine_applications_exit built 2992ms exit:0 interpreter-exit:0 interpreter:agrees @2347e2eb005f+wt
+pass/traits/applied_nominal_callback_local_types_exit built 2912ms exit:0 interpreter-exit:0 interpreter:agrees @2347e2eb005f+wt

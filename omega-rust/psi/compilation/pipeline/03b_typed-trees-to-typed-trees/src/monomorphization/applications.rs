@@ -76,15 +76,15 @@ pub(super) fn candidate_bindings(candidate: &Candidate) -> Vec<StaticMachineBind
     bindings
 }
 
-pub(super) fn retain_call(
+pub(super) fn retain_authored_call(
     program: &mut TypedTrees,
-    candidate: &Candidate,
-    selection: &CallSelection,
-) {
-    let (application, target_symbol, target, arguments) = match selection.site {
+    site: CallSite,
+    lexical_owner: SymbolHandle,
+) -> StaticMachineApplicationHandle {
+    let (application, target_symbol, target, arguments) = match site {
         CallSite::Expression(handle) => {
             let Some(call) = program.expression_table.call_node(handle) else {
-                return;
+                return StaticMachineApplicationHandle::invalid();
             };
             (
                 call.authored_machine_application,
@@ -95,7 +95,7 @@ pub(super) fn retain_call(
         }
         CallSite::Statement(handle) => {
             let Some(call) = program.statement_table.statement(handle).as_call() else {
-                return;
+                return StaticMachineApplicationHandle::invalid();
             };
             (
                 call.authored_machine_application,
@@ -105,7 +105,7 @@ pub(super) fn retain_call(
             )
         }
     };
-    let application = if application.is_valid() {
+    if application.is_valid() {
         application
     } else {
         let application = program.expression_table.retain_static_machine_application(
@@ -116,8 +116,8 @@ pub(super) fn retain_call(
         program
             .expression_table
             .static_machine_application_mut(application)
-            .lexical_owner = selection.lexical_owner;
-        match selection.site {
+            .lexical_owner = lexical_owner;
+        match site {
             CallSite::Expression(handle) => {
                 let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
                 else {
@@ -134,7 +134,18 @@ pub(super) fn retain_call(
             }
         }
         application
-    };
+    }
+}
+
+pub(super) fn retain_call(
+    program: &mut TypedTrees,
+    candidate: &Candidate,
+    selection: &CallSelection,
+) {
+    let application = retain_authored_call(program, selection.site, selection.lexical_owner);
+    if !application.is_valid() {
+        return;
+    }
     program
         .expression_table
         .static_machine_application_mut(application)

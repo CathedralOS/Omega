@@ -197,6 +197,13 @@ pub(crate) fn rewrite_cloned_calls(
                     &static_argument_rewrites,
                     &argument_rewrites,
                 );
+                substitute_forwarded_machine_arguments(
+                    program
+                        .expression_table
+                        .static_machine_application_selected_machines_mut(application),
+                    &static_argument_rewrites,
+                    &argument_rewrites,
+                );
             } else if let Some((registration_operation, arguments)) = erased_application {
                 let application = program.expression_table.retain_static_machine_application(
                     registration_operation,
@@ -308,6 +315,13 @@ pub(crate) fn rewrite_cloned_calls(
                 program
                     .expression_table
                     .static_machine_application_arguments_mut(application),
+                &static_argument_rewrites,
+                &argument_rewrites,
+            );
+            substitute_forwarded_machine_arguments(
+                program
+                    .expression_table
+                    .static_machine_application_selected_machines_mut(application),
                 &static_argument_rewrites,
                 &argument_rewrites,
             );

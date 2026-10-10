@@ -83,6 +83,22 @@ impl CallableApplication {
 }
 
 impl TypedTrees {
+    /// Apply an invocation's known operands to a callable carrier, including
+    /// domain, extent and expression payloads. Arguments keep their caller
+    /// scope: substitution is simultaneous, not a sequence of textual rewrites.
+    /// This produces a view for inference; it admits no callable or bound.
+    pub fn apply_callable_type(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        CallableApplication {
+            types: substitutions.to_vec(),
+            ..CallableApplication::default()
+        }
+        .type_reference(self, original)
+    }
+
     /// Prepare nominal callable applications after all declarations are lowered.
     /// Invalid identities/arity remain absent for ordinary declaration checking;
     /// an application that cannot be represented fails instead of looking applied.
