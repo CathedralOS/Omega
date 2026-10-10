@@ -145,12 +145,10 @@ pub(crate) fn native_publication_evidence_digest(
 }
 
 pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+    ExecutableContainerDigest::from_digest(crate::digest_encoder::DomainDigestEncoder::content(
         b"omega.published-executable-container.sha256.v1\0",
-    );
-    digest.u64(bytes.len() as u64);
-    digest.raw(&bytes);
-    ExecutableContainerDigest::from_digest(digest.finish())
+        bytes,
+    ))
 }
 
 /// Immutable custody for one compiler-published executable container.

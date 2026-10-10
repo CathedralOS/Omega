@@ -6,13 +6,15 @@
 //! Both replay provider requirements through `provider_execution`, supplying
 //! the exact image or object rows admitted by their respective product.
 
+use installation_evidence::ObjectEvidence;
 use std::collections::BTreeSet;
 
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use abstract_operations::AbstractOperationPlan;
 use effects::{
     SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt,
-    TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
+    TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
+};
 use installation_evidence::ProviderExecutionEvidence;
 use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
 use terminal_psi::TerminalPsiIdentity;
@@ -26,18 +28,19 @@ mod provider_execution;
 #[cfg(test)]
 mod tests;
 
-use crate::publication::publication_digest;
 use crate::physical::{
     self, NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
-    ValidatedOptimizedNativePhysicalEvidenceScope, derive_physical_evidence};
+    ValidatedOptimizedNativePhysicalEvidenceScope, derive_physical_evidence,
+};
+use crate::publication::publication_digest;
 pub(super) use boundary_applications::boundary_application_coverage_identity;
 use boundary_applications::validate_boundary_application_coverage;
-pub use dynamic_elf::{
-    DynamicElfNativeArtifact};
+pub use dynamic_elf::DynamicElfNativeArtifact;
 pub use emission::RequestedNativeArtifact;
 use identity::{
     NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
-    foreign_call_custody_digest};
+    foreign_call_custody_digest,
+};
 
 /// Complete source-independent Terminal-Psi native realization.
 #[derive(Debug)]
@@ -62,7 +65,8 @@ pub struct NativeArtifact {
     /// `physical_evidence` is absent. Derived here, never retained as a
     /// caller claim: `NativeArtifactParts` deliberately has no slot for it.
     physical_evidence_gap: Option<NativePhysicalEvidenceGap>,
-    identity: NativeArtifactIdentity}
+    identity: NativeArtifactIdentity,
+}
 
 #[derive(Debug)]
 pub struct NativeArtifactParts {
@@ -84,7 +88,8 @@ pub struct NativeArtifactParts {
     pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
-    pub physical_evidence: Option<NativePhysicalEvidence>}
+    pub physical_evidence: Option<NativePhysicalEvidence>,
+}
 
 /// Fresh machine/image emission inputs. Physical evidence is deliberately
 /// absent: this owner derives it from the exact Terminal, object, image, and
@@ -109,7 +114,8 @@ pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> 
         Option<TerminalAuthorityPermissionPolicyIdentity>,
     pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
-    pub physical_evidence_scope: NativePhysicalEvidenceScope}
+    pub physical_evidence_scope: NativePhysicalEvidenceScope,
+}
 
 impl NativeArtifact {
     /// Complete fresh native emission by deriving the identity optimization
@@ -132,7 +138,8 @@ impl NativeArtifact {
         )? {
             NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
             NativePhysicalEvidenceDerivation::Unavailable => (None, None),
-            NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap))};
+            NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
+        };
         // Fragment calls already belong to the object and its emitted image.
         // Check the independent projection instead of appending calls after
         // image emission, which would omit their admitted stack demand.
@@ -159,7 +166,8 @@ impl NativeArtifact {
                 terminal_authority_closure_review: parts.terminal_authority_closure_review,
                 boundary_application_coverage: parts.boundary_application_coverage,
                 physical_evidence_scope: parts.physical_evidence_scope,
-                physical_evidence},
+                physical_evidence,
+            },
             physical_evidence_gap,
         ))
     }
@@ -182,7 +190,8 @@ impl NativeArtifact {
         )? {
             NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
             NativePhysicalEvidenceDerivation::Unavailable
-            | NativePhysicalEvidenceDerivation::Complete(_) => None};
+            | NativePhysicalEvidenceDerivation::Complete(_) => None,
+        };
         let artifact = Self::seal(parts, physical_evidence_gap);
         artifact.validate()?;
         Ok(artifact)
@@ -212,7 +221,8 @@ impl NativeArtifact {
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence: parts.physical_evidence,
             physical_evidence_gap,
-            identity: NativeArtifactIdentity([0; 32])};
+            identity: NativeArtifactIdentity([0; 32]),
+        };
         artifact.identity = artifact.recomputed_identity();
         artifact
     }
@@ -284,7 +294,8 @@ impl NativeArtifact {
             )? {
                 NativePhysicalEvidenceDerivation::Unavailable => (None, None),
                 NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
-                NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap))};
+                NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
+            };
         if self.physical_evidence != expected_physical_evidence {
             return Err(
                 "native artifact physical children disagree with its validated identity projection",
@@ -363,7 +374,8 @@ impl NativeArtifact {
             physical_evidence_gap_identity: self
                 .physical_evidence_gap
                 .as_ref()
-                .map(|gap| *gap.identity())})
+                .map(|gap| *gap.identity()),
+        })
     }
 
     pub const fn target(&self) -> target::NativeTarget {
@@ -475,7 +487,8 @@ impl NativeArtifact {
             terminal_authority_closure_review: self.terminal_authority_closure_review,
             boundary_application_coverage: self.boundary_application_coverage,
             physical_evidence_scope: self.physical_evidence_scope,
-            physical_evidence: self.physical_evidence}
+            physical_evidence: self.physical_evidence,
+        }
     }
 }
 
@@ -532,7 +545,8 @@ publication_digest!(NativeSelectedProviderPlanDigest);
 pub enum NativePhysicalEvidenceScope {
     Unavailable,
     UnoptimizedCompleteBoundaryEvidence,
-    ValidatedOptimizedProjection(ValidatedOptimizedNativePhysicalEvidenceScope)}
+    ValidatedOptimizedProjection(ValidatedOptimizedNativePhysicalEvidenceScope),
+}
 
 impl NativePhysicalEvidenceScope {
     /// Foreign-call custody the fragment publication projected for the
@@ -540,7 +554,8 @@ impl NativePhysicalEvidenceScope {
     fn normalized_foreign_call_custody(&self) -> &[image_emission::ObjectForeignCall] {
         match self {
             Self::Unavailable | Self::UnoptimizedCompleteBoundaryEvidence => &[],
-            Self::ValidatedOptimizedProjection(scope) => scope.foreign_call_custody()}
+            Self::ValidatedOptimizedProjection(scope) => scope.foreign_call_custody(),
+        }
     }
 
     /// Admit the shared fragment/object route after replaying its exact current
@@ -588,7 +603,8 @@ impl NativePhysicalEvidenceScope {
 pub struct NativeSelectedProviderPlan {
     report_identity: u64,
     plan_digest: NativeSelectedProviderPlanDigest,
-    requirement_identities: Vec<String>}
+    requirement_identities: Vec<String>,
+}
 
 impl NativeSelectedProviderPlan {
     /// Retain each selected plan's exact Terminal-facing requirement roster.
@@ -635,7 +651,8 @@ impl NativeSelectedProviderPlan {
         Self {
             report_identity,
             plan_digest,
-            requirement_identities}
+            requirement_identities,
+        }
     }
 
     pub const fn report_identity(&self) -> u64 {
@@ -665,7 +682,8 @@ pub struct NativeProviderExecution {
     provider_execution_report_identity: u64,
     provider_execution_report_fingerprint: u64,
     normalized_root_report_identity: u64,
-    boundary_contract_report_fingerprint: u64}
+    boundary_contract_report_fingerprint: u64,
+}
 
 impl NativeProviderExecution {
     pub fn from_evidence(evidence: &dyn ProviderExecutionEvidence) -> Self {
@@ -675,7 +693,8 @@ impl NativeProviderExecution {
             provider_execution_report_identity: evidence.provider_execution_report_identity(),
             provider_execution_report_fingerprint: evidence.provider_execution_report_fingerprint(),
             normalized_root_report_identity: evidence.normalized_root_report_identity(),
-            boundary_contract_report_fingerprint: evidence.boundary_contract_report_fingerprint()}
+            boundary_contract_report_fingerprint: evidence.boundary_contract_report_fingerprint(),
+        }
     }
 
     pub const fn provider_plan_report_identity(&self) -> u64 {
@@ -777,7 +796,8 @@ fn validate_ieee_float_fma_occurrences(
         let terminal_psi::OperationKind::NearestIeeeFloatFusedMultiplyAdd {
             left,
             right,
-            addend} = operation.kind
+            addend,
+        } = operation.kind
         else {
             unreachable!("Terminal occurrence roster contains only nearest FMA")
         };

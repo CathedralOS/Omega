@@ -31,4 +31,12 @@ impl DomainDigestEncoder {
     pub(crate) fn raw(&mut self, bytes: &[u8]) {
         self.0.update(bytes);
     }
+
+    /// The crate's single-content identity: u64 length, then the raw content.
+    pub(crate) fn content(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
+        let mut digest = Self::new(domain);
+        digest.u64(bytes.len() as u64);
+        digest.raw(bytes);
+        digest.finish()
+    }
 }

@@ -16,6 +16,7 @@ use effects::{
     TerminalAuthorityClosureReviewReceipt, TerminalAuthorityPermissionPolicyIdentity,
     TerminalAuthorityPolicyIdentity,
 };
+use installation_evidence::ObjectEvidence;
 use sha2::{Digest, Sha256};
 const DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] =
     b"omega.dynamic-elf-native-artifact.sha256.v1\0";
@@ -413,7 +414,6 @@ impl DynamicElfNativeArtifact {
     ) -> Option<&TerminalBoundaryApplicationCoverage> {
         self.boundary_application_coverage.as_ref()
     }
-
 
     pub const fn physical_evidence(&self) -> Option<&NativePhysicalEvidence> {
         self.physical_evidence.as_ref()

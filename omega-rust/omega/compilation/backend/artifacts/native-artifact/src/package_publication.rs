@@ -37,12 +37,10 @@ use crate::{NativePackageEvidenceDigest, PackageComponentDigest};
 
 /// Digest one installed package member's exact bytes under its own domain.
 fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+    PackageComponentDigest::from_digest(crate::digest_encoder::DomainDigestEncoder::content(
         b"omega.published-package-component.sha256.v1\0",
-    );
-    digest.u64(bytes.len() as u64);
-    digest.raw(&bytes);
-    PackageComponentDigest::from_digest(digest.finish())
+        bytes,
+    ))
 }
 
 /// The package-level commitment: package root, authored name, authored
