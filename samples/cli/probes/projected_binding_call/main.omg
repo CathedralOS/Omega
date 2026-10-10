@@ -1,0 +1,46 @@
+// Projected binding receivers: `context.services.settlement.settle(...)`
+// calls a boundary binding through a nested field path; `direct`
+// takes `binding: &mut Binding<Settlement>` as an ordinary &mut
+// param — same receiver admission either way.
+//
+//   * `pub boundary trait Settlement` + `Settler satisfies Settlement`
+//     (impl consumes the linear receipt via `drop`).
+//   * `reaches Settlement` on forwarding machines.
+//
+// Compile-checked only: declaration surface (Binding holds no
+// provider here), no standard-library dependency.
+
+use omega::language::core::binding;
+use omega::language::core::drop;
+
+pub data Receipt [linear] { code: i32; }
+machine Receipt::drop(receipt: &mut Receipt) {}
+
+pub boundary trait Settlement {
+    machine settle(prefix: i32, receipt: Receipt, suffix: i32) -> i32;
+}
+
+Settler satisfies Settlement {
+    machine settle(prefix: i32, receipt: Receipt, suffix: i32) -> i32 {
+        let code: i32 = receipt.code;
+        drop(receipt);
+        (((prefix as i32 in Wrapping) + (code as i32 in Wrapping)) + (suffix as i32 in Wrapping)) as i32
+    }
+}
+
+data Services { settlement: Binding<Settlement>; }
+data Context { services: Services; }
+
+machine forward(prefix: i32, receipt: Receipt, context: &mut Context, suffix: i32) -> i32 reaches Settlement {
+    ((context.services.settlement.settle(prefix, receipt, suffix) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
+}
+
+machine direct(binding: &mut Binding<Settlement>, receipt: Receipt) -> i32 reaches Settlement {
+    ((binding.settle(2, receipt, 3) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 1;
+}
