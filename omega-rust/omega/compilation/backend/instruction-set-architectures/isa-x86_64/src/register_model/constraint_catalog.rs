@@ -880,7 +880,8 @@ pub fn x86_64_register_constraint_catalog(
         });
     }
     // Scalar IEEE operations read MXCSR's rounding controls and clobber their
-    // scratch vectors; the effect declaration in
+    // scratch vectors (ternary forms also hold their addend in xmm3); the
+    // effect declaration in
     // `selected_form_encoding::ieee_float_arithmetic` restates both rows.
     for (key, inputs) in [
         (crate::X86_64_IEEE_FLOAT_ARITHMETIC, 2),
@@ -910,6 +911,12 @@ pub fn x86_64_register_constraint_catalog(
                     .units
                     .iter()
                     .chain(&view("xmm5").units)
+                    .chain(
+                        (key == crate::X86_64_IEEE_FLOAT_TERNARY)
+                            .then(|| view("xmm3").units.iter())
+                            .into_iter()
+                            .flatten(),
+                    )
                     .copied(),
             ),
         });

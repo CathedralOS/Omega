@@ -81,6 +81,7 @@ impl CheckedCompilation {
             package_terminal_authority_permissions: execution.terminal_authority_permissions(),
             callback_placements: callback_placements.iter().map(|placement| placement.native.clone()).collect(),
             callback_thunks,
+            x86_scalar_fma_provider: execution.x86_scalar_fma_provider,
         }
     }
 }

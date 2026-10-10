@@ -455,3 +455,39 @@ synthesis, which recursive Nat cannot join").
 3. **A distinct identity spelling.** Facts write identity explicitly (a
    core `Identity(a, b)` proposition or another token), and `==` keeps one
    meaning everywhere. The eight files' theorems are respelled.
+
+### Q8 - Does an x86 FMA image keep its own replayed feature custody?
+
+Named decision: `x86-fma-image-custody`.
+
+**Customer:** x86-64 programs that admit `X86DeploymentFeatures::AvxFma3`
+and call `F32::fused_multiply_add`/`F64::fused_multiply_add`
+(`tests/omega/pass/float/fused_multiply_add_single_rounding_exit`). The
+selected realization now carries the admitted AVX+FMA3 provider from provider
+planning through stage 00 catalog admission, stage 02/03 lowering and
+selection, and the encoder emits one `VFMADD213SS`/`SD`. The executable records
+no separate FMA custody.
+
+**Existing rules:** [verification placement](omega-rust/pipeline.md#verification-placement):
+"A stage does not re-validate, replay or rebuild output that the same compile
+just produced"; verifiers stay but run only from the corpus runner and the
+tests. **X86-FMA-PROVIDER-TRANSPORT** in `TASKS.md` asks instead that
+`backend/images/image-emission/src/object_artifact/replay/x86_fma.rs` be
+extended to runtime operands. That file and its inputs are built and
+never populated: `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd`
+(constant operands only), machine-code `X86ScalarFmaFragment` and
+`X86ScalarFmaOccurrenceRecord`, and `ObjectArtifact`/`ExecutableImage`
+`x86_scalar_fma_provider`, which is always `None`. No page says whether a
+native image must record which optional ISA features its code needs.
+
+**Decision needed:**
+
+1. **Recommended: retire the dormant image custody.** Admission and the
+   realization record carry feature custody; the image keeps none, and the
+   constant-operand route, fragments, occurrence records and replay are
+   deleted as superseded.
+2. **Keep image-level feature custody without replay.** Image emission
+   records which emitted intervals need AVX+FMA3, for loaders and audits,
+   but nothing replays them on the compile path.
+3. **Extend the replay as the board states,** as an off-path verifier the
+   corpus runner calls for x86 FMA images.

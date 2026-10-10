@@ -153,6 +153,7 @@ pub fn admit_native_realization<'request>(
         terminal_authority_permission_policy: request
             .providers
             .terminal_authority_permission_policy,
+        x86_scalar_fma_provider: request.providers.x86_scalar_fma_provider,
     };
     let providers = admit_native_providers(&input, artifact, &scoped_providers)?;
     // Exclusions constrain the exercised mechanism closure even when the

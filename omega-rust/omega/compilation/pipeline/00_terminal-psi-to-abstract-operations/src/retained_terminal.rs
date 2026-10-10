@@ -23,6 +23,8 @@ pub struct TerminalNativeProviders {
     pub selection: effects::SelectedProviderPlanFacts,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
+    /// Build-admitted AVX+FMA3 provider, joined to x86 FMA demand by planning.
+    pub x86_scalar_fma: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
 /// Exact occurrence catalogs produced while checked source custody exists.

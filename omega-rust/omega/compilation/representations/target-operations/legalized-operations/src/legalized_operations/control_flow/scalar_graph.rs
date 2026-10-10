@@ -400,10 +400,10 @@ pub enum LegalizedScalarInstructionKind {
         result: terminal_psi::StructuralOperationResult,
         layout: calling_conventions::ConventionalSumLayout,
     },
+    /// The admitted realization, including any x86 FMA feature custody.
     NearestIeeeFloatArithmetic {
         boundary: semantic_vocabulary::BoundaryMachineId,
-        operation: target_operations::IeeeFloatArithmeticOperation,
-        format: semantic_vocabulary::IeeeFloatFormat,
+        realization: target_operations::NearestIeeeFloatArithmeticRealization,
         arguments: Vec<ValueId>,
     },
     EstablishByteSequenceConcatenation {

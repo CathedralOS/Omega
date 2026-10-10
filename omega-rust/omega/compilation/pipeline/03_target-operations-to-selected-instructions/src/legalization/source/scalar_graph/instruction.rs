@@ -314,8 +314,7 @@ pub(super) fn project(
                     }
                     LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
                         boundary: *boundary,
-                        operation: realization.operation,
-                        format: realization.format,
+                        realization: *realization,
                         arguments: arguments.clone(),
                     }
                 }

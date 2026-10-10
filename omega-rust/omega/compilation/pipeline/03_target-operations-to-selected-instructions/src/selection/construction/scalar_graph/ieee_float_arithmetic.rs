@@ -17,26 +17,23 @@ pub(super) fn emit(
         .result
         .ok_or(SelectedInstructionError::custody())?;
     let LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
-        operation: arithmetic,
-        format,
+        realization,
         arguments: values,
         ..
     } = &operation.kind
     else {
         return Err(SelectedInstructionError::custody());
     };
+    let (arithmetic, format) = (&realization.operation, &realization.format);
     let form = IeeeFloatArithmeticForm {
         operation: *arithmetic,
         format: *format,
     };
     let scalar = arithmetic.result_type(*format);
     let operand = arithmetic.operand_type(*format);
-    if !(target_operations::NearestIeeeFloatArithmeticRealization {
-        operation: *arithmetic,
-        format: *format,
-    })
-    .supports_target(state.environment.target())
-    {
+    // The legalized row carries the admitted realization; an x86 FMA is
+    // supported only with its AVX+FMA3 custody for this target.
+    if !realization.supports_target(state.environment.target()) {
         return Err(SelectedInstructionError::custody());
     }
     if result.scalar_type != scalar || values.len() != form.operand_count() {

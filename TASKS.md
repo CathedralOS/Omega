@@ -5784,27 +5784,27 @@ wait for Cathedral's instruction coverage. The interpreter is
   execution stay unsupported. **ADDRESS-EXPOSURE** owns address observation;
   **COMPONENT-SUBSTRATE** owns component replacement.
 
-- **X86-FMA-PROVIDER-TRANSPORT.** Connect selected x86 FMA plans to Terminal
-  occurrences and ordinary target lowering, instruction selection, register
-  homes and image emission.
-  - `pass/float/x86_fma_plan_association` rejects: "compiler float arithmetic
-    for `operator::F32::fused_multiply_add` ... has no local target catalog
-    realization". The encoder exists in
-    `omega-rust/omega/compilation/backend/machine-emission/src/x86_fma.rs`;
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/comparison_settlement.rs`
-    rejects FMA without selected occurrence custody; stage 02 rejects FMA;
-    stage 03 admission and function-fragment emission are missing.
-  - Keep AVX+FMA3 feature admission, XMM homes and MXCSR save/restore.
-    `omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact/replay/x86_fma.rs`
-    handles only constant-load operands; extend to runtime values.
-  - Nested calls and named-provider installation belong to
-    **OPERATOR-BOUNDARY-CALLS**; direct `F64::fused_multiply_add` lacks a
-    requirement-level Terminal route.
-  Acceptance: `x86_fma_plan_association` runs on a matching host; both formats
-  distinguish fused cancellation from separately rounded multiply/add,
-  including repeated FMA on a prior result. Missing or wrong-profile feature
-  admission and operand/provider substitution reject. Report cross-target
-  byte checks separately from hardware execution.
+- **X86-FMA-PROVIDER-TRANSPORT.** Execute admitted x86 FMA through std
+  consumers and Linux x86-64 hardware.
+  - `NearestIeeeFloatArithmeticRealization` carries the admitted AVX+FMA3
+    provider from stage 00 catalog admission through stage 02/03 lowering,
+    legalization and selection; x86 encodes `VFMADD213SS`/`SD` with the addend
+    in `xmm3`. Std-free `pass/float/fused_multiply_add_single_rounding_exit`
+    exits 0 on Windows x86-64, both formats trap when the helpers use
+    multiply-then-add, and the `linux_x86_64` cross-build carries one
+    VFMADD213 per format. Without admission the plan join still rejects.
+  - Remaining: run that fixture on Linux x86-64 hardware; run
+    `x86_fma_plan_association`, `named_provider_fused_multiply_add_exit` and
+    `admitted_numeric_imports_preserve_semantics` (all admit AvxFma3) once std
+    checks again: on 1843c1a8677 std stops at "machine satisfaction target
+    `Clock::sleep` does not resolve", beside the **PSI-TARGET-FAMILIES**
+    Console cutoff.
+  - The never-populated image custody (constant-operand
+    `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd`, machine-code FMA
+    fragments/occurrences, `object_artifact/replay/x86_fma.rs`) waits on
+    `OWNER_QUESTIONS.md` `x86-fma-image-custody`.
+  Acceptance: the three std fixtures run on Windows and Linux x86-64 at their
+  oracles and the std-free fixture runs on Linux x86-64 hardware.
 
 - **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry checked assembly through
   source-to-native production under [assembly](wiki/spec/language/assembly.md)
@@ -6045,7 +6045,8 @@ report a missing runtime leg explicitly.
   on every host; re-record after it lifts. At bff9578e24 Windows built every
   fixture a macOS cross-build built except
   `pass/float/{admitted_numeric_imports_preserve_semantics,named_provider_fused_multiply_add_exit}`
-  (**X86-FMA-PROVIDER-TRANSPORT**, shared with Linux x86-64), and every
+  (x86 FMA, now admitted with AvxFma3; **X86-FMA-PROVIDER-TRANSPORT** runs
+  them once std checks), and every
   executed fixture met its oracle. Remaining:
   - 49 fixtures bind only macOS or POSIX hosts through Darwin/POSIX foreign
     providers (`pass/host/runtime_descriptor_*`, `pass/providers/foreign_*`,

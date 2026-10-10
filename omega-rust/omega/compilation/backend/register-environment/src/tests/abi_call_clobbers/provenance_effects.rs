@@ -97,7 +97,7 @@ fn every_selected_rule_binds_the_declared_catalog_provenance() {
         // The declaration roster is exactly the selected keys' canonical
         // semantic-major expansion: one declaration per (semantic, key) pair,
         // in declared order, each bound to a real constraint row.
-        let expected = selected.declaration_keys(case.target);
+        let expected = selected.declaration_keys();
         let actual = catalog
             .catalog()
             .declarations
@@ -157,8 +157,11 @@ fn every_selected_rule_binds_the_declared_catalog_provenance() {
     assert_eq!(targets.len(), scalar_abi_cases().len() - 1);
 }
 
+/// Every target declares its encodable FMA form; on x86 only a realization
+/// carrying admitted AVX+FMA3 custody selects it. A relabelled
+/// multiply-then-add row still cannot stand in for the fused form.
 #[test]
-fn baseline_float_catalog_admits_fused_multiply_add_only_on_aarch64() {
+fn float_catalog_declares_fused_multiply_add_on_every_target() {
     use selected_instructions::{
         IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation as Operation, IeeeFloatFormat,
     };
@@ -170,10 +173,7 @@ fn baseline_float_catalog_admits_fused_multiply_add_only_on_aarch64() {
                 operation: Operation::FusedMultiplyAdd,
                 format,
             });
-            assert_eq!(
-                catalog.declarations.iter().any(|row| row.semantic == fused),
-                case.target.architecture == Architecture::Aarch64,
-            );
+            assert!(catalog.declarations.iter().any(|row| row.semantic == fused));
             if case.target.architecture == Architecture::X86_64 {
                 let unfused =
                     MachineSemanticKind::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {

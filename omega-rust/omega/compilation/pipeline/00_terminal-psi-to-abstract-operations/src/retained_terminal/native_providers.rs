@@ -56,6 +56,7 @@ impl PreparedRetainedNativeProviders<'_> {
                 native_callbacks: self.callbacks,
                 terminal_authority_policy,
                 terminal_authority_permission_policy: receiving_permissions,
+                x86_scalar_fma_provider: proposal.providers().x86_scalar_fma,
             },
         }
     }

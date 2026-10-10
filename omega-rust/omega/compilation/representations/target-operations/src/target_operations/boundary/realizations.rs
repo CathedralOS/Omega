@@ -68,19 +68,28 @@ impl HostedWriteByteI32Realization {
 pub struct NearestIeeeFloatArithmeticRealization {
     pub operation: crate::IeeeFloatArithmeticOperation,
     pub format: semantic_vocabulary::IeeeFloatFormat,
+    /// Build-admitted AVX+FMA3 deployment custody. Present exactly on an x86
+    /// fused multiply-add; every later stage reads it from this record.
+    pub x86_scalar_fma: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
 impl NearestIeeeFloatArithmeticRealization {
     /// AArch64 provides scalar FMA in its baseline FP instruction set. x86's
-    /// SSE2 baseline does not: its separate AVX/FMA3 route must carry selected
-    /// feature evidence, which this catalog does not own. Equal signatures
-    /// cannot donate that authority or select two roundings instead.
+    /// SSE2 baseline does not: an x86 FMA is supported only with the admitted
+    /// AVX+FMA3 provider for this exact target. Equal signatures cannot
+    /// donate that authority or select two roundings instead, and the
+    /// provider cannot ride on any other operation or architecture.
     pub fn supports_target(&self, target: target::NativeTarget) -> bool {
-        match target.architecture {
-            target::Architecture::Aarch64 => true,
-            target::Architecture::X86_64 => {
-                self.operation != crate::IeeeFloatArithmeticOperation::FusedMultiplyAdd
+        let fused = self.operation == crate::IeeeFloatArithmeticOperation::FusedMultiplyAdd;
+        match (target.architecture, self.x86_scalar_fma) {
+            (target::Architecture::Aarch64, None) => true,
+            (target::Architecture::X86_64, None) => !fused,
+            // Provider planning verified the admission against the selected
+            // profile; this record only has to stay on its own target.
+            (target::Architecture::X86_64, Some(provider)) => {
+                fused && provider.profile().native_target() == target
             }
+            (target::Architecture::Aarch64, Some(_)) => false,
         }
     }
 

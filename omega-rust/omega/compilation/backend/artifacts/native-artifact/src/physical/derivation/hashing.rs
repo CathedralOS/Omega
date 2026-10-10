@@ -229,7 +229,11 @@ fn hash_boundary_realization(digest: &mut crate::digest_encoder::DomainDigestEnc
         BoundaryRealization::NearestIeeeFloatArithmetic(realization) => {
             digest.byte(8);
             digest.byte(float_arithmetic_tag(realization.operation));
-            digest.byte(float_format_tag(realization.format))
+            digest.byte(float_format_tag(realization.format));
+            // Only an x86 FMA carries custody, so appending it stays injective.
+            if let Some(provider) = realization.x86_scalar_fma {
+                digest.raw(&provider.identity());
+            }
         }
     }
 }

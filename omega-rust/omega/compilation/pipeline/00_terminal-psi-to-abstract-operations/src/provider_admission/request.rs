@@ -77,4 +77,6 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub native_callbacks: &'request [crate::AdmittedNativeCallbackArgument],
     pub terminal_authority_policy: &'request TerminalAuthorityPolicy,
     pub terminal_authority_permission_policy: &'request Option<TerminalAuthorityPermissionPolicy>,
+    /// Build-admitted AVX+FMA3 provider for this exact profile, if any.
+    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }

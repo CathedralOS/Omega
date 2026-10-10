@@ -27,6 +27,7 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     pub callback_placements: Vec<backend_plan::NativeCallbackPlacement>,
     pub callback_thunks: Vec<crate::TerminalCallbackThunkArtifact>,
+    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
 /// Reconstruct the entry, provider and occurrence joins required by native
@@ -130,6 +131,7 @@ pub fn project_terminal_native_realization_proposal(
             selection: request.boundaries.selected_provider_plans.clone(),
             external_bindings: external_binding_rows,
             compiler_builtins: builtin_proposals,
+            x86_scalar_fma: request.x86_scalar_fma_provider,
         },
         TerminalNativeOccurrences {
             callbacks: callback_occurrences,

@@ -46,7 +46,7 @@ pub fn validate_machine_effect_catalog(
     {
         return Err(MachineEffectCatalogValidationError::NonCanonicalDeclarations);
     }
-    let expected = catalog.selected_keys.declaration_keys(catalog.target);
+    let expected = catalog.selected_keys.declaration_keys();
     if catalog.declarations.len() != expected.len()
         || catalog
             .declarations

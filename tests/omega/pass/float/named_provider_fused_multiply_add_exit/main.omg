@@ -1,4 +1,5 @@
-// F7 AArch64 provider realization for the named single-rounding FMA contract.
+// F7 provider realization for the named single-rounding FMA contract (AArch64
+// FMADD, x86-64 VFMADD213 under admitted AVX+FMA3).
 // For each format, the exact product retains a positive residual below one
 // result ulp. A separate multiply and add would round the product first and
 // produce zero after cancellation; one FMADD must preserve the residual.

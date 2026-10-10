@@ -58,7 +58,7 @@ pub fn x86_64_machine_effect_catalog(
         register_constraints: constraints.identity(),
         selected_keys: selected_keys.clone(),
         declarations: selected_keys
-            .declaration_keys(target)
+            .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
                 if semantic == MachineSemanticKind::Crash {

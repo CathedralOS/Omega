@@ -10,7 +10,8 @@
 //! one selected form moves or converts its operands into the fixed scratch
 //! register `xmm4` (and `xmm5`), computes into `xmm4`, and moves the result
 //! payload back with `MOVD`/`MOVQ` (a 32-bit move zero-extends the general
-//! register). Every instruction is SSE2, the x86-64 baseline:
+//! register). Every instruction except fused multiply-add is SSE2, the x86-64
+//! baseline:
 //!
 //! - add, subtract, multiply, divide, minimum, maximum: both payloads in,
 //!   one scalar `ADDS?`/`SUBS?`/`MULS?`/`DIVS?`/`MINS?`/`MAXS?`, one move
@@ -18,8 +19,13 @@
 //!   second operand on unordered or equal operands, which is exactly
 //!   `FloatSemantics::minimum` (maximum likewise with `>`), NaN and signed
 //!   zero included;
-//! - multiply-then-add: two payloads in, `MULS?`, the addend in, `ADDS?`,
-//!   result out. Separate SSE2 operations preserve both roundings, without FMA;
+//! - multiply-then-add: two payloads in, `MULS?`, the addend into `xmm3`,
+//!   `ADDS?`, result out. Separate SSE2 operations preserve both roundings,
+//!   without FMA;
+//! - fused multiply-add: the three payloads into `xmm4`, `xmm5` and `xmm3`,
+//!   one `VFMADD213SS`/`VFMADD213SD`, result out. This is the only non-SSE2
+//!   form: it requires AVX+FMA3, which the selected realization carries as
+//!   build-admitted deployment custody;
 //! - negate: payload in, `PCMPEQD xmm5, xmm5` then `PSLLQ`/`PSLLD` to form
 //!   the sign mask, `XORPD`/`XORPS`, move out. No memory constant is needed;
 //! - square root and format conversion: payload in, one
@@ -48,7 +54,7 @@
 //! operation of its format. Conversion control and bit classification write RFLAGS;
 //! only an explicitly Trapping conversion may execute its policy crash.
 //!
-//! `xmm4`/`xmm5` are volatile under both System V and Microsoft x64, so
+//! `xmm3`, `xmm4` and `xmm5` are volatile under both System V and Microsoft x64, so
 //! clobbering them needs no callee-save obligation. The operations also
 //! accumulate MXCSR's sticky exception flags; those stay outside the modeled
 //! state because sticky status is not part of Omega's floating-control
@@ -77,6 +83,8 @@ type Error = X86_64SelectedFormEncodingError;
 /// The fixed scratch registers holding the first and second operands.
 const LEFT_SCRATCH: u8 = 4;
 const RIGHT_SCRATCH: u8 = 5;
+/// The fused multiply-add addend; volatile under both System V and Microsoft x64.
+const ADDEND_SCRATCH: u8 = 3;
 
 fn view_units(name: &str) -> Vec<RegisterUnitId> {
     crate::x86_64_physical_register_model_ref()
@@ -147,6 +155,11 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     if conversion_control(form) {
         encoded.implicit_unit_clobbers =
             sorted_units(clobbers().into_iter().chain(view_units("rflags")));
+    }
+    // Both ternary forms hold their addend in xmm3, as their shared row states.
+    if form.operand_count() == 3 {
+        encoded.implicit_unit_clobbers =
+            sorted_units(clobbers().into_iter().chain(view_units("xmm3")));
     }
     if ieee_float_arithmetic_is_trapping(form) {
         encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
@@ -349,6 +362,15 @@ enum Instruction {
     },
     /// `0F 0B`: the architectural Crash leaf.
     Crash,
+    /// `VEX.LIG.66.0F38.W0|W1 A9 /r`: `VFMADD213SS|SD destination,
+    /// multiplicand, addend`, computing `multiplicand * destination + addend`
+    /// with one rounding. AVX+FMA3; only low `xmm` registers.
+    FusedMultiplyAdd {
+        double: bool,
+        destination: u8,
+        multiplicand: u8,
+        addend: u8,
+    },
 }
 
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
@@ -523,6 +545,18 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
             bytes.extend(displacement.to_le_bytes());
         }
         Instruction::Crash => bytes.extend([0x0f, 0x0b]),
+        Instruction::FusedMultiplyAdd {
+            double,
+            destination,
+            multiplicand,
+            addend,
+        } => bytes.extend([
+            0xc4,
+            0xe2,
+            (u8::from(double) << 7) | ((!multiplicand & 0xf) << 3) | 0b01,
+            0xa9,
+            modrm(destination, addend),
+        ]),
     }
 }
 
@@ -580,6 +614,20 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
             ))
         }
         [0x0f, 0x0b, rest @ ..] => Some((Instruction::Crash, rest)),
+        // Three-byte VEX with R, X and B clear (inverted set), map 0F38,
+        // L=0 and the 66 prefix; vvvv must name a low `xmm` register.
+        [0xc4, 0xe2, payload, 0xa9, modrm, rest @ ..] if payload & 0x47 == 0x41 => {
+            let (destination, addend) = register_pair(*modrm)?;
+            Some((
+                Instruction::FusedMultiplyAdd {
+                    double: payload & 0x80 != 0,
+                    destination,
+                    multiplicand: !(payload >> 3) & 7,
+                    addend,
+                },
+                rest,
+            ))
+        }
         [0x0f, opcode @ 0x80..=0x8f, tail @ ..] if tail.len() >= 4 => {
             let (displacement, rest) = tail.split_at(4);
             Some((
@@ -1045,9 +1093,20 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instru
                 move_out,
             ]
         }
-        // Baseline SSE2 has no single-rounding multiply-add. Optional FMA3
-        // requires a separately admitted feature and provider occurrence.
-        IeeeFloatArithmeticOperation::FusedMultiplyAdd => return Err(Error::EncodedFormMismatch),
+        // Baseline SSE2 has no single-rounding multiply-add. Selection reaches
+        // this form only from a realization carrying admitted AVX+FMA3 custody.
+        IeeeFloatArithmeticOperation::FusedMultiplyAdd => vec![
+            move_in(registers[0], LEFT_SCRATCH, double),
+            move_in(registers[1], RIGHT_SCRATCH, double),
+            move_in(registers[2], ADDEND_SCRATCH, double),
+            Instruction::FusedMultiplyAdd {
+                double,
+                destination: LEFT_SCRATCH,
+                multiplicand: RIGHT_SCRATCH,
+                addend: ADDEND_SCRATCH,
+            },
+            move_out,
+        ],
         IeeeFloatArithmeticOperation::IsNan
         | IeeeFloatArithmeticOperation::IsInfinite
         | IeeeFloatArithmeticOperation::IsFinite
@@ -1065,12 +1124,12 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instru
                 destination: LEFT_SCRATCH,
                 source: RIGHT_SCRATCH,
             },
-            move_in(registers[2], RIGHT_SCRATCH, double),
+            move_in(registers[2], ADDEND_SCRATCH, double),
             Instruction::Scalar {
                 double,
                 opcode: 0x58,
                 destination: LEFT_SCRATCH,
-                source: RIGHT_SCRATCH,
+                source: ADDEND_SCRATCH,
             },
             move_out,
         ],
@@ -1364,9 +1423,6 @@ fn registers(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<Vec<u8>, Error> {
-    if form.operation == IeeeFloatArithmeticOperation::FusedMultiplyAdd {
-        return Err(Error::EncodedFormMismatch);
-    }
     if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(Error::NonCanonicalPhysicalModel);
     }
@@ -1515,32 +1571,58 @@ mod tests {
     }
 
     #[test]
-    fn baseline_public_encoders_reject_fused_multiply_add_without_feature_custody() {
+    fn fused_multiply_add_encodes_one_vfmadd213_and_rejects_two_roundings() {
+        use IeeeFloatFormat::{Binary32, Binary64};
         let physical = register_model::validate_physical_register_model(
             crate::x86_64_physical_register_model(),
         )
         .unwrap();
         let operands =
             ["rax", "rcx", "rdx", "rax"].map(|name| physical.model().view_named(name).unwrap().id);
-        for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+        // movd|movq xmm4, eax|rax; xmm5, ecx|rcx; xmm3, edx|rdx;
+        // vfmadd213ss|sd xmm4, xmm5, xmm3; movd|movq eax|rax, xmm4
+        for (format, expected) in [
+            (
+                Binary32,
+                &[
+                    0x66, 0x0f, 0x6e, 0xe0, 0x66, 0x0f, 0x6e, 0xe9, 0x66, 0x0f, 0x6e, 0xda, 0xc4,
+                    0xe2, 0x51, 0xa9, 0xe3, 0x66, 0x0f, 0x7e, 0xe0,
+                ][..],
+            ),
+            (
+                Binary64,
+                &[
+                    0x66, 0x48, 0x0f, 0x6e, 0xe0, 0x66, 0x48, 0x0f, 0x6e, 0xe9, 0x66, 0x48, 0x0f,
+                    0x6e, 0xda, 0xc4, 0xe2, 0xd1, 0xa9, 0xe3, 0x66, 0x48, 0x0f, 0x7e, 0xe0,
+                ][..],
+            ),
+        ] {
             let form = IeeeFloatArithmeticForm {
                 operation: IeeeFloatArithmeticOperation::FusedMultiplyAdd,
                 format,
             };
+            assert_eq!(
+                bytes_of(form.operation, format, &["rax", "rcx", "rdx", "rax"]),
+                expected
+            );
             let kind =
                 selected_instructions::SelectedInstructionKind::NearestIeeeFloatArithmetic { form };
-            assert!(
-                crate::encode_x86_64_selected_form(&physical, kind, key(form), &operands).is_err()
-            );
             let unfused = bytes_of(
                 IeeeFloatArithmeticOperation::MultiplyThenAdd,
                 format,
                 &["rax", "rcx", "rdx", "rax"],
             );
+            // An exact copy with the 132 opcode, or the other format's W bit,
+            // is a different operation and must not validate.
+            let mut substituted_opcode = expected.to_vec();
+            substituted_opcode[expected.len() - 8] = 0x99;
+            let mut substituted_format = expected.to_vec();
+            substituted_format[expected.len() - 9] ^= 0x80;
             for bytes in [
                 &[][..],
                 unfused.as_slice(),
-                &[0xc4, 0xe2, 0x71, 0x99, 0xc2][..],
+                substituted_opcode.as_slice(),
+                substituted_format.as_slice(),
             ] {
                 assert!(
                     crate::validate_x86_64_selected_form_encoding(
@@ -1553,6 +1635,20 @@ mod tests {
                     .is_err()
                 );
             }
+            let xmm3 = super::view_units("xmm3");
+            assert!(
+                xmm3.iter()
+                    .all(|unit| super::effects(form).implicit_unit_clobbers.contains(unit))
+            );
+            let binary_form = IeeeFloatArithmeticForm {
+                operation: IeeeFloatArithmeticOperation::Add,
+                format,
+            };
+            assert!(
+                !xmm3
+                    .iter()
+                    .any(|unit| super::effects(binary_form).implicit_unit_clobbers.contains(unit))
+            );
         }
     }
 
@@ -1847,12 +1943,6 @@ mod tests {
         let all = [view("rdx"), view("rsi"), view("r15"), view("r8")];
         for form in IeeeFloatArithmeticForm::ALL {
             let operands = &all[4 - form.operand_count() - 1..];
-            if form.operation == IeeeFloatArithmeticOperation::FusedMultiplyAdd {
-                assert!(encode(&physical, form, key(form), operands).is_err());
-                assert!(validate(&physical, form, key(form), operands, &[]).is_err());
-                assert!(super::size(form).is_err());
-                continue;
-            }
             let bytes = encode(&physical, form, key(form), operands)
                 .unwrap()
                 .bytes()

@@ -120,8 +120,18 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]);
             }
             CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
+                // Only an x86 FMA carries the admitted feature custody; the
+                // catalog refuses it anywhere else.
+                let x86_scalar_fma = request.x86_scalar_fma_provider.filter(|_| {
+                    operation == target_operations::IeeeFloatArithmeticOperation::FusedMultiplyAdd
+                        && request.target.architecture == target::Architecture::X86_64
+                });
                 float_arithmetic_realization(
-                    NearestIeeeFloatArithmeticRealization { operation, format },
+                    NearestIeeeFloatArithmeticRealization {
+                        operation,
+                        format,
+                        x86_scalar_fma,
+                    },
                     request.target,
                     boundary,
                     &input.plan().structural_types,
