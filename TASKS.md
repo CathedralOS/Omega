@@ -741,6 +741,9 @@ defines the complete product bar.
   the ordinary-state return-origin control and
   `fail/ownership/borrowed_storage_repair_keeps_carried_loan` as the backing
   mutation rejection after carrier restoration.
+  Keep `pass/borrows/runtime_returned_reference_array_bounded_read_exit` (70)
+  and its nested, forwarded and mutable-reference controls for stored-carrier
+  custody and caller-backing transport; qualify their remaining native hosts.
   Keep `pass/ownership/runtime_carried_loan_field_replacement_exit` (42) for
   replacement's new backing, retained sibling and nonzero storage offset, and
   `fail/borrows/replaced_carrier_keeps_new_backing_loan` for the installed loan.

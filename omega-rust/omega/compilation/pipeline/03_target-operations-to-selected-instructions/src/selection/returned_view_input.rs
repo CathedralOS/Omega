@@ -5,6 +5,9 @@
 //! Replacement sources are a conservative union, never a live-value replay.
 //! Callee-local coordinates cannot bound this reach in the caller; unresolved
 //! borrowed backing remains unsupported rather than becoming a local allocation.
+//! Calls retain both top-level descriptor origins and the target producer's
+//! reference-leaf origins. Their conservative union describes memory reach,
+//! never the runtime pointer selected from an aggregate's returned payload.
 use crate::SelectedInstructionError;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind as I, LegalizedScalarTerminator as T,
@@ -284,32 +287,6 @@ fn collect_calls(
     // accounting retains all overlapping possibilities, including the original
     // constructor value; it never reinterprets a future write as a live fact.
     let stored = stored_sources(function, coordinate, visited, calls)?;
-    if let Some((producer, _)) = super::established_view_input::descriptor_result(function, place) {
-        calls.insert((producer, place));
-        visited.origin();
-        // A selected descendant can itself contain a descriptor. Its backing
-        // comes from the already authenticated actual-origin roster, not from
-        // the bytes occupied by the returned outer descriptor.
-        if !coordinate.path.is_empty() {
-            let row = function
-                .instructions()
-                .find(|row| row.operation == producer)
-                .ok_or(SelectedInstructionError::custody())?;
-            let I::Call(call) = &row.kind else {
-                return Err(SelectedInstructionError::custody());
-            };
-            for origin in &call.descriptor_origins {
-                if let legalized_operations::LegalizedDescriptorOrigin::Argument {
-                    source, ..
-                } = origin
-                {
-                    collect_calls(function, source, visited, calls)?;
-                }
-            }
-        }
-        visited.leave();
-        return Ok(());
-    }
     match declaration.kind {
         StructuralPlaceKind::OperationResult {
             producer,
@@ -320,6 +297,39 @@ fn collect_calls(
                 .find(|row| row.operation == producer)
                 .ok_or(SelectedInstructionError::custody())?;
             match &row.kind {
+                I::Call(call) => {
+                    let (result, _) = super::aggregate_result_input::call_result(function, call)
+                        .ok_or(SelectedInstructionError::custody())?;
+                    if result.place != place || result.structural_type != structural_type {
+                        return Err(SelectedInstructionError::custody());
+                    }
+                    if call.descriptor_origins.is_empty() {
+                        if contains_borrowed_storage(
+                            &signature.structural_types,
+                            structural_type,
+                            &mut BTreeSet::new(),
+                        ) {
+                            return Err(SelectedInstructionError::custody());
+                        }
+                    } else {
+                        calls.insert((producer, place));
+                        // A selected descendant can contain another descriptor.
+                        // Its backing comes from the retained actual-origin
+                        // roster, not from the returned carrier's allocation.
+                        if !coordinate.path.is_empty() {
+                            for origin in &call.descriptor_origins {
+                                if let legalized_operations::LegalizedDescriptorOrigin::Argument {
+                                    source,
+                                    ..
+                                } = origin
+                                {
+                                    collect_calls(function, source, visited, calls)?;
+                                }
+                            }
+                        }
+                    }
+                    visited.origin();
+                }
                 I::ByteSequenceSubslice {
                     source: parent,
                     indices,

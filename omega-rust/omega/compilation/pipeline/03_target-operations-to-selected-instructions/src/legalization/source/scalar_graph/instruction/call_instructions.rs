@@ -63,7 +63,7 @@ pub(super) fn project_call(
         target_operations::TargetCallResult::Structural { result, .. } => Some(result.clone()),
         _ => None,
     };
-    let descriptor_origins = match &structural_result {
+    let mut descriptor_origins = match &structural_result {
         Some(result) => scalar_graph_input::byte_views::call_descriptor_origins(
             unit,
             optimized.machine,
@@ -71,6 +71,29 @@ pub(super) fn project_call(
         )?,
         None => Vec::new(),
     };
+    if let target_operations::TargetCallResult::Structural {
+        reference_results, ..
+    } = result
+    {
+        // The target producer already resolved each returned reference leaf
+        // against the actual call inputs. Carry their backing union for memory
+        // effects; the runtime address still comes from the result descriptor.
+        descriptor_origins.extend(reference_results.iter().flat_map(|reference| {
+            reference.origins.iter().map(|origin| {
+                legalized_operations::LegalizedDescriptorOrigin::Argument {
+                    source: terminal_psi::StructuralArgument {
+                        place: origin.root,
+                        path: origin.path.clone(),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    },
+                    exact: true,
+                    indirect: origin
+                        .path
+                        .contains(&terminal_psi::StructuralPathSegment::Referent),
+                }
+            })
+        }));
+    }
     Ok(LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
         descriptor_origins,
         target: *target,

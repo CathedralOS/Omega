@@ -1297,7 +1297,7 @@ impl LegalizedScalarTerminator {
     }
 }
 
-/// Borrowed result backing retained after independent current-graph replay.
+/// Borrowed result backing retained from the owning call projection.
 /// Descriptor home and backing identity remain distinct. Static path precision
 /// is retained even when a callee's runtime range forces a conservative parent.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1317,8 +1317,9 @@ pub enum LegalizedDescriptorOrigin {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarCall {
-    /// Replayed backing for an unrestricted shared descriptor result. Other
-    /// result custody contracts do not use this roster.
+    /// Conservative backing union for returned descriptors, including
+    /// reference leaves in an owned aggregate. This does not choose a runtime
+    /// address or grant access; both remain owned by the result's contract.
     pub descriptor_origins: Vec<LegalizedDescriptorOrigin>,
     pub source: crate::NativeCallOrigin,
     pub target: target_operations::NativeCallTarget,
