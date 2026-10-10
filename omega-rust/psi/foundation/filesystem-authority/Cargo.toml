@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "filesystem_authority"
 path = "src/lib.rs"
+
+[dependencies]
+optimization = { path = "../optimization-selections" }

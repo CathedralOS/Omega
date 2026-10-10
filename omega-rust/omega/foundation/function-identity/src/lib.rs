@@ -6,7 +6,7 @@
 //! Keeping the caller's canonical identity prevents equal local placement slots
 //! from aliasing across independently compiled programs.
 
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 

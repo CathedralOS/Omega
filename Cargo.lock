@@ -7,6 +7,7 @@ name = "abstract-operations"
 version = "0.1.0"
 dependencies = [
  "language-core",
+ "optimization-core",
  "semantic-vocabulary",
  "terminal-psi",
 ]
@@ -618,6 +619,9 @@ dependencies = [
 [[package]]
 name = "filesystem-authority"
 version = "0.1.0"
+dependencies = [
+ "optimization",
+]
 
 [[package]]
 name = "find-msvc-tools"
@@ -649,6 +653,7 @@ dependencies = [
 name = "function-identity"
 version = "0.1.0"
 dependencies = [
+ "optimization-core",
  "terminal-psi",
 ]
 
@@ -694,6 +699,7 @@ dependencies = [
  "diagnostics",
  "image",
  "object-file",
+ "optimization-core",
  "target",
 ]
 
@@ -760,6 +766,7 @@ dependencies = [
  "image",
  "isa-x86_64",
  "object-file",
+ "optimization-core",
  "sha2",
  "target",
 ]
@@ -876,6 +883,7 @@ version = "0.1.0"
 dependencies = [
  "language-core",
  "numerics",
+ "optimization",
  "semantic-vocabulary",
  "source",
  "symbols",
@@ -1824,6 +1832,7 @@ name = "semantic-vocabulary"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "optimization",
 ]
 
 [[package]]

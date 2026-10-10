@@ -43,7 +43,7 @@
 //! The object join over placed text belongs to object-file and image-emission.
 
 // 1. Function-relative realization.
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
 mod function_realization;
 

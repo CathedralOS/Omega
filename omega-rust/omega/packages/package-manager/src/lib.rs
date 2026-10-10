@@ -20,7 +20,7 @@ macro_rules! bounded_limits {
 }
 pub(crate) use bounded_limits;
 
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 mod build_session;
 mod hex;
 pub(crate) use hex::Hex;

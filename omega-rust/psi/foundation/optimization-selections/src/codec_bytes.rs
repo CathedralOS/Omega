@@ -3,6 +3,6 @@
 //! value; framing and field order stay with the encoder.
 
 /// Append a fixed-width little-endian encoding (`value.to_le_bytes()`).
-pub(crate) fn push_encoded<const N: usize>(buffer: &mut Vec<u8>, encoded: [u8; N]) {
+pub fn push_encoded<const N: usize>(buffer: &mut Vec<u8>, encoded: [u8; N]) {
     buffer.extend_from_slice(&encoded);
 }

@@ -4,7 +4,7 @@
 //! installation facts. It does not depend on either legacy operation graph or
 //! any source-shaped Psi representation.
 
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 mod cursor;
 mod fma;
 mod frame_protocol;

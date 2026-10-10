@@ -18,7 +18,7 @@
 //! `semantic_wrapper_object.rs` for the optimized ProgramStorage
 //! semantic-wrapper object records and codec that native realization stages.
 
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 mod cursor;
 pub(crate) use optimization_core::digest_encoder;
 mod entry_receiver;

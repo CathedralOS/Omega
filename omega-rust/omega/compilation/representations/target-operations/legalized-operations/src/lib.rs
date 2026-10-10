@@ -5,7 +5,7 @@
 //! Start at [`legalized_operations::LegalizedOperationPlan`]. Control flow,
 //! calls and legality are subordinate representation owners.
 
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 
 pub mod legalized_operations;
 pub use legalized_operations::{

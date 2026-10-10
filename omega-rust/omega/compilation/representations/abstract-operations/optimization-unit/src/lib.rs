@@ -31,7 +31,7 @@ use terminal_psi::{
     TerminalRootServiceReach,
 };
 
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 mod cursor;
 mod optimization_unit;
 

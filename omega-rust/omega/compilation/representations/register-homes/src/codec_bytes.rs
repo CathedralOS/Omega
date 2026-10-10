@@ -2,11 +2,9 @@
 //! length framing, option tags, and length-prefixed element lists. Each call
 //! site names its own artifact so panic text stays authored at the domain.
 
-/// Append a fixed-width little-endian encoding (value.to_le_bytes()).
-pub(crate) fn push_encoded<const N: usize>(bytes: &mut Vec<u8>, encoded: [u8; N]) {
-    bytes.extend_from_slice(&encoded);
-}
 
+
+pub(crate) use optimization_core::codec_bytes::{patch_encoded, push_encoded};
 /// u64 length prefix. `artifact` keeps each encoder's own panic text.
 pub(crate) fn length(bytes: &mut Vec<u8>, value: usize, artifact: &'static str) {
     bytes.extend_from_slice(
@@ -82,7 +80,4 @@ pub(crate) fn domain_identity(domain: &[u8], content: &[u8]) -> [u8; 32] {
     digest.finish().into()
 }
 
-/// Write a fixed-width little-endian encoding at `offset` inside `bytes`.
-pub(crate) fn patch_encoded<const N: usize>(bytes: &mut [u8], offset: usize, encoded: [u8; N]) {
-    bytes[offset..offset + N].copy_from_slice(&encoded);
-}
+

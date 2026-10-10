@@ -13,4 +13,5 @@ arena = { path = "../../../../../psi/foundation/arena" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 image = { path = "../image" }
 object-file = { path = "../../object/object-file" }
+optimization-core = { path = "../../../../foundation/optimization-core" }
 target = { path = "../../target" }

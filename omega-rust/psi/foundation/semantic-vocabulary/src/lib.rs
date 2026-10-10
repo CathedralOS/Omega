@@ -20,7 +20,7 @@
 
 #![forbid(unsafe_code)]
 
-mod codec_bytes;
+pub(crate) use optimization::codec_bytes;
 
 mod authored_storage;
 mod bounded_integer_type;

@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 calling-conventions = { path = "../../calling-conventions" }
+optimization-core = { path = "../../../../foundation/optimization-core" }
 register-model = { path = "../../register-model" }
 target = { path = "../../target" }
 selected-instructions = { path = "../../../representations/selected-instructions" }

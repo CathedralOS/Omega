@@ -6,7 +6,7 @@
 //! owns this catalog because every entry executes before Terminal publication;
 //! target and physical optimization identities remain Omega-owned.
 
-mod codec_bytes;
+pub mod codec_bytes;
 
 pub mod digest_encoder;
 pub mod optimization_selections;

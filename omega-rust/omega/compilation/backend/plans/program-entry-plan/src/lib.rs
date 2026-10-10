@@ -16,7 +16,7 @@
 //! `entry_signature.rs` owns the completed declaration/layout contract. Source
 //! capture belongs to provider planning; no source arena is needed here.
 
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 pub(crate) use optimization_core::digest_encoder;
 mod entry_signature;
 mod optimized_semantic_entry;

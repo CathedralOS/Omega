@@ -96,7 +96,7 @@
 //! `entry_symbol.rs` and `imports.rs` hold what both lanes share.
 
 mod bytes;
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 mod constants;
 mod dynamic_executable;
 mod entry_symbol;

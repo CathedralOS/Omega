@@ -6,7 +6,7 @@
 //! other `sections/` owners retain independently identified wire products.
 //! [`canonical_artifact`] binds those bytes into the handoff envelope.
 
-mod codec_bytes;
+pub(crate) use optimization::codec_bytes;
 
 mod canonical_artifact;
 mod codec_error;

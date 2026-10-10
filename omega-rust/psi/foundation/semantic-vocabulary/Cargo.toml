@@ -10,3 +10,4 @@ path = "src/lib.rs"
 
 [dependencies]
 arena = { path = "../arena" }
+optimization = { path = "../optimization-selections" }

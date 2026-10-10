@@ -12,7 +12,7 @@
 //! `application` owns presentation intent and deployment identity shared by Build
 //! extraction, signed images, and application-package publication.
 
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 
 mod application;
 pub mod compatibility_fingerprint;

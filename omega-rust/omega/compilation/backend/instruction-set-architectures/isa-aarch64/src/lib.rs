@@ -3,7 +3,7 @@
 //! Only normalized target and terminal-installation facts enter this crate;
 //! source-shaped representations and legacy operation graphs are absent.
 
-mod codec_bytes;
+pub(crate) use optimization_core::codec_bytes;
 mod floating_control;
 mod frame_protocol;
 mod hosted_sequences;
