@@ -487,6 +487,7 @@ pub(crate) fn lower_unit_closure(
             scalar_block_invariants,
             operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
+            identities: Default::default(),
             // Operation bodies are emitted first; a scalar entry may follow
             // its helpers. Preserve the selected source owner, not roster order.
             entry: lookup_machine_id(&machine_ids, entry)?,

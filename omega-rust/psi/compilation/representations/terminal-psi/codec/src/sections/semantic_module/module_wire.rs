@@ -312,6 +312,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         scalar_block_invariants,
         operation_crash_contracts,
         vocabulary_marker,
+        identities: Default::default(),
         entry,
         structural_types,
         structural_referents,

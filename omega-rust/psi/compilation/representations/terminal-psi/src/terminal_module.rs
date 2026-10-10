@@ -45,7 +45,8 @@ pub use control_flow::{
 };
 pub use identity::{
     CheckedMachineDeclaration, CheckedMachineSpecialization, NominalDeclarationIdentity,
-    SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
+    SemanticFingerprint, TerminalIdentityIndex, TerminalIdentityTable,
+    TerminalIdentityTableBuilder, TerminalPsiIdentity, VocabularyMarker,
 };
 pub use observation::{
     TerminalObservationSchema, TerminalOperationCrashDenotation, TerminalTraceBoundaryCrashSiteRow,
@@ -122,6 +123,10 @@ use semantic_vocabulary::{MachineId, ServiceId};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalModule {
     pub vocabulary_marker: VocabularyMarker,
+    /// Every rendered identity the module's rows name, deduplicated once.
+    /// `*identity` fields hold `TerminalIdentityIndex` handles into this
+    /// table; the codec writes it once and decoding checks its entries once.
+    pub identities: TerminalIdentityTable,
     pub entry: MachineId,
     /// Canonical scalar membership vocabulary and explicit successor-edge coercions.
     pub scalar_qualifications: ScalarQualificationCatalog,
@@ -278,6 +283,7 @@ impl TerminalModule {
         Self {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry,
+            identities: Default::default(),
             scalar_qualifications: Default::default(),
             structural_types: Vec::new(),
             structural_referents: Vec::new(),
