@@ -1,0 +1,37 @@
+// Same-spelled requirements in sibling modules are
+// distinct dispatch slots: `left::Sink::emit` and
+// `right::Sink::emit` share a name but bind to
+// different machines — 11 vs 37 with no aliasing.
+//
+//   * `use left; use right;` — sibling `.omg` files
+//     each declare `module left;`/`module right;` and
+//     their own `boundary trait Sink`.
+//   * `left::Provider::emit()` vs
+//     `right::Provider::emit()` — module-qualified
+//     calls hit distinct satisfier slots.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+use left;
+use right;
+use omega::language::core::binding;
+
+data Runner {
+    left_sink: Binding<left::Sink>;
+    right_sink: Binding<right::Sink>;
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let left_result: i32 = left::Provider::emit();
+    let right_result: i32 = right::Provider::emit();
+    transition left_result == 11 && right_result == 37 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

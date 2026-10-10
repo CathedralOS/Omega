@@ -1,0 +1,56 @@
+// `suspends` is a declared machine axis: `machine
+// Main::main(main: &mut Main) suspends; reaches
+// Scheduler` — and `suspend main.scheduler.park()`
+// performs the suspension at a call site, after the
+// last use of a borrow-carrying record.
+//
+//   * `data Message { body: &Cell }` — a shared-borrow
+//     member formed before the suspension point.
+//   * `pub boundary trait Scheduler { machine park()
+//     suspends; }` — the provider-side suspension
+//     axis.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+use omega::language::core::binding;
+
+data Cell {
+    value: i32;
+}
+
+data Message {
+    body: &Cell;
+}
+
+pub boundary trait Scheduler {
+    machine park() suspends;
+}
+
+data InlineScheduler {}
+machine InlineScheduler::park() satisfies Scheduler::park { }
+
+data Main {
+    scheduler: Binding<Scheduler>;
+    cell: Cell;
+    hits: i32 in Wrapping;
+}
+
+machine read(cell: &Cell) -> i32 {
+    transition { _ -> cell.value }
+}
+
+machine Main::main(main: &mut Main) suspends; reaches Scheduler {
+    main.hits = 0;
+    main.cell.value = 5;
+    let message: Message = Message { body: &main.cell };
+    let value: i32 = read(message.body);
+    transition value == 5 {
+        true -> park_last(main)
+        _ -> fail(main)
+    }
+    state park_last(main: &mut Main) {
+        suspend main.scheduler.park();
+    }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
