@@ -255,11 +255,16 @@ pub(crate) fn byte_record_observation(
         let selector = bounded_coordinate(selector, index.extent)?;
         let scaled = integer_coordinate_binary(
             crate::emission::operation_emission::integer::LoweredIntegerBinaryKind::ExactMultiply,
+            // The bounded coordinate lies in `[0, extent - 1]`, so the
+            // product fits whenever the dimension's own byte size
+            // `extent * stride` does — a fact the checked layout supplies.
+            index.extent.checked_mul(index.stride).is_some(),
             selector,
             coordinate_literal(index.stride),
         );
         coordinate = integer_coordinate_binary(
             crate::emission::operation_emission::integer::LoweredIntegerBinaryKind::ExactAdd,
+            false,
             coordinate,
             scaled,
         );
@@ -344,10 +349,15 @@ pub(crate) fn bounded_coordinate(
         "record byte observation selects an empty array",
     ))?;
     let selector = crate::expression_preparation::prepare_expression::exact_u64_index(selector)?;
+    // The inner subtract is the enforcement point: it faults unless
+    // `selector <= maximum`. Once it stands, its result lies in
+    // `[0, maximum]`, so the outer subtract's `maximum - inner` difference
+    // cannot underflow — its representability is already established.
     Ok(integer_coordinate_binary(
         ExactSubtract,
+        true,
         coordinate_literal(maximum),
-        integer_coordinate_binary(ExactSubtract, coordinate_literal(maximum), selector),
+        integer_coordinate_binary(ExactSubtract, false, coordinate_literal(maximum), selector),
     ))
 }
 
@@ -363,6 +373,7 @@ fn coordinate_literal(value: u64) -> LoweredDirectExpression {
 
 fn integer_coordinate_binary(
     kind: crate::emission::operation_emission::integer::LoweredIntegerBinaryKind,
+    formation_decided: bool,
     left: LoweredDirectExpression,
     right: LoweredDirectExpression,
 ) -> LoweredDirectExpression {
@@ -371,7 +382,7 @@ fn integer_coordinate_binary(
         scalar_type: left.scalar_type(),
         left: Box::new(left),
         right: Box::new(right),
-        formation_decided: false,
+        formation_decided,
     }
 }
 
