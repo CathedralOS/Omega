@@ -125,7 +125,7 @@ impl Evaluation {
                 });
             }
             let LoweredScalarBranchTerminator::Jump { arguments, .. } = &state.terminator else {
-                return unsupported("preflighted scalar chain changed its continuation");
+                return unsupported("preflighted scalar chain ends in a continuation terminator");
             };
             completed = arguments
                 .iter()

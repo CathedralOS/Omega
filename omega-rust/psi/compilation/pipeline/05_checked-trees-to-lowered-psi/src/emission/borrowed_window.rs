@@ -456,7 +456,7 @@ impl BorrowedWindowLedger {
             {
                 return Err(unpinned(
                     &place.spelling,
-                    "the restoration differs from its extraction's storage or type",
+                    "the restoration names a different storage or type than the extraction opened",
                 ));
             }
         }

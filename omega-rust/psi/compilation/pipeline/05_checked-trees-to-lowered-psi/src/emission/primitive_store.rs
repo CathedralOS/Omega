@@ -97,19 +97,9 @@ pub(crate) fn emit_assignment(
     )?;
     let range_obligation = if let Some(restriction) = &destination.scalar_restriction {
         let decided = match restriction {
-            StructuralFieldType::BoundedInteger(integer) => {
-                let Some(range) = receiving_range else {
+            StructuralFieldType::BoundedInteger(_) => {
+                if receiving_range.is_none() {
                     return unsupported("primitive store lost its receiving-range judgment");
-                };
-                if !super::structural_scalar_store::source_range_decided(
-                    checked,
-                    range.primitive,
-                    range.decision,
-                    Some(*integer),
-                )? {
-                    return unsupported(
-                        "primitive store receiving range differs from its declaration",
-                    );
                 }
                 true
             }

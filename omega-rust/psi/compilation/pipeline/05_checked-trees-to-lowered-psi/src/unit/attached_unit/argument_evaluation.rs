@@ -1205,9 +1205,6 @@ impl Evaluation {
             &bindings,
             &source_types,
         )?;
-        if result_type.scalar_type != scalar_type {
-            return unsupported("field assignment computation changed its scalar carrier");
-        }
         let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
         let entry = expansion.retained_value(
             state,
