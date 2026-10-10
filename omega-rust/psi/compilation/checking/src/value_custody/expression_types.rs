@@ -135,12 +135,23 @@ pub fn argument_matches_type_reference_handle(
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> bool {
+    argument_matches_type_reference_with_substitutions(program, argument, type_reference, &[])
+}
+
+/// Declaration-backed correspondence under an exact simultaneous telescope.
+/// This does not establish proof facts, conversions, or borrowing authority.
+pub(crate) fn argument_matches_type_reference_with_substitutions(
+    program: &dyn crate::CheckingInput,
+    argument: ExpressionHandle,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
     argument_matches_type_reference_using(
         program,
         argument,
         type_reference,
         reference_values::declared_value_matches_reference,
-        &[],
+        substitutions,
     )
 }
 

@@ -691,18 +691,25 @@ pub(in crate::symbols) fn resolve_proposition_binder_argument_symbol(
     let [target] = path else {
         return resolve_static_machine_argument_symbol(symbols, scope_symbol, path);
     };
-    let lexical = child_symbol_by_kinds(
-        symbols,
-        scope_symbol,
-        &[
-            SymbolKind::TypeParameter,
-            SymbolKind::MachineParameter,
-            SymbolKind::PropositionMachineParameter,
-        ],
-        target.as_str(),
-    );
-    if lexical.is_valid() {
-        return lexical;
+    // A nested callable's proof operand can name a binder in any enclosing
+    // telescope. Resolve nearest-first by lexical parentage, never by a
+    // top-level spelling fallback that discards the declaration's scope.
+    let mut lexical_scope = scope_symbol;
+    while lexical_scope.is_valid() {
+        let lexical = child_symbol_by_kinds(
+            symbols,
+            lexical_scope,
+            &[
+                SymbolKind::TypeParameter,
+                SymbolKind::MachineParameter,
+                SymbolKind::PropositionMachineParameter,
+            ],
+            target.as_str(),
+        );
+        if lexical.is_valid() {
+            return lexical;
+        }
+        lexical_scope = symbols.get(lexical_scope).parent;
     }
     let concrete_type = symbols
         .find_top_level_by_name_and_kinds_from_source(

@@ -73,6 +73,7 @@ fn tables_fingerprint(tables: &crate::typed_trees::TypedTreeTables) -> u64 {
         .wrapping_add(tables.conformances.revision())
         .wrapping_add(tables.trait_requirements.revision())
         .wrapping_add(tables.trait_machine_signatures.revision())
+        .wrapping_add(tables.applied_callable_signatures.revision())
         .wrapping_add(tables.signature_invokes.revision())
         .wrapping_add(tables.signature_contracts.revision())
         .wrapping_add(tables.expression_table.revision())

@@ -53,7 +53,7 @@ fn required_type_matches_inner<const EXACT: bool>(
     if !actual.is_valid() || !required.is_valid() {
         return actual.is_valid() == required.is_valid();
     }
-    if let TypeReferenceNode::Named { symbol, name } =
+    if let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(required)
     {
         if let Some(binding) = binder_bindings
@@ -65,10 +65,12 @@ fn required_type_matches_inner<const EXACT: bool>(
                 TypeReferenceNode::Named { symbol, .. } if *symbol == binding.actual
             );
         }
-        if let Some(parameter) = generic_types.iter().find(|parameter| {
-            (parameter.symbol.is_valid() && parameter.symbol == *symbol)
-                || (!EXACT && parameter.name.as_str() == name.as_str())
-        }) {
+        // An applied telescope owns fresh symbols. An unrelated declaration
+        // with the same spelling is not an inference variable in that scope.
+        if let Some(parameter) = generic_types
+            .iter()
+            .find(|parameter| parameter.symbol.is_valid() && parameter.symbol == *symbol)
+        {
             if let Some(binding) = bindings
                 .iter()
                 .find(|binding| binding.symbol == parameter.symbol)

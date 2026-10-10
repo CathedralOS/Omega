@@ -2563,9 +2563,17 @@ crash and native exit behavior.
     custody, including claims reseated into owned fields; native custody joins
     the complete selected call graph rather than its pointer-only mirror.
     It supplies no provider grant or boundary issuance.
-    The remaining conformance frontier is fully applied nested nominal supply
-    and differing conformance bounds, not ordinary named evidence arguments
-    or named maps. Keep
+    The remaining conformance frontier is complete callable specialization
+    tuples with invocation-local type binders and differing conformance bounds,
+    not ordinary named evidence arguments or named maps. On macOS ARM64,
+    `omega run --both tests/omega/pending/traits/applied_nominal_callback_local_types_exit/main.omg`
+    reaches Stage 03b but cannot derive the `item_visit`/`other_visit`
+    type/const/machine/conformance tuples through their applied visitor schemas.
+    Repair positional application binding in
+    `03b_typed-trees-to-typed-trees/src/monomorphization/`; do not change the
+    program or accept an incomplete tuple. Preserve
+    `targets/runtime_family_applied_nominal_visitor_exit` and
+    `traits/applied_nominal_callback_scopes_exit` through both engines. Keep
     `targets/runtime_family_callback_requirement_conjunction_exit` and
     `targets/runtime_family_generic_callback_forwarding_exit` running with
     their non-first-member precondition and effect-ceiling rejection controls.

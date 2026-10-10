@@ -269,6 +269,16 @@ pub fn lower_seeded_extension(
     ) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
+    if let Err(message) = lowerer
+        .typed_trees
+        .instantiate_nominal_machine_parameter_contracts()
+        .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
+    {
+        return Err((
+            retained,
+            SeededContinuationError::Lowering(Diagnostic::error(message.to_owned())),
+        ));
+    }
     if let Err(error) = normalize_domain_constraints_from(
         &source,
         &mut lowerer.typed_trees,
@@ -498,6 +508,11 @@ fn lower_body_completion(
         &mut lowerer.typed_trees,
         machine_frontier,
     )?;
+    lowerer
+        .typed_trees
+        .instantiate_nominal_machine_parameter_contracts()
+        .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
+        .map_err(|message| Diagnostic::error(message.to_owned()))?;
     for forwarding in source
         .evidence_forwardings
         .iter()

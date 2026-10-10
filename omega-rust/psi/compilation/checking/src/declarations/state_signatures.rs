@@ -4,9 +4,7 @@
 
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_proof_facts};
-use crate::value_custody::type_references::{
-    TypeReferenceOwner, validate_type_reference_handle,
-};
+use crate::value_custody::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 use diagnostics::Diagnostic;
 use std::fmt;
 use typed_trees::machine::Machine;
@@ -111,6 +109,15 @@ pub(crate) fn validate_callable_state_signatures(
                 StateSignatureOwner::Trait(trait_definition.name.as_str()),
                 &type_parameters,
                 &lifetime_parameters,
+            );
+            validate_machine_parameter_signatures(
+                program,
+                symbols,
+                diagnostics,
+                program.state_signature_type_parameters(machine),
+                &type_parameters,
+                &lifetime_parameters,
+                machine.name.as_str(),
             );
         }
     }

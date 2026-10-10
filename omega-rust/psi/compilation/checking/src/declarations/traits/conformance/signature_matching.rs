@@ -214,6 +214,25 @@ pub(crate) fn validate_applied_trait_signature(
 
     let trait_type_parameters = program.trait_type_parameters(trait_definition);
     let requirement_type_parameters = program.state_signature_type_parameters(requirement);
+    // Nested callable refinement borrows a fully applied, alpha-fresh telescope.
+    // The ordinary value/result comparisons below still read the declaration
+    // under AppliedTraitScope, so their positional bindings must continue to
+    // name its original locals. Mixing those two symbol rosters loses scope.
+    let applied_type_parameters = if requirement.type_parameters.is_empty() {
+        program.state_signature_type_parameters(requirement)
+    } else {
+        let Some(prepared) = program
+            .typed_program()
+            .applied_callable_signature(application, requirement.symbol)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "trait requirement `{}::{}` has no prepared callable telescope for its exact application",
+                trait_definition.name, requirement.name
+            )));
+            return;
+        };
+        program.state_signature_type_parameters(prepared)
+    };
     // Fixed application arguments and an inline implementation's environment
     // are not fresh invocation binders. All remaining binders still undergo
     // ordinary universal kind, property and contract refinement below.
@@ -280,16 +299,19 @@ pub(crate) fn validate_applied_trait_signature(
             .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
             .cloned(),
     );
-    let generic_type_parameters = required_generic_types.iter().collect::<Vec<_>>();
+    let applied_generic_types = applied_type_parameters
+        .iter()
+        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+        .collect::<Vec<_>>();
     crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
         program,
         &format!(
             "provider machine `{}` for trait requirement `{}::{}`",
             machine.name, trait_definition.name, requirement.name
         ),
-        requirement_type_parameters,
+        applied_type_parameters,
         &actual_type_parameters[..requirement_type_parameters.len()],
-        &generic_type_parameters,
+        &applied_generic_types,
         diagnostics,
     );
     let mut actual_offset = requirement_type_parameters.len();
@@ -698,18 +720,14 @@ pub(crate) fn type_references_match_for_trait_bindings(
                 length: required_length,
             },
         ) => {
-            fixed_array_lengths_match(
-                program,
-                actual_length,
-                required_length,
-                bindings,
-            ) && type_references_match_for_trait_bindings(
-                program,
-                *actual_element,
-                *required_element,
-                trait_type_parameters,
-                bindings,
-            )
+            fixed_array_lengths_match(program, actual_length, required_length, bindings)
+                && type_references_match_for_trait_bindings(
+                    program,
+                    *actual_element,
+                    *required_element,
+                    trait_type_parameters,
+                    bindings,
+                )
         }
         (
             TypeReferenceNode::Slice {

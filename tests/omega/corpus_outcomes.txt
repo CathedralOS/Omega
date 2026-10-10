@@ -4933,3 +4933,18 @@ pass/ownership/runtime_generic_linear_case_restore_exit checked 3946ms check-tar
 pass/generics/runtime_borrowed_value_inference_exit checked 3960ms check-target:macos_arm64 @8303fccd7077
 fail/ownership/generic_borrowed_value_retains_backing_loan rejected 579ms expected @8303fccd7077
 	statement 2 mutates `backing` while local borrow `token` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+fail/proofs/proposition_const_operand_extent_rejected rejected 243ms expected @e93a32508581+wt
+	machine `inspect` requires contract proposition `valid` argument 1 does not match parameter `value` type `&[u8; Length]`
+fail/proofs/proposition_reference_operand_depth_rejected rejected 246ms expected @e93a32508581+wt
+	machine `inspect` requires contract proposition `valid` argument 1 does not match parameter `value` type `&Type`
+fail/targets/family_applied_nominal_visitor_phantom_authority_rejected rejected 213ms expected @e93a32508581+wt
+	static machine argument `invoke` for nominal parameter `Schema` retains 0 authored satisfaction row(s) for exact requirement `Visitor::visit`; exactly one is required and structural coincidence establishes none
+fail/traits/applied_nominal_callback_proposition_tag_rejected rejected 345ms expected @e93a32508581+wt
+	machine parameter `Callback` of provider machine `visit` for trait requirement `Visitor::visit` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/traits/nested_trait_callback_unknown_type_rejected rejected 201ms expected @e93a32508581+wt
+	machine-parameter requirement `Callback` state `Callback` parameter `value` references unknown data type `Missing`
+pass/proofs/proposition_const_operand_application checked 430ms @e93a32508581+wt
+pass/proofs/proposition_reference_operand_application checked 428ms @e93a32508581+wt
+pass/targets/runtime_family_applied_nominal_visitor_exit checked 2549ms check-target:macos_arm64 @e93a32508581+wt
+pass/traits/applied_nominal_callback_proposition_contract checked 428ms @e93a32508581+wt
+pass/traits/applied_nominal_callback_scopes_exit checked 2458ms check-target:macos_arm64 @e93a32508581+wt

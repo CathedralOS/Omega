@@ -705,3 +705,5 @@ pass/termination/runtime_public_result_field_rank_arrivals_exit built 3538ms exi
 pass/generics/runtime_linear_constructor_instances_exit built 3947ms exit:0 interpreter-exit:0 interpreter:agrees @fa00de23974b+wt
 pass/ownership/runtime_generic_linear_case_restore_exit built 3948ms exit:0 interpreter-exit:0 interpreter:agrees @fa00de23974b+wt
 pass/generics/runtime_borrowed_value_inference_exit built 3970ms exit:0 interpreter-exit:0 interpreter:agrees @8303fccd7077
+pass/targets/runtime_family_applied_nominal_visitor_exit built 2655ms exit:0 interpreter-exit:0 interpreter:agrees @e93a32508581+wt
+pass/traits/applied_nominal_callback_scopes_exit built 2563ms exit:0 interpreter-exit:0 interpreter:agrees @e93a32508581+wt

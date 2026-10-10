@@ -78,7 +78,11 @@ pub(crate) fn lower_proposition_application(
                 )
             }
             resolved::proposition::PropositionBinderKind::Const { type_reference } => {
-                let symbol = resolve_proposition_static_path(lowerer, argument);
+                let symbol = if argument.const_literal.is_some() {
+                    symbols::SymbolHandle::invalid()
+                } else {
+                    resolve_proposition_static_path(lowerer, argument)
+                };
                 if let Some(literal) = &argument.const_literal {
                     validate_const_literal_argument(
                         call.target.as_str(),
@@ -133,6 +137,36 @@ pub(crate) fn lower_proposition_application(
                 }
             }
         };
+        if symbol.is_valid()
+            && lowerer
+                .typed_trees
+                .type_reference_table
+                .find_named_type_reference(symbol)
+                .is_none()
+        {
+            // Proof-static operands need an argument row even when they occur
+            // only here. Read-only validation must not depend on an unrelated
+            // runtime declaration having previously mentioned this operand.
+            let name = argument.path.last().ok_or_else(|| {
+                Diagnostic::error("resolved proposition argument has no source path")
+            })?;
+            lowerer.typed_trees.type_reference_table.insert(
+                typed::types::TypeReferenceNode::Named {
+                    symbol,
+                    name: crate::lowerer::name::lower_name(name),
+                },
+            );
+        }
+        if let Some(literal) = &argument.const_literal {
+            let expression = lowerer
+                .typed_trees
+                .expression_table
+                .insert(typed::expression::ExpressionNode::Integer(literal.clone()));
+            lowerer
+                .typed_trees
+                .type_reference_table
+                .insert(typed::types::TypeReferenceNode::ConstExpression(expression));
+        }
         typed_binder_arguments.push(typed::proposition::PropositionBinderArgument {
             kind,
             path: argument

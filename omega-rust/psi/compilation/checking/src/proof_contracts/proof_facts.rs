@@ -10,6 +10,8 @@ use typed_trees::name::Identifier;
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod proposition_parameters;
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ProofFactOwner<'program> {
     DataDefaultDomain(&'program str),
@@ -370,44 +372,17 @@ pub(crate) fn validate_proof_facts(
                     .zip(parameters)
                     .enumerate()
                 {
-                    let instantiated_type = declaration.map(|declaration| {
-                        proposition_parameter_instantiation(
-                            program,
-                            declaration,
-                            application,
-                            parameter.type_reference,
-                        )
-                    });
-                    let instantiated_type = instantiated_type.unwrap_or(
-                        PropositionParameterInstantiation::Unchanged(parameter.type_reference),
+                    let matches = proposition_parameters::argument_matches(
+                        program,
+                        *argument,
+                        parameter.type_reference,
+                        declaration,
+                        application,
+                        owner,
                     );
-                    let matches = match instantiated_type {
-                        PropositionParameterInstantiation::Unchanged(expected_type) => {
-                            crate::value_custody::expression_types::argument_matches_type_reference_handle(
-                                program,
-                                *argument,
-                                expected_type,
-                            )
-                        }
-                        PropositionParameterInstantiation::Selected(selected) => {
-                            argument_matches_selected_proposition_type(
-                                program, *argument, selected, owner,
-                            )
-                        }
-                        PropositionParameterInstantiation::Invalid => false,
-                    };
                     if !matches {
-                        let expected_name = match instantiated_type {
-                            PropositionParameterInstantiation::Unchanged(expected_type) => {
-                                program.display_type_reference(expected_type)
-                            }
-                            PropositionParameterInstantiation::Selected(selected) => {
-                                selected.display_name()
-                            }
-                            PropositionParameterInstantiation::Invalid => {
-                                "<invalid proposition binder argument>".to_owned()
-                            }
-                        };
+                        let expected_name =
+                            program.display_type_reference(parameter.type_reference);
                         diagnostics.push(Diagnostic::error(format!(
                             "{owner} proposition `{}` argument {} does not match parameter `{}` type `{}`",
                             application.name.as_str(),
@@ -521,88 +496,6 @@ fn abstract_trait_self_member_in_expression(
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum PropositionParameterInstantiation<'application> {
-    Unchanged(typed_trees::types::TypeReferenceHandle),
-    Selected(&'application typed_trees::proposition::PropositionBinderArgument),
-    Invalid,
-}
-
-fn proposition_parameter_instantiation<'application>(
-    program: &dyn crate::CheckingInput,
-    declaration: &typed_trees::proposition::PropositionDefinition,
-    application: &'application typed_trees::proposition::PropositionApplication,
-    parameter_type: typed_trees::types::TypeReferenceHandle,
-) -> PropositionParameterInstantiation<'application> {
-    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(parameter_type)
-    else {
-        return PropositionParameterInstantiation::Unchanged(parameter_type);
-    };
-    let Some((binder_index, _)) = program
-        .proposition_binders(declaration)
-        .iter()
-        .enumerate()
-        .find(|(_, binder)| {
-            binder.symbol == *symbol
-                && matches!(
-                    binder.kind,
-                    typed_trees::proposition::PropositionBinderKind::Type
-                )
-        })
-    else {
-        return PropositionParameterInstantiation::Unchanged(parameter_type);
-    };
-    let Some(selected) = application.binder_arguments.get(binder_index) else {
-        return PropositionParameterInstantiation::Invalid;
-    };
-    if !matches!(
-        selected.kind,
-        typed_trees::proposition::PropositionBinderArgumentKind::Type
-    ) {
-        return PropositionParameterInstantiation::Invalid;
-    }
-    PropositionParameterInstantiation::Selected(selected)
-}
-
-fn argument_matches_selected_proposition_type(
-    program: &dyn crate::CheckingInput,
-    argument: ExpressionHandle,
-    selected: &typed_trees::proposition::PropositionBinderArgument,
-    owner: ProofFactOwner<'_>,
-) -> bool {
-    if let Some(actual) = proof_argument_declared_type(program, argument, owner) {
-        if let (Some(actual), Some(selected)) = (
-            program.type_reference_table.primitive_type(actual),
-            typed_trees::types::PrimitiveType::from_name(&selected.display_name()),
-        ) {
-            return actual == selected;
-        }
-        return program.type_reference_table.type_symbol(actual) == selected.symbol;
-    }
-    let selected_name = selected.display_name();
-    if let Some(primitive) = typed_trees::types::PrimitiveType::from_name(&selected_name) {
-        return match program.expression_table.expression(argument) {
-            ExpressionNode::Boolean(_) => primitive == typed_trees::types::PrimitiveType::Bool,
-            ExpressionNode::Float(_) => primitive.accepts_float_literal(),
-            ExpressionNode::UndeterminedNaN(format) => primitive.name() == format.name(),
-            ExpressionNode::Integer(_) => primitive.accepts_integer_literal(),
-            ExpressionNode::Borrow(inner) => {
-                argument_matches_selected_proposition_type(program, inner.target, selected, owner)
-            }
-            _ => false,
-        };
-    }
-    program
-        .type_reference_table
-        .find_named_type_reference(selected.symbol)
-        .is_some_and(|expected| {
-            crate::value_custody::expression_types::argument_matches_type_reference_handle(
-                program, argument, expected,
-            )
-        })
-}
-
 fn proof_argument_declared_type(
     program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
@@ -630,9 +523,6 @@ fn proof_argument_declared_type(
         return Some(type_reference);
     }
     let symbol = match program.expression_table.expression(argument) {
-        ExpressionNode::Borrow(inner) => {
-            return proof_argument_declared_type(program, inner.target, owner);
-        }
         ExpressionNode::Name(path) => path.symbol,
         ExpressionNode::Member(member) => member.member_symbol,
         _ => return None,

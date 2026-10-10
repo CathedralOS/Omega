@@ -393,10 +393,14 @@ impl Lowerer<'_> {
 
     pub(crate) fn finish(mut self) -> Result<TypedTrees, Diagnostic> {
         self.typed_trees.symbols = self.source_trees.symbols.clone();
-        self.typed_trees
-            .instantiate_nominal_machine_parameter_contracts();
         crate::declarations::machine::settle_satisfied_declarations(&mut self.typed_trees)?;
         crate::lowerer::progress::normalize_progress_premises(&mut self.typed_trees)?;
+        self.typed_trees
+            .instantiate_nominal_machine_parameter_contracts()
+            .map_err(|message| Diagnostic::error(message.to_owned()))?;
+        self.typed_trees
+            .prepare_applied_callable_signatures()
+            .map_err(|message| Diagnostic::error(message.to_owned()))?;
         let TypedTrees {
             // The tag identifies the instance being taken apart, not any
             // piece of it, so it does not travel with the fields.
