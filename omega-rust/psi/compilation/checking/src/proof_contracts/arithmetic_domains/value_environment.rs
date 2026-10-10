@@ -264,26 +264,21 @@ impl ValueEnvironment {
                 .iter()
                 .any(|written| place_paths_overlap(path, written))
         };
+        let keep_pair = |(left, right): &(String, String)| {
+            !overlaps(left) && !overlaps(right)
+        };
         self.intervals.retain(|path, _| !overlaps(path));
         self.known_u64_values.retain(|path, _| !overlaps(path));
         self.float_intervals.retain(|path, _| !overlaps(path));
         self.non_nan.retain(|path| !overlaps(path));
-        self.joint_add_upper_bounds
-            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
-        self.joint_add_lower_bounds
-            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
-        self.joint_subtract_bounds
-            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
-        self.signed_joint_subtract_lower_bounds
-            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
-        self.signed_joint_subtract_upper_bounds
-            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
-        self.joint_multiply_bounds
-            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
-        self.signed_joint_multiply_lower_bounds
-            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
-        self.signed_joint_multiply_upper_bounds
-            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
+        self.joint_add_upper_bounds.retain(keep_pair);
+        self.joint_add_lower_bounds.retain(keep_pair);
+        self.joint_subtract_bounds.retain(keep_pair);
+        self.signed_joint_subtract_lower_bounds.retain(keep_pair);
+        self.signed_joint_subtract_upper_bounds.retain(keep_pair);
+        self.joint_multiply_bounds.retain(keep_pair);
+        self.signed_joint_multiply_lower_bounds.retain(keep_pair);
+        self.signed_joint_multiply_upper_bounds.retain(keep_pair);
         self.signed_joint_multiply_negation_bounds
             .retain(|value| !overlaps(value));
     }
