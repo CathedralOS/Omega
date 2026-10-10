@@ -1,0 +1,18 @@
+data Main { value: i32; neighbor: i32; }
+machine replace(destination: &write i32, value: i32) {
+    destination = value;
+}
+machine forward(destination: &write i32, value: i32) {
+    transition { _ -> write_value(&write destination, value) }
+    state write_value(destination: &write i32, value: i32) {
+        replace(&write destination, value);
+    }
+}
+machine Main::main(main: &mut Main) {
+    main.value = 7;
+    main.neighbor = 19;
+    forward(&write main.value, 70);
+    forward(&write main.neighbor, 4);
+    transition { _ -> read(main) }
+    state read(main: &mut Main) -> i32 { main.value }
+}

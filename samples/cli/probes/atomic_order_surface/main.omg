@@ -1,0 +1,20 @@
+// The checked ordering surface of normalized atomics: orderings ride as
+// checked source data on every operation kind.
+data Main { hits: i32 in Wrapping; }
+machine Main::main(main: &mut Main) {
+    let mut counter: AtomicU32;
+    let mut wide: AtomicU64;
+    let mut flag: AtomicBool;
+    counter.store(10, GlobalOrder);
+    let observed: u32 in Wrapping = counter.load(GlobalOrder);
+    let prior: u32 in Wrapping = counter.fetch_add(5, ReceivePublish);
+    let displaced: u32 in Wrapping = counter.swap(20, GlobalOrder);
+    let cas_prior: u32 in Wrapping = counter.compare_exchange(20, 30, GlobalOrder, Receive);
+    wide.store(11, GlobalOrder);
+    let wide_seen: u64 in Wrapping = wide.load(GlobalOrder);
+    let wide_prior: u64 in Wrapping = wide.fetch_add(3, ReceivePublish);
+    flag.store(true, Publish);
+    let seen: bool = flag.load(Receive);
+    let pair: u32 in Wrapping = observed + prior + displaced + cas_prior;
+    main.hits = main.hits + 1;
+}
