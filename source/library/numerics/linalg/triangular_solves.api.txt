@@ -1,0 +1,55 @@
+NF12 interface checkpoint (not the frozen rank-two package API)
+Base: 26c92c17b8f4b21f39e14a5be57c85cfdec601de
+Owner: NF12 triangular solves. Dependencies: NF01 NF02 NF05 NF10.
+
+Implemented independent signatures:
+  triangular_try_pivot(residual: f64, diagonal: f64, unit_diagonal: bool)
+    -> TriangularPivotResult { Solved(value: f64), ZeroPivot }
+  triangular_checked_pivot(residual: f64, diagonal: f64) -> f64
+    requires diagonal != 0.0
+These operate on primitive f64 values; they do not imply finite-input,
+conditioning, residual, overflow, or accuracy certification.
+
+Specific signatures needed from dependency owners (names below are requirements,
+not new declarations or assumptions about their actual spellings):
+NF01: rank-two descriptor type and constructor/try-validator taking rows,
+  columns, offset, leading dimension and explicit backing length.
+  try_offset(descriptor, row: u64, column: u64, backing_length: u64)
+    -> checked offset or layout/index error, with offset < backing_length
+    established for a successful branch. Need actual import/package names.
+  Need copyability and scalar field names, empty-shape and overflow semantics.
+NF02: public f64 input/accuracy policy type and validation operation:
+  validate_scalar(value: f64, policy) -> finite/allowed or policy status.
+  Need whether finite overflow in intermediate residual/division is an error;
+  need exact-zero versus caller-chosen near-zero threshold policy contract.
+NF05: actual slice read/write/copy API, its checked indexing contracts, and
+  whether a copy can fail after destination mutation. No shared implementation
+  for this owner exists in the inspected main checkout.
+NF10: actual triangular mode/transpose/status types if NF10 owns them, and
+  factor output descriptor contract (including diagonal storage and unit flag).
+  Need mapping of existing statuses; no interface exists in inspected main.
+
+Rank-two integration requirements once actual interfaces arrive:
+  try_solve_in_place(matrix_descriptor, matrix_backing: &[f64],
+    rhs_descriptor, rhs_backing: &mut [f64], triangle, operation,
+    diagonal_mode, singularity_policy, accuracy_policy) -> solve_status.
+  checked variant has proof-visible shape/layout/input preconditions, but still
+    reports a singular pivot as a runtime solve status.
+  solve_into explicitly takes separate input RHS and caller output backing;
+    copy is explicit and cannot be an implicit allocation.
+  A is square; B has A.rows rows, any number of RHS columns.
+  Stored lower/upper is independent from transpose; transpose reverses sweep.
+  Reject shape/layout/policy and scan all nonunit diagonal pivots BEFORE mutating
+    RHS. Scan ascending original row index; singular status carries zero-based
+    row. ExactZero rejects +/-0. Unit diagonal skips stored diagonal entirely.
+  Non-finite or near-zero classification awaits NF02; do not invent it here.
+  If an intermediate fails policy during a solve, report pivot and RHS column;
+    earlier solved components may be mutated unless caller supplies separate
+    transactional scratch. No hidden rollback allocation.
+  Leave matrix, padding and out-of-triangle entries untouched. No implicit copy
+    or allocation. Empty order/RHS shape succeeds after descriptor validation.
+  A and mutable B backing must obey Omega's nonoverlapping borrow obligations.
+
+Sample designs and independent fixtures live in:
+  samples/cli/scientific/w100/nf12_triangular_solves/
+Descriptor API release acceptance remains pending dependency signatures.
