@@ -9,7 +9,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex,
 };
 
 /// Resource ceiling for expanded cells and pending work. Shape admission does
@@ -79,24 +79,24 @@ pub enum ZeroedStructuralLeaf {
 /// or determines an omitted proof term from its carrier's spelling.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EstablishedErasedStructuralField {
-    pub field_path: Vec<String>,
-    pub carrier_type_identity: String,
+    pub field_path: Vec<TerminalIdentityIndex>,
+    pub carrier_type_identity: TerminalIdentityIndex,
 }
 
 fn established_field_identity<'types>(
     declarations: &[&'types StructuralTypeDeclaration],
     field: &'types StructuralFieldDeclaration,
-) -> Option<&'types str> {
+) -> Option<TerminalIdentityIndex> {
     match &field.field_type {
-        StructuralFieldType::Erased { type_identity } if !type_identity.is_empty() => {
-            Some(type_identity)
+        StructuralFieldType::Erased { type_identity } if !type_identity.is_absent() => {
+            Some(*type_identity)
         }
         StructuralFieldType::Structural(child) if !field.relevance.is_erased() => {
             let declaration = declarations
                 .iter()
                 .find(|declaration| declaration.id == *child)?;
             matches!(declaration.shape, StructuralTypeShape::BindingCarrier)
-                .then_some(declaration.identity.as_str())
+                .then_some(declaration.identity)
         }
         _ => None,
     }
@@ -317,7 +317,7 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                             _ => None,
                         })
                         .collect::<Option<Vec<_>>>()?;
-                    field_path.push(field.identity.clone());
+                    field_path.push(field.identity);
                     let mut matching =
                         established_fields
                             .iter()
@@ -335,7 +335,7 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                 }
                 if let Some(member) = field.field_type.as_structural() {
                     let mut member_path = path.clone();
-                    member_path.push(StructuralPathSegment::Field(field.identity.clone()));
+                    member_path.push(StructuralPathSegment::Field(field.identity));
                     pending.push((member, member_path));
                 } else if zeroed_byte_field(field) {
                     leaves.push(ZeroedStructuralLeaf::ByteSequenceField {
@@ -417,7 +417,7 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                     if let Some(member) = field.field_type.as_structural() {
                         let mut member_path = path.clone();
                         member_path.push(StructuralPathSegment::Case(first.id));
-                        member_path.push(StructuralPathSegment::Field(field.identity.clone()));
+                        member_path.push(StructuralPathSegment::Field(field.identity));
                         pending.push((member, member_path));
                     } else {
                         leaves.push(ZeroedStructuralLeaf::CaseField {

@@ -88,6 +88,7 @@ pub use terminal_module::{
     TerminalOperationCrashDenotation, TerminalPlacedViewInput, TerminalProofRankingRelation,
     TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent, TerminalProofRecursiveEdge,
     TerminalProofRecursiveField, TerminalProofRecursiveMember,
+    TerminalIdentityIndex, TerminalIdentityTable, TerminalIdentityTableBuilder,
     TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType, TerminalPsiIdentity,
     TerminalRankedScc, TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
     TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,

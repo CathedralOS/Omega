@@ -1,7 +1,7 @@
 //! Shape correspondence for an independently authenticated Fused binding leaf.
 
 use terminal_psi::{
-    StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex,
 };
 
 /// Match the exact carrier named by a service receipt or establishment roster.
@@ -14,9 +14,9 @@ use terminal_psi::{
 pub fn fused_service_field_matches(
     declarations: &[StructuralTypeDeclaration],
     field: &StructuralFieldDeclaration,
-    expected_identity: &str,
+    expected_identity: TerminalIdentityIndex,
 ) -> bool {
-    !expected_identity.is_empty()
+    !expected_identity.is_absent()
         && fused_service_field_carrier(declarations, field) == Some(expected_identity)
 }
 
@@ -26,10 +26,10 @@ pub fn fused_service_field_matches(
 pub fn fused_service_field_carrier<'a>(
     declarations: &'a [StructuralTypeDeclaration],
     field: &'a StructuralFieldDeclaration,
-) -> Option<&'a str> {
+) -> Option<TerminalIdentityIndex> {
     match &field.field_type {
-        StructuralFieldType::Erased { type_identity } if !type_identity.is_empty() => {
-            Some(type_identity)
+        StructuralFieldType::Erased { type_identity } if !type_identity.is_absent() => {
+            Some(*type_identity)
         }
         StructuralFieldType::Structural(child) if !field.relevance.is_erased() => {
             let mut matching = declarations
@@ -37,9 +37,9 @@ pub fn fused_service_field_carrier<'a>(
                 .filter(|declaration| declaration.id == *child);
             let declaration = matching.next()?;
             (matching.next().is_none()
-                && !declaration.identity.is_empty()
+                && !declaration.identity.is_absent()
                 && matches!(declaration.shape, StructuralTypeShape::BindingCarrier))
-            .then_some(declaration.identity.as_str())
+            .then_some(declaration.identity)
         }
         _ => None,
     }
