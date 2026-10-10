@@ -759,11 +759,9 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
                 fields.push((field.clone(), None));
                 matched_fields.push((field, expected));
                 input = rest;
-                if input.at_punctuation(PunctuationKind::Comma) {
-                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                    continue;
-                }
-                break;
+                let Some(next) = input.take_comma()? else { break };
+                input = next;
+                continue;
             }
             let mut binding = Some(field.clone());
             let mut rest = rest;

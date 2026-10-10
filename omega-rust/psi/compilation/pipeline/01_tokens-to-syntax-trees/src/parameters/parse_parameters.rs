@@ -24,12 +24,11 @@ pub(crate) fn parse_optional_parameters<'tokens, 'source>(
             parameters.push(handle);
             input = rest;
 
-            if input.at_punctuation(PunctuationKind::Comma) {
-                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                continue;
-            }
+            let Some(next) = input.take_comma()? else { break };
 
-            break;
+            input = next;
+
+            continue;
         }
     }
 

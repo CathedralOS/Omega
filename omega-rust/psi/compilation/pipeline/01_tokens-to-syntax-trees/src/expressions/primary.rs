@@ -254,12 +254,11 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
                 values.push(value);
                 input = rest;
 
-                if input.at_punctuation(PunctuationKind::Comma) {
-                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                    continue;
-                }
+                let Some(next) = input.take_comma()? else { break };
 
-                break;
+                input = next;
+
+                continue;
             }
         }
 

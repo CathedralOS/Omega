@@ -93,12 +93,11 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
             .expect("machine satisfies span count overflow");
         input = rest;
 
-        if input.at_punctuation(PunctuationKind::Comma) {
-            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-            continue;
-        }
+        let Some(next) = input.take_comma()? else { break };
 
-        break;
+        input = next;
+
+        continue;
     }
 
     let satisfies = HandleSpan::from_parts_or_empty(clause_start, clause_count);

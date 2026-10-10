@@ -207,11 +207,11 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 lifetime_arguments.push(lifetime);
                 input = rest;
 
-                if input.at_punctuation(PunctuationKind::Comma) {
-                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                    continue;
-                }
-                break;
+                let Some(next) = input.take_comma()? else { break };
+
+                input = next;
+
+                continue;
             }
 
             // Const data arguments share the generic argument list with type
@@ -291,12 +291,11 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             arguments.push(argument);
             input = rest;
 
-            if input.at_punctuation(PunctuationKind::Comma) {
-                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                continue;
-            }
+            let Some(next) = input.take_comma()? else { break };
 
-            break;
+            input = next;
+
+            continue;
         }
 
         input = input.take_punctuation(PunctuationKind::Greater, ">")?;

@@ -180,6 +180,17 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
+    /// The cursor after a consumed `,` when one heads a comma list's next
+    /// element, or `None` when the list ended at this boundary. Comma list
+    /// loops answer this one question before continuing or breaking.
+    pub(crate) fn take_comma(self) -> Result<Option<Self>, ParseError> {
+        if self.at_punctuation(PunctuationKind::Comma) {
+            self.take_punctuation(PunctuationKind::Comma, ",").map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
     /// True when `self` begins with a `(` whose matching `)` group contains a
     /// TOP-LEVEL comma -- i.e. a real tuple/pattern list `(a, b)`, as opposed to
     /// a single parenthesized expression `(a + b)`. Scans only within the leading

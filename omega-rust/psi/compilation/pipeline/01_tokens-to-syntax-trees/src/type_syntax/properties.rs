@@ -160,11 +160,9 @@ fn parse_carry_policy<'tokens, 'source>(
             }
         }
         input = rest;
-        if input.at_punctuation(PunctuationKind::Comma) {
-            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-            continue;
-        }
-        break;
+        let Some(next) = input.take_comma()? else { break };
+        input = next;
+        continue;
     }
 
     let missing = [
