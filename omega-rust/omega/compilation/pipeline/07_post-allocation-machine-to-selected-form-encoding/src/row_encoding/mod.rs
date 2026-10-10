@@ -498,6 +498,29 @@ fn decoded_footprint(
     })
 }
 
+/// Every encoded row ends on decode, operand-footprint validation, size
+/// validation and the same draft constructor.
+fn validated_encoded_draft(
+    instruction: SelectedInstructionId,
+    machine: &PostAllocationMachineInstruction,
+    effects: &selected_instructions::MachineEncodedEffects,
+    bytes: Vec<u8>,
+    state: SelectedFormEncodingState,
+) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
+    let footprint = decoded_footprint(machine, effects)?;
+    validate_operand_footprint(
+        instruction,
+        machine,
+        effects,
+        &footprint.register_reads,
+        &footprint.register_writes,
+    )?;
+    validate_size(instruction, machine.alternative.size, bytes.len())?;
+    Ok(SelectedFormEncodedRowDraft::encoded(
+        state, bytes, footprint,
+    ))
+}
+
 fn validate_operand_footprint(
     instruction: SelectedInstructionId,
     machine: &PostAllocationMachineInstruction,
