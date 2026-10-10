@@ -1,0 +1,97 @@
+// Ascending coefficients c[0] + c[1]*x + ... + c[n]*x^n.
+// A named implementation selects scalar format and arithmetic explicitly.
+// The fused derivative update reads the previous value, before its update.
+// No allocation, format conversion, coefficient copy, or matrix descriptor.
+pub trait PolynomialScalar<Value [copy]> {
+    machine zero() -> Value;
+    machine add(left: Value, right: Value) -> Value;
+    machine multiply(left: Value, right: Value) -> Value;
+}
+
+pub data PolynomialValue<Value [copy]> [copy] {
+    value: Value;
+    derivative: Value;
+}
+
+pub data PolynomialStatus [copy] {
+    case Ready;
+    case EmptyCoefficients;
+    case OutputLengthMismatch;
+}
+
+machine horner_steps<Value [copy], Operations satisfies PolynomialScalar<Value>>(
+    coefficients: &[Value], query: Value, value: Value, derivative: Value
+) -> PolynomialValue<Value> {
+    transition coefficients.len > 0 {
+        true -> horner_steps<Value, Operations>(
+            coefficients[..coefficients.len - 1], query,
+            Operations::add(Operations::multiply(value, query), coefficients[coefficients.len - 1]),
+            Operations::add(Operations::multiply(derivative, query), value))
+        false -> (PolynomialValue<Value> { value: value, derivative: derivative })
+    }
+}
+
+pub machine polynomial_horner_derivative<Value [copy], Operations satisfies PolynomialScalar<Value>>(
+    coefficients: &[Value], query: Value
+) -> PolynomialValue<Value>
+requires coefficients.len > 0;
+{
+    horner_steps<Value, Operations>(coefficients[..coefficients.len - 1], query,
+        coefficients[coefficients.len - 1], Operations::zero())
+}
+
+// Error returns leave the caller's output untouched. Degree zero never
+// multiplies by the query, including a non-finite query under total arithmetic.
+pub machine try_polynomial_horner_derivative<Value [copy], Operations satisfies PolynomialScalar<Value>>(
+    coefficients: &[Value], query: Value, output: &mut PolynomialValue<Value>
+) -> PolynomialStatus {
+    transition coefficients.len > 0 {
+        true -> evaluate(coefficients, query, output)
+        false -> (PolynomialStatus::EmptyCoefficients)
+    }
+    state evaluate(coefficients: &[Value], query: Value, output: &mut PolynomialValue<Value>)
+    requires coefficients.len > 0;
+    {
+        *output = polynomial_horner_derivative<Value, Operations>(coefficients, query);
+        PolynomialStatus::Ready
+    }
+}
+
+pub machine polynomial_horner_derivative_batch<Value [copy], Operations satisfies PolynomialScalar<Value>>(
+    coefficients: &[Value], queries: &[Value], values: &mut [Value], derivatives: &mut [Value]
+)
+requires coefficients.len > 0;
+requires queries.len == values.len && queries.len == derivatives.len;
+{
+    transition queries.len > 0 {
+        true -> evaluate(coefficients, queries, values, derivatives)
+        false -> done()
+    }
+    state evaluate(coefficients: &[Value], queries: &[Value], values: &mut [Value], derivatives: &mut [Value])
+    requires coefficients.len > 0;
+    requires queries.len > 0 && queries.len == values.len && queries.len == derivatives.len;
+    {
+        let evaluated: PolynomialValue<Value> = polynomial_horner_derivative<Value, Operations>(coefficients, queries[0]);
+        values[0] = evaluated.value;
+        derivatives[0] = evaluated.derivative;
+        polynomial_horner_derivative_batch<Value, Operations>(coefficients, queries[1..], &mut values[1..], &mut derivatives[1..]);
+    }
+    state done() {}
+}
+
+pub machine try_polynomial_horner_derivative_batch<Value [copy], Operations satisfies PolynomialScalar<Value>>(
+    coefficients: &[Value], queries: &[Value], values: &mut [Value], derivatives: &mut [Value]
+) -> PolynomialStatus {
+    transition {
+        coefficients.len == 0 -> (PolynomialStatus::EmptyCoefficients)
+        queries.len == values.len && queries.len == derivatives.len -> evaluate(coefficients, queries, values, derivatives)
+        _ -> (PolynomialStatus::OutputLengthMismatch)
+    }
+    state evaluate(coefficients: &[Value], queries: &[Value], values: &mut [Value], derivatives: &mut [Value])
+    requires coefficients.len > 0;
+    requires queries.len == values.len && queries.len == derivatives.len;
+    {
+        polynomial_horner_derivative_batch<Value, Operations>(coefficients, queries, values, derivatives);
+        PolynomialStatus::Ready
+    }
+}

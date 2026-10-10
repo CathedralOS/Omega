@@ -1,0 +1,37 @@
+use omega::language::core::float_operations;
+use polynomial_horner_derivative;
+
+Binary64 satisfies PolynomialScalar<f64> {
+    machine zero() -> f64 { 0.0 }
+    machine add(left: f64, right: f64) -> f64 { left + right }
+    machine multiply(left: f64, right: f64) -> f64 { left * right }
+}
+
+
+
+machine main() crashes Trap {
+    let constant: [f64; 1] = [7.0];
+    let cubic: [f64; 4] = [2.0, -3.0, 0.0, 1.0];
+    let first: PolynomialValue<f64> = polynomial_horner_derivative<f64, Binary64>(&constant[..], 9.0);
+    let negative: PolynomialValue<f64> = polynomial_horner_derivative<f64, Binary64>(&cubic[..], -2.0);
+    let left_root: PolynomialValue<f64> = polynomial_horner_derivative<f64, Binary64>(&cubic[..], -1.0);
+    let right_root: PolynomialValue<f64> = polynomial_horner_derivative<f64, Binary64>(&cubic[..], 1.0);
+    let middle: PolynomialValue<f64> = polynomial_horner_derivative<f64, Binary64>(&cubic[..], 0.0);
+    let positive: PolynomialValue<f64> = polynomial_horner_derivative<f64, Binary64>(&cubic[..], 2.0);
+    let empty: [f64; 0] = [];
+    let mut retained: PolynomialValue<f64> = PolynomialValue { value: 31.0, derivative: 47.0 };
+    let status: PolynomialStatus = try_polynomial_horner_derivative<f64, Binary64>(&empty[..], 0.0, &mut retained);
+    transition {
+        first.value == 7.0 && first.derivative == 0.0
+            && negative.value == 0.0 && negative.derivative == 9.0
+            && left_root.value == 4.0 && left_root.derivative == 0.0
+            && right_root.value == 0.0 && right_root.derivative == 0.0
+            && middle.value == 2.0 && middle.derivative == -3.0
+            && positive.value == 4.0 && positive.derivative == 9.0
+            && status in PolynomialStatus::EmptyCoefficients
+            && retained.value == 31.0 && retained.derivative == 47.0 -> good()
+        _ -> bad()
+    }
+    state good() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,3 @@
+command: OMEGA_LIBRARY_ROOT=$PWD/source/library /workspace/Omega/target/release/omega --check source/library/numerics/polynomial/polynomial_horner_derivative.omg
+exit: 1
+error: source/library/numerics/polynomial/polynomial_horner_derivative.omg:39:20: expected expression

@@ -1,0 +1,7 @@
+command: ['/workspace/Omega/target/release/omega', '--check', 'tests/omega/pass/float/runtime_named_format_conversion_exit/main.omg']
+revision: 26c92c17b8f4b21f39e14a5be57c85cfdec601de
+exit: 1
+stdout:
+
+stderr:
+cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user

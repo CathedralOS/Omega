@@ -1,0 +1,37 @@
+[
+  {
+    "project": "scalar_cubic",
+    "route": "check",
+    "exit": 1
+  },
+  {
+    "project": "scalar_cubic",
+    "route": "native",
+    "exit": 200
+  },
+  {
+    "project": "scalar_cubic",
+    "route": "terminal",
+    "exit": 200
+  },
+  {
+    "project": "batch_quadratic",
+    "route": "check",
+    "exit": 1
+  },
+  {
+    "project": "batch_quadratic",
+    "route": "native",
+    "exit": 200
+  },
+  {
+    "project": "batch_quadratic",
+    "route": "terminal",
+    "exit": 200
+  },
+  {
+    "project": "invalid_empty",
+    "route": "check",
+    "exit": 1
+  }
+]

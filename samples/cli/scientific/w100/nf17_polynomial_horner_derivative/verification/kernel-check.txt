@@ -1,0 +1,7 @@
+command: ['/workspace/Omega/target/release/omega', '--check', 'source/library/numerics/polynomial/polynomial_horner_derivative.omg']
+revision: 26c92c17b8f4b21f39e14a5be57c85cfdec601de
+exit: 1
+stdout:
+
+stderr:
+error: source/library/numerics/polynomial/polynomial_horner_derivative.omg:27:29: expected expression

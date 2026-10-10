@@ -1,0 +1,12 @@
+{
+  "frozen_before_execution": true,
+  "coefficient_order": "ascending",
+  "tolerance": {"absolute": 0, "relative": 0},
+  "reason": "All fixture operations are exact in IEEE binary32 and binary64",
+  "constant": {"coefficients": [7], "query": 9, "value": 7, "derivative": 0},
+  "cubic": {"coefficients": [2,-3,0,1], "queries": [-2,-1,0,1,2], "values": [0,4,2,0,4], "derivatives": [9,0,-3,0,9]},
+  "quadratic": {"coefficients": [1,2,3], "queries": [-1,0,0.5,2], "values": [2,1,2.75,17], "derivatives": [-4,2,5,14]},
+  "invalid_empty": "checked call must reject coefficients.len > 0",
+  "try_empty": {"status": "EmptyCoefficients", "output_before_and_after": [31,47]},
+  "try_output_mismatch": {"status": "OutputLengthMismatch", "short_before_and_after": [99]}
+}

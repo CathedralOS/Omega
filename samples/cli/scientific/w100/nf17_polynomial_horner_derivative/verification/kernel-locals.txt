@@ -1,0 +1,3 @@
+command: OMEGA_LIBRARY_ROOT=$PWD/source/library /workspace/Omega/target/release/omega --check source/library/numerics/polynomial/polynomial_horner_derivative.omg
+exit: 1
+error: `horner_steps(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> horner_steps(..)` on a measured machine, or iterate with an explicit stack.

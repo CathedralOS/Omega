@@ -1,0 +1,21 @@
+NF17 initial checkpoint
+Starting checkout: /workspace/Omega branch work
+Starting revision: 6e4f0c37ecd6dbb26d228b3045d40bc6b243d0bb
+Fetched main / isolated base: 26c92c17b8f4b21f39e14a5be57c85cfdec601de
+Candidate branch/worktree: nf17-polynomial /workspace/Omega/.codex/worktrees/nf17
+Resource baseline: nproc=5; total memory 17Gi, available 16Gi; swap 0; disk available 30G.
+During single Rust build: four rustc processes ~97-99% CPU each; largest RSS 645672 KiB; load average 3.39/1.36/0.52.
+Claims status: coordination unavailable (15-second deadline), not registered.
+Claim attempt: NF17 not found in TASKS.md; delegated ownership retained locally.
+NF01/NF02 interfaces absent from fetched source tree; exact requests in .api.txt.
+Outcome: generic scalar value/derivative, degree zero, explicit batch output slices.
+Acceptance: both sample authored results across check/native/Terminal; invalid empty
+checked input rejected for nonempty precondition, not missing imports or parsing.
+Next: fresh-revision compiler qualification; retain candidate for parent review.
+
+Preinstalled compiler probe (before fresh build; compiler version unrecorded):
+OMEGA_LIBRARY_ROOT=$PWD/source/library /workspace/Omega/target/release/omega --check source/library/numerics/polynomial/polynomial_horner_derivative.omg
+exit 1
+error: source/library/numerics/polynomial/polynomial_horner_derivative.omg:22:47: expected `>`, found identifier `satisfies`
+This is not current-main qualification. Source is the candidate kernel, unchanged
+since this probe. Fresh compiler build is required before attribution.

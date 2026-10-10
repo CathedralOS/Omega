@@ -1,0 +1,18 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::float_operations;
+use polynomial_horner_derivative;
+
+Binary64 satisfies PolynomialScalar<f64> {
+    machine zero() -> f64 { 0.0 }
+    machine add(left: f64, right: f64) -> f64 { left + right }
+    machine multiply(left: f64, right: f64) -> f64 { left * right }
+}
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let empty: [f64; 0] = [];
+    let rejected: PolynomialValue<f64> = polynomial_horner_derivative<f64, Binary64>(&empty[..], 1.0);
+    main.console.exit_process(0);
+}

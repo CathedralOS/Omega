@@ -1,0 +1,8 @@
+command: ['/workspace/Omega/target/release/omega', '--check', 'samples/cli/scientific/w100/nf17_polynomial_horner_derivative/scalar_cubic/main.omg']
+revision: 26c92c17b8f4b21f39e14a5be57c85cfdec601de + candidate files
+exit: 1
+elapsed_seconds: 0.077
+stdout:
+
+stderr:
+cannot open private source resolver storage: git cache entry `/` is invalid: cache custody ancestry is owned by an unrelated user

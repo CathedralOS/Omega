@@ -1,0 +1,2 @@
+The checked call to polynomial_horner_derivative must reject its nonempty coefficient contract: coefficients.len > 0.
+Custody, package, parsing, or unrelated generic-body errors do not qualify this control.

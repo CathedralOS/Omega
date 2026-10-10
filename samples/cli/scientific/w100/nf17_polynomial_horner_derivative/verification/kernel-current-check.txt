@@ -1,0 +1,16 @@
+command: ['/workspace/Omega/target/release/omega', '--check', 'source/library/numerics/polynomial/polynomial_horner_derivative.omg']
+revision: 26c92c17b8f4b21f39e14a5be57c85cfdec601de + candidate source
+exit: 1
+stdout:
+
+stderr:
+error: machine `horner_steps` returns a view whose result has an incomplete structural lifetime frontier
+error: cannot prove requires contract for call polynomial_horner_derivative_batch from polynomial_horner_derivative_batch: coefficients.len > 0 (needs fact `coefficients.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+error: cannot prove requires contract for call polynomial_horner_derivative_batch from polynomial_horner_derivative_batch: queries[1..].len == values[1..].len && queries[1..].len == derivatives[1..].len (needs fact `queries.len == values.len && queries.len == derivatives.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+error: cannot prove index `last` is within unknown slice length of `coefficients` in horner_steps::step
+error: cannot prove subslice range end bound `..__hoist_14` is within unknown slice length
+error: cannot prove subslice range end bound `..last` is within unknown slice length
+error: cannot prove index `last` is within unknown slice length of `coefficients` in polynomial_horner_derivative::entry
+error: cannot prove subslice range start bound `1..` is within unknown slice length
+error: cannot prove subslice range start bound `1..` is within unknown slice length
+error: terminating machine polynomial_horner_derivative_batch: cannot prove strict rank decrease on a recurrent arrival: the transition from `polynomial_horner_derivative_batch` to `evaluate` is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step

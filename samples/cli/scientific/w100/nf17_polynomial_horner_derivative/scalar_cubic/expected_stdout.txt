@@ -1,0 +1,1 @@
+nf17 scalar: exact value and derivative
