@@ -594,11 +594,15 @@ impl TerminalExecution<'_> {
             if owner.structural_type != home.structural_type {
                 return Err(malformed());
             }
-            let (selected, aggregate_view) = self.resolve_reference_view_path(
-                owner,
-                &path[..position],
-                StructuralAccess::SharedBorrow,
-            )?;
+            // This operation demands one exact readable path. An inactive
+            // case is not another storage candidate to try after this read.
+            let (selected, aggregate_view) = self
+                .resolve_reference_view_path(
+                    owner,
+                    &path[..position],
+                    StructuralAccess::SharedBorrow,
+                )?
+                .ok_or_else(malformed)?;
             if selected.structural_type != descriptor.id || aggregate_view.is_some() {
                 return Err(malformed());
             }
