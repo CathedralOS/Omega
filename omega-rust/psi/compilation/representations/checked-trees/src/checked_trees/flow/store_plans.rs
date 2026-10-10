@@ -113,6 +113,16 @@ impl CheckedStoreDestination {
     }
 }
 
+/// The declaration-selected interval and the completed judgment of this exact
+/// authored assignment. This is source proof custody, not a Terminal storage
+/// refinement: primitive type identity deliberately looks through qualification.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedPrimitiveReceivingRange {
+    pub primitive: PrimitiveType,
+    pub integer: semantic_vocabulary::BoundedIntegerType,
+    pub decision: arena::Handle<crate::CheckedIntegerAssignmentDecision>,
+}
+
 /// The representation of the place one store replaces, carrying the checked
 /// judgments that representation's store consumes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,7 +130,12 @@ pub enum CheckedStoreLeaf {
     /// Primitive storage with no declared field contract: a whole mutable
     /// primitive local or borrowed primitive, or the primitive array element
     /// or plain IEEE field a primitive projection reaches.
-    Primitive,
+    Primitive {
+        /// Scalar qualification constrains this source write without changing
+        /// primitive storage identity. Lowering consumes its completed receiving
+        /// judgment before emitting the ordinary physical store.
+        receiving_range: Option<CheckedPrimitiveReceivingRange>,
+    },
     /// A declared primitive field, the path's final segment. The receiving
     /// range judgment is the exact completed source check; zero for a
     /// deferred or unjudged store.

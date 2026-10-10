@@ -84,7 +84,19 @@ impl OperationFrame<'_, '_> {
     /// operation; see the module documentation.
     pub(super) fn store(&mut self, store: &CheckedStorePlan) -> Result<(), LoweringError> {
         match &store.destination.leaf {
-            CheckedStoreLeaf::Primitive => self.primitive_store(store),
+            CheckedStoreLeaf::Primitive { receiving_range } => {
+                if let Some(range) = receiving_range
+                    && !crate::emission::structural_scalar_store::source_range_decided(
+                        self.checked,
+                        range.primitive,
+                        range.decision,
+                        Some(range.integer),
+                    )?
+                {
+                    return unsupported("primitive store lost its receiving-range judgment");
+                }
+                self.primitive_store(store)
+            }
             CheckedStoreLeaf::ScalarField {
                 primitive_type,
                 range_decision,

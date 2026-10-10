@@ -1,5 +1,14 @@
 //! Primitive leaves: whole primitive storage and primitive elements.
 //!
+//! A bounded receiving type retains the exact source assignment judgment and
+//! its declaration-selected interval on this checked store. That receipt owns
+//! source checking only: it is not a Terminal restriction or an independent
+//! certificate. Qualified array storage still declines in shape collection
+//! until its element declaration and every construction/replacement retain the
+//! corresponding Terminal obligations. Carrier normalization cannot erase them.
+//! Declared record-field restrictions remain field operations, whose Terminal
+//! declarations own independent range/predicate obligations.
+//!
 //! A primitive leaf is the `Primitive` store leaf over one checked
 //! path from the shared destination resolver's borrowed or owned storage.
 //! The path composes fields, explicit reference crossings, literal elements, and the
@@ -74,7 +83,38 @@ pub(super) fn store_at(
     if projection.ends_at_field || destination.recast_view.is_some() {
         return None;
     }
-    primitive_leaf(program, machine, state, assignment.target)?;
+    let leaf = primitive_leaf_type_reference(program, machine, state, assignment.target)?;
+    let receiving_range =
+        match super::super::types::retain_scalar_field(program, leaf, &[], primitive_type, None)? {
+            checked_trees::CheckedUnitStructuralFieldType::Scalar(_)
+                if validation::unrestricted_builtin_primitive(program, leaf)
+                    == Some(primitive_type) =>
+            {
+                None
+            }
+            checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(integer) => {
+                let decision = facts.proof.integer_assignment_at(
+                    machine.symbol,
+                    state.symbol,
+                    statement_index as usize,
+                    assignment.target,
+                    assignment.value,
+                );
+                if !decision.is_valid() {
+                    return None;
+                }
+                Some(checked_trees::CheckedPrimitiveReceivingRange {
+                    primitive: primitive_type,
+                    integer,
+                    decision,
+                })
+            }
+            // Membership domains such as Finite deliberately remain plain scalar
+            // fields under their invariant-window custody. That field judgment
+            // cannot authorize a primitive store that discarded the membership.
+            // Arbitrary predicates and atomic cells also retain their own owners.
+            _ => return None,
+        };
     if projection.path.is_empty() {
         match destination.root {
             super::destination::Root::Parameter { plan, .. }
@@ -120,7 +160,7 @@ pub(super) fn store_at(
         statement_index,
         destination.root.destination(),
         projection.path,
-        checked_trees::CheckedStoreLeaf::Primitive,
+        checked_trees::CheckedStoreLeaf::Primitive { receiving_range },
         checked_trees::CheckedStoreValue::assigned(value),
     ))
 }
@@ -261,7 +301,9 @@ pub(super) fn array_literal_stores(
                 statement_index,
                 destination,
                 element_path,
-                checked_trees::CheckedStoreLeaf::Primitive,
+                checked_trees::CheckedStoreLeaf::Primitive {
+                    receiving_range: None,
+                },
                 checked_trees::CheckedStoreValue::Scalar {
                     role: CheckedScalarExpressionRole::ArrayElement {
                         source: checked_trees::CheckedArrayConstructionSource::Statement,
@@ -311,23 +353,14 @@ fn row_major_indices(mut ordinal: u64, extents: &[u64]) -> Option<Vec<u64>> {
     (ordinal == 0).then_some(indices)
 }
 
-/// The assignment leaf's declared type must be a named primitive, after the
-/// arithmetic-policy shell peel.
-fn primitive_leaf(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<PrimitiveType> {
-    let leaf = primitive_leaf_type_reference(program, machine, state, expression)?;
-    validation::unrestricted_builtin_primitive(program, leaf)
-}
-
 /// The type of the primitive leaf an assignment through `expression` writes.
 /// An arithmetic-policy shell (`i32 in Wrapping`) qualifies the element's
 /// operations, not its storage identity, so it peels here like the primitive
-/// leaf of the record-field store route. Range, named, and domain
-/// constraints carry their own write obligations and keep their own owners.
+/// leaf of the record-field store route. A represented integer interval keeps
+/// its receiving judgment on the checked store leaf; other constraints decline.
+/// Storage identity itself looks through qualification (the shared structural
+/// identity contract); a successful source receiving judgment is required
+/// before lowering that store. This does not create a Terminal field invariant.
 /// An exclusive borrow carrier peels to its referee the same way: `borrowed`
 /// in `let borrowed: &mut u8 = &mut self.buf[i]` spells the reference type,
 /// while the store reaches the element behind it. Whether that reach is
@@ -586,7 +619,7 @@ fn boolean_expression_needs_no_bindings(
         | CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::Local { .. } => true,
         CheckedBooleanExpression::Not(operand) => boolean_expression_needs_no_bindings(operand),
-        facts::checked_boolean_triple_pattern!(left,right, ..) => {
+        facts::checked_boolean_triple_pattern!(left, right, ..) => {
             boolean_expression_needs_no_bindings(left)
                 && boolean_expression_needs_no_bindings(right)
         }

@@ -4312,10 +4312,18 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `unit/attached_unit/view_ranges.rs` and
   `emission/operation_emission/view_subslice.rs` (shared `CheckedSubsliceSite`).
   Remaining:
-  - range-qualified scalar and erased-field `[copy]` view elements under
-    [ownership](wiki/spec/language/ownership.md); record copies already work
-    (`slices/runtime_qualified_record_copy_local_exit`, exit 70).
-    Unverified: which range-qualified/erased-field cases still fail.
+  - range-qualified scalar view copies under
+    [ownership](wiki/spec/language/ownership.md). The unchanged
+    `slices/runtime_range_qualified_scalar_copy_exit` and local-capture variation
+    pass source checking on Linux x86-64, but native production refuses the
+    qualified array declaration as `statement sequence: local data: structural
+    value: type shape`. Retain scalar element restrictions and exact
+    construction/read/replacement evidence in Terminal; a source assignment
+    receipt cannot erase the array guard. A dynamic selected store also loses
+    default-domain element facts at return. Erased-field `[copy]` record copies
+    execute at native and Terminal exit 0
+    (`slices/runtime_erased_field_record_copy_exit`); qualified nominal record
+    copies already work (`slices/runtime_qualified_record_copy_local_exit`, exit 70).
   - mutable-view result and cyclic forwarding compositions on the Unit-graph
     route remain unverified. Acyclic named-state subslice forwarding retains
     caller backing for scalar and record writes (controls:

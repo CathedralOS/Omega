@@ -114,7 +114,7 @@ pub use semantic_dependencies::{
     CheckedSemanticDependencyKind,
 };
 pub use store_plans::{
-    CheckedCaseLiteralValuePlan, CheckedIndexedWriteDecisions, CheckedScalarStoreValue,
-    CheckedStoreDestination, CheckedStoreLeaf, CheckedStorePlan, CheckedStoreRoot,
-    CheckedStoreValue,
+    CheckedCaseLiteralValuePlan, CheckedIndexedWriteDecisions, CheckedPrimitiveReceivingRange,
+    CheckedScalarStoreValue, CheckedStoreDestination, CheckedStoreLeaf, CheckedStorePlan,
+    CheckedStoreRoot, CheckedStoreValue,
 };
