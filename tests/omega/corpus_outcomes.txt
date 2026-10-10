@@ -3908,6 +3908,7 @@ pass/locals/runtime_local_record_array_element_field_reads_exit checked 1924ms c
 pass/locals/runtime_local_view_member_element_read_exit checked 4020ms check-target:macos_arm64 @cfe60a3a242
 pass/locals/static_local_field_names_exit checked 1406ms check-target:macos_arm64 @cfe60a3a242
 pass/machines/static_namespace_constant_exit checked 3435ms check-target:macos_arm64 @0bb2f2c02dae+wt
+pass/math/extent_no_wrap_requires_denotation checked 454ms @eacf26da8078
 pass/memory/address_translation_canary checked 435ms @9a54cbcf1d68+wt
 pass/memory/bump_allocator_canary rejected 1814ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @e95f2c8d09cf+wt
 	linear value `named(name(BumpVec)).retained_buffer::Held.storage` was already transferred or consumed; it cannot be moved here
