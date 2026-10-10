@@ -84,7 +84,9 @@ It cannot be promoted into a managed pool by adding capabilities or certificates
 "thread":"ACTUAL_EXISTING_THREAD","evidence":"actual parent mapping source"}`.
 This is a binding to an existing reported thread, not session creation, task
 admission, or verified host mapping. Environment/generation remain null. Only
-read intents are permitted. Prepare/reserve/save/complete use the existing
+read intents are permitted on this observational assignment. A separate explicitly
+authorized preflight assignment is described below. Prepare/reserve/save/complete
+use the existing
 durable step protocol. Read parameters are optional `limit` (1..100, default20)
 and `cursor` (actual returned string). For the supplied parent tool contract,
 the emitted `runtime_arguments` are `threadId`, `limit`, and optional `cursor`.
@@ -100,6 +102,45 @@ mutation proofs, claims, landing credit, or new assignments. A completed
 `latestTurn` never establishes settled processes. Status keeps runtime unknown,
 executor readiness false, and acceptance null. Ordinary managed controller
 admission and final acceptance gates are unchanged.
+
+## One preflight before implementation admission
+
+An explicit parent request may authorize a bounded read-only preflight on an
+existing completed thread to establish its unknown executor and process evidence.
+Do not require implementation readiness before that inspection. `admit-preflight`
+uses the observational controller but creates a separate `preflight-only`
+assignment; it never promotes an observation into managed compiler acceptance.
+
+Input fields are `id`, `observed_assignment`, `observed_operation`,
+`expected_turn`, `tool`, `schema_evidence`, `authorization_evidence`, and `lane`.
+The first supported adapter is the parent-supplied
+`cloud_threads.send_message(threadId,model,thinking,prompt)` for
+`lane:"frontend resolution"`. The source must be the exact applied read receipt
+for the reported completed turn. A completed turn is only a scheduling receipt;
+processes, environment and generation stay unknown. Parent authorization is
+explicit and preserved. The inspection itself establishes current host/process
+facts; this admission does not repurpose an old turn as fresh host readiness.
+Known approval denials remain blockers.
+
+Prepare a single follow-up with parameters
+`{"model":"gpt-6.1-sol","reasoning":"medium","phase":"preflight"}`,
+then reserve it through `dispatch-step`. Its `runtime_arguments` map to actual
+`threadId`, `model`, `thinking`, and a generated concise prompt. The prompt binds
+operation/execution IDs, reads current main/claims and executor/process/recovery
+state, selects a prospective frontend defect and asks for its authored oracle,
+controls and next gate. This turn performs no builds, source edits, claim
+mutations or publication, and preserves held work/approval fences. Implementation
+is the separately authorized next objective after actual readiness and selected
+contract admission. Do not silently expand preflight into a full advance cycle.
+
+One thread receives one preflight assignment and one message intent. Failed or
+unknown effects do not permit another message under a new operation or contract;
+use supported reads and reconcile instead. A successful enqueue envelope retains
+its actual raw result and exact thread, but provides neither child acknowledgment
+nor executor readiness. Status waits for the preflight report. Read results still
+retain unmodified structured thread items; they never synthesize a preflight
+certificate from task prose. Store resources remain empty, identities unknown,
+and acceptance null. Ordinary managed admission/acceptance gates are unchanged.
 
 ## Controller procedure
 

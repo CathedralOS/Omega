@@ -138,6 +138,17 @@ Once a bound slot has managed landed acceptance and completed cleanup, use
 packet for the same pool/slot. This lets that slot continue while a peer remains
 blocked, retaining the peer's checkpoint. It does not increase capacity or satisfy
 staged rollout gates. Preserve original denial and protected-path history.
+
+When an existing thread's completed-turn receipt is available but its executor
+or process evidence is missing, explicitly authorize one `admit-preflight`
+inspection assignment. Reserve its one actual supported follow-up through the
+durable step adapter. The read-only preflight obtains those facts before any
+implementation admission; do not demand implementation readiness to send that
+inspection. Its generated prompt selects a prospective program and stops before
+builds, source edits, claims or publication. An enqueue receipt grants neither
+child acknowledgment nor readiness; collect the actual preflight report, then
+admit the selected contract under ordinary advance gates.
+
 The controller emits requests; actual execution still requires the supported
 runtime capabilities discovered by the coordinator.
 

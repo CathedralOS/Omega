@@ -1236,4 +1236,78 @@ class ObservationalPilotTests(unittest.TestCase):
             self.update(lambda r:cloud.complete_step(r,'observe-omega5','read-once'))
 
 
+class PreflightDispatchTests(unittest.TestCase):
+    setUp=ObservationalPilotTests.setUp
+    update=ObservationalPilotTests.update
+    attach=ObservationalPilotTests.attach
+    reserve=ObservationalPilotTests.reserve
+
+    def preflight_input(self):
+        request=self.reserve()
+        raw=dict(threadId='existing-omega5',parentThreadId=None,latestTurn=dict(id='completed-turn',status='completed',error=None),items=[],nextCursor=None)
+        receipt=dict(schema=1,operation=request['operation'],execution_id=request['execution_id'],assignment=request['assignment'],revision=self.store.load()['revision'],observed_utc=cloud.now(),effect='applied',evidence='Actual read receipt',result=raw)
+        self.update(lambda r:cloud.save_step_result(r,'observe-omega5','read-once',receipt))
+        self.update(lambda r:cloud.complete_step(r,'observe-omega5','read-once'))
+        return dict(id='next-preflight',observed_assignment='observe-omega5',observed_operation='read-once',expected_turn='completed-turn',
+            tool='cloud_threads.send_message',schema_evidence='Parent actual send_message(threadId,model,thinking,prompt) schema',
+            authorization_evidence='Parent explicitly requests one read-only preflight before implementation admission',lane='frontend resolution')
+
+    def preflight_request(self,value):
+        self.update(lambda r:cloud.admit_preflight(r,value))
+        values=[]
+        self.update(lambda r:cloud.prepare_step(r,dict(assignment=value['id'],step='preflight-once',operation='preflight-once',action='follow_up',parameters=dict(model='gpt-6.1-sol',reasoning='medium',phase='preflight'))))
+        self.update(lambda r:values.append(cloud.dispatch_step(r,value['id'],'preflight-once')))
+        return values[0]['request']
+
+    def test_preflight_establishes_unknown_host_without_implementation_admission(self):
+        value=self.preflight_input();request=self.preflight_request(value)
+        self.assertEqual(request['tool'],'cloud_threads.send_message')
+        arguments=request['runtime_arguments']
+        self.assertEqual({k:arguments[k] for k in ('threadId','model','thinking')},dict(threadId='existing-omega5',model='gpt-6.1-sol',thinking='medium'))
+        self.assertIn(request['execution_id'],arguments['prompt']);self.assertIn('No builds, source edits',arguments['prompt'])
+        row=self.store.load()['cloud']['assignments'][value['id']]
+        self.assertIsNone(row['environment']);self.assertIsNone(row['generation']);self.assertNotIn('acceptance',row)
+        self.assertEqual(next(row for row in cloud.plan(self.store.load())['assignments'] if row['assignment']==value['id'])['action'],'read_reconcile')
+        with self.assertRaisesRegex(RecoveryError,'preflight-only'):
+            self.update(lambda r:cloud.intent(r,value['id'],'follow_up','implementation',dict(phase='implementation')))
+        with self.assertRaisesRegex(RecoveryError,'already dispatched'):
+            self.update(lambda r:cloud.dispatch_step(r,value['id'],'preflight-once'))
+
+    def test_preflight_refuses_running_turn_and_missing_explicit_authority(self):
+        value=self.preflight_input();value['authorization_evidence']=''
+        with self.assertRaisesRegex(RecoveryError,'explicit'):
+            self.update(lambda r:cloud.admit_preflight(r,value))
+        value['authorization_evidence']='Actual parent directive'
+        self.update(lambda r:r['cloud']['assignments']['observe-omega5']['observation']['structuredContent']['latestTurn'].update(status='inProgress'))
+        with self.assertRaisesRegex(RecoveryError,'completed'):
+            self.update(lambda r:cloud.admit_preflight(r,value))
+
+    def test_preflight_reservation_refuses_a_newer_actual_running_read(self):
+        value=self.preflight_input()
+        self.update(lambda r:cloud.admit_preflight(r,value))
+        self.update(lambda r:cloud.prepare_step(r,dict(assignment=value['id'],step='preflight-once',operation='preflight-once',action='follow_up',parameters=dict(model='gpt-6.1-sol',reasoning='medium',phase='preflight'))))
+        requests=[]
+        self.update(lambda r:requests.append(cloud.intent(r,'observe-omega5','read','newer-read',dict(limit=20))))
+        request=requests[0]
+        raw=dict(threadId='existing-omega5',parentThreadId=None,latestTurn=dict(id='new-running-turn',status='inProgress',error=None),items=[],nextCursor=None)
+        receipt=dict(schema=1,operation=request['operation'],execution_id=request['execution_id'],assignment=request['assignment'],revision=self.store.load()['revision'],observed_utc=cloud.now(),effect='applied',evidence='Newer actual read receipt',result=raw)
+        self.update(lambda r:cloud.ingest(r,receipt))
+        with self.assertRaisesRegex(RecoveryError,'observation changed'):
+            self.update(lambda r:cloud.dispatch_step(r,value['id'],'preflight-once'))
+        self.assertNotIn('dispatched_utc',self.store.load()['cloud']['steps'][value['id']]['preflight-once'])
+
+    def test_preflight_receipt_is_enqueue_evidence_and_never_readiness_or_child_ack(self):
+        value=self.preflight_input();request=self.preflight_request(value)
+        receipt=dict(schema=1,operation=request['operation'],execution_id=request['execution_id'],assignment=request['assignment'],
+            observed_utc=cloud.now(),effect='applied',evidence='Parent actual send receipt',result=dict(threadId='existing-omega5',turnId='new-turn'))
+        self.update(lambda r:cloud.save_step_result(r,value['id'],'preflight-once',receipt))
+        self.update(lambda r:cloud.complete_step(r,value['id'],'preflight-once'))
+        row=self.store.load()['cloud']['assignments'][value['id']]
+        self.assertIsNone(row['accepted']);self.assertEqual(row['runtime'],'unknown')
+        self.assertNotIn('acknowledgment',self.store.load()['cloud']['operations']['preflight-once'])
+        self.assertEqual(next(row for row in cloud.plan(self.store.load())['assignments'] if row['assignment']==value['id'])['action'],'await_preflight_report')
+        with self.assertRaisesRegex(RecoveryError,'one-shot'):
+            self.update(lambda r:cloud.intent(r,value['id'],'follow_up','repeat',dict(model='gpt-6.1-sol',reasoning='medium',phase='preflight')))
+
+
 if __name__=='__main__': unittest.main()

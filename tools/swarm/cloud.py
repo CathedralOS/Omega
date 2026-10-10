@@ -83,6 +83,80 @@ def observe_existing(record, value):
         observation=None, accepted=None)
 
 
+def admit_preflight(record, value):
+    """Authorize one inspection turn that establishes unknown executor evidence."""
+    cloud = record["cloud"]
+    require(cloud["capabilities"].get("mode") == "observational-only", "separate observational bootstrap required")
+    require(set(value) == {"id", "observed_assignment", "observed_operation", "expected_turn", "tool",
+                           "schema_evidence", "authorization_evidence", "lane"}
+            and value.get("schema_evidence") and value.get("authorization_evidence"),
+            "explicit actual preflight schema and parent authorization required")
+    identifier(value["id"])
+    require(value["tool"] == "cloud_threads.send_message" and value["lane"] == "frontend resolution",
+            "supported supplied preflight tool/lane required")
+    digest = fingerprint(value)
+    old = cloud["assignments"].get(value["id"])
+    if old:
+        require(old.get("preflight_contract_digest") == digest, "conflicting preflight assignment")
+        return
+    observed = cloud["assignments"][value["observed_assignment"]]
+    require(observed.get("mode") == "observational-only" and observed.get("observation"),
+            "actual prior thread observation required")
+    raw = observed["observation"]["structuredContent"]
+    turn = raw.get("latestTurn") or {}
+    require(raw["threadId"] == observed["thread"] and turn.get("id") == value["expected_turn"]
+            and turn.get("status") == "completed" and turn.get("error") is None,
+            "exact reported completed turn required before preflight")
+    source = cloud["operations"][value["observed_operation"]]
+    require(source["assignment"] == observed["id"] and source["request"]["action"] == "read"
+            and source["effect"] == "applied" and source.get("receipt") and source["result"] == raw,
+            "preflight source must be the exact recorded actual read")
+    require(not observed.get("approval_required"), "preflight cannot clear a known approval denial")
+    require(not any(row.get("mode") == "preflight-only" and row["thread"] == observed["thread"]
+                    for row in cloud["assignments"].values()), "one-shot preflight already assigned to this thread")
+    cloud["assignments"][value["id"]] = dict(id=value["id"], mode="preflight-only", thread=observed["thread"],
+        binding_evidence=observed["binding_evidence"], environment=None, generation=None, runtime="unknown",
+        checkpoint=None, observation=None, accepted=None, preflight_contract=copy.deepcopy(value), preflight_contract_digest=digest)
+
+
+def preflight_prompt(operation, execution_id):
+    return ("Read AGENTS.md and the current /advance skill. Read-only preflight/scouting on current main: inspect claims, "
+        "actual executor/environment/generation, resource limits, processes, recovery operations and build-slot state. "
+        "Report actual evidence and approval/authority blockers; preserve them. Choose one next unclaimed frontend resolution "
+        "defect and state its authored oracle, refusal controls and next gate. No builds, source edits, claim mutations or "
+        "publication this turn. Preserve held work and excluded reference-binding claim 6f99ec9. Stop with a preflight report "
+        "acknowledging operation " + operation + " / execution " + execution_id + ". Next authorized objective: /advance "
+        "with independent review and normal landing after actual readiness and selected-contract admission.")
+
+
+def preflight_intent(record, row, action, operation, parameters):
+    cloud = record["cloud"]
+    require(action == "follow_up" and parameters == dict(model="gpt-6.1-sol", reasoning="medium", phase="preflight"),
+            "preflight-only assignment cannot dispatch implementation or another action")
+    require(not row.get("approval_required"), "preflight cannot clear a known approval denial")
+    require(not any(op["assignment"] == row["id"] and op["request"]["action"] == "follow_up"
+                    for op in cloud["operations"].values()), "one-shot preflight already has an intent; reconcile")
+    value = row["preflight_contract"]
+    source = cloud["operations"][value["observed_operation"]]
+    observed = cloud["assignments"][value["observed_assignment"]]
+    require(not observed.get("approval_required"), "preflight cannot clear a known approval denial")
+    current = (observed.get("observation") or {}).get("structuredContent") or {}
+    turn = current.get("latestTurn") or {}
+    require(source["effect"] == "applied" and source["result"]["latestTurn"]["id"] == value["expected_turn"]
+            and current.get("threadId") == row["thread"] and turn.get("id") == value["expected_turn"]
+            and turn.get("status") == "completed" and turn.get("error") is None,
+            "preflight source observation changed")
+    execution_id = uuid.uuid4().hex
+    prompt = preflight_prompt(operation, execution_id)
+    request = dict(schema=1, operation=operation, execution_id=execution_id, assignment=row["id"], action=action,
+        tool=value["tool"], thread=row["thread"], environment=None, generation=None, parameters=copy.deepcopy(parameters),
+        runtime_arguments=dict(threadId=row["thread"], model="gpt-6.1-sol", thinking="medium", prompt=prompt),
+        contract=dict(id=row["id"], mode="preflight-only", authorization=copy.deepcopy(value)),
+        readiness_contract=None, readiness_gate=None, dependencies=[], reporting=cloud["capabilities"]["reporting"], created_utc=now())
+    cloud["operations"][operation] = dict(request=request, assignment=row["id"], effect="unknown", result=None)
+    return request
+
+
 def admit(record, manifest, snapshot, *, rolling_from=None):
     cloud = record["cloud"]
     require(cloud.get("capabilities", {}).get("mode") != "observational-only", "observational controller cannot admit compiler work")
@@ -459,7 +533,10 @@ def intent(record, assignment, action, operation, parameters):
     cloud = record["cloud"]
     row = cloud["assignments"][assignment]
     identifier(operation)
-    if row.get("mode") == "observational-only":
+    require(operation not in cloud["operations"], "operation already recorded; reconcile, never redispatch")
+    if row.get("mode") == "preflight-only" and action != "read":
+        return preflight_intent(record, row, action, operation, parameters)
+    if row.get("mode") in {"observational-only", "preflight-only"}:
         require(action == "read", "observational assignment permits only reads")
         require(isinstance(parameters, dict) and not set(parameters) - {"limit", "cursor"}, "only supported read parameters required")
         require(type(parameters.get("limit", 20)) is int and 0 < parameters.get("limit", 20) <= 100,
@@ -472,7 +549,7 @@ def intent(record, assignment, action, operation, parameters):
         request = dict(schema=1, operation=operation, execution_id=uuid.uuid4().hex, assignment=assignment,
             action="read", tool=cloud["capabilities"]["tools"]["read"], thread=row["thread"], environment=None, generation=None,
             parameters=copy.deepcopy(parameters), runtime_arguments=runtime_arguments,
-            contract=dict(id=assignment, mode="observational-only", thread=row["thread"], binding_evidence=row["binding_evidence"]),
+            contract=dict(id=assignment, mode=row["mode"], thread=row["thread"], binding_evidence=row["binding_evidence"]),
             readiness_contract=None, readiness_gate=None, dependencies=[], reporting=cloud["capabilities"]["reporting"], created_utc=now())
         cloud["operations"][operation] = dict(request=request, assignment=assignment, effect="unknown", result=None)
         return request
@@ -599,6 +676,8 @@ def dispatch_step(record, assignment, step):
     for field in ("tool", "thread", "environment", "generation", "contract", "readiness_contract", "readiness_gate", "dependencies", "reporting"):
         require(checked[field] == request[field], "prepared dispatch contract changed; reconcile")
     if "runtime_arguments" in request:
+        if record["cloud"]["assignments"][assignment].get("mode") == "preflight-only" and request["action"] == "follow_up":
+            checked["runtime_arguments"]["prompt"] = preflight_prompt(entry["operation"], request["execution_id"])
         require(checked["runtime_arguments"] == request["runtime_arguments"], "prepared observation arguments changed")
     entry["dispatched_utc"] = now()
     return dict(action="invoke_once", request=copy.deepcopy(request))
@@ -657,7 +736,16 @@ def ingest(record, envelope):
     effect = envelope.get("effect")
     require(effect in {"applied", "not_applied", "unknown"} and envelope.get("evidence"), "adapter effect evidence required")
     result = envelope.get("result", {})
-    if row.get("mode") == "observational-only":
+    if row.get("mode") == "preflight-only" and request["action"] == "follow_up":
+        if effect == "applied":
+            require(isinstance(result, dict) and result.get("threadId") == row["thread"], "preflight enqueue thread mismatch")
+        op.update(effect=effect, result=copy.deepcopy(result), receipt=digest, envelope=copy.deepcopy(envelope))
+        if envelope.get("approval_denied") is True:
+            require(effect == "not_applied" and result.get("error") and result.get("action"), "exact approval denial required")
+            row["approval_required"] = dict(operation=request["operation"], execution_id=request["execution_id"],
+                                            action=result["action"], error=result["error"])
+        return
+    if row.get("mode") in {"observational-only", "preflight-only"}:
         require(request["action"] == "read" and fresh(envelope) and envelope.get("revision") == record["revision"],
                 "stale observational read or unsupported action")
         if effect == "applied":
@@ -1075,8 +1163,15 @@ def plan(record):
     cloud = record["cloud"]
     rows = []
     for name, row in cloud["assignments"].items():
-        if row.get("mode") == "observational-only":
-            rows.append(dict(assignment=name, mode="observational-only", action="inspect_recorded_thread",
+        if row.get("mode") in {"observational-only", "preflight-only"}:
+            continuations = [op for op in cloud["operations"].values()
+                             if op["assignment"] == name and op["request"]["action"] == "follow_up"]
+            action = "inspect_recorded_thread" if row["mode"] == "observational-only" else "prepare_preflight"
+            if continuations:
+                action = "read_reconcile" if continuations[0]["effect"] == "unknown" else "await_preflight_report"
+            if row.get("approval_required"):
+                action = "required_approval"
+            rows.append(dict(assignment=name, mode=row["mode"], action=action,
                 thread=row["thread"], environment=None, generation=None, runtime="unknown", accepted=None,
                 observation=row["observation"], executor_readiness_verified=False,
                 steps=[step_status(record, name, step) for step in cloud.get("steps", {}).get(name, {})]))
@@ -1133,7 +1228,7 @@ def main(argv=None):
     parser.add_argument("--revision", type=int)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("status")
-    for name in ("init", "observe-existing", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "review-revision", "import-completion", "approval", "intent", "prepare-step", "dispatch-step", "save-step-result", "complete-step", "successor", "ingest", "cleanup-review", "accept"):
+    for name in ("init", "observe-existing", "admit-preflight", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "review-revision", "import-completion", "approval", "intent", "prepare-step", "dispatch-step", "save-step-result", "complete-step", "successor", "ingest", "cleanup-review", "accept"):
         command = commands.add_parser(name)
         command.add_argument("--input", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -1149,6 +1244,7 @@ def main(argv=None):
             def change(record):
                 if args.command == "init": initialize(record, value)
                 elif args.command == "observe-existing": observe_existing(record, value)
+                elif args.command == "admit-preflight": admit_preflight(record, value)
                 elif args.command == "admit": admit(record, value["manifest"], value["claims"])
                 elif args.command == "successor": successor(record, value)
                 elif args.command == "prepare-step": request.append(prepare_step(record, value))
