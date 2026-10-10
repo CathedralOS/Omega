@@ -5068,12 +5068,8 @@ pass/generics/contextual_static_machine_explicit_lifetime_application_exit check
 pass/generics/contextual_static_machine_lifetime_result_sources_exit checked 5390ms check-target:macos_arm64 @4d861e0d5cee+wt
 pass/generics/contextual_static_machine_universal_lifetime_application_exit checked 6780ms check-target:macos_arm64 @4d861e0d5cee+wt
 pass/traits/applied_qualified_signature_region_scope_exit checked 6566ms check-target:macos_arm64 @4d861e0d5cee+wt
-fail/generics/contextual_static_machine_ambiguous_carried_result rejected 979ms expected @4d861e0d5cee+wt
-	machine `pick` returns a view whose input `context` has an incomplete structural lifetime frontier
-	machine `apply` returns a view whose input `context` has an incomplete structural lifetime frontier
-	machine `Callback` returns a view whose input `context` has an incomplete structural lifetime frontier
+fail/generics/contextual_static_machine_ambiguous_carried_result rejected 485ms expected @84a8f6aeb4d6+wt
 	machine `apply$specialized$5cd7674055cbcc11$0` returns a view but takes 2 candidate ref inputs (`context carried source [Field(Handle { arena_index: 295, generation: 1 })]`, `item carried source []`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
-	machine `apply` returns a view borrowing the local `__hoist_14`, which does not outlive the call; return a borrow of an input parameter or `self` instead
 	machine `relay` returns a view borrowing the local `__hoist_15`, which does not outlive the call; return a borrow of an input parameter or `self` instead
 fail/generics/contextual_static_machine_captured_not_universal rejected 2161ms expected @4d861e0d5cee+wt
 	machine argument `probe` for `apply` does not refine `Callback`: fresh invocation lifetime telescope is not universally refined
@@ -5096,3 +5092,13 @@ fail/generics/contextual_static_machine_unused_lifetime rejected 1488ms expected
 	nested machine lifetime arguments do not match its complete declared telescope
 fail/generics/contextual_static_machine_wrong_lifetime_result_source rejected 1717ms expected @4d861e0d5cee+wt
 	machine argument `choose` for `apply` does not refine `Callback`: callable returned view has a different input-source relation
+pass/generics/contextual_static_machine_captured_operand_return_exit checked 2850ms check-target:macos_arm64 @84a8f6aeb4d6+wt
+pass/generics/contextual_static_machine_returned_view_local_exit checked 3638ms check-target:macos_arm64 @e681aea9cbbb+wt
+fail/generics/contextual_static_machine_returned_view_keeps_item_loan rejected 506ms expected @84a8f6aeb4d6+wt
+	statement 4 mutates `right` while local borrow `result` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/generics/contextual_static_machine_returned_view_local_escape rejected 412ms expected @84a8f6aeb4d6+wt
+	machine `apply` returns a view borrowing the local `local`, which does not outlive the call; return a borrow of an input parameter or `self` instead
+fail/generics/contextual_static_machine_fresh_result_access_escalation rejected 1196ms expected @e681aea9cbbb+wt
+	machine `Callback` returns a view whose access cannot be supplied by matching input `item`
+fail/generics/contextual_static_machine_nested_fresh_result_access_escalation rejected 1198ms expected @e681aea9cbbb+wt
+	machine `Inner` returns a view whose access cannot be supplied by matching input `item`

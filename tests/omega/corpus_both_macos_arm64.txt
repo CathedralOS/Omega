@@ -762,3 +762,5 @@ pass/generics/contextual_static_machine_explicit_lifetime_application_exit built
 pass/generics/contextual_static_machine_lifetime_result_sources_exit built 6475ms exit:0 interpreter-exit:0 interpreter:agrees @4d861e0d5cee+wt
 pass/generics/contextual_static_machine_universal_lifetime_application_exit built 6443ms exit:0 interpreter-exit:0 interpreter:agrees @4d861e0d5cee+wt
 pass/traits/applied_qualified_signature_region_scope_exit built 6255ms exit:0 interpreter-exit:0 interpreter:agrees @4d861e0d5cee+wt
+pass/generics/contextual_static_machine_captured_operand_return_exit built 2923ms exit:0 interpreter-exit:0 interpreter:agrees @84a8f6aeb4d6+wt
+pass/generics/contextual_static_machine_returned_view_local_exit built 4858ms exit:0 interpreter-exit:0 interpreter:agrees @e681aea9cbbb+wt

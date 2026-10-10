@@ -1,0 +1,1 @@
+mutates `right` while local borrow `result` is still active

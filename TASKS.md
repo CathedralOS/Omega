@@ -2624,14 +2624,11 @@ crash and native exit behavior.
     the explicit refusal of unjoined evidence member references in signature
     payloads until their namespace and member-local telescope are represented;
     generic specification-call denotation is a separate prerequisite.
-    Remaining returned-view frontier on macOS ARM64:
-    `omega run --both tests/omega/pending/generics/contextual_static_machine_captured_operand_return_exit/main.omg`
-    refuses the generic Context inputs' incomplete structural lifetime frontiers
-    and attributes Callback's result to a hoisted local. Stage04's declaration
-    judgment must retain template-dependent source obligations and settle exact
-    instantiated input loans, not assert Context is view-free. The consumer's
-    output explicitly relates to its item; the elided variant must still reject
-    its two candidate inputs. Preserve the explicit/universal lifetime, captured
+    Preserve `generics/contextual_static_machine_captured_operand_return_exit`
+    and `generics/contextual_static_machine_returned_view_local_exit` through
+    both engines, with returned-item loan and local-escape rejection controls.
+    The elided consumer variant must still reject its two candidate inputs.
+    Preserve the explicit/universal lifetime, captured
     operand, two-source result and elided-result callback fixtures through both
     engines. Fresh/captured identity (including phantom and reference-descendant
     regions), complete tuples and exact result sources remain independent

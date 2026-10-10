@@ -31,6 +31,85 @@ struct ContractFrontier {
     sources: ViewReturnSource,
 }
 
+/// A requirement's invocation binders are fresh with respect to its captured
+/// Type operands. Their unknown leaves cannot supply a fresh returned region,
+/// but they are not view-free: concrete captured leaves and every non-fresh
+/// result still require the ordinary complete source relation. Requirement-local
+/// Type parameters are deliberately absent from this captured roster.
+pub(super) fn resolve_invocation_view_return_source(
+    program: &dyn crate::CheckingInput,
+    contract: CallableBorrowContract<'_>,
+    scope_starts: &[usize],
+) -> ViewReturnSource {
+    let captured_types = captured_type_parameters(program, contract.lexical_owner);
+    let incomplete = || {
+        ViewReturnSource::Ambiguous(super::ViewReturnAmbiguity::IncompleteStructure {
+            subject: "invocation contract".to_owned(),
+        })
+    };
+    // Never publish a partial output frontier. Only the *inputs* captured
+    // before this fresh invocation may remain abstract.
+    if !super::substituted_result_frontier_is_complete(
+        program,
+        contract.return_type,
+        contract.substitutions,
+        scope_starts,
+    ) {
+        return incomplete();
+    }
+    let Ok(frontier) = contract_frontier(program, &contract, &captured_types, scope_starts) else {
+        return incomplete();
+    };
+    if frontier
+        .outputs
+        .iter()
+        .all(|leaf| matches!(leaf.lifetime, Some(RegionIdentity::Fresh(_))))
+    {
+        frontier.sources
+    } else {
+        super::resolve_substituted_view_return_source(
+            program,
+            contract.parameters,
+            contract.return_type,
+            contract.substitutions,
+            scope_starts,
+        )
+    }
+}
+
+fn captured_type_parameters(
+    program: &dyn crate::CheckingInput,
+    signature: SymbolHandle,
+) -> Vec<SymbolHandle> {
+    let mut captured = Vec::new();
+    // Start outside the queried telescope. A requirement-local Type is
+    // selected together with this invocation, not a captured environment.
+    let mut owner = program.symbols.get(signature).parent;
+    while owner.is_valid() {
+        let parameters = if let Some(contract) = program.retained_static_machine_contract(owner) {
+            program.state_signature_type_parameters(contract.signature())
+        } else if let Some(machine) = program.machine_by_symbol(owner) {
+            program.machine_type_parameters(machine)
+        } else if let Some(definition) = program.trait_definition_by_symbol(owner) {
+            program.trait_type_parameters(definition)
+        } else if let Some(conformance) = program.conformance_by_symbol(owner) {
+            program.conformance_type_parameters(conformance)
+        } else if let Some(definition) = program.data_definition_by_symbol(owner) {
+            program.data_type_parameters(definition)
+        } else if let Some((_, signature)) = program.trait_machine_signature(owner) {
+            program.state_signature_type_parameters(signature)
+        } else {
+            &[]
+        };
+        captured.extend(parameters.iter().filter_map(|parameter| {
+            matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                .then_some(parameter.symbol)
+        }));
+        owner = program.symbols.get(owner).parent;
+    }
+    captured
+}
+
 pub fn validate_callable_borrow_refinement(
     program: &dyn crate::CheckingInput,
     required: CallableBorrowContract<'_>,
@@ -44,8 +123,8 @@ pub fn validate_callable_borrow_refinement(
                 .then_some(parameter.symbol)
         })
         .collect::<Vec<_>>();
-    let required_frontier = contract_frontier(program, &required, &symbolic_parameters)?;
-    let actual_frontier = contract_frontier(program, &actual, &symbolic_parameters)?;
+    let required_frontier = contract_frontier(program, &required, &symbolic_parameters, &[0])?;
+    let actual_frontier = contract_frontier(program, &actual, &symbolic_parameters, &[0])?;
     if required_frontier.fresh_count != 0
         && required_frontier.fresh_count != actual_frontier.fresh_count
     {
@@ -107,6 +186,7 @@ fn contract_frontier(
     program: &dyn crate::CheckingInput,
     contract: &CallableBorrowContract<'_>,
     symbolic_parameters: &[SymbolHandle],
+    scope_starts: &[usize],
 ) -> Result<ContractFrontier, &'static str> {
     let arguments = captured_lifetimes(program, contract.argument_owner);
     let mut lifetimes = captured_lifetimes(program, contract.lexical_owner);
@@ -140,7 +220,7 @@ fn contract_frontier(
             program,
             reference,
             contract.substitutions,
-            &[0],
+            scope_starts,
             symbolic_parameters,
             &lifetimes,
             &arguments,

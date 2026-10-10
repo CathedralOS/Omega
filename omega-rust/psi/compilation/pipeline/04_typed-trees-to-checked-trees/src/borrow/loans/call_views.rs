@@ -106,6 +106,8 @@ pub(in crate::borrow) struct CallViewReturnContract<'program> {
     return_type: TypeReferenceHandle,
     pub(super) substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
     substitution_scope_starts: Vec<usize>,
+    requirement_signature: Option<&'program typed_trees::signature::StateSignature>,
+    argument_owner: SymbolHandle,
 }
 
 impl CallViewReturnContract<'_> {
@@ -113,6 +115,15 @@ impl CallViewReturnContract<'_> {
         &self,
         program: &dyn ::validation::CheckingInput,
     ) -> ViewReturnSource {
+        if let Some(signature) = self.requirement_signature {
+            return validation::borrow_contracts::resolve_applied_signature_view_return_source(
+                program,
+                signature,
+                &self.substitutions,
+                &self.substitution_scope_starts,
+                self.argument_owner,
+            );
+        }
         if self.substitutions.is_empty() {
             resolve_signature_view_return_source(program, self.parameters, self.return_type)
         } else {
@@ -184,7 +195,7 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<CallViewReturnContract<'program>> {
     let (caller, state) = validation::find_state(program, state_symbol)?;
-    let (parameters, return_type, substitutions, substitution_scope_starts) =
+    let (parameters, return_type, substitutions, substitution_scope_starts, requirement_signature) =
         if let Ok(Some(requirement)) =
             validation::named_conformance_target_requirement(program, caller, call.target_symbol)
         {
@@ -193,6 +204,7 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
                 requirement.signature.return_type,
                 requirement.application.substitutions,
                 requirement.application.substitution_scope_starts,
+                Some(requirement.signature),
             )
         } else {
             let (parameters, return_type, signature) =
@@ -209,13 +221,15 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
                     )
                 })
                 .unwrap_or_default();
-            (parameters, return_type, substitutions, vec![0])
+            (parameters, return_type, substitutions, vec![0], signature)
         };
     Some(CallViewReturnContract {
         parameters,
         return_type,
         substitutions,
         substitution_scope_starts,
+        requirement_signature,
+        argument_owner: caller.symbol,
     })
 }
 

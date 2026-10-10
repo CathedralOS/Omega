@@ -15,8 +15,8 @@ pub(super) struct CarriedLifetime {
     pub(super) access: language_semantics::ReferenceAccess,
 }
 
-/// Flow queries retain declaration spellings; callable refinement resolves
-/// them to fresh ordinals or captured declaration identities before walking.
+/// Ordinary flow queries retain declaration spellings. Callable refinement
+/// and invocation-family flow resolve fresh and captured declaration identities.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum RegionIdentity {
     Declared(String),
@@ -198,8 +198,9 @@ pub(super) fn substituted_carried_lifetimes(
 
 /// Known region leaves of a universal callable. Opaque type operands are
 /// compared by the caller's complete type-correspondence judgment, not
-/// asserted view-free. Flow queries pass an empty roster and still require
-/// complete concrete loan frontiers before attribution.
+/// asserted view-free. Ordinary flow queries require complete concrete loan
+/// frontiers. Invocation-family flow may exclude opaque captured inputs only
+/// for complete fresh outputs; the scoped contract owner proves that separation.
 pub(super) fn symbolic_carried_lifetimes(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,

@@ -14,8 +14,8 @@ use diagnostics::Diagnostic;
 
 use crate::borrow::view_link::{
     DeclarationLifetimeFrontier, ViewReturnAmbiguity, ViewReturnSource,
-    declaration_lifetime_frontier, resolve_signature_view_return_source,
-    resolve_view_return_source,
+    declaration_lifetime_frontier, resolve_applied_signature_view_return_source,
+    resolve_signature_view_return_source, resolve_view_return_source,
 };
 mod templates;
 
@@ -84,26 +84,14 @@ pub(super) fn check_view_return_elision(
                 .machine_parameter_contract_view(contract)
                 .expect("typed machine-parameter contract must retain a valid requirement identity")
                 .signature();
-            let mut signature_parameters = parameters.clone();
-            signature_parameters.extend(
-                program
-                    .state_signature_type_parameters(signature)
-                    .iter()
-                    .filter(|parameter| {
-                        matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                    })
-                    .map(|parameter| parameter.symbol),
-            );
-            if frontier_requires_application(
+            check_signature_tree(
                 program,
-                signature.return_type,
-                program.state_signature_parameters(signature),
-                &signature_parameters,
-            ) {
-                deferred.push(signature.symbol);
-                continue;
-            }
-            check_bodyless_signature(program, signature, diagnostics);
+                signature,
+                &parameters,
+                &mut deferred,
+                diagnostics,
+                &mut Vec::new(),
+            );
         }
     }
 
@@ -112,28 +100,104 @@ pub(super) fn check_view_return_elision(
             let parameters = program
                 .trait_type_parameters(trait_definition)
                 .iter()
-                .chain(program.state_signature_type_parameters(signature))
                 .filter(|parameter| {
                     matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
                 })
                 .map(|parameter| parameter.symbol)
                 .collect::<Vec<_>>();
-            if frontier_requires_application(
+            check_signature_tree(
                 program,
-                signature.return_type,
-                program.state_signature_parameters(signature),
+                signature,
                 &parameters,
-            ) {
-                // A template is not an executable lifetime contract. Every
-                // use that still selects this raw signature is fenced below;
-                // concrete machine instances retain the ordinary full check.
-                deferred.push(signature.symbol);
-                continue;
-            }
-            check_bodyless_signature(program, signature, diagnostics);
+                &mut deferred,
+                diagnostics,
+                &mut Vec::new(),
+            );
         }
     }
     templates::check_calls(program, &deferred, diagnostics);
+}
+
+fn check_signature_tree(
+    program: &dyn ::validation::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+    captured_types: &[symbols::SymbolHandle],
+    deferred: &mut Vec<symbols::SymbolHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+    active: &mut Vec<symbols::SymbolHandle>,
+) {
+    // Applied nominal preparation rejects recursive expansion, but an
+    // argument-free nominal contract may still point at its raw declaration.
+    // Only the active path is recursive: sibling applications need their own
+    // captured-scope judgment, not a global symbol-only visited exemption.
+    if active.contains(&signature.symbol) {
+        diagnostics.push(Diagnostic::error(
+            "unimplemented: recursive callable lifetime frontier requires cycle-aware applied telescopes",
+        ));
+        return;
+    }
+    active.push(signature.symbol);
+    let parameters = program.state_signature_type_parameters(signature);
+    let mut types = captured_types.to_vec();
+    types.extend(parameters.iter().filter_map(|parameter| {
+        matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+            .then_some(parameter.symbol)
+    }));
+    if !defer_signature_frontier(program, signature, &types, deferred, diagnostics) {
+        check_bodyless_signature(program, signature, diagnostics);
+    }
+    // Every retained contract is checked, not only a top-level callback slot.
+    // Descendants capture this telescope before binding their own fresh regions.
+    for parameter in parameters {
+        if let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
+            && let Some(contract) = program.machine_parameter_contract_view(contract)
+        {
+            check_signature_tree(
+                program,
+                contract.signature(),
+                &types,
+                deferred,
+                diagnostics,
+                active,
+            );
+        }
+    }
+    active.pop();
+}
+
+fn defer_signature_frontier(
+    program: &dyn ::validation::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+    type_parameters: &[symbols::SymbolHandle],
+    deferred: &mut Vec<symbols::SymbolHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if !frontier_requires_application(
+        program,
+        signature.return_type,
+        program.state_signature_parameters(signature),
+        type_parameters,
+    ) {
+        return false;
+    }
+    // Deferred structure is not deferred contradiction. Fresh invocation
+    // separation can already prove that a shared input cannot supply a mutable
+    // result, even while captured Context remains opaque and nobody calls it.
+    if let ViewReturnSource::Ambiguous(ambiguity) = resolve_applied_signature_view_return_source(
+        program,
+        signature,
+        &[],
+        &[0],
+        signature.symbol,
+    ) && !matches!(ambiguity, ViewReturnAmbiguity::IncompleteStructure { .. })
+    {
+        diagnostics.push(Diagnostic::error(ambiguity_message(
+            signature.name.as_str(),
+            &ambiguity,
+        )));
+    }
+    deferred.push(signature.symbol);
+    true
 }
 
 fn frontier_requires_application(
@@ -142,13 +206,25 @@ fn frontier_requires_application(
     parameters: &[typed_trees::signature::StateParameter],
     type_parameters: &[symbols::SymbolHandle],
 ) -> bool {
-    matches!(
-        declaration_lifetime_frontier(program, result, type_parameters),
-        DeclarationLifetimeFrontier::TemplateDependent { .. }
-    ) && parameters.iter().all(|parameter| {
-        declaration_lifetime_frontier(program, parameter.type_reference, type_parameters)
-            != DeclarationLifetimeFrontier::Incomplete
-    })
+    let result_frontier = declaration_lifetime_frontier(program, result, type_parameters);
+    let mut dependent = match result_frontier {
+        DeclarationLifetimeFrontier::Incomplete
+        | DeclarationLifetimeFrontier::Complete { has_borrows: false } => return false,
+        DeclarationLifetimeFrontier::Complete { has_borrows: true } => false,
+        DeclarationLifetimeFrontier::TemplateDependent { .. } => true,
+    };
+    for parameter in parameters {
+        match declaration_lifetime_frontier(program, parameter.type_reference, type_parameters) {
+            DeclarationLifetimeFrontier::Incomplete => return false,
+            DeclarationLifetimeFrontier::TemplateDependent { .. } => dependent = true,
+            DeclarationLifetimeFrontier::Complete { .. } => {}
+        }
+    }
+    // A known reference output still needs every input's applied frontier:
+    // an opaque Context may contain additional matching sources. Retain that
+    // obligation for the selected call rather than declaring Context view-free
+    // or rejecting its authored template as a malformed concrete signature.
+    dependent
 }
 
 fn check_bodyless_signature(

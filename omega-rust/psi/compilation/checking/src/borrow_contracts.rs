@@ -322,6 +322,42 @@ mod region_correspondence;
 pub(crate) use callable_refinement::lexical_region_owner;
 pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};
 
+/// Call admission and caller-side loans consume one applied requirement
+/// relation. Invocation binders retain their declaration identity independently
+/// of captured Type operands; ordinary requirements still need a full frontier.
+pub fn resolve_applied_signature_view_return_source(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    scope_starts: &[usize],
+    argument_owner: SymbolHandle,
+) -> ViewReturnSource {
+    if signature.lifetime_parameters.is_empty() {
+        return resolve_substituted_view_return_source(
+            program,
+            program.state_signature_parameters(signature),
+            signature.return_type,
+            substitutions,
+            scope_starts,
+        );
+    }
+    callable_refinement::resolve_invocation_view_return_source(
+        program,
+        CallableBorrowContract {
+            lexical_owner: signature.symbol,
+            lifetime_parameters: &signature.lifetime_parameters,
+            parameters: program.state_signature_parameters(signature),
+            return_type: signature.return_type,
+            substitutions,
+            binders: &[],
+            lifetime_bindings: &[],
+            argument_owner,
+            supplied_telescope: false,
+        },
+        scope_starts,
+    )
+}
+
 pub use carried_lifetimes::{
     DeclarationLifetimeFrontier, declaration_lifetime_frontier,
     substituted_result_frontier_is_complete, substituted_result_is_view_free,
