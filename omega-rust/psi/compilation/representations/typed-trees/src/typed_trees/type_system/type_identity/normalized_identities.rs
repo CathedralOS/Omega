@@ -46,14 +46,12 @@ impl TypeIdentityTable {
     /// The canonical handle for one rendered structural key, minting a slot
     /// the first time that key appears.
     pub fn intern(&mut self, text: &str) -> TypeIdentityId {
-        if let Some(interned) = self.slots.get(text) {
-            return *interned;
-        }
-        let interned = TypeIdentityId::from_slot(self.texts.len());
-        let text: Box<str> = text.into();
-        self.texts.push(text.clone());
-        self.slots.insert(text, interned);
-        interned
+        super::intern_boxed_text(
+            text,
+            &mut self.texts,
+            &mut self.slots,
+            TypeIdentityId::from_slot,
+        )
     }
 
     /// The retained rendering of one handle: diagnostics and artifact

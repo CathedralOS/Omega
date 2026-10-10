@@ -154,38 +154,33 @@ pub struct CallableIdentityTable {
 
 impl CallableIdentityTable {
     fn intern_path(&mut self, path: &str) -> CallablePathId {
-        if let Some(interned) = self.path_slots.get(path) {
-            return *interned;
-        }
-        let interned = CallablePathId::from_slot(self.paths.len());
-        let path: Box<str> = path.into();
-        self.paths.push(path.clone());
-        self.path_slots.insert(path, interned);
-        interned
+        super::intern_boxed_text(
+            path,
+            &mut self.paths,
+            &mut self.path_slots,
+            CallablePathId::from_slot,
+        )
     }
 
     fn intern_parameters(&mut self, parameters: &str) -> CallableParametersId {
-        if let Some(interned) = self.parameter_slots.get(parameters) {
-            return *interned;
-        }
-        let interned = CallableParametersId::from_slot(self.parameters.len());
-        let parameters: Box<str> = parameters.into();
-        self.parameters.push(parameters.clone());
-        self.parameter_slots.insert(parameters, interned);
-        interned
+        super::intern_boxed_text(
+            parameters,
+            &mut self.parameters,
+            &mut self.parameter_slots,
+            CallableParametersId::from_slot,
+        )
     }
 
     fn intern_result_dispatch(
         &mut self,
         result_dispatch: NormalizedResultDispatchSet,
     ) -> CallableResultDispatchId {
-        if let Some(interned) = self.result_dispatch_slots.get(&result_dispatch) {
-            return *interned;
-        }
-        let interned = CallableResultDispatchId::from_slot(self.result_dispatches.len());
-        self.result_dispatches.push(result_dispatch.clone());
-        self.result_dispatch_slots.insert(result_dispatch, interned);
-        interned
+        super::intern_owned(
+            result_dispatch,
+            &mut self.result_dispatches,
+            &mut self.result_dispatch_slots,
+            CallableResultDispatchId::from_slot,
+        )
     }
 
     fn intern(&mut self, parts: CallableIdentityParts) -> CallableIdentityId {

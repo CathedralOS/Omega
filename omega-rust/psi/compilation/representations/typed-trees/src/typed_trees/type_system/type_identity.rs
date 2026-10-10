@@ -892,3 +892,37 @@ fn callable_type_binders(
     );
     binders
 }
+
+fn intern_boxed_text<I: Copy, S: std::hash::BuildHasher>(
+    text: &str,
+    texts: &mut Vec<Box<str>>,
+    slots: &mut std::collections::HashMap<Box<str>, I, S>,
+    mint: impl Fn(usize) -> I,
+) -> I {
+    if let Some(interned) = slots.get(text) {
+        return *interned;
+    }
+    let interned = mint(texts.len());
+    let text: Box<str> = text.into();
+    texts.push(text.clone());
+    slots.insert(text, interned);
+    interned
+}
+
+fn intern_owned<K, I: Copy, S: std::hash::BuildHasher>(
+    value: K,
+    values: &mut Vec<K>,
+    slots: &mut std::collections::HashMap<K, I, S>,
+    mint: impl Fn(usize) -> I,
+) -> I
+where
+    K: Eq + std::hash::Hash + Clone,
+{
+    if let Some(interned) = slots.get(&value) {
+        return *interned;
+    }
+    let interned = mint(values.len());
+    values.push(value.clone());
+    slots.insert(value, interned);
+    interned
+}
