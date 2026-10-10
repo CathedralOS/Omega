@@ -11,6 +11,7 @@ use super::{
     CheckedComposedUnitControlMachinePlan, claims, edges, entry_aliases, exclusive_handoffs,
     topology,
 };
+use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
 pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
     /// Entry-state successor-closure mask over the full `plan.states` roster;
@@ -34,7 +35,7 @@ pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
     /// loan every arrival forwards (`exclusive_handoffs`).
     pub(super) exclusive_handoffs: Vec<std::collections::BTreeSet<u32>>,
     pub(in crate::unit::attached_unit::composed_control) boundaries:
-        Vec<(&'a CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>,
+        Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>,
 }
 
 pub(in crate::unit::attached_unit) fn admit<'a>(

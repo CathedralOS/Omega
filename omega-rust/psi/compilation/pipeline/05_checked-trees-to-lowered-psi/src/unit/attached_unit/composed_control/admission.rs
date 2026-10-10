@@ -4,6 +4,7 @@
 use super::super::{CheckedBoundaryMachinePlan, CheckedUnitEffectOperationPlan, unsupported};
 use super::{CheckedTrees, LoweringError};
 use crate::unit::attached_unit::bodies::UnitPlans;
+use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
 /// A composed graph does not lower an attachment or its provider fields yet:
 /// stage 04 can plan them (`checked_composed_provider_attachment_requirements`),
@@ -23,7 +24,7 @@ pub(super) fn reject_attachment(
 pub(super) fn admit_calls<'a>(
     checked: &'a CheckedTrees,
     call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
-) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>, LoweringError> {
+) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>, LoweringError> {
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut boundaries = Vec::new();
     for state in call_states.iter().copied() {
@@ -64,7 +65,7 @@ pub(super) fn admit_calls<'a>(
             }
         }
     }
-    boundaries.sort_by(|left, right| left.1.cmp(&right.1));
+    boundaries.sort_by_key(|(_, identity)| identity.order_key());
     if boundaries.windows(2).any(|pair| pair[0].1 == pair[1].1) {
         return unsupported("composed Unit boundaries have duplicate canonical identities");
     }

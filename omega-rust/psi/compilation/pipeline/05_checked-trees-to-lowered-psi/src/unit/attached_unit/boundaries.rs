@@ -20,6 +20,7 @@ use super::{
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::terminal_identities::value_id;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
+use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use crate::unit::attached_unit::catalog::lower_program_local_root_introductions;
 use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 
@@ -28,7 +29,7 @@ use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 /// `next_place`.
 pub(crate) fn lower_declarations(
     checked: &CheckedTrees,
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[StructuralDomainBinding],
@@ -92,7 +93,7 @@ pub(crate) fn lower_declarations(
                 &plan.structural_parameters,
             )?,
             id,
-            identity: checked.typed.callable_identity_text(*identity),
+            identity: identity.render(checked)?,
             attachment: plan
                 .attachment_type_identity
                 .as_ref()
@@ -371,7 +372,7 @@ pub(super) fn lower_boundary_result(
 pub(crate) fn retain_unit_boundary<'plans>(
     checked: &CheckedTrees,
     plans: UnitPlans<'plans>,
-    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>,
+    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, BoundaryIdentity)>,
     machine: symbols::SymbolHandle,
 ) -> Result<(), LoweringError> {
     let target = unique_unit_boundary(plans, machine)?;

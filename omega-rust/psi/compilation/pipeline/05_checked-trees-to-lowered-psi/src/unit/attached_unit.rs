@@ -46,6 +46,7 @@ use super::{
 };
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
+use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
 // The closure `lower_unit_closure` assembles: body and callee discovery,
 // admission, providers, catalogs, boundaries, claims and signatures.
@@ -190,14 +191,24 @@ pub(crate) fn lower_unit_closure(
 
     // Admission: retain every checked body and every boundary the closure
     // calls, then the catalog roots its callees and providers name.
-    let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)>::new();
+    let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, BoundaryIdentity)>::new();
     for symbol in call_catalog.boundaries {
         retain_unit_boundary(checked, plans, &mut boundaries, symbol)?;
     }
     let admitted_bodies = admission::admit(checked, plans, &closure, &mut boundaries)?;
-    boundaries.sort_by(|left, right| left.1.cmp(&right.1));
-    if boundaries.windows(2).any(|pair| pair[0].1 == pair[1].1) {
-        return unsupported("boundary Unit closure contains duplicate canonical identities");
+    boundaries.sort_by_key(|(_, identity)| identity.order_key());
+    if let Some(pair) = boundaries.windows(2).find(|pair| pair[0].1 == pair[1].1) {
+        return Err(LoweringError::InvalidUnitMachinePlan {
+            machine: format!(
+                "{} and {} ({:?}: {})",
+                checked.symbols.display_path(pair[0].0.machine, "::"),
+                checked.symbols.display_path(pair[1].0.machine, "::"),
+                pair[0].1,
+                pair[0].1.render(checked)?
+            ),
+            reason: "boundary Unit closure contains duplicate canonical identities",
+            gap: None,
+        });
     }
 
     // Shared namespaces: every emitted machine resolves types, domains, and

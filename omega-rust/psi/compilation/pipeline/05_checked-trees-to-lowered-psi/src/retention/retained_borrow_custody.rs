@@ -49,9 +49,8 @@ fn lower_custody(
     let [signature] = requirements.as_slice() else {
         return unsupported("retained-borrow callable is not one exact boundary requirement");
     };
-    let callable_identity = checked
-        .typed
-        .callable_identity_text(checked_unit_boundary_identity(checked, fact.callable)?);
+    let callable_identity =
+        checked_unit_boundary_identity(checked, fact.callable)?.render(checked)?;
     let callable_lifetime_parameter_count = u32::try_from(signature.lifetime_parameters.len())
         .map_err(|_| {
             LoweringError::Unsupported("retained-borrow callable lifetime count exceeds u32")

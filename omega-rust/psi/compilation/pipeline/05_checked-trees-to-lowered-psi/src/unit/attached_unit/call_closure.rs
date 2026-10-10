@@ -7,6 +7,41 @@ use super::{
     UnitBody, unsupported,
 };
 use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
+use typed_trees::type_identity::CallableIdentityId;
+
+/// Installation requirements share an overload identity across target bodies.
+/// Foreign leaves instead name physical declarations: sibling leaves may have
+/// that same overload but remain distinct imports in the portable artifact.
+/// Keep both relationships as handles; text is only their exported spelling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BoundaryIdentity {
+    Requirement(CallableIdentityId),
+    ForeignLeaf(symbols::SymbolHandle),
+}
+
+impl BoundaryIdentity {
+    pub(super) fn order_key(self) -> (bool, CallableIdentityId, u32, u32) {
+        match self {
+            Self::Requirement(callable) => (false, callable, 0, 0),
+            Self::ForeignLeaf(declaration) => (
+                true,
+                CallableIdentityId::default(),
+                declaration.arena_index(),
+                declaration.generation(),
+            ),
+        }
+    }
+
+    pub(crate) fn render(self, checked: &CheckedTrees) -> Result<String, LoweringError> {
+        match self {
+            Self::Requirement(callable) => Ok(checked.typed.callable_identity_text(callable)),
+            Self::ForeignLeaf(declaration) => Ok(unique_terminal_selection(checked, declaration)?
+                .name
+                .clone()),
+        }
+    }
+}
+
 pub(crate) fn checked_unit_call_closure_including(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
@@ -35,9 +70,7 @@ pub(crate) fn checked_unit_call_closure_including(
                 closure.push(target);
             }
         }
-        for cleanup in
-            crate::unit::unit_cleanup::continuation_cleanups(machine.operations())
-        {
+        for cleanup in crate::unit::unit_cleanup::continuation_cleanups(machine.operations()) {
             if !closure.contains(&cleanup.cleanup_machine) {
                 closure.push(cleanup.cleanup_machine);
             }
@@ -156,7 +189,7 @@ fn unique_terminal_selection(
 pub(crate) fn checked_unit_boundary_identity(
     checked: &CheckedTrees,
     symbol: symbols::SymbolHandle,
-) -> Result<typed_trees::type_identity::CallableIdentityId, LoweringError> {
+) -> Result<BoundaryIdentity, LoweringError> {
     let requirements = checked
         .typed
         .traits()
@@ -176,7 +209,7 @@ pub(crate) fn checked_unit_boundary_identity(
             .typed
             .trait_requirement_callable_identity(definition, signature);
         if identity.is_valid() {
-            return Ok(identity);
+            return Ok(BoundaryIdentity::Requirement(identity));
         }
     }
     // Top-level installation dependencies are keyed by the normalized machine
@@ -194,7 +227,7 @@ pub(crate) fn checked_unit_boundary_identity(
         }
         let identity = checked.typed.machine_callable_identity(requirement);
         if identity.is_valid() {
-            return Ok(identity);
+            return Ok(BoundaryIdentity::Requirement(identity));
         }
         return unsupported("top-level boundary has no normalized machine overload identity");
     }
@@ -204,34 +237,20 @@ pub(crate) fn checked_unit_boundary_identity(
         .iter()
         .find(|operator| operator.is_boundary && operator.symbol == symbol)
     {
-        return Ok(checked.typed.callable_identity_by_text(
-            &typed_trees::operator::boundary_operator_requirement_identity(
-                &checked.typed,
-                operator,
+        return Ok(BoundaryIdentity::Requirement(
+            checked.typed.callable_identity_by_text(
+                &typed_trees::operator::boundary_operator_requirement_identity(
+                    &checked.typed,
+                    operator,
+                ),
             ),
         ));
     }
-    // A bodyless selection proves this declaration belongs to the closure,
-    // but its name is diagnostic payload, not callable identity. Rejoin the
-    // exact declaration's overload telescope; rehydrating a display path loses
-    // identity when overload identities are interned.
-    unique_terminal_selection(checked, symbol)?;
-    let mut declarations = checked
-        .typed
-        .machines()
-        .iter()
-        .filter(|machine| machine.symbol == symbol);
-    let Some(declaration) = declarations.next() else {
-        return unsupported("boundary selection has no machine declaration");
-    };
-    if declarations.next().is_some() {
-        return unsupported("boundary selection has ambiguous machine declarations");
-    }
-    let identity = checked.typed.machine_callable_identity(declaration);
-    if !identity.is_valid() {
-        return unsupported("boundary declaration has no normalized callable identity");
-    }
-    Ok(identity)
+    // A foreign import names this physical declaration, not its portable
+    // overload. Its display spelling is an export payload, never a lookup
+    // into the canonical callable-identity table.
+    unique_terminal_selection(checked, symbol)
+        .map(|selection| BoundaryIdentity::ForeignLeaf(selection.machine))
 }
 
 /// The machine an ordinary call enters inside the Unit roster: every ordinary

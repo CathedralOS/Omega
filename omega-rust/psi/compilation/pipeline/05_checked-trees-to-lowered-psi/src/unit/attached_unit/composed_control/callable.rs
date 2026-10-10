@@ -9,6 +9,7 @@ use super::super::{
 };
 use super::{CheckedTrees, LoweringError, catalogs, scalar_calls, state_graph};
 use crate::terminal_identities::StructuralDomainBinding;
+use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use crate::unit::attached_unit::signatures::{self, MachineSignature};
 use std::borrow::Cow;
 
@@ -17,7 +18,7 @@ pub(in crate::unit::attached_unit) type CallableBody<'a> = state_graph::Admitted
 impl<'a> CallableBody<'a> {
     pub(in crate::unit::attached_unit) fn boundaries(
         &self,
-    ) -> &[(&'a CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)] {
+    ) -> &[(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)] {
         &self.boundaries
     }
 }

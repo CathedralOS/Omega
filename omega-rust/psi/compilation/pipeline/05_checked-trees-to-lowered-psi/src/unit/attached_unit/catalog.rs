@@ -22,6 +22,7 @@ use crate::terminal_identities::byte_view_element_identity;
 use crate::terminal_identities::{
     StructuralDomainBinding, lookup_domain_id_for_carrier, structural_domain_identity,
 };
+use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
 use terminal_psi::StructuralReferentIdentity;
 use typed_trees::type_identity::TypeIdentityId;
@@ -185,7 +186,7 @@ fn establishes_byte_element_view(
 pub(super) fn lower_program_local_root_introductions(
     checked: &CheckedTrees,
     plan: &CheckedBoundaryMachinePlan,
-    requirement_identity: typed_trees::type_identity::CallableIdentityId,
+    requirement_identity: BoundaryIdentity,
     parameters: &[StructuralParameterDeclaration],
     domain_ids: &[StructuralDomainBinding],
 ) -> Result<Vec<ProgramLocalRootIntroductionSchema>, LoweringError> {
@@ -272,9 +273,7 @@ pub(super) fn lower_program_local_root_introductions(
         };
         schema.compatibility_report_identity =
             program_local_root_introduction_compatibility_report_identity(
-                &checked
-                    .typed
-                    .callable_identity_text(requirement_identity),
+                &requirement_identity.render(checked)?,
                 &qualification_identity,
                 &checked
                     .type_identity_text(parameter.type_identity)
@@ -297,7 +296,7 @@ pub(super) fn lower_unit_structural_types(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
 ) -> Result<
     (
         Vec<StructuralTypeDeclaration>,
@@ -313,7 +312,7 @@ pub(super) fn lower_unit_structural_types_including(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     additional_roots: &[typed_trees::type_identity::TypeIdentityId],
 ) -> Result<
     (
@@ -804,7 +803,7 @@ pub(super) fn lower_unit_structural_domains(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
 ) -> Result<
     (
@@ -1181,7 +1180,7 @@ pub(super) fn lower_unit_services(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     provider_candidates: &[CheckedUnitProviderCandidate],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
     lower_unit_services_including(
@@ -1198,7 +1197,7 @@ pub(super) fn lower_unit_services_including(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
-    boundaries: &[(&CheckedBoundaryMachinePlan, typed_trees::type_identity::CallableIdentityId)],
+    boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
     provider_candidates: &[CheckedUnitProviderCandidate],
     additional_roots: &[ServiceReachId],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
