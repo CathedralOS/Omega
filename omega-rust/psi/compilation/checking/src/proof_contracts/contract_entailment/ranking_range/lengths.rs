@@ -747,20 +747,6 @@ impl<'program> SliceCoordinates<'program> {
                 visit(member.receiver);
                 Some(())
             },
-            |node, visit| match node {
-                ExpressionNode::Indexed(indexed) => {
-                    visit(indexed.collection);
-                    visit(indexed.index);
-                }
-                ExpressionNode::Range(range) => {
-                    for endpoint in [range.start, range.end] {
-                        if endpoint.is_valid() {
-                            visit(endpoint);
-                        }
-                    }
-                }
-                _ => {}
-            },
         )
     }
 

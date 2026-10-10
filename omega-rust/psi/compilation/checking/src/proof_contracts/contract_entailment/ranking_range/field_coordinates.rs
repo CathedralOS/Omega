@@ -3,8 +3,8 @@
 //! unique, nominally checked arrival role. Record ancestry alone never proves
 //! copy equality.
 use super::{
-    BTreeMap, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
-    RankingRangeState, State, fields, projections,
+    BTreeMap, Comparison, Engine, ExpressionHandle, Machine, Polynomial, RankingRangeState, State,
+    fields, projections,
 };
 use fields::FieldCoordinate;
 use symbols::SymbolHandle;
@@ -92,12 +92,6 @@ impl<'program> FieldCoordinates<'program> {
                 }
                 visit(member.receiver);
                 Some(())
-            },
-            |node, visit| {
-                if let ExpressionNode::Range(range) = node {
-                    visit(range.start);
-                    visit(range.end);
-                }
             },
         )
     }
