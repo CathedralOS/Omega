@@ -4,7 +4,7 @@
 
 
 
-pub(crate) use optimization_core::codec_bytes::{patch_encoded, push_encoded};
+pub(crate) use optimization_core::codec_bytes::{push_encoded};
 /// u64 length prefix. `artifact` keeps each encoder's own panic text.
 pub(crate) fn length(bytes: &mut Vec<u8>, value: usize, artifact: &'static str) {
     bytes.extend_from_slice(

@@ -4,7 +4,7 @@
 
 
 
-pub(crate) use optimization_core::codec_bytes::{patch_encoded, push_encoded};
+pub(crate) use optimization_core::codec_bytes::{push_encoded};
 /// Write a fixed-width little-endian encoding at `offset` inside `bytes`.
 
 
