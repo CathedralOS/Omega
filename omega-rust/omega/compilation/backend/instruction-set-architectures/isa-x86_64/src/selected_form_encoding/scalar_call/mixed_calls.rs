@@ -61,8 +61,7 @@ fn every_mixed_unit_call_row_has_exact_template_operands_and_effects() {
         ),
     ] {
         for key in keys {
-            let row = catalog.constraint(key)
-                .unwrap();
+            let row = catalog.constraint(key).unwrap();
             let operands = row
                 .operands
                 .iter()

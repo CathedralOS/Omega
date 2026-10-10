@@ -315,9 +315,7 @@ fn encode_instruction(instruction: Instruction, bytes: &mut Vec<u8>) {
 /// Decode only the canonical instruction subset from opcode fields. Neither
 /// requested policy nor the producer's instruction plan is consulted.
 fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
-    let immediate = |offset| {
-        crate::codec_bytes::u32_at(bytes, offset)
-    };
+    let immediate = |offset| crate::codec_bytes::u32_at(bytes, offset);
     match bytes {
         [0x0f, 0x0b, tail @ ..] => Some((Instruction::Crash, tail)),
         [0x0f, condition @ (0x84 | 0x85), ..] => Some((

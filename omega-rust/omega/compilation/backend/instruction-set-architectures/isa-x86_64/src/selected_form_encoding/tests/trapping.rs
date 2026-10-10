@@ -260,7 +260,8 @@ fn trapping_forms_match_independent_assembler_for_every_form() {
     let rflags = physical.model().view_named("rflags").unwrap().units.clone();
     for (index, form) in TrappingForm::ALL.into_iter().enumerate() {
         let shape = TrappingShape::of(form);
-        let declared = &catalog.declaration_by_semantic(MachineSemanticKind::TrappingInteger(form))
+        let declared = &catalog
+            .declaration_by_semantic(MachineSemanticKind::TrappingInteger(form))
             .unwrap()
             .alternatives[0];
         for (high, table) in [(false, &CLANG_TRAPPING_LOW), (true, &CLANG_TRAPPING_HIGH)] {

@@ -32,7 +32,8 @@ fn operands(
         (*destination, *source)
     };
     let float_view = physical
-        .model().view(float)
+        .model()
+        .view(float)
         .ok_or(Error::UnknownOrNonGpr64View(float))?;
     let float_register = float_view
         .name

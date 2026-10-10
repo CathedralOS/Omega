@@ -29,7 +29,6 @@ pub(crate) mod ieee_float_arithmetic;
 mod scan_byte_sequence;
 mod zero_bytes;
 
-
 pub(crate) mod hosted_exit_process;
 pub(crate) mod hosted_read_byte;
 pub(crate) mod hosted_write_byte;
@@ -55,36 +54,75 @@ pub use branch_forms::{
     validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_short_nonzero_branch_form,
-    validate_x86_64_selected_u64_less_than_branch_form};
+    validate_x86_64_selected_u64_less_than_branch_form,
+};
 pub use hosted_write_byte::{
-    encode_x86_64_selected_hosted_write_byte_form, validate_x86_64_selected_hosted_write_byte_form};
+    encode_x86_64_selected_hosted_write_byte_form, validate_x86_64_selected_hosted_write_byte_form,
+};
 pub use jump::{encode_x86_64_selected_jump_form, validate_x86_64_selected_jump_form};
 pub use memory::{encode_x86_64_selected_memory_form, validate_x86_64_selected_memory_form};
-pub use normalized_foreign_call::{ X86_64CallbackAddressMaterialization,
-    X86_64CallbackMaterializationDestination, X86_64NormalizedForeignCallFixup,
-    X86_64NormalizedForeignCallFixupKind, X86_64NormalizedForeignCallFixupState,
-    X86_64NormalizedForeignCallTemplateError,
+pub use normalized_foreign_call::{
+    X86_64CallbackAddressMaterialization, X86_64CallbackMaterializationDestination,
+    X86_64NormalizedForeignCallFixup, X86_64NormalizedForeignCallFixupKind,
+    X86_64NormalizedForeignCallFixupState, X86_64NormalizedForeignCallTemplateError,
     encode_x86_64_selected_normalized_foreign_call_template,
-    validate_x86_64_selected_normalized_foreign_call_template};
+    validate_x86_64_selected_normalized_foreign_call_template,
+};
 pub use scalar_call::{
     X86_64ScalarCallFixup, X86_64ScalarCallFixupKind, X86_64ScalarCallFixupState,
     X86_64ScalarCallTemplateError, encode_x86_64_selected_dynamic_call_template,
-    encode_x86_64_selected_scalar_call_template, validate_x86_64_selected_scalar_call_template};
+    encode_x86_64_selected_scalar_call_template, validate_x86_64_selected_scalar_call_template,
+};
 
-
-use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+use register_model::{RegisterConstraintKey, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionKind, is_float_bit_transfer};
+    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
+    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior, SelectedInstructionKind, is_float_bit_transfer,
+};
+use target::NativeTarget;
 
 use crate::selected_form_encoding::decoding::{decode_all, footprint, validate_decoded};
 pub use crate::selected_form_encoding::instruction_bytes::X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET;
 use crate::selected_form_encoding::instruction_bytes::encode_unchecked;
 use crate::selected_form_encoding::request_validation::{
-    resolve_scalar_registers, validate_return_home};
+    resolve_scalar_registers, validate_return_home,
+};
 use crate::selected_form_encoding::request_validation::{
-    validate_alias_partition, validate_request};
+    validate_alias_partition, validate_request,
+};
+
+/// Shared single-alternative hosted declaration shell: the semantic/memory/
+/// trap/family identity plus caller-supplied size knowledge and encoding.
+pub(super) fn hosted_alternative_declaration(
+    constraint: RegisterConstraintKey,
+    semantic: MachineSemanticKind,
+    memory: MachineMemoryEffect,
+    trap: MachineTrapBehavior,
+    family: MachineAlternativeFamily,
+    size: MachineSizeKnowledge,
+    encoded: MachineEncodedEffects,
+) -> MachineEffectDeclaration {
+    MachineEffectDeclaration {
+        semantic,
+        constraint,
+        memory,
+        trap,
+        barrier: MachineBarrier::ExternalEffect,
+        call: MachineCallEffect::NoneV1,
+        cleanup: MachineCleanupEffect::NoneV1,
+        alternatives: vec![MachineAlternative {
+            key: MachineAlternativeKey { family, variant: 0 },
+            applicability: MachineAlternativeApplicability::Always,
+            size,
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded,
+        }],
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86_64SelectedFormFootprint {

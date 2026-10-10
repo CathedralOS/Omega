@@ -9,10 +9,10 @@ use register_model::RegisterConstraintKey;
 use selected_instructions::{
     LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior, SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -61,25 +61,15 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::HostedReadByte,
+    super::hosted_alternative_declaration(
         constraint,
-        memory: MachineMemoryEffect::HostedReadByteV1,
-        trap: MachineTrapBehavior::HostedReadFailureV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedReadByte,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(leaf_bytes(target)),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(),
-        }],
-    }
+        MachineSemanticKind::HostedReadByte,
+        MachineMemoryEffect::HostedReadByteV1,
+        MachineTrapBehavior::HostedReadFailureV1,
+        MachineAlternativeFamily::HostedReadByte,
+        MachineSizeKnowledge::ExactBytes(leaf_bytes(target)),
+        effects(),
+    )
 }
 
 fn request(

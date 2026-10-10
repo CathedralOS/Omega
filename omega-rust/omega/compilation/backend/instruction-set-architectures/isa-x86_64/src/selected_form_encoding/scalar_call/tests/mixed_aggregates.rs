@@ -38,9 +38,7 @@ fn mixed_aggregate_templates_replay_inputs_results_and_clobbers() {
                 })
                 .unwrap();
             let alternative = &declaration.alternatives[0];
-            let row = constraints
-                .catalog().constraint(key)
-                .unwrap();
+            let row = constraints.catalog().constraint(key).unwrap();
             let operands = row
                 .operands
                 .iter()

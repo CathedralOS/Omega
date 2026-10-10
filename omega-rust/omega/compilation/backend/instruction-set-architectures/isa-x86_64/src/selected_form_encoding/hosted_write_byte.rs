@@ -10,10 +10,10 @@ use register_model::RegisterConstraintKey;
 use selected_instructions::{
     LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior, SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -64,25 +64,15 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::HostedWriteByteI32,
+    super::hosted_alternative_declaration(
         constraint,
-        memory: MachineMemoryEffect::HostedWriteByteV1,
-        trap: MachineTrapBehavior::HostedWriteFailureV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedWriteByteI32,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(leaf_bytes(target)),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(),
-        }],
-    }
+        MachineSemanticKind::HostedWriteByteI32,
+        MachineMemoryEffect::HostedWriteByteV1,
+        MachineTrapBehavior::HostedWriteFailureV1,
+        MachineAlternativeFamily::HostedWriteByteI32,
+        MachineSizeKnowledge::ExactBytes(leaf_bytes(target)),
+        effects(),
+    )
 }
 
 fn request(

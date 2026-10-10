@@ -8,12 +8,11 @@ use super::{
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior, SelectedInstructionKind,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
+    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
+    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -49,25 +48,15 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> Result<MachineEffectDeclaration, X86_64SelectedFormEncodingError> {
-    Ok(MachineEffectDeclaration {
-        semantic: MachineSemanticKind::HostedExitProcessI32,
+    Ok(super::hosted_alternative_declaration(
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::HostedExitReturnedV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedExitProcessI32,
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(12),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: effects(target)?,
-        }],
-    })
+        MachineSemanticKind::HostedExitProcessI32,
+        MachineMemoryEffect::NoneV1,
+        MachineTrapBehavior::HostedExitReturnedV1,
+        MachineAlternativeFamily::HostedExitProcessI32,
+        MachineSizeKnowledge::ExactBytes(12),
+        effects(target)?,
+    ))
 }
 
 fn request(

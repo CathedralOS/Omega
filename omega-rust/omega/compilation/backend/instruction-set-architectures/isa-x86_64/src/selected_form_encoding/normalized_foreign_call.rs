@@ -16,7 +16,6 @@ use target::NativeTarget;
 
 use crate::machine_effects::x86_64_selected_abi;
 
-
 /// Callback-bearing rows place one address-materialization group per private
 /// callback destination before the call itself: a `lea <destination>,
 /// [rip+disp32]` for a private parameter slot, or a `lea r11,
