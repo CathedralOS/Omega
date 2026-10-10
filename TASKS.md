@@ -2974,6 +2974,11 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   retaining the count's own carrier; `arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit`
   and `arithmetic/immutable_unsigned_{shift_underbound,mask_false_floor,shift_invalid_count,shift_operand_overflow}_rejected`
   constrain full-width shift bounds independently of formation and false bounds.
+  Keep both selected Exact shift directions on the shared admitted-endpoint
+  range kernel, preserving left-shift value representability separately from
+  count validity; `arithmetic/runtime_exact_left_shift_bounds_exit` and
+  `arithmetic/exact_left_shift_{false_ceiling,false_floor,invalid_count,value_overflow}_rejected`
+  constrain wide unsigned and signed cross-zero bounds without clipping overflow.
   Preserve zero-product bounds for unbounded integer operands without erasing
   operand formation obligations; `arithmetic/runtime_unbounded_zero_product_exit`
   and `arithmetic/zero_product_operand_{overflow,division}_rejected` constrain

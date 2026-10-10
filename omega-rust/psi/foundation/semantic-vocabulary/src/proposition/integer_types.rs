@@ -645,16 +645,43 @@ impl IntegerType {
         count_type: IntegerType,
         count: (IntegerValue, IntegerValue),
     ) -> Option<(IntegerValue, IntegerValue)> {
+        self.exact_shift_bounds(value, count_type, count, Self::exact_shift_right)
+    }
+
+    /// Bound exact left shifts without losing unsigned ceilings or treating
+    /// the count as a value-carrier operand. All four corners must form under
+    /// the exact kernel: a valid count alone does not prove representability.
+    pub fn exact_shift_left_bounds(
+        self,
+        value: (IntegerValue, IntegerValue),
+        count_type: IntegerType,
+        count: (IntegerValue, IntegerValue),
+    ) -> Option<(IntegerValue, IntegerValue)> {
+        self.exact_shift_bounds(value, count_type, count, Self::exact_shift_left)
+    }
+
+    // Both exact shifts are monotone in the value and monotone in the count
+    // within each value sign region. Ordered, admitted endpoints therefore
+    // bound all interior results, including ranges that cross zero. Keep this
+    // hull shared, but let each exact value operation reject its own invalid
+    // count and (for left shift) unrepresentable result before publishing it.
+    fn exact_shift_bounds(
+        self,
+        value: (IntegerValue, IntegerValue),
+        count_type: IntegerType,
+        count: (IntegerValue, IntegerValue),
+        shift: fn(Self, IntegerValue, Self, IntegerValue) -> Option<IntegerValue>,
+    ) -> Option<(IntegerValue, IntegerValue)> {
         if self.compare(value.0, value.1)? == Ordering::Greater
             || count_type.compare(count.0, count.1)? == Ordering::Greater
         {
             return None;
         }
         let [Some(first), Some(second), Some(third), Some(fourth)] = [
-            self.exact_shift_right(value.0, count_type, count.0),
-            self.exact_shift_right(value.0, count_type, count.1),
-            self.exact_shift_right(value.1, count_type, count.0),
-            self.exact_shift_right(value.1, count_type, count.1),
+            shift(self, value.0, count_type, count.0),
+            shift(self, value.0, count_type, count.1),
+            shift(self, value.1, count_type, count.0),
+            shift(self, value.1, count_type, count.1),
         ] else {
             return None;
         };

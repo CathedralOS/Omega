@@ -179,11 +179,15 @@ fn integer(
             let (left_type, left) = left_eval?;
             let (right_type, right) = right_eval?;
             // A shift count has its own carrier; value arithmetic still requires
-            // matching operands. The selected Exact right-shift provider owns
+            // matching operands. The selected Exact shift provider owns
             // count landing and width validity independently of result bounds.
             if left_type != *primitive_type
                 || (right_type != *primitive_type
-                    && *kind != CheckedIntegerBinaryKind::ExactShiftRight)
+                    && !matches!(
+                        kind,
+                        CheckedIntegerBinaryKind::ExactShiftLeft
+                            | CheckedIntegerBinaryKind::ExactShiftRight
+                    ))
             {
                 return None;
             }
@@ -273,20 +277,25 @@ fn binary(
     right: IntegerRange,
 ) -> Option<IntegerRange> {
     use CheckedIntegerBinaryKind as Kind;
-    if kind == Kind::ExactShiftRight {
+    if matches!(kind, Kind::ExactShiftLeft | Kind::ExactShiftRight) {
         let carrier = crate::values::integer_type(primitive)?;
         let count_type = crate::values::integer_type(right_primitive)?;
-        let (low, high) = carrier.exact_shift_right_bounds(
-            (
-                crate::values::admitted_integer(carrier, &left.minimum)?,
-                crate::values::admitted_integer(carrier, &left.maximum)?,
-            ),
-            count_type,
-            (
-                crate::values::admitted_integer(count_type, &right.minimum)?,
-                crate::values::admitted_integer(count_type, &right.maximum)?,
-            ),
-        )?;
+        let value = (
+            crate::values::admitted_integer(carrier, &left.minimum)?,
+            crate::values::admitted_integer(carrier, &left.maximum)?,
+        );
+        let count = (
+            crate::values::admitted_integer(count_type, &right.minimum)?,
+            crate::values::admitted_integer(count_type, &right.maximum)?,
+        );
+        // Formation is separate from obtaining a finite hull. In particular,
+        // exact left shifts reject an overflowing corner instead of clipping
+        // it to the result carrier or borrowing right-shift totality.
+        let (low, high) = match kind {
+            Kind::ExactShiftLeft => carrier.exact_shift_left_bounds(value, count_type, count),
+            Kind::ExactShiftRight => carrier.exact_shift_right_bounds(value, count_type, count),
+            _ => None,
+        }?;
         return Some(IntegerRange {
             minimum: crate::values::integer_magnitude(low),
             maximum: crate::values::integer_magnitude(high),

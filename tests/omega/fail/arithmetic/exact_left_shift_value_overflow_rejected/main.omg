@@ -1,0 +1,3 @@
+machine invalid(value: u8[128..=255]) -> u8
+    ensures (value << 1u16) >= 0
+{ value << 1u16 }
