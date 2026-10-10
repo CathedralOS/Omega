@@ -208,6 +208,20 @@ pub fn settle_selected_execution(
             .package_inputs
             .and_then(|inputs| inputs.accepted_semantic_binding(role))
     };
+    let resolve_service_binding = |binding: Option<
+        &package_compilation::AcceptedSemanticBinding,
+    >| {
+        binding
+            .map(|binding| {
+                crate::resolve_accepted_service_binding(
+                    &checked.program,
+                    settlement.calling_plans,
+                    binding,
+                )
+            })
+            .transpose()
+            .map_err(|diagnostic| vec![diagnostic])
+    };
     let resolved_exit_bindings = crate::retain_selected_compiler_intrinsic_review_identities(
         &checked.program,
         settlement.calling_plans,
@@ -219,44 +233,22 @@ pub fn settle_selected_execution(
         accepted_binding(AcceptedSemanticBindingRole::ConsoleExitProcessI32),
         accepted_binding(AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
     )?;
-    let resolved_filesystem_binding =
-        accepted_binding(AcceptedSemanticBindingRole::FilesystemHostService)
-            .map(|binding| {
-                crate::resolve_accepted_service_binding(
-                    &checked.program,
-                    settlement.calling_plans,
-                    binding,
-                )
-            })
-            .transpose()
-            .map_err(|diagnostic| vec![diagnostic])?;
-    let resolved_time_host_binding = accepted_binding(AcceptedSemanticBindingRole::TimeHostService)
-        .map(|binding| {
-            crate::resolve_accepted_service_binding(
-                &checked.program,
-                settlement.calling_plans,
-                binding,
-            )
-        })
-        .transpose()
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let resolved_filesystem_binding = resolve_service_binding(accepted_binding(
+        AcceptedSemanticBindingRole::FilesystemHostService,
+    ))?;
+    let resolved_time_host_binding = resolve_service_binding(accepted_binding(
+        AcceptedSemanticBindingRole::TimeHostService,
+    ))?;
     // Package lookup is keyed by the exact role of this target's entry slot;
     // the coordinator no longer supplies a separately asserted expected role.
-    let resolved_entry_binding = settlement
-        .selected_target_profile
-        .map(|profile| profile.program_entry_slot())
-        .and_then(|slot| slot.physical_contract_package)
-        .map(package_compilation::program_entry_semantic_binding_role)
-        .and_then(accepted_binding)
-        .map(|binding| {
-            crate::resolve_accepted_service_binding(
-                &checked.program,
-                settlement.calling_plans,
-                binding,
-            )
-        })
-        .transpose()
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let resolved_entry_binding = resolve_service_binding(
+        settlement
+            .selected_target_profile
+            .map(|profile| profile.program_entry_slot())
+            .and_then(|slot| slot.physical_contract_package)
+            .map(package_compilation::program_entry_semantic_binding_role)
+            .and_then(accepted_binding),
+    )?;
     let task_activations = provider_planning::task_plans::elaborate_task_activation_plans(
         &checked.program,
         &checked.selected_provider_plan_facts,
