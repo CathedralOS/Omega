@@ -21,7 +21,7 @@ pub(crate) struct PreparedLoanCompletion {
     place: PlaceId,
     path: Vec<StructuralPathSegment>,
     multiplicity: StructuralMultiplicity,
-    claims: Vec<(PermissionClaimIdentity, Vec<StructuralPathSegment>)>,
+    claims: Vec<(PermissionClaimIdentity, Vec<StructuralPathSegment>, bool)>,
 }
 
 pub(crate) fn prepare(
@@ -96,8 +96,16 @@ pub(crate) fn prepare(
             let path = validation::structural_claim_path(&checked.typed, reference, event_path)
                 .map_err(LoweringError::Unsupported)?;
             let mut terminal_path = owner.path.clone();
-            terminal_path.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &path, structural_type, types)?);
-            claims.push((event.claim_identity, terminal_path));
+            terminal_path.extend(crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                identities, &path, structural_type, types,
+            )?);
+            let introduces = crate::emission::claim_bindings::claim_established_here(
+                machine,
+                coordinate.state,
+                coordinate.statement_index,
+                event,
+            );
+            claims.push((event.claim_identity, terminal_path, introduces));
         }
         completions.push(PreparedLoanCompletion {
             place: owner.place,
@@ -142,9 +150,15 @@ pub(crate) fn emit(
         let mut claims = completion
             .claims
             .iter()
-            .map(|(identity, path)| {
+            .map(|(identity, path, introduces)| {
+                let claim = calls.claims.receive_loan_completion_claim(*identity)?;
+                if *introduces {
+                    operations.claim_introductions.push(
+                        crate::emission::claim_bindings::ClaimIntroduction { operation, claim },
+                    );
+                }
                 Ok(StructuralResultClaimBinding {
-                    claim: calls.claims.receive_loan_completion_claim(*identity)?,
+                    claim,
                     path: path.clone(),
                 })
             })

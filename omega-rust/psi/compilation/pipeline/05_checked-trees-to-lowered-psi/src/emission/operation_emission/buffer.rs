@@ -196,6 +196,9 @@ impl CollectionLengthObservations {
 /// uses the historical one-based range; additional machines receive disjoint
 /// ranges when source call-closure production composes them.
 pub(crate) struct OperationBuffer {
+    pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
+    pub(crate) selected_cleanup_groups:
+        Vec<crate::emission::selected_continuations::SelectedCleanupGroup>,
     pub(crate) external_completion: Option<PendingExternalCompletion>,
     /// Authored structural bindings may complete at a control join rather than
     /// a call operation. Keep those places in the same state-local namespace.
@@ -225,6 +228,44 @@ pub(crate) struct OperationBuffer {
 }
 
 impl OperationBuffer {
+    /// Calls introduce the returned caller-local names except exact input
+    /// claims their checked transfer roster forwards through this invocation.
+    pub(crate) fn push(&mut self, operation: Operation) {
+        use crate::emission::claim_bindings::ClaimIntroduction;
+        let transferred = match &operation.kind {
+            OperationKind::CallDynamic {
+                claim_transfers, ..
+            }
+            | OperationKind::CallUnit {
+                claim_transfers, ..
+            }
+            | OperationKind::CallStructuralScalar {
+                claim_transfers, ..
+            }
+            | OperationKind::CallStructural {
+                claim_transfers, ..
+            }
+            | OperationKind::CallStructuralWithScalarArguments {
+                claim_transfers, ..
+            } => Some(claim_transfers.as_slice()),
+            OperationKind::Call { .. } | OperationKind::BoundaryCall { .. } => Some(&[][..]),
+            _ => None,
+        };
+        if let (Some(transferred), Some(result)) = (transferred, operation.result.as_structural()) {
+            self.claim_introductions.extend(
+                result
+                    .claims
+                    .iter()
+                    .filter(|binding| !transferred.iter().any(|input| input.claim == binding.claim))
+                    .map(|binding| ClaimIntroduction {
+                        operation: operation.id,
+                        claim: binding.claim,
+                    }),
+            );
+        }
+        self.operations.push(operation);
+    }
+
     /// Publish the claims transported by completed constructor operands.
     /// The operation owns the result home; its receiving binding is separate.
     pub(crate) fn set_structural_result_claims(
@@ -284,6 +325,8 @@ impl OperationBuffer {
             selected_ieee_float_comparisons: Vec::new(),
             selected_integer_comparisons: Vec::new(),
             source_checked_obligations: Vec::new(),
+            claim_introductions: Vec::new(),
+            selected_cleanup_groups: Vec::new(),
         }
     }
 
@@ -304,7 +347,7 @@ impl OperationBuffer {
         kind: OperationKind,
     ) -> OperationId {
         let id = self.allocate();
-        self.operations.push(Operation {
+        self.push(Operation {
             static_reach_binding: None,
             suspension_crossing: None,
             id,

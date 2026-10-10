@@ -495,7 +495,9 @@ impl OperationKind {
             | Self::ElementViewSubslice { source, .. } => {
                 paths.push(&mut source.path);
             }
-            Self::PrimitiveScalarRead { path, .. }
+            Self::ReleaseReference { path, .. }
+            | Self::ElementViewWrite { path, .. }
+            | Self::PrimitiveScalarRead { path, .. }
             | Self::ElementViewRead { path, .. }
             | Self::AtomicAccess { path, .. }
             | Self::WriteOnlyPrimitiveStore { path, .. }

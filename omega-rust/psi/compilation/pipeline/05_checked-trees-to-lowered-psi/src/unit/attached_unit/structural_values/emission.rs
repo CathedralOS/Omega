@@ -74,6 +74,7 @@ pub(crate) fn emit(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
     result_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
+    direct_establishments: Vec<semantic_vocabulary::ClaimId>,
 ) -> Result<Option<StructuralPlaceDeclaration>, LoweringError> {
     let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
         result,
@@ -230,6 +231,7 @@ pub(crate) fn emit(
         published_places: Vec::new(),
         arrival_claims: Vec::new(),
         completion_claims: result_claims.clone(),
+        direct_establishments,
     };
     // An owned projection of an already established place transfers one child
     // and preserves the remaining siblings
@@ -479,7 +481,12 @@ pub(crate) fn emit(
     if let StructuralPlaceKind::OperationResult { .. } = completed_declaration.kind
         && !result_claims.is_empty()
     {
-        Emission::bind_completion_claims(emission.operations, place, &result_claims)?;
+        Emission::bind_completion_claims(
+            emission.operations,
+            place,
+            &result_claims,
+            &emission.direct_establishments,
+        )?;
     }
     let completed = completed_storage::completed_result(
         place,
@@ -824,6 +831,7 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     /// its parent can consume it; attaching claims only to the outermost result
     /// would create them after the actual establishment.
     completion_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
+    direct_establishments: Vec<semantic_vocabulary::ClaimId>,
 }
 
 pub(super) struct ValueContinuation {
@@ -881,12 +889,15 @@ impl Emission<'_, '_, '_> {
         operations: &mut OperationBuffer,
         place: PlaceId,
         claims: &[terminal_psi::StructuralResultClaimBinding],
+        direct_establishments: &[semantic_vocabulary::ClaimId],
     ) -> Result<(), LoweringError> {
-        let produced = operations
+        let (operation, kind, produced) = operations
             .operations
             .iter_mut()
             .find_map(|operation| match &mut operation.result {
-                OperationResult::Structural(result) if result.place == place => Some(result),
+                OperationResult::Structural(result) if result.place == place => {
+                    Some((operation.id, &operation.kind, result))
+                }
                 _ => None,
             })
             .ok_or(LoweringError::Unsupported(
@@ -896,6 +907,32 @@ impl Emission<'_, '_, '_> {
             return unsupported("owned completion changes its established claim identities");
         }
         produced.claims = claims.to_vec();
+        if !matches!(
+            kind,
+            OperationKind::EstablishRecord { .. }
+                | OperationKind::EstablishStructuralCase { .. }
+                | OperationKind::EstablishStructuralArray { .. }
+                | OperationKind::EstablishZeroedStructural { .. }
+        ) {
+            // Calls classify introduction versus transport from their exact
+            // input claim roster; rebinding their result cannot introduce again.
+            return Ok(());
+        }
+        // Recursive literal children establish their own root claims. The
+        // containing construction only transports those names under its paths.
+        // The roster comes from exact checked establishment provenance, not
+        // the result type or whether a namespace name was already reserved.
+        for binding in claims.iter().filter(|binding| {
+            binding.path.is_empty() && direct_establishments.contains(&binding.claim)
+        }) {
+            let introduction = crate::emission::claim_bindings::ClaimIntroduction {
+                operation,
+                claim: binding.claim,
+            };
+            if !operations.claim_introductions.contains(&introduction) {
+                operations.claim_introductions.push(introduction);
+            }
+        }
         Ok(())
     }
 
@@ -1175,7 +1212,12 @@ impl Emission<'_, '_, '_> {
                                 .is_some_and(|result| result.place == place)
                     })
                 {
-                    Self::bind_completion_claims(self.operations, place, &self.completion_claims)?;
+                    Self::bind_completion_claims(
+                        self.operations,
+                        place,
+                        &self.completion_claims,
+                        &self.direct_establishments,
+                    )?;
                 }
                 Ok(place)
             })

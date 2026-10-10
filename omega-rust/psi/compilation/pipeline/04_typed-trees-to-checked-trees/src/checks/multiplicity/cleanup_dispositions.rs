@@ -127,6 +127,7 @@ impl RemainingCustody {
         output: &mut ContextualCleanupFacts,
         exit: FlowClaimJoinExit,
         establishments: &[StorageEstablishment],
+        selected: bool,
     ) {
         for (event_ordinal, event) in events.iter().enumerate() {
             if event.access != PermissionAccess::Owned {
@@ -161,7 +162,7 @@ impl RemainingCustody {
                         segments: output.segments.insert_many(path.iter().copied()),
                     })
                     .collect::<Vec<_>>();
-                output.dispositions.append(ContextualCleanupDisposition {
+                let disposition = output.dispositions.append(ContextualCleanupDisposition {
                     machine: event.machine_symbol,
                     state: event.state_symbol,
                     source: event.source,
@@ -171,6 +172,9 @@ impl RemainingCustody {
                     path: event.segments,
                     exclusions: output.exclusions.insert_many(exclusions),
                 });
+                if selected {
+                    output.selected_dispositions.append(disposition);
+                }
             }
             self.apply(program, event, path);
         }

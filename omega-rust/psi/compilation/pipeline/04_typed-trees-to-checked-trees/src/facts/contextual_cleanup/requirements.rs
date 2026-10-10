@@ -321,6 +321,12 @@ fn selected_requirements(
                     position
                 });
             let current = &mut occurrences[position].current;
+            let skipped = facts
+                .contextual_cleanup
+                .selected_dispositions
+                .iter()
+                .any(|(_, candidate)| *candidate == handle)
+                .then(|| current.clone());
             for selected in &hooks {
                 let hook = selected.machine;
                 let mut place = CanonicalPlace {
@@ -377,6 +383,9 @@ fn selected_requirements(
                 current.advance(program, facts, &summaries, call_frames.as_ref(), hook, &place).ok_or_else(|| vec![Diagnostic::error(
                     "cannot prove automatic cleanup requires: selected hook completion is unresolved",
                 )])?;
+            }
+            if let Some(skipped) = skipped {
+                current.join_skipped(&skipped);
             }
         }
     }

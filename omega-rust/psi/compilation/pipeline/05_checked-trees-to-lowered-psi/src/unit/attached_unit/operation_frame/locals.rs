@@ -299,7 +299,7 @@ impl OperationFrame<'_, '_> {
             source_value_count: self.source_value_count,
             calls: &mut *self.calls,
         };
-        self.windows.emit_move(
+        let place = self.windows.emit_move(
             identities,
             moved,
             result,
@@ -314,7 +314,15 @@ impl OperationFrame<'_, '_> {
             self.next_edge,
             self.next_place,
             self.operations,
-        )
+        )?;
+        crate::emission::claim_bindings::record_prepared_introductions(
+            self.operations,
+            place,
+            &prepared_claims,
+            &self.calls.claims,
+            crate::emission::claim_bindings::ClaimEstablishmentKind::DetachedValue,
+        )?;
+        Ok(place)
     }
 
     /// A window store evaluated through this frame, pairing the move.
@@ -921,6 +929,7 @@ impl OperationFrame<'_, '_> {
             identities,
             self.checked,
             cleanup_actions,
+            &[],
             &self
                 .checked
                 .facts

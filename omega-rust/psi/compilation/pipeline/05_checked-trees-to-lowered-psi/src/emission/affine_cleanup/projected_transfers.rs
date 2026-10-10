@@ -28,7 +28,7 @@ type Frontier = Vec<MovedRoot>;
 /// transfer once for both whole-home lifetime and residual completion. An owned
 /// descriptor does not own its referent or view elements: only inline storage
 /// selected from an owned declaration belongs to this home's complement.
-pub(super) fn owned_extractions(
+pub(crate) fn owned_extractions(
     parameters: &[StructuralParameterDeclaration],
     local_places: &[StructuralPlaceDeclaration],
     blocks: &[Block],

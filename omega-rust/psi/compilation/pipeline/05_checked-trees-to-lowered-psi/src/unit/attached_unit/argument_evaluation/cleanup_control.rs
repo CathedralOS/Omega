@@ -87,6 +87,7 @@ impl Evaluation {
                 });
             }
             regions.push(CleanupRegion {
+                selected_region: None,
                 conditions,
                 action: TerminalAffineCleanupAction::DiscardResidual(
                     terminal_psi::StructuralAffineDiscard {
@@ -156,7 +157,10 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<Vec<TerminalAffineCleanupAction>, LoweringError> {
-        if regions.iter().all(|region| region.conditions.is_empty()) {
+        if regions
+            .iter()
+            .all(|region| region.conditions.is_empty() && region.selected_region.is_none())
+        {
             return Ok(regions.into_iter().map(|region| region.action).collect());
         }
         self.continue_cleanup_regions(
@@ -177,6 +181,9 @@ impl Evaluation {
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         for region in &mut regions {
+            if let Some(selected) = &mut region.selected_region {
+                selected.place = self.current_structural_place(selected.place);
+            }
             let place = match &mut region.action {
                 TerminalAffineCleanupAction::DiscardRoot(place)
                 | TerminalAffineCleanupAction::RetireHome(place) => place,
@@ -284,9 +291,64 @@ impl CleanupEmission<'_> {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
-        self.cleanup_scope(
-            identities, regions, 0, values, next_value, next_block, next_edge, operations,
-        )
+        let mut remaining = regions;
+        while let Some(first) = remaining.first() {
+            let count = remaining
+                .iter()
+                .take_while(|region| region.selected_region == first.selected_region)
+                .count();
+            let group = &remaining[..count];
+            if let Some(region) = &first.selected_region {
+                // This is an internal static continuation choice. Both destinations
+                // receive the same already captured scalar/proof frame; no runtime
+                // ownership flag or source condition is introduced. Specialization
+                // removes the unused route before Terminal publication.
+                let types = values
+                    .iter()
+                    .map(|value| value.value_type())
+                    .collect::<Vec<_>>();
+                let entry = block_id(allocate_dense(next_block)?);
+                let entry_parameters = declarations(&types, next_value)?;
+                let bypass = block_id(allocate_dense(next_block)?);
+                let bypass_parameters = declarations(&types, next_value)?;
+                let edge = self.cleanup_jump(
+                    identities,
+                    entry,
+                    &entry_parameters,
+                    Vec::new(),
+                    Vec::new(),
+                    values,
+                    next_edge,
+                    operations,
+                )?;
+                operations.selected_cleanup_groups.push(
+                    crate::emission::selected_continuations::SelectedCleanupGroup {
+                        edge,
+                        region: region.clone(),
+                        bypass,
+                    },
+                );
+                self.cleanup_scope(
+                    identities, group, 0, values, next_value, next_block, next_edge, operations,
+                )?;
+                self.cleanup_jump(
+                    identities,
+                    bypass,
+                    &bypass_parameters,
+                    Vec::new(),
+                    Vec::new(),
+                    values,
+                    next_edge,
+                    operations,
+                )?;
+            } else {
+                self.cleanup_scope(
+                    identities, group, 0, values, next_value, next_block, next_edge, operations,
+                )?;
+            }
+            remaining = &remaining[count..];
+        }
+        Ok(())
     }
 
     fn proof_arguments(&self) -> Result<Vec<ProofTerm>, LoweringError> {
@@ -323,7 +385,7 @@ impl CleanupEmission<'_> {
             identities,
             continuation,
             &parameters,
-            Vec::new(),
+            actions,
             Vec::new(),
             values,
             next_edge,

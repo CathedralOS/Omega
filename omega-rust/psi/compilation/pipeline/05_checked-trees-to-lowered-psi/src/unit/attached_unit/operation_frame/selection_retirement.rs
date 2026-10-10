@@ -89,6 +89,7 @@ impl OperationFrame<'_, '_> {
                 }
                 retired.push((complement.selection, *residual, path.clone()));
                 regions.push(CleanupRegion {
+                    selected_region: None,
                     conditions,
                     action: TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
                         place,

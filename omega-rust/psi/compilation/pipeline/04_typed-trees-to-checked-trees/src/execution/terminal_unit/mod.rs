@@ -312,7 +312,7 @@ pub(crate) fn build_checked_unit_effect_plans(
             if normal.exit.kind != checked_trees::FlowClaimJoinExitKind::FinalExpression {
                 return None;
             }
-            Some((temporary, normal.actions.clone()))
+            Some((temporary, normal.clone()))
         })
         .collect::<Vec<_>>()
         .into_iter();
@@ -379,13 +379,15 @@ pub(crate) fn build_checked_unit_effect_plans(
             cleanup::temporary_actions::install(&mut plan.operations, selected);
             let Some(CheckedUnitEffectOperationPlan::Complete {
                 normal_cleanup_actions,
+                selected_normal_cleanup_sources,
                 trivial_affine_discards,
                 ..
             }) = plan.operations.last_mut()
             else {
                 return false;
             };
-            *normal_cleanup_actions = normal;
+            *normal_cleanup_actions = normal.actions;
+            *selected_normal_cleanup_sources = normal.selected_sources;
             // Parameter dispositions now have one authority and one schedule.
             // The former affine-only reconstruction must not dispose them again.
             trivial_affine_discards.clear();

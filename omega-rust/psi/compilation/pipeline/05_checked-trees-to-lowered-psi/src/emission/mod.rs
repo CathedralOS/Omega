@@ -31,6 +31,8 @@ use crate::terminal_identities::{
 
 pub(crate) mod affine_cleanup;
 pub(crate) mod claim_bindings;
+pub(crate) mod continuation_identities;
+pub(crate) mod continuation_specialization;
 pub(crate) mod control_flow;
 pub(crate) mod indexed_write;
 pub(crate) mod loan_completions;
@@ -39,6 +41,7 @@ pub(crate) mod primitive_store;
 pub(crate) mod private_borrow_transport;
 pub(crate) mod representation_view_store;
 pub(crate) mod runtime_elements;
+pub(crate) mod selected_continuations;
 pub(crate) mod structural_byte_sequence_store;
 pub(crate) mod structural_scalar_store;
 pub(crate) mod structural_scalar_store_source;

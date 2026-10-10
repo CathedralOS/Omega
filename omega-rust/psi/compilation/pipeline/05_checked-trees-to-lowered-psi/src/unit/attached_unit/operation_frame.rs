@@ -534,6 +534,7 @@ impl OperationFrame<'_, '_> {
                     identities,
                     self.checked,
                     vec![crate::unit::unit_cleanup::CleanupRegion {
+                        selected_region: None,
                         conditions: Vec::new(),
                         action: if path.is_empty() {
                             terminal_psi::TerminalAffineCleanupAction::DiscardRoot(source)

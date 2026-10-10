@@ -1142,6 +1142,13 @@ pub(crate) fn emit(
                 operations,
             )?;
             operations.set_structural_result_claims(construction.place, claims)?;
+            crate::emission::claim_bindings::record_prepared_introductions(
+                operations,
+                construction.place,
+                &construction.claims,
+                &calls.claims,
+                crate::emission::claim_bindings::ClaimEstablishmentKind::Construction,
+            )?;
             return Ok(());
         }
     };
@@ -1220,5 +1227,12 @@ pub(crate) fn emit(
         }
     };
     operations.set_structural_result_claims(construction.place, claims)?;
+    crate::emission::claim_bindings::record_prepared_introductions(
+        operations,
+        construction.place,
+        &construction.claims,
+        &calls.claims,
+        crate::emission::claim_bindings::ClaimEstablishmentKind::Construction,
+    )?;
     Ok(())
 }

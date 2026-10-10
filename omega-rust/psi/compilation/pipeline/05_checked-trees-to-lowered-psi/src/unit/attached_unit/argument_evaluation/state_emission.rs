@@ -254,7 +254,10 @@ pub(super) fn emit_state(
                 .collect::<Result<Vec<_>, _>>()?;
             let regions =
                 crate::unit::unit_cleanup::emit_prepared_cleanup_regions(cleanup_actions, calls)?;
-            let cleanup_actions = if regions.iter().any(|region| !region.conditions.is_empty()) {
+            let cleanup_actions = if regions
+                .iter()
+                .any(|region| !region.conditions.is_empty() || region.selected_region.is_some())
+            {
                 super::cleanup_control::CleanupEmission {
                     checked,
                     current: &mut block,

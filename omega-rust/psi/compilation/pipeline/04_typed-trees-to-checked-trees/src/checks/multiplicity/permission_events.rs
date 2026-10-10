@@ -57,6 +57,7 @@ pub(crate) fn prepare_permission_events(
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut cleanup_dispositions = ContextualCleanupFacts::default();
+    facts.flow.ownership.selected_cleanup_permissions = arena::Arena::default();
     let mut permission_events = Vec::new();
     let mut conditional_carrier_transfers = Vec::new();
     let mut selection_diagnostics = Vec::new();
@@ -238,9 +239,10 @@ pub(crate) fn prepare_permission_events(
                 places,
                 remaining,
                 owned_selection::SelectionOccurrences::default(),
+                super::selected_cleanup::SelectedCleanup::default(),
             ),
             |step, custody| {
-                let (places, remaining, selections) = custody;
+                let (places, remaining, selections, selected_cleanup) = custody;
                 super::permission_schedule::select_cases(program, state, step, places);
                 match step {
                     super::permission_schedule::PermissionStep::Evaluate {
@@ -291,6 +293,40 @@ pub(crate) fn prepare_permission_events(
                                 }
                             }
                         }
+                        let selected =
+                            crate::checks::ownership_occurrences::statement_steps_at_evaluation(
+                                program,
+                                machine,
+                                state,
+                                statement_index,
+                                &statements[statement_index],
+                                &moves,
+                                &facts.operators,
+                                Some(evaluation),
+                            )
+                            .into_iter()
+                            .filter_map(|occurrence| match occurrence.step {
+                                crate::checks::ownership_occurrences::StatementStep::Move {
+                                    event,
+                                    conditional: true,
+                                    ordered: true,
+                                } if moves[event].evaluation == evaluation => {
+                                    Some(moves[event].expression)
+                                }
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>();
+                        let has_selected_move = !selected.is_empty();
+                        let before_places = if has_selected_move {
+                            places.clone()
+                        } else {
+                            Vec::new()
+                        };
+                        let before_remaining = if has_selected_move {
+                            remaining.clone()
+                        } else {
+                            RemainingCustody::default()
+                        };
                         let event_start = permission_events.len();
                         remaining.reserve(program, &statements[statement_index]);
                         let storage_establishments = match apply_statement_permission_production(
@@ -342,6 +378,17 @@ pub(crate) fn prepare_permission_events(
                             &mut selection_diagnostics,
                             &mut cleanup_dispositions,
                         );
+                        if let Err(diagnostic) = selected_cleanup.observe(
+                            program,
+                            &selected,
+                            &before_places,
+                            &before_remaining,
+                            &permission_events[event_start..],
+                            &facts.flow.ownership.segments,
+                        ) {
+                            selection_diagnostics.push(diagnostic);
+                            return;
+                        }
                         remaining.observe(
                             program,
                             &permission_events[event_start..],
@@ -349,6 +396,7 @@ pub(crate) fn prepare_permission_events(
                             &mut cleanup_dispositions,
                             FlowClaimJoinExit::default(),
                             &storage_establishments,
+                            false,
                         );
                     }
                     super::permission_schedule::PermissionStep::Exit {
@@ -366,13 +414,15 @@ pub(crate) fn prepare_permission_events(
                             &mut facts.flow.ownership.segments,
                             &mut permission_events,
                         );
-                        remaining.observe(
+                        selected_cleanup.finish(
                             program,
-                            &permission_events[event_start..],
-                            &facts.flow.ownership.segments,
-                            &mut cleanup_dispositions,
+                            state,
+                            state_flow.machine_symbol,
                             coordinate,
-                            &[],
+                            &permission_events[event_start..],
+                            remaining,
+                            &mut facts.flow.ownership,
+                            &mut cleanup_dispositions,
                         );
                     }
                     super::permission_schedule::PermissionStep::Exit { crash: true, .. }

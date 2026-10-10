@@ -785,6 +785,7 @@ impl Expansion<'_> {
                     checked_trees::CheckedNormalCleanupAction::Discard(_) => {
                         PreparedNormalCleanupAction::Resolved(
                             crate::unit::unit_cleanup::CleanupRegion {
+                                selected_region: None,
                                 conditions,
                                 action: terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
                                     terminal_psi::StructuralAffineDiscard {

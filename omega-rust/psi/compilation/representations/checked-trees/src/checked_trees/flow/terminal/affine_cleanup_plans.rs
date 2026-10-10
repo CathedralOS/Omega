@@ -280,6 +280,10 @@ impl CheckedUnitNominalAffineCleanupPlan {
 /// These actions consume retained custody; they never establish entry premises.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedNormalExitCleanupPlan {
+    /// Candidate owners retained by source checking across selected transfers.
+    /// Their ordered actions run only where the exact emitted occurrence remains
+    /// live at this death edge; this roster grants no transfer or birth authority.
+    pub selected_sources: Vec<CheckedUnitStructuralArgumentSourcePlan>,
     pub exit: crate::FlowClaimJoinExit,
     pub actions: Vec<CheckedNormalCleanupAction>,
 }

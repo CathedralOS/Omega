@@ -772,16 +772,19 @@ defines the complete product bar.
   construction prefixes in
   [reverse establishment order](wiki/spec/language/ownership.md#construction-and-disposal-order).
   Crash/abort/process exit has no cleanup successor. Remaining work:
-  - Complete selected nominal-owner disposition at actual normal completion,
-    retaining each alternative's residual custody until its roots die in
-    reverse declaration order. The checked result-custody path still declines
-    a hook-bearing owner transferred only by a Boolean-selected call; disposing
-    that owner at the selection join would run its hook before newer roots.
-    Preserve `pass/ownership/runtime_selective_constructed_owner_custody_exit`
-    for no-code custody through Boolean selection, branch-only births, generic
-    records and field/indexed replacement before selected whole transfer.
-    Keep `fail/ownership/selective_constructed_owner_reuse` as the conservative
-    source-availability control after a possibly executed transfer.
+  - Extend selected cleanup to partial nominal regions and replacement of a
+    conditionally transferred owner. Preserve each occurrence's residual
+    custody until its actual normal death; neither a selection join nor a
+    later reread of the condition decides hook timing. Keep
+    `pass/drops/runtime_selected_nominal_owner_cleanup_exit` for whole-owner
+    Boolean selection, nested/branch-only births, overwritten conditions and
+    once-only argument effects followed by linear construction/forwarding.
+    Keep `fail/drops/selected_nominal_owner_keeps_cleanup_prerequisite` and
+    `fail/ownership/selective_constructed_owner_reuse` for skipped-path hook
+    prerequisites and conservative source availability. Preserve
+    `pass/ownership/runtime_selective_constructed_owner_custody_exit` for
+    no-code custody, generic records and field/indexed replacement before
+    selected whole transfer.
   - Qualify the ordered normal-edge cleanup plans in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/normal_edges.rs`
     on Windows and Linux, including abandoned construction prefixes and
@@ -824,6 +827,12 @@ defines the complete product bar.
     intact receiver also reaches `InvalidNominalAffineCleanup` in the retiring
     replay. Preserve receiver custody through the ordinary callable path as
     that replay is removed, rather than expanding its bounded receiver model.
+  - Admit eligible implicit cleanup of live linear children in a named
+    transparent container. A local `Envelope { receipt: Receipt { ... } }`
+    still reports child scope loss even when `Receipt::drop` is pure and
+    eligible; `linear_validation/affine_cleanup.rs` declines contained live
+    places without a tracked root. Keep exact child claims and ordered
+    recursive disposal, sharing the temporary-owner cleanup semantics.
   - Complete scalar materialization of moved linear places and claim-bearing
     call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path. Preserve the
     checked ordered temporary action roster and its scalar-call continuation in

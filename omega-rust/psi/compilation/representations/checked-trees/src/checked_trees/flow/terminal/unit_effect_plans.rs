@@ -386,6 +386,9 @@ pub enum CheckedUnitEffectOperationPlan {
         /// Checked normal-edge storage dispositions, including nominal hooks
         /// and linear claims. These retain the owner's selected action order.
         normal_cleanup_actions: Vec<crate::CheckedNormalCleanupAction>,
+        /// Exact candidate owners whose cleanup follows the selected live
+        /// frontier, with the same meaning as normal-edge `selected_sources`.
+        selected_normal_cleanup_sources: Vec<CheckedUnitStructuralArgumentSourcePlan>,
         /// Exact local declaration coordinates cleaned before parameters, in
         /// reverse declaration order.
         trivial_affine_local_discard_ordinals: Vec<u32>,
@@ -461,6 +464,7 @@ impl Default for CheckedStructuralValueCall {
             operation: CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 0,
                 normal_cleanup_actions: Vec::new(),
+                selected_normal_cleanup_sources: Vec::new(),
                 trivial_affine_local_discard_ordinals: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },

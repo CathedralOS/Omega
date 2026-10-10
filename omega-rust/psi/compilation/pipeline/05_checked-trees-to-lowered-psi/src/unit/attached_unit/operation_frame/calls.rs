@@ -812,6 +812,10 @@ impl OperationFrame<'_, '_> {
                 ))?;
                 Ok(Some(declaration))
             };
+        let direct_establishments = crate::emission::claim_bindings::direct_establishment_claims(
+            &prepared_claims,
+            &calls.claims,
+        )?;
         let declaration = structural_values::emit(
             identities,
             checked,
@@ -832,6 +836,7 @@ impl OperationFrame<'_, '_> {
             next_edge,
             operations,
             result_claims,
+            direct_establishments,
         )?;
         results.require_next(result, "structural value result binding is not dense")?;
         // A call-rooted value's place was catalogued by the call emitter

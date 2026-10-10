@@ -79,6 +79,22 @@ impl CurrentCleanupFacts {
             })
     }
 
+    /// A candidate owner may already have transferred. Preserve only facts
+    /// shared by executing its complete cleanup and skipping that cleanup;
+    /// possible writes still invalidate all later prerequisites.
+    pub(super) fn join_skipped(&mut self, skipped: &Self) {
+        self.contexts
+            .retain(|context| skipped.contexts.contains(context));
+        self.guarantees
+            .retain(|predicate| skipped.guarantees.contains(predicate));
+        self.opaque_write |= skipped.opaque_write;
+        for write in &skipped.writes {
+            if !self.writes.contains(write) {
+                self.writes.push(write.clone());
+            }
+        }
+    }
+
     pub(super) fn advance(
         &mut self,
         program: &dyn ::validation::CheckingInput,

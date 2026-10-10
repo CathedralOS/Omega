@@ -81,7 +81,9 @@ pub(in crate::unit::attached_unit::composed_control::state_graph) fn materialize
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     }];
-    let selected = regions.iter().any(|region| !region.conditions.is_empty());
+    let selected = regions
+        .iter()
+        .any(|region| !region.conditions.is_empty() || region.selected_region.is_some());
     let capture_operation_end = operations.len();
     let mut operation_start = capture_operation_end;
     let cleanup_actions = if selected {

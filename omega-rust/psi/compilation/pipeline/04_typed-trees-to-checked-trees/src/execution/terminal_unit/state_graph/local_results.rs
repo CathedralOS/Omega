@@ -96,8 +96,12 @@ fn validate(
     // Several producers may complete in this declaration's expression. Only
     // the one actually received by this local owns its lexical disposal;
     // a nested call or constructor operand belongs to its real consumer.
-    (result.multiplicity == Multiplicity::Affine
-        && result.local.is_named()
+    // Linear locals join the exact Consume/contextual-disposition receipt in
+    // the roster; their multiplicity never supplies disposal authority itself.
+    (matches!(
+        result.multiplicity,
+        Multiplicity::Affine | Multiplicity::Linear
+    ) && result.local.is_named()
         && result.local.symbol == local.symbol
         && disposable_locals.contains(&local.symbol))
     .then_some(())

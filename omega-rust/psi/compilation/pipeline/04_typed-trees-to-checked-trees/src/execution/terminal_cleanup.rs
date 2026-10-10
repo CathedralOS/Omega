@@ -540,6 +540,73 @@ pub(super) fn state_exit_result_locals(
         .flow
         .ownership
         .state_exit_cleanup_roots(machine.symbol, state.symbol)?
+        .into_iter()
+        .chain(
+            facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter_map(|(_, event)| {
+                    // Whole linear cleanup has an exact consumed claim and an
+                    // already selected contextual disposition. It is not an
+                    // affine discard or permission reconstructed from the type.
+                    (event.machine_symbol == machine.symbol
+                        && event.state_symbol == state.symbol
+                        && event.source == PermissionEventSource::StateExit
+                        && event.kind == PermissionEventKind::Consume
+                        && event.multiplicity == Multiplicity::Linear
+                        && event.access == PermissionAccess::Owned
+                        && event.claim_identity != PermissionClaimIdentity::Unknown
+                        && event.provenance != PermissionProvenance::Unknown
+                        && !event.obligation_live
+                        && event.segments.is_empty()
+                        && facts
+                            .contextual_cleanup
+                            .dispositions
+                            .iter()
+                            .any(|(_, disposition)| {
+                                let evaluation = match disposition.exit.kind {
+                                    checked_trees::FlowClaimJoinExitKind::TransitionTarget
+                                    | checked_trees::FlowClaimJoinExitKind::TransitionContinuation => {
+                                        let Some(StatementNode::Transition(transition)) =
+                                            statements.get(disposition.exit.statement_index)
+                                        else {
+                                            return false;
+                                        };
+                                        checked_trees::FlowPermissionEvaluation::TransitionTarget(
+                                            if disposition.exit.kind == checked_trees::FlowClaimJoinExitKind::TransitionTarget {
+                                                transition.target
+                                            } else {
+                                                transition.continuation
+                                            },
+                                        )
+                                    }
+                                    _ => checked_trees::FlowPermissionEvaluation::Statement,
+                                };
+                                disposition.machine == machine.symbol
+                                    && disposition.state == state.symbol
+                                    && disposition.exit.state_symbol == state.symbol
+                                    && disposition.source == PermissionEventSource::StateExit
+                                    && event.evaluation == evaluation
+                                    && disposition.root == event.root
+                                    && disposition.path.is_empty()
+                                    && disposition.exclusions.is_empty()
+                            }))
+                    .then_some(event)
+                }),
+        )
+        .chain(
+            facts
+                .flow
+                .ownership
+                .selected_cleanup_permissions
+                .iter()
+                .filter_map(|(_, event)| {
+                    (event.machine_symbol == machine.symbol && event.state_symbol == state.symbol)
+                        .then_some(event)
+                }),
+        )
     {
         let symbol = drop.root.as_symbol()?;
         // A closed-sum case dispatch consumes its subject directly — the
@@ -554,9 +621,12 @@ pub(super) fn state_exit_result_locals(
         {
             continue;
         }
-        if drop.multiplicity != Multiplicity::Affine
-            || drop.access != PermissionAccess::Owned
-            || drop.claim_identity != PermissionClaimIdentity::Unknown
+        if !matches!(
+            drop.multiplicity,
+            Multiplicity::Affine | Multiplicity::Linear
+        ) || drop.access != PermissionAccess::Owned
+            || (drop.multiplicity == Multiplicity::Affine
+                && drop.claim_identity != PermissionClaimIdentity::Unknown)
             || drop.obligation_live
         {
             return None;
@@ -569,7 +639,7 @@ pub(super) fn state_exit_result_locals(
         // its declaration identifies the one home normal-edge actions target.
         let (statement_index, local) = program.state_local_declaration(state, symbol)?;
         if local.symbol != symbol
-            || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
+            || program.type_multiplicity(local.type_reference) != drop.multiplicity
         {
             return None;
         }

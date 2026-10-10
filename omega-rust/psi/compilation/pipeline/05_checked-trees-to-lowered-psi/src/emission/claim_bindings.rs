@@ -9,6 +9,15 @@ use crate::terminal_identities::{allocate_dense, claim_id, lookup_claim_id};
 use language_semantics::PermissionClaimIdentity;
 use semantic_vocabulary::ClaimId;
 
+/// One exact producing operation defines this machine-local claim name.
+/// Namespace reservation is not an introduction; forwarded claims retain the
+/// incoming name when continuations specialize their producer occurrences.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ClaimIntroduction {
+    pub(crate) operation: semantic_vocabulary::OperationId,
+    pub(crate) claim: ClaimId,
+}
+
 /// The caller's claim namespace.
 pub(crate) enum ClaimBindings<'f> {
     /// The body's entry claims and its checked producer completion identities.
@@ -292,6 +301,9 @@ pub(crate) struct PreparedClaim {
     pub(crate) identity: PermissionClaimIdentity,
     pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
     fresh: bool,
+    /// Direct establishment by this statement, rather than reservation for a
+    /// completed child call whose claim this receiving owner only transports.
+    direct_establishment: bool,
 }
 
 pub(crate) struct PreparedClaimDisposition {
@@ -369,6 +381,12 @@ pub(crate) fn prepare_establishment_claims(
                 identity: event.claim_identity,
                 path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &path, structural_type, structural_types)?,
                 fresh: established_here,
+                direct_establishment: matches!(event.source, language_semantics::PermissionEventSource::Statement { .. })
+                    && event.provenance == language_semantics::PermissionProvenance::Established {
+                        machine_symbol: machine, state_symbol: state, source: event.source,
+                    }
+                    && matches!(event.claim_identity, PermissionClaimIdentity::Established { machine_symbol, state_symbol, source, .. }
+                        if machine_symbol == machine && state_symbol == state && source == event.source),
             })
         }).collect()
 }
@@ -383,6 +401,7 @@ pub(crate) fn claims_below_path(
             claim.path.strip_prefix(path).map(|suffix| PreparedClaim {
                 identity: claim.identity,
                 fresh: claim.fresh,
+                direct_establishment: claim.direct_establishment,
                 path: suffix.to_vec(),
             })
         })
@@ -452,4 +471,76 @@ pub(crate) fn claim_established_here(
                 }, PermissionClaimIdentity::Established { ordinal: identity_ordinal, .. })
                     if machine_symbol == machine && state_symbol == state
                         && received_at == statement_index && ordinal == identity_ordinal))
+}
+
+/// Construction transports contained child claims. Only its directly checked
+/// root establishment introduces a name. Borrowed extraction instead introduces
+/// every directly established detached claim; owned extraction preserves origins.
+#[derive(Clone, Copy)]
+pub(crate) enum ClaimEstablishmentKind {
+    Construction,
+    DetachedValue,
+}
+
+/// Retain source-authenticated direct establishments while recursive literal
+/// emission rebases their paths into each actual child producer.
+pub(crate) fn direct_establishment_claims(
+    prepared: &[PreparedClaim],
+    bindings: &ClaimBindings<'_>,
+) -> Result<Vec<ClaimId>, LoweringError> {
+    prepared
+        .iter()
+        .filter(|claim| claim.direct_establishment)
+        .map(|claim| lookup_claim_id(bindings.bindings(), claim.identity))
+        .collect()
+}
+
+pub(crate) fn record_prepared_introductions(
+    operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
+    place: semantic_vocabulary::PlaceId,
+    prepared: &[PreparedClaim],
+    bindings: &ClaimBindings<'_>,
+    kind: ClaimEstablishmentKind,
+) -> Result<(), LoweringError> {
+    let claims = prepared
+        .iter()
+        .filter(|claim| {
+            claim.direct_establishment
+                && (matches!(kind, ClaimEstablishmentKind::DetachedValue) || claim.path.is_empty())
+        })
+        .map(|claim| lookup_claim_id(bindings.bindings(), claim.identity))
+        .collect::<Result<Vec<_>, _>>()?;
+    if claims.is_empty() {
+        return Ok(());
+    }
+    let mut producers = operations.operations.iter().filter(|operation| {
+        operation
+            .result
+            .as_structural()
+            .is_some_and(|result| result.place == place)
+    });
+    let producer = producers.next().ok_or(LoweringError::Unsupported(
+        "claim introduction lost its exact producer",
+    ))?;
+    if producers.next().is_some() {
+        return unsupported("claim introduction has ambiguous producer");
+    }
+    let operation = producer.id;
+    if claims.iter().any(|claim| {
+        !producer
+            .result
+            .as_structural()
+            .expect("matched structural result")
+            .claims
+            .iter()
+            .any(|binding| binding.claim == *claim)
+    }) {
+        return unsupported("claim introduction is absent from its completed result");
+    }
+    for claim in claims {
+        operations
+            .claim_introductions
+            .push(ClaimIntroduction { operation, claim });
+    }
+    Ok(())
 }

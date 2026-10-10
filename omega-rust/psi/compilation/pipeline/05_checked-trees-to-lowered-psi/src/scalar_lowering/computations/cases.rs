@@ -557,6 +557,13 @@ pub(crate) fn emit(
             }
         },
     );
+    crate::emission::claim_bindings::record_prepared_introductions(
+        operations,
+        effect.place,
+        &effect.claims,
+        &calls.claims,
+        crate::emission::claim_bindings::ClaimEstablishmentKind::Construction,
+    )?;
     Ok(())
 }
 

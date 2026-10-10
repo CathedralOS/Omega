@@ -911,7 +911,7 @@ impl StateGraphEmission<'_, '_> {
         // old home; the authored successor receives only whole captures.
         if cleanup_regions
             .iter()
-            .any(|region| !region.conditions.is_empty())
+            .any(|region| !region.conditions.is_empty() || region.selected_region.is_some())
         {
             edge_evaluation.capture_cleanup_arguments(
                 identities,

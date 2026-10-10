@@ -62,6 +62,30 @@ pub(super) fn statement_steps(
     moves: &[crate::flow::DiscoveredMoveEvent],
     operators: &checked_trees::CheckedOperatorFacts,
 ) -> Vec<StatementOccurrence> {
+    statement_steps_at_evaluation(
+        program,
+        machine,
+        state,
+        statement_index,
+        statement,
+        moves,
+        operators,
+        None,
+    )
+}
+
+/// The permission schedule has already selected a transition target. Only
+/// selections inside that evaluation remain conditional for cleanup custody.
+pub(super) fn statement_steps_at_evaluation(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    statement: &StatementNode,
+    moves: &[crate::flow::DiscoveredMoveEvent],
+    operators: &checked_trees::CheckedOperatorFacts,
+    evaluation: Option<checked_trees::FlowPermissionEvaluation>,
+) -> Vec<StatementOccurrence> {
     let mut order = StatementOrder {
         program,
         state,
@@ -128,13 +152,17 @@ pub(super) fn statement_steps(
                 if !target.is_valid() {
                     continue;
                 }
+                let conditional = evaluation
+                    != Some(checked_trees::FlowPermissionEvaluation::TransitionTarget(
+                        target,
+                    ));
                 order.route.push(EvaluationBranch {
                     expression: ExpressionHandle::invalid(),
                     alternative,
                 });
                 match program.statement_table.transition_target(target) {
                     typed_trees::statement::TransitionTargetNode::Value(value) => {
-                        order.expression(*value, true)
+                        order.expression(*value, conditional)
                     }
                     // Transition arguments live in the statement table's
                     // handle arena, as statement-call arguments do; the
@@ -143,7 +171,7 @@ pub(super) fn statement_steps(
                     typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
                         let first = order.steps.len();
                         for argument in program.statement_table.expression_handles(*arguments) {
-                            order.expression(*argument, true);
+                            order.expression(*argument, conditional);
                         }
                         order.push(StatementStep::Complete(ExpressionHandle::invalid()));
                         order.hold_through_completion(first);

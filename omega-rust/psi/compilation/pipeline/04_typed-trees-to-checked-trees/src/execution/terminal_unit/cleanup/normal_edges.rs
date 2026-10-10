@@ -126,20 +126,22 @@ fn cleanup_rows(
         if !rows.iter().any(|row| row.exit == exit) {
             rows.push(CheckedNormalExitCleanupPlan {
                 exit,
+                selected_sources: Vec::new(),
                 actions: Vec::new(),
             });
         }
     }
     let mut retirements = Vec::new();
-    for (_, disposition) in facts
-        .contextual_cleanup
-        .dispositions
-        .iter()
-        .filter(|(_, row)| {
-            row.machine == machine
-                && row.state == state.symbol
-                && row.source == PermissionEventSource::StateExit
-        })
+    for (disposition_handle, disposition) in
+        facts
+            .contextual_cleanup
+            .dispositions
+            .iter()
+            .filter(|(_, row)| {
+                row.machine == machine
+                    && row.state == state.symbol
+                    && row.source == PermissionEventSource::StateExit
+            })
     {
         if disposition.exit.state_symbol != state.symbol {
             return None;
@@ -163,10 +165,19 @@ fn cleanup_rows(
             targets,
             shapes,
             disposition,
-            source,
+            source.clone(),
             None,
         )?;
         if let Some(row) = rows.iter_mut().find(|row| row.exit == disposition.exit) {
+            if facts
+                .contextual_cleanup
+                .selected_dispositions
+                .iter()
+                .any(|(_, candidate)| *candidate == disposition_handle)
+                && !row.selected_sources.contains(&source)
+            {
+                row.selected_sources.push(source.clone());
+            }
             row.actions.extend(actions);
         } else {
             return None;

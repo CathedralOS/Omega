@@ -112,6 +112,13 @@ pub(crate) fn emit(
                     }),
                     OperationKind::EstablishZeroedStructural {},
                 );
+                crate::emission::claim_bindings::record_prepared_introductions(
+                    operations,
+                    *place,
+                    claims,
+                    &calls.claims,
+                    crate::emission::claim_bindings::ClaimEstablishmentKind::Construction,
+                )?;
             }
             LoweredScalarEffect::EstablishScalarCase(case) => {
                 crate::scalar_lowering::computations::cases::emit(

@@ -489,6 +489,7 @@ pub(super) fn emit(
     };
     evaluation.remap_transported_call_operands(&mut operations);
     let mut external_result = None;
+    let mut parameter_cleanup = Vec::new();
     let (scalar_return, structural_return) = if let Some(terminator) =
         operations.take_external_completion(&mut next_edge)?
     {
@@ -570,6 +571,7 @@ pub(super) fn emit(
         };
         let Some(CheckedUnitEffectOperationPlan::Complete {
             normal_cleanup_actions,
+            selected_normal_cleanup_sources,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
             ..
@@ -592,7 +594,7 @@ pub(super) fn emit(
         // Preserve the checker's disposal authority, but delegate its scheduling
         // to the complete operation graph. Entry order is declaration order;
         // affine_cleanup reverses it for cleanup and reconciles selected transfers.
-        let mut parameter_cleanup = trivial_affine_discards
+        parameter_cleanup = trivial_affine_discards
             .iter()
             .map(|parameter_index| {
                 parameters
@@ -633,6 +635,7 @@ pub(super) fn emit(
                 &plan.operations,
                 &plan.structural_parameters,
             ),
+            selected_normal_cleanup_sources,
             &checked.facts.flow.terminal_unit_effects.cleanup_control,
             structural_types,
             type_ids,
@@ -852,7 +855,7 @@ pub(super) fn emit(
         cleanup_regions.extend(normal_regions);
         let cleanup_actions = if cleanup_regions
             .iter()
-            .any(|region| !region.conditions.is_empty())
+            .any(|region| !region.conditions.is_empty() || region.selected_region.is_some())
         {
             // Scalar return operands are already evaluated. Carry their actual
             // SSA values through cleanup rather than observing disposed storage
@@ -882,9 +885,9 @@ pub(super) fn emit(
                 checked,
                 cleanup_regions,
                 &mut scalar_result_values,
+                &mut next_value,
                 &mut next_block,
                 &mut next_edge,
-                &mut next_value,
                 &mut operations,
             )?;
             if let Some(position) = return_position {
@@ -931,18 +934,6 @@ pub(super) fn emit(
             },
         });
         evaluation.blocks.sort_by_key(|block| block.id);
-        // The emitted frontier completes checked no-code local/result custody
-        // and delegated parameter cleanup after selected operands and calls run.
-        // Nominal actions and loan continuations retain their ordered schedule.
-        crate::emission::affine_cleanup::complete(
-            &parameter_cleanup,
-            parameters,
-            &crate::emission::affine_cleanup::no_code_type_ids(checked, type_ids),
-            &local_places,
-            evaluation.entry,
-            &mut evaluation.blocks,
-            structural_types,
-        )?;
         (scalar_return, structural_return)
     };
     // Operand evaluation can reserve continuation blocks before their parents
@@ -950,6 +941,7 @@ pub(super) fn emit(
     // order, not emission order; abandonment must not skip this common seal.
     evaluation.blocks.sort_by_key(|block| block.id);
     next_operation = operations.next_identity;
+    let completes_normally = external_result.is_none();
     let declared_result = external_result.unwrap_or_else(|| {
         if let Some((_, result)) = scalar_return {
             TerminalMachineResult::Scalar(result)
@@ -984,12 +976,14 @@ pub(super) fn emit(
         })
         .collect::<Vec<_>>();
     let OperationBuffer {
-        scalar_block_invariants,
-        source_calls,
+        mut claim_introductions,
+        selected_cleanup_groups,
+        mut scalar_block_invariants,
+        mut source_calls,
         loan_completions,
-        selected_ieee_float_comparisons,
-        selected_integer_comparisons,
-        source_checked_obligations,
+        mut selected_ieee_float_comparisons,
+        mut selected_integer_comparisons,
+        mut source_checked_obligations,
         ..
     } = operations;
     let mut structural_places = parameters
@@ -1054,7 +1048,7 @@ pub(super) fn emit(
     let nominal_cleanup_subject =
         crate::machine_lowering::nominal_cleanup_subject(checked, plan.machine, type_ids)?;
     let attachment = attachment.or(nominal_cleanup_subject);
-    let machine = TerminalMachine {
+    let mut machine = TerminalMachine {
         declaration: None,
         closed_reach_application: None,
         declared_service_reach: lower_declared_service_reach(checked, plan.machine, service_ids)?,
@@ -1103,6 +1097,42 @@ pub(super) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
+    crate::emission::continuation_specialization::complete(
+        &mut machine,
+        &selected_cleanup_groups,
+        structural_types,
+        crate::emission::continuation_specialization::CompanionRows {
+            continuation_value_uses: &[],
+            claim_introductions: &mut claim_introductions,
+            source_calls: &mut source_calls,
+            scalar_block_invariants: &mut scalar_block_invariants,
+            qualification_coercions: &mut evaluation.qualification_coercions,
+            selected_ieee_float_comparisons: &mut selected_ieee_float_comparisons,
+            selected_integer_comparisons: &mut selected_integer_comparisons,
+            source_checked_obligations: &mut source_checked_obligations,
+        },
+        crate::emission::continuation_specialization::Counters {
+            next_place: &mut next_place,
+            next_value: &mut next_value,
+            next_block: &mut next_block,
+            next_edge: &mut next_edge,
+            next_operation: &mut next_operation,
+            next_obligation: &mut next_call_obligation,
+        },
+    )?;
+    // Nominal continuation specialization precedes the independent no-code
+    // carrier reconciliation. Both consume the same complete declaration roster.
+    if completes_normally {
+        crate::emission::affine_cleanup::complete(
+            &parameter_cleanup,
+            &machine.structural_parameters,
+            &crate::emission::affine_cleanup::no_code_type_ids(checked, type_ids),
+            &machine.structural_places,
+            machine.entry,
+            &mut machine.blocks,
+            structural_types,
+        )?;
+    }
     *place_counter = next_place;
     *value_counter = next_value;
     *block_counter = next_block;

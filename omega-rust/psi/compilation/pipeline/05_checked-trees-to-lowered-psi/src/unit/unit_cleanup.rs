@@ -38,6 +38,9 @@ pub(crate) struct CleanupCaseCondition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CleanupRegion {
+    /// Source-authorized conditional death of this exact occurrence. Lowering
+    /// specializes its enclosing continuation before publishing Terminal Psi.
+    pub(crate) selected_region: Option<terminal_psi::StructuralArgument>,
     pub(crate) conditions: Vec<CleanupCaseCondition>,
     pub(crate) action: terminal_psi::TerminalAffineCleanupAction,
 }
@@ -45,6 +48,7 @@ pub(crate) struct CleanupRegion {
 impl CleanupRegion {
     pub(crate) fn unconditional(action: terminal_psi::TerminalAffineCleanupAction) -> Self {
         Self {
+            selected_region: None,
             conditions: Vec::new(),
             action,
         }
@@ -155,6 +159,7 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
+    selected_sources: &[checked_trees::CheckedUnitStructuralArgumentSourcePlan],
     control: &checked_trees::CheckedCleanupControlPlans,
     types: &[terminal_psi::StructuralTypeDeclaration],
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
@@ -177,6 +182,16 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
         .into_iter()
         .map(|action| {
             let (place, path) = storage(identities, action.source(), action.path())?;
+            let selected_region = if selected_sources.contains(action.source()) {
+                let (place, path) = storage(identities, action.source(), &[])?;
+                Some(terminal_psi::StructuralArgument {
+                    place,
+                    path,
+                    access: terminal_psi::StructuralAccess::Owned,
+                })
+            } else {
+                None
+            };
             let conditions = lower_cleanup_conditions(
                 identities,
                 checked,
@@ -213,6 +228,7 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
                 }
             };
             Ok(CleanupRegion {
+                selected_region,
                 conditions,
                 action: lowered,
             })
@@ -471,6 +487,7 @@ pub(crate) fn emit_prepared_cleanup_regions(
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     CleanupRegion {
+                        selected_region: None,
                         conditions: conditions.clone(),
                         action: terminal_psi::TerminalAffineCleanupAction::InvokeNominal(action),
                     }

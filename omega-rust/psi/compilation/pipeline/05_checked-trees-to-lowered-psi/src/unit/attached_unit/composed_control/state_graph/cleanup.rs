@@ -267,6 +267,7 @@ pub(super) fn for_exit_regions(
             &state.operations,
             &state.structural_parameters,
         ),
+        &selected_exit.selected_sources,
         catalogs.cleanup_control,
         &catalogs.structural_types,
         &catalogs.type_ids,

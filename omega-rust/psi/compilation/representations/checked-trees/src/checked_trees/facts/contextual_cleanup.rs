@@ -13,6 +13,10 @@ use symbols::SymbolHandle;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContextualCleanupFacts {
     pub dispositions: Arena<ContextualCleanupDisposition>,
+    /// Exact candidate deaths for owners transferred on selected evaluation
+    /// paths. These share ordinary hook admission, but are not unconditional
+    /// permission events. Lowering must retain the selected live frontier.
+    pub selected_dispositions: Arena<Handle<ContextualCleanupDisposition>>,
     /// Source-to-instance correspondence produced by machine specialization.
     /// These join selected occurrences; they do not grant hook prerequisites.
     pub applications: Arena<ContextualCleanupApplication>,

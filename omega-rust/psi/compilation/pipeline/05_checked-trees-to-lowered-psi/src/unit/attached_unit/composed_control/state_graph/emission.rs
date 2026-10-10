@@ -588,12 +588,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         mut structural_places,
         mut blocks,
         mut scalar_block_invariants,
-        qualification_coercions,
+        mut qualification_coercions,
         loaned_local_homes,
         loan_chains,
         mut occurrences,
-        block_ranks,
-        rank_edges,
+        mut block_ranks,
+        mut rank_edges,
         ..
     } = emission;
     // A retained `requires` becomes the header's scalar block invariant:
@@ -788,6 +788,76 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &catalogs.structural_types,
     )?;
     loan_chains.finish(&mut machine, &state_ids, &live_states)?;
+    let continuation_value_uses = machine
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            block_ranks
+                .get(&block.id)
+                .copied()
+                .into_iter()
+                .chain(
+                    block
+                        .terminator
+                        .edges()
+                        .filter_map(|edge| rank_edges.get(&edge).map(|(rank, _)| *rank)),
+                )
+                .map(move |value| (block.id, value))
+        })
+        .collect::<Vec<_>>();
+    let mut continuation_maps = crate::emission::continuation_specialization::complete(
+        &mut machine,
+        &occurrences.selected_cleanup_groups,
+        &catalogs.structural_types,
+        crate::emission::continuation_specialization::CompanionRows {
+            continuation_value_uses: &continuation_value_uses,
+            claim_introductions: &mut occurrences.claim_introductions,
+            source_calls: &mut occurrences.source_calls,
+            scalar_block_invariants: &mut scalar_block_invariants,
+            qualification_coercions: &mut qualification_coercions,
+            selected_ieee_float_comparisons: &mut occurrences.selected_ieee_float_comparisons,
+            selected_integer_comparisons: &mut occurrences.selected_integer_comparisons,
+            source_checked_obligations: &mut occurrences.source_checked_obligations,
+        },
+        crate::emission::continuation_specialization::Counters {
+            next_place: &mut catalogs.next_place,
+            next_value: &mut catalogs.next_value,
+            next_block: &mut catalogs.next_block,
+            next_edge: &mut catalogs.next_edge,
+            next_operation: &mut catalogs.next_operation,
+            next_obligation: &mut catalogs.scalar_calls.next_call_obligation,
+        },
+    )?;
+    if !continuation_maps.is_empty() {
+        let original_states = std::mem::take(&mut occurrences.state_blocks);
+        let original_ranks = std::mem::take(&mut block_ranks);
+        let original_edges = std::mem::take(&mut rank_edges);
+        for namespace in &mut continuation_maps {
+            let [(original, physical)] = namespace.blocks.as_slice() else {
+                return unsupported("selected continuation has no unique owning block");
+            };
+            let (original, physical) = (*original, *physical);
+            for state in original_states
+                .iter()
+                .filter(|state| state.block == original)
+            {
+                occurrences
+                    .state_blocks
+                    .push(lowered_psi::LoweredStateBlock {
+                        block: physical,
+                        ..*state
+                    });
+            }
+            if let Some(rank) = original_ranks.get(&original) {
+                block_ranks.insert(physical, namespace.value(*rank));
+            }
+            for (original, physical) in namespace.edges.clone() {
+                if let Some((rank, comparison)) = original_edges.get(&original) {
+                    rank_edges.insert(physical, (namespace.value(*rank), *comparison));
+                }
+            }
+        }
+    }
     // Authored entry/local cleanup already belongs to the composed emitter.
     // Complete checked no-code carrier frontiers after private loans and their
     // continuations have reached their final emitted graph. Plain owned type
