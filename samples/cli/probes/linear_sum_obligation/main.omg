@@ -1,34 +1,15 @@
-// Path-sensitive linear obligations on sums: an affine sum carries
-// the obligation only in its Live case — `Empty` drops normally,
-// `Live` transfers the contained receipt through the whole sum and
-// is terminally consumed by the declared `settle` contract.
-//
-//   * `case Live(receipt: Receipt)` — linear payload in a sum.
-//   * `boundary requirement ReceiptState::settle` consumes the
-//     sum as a by-value subject.
-//
-// Compile-checked only: declaration surface (requirement has no
-// provider here), no standard-library dependency.
-
+// An affine sum carries a path-sensitive obligation only in its Live
+// case: `Empty` drops normally; `Live` transfers the contained receipt
+// through the whole sum and is explicitly settled.
 data Receipt [linear] { code: i32; }
-
 data ReceiptState {
     case Empty;
     case Live(receipt: Receipt);
 }
-
 boundary requirement ReceiptState::settle(state: ReceiptState);
-
-data Main { hits: i32 in Wrapping; }
-
-machine work() -> i32 {
+machine main() {
     let empty: ReceiptState = ReceiptState::Empty;
     let receipt: Receipt = Receipt { code: 7 };
     let live: ReceiptState = ReceiptState::Live { receipt: receipt };
     ReceiptState::settle(live);
-    0
-}
-
-machine Main::main(main: &mut Main) {
-    main.hits = work() as i32 in Wrapping;
 }

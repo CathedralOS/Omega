@@ -1,24 +1,9 @@
-# linear sum obligation
+# linear_sum_obligation
 
-Compile-scope probe. No standard-library dependency.
+`case Live(receipt: Receipt)` — an affine sum carries a path-sensitive
+linear obligation only in its Live arm: `Empty` drops normally; `Live`
+transfers the contained receipt through the whole sum and settles
+through `boundary requirement ReceiptState::settle(state)`.
 
-- linear_defer_assign: `let mut receipt: Receipt;` deferred
-  establishment — bare decl owns zeroed storage, assignment
-  creates the obligation; `boundary requirement T::ack` is the
-  only authorized disposition.
-- move_keyword: explicit `main.f = move replacement;` store-move
-  spelling.
-- linear_sum_obligation: affine sum carries the linear obligation
-  only in its Live case; `boundary requirement State::settle`
-  consumes the whole sum.
-- linear_domain_payloads: `[linear]` + `domain R::Issued` +
-  predicate `R::Extra` + conjunction `R::ExtraIssued = I & E`
-  + `Receipt in R::Issued` as field/array/sum payload + drop-plan
-  discharge inside a satisfies impl.
-
-Compile-checked only (no ProcessExit provider):
-
-```sh
-mbx run -p omega -- --check samples/cli/probes/linear_sum_obligation/main.omg
-mbx run -p omega -- update --project samples/cli/probes/linear_sum_obligation
-```
+Compile-checked only: no standard-library dependency and
+no `Main::exit` — run a check target, not native.

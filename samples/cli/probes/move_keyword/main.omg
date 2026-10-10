@@ -1,33 +1,20 @@
-// Explicit `move` spelling: `main.inventory = move replacement;`
-// marks the store as a move — the ownership lane still infers the
-// actual transfer from value flow; the keyword is documentation
-// the checker verifies.
-//
-//   * `let replacement: Inventory = main.inventory;` — copy out.
-//   * `move` on a field store target.
-//   * `hits` records the reached arm.
-//
-// Compile-checked only: no standard-library dependency, no
-// ProcessExit provider.
-
+// `main.inventory = move replacement;` — an owned value explicitly
+// spelled as moved into another location; the ownership lane still
+// infers the actual move from value flow.
 data Inventory {
     slots: i32;
 }
-
 data Main {
-    hits: i32 in Wrapping;
     inventory: Inventory;
 }
-
 machine Main::main(main: &mut Main) {
-    main.hits = 0;
     main.inventory.slots = 41;
     let replacement: Inventory = main.inventory;
     main.inventory = move replacement;
     transition main.inventory.slots == 41 {
-        true -> pass(main)
-        _ -> fail(main)
+        true -> done()
+        _ -> bad()
     }
-    state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    state done() {}
+    state bad() {}
 }
