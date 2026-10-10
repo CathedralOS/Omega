@@ -2,7 +2,7 @@
 //! seeding and transitive closure, nonzero-difference proofs, interval
 //! reads of polynomials, and substitution across the polynomial surface.
 use super::super::BigInt;
-use super::intervals::Interval;
+use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 use super::{Engine, Polynomial, SUBSTITUTION_ROUNDS, ZERO_ATOM};
 
 impl<'program> Engine<'program> {

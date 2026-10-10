@@ -26,6 +26,7 @@
 
 mod abstract_shift_count;
 mod assignments;
+mod bigint_interval;
 mod bitwise;
 mod call_result_bounds;
 mod cast_ranges;
@@ -52,6 +53,9 @@ mod ordered_values;
 mod place_paths;
 mod range_constraints;
 mod return_ranges;
+pub use bigint_interval::{
+    BigIntInterval, bitwise_and_constants, bitwise_carrier_bounds, floor_shift_right,
+};
 pub use interval::{Interval, WideInterval};
 pub use return_ranges::normal_return_integer_bounds;
 mod stored_integer_writes;

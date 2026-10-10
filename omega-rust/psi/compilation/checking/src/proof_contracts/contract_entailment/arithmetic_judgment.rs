@@ -5,7 +5,7 @@ use super::{
 mod difference_matrix;
 mod intervals;
 mod polynomial_bounds;
-use intervals::Interval;
+use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 mod mathematical_terms;
 mod strict_bindings;
 pub(super) enum Judgment {
