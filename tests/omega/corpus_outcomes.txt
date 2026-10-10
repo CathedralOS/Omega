@@ -5057,3 +5057,8 @@ fail/drops/selected_replacement_old_cleanup_prerequisite rejected 526ms expected
 	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing token.ready == true required by Token::drop clause `token.ready`
 fail/ownership/selected_partial_owner_reuse rejected 299ms expected @70cafb4c5975+wt
 	cannot use `pair.first.value` in machine `choose` state `entry` (statement 2) after `pair.first` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
+fail/slices/declared_window_does_not_inherit_builtin_extent rejected 518ms expected @160a8c7f13c4
+	cannot prove requires contract for call require_all from Main::main: selected.len == 4 (needs fact `bytes.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/slices/record_length_field_is_not_collection_extent rejected 517ms expected @160a8c7f13c4
+	cannot prove requires contract for call require_all from Main::main: prefix.len == 3 (needs fact `bytes.len == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+pass/borrows/runtime_measured_range_record_domains_exit checked 3655ms check-target:macos_arm64 @160a8c7f13c4
