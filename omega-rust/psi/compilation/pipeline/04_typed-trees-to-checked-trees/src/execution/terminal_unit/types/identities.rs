@@ -7,7 +7,9 @@ pub(in crate::execution::terminal_unit) fn terminal_field_identity(
     program: &dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<checked_trees::CheckedMemberIdentity> {
-    terminal_field_declaration(program, symbol).map(|field| checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone()))
+    terminal_field_declaration(program, symbol).map(|field| {
+        checked_trees::CheckedMemberIdentity::of_member(field.identity, field.name.clone())
+    })
 }
 
 /// Common and payload fields use the same declaration identity. The path's
@@ -238,18 +240,4 @@ pub(in crate::execution::terminal_unit) fn scalar_type(
             _ => return None,
         }
     }
-}
-
-pub(in crate::execution::terminal_unit) fn normalized_atom(tag: &str, value: &str) -> String {
-    let mut output = String::with_capacity(tag.len() + value.len() + 2);
-    output.push_str(tag);
-    output.push('(');
-    for character in value.chars() {
-        if matches!(character, '\\' | '(' | ')' | ',') {
-            output.push('\\');
-        }
-        output.push(character);
-    }
-    output.push(')');
-    output
 }

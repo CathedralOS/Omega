@@ -5,10 +5,9 @@ use super::{
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
-    ContractProofFactOwner, DataMember, DataShapeKind, ExpressionNode, Multiplicity,
-    PermissionAccess, PermissionClaimIdentity, PrimitiveType, ProofFact, SemanticDomainId,
-    SignatureContractKind, StateParameter, SymbolHandle, TypeConstraintNode, TypeReferenceHandle,
-    TypeReferenceNode,
+    ContractProofFactOwner, DataMember, DataShapeKind, Multiplicity, PermissionAccess,
+    PermissionClaimIdentity, PrimitiveType, ProofFact, SemanticDomainId, SignatureContractKind,
+    StateParameter, SymbolHandle, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use checked_trees::{
     CheckedStructuralPathQualification, CheckedUnitPartialAffineDiscardPlan,
